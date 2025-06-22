@@ -14,15 +14,12 @@ interface WalletConfig:
     def canTransferToRecipient(_recipient: address) -> bool: view
     def owner() -> address: view
 
-interface LegoRegistry:
-    def getLegoAddr(_legoId: uint256) -> address: view
-
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
     def deposit(): payable
 
-interface AddyRegistry:
-    def getAddy(_addyId: uint256) -> address: view
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 struct ActionData:
     undyHq: address
@@ -300,7 +297,7 @@ ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
 API_VERSION: constant(String[28]) = "0.0.4"
 
 # registry ids
-LEGO_REGISTRY_ID: constant(uint256) = 2
+LEGO_BOOK_ID: constant(uint256) = 4
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -492,7 +489,7 @@ def rebalanceYieldPosition(
     toVaultToken: address = empty(address)
     toVaultTokenAmountReceived: uint256 = 0
     cd.legoId = _toLegoId
-    cd.legoAddr = staticcall LegoRegistry(cd.legoRegistry).getLegoAddr(_toLegoId)
+    cd.legoAddr = staticcall Registry(cd.legoRegistry).getAddr(_toLegoId)
     underlyingAmount, toVaultToken, toVaultTokenAmountReceived = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraAddr, _extraVal, _extraData, False, cd)
 
     self._performPostActionTasks([underlyingAsset, _fromVaultToken, toVaultToken])
@@ -551,7 +548,7 @@ def _performSwapInstruction(
     _i: wi.SwapInstruction,
     _cd: ActionData,
 ) -> (address, uint256):
-    legoAddr: address = staticcall LegoRegistry(_cd.legoRegistry).getLegoAddr(_i.legoId)
+    legoAddr: address = staticcall Registry(_cd.legoRegistry).getAddr(_i.legoId)
     assert legoAddr != empty(address) # dev: invalid lego
 
     # tokens
@@ -1221,7 +1218,7 @@ def _performPreActionTasks(
     # get specific lego addr if specified
     if len(_legoIds) != 0:
         cd.legoId = _legoIds[0]
-        cd.legoAddr = staticcall LegoRegistry(cd.legoRegistry).getLegoAddr(cd.legoId)
+        cd.legoAddr = staticcall Registry(cd.legoRegistry).getAddr(cd.legoId)
         assert cd.legoAddr != empty(address) # dev: invalid lego
 
     # make sure lego can perform the action
@@ -1269,7 +1266,7 @@ def _getActionDataBundle() -> ActionData:
     walletConfig: address = self.walletConfig
     return ActionData(
         undyHq = undyHq,
-        legoRegistry = staticcall AddyRegistry(undyHq).getAddy(LEGO_REGISTRY_ID),
+        legoRegistry = staticcall Registry(undyHq).getAddr(LEGO_BOOK_ID),
         feeRecipient = self._getFeeRecipient(undyHq),
         wallet = self,
         walletConfig = walletConfig,

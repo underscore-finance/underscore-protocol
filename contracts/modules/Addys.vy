@@ -13,16 +13,24 @@ interface LegoBook:
 struct Addys:
     hq: address
     undyToken: address
+    ledger: address
+    missionControl: address
     legoBook: address
     switchboard: address
+    walletFactory: address
+    agentFactory: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
 
 # core addys
 UNDY_TOKEN_ID: constant(uint256) = 1
-LEGO_BOOK_ID: constant(uint256) = 2
-SWITCHBOARD_ID: constant(uint256) = 3
+LEDGER_ID: constant(uint256) = 2
+MISSION_CONTROL_ID: constant(uint256) = 3
+LEGO_BOOK_ID: constant(uint256) = 4
+SWITCHBOARD_ID: constant(uint256) = 5
+WALLET_FACTORY_ID: constant(uint256) = 6
+AGENT_FACTORY_ID: constant(uint256) = 7
 
 
 @deploy
@@ -57,8 +65,12 @@ def _generateAddys() -> Addys:
     return Addys(
         hq=hq,
         undyToken=staticcall UndyHq(hq).getAddr(UNDY_TOKEN_ID),
+        ledger=staticcall UndyHq(hq).getAddr(LEDGER_ID),
+        missionControl=staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),
         legoBook=staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
         switchboard=staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),
+        walletFactory=staticcall UndyHq(hq).getAddr(WALLET_FACTORY_ID),
+        agentFactory=staticcall UndyHq(hq).getAddr(AGENT_FACTORY_ID),
     )
 
 
@@ -132,6 +144,36 @@ def _isSwitchboardAddr(_addr: address) -> bool:
 ###############
 
 
+# ledger
+
+
+@view
+@internal
+def _getLedgerId() -> uint256:
+    return LEDGER_ID
+
+
+@view
+@internal
+def _getLedgerAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEDGER_ID)
+
+
+# mission control
+
+
+@view
+@internal
+def _getMissionControlId() -> uint256:
+    return MISSION_CONTROL_ID
+
+
+@view
+@internal
+def _getMissionControlAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MISSION_CONTROL_ID)
+
+
 # lego book
 
 
@@ -160,4 +202,37 @@ def _getSwitchboardId() -> uint256:
 @internal
 def _getSwitchboardAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)
+
+
+# wallet factory
+
+
+@view
+@internal
+def _getWalletFactoryId() -> uint256:
+    return WALLET_FACTORY_ID
+
+
+@view
+@internal
+def _getWalletFactoryAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_FACTORY_ID)
+
+
+# agent factory
+
+
+@view
+@internal
+def _getAgentFactoryId() -> uint256:
+    return AGENT_FACTORY_ID
+
+
+@view
+@internal
+def _getAgentFactoryAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(AGENT_FACTORY_ID)
+
+
+
 
