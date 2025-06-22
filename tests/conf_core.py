@@ -1,0 +1,156 @@
+import pytest
+import boa
+
+from config.BluePrint import PARAMS
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
+
+
+###########
+# Undy HQ #
+###########
+
+
+@pytest.fixture(scope="session")
+def undy_hq_deploy(deploy3r, fork, undy_token):
+    return boa.load(
+        "contracts/registries/UndyHq.vy",
+        undy_token,
+        deploy3r,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="undy_hq",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def undy_hq(
+    undy_hq_deploy,
+    undy_token,
+    switchboard,
+    lego_book,
+    deploy3r,
+    governance
+):
+    # finish token setup
+    assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
+
+    # registries
+
+    # 2
+    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 2
+
+    # 3
+    assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 3
+
+    # special permission setup
+
+    # switchboard can set token blacklists
+    undy_hq_deploy.initiateHqConfigChange(3, False, True, sender=deploy3r)
+    assert undy_hq_deploy.confirmHqConfigChange(3, sender=deploy3r)
+
+    # finish undy hq setup
+    assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
+    assert undy_hq_deploy.finishUndyHqSetup(governance, sender=deploy3r)
+
+    return undy_hq_deploy
+
+
+##########
+# Tokens #
+##########
+
+
+@pytest.fixture(scope="session")
+def undy_token(deploy3r, fork, whale):
+    return boa.load(
+        "contracts/tokens/UndyToken.vy",
+        ZERO_ADDRESS,
+        deploy3r,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        10_000_000 * EIGHTEEN_DECIMALS,
+        whale,
+        name="undy_token",
+    )
+
+
+######################
+# Switchboard Config #
+######################
+
+
+@pytest.fixture(scope="session")
+def switchboard_deploy(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/Switchboard.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="switchboard",
+    )
+
+
+@pytest.fixture(scope="session")
+def switchboard(switchboard_deploy, deploy3r, switchboard_alpha):
+
+    # alpha
+    assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_alpha, "Alpha", sender=deploy3r)
+    assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_alpha, sender=deploy3r) == 1
+
+    # finish setup
+    assert switchboard_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
+
+    # finish setup on switchboard config contracts
+    assert switchboard_alpha.setActionTimeLockAfterSetup(sender=deploy3r)
+
+    return switchboard_deploy
+
+
+# switchboard alpha
+
+
+@pytest.fixture(scope="session")
+def switchboard_alpha(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/config/SwitchboardAlpha.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="switchboard_alpha",
+    )
+
+
+#########
+# Legos #
+#########
+
+
+# lego book
+
+
+@pytest.fixture(scope="session")
+def lego_book_deploy(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/LegoBook.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="lego_book",
+    )
+
+
+@pytest.fixture(scope="session")
+def lego_book(lego_book_deploy, deploy3r):
+
+    # # register lego
+    # assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=deploy3r)
+    # assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=deploy3r) == 1
+
+    # finish registry setup
+    assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
+
+    return lego_book_deploy

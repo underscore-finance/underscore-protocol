@@ -1,0 +1,15 @@
+# python
+.env
+.venv
+.pytest_cache
+__pycache__
+.hypothesis/
+
+# dev environment
+.vscode
+
+.DS_Store
+
+out/
+
+migration_history/dev

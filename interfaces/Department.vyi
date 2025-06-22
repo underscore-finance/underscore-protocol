@@ -1,0 +1,38 @@
+# @version 0.4.1
+
+
+###########
+# Minting #
+###########
+
+
+@view
+@external
+def canMintUndy() -> bool:
+    # used in UndyHq.vy
+    ...
+
+
+########
+# Undy #
+########
+
+
+@view
+@external
+def isPaused() -> bool:
+    ...
+
+
+@external
+def pause(_shouldPause: bool):
+    ...
+
+
+@external
+def recoverFunds(_recipient: address, _asset: address):
+    ...
+
+@external
+def recoverFundsMany(_recipient: address, _assets: DynArray[address, 20]):
+    ...
