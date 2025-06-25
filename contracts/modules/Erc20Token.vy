@@ -1,4 +1,4 @@
-# @version 0.4.1
+# @version 0.4.3
 
 implements: IERC20
 from ethereum.ercs import IERC20

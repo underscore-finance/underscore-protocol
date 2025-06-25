@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from config.BluePrint import PARAMS
+from config.BluePrint import PARAMS, TOKENS
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
 
 
@@ -31,20 +31,37 @@ def undy_hq(
     switchboard,
     lego_book,
     deploy3r,
-    governance
+    governance,
+    ledger,
+    mission_control,
+    hatchery,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
 
-    # registries
+    # data
 
     # 2
-    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 2
+    assert undy_hq_deploy.startAddNewAddressToRegistry(ledger, "Ledger", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(ledger, sender=deploy3r) == 2
 
     # 3
+    assert undy_hq_deploy.startAddNewAddressToRegistry(mission_control, "Mission Control", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(mission_control, sender=deploy3r) == 3
+
+    # registries
+
+    # 4
+    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 4
+
+    # 5
     assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 3
+    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 5
+
+    # 6
+    assert undy_hq_deploy.startAddNewAddressToRegistry(hatchery, "Hatchery", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 6
 
     # special permission setup
 
@@ -72,9 +89,38 @@ def undy_token(deploy3r, fork, whale):
         deploy3r,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
-        10_000_000 * EIGHTEEN_DECIMALS,
-        whale,
+        0,
+        ZERO_ADDRESS,
         name="undy_token",
+    )
+
+
+########
+# Data #
+########
+
+
+# ledger
+
+
+@pytest.fixture(scope="session")
+def ledger(undy_hq_deploy):
+    return boa.load(
+        "contracts/data/Ledger.vy",
+        undy_hq_deploy,
+        name="ledger",
+    )
+
+
+# mission control
+
+
+@pytest.fixture(scope="session")
+def mission_control(undy_hq_deploy):
+    return boa.load(
+        "contracts/data/MissionControl.vy",
+        undy_hq_deploy,
+        name="mission_control",
     )
 
 
@@ -154,3 +200,41 @@ def lego_book(lego_book_deploy, deploy3r):
     assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
 
     return lego_book_deploy
+
+
+########
+# Core #
+########
+
+
+# hatchery
+
+
+@pytest.fixture(scope="session")
+def hatchery(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/Hatchery.vy",
+        undy_hq_deploy,
+        TOKENS[fork]["WETH"],
+        name="hatchery",
+    )
+
+
+#############
+# Templates #
+#############
+
+
+@pytest.fixture(scope="session")
+def user_wallet_template():
+    return boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
+
+
+@pytest.fixture(scope="session")
+def user_wallet_config_template():
+    return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+
+
+@pytest.fixture(scope="session")
+def agent_template():
+    return boa.load_partial("contracts/core/agent/Agent.vy").deploy_as_blueprint()

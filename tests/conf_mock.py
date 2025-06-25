@@ -45,6 +45,11 @@ def whale(env):
     return env.generate_address("whale")
 
 
+@pytest.fixture(scope="session")
+def agent(env):
+    return env.generate_address("agent")
+
+
 ##########
 # Assets #
 ##########

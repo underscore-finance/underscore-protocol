@@ -1,5 +1,5 @@
 import pytest
-from constants import HUNDRED_PERCENT
+from constants import HUNDRED_PERCENT, EIGHTEEN_DECIMALS
 
 
 def filter_logs(contract, event_name, _strict=False):
@@ -16,3 +16,35 @@ def _test():
             assert _expectedValue + buffer >= _actualValue >= _expectedValue - buffer
 
     yield _test
+
+
+##########
+# Config #
+##########
+
+
+@pytest.fixture(scope="session")
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, agent):
+    def setUserWalletConfig(
+        _defaultAgent = agent,
+        _walletTemplate = user_wallet_template,
+        _configTemplate = user_wallet_config_template,
+        _trialAsset = alpha_token,
+        _trialAmount = 10 * EIGHTEEN_DECIMALS,
+        _numUserWalletsAllowed = 100,
+        _enforceCreatorWhitelist = False,
+        _minTimeLock = 10,
+        _maxTimeLock = 100,
+    ):
+        config = (
+            _defaultAgent,
+            _walletTemplate,
+            _configTemplate,
+            _trialAsset,
+            _trialAmount,
+            _numUserWalletsAllowed,
+            _enforceCreatorWhitelist,
+        )
+        mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
+        mission_control.setTimeLockBoundaries(_minTimeLock, _maxTimeLock, sender=switchboard_alpha.address)
+    yield setUserWalletConfig

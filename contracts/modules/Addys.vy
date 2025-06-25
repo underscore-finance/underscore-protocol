@@ -1,4 +1,4 @@
-# @version 0.4.1
+# @version 0.4.3
 
 interface UndyHq:
     def isValidAddr(_addr: address) -> bool: view
@@ -17,8 +17,7 @@ struct Addys:
     missionControl: address
     legoBook: address
     switchboard: address
-    walletFactory: address
-    agentFactory: address
+    hatchery: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -29,8 +28,7 @@ LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
 SWITCHBOARD_ID: constant(uint256) = 5
-WALLET_FACTORY_ID: constant(uint256) = 6
-AGENT_FACTORY_ID: constant(uint256) = 7
+HATCHERY_ID: constant(uint256) = 6
 
 
 @deploy
@@ -69,8 +67,7 @@ def _generateAddys() -> Addys:
         missionControl=staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),
         legoBook=staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
         switchboard=staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),
-        walletFactory=staticcall UndyHq(hq).getAddr(WALLET_FACTORY_ID),
-        agentFactory=staticcall UndyHq(hq).getAddr(AGENT_FACTORY_ID),
+        hatchery=staticcall UndyHq(hq).getAddr(HATCHERY_ID),
     )
 
 
@@ -204,35 +201,16 @@ def _getSwitchboardAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)
 
 
-# wallet factory
+# hatchery
 
 
 @view
 @internal
-def _getWalletFactoryId() -> uint256:
-    return WALLET_FACTORY_ID
+def _getHatcheryId() -> uint256:
+    return HATCHERY_ID
 
 
 @view
 @internal
-def _getWalletFactoryAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_FACTORY_ID)
-
-
-# agent factory
-
-
-@view
-@internal
-def _getAgentFactoryId() -> uint256:
-    return AGENT_FACTORY_ID
-
-
-@view
-@internal
-def _getAgentFactoryAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(AGENT_FACTORY_ID)
-
-
-
-
+def _getHatcheryAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HATCHERY_ID)

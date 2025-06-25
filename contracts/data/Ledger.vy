@@ -1,4 +1,4 @@
-# @version 0.4.1
+# @version 0.4.3
 
 implements: Department
 
@@ -12,13 +12,22 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
-# user wallets
+struct UserWalletData:
+    ambassador: address
+    depositPoints: uint256
+
+# user wallet data
+userWalletData: public(HashMap[address, UserWalletData]) # user wallet -> data
+
+# user wallets (iterable)
 userWallets: public(HashMap[uint256, address]) # index -> user wallet
 indexOfUserWallet: public(HashMap[address, uint256]) # user wallet -> index
 numUserWallets: public(uint256) # num userWallets
 
-# locked
-isLockedSigner: public(HashMap[address, bool]) # signer -> is locked
+# agents (iterable)
+agents: public(HashMap[uint256, address]) # index -> agent
+indexOfAgent: public(HashMap[address, uint256]) # agent -> index
+numAgents: public(uint256) # num agents
 
 
 @deploy
@@ -33,8 +42,8 @@ def __init__(_undyHq: address):
 
 
 @external
-def createUserWallet(_user: address):
-    assert msg.sender == addys._getWalletFactoryAddr() # dev: only wallet factory allowed
+def createUserWallet(_user: address, _ambassador: address):
+    assert msg.sender == addys._getHatcheryAddr() # dev: only hatchery allowed
     assert not deptBasics.isPaused # dev: not activated
 
     wid: uint256 = self.numUserWallets
@@ -43,6 +52,12 @@ def createUserWallet(_user: address):
     self.userWallets[wid] = _user
     self.indexOfUserWallet[_user] = wid
     self.numUserWallets = wid + 1
+
+    # set data
+    self.userWalletData[_user] = UserWalletData(
+        ambassador = _ambassador,
+        depositPoints = 0,
+    )
 
 
 # utils
@@ -70,12 +85,42 @@ def isUserWallet(_user: address) -> bool:
 
 
 ##########
-# Locked #
+# Agents #
 ##########
 
 
 @external
-def setLockedSigner(_signer: address, _isLocked: bool):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+def createAgent(_agent: address):
+    assert msg.sender == addys._getHatcheryAddr() # dev: only hatchery allowed
     assert not deptBasics.isPaused # dev: not activated
-    self.isLockedSigner[_signer] = _isLocked
+
+    aid: uint256 = self.numAgents
+    if aid == 0:
+        aid = 1 # not using 0 index
+    self.agents[aid] = _agent
+    self.indexOfAgent[_agent] = aid
+    self.numAgents = aid + 1
+
+
+# utils
+
+
+@view
+@external
+def getNumAgents() -> uint256:
+    return self._getNumAgents()
+
+
+@view
+@internal
+def _getNumAgents() -> uint256:
+    numAgents: uint256 = self.numAgents
+    if numAgents == 0:
+        return 0
+    return numAgents - 1
+
+
+@view
+@external
+def isAgent(_agent: address) -> bool:
+    return self.indexOfAgent[_agent] != 0

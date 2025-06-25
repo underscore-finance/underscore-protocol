@@ -1,4 +1,4 @@
-# @version 0.4.1
+# @version 0.4.3
 
 interface UndyHq:
     def minGovChangeTimeLock() -> uint256: view

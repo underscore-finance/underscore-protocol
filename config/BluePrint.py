@@ -23,3 +23,19 @@ PARAMS = {
         "GEN_MAX_CONFIG_TIMELOCK": 302_400,
     },
 }
+
+
+TOKENS = {
+    "base": {
+        # important tokens / representations
+        "WETH": "0x4200000000000000000000000000000000000006",
+        "ETH": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "BTC": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+    },
+    "local": {
+        # important tokens / representations
+        "WETH": "0x4200000000000000000000000000000000000006",
+        "ETH": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "BTC": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+    },
+}

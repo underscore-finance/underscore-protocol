@@ -1,4 +1,4 @@
-# @version 0.4.1
+# @version 0.4.3
 
 exports: token.__interface__
 initializes: token

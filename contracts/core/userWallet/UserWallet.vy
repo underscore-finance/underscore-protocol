@@ -1,5 +1,4 @@
-# @version 0.4.1
-# pragma optimize codesize
+# @version 0.4.3
 
 implements: wi
 from interfaces import Wallet as wi
@@ -29,7 +28,7 @@ struct ActionData:
     walletConfig: address
     walletOwner: address
     trialFundsAsset: address
-    trialFundsInitialAmount: uint256
+    trialFundsAmount: uint256
     signer: address
     isSignerAgent: bool
     legoId: uint256
@@ -285,7 +284,7 @@ numAssets: public(uint256) # num assets
 
 # trial funds info
 trialFundsAsset: public(address)
-trialFundsInitialAmount: public(uint256)
+trialFundsAmount: public(uint256)
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
@@ -294,9 +293,7 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
-API_VERSION: constant(String[28]) = "0.0.4"
-
-# registry ids
+API_VERSION: constant(String[28]) = "0.1.0"
 LEGO_BOOK_ID: constant(uint256) = 4
 
 UNDY_HQ: public(immutable(address))
@@ -309,7 +306,7 @@ def __init__(
     _wethAddr: address,
     _walletConfig: address,
     _trialFundsAsset: address,
-    _trialFundsInitialAmount: uint256,
+    _trialFundsAmount: uint256,
 ):
     assert empty(address) not in [_undyHq, _wethAddr, _walletConfig] # dev: invalid addrs
     self.walletConfig = _walletConfig
@@ -318,9 +315,9 @@ def __init__(
     WETH = _wethAddr
 
     # trial funds info
-    if _trialFundsAsset != empty(address) and _trialFundsInitialAmount != 0:   
+    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
         self.trialFundsAsset = _trialFundsAsset
-        self.trialFundsInitialAmount = _trialFundsInitialAmount
+        self.trialFundsAmount = _trialFundsAmount
 
 
 @payable
@@ -1272,7 +1269,7 @@ def _getActionDataBundle() -> ActionData:
         walletConfig = walletConfig,
         walletOwner = staticcall WalletConfig(walletConfig).owner(),
         trialFundsAsset = self.trialFundsAsset,
-        trialFundsInitialAmount = self.trialFundsInitialAmount,
+        trialFundsAmount = self.trialFundsAmount,
         signer = empty(address),
         isSignerAgent = False,
         legoId = 0,
