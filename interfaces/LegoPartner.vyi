@@ -1,13 +1,6 @@
 # @version 0.4.3
 
-flag ActionType:
-    EARN
-    EXCHANGE
-    DEBT
-    LIQUIDITY
-    TRANSFER
-    REWARDS
-    WETH_WRAP
+from interfaces import Wallet as wi
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -28,7 +21,7 @@ def removeLiquidity(_pool: address, _tokenA: address, _tokenB: address, _lpToken
     ...
 
 @external
-def mintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _tokenInAmount: uint256, _minAmountOut: uint256, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> (uint256, uint256):
+def mintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _tokenInAmount: uint256, _minAmountOut: uint256, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> (uint256, uint256, bool):
     ...
 
 @external
@@ -69,5 +62,5 @@ def addCollateral(_asset: address, _amount: uint256, _extraAddr: address, _extra
 
 @view
 @external
-def getAccessForLego(_user: address, _action: ActionType) -> (address, String[64], uint256):
+def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String[64], uint256):
     ...

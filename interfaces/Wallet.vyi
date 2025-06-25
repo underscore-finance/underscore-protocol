@@ -1,5 +1,25 @@
 # @version 0.4.3
 
+flag ActionType:
+    EARN_DEPOSIT
+    EARN_WITHDRAW
+    EARN_REBALANCE
+    SWAP
+    MINT_REDEEM
+    CONFIRM_MINT_REDEEM
+    ADD_COLLATERAL
+    REMOVE_COLLATERAL
+    BORROW
+    REPAY_DEBT
+    ADD_LIQ
+    ADD_LIQ_CONC
+    REMOVE_LIQ
+    REMOVE_LIQ_CONC
+    TRANSFER
+    REWARDS
+    ETH_TO_WETH
+    WETH_TO_ETH
+
 struct ActionData:
     undyHq: address
     legoRegistry: address
@@ -112,7 +132,7 @@ def mintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256):
+) -> (uint256, uint256, bool):
     ...
 
 

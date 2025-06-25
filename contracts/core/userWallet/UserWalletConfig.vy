@@ -39,7 +39,7 @@ owner: public(address)
 wallet: public(address)
 
 # config
-timeLock: public(uint256) # num blocks!
+timeLock: public(uint256)
 pendingOwner: public(PendingOwnerChange)
 didSetWallet: public(bool)
 

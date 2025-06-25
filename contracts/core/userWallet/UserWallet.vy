@@ -9,7 +9,7 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletConfig:
-    def canAccessWallet(_signer: address, _action: Lego.ActionType, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS]) -> bool: view
+    def canAccessWallet(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS]) -> bool: view
     def canTransferToRecipient(_recipient: address) -> bool: view
     def owner() -> address: view
 
@@ -107,6 +107,7 @@ event AssetMintedOrRedeemed:
     tokenInAmount: uint256
     tokenOut: indexed(address)
     tokenOutAmount: uint256
+    isPending: bool
     extraAddr: address
     extraVal: uint256
     extraData: bytes32
@@ -358,7 +359,7 @@ def depositForYield(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EARN, False, [_asset], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_DEPOSIT, False, [_asset], [_legoId])
     return self._depositForYield(_asset, _vaultAddr, _amount, _extraAddr, _extraVal, _extraData, True, cd)
 
 
@@ -414,7 +415,7 @@ def withdrawFromYield(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EARN, False, [_vaultToken], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
     return self._withdrawFromYield(_vaultToken, _amount, _extraAddr, _extraVal, _extraData, True, cd)
 
 
@@ -474,7 +475,7 @@ def rebalanceYieldPosition(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EARN, False, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_REBALANCE, False, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
 
     # withdraw
     vaultTokenAmountBurned: uint256 = 0
@@ -507,7 +508,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
 
     # action data bundle
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EXCHANGE, False, [tokenIn, tokenOut], legoIds)
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.SWAP, False, [tokenIn, tokenOut], legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
 
     # perform swaps
@@ -523,7 +524,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 
     # TODO: handle tx fees
     # if cd.isSignerAgent:
-    #     self._handleTransactionFees(Lego.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
+    #     self._handleTransactionFees(wi.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
 
     self._performPostActionTasks([tokenIn, tokenOut])
     log OverallSwapPerformed(
@@ -614,13 +615,14 @@ def mintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EXCHANGE, False, [_tokenIn, _tokenOut], [_legoId])
+) -> (uint256, uint256, bool):
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.MINT_REDEEM, False, [_tokenIn, _tokenOut], [_legoId])
 
     # mint
     tokenInAmount: uint256 = self._getAmountAndApprove(_tokenIn, _amountIn, cd.legoAddr) # doing approval here
     tokenOutAmount: uint256 = 0
-    tokenInAmount, tokenOutAmount = extcall Lego(cd.legoAddr).mintOrRedeemAsset(_tokenIn, _tokenOut, tokenInAmount, _minAmountOut, _extraAddr, _extraVal, _extraData, self)
+    isPending: bool = False
+    tokenInAmount, tokenOutAmount, isPending = extcall Lego(cd.legoAddr).mintOrRedeemAsset(_tokenIn, _tokenOut, tokenInAmount, _minAmountOut, _extraAddr, _extraVal, _extraData, self)
     assert extcall IERC20(_tokenIn).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
 
     self._performPostActionTasks([_tokenIn, _tokenOut])
@@ -629,6 +631,7 @@ def mintOrRedeemAsset(
         tokenInAmount = tokenInAmount,
         tokenOut = _tokenOut,
         tokenOutAmount = tokenOutAmount,
+        isPending = isPending,
         extraAddr = _extraAddr,
         extraVal = _extraVal,
         extraData = _extraData,
@@ -637,7 +640,7 @@ def mintOrRedeemAsset(
         signer = cd.signer,
         isSignerAgent = cd.isSignerAgent,
     )
-    return tokenInAmount, tokenOutAmount
+    return tokenInAmount, tokenOutAmount, isPending
 
 
 @nonreentrant
@@ -650,7 +653,7 @@ def confirmMintOrRedeemAsset(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.EXCHANGE, False, [_tokenIn, _tokenOut], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.CONFIRM_MINT_REDEEM, False, [_tokenIn, _tokenOut], [_legoId])
 
     # confirm (if there is a delay on action)
     tokenInAmount: uint256 = 0
@@ -696,7 +699,7 @@ def addCollateral(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.DEBT, True, [_asset], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_COLLATERAL, True, [_asset], [_legoId])
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, cd.legoAddr) # doing approval here
@@ -731,7 +734,7 @@ def removeCollateral(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.DEBT, True, [_asset], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_COLLATERAL, True, [_asset], [_legoId])
     amountRemoved: uint256 = extcall Lego(cd.legoAddr).removeCollateral(_asset, _amount, _extraAddr, _extraVal, _extraData, self)
 
     self._performPostActionTasks([_asset])
@@ -762,7 +765,7 @@ def borrow(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (address, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.DEBT, True, [_borrowAsset], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.BORROW, True, [_borrowAsset], [_legoId])
 
     # borrow
     borrowAsset: address = empty(address)
@@ -797,7 +800,7 @@ def repayDebt(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.DEBT, True, [_paymentAsset], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REPAY_DEBT, True, [_paymentAsset], [_legoId])
 
     amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, cd.legoAddr) # doing approval here
     repaidAmount: uint256 = extcall Lego(cd.legoAddr).repayDebt(_paymentAsset, amount, _extraAddr, _extraVal, _extraData, self)
@@ -818,9 +821,12 @@ def repayDebt(
     return repaidAmount
 
 
-#################
-# Add Liquidity #
-#################
+#############
+# Liquidity #
+#############
+
+
+# add liquidity
 
 
 @nonreentrant
@@ -839,7 +845,7 @@ def addLiquidity(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.LIQUIDITY, False, [_tokenA, _tokenB], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ, False, [_tokenA, _tokenB], [_legoId])
 
     # token approvals
     amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
@@ -897,7 +903,7 @@ def addLiquidityConcentrated(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.LIQUIDITY, False, [_tokenA, _tokenB], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
 
     # token approvals
     amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
@@ -944,9 +950,7 @@ def addLiquidityConcentrated(
     return liqAdded, addedTokenA, addedTokenB, nftTokenId
 
 
-####################
-# Remove Liquidity #
-####################
+# remove liquidity
 
 
 @nonreentrant
@@ -964,7 +968,7 @@ def removeLiquidity(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.LIQUIDITY, False, [_tokenA, _tokenB], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ, False, [_tokenA, _tokenB], [_legoId])
 
     # remove liquidity via lego partner
     amountAReceived: uint256 = 0
@@ -1010,7 +1014,7 @@ def removeLiquidityConcentrated(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.LIQUIDITY, False, [_tokenA, _tokenB], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
 
     # must have nft liq position
     assert _nftAddr != empty(address) # dev: invalid nft addr
@@ -1060,7 +1064,7 @@ def transferFunds(
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.TRANSFER, False, [_asset])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [_asset])
     return self._transferFunds(_recipient, _asset, _amount, cd)
 
 
@@ -1115,12 +1119,12 @@ def claimRewards(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.REWARDS, True, [_rewardToken], [_legoId])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REWARDS, True, [_rewardToken], [_legoId])
     rewardAmount: uint256 = extcall Lego(cd.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraAddr, _extraVal, _extraData)
 
     # TODO: handle tx fees
     # if cd.isSignerAgent:
-    #     self._handleTransactionFees(Lego.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
+    #     self._handleTransactionFees(wi.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
 
     self._performPostActionTasks([_rewardToken])
     log RewardsClaimed(
@@ -1150,7 +1154,7 @@ def claimRewards(
 @external
 def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
     weth: address = WETH
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.WETH_WRAP, False, [weth])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ETH_TO_WETH, False, [weth])
 
     # convert eth to weth
     amount: uint256 = min(_amount, self.balance)
@@ -1175,7 +1179,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
 @external
 def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
     weth: address = WETH
-    cd: ActionData = self._performPreActionTasks(msg.sender, Lego.ActionType.WETH_WRAP, False, [weth])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.WETH_TO_ETH, False, [weth])
 
     # convert weth to eth
     amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
@@ -1199,7 +1203,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
 @internal
 def _performPreActionTasks(
     _signer: address,
-    _action: Lego.ActionType,
+    _action: wi.ActionType,
     _shouldCheckAccess: bool = False,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
@@ -1281,7 +1285,7 @@ def _getActionDataBundle() -> ActionData:
 
 
 @internal
-def _checkLegoAccessForAction(_legoAddr: address, _action: Lego.ActionType):
+def _checkLegoAccessForAction(_legoAddr: address, _action: wi.ActionType):
     targetAddr: address = empty(address)
     accessAbi: String[64] = empty(String[64])
     numInputs: uint256 = 0
