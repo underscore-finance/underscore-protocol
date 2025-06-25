@@ -1,6 +1,7 @@
 # @version 0.4.3
+# pragma optimize codesize
 
-from interfaces import LegoPartner as Lego
+from interfaces import Wallet as wi
 from ethereum.ercs import IERC20
 
 interface MissionControl:
@@ -43,6 +44,9 @@ timeLock: public(uint256)
 pendingOwner: public(PendingOwnerChange)
 didSetWallet: public(bool)
 
+# TODO: TEMPORARY
+initialAgent: public(address)
+
 API_VERSION: constant(String[28]) = "0.1.0"
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
@@ -68,8 +72,8 @@ def __init__(
     UNDY_HQ = _undyHq
     self.owner = _owner
 
-    # TODO:
-    # handle `_initialManager`
+    # TODO: TEMPORARY
+    self.initialAgent = _initialManager
 
     # time lock
     assert _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -185,8 +189,8 @@ def canTransferToRecipient(_recipient: address) -> bool:
 @external
 def canAccessWallet(
     _signer: address,
-    _action: Lego.ActionType,
+    _action: wi.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
 ) -> bool:
-    return True
+    return _signer == self.initialAgent

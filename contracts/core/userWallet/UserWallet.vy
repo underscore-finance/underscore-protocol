@@ -1,4 +1,5 @@
 # @version 0.4.3
+# pragma optimize codesize
 
 implements: wi
 from interfaces import Wallet as wi
@@ -118,7 +119,6 @@ event AssetMintedOrRedeemed:
 
 event AssetMintedOrRedeemedConfirmed:
     tokenIn: indexed(address)
-    tokenInAmount: uint256
     tokenOut: indexed(address)
     tokenOutAmount: uint256
     extraAddr: address
@@ -338,6 +338,58 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
 @external
 def apiVersion() -> String[28]:
     return API_VERSION
+
+
+##################
+# Transfer Funds #
+##################
+
+
+@nonreentrant
+@external
+def transferFunds(
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+) -> uint256:
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [_asset])
+    return self._transferFunds(_recipient, _asset, _amount, cd)
+
+
+@internal
+def _transferFunds(
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _cd: ActionData,
+) -> uint256:
+
+    # validate recipient
+    if _recipient != _cd.walletOwner:
+        assert staticcall WalletConfig(_cd.walletConfig).canTransferToRecipient(_recipient) # dev: recipient not allowed
+
+    # handle eth
+    amount: uint256 = 0
+    if _asset == empty(address):
+        amount = min(_amount, self.balance)
+        assert amount != 0 # dev: nothing to transfer
+        send(_recipient, amount)
+
+    # erc20 tokens
+    else:
+        amount = min(_amount, staticcall IERC20(_asset).balanceOf(self))
+        assert amount != 0 # dev: no balance for _token
+        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
+        self._performPostActionTasks([_asset])
+
+    log FundsTransferred(
+        asset = _asset,
+        amount = amount,
+        recipient = _recipient,
+        signer = _cd.signer,
+        isSignerAgent = _cd.isSignerAgent,
+    )
+    return amount
 
 
 #########
@@ -652,18 +704,15 @@ def confirmMintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256):
+) -> uint256:
     cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.CONFIRM_MINT_REDEEM, False, [_tokenIn, _tokenOut], [_legoId])
 
     # confirm (if there is a delay on action)
-    tokenInAmount: uint256 = 0
-    tokenOutAmount: uint256 = 0
-    tokenInAmount, tokenOutAmount = extcall Lego(cd.legoAddr).confirmMintOrRedeemAsset(_tokenIn, _tokenOut, _extraAddr, _extraVal, _extraData, self)
+    tokenOutAmount: uint256 = extcall Lego(cd.legoAddr).confirmMintOrRedeemAsset(_tokenIn, _tokenOut, _extraAddr, _extraVal, _extraData, self)
 
     self._performPostActionTasks([_tokenIn, _tokenOut])
     log AssetMintedOrRedeemedConfirmed(
         tokenIn = _tokenIn,
-        tokenInAmount = tokenInAmount,
         tokenOut = _tokenOut,
         tokenOutAmount = tokenOutAmount,
         extraAddr = _extraAddr,
@@ -674,12 +723,12 @@ def confirmMintOrRedeemAsset(
         signer = cd.signer,
         isSignerAgent = cd.isSignerAgent,
     )
-    return tokenInAmount, tokenOutAmount
+    return tokenOutAmount
 
 
-########
-# Debt #
-########
+###################
+# Debt Management #
+###################
 
 
 # NOTE: these functions assume there is no vault token involved (i.e. Ripe Protocol)
@@ -764,17 +813,15 @@ def borrow(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (address, uint256):
+) -> uint256:
     cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.BORROW, True, [_borrowAsset], [_legoId])
 
     # borrow
-    borrowAsset: address = empty(address)
-    borrowAmount: uint256 = 0
-    borrowAsset, borrowAmount = extcall Lego(cd.legoAddr).borrow(_borrowAsset, _amount, _extraAddr, _extraVal, _extraData, self)
+    borrowAmount: uint256 = extcall Lego(cd.legoAddr).borrow(_borrowAsset, _amount, _extraAddr, _extraVal, _extraData, self)
 
-    self._performPostActionTasks([borrowAsset])
+    self._performPostActionTasks([_borrowAsset])
     log NewBorrow(
-        borrowAsset = borrowAsset,
+        borrowAsset = _borrowAsset,
         borrowAmount = borrowAmount,
         extraAddr = _extraAddr,
         extraVal = _extraVal,
@@ -784,7 +831,7 @@ def borrow(
         signer = cd.signer,
         isSignerAgent = cd.isSignerAgent,
     )
-    return borrowAsset, borrowAmount
+    return borrowAmount
 
 
 # repay debt
@@ -819,289 +866,6 @@ def repayDebt(
         isSignerAgent = cd.isSignerAgent,
     )
     return repaidAmount
-
-
-#############
-# Liquidity #
-#############
-
-
-# add liquidity
-
-
-@nonreentrant
-@external
-def addLiquidity(
-    _legoId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _minLpAmount: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ, False, [_tokenA, _tokenB], [_legoId])
-
-    # token approvals
-    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
-    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, cd.legoAddr)
-
-    # add liquidity via lego partner
-    lpToken: address = empty(address)
-    lpAmountReceived: uint256 = 0
-    addedTokenA: uint256 = 0
-    addedTokenB: uint256 = 0
-    lpToken, lpAmountReceived, addedTokenA, addedTokenB = extcall Lego(cd.legoAddr).addLiquidity(_pool, _tokenA, _tokenB, amountA, amountB, _minAmountA, _minAmountB, _minLpAmount, _extraAddr, _extraVal, _extraData, self)
-
-    # remove approvals
-    if amountA != 0:
-        assert extcall IERC20(_tokenA).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-    if amountB != 0:
-        assert extcall IERC20(_tokenB).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-
-    self._performPostActionTasks([_tokenA, _tokenB, lpToken])
-    log LiquidityAdded(
-        pool = _pool,
-        tokenA = _tokenA,
-        amountA = addedTokenA,
-        tokenB = _tokenB,
-        amountB = addedTokenB,
-        lpToken = lpToken,
-        lpAmountReceived = lpAmountReceived,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
-        legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
-        signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
-    )
-    return lpAmountReceived, addedTokenA, addedTokenB
-
-
-@nonreentrant
-@external
-def addLiquidityConcentrated(
-    _legoId: uint256,
-    _nftAddr: address,
-    _nftTokenId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _tickLower: int24 = min_value(int24),
-    _tickUpper: int24 = max_value(int24),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
-
-    # token approvals
-    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
-    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, cd.legoAddr)
-
-    # transfer nft to lego (if applicable)
-    hasNftLiqPosition: bool = _nftAddr != empty(address) and _nftTokenId != 0
-    if hasNftLiqPosition:
-        extcall IERC721(_nftAddr).safeTransferFrom(self, cd.legoAddr, _nftTokenId, ERC721_RECEIVE_DATA)
-
-    # add liquidity via lego partner
-    liqAdded: uint256 = 0
-    addedTokenA: uint256 = 0
-    addedTokenB: uint256 = 0
-    nftTokenId: uint256 = 0
-    liqAdded, addedTokenA, addedTokenB, nftTokenId = extcall Lego(cd.legoAddr).addLiquidityConcentrated(_nftTokenId, _pool, _tokenA, _tokenB, _tickLower, _tickUpper, amountA, amountB, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
-
-    # make sure nft is back
-    assert staticcall IERC721(_nftAddr).ownerOf(nftTokenId) == self # dev: nft not returned
-
-    # remove approvals
-    if amountA != 0:
-        assert extcall IERC20(_tokenA).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-    if amountB != 0:
-        assert extcall IERC20(_tokenB).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-
-    self._performPostActionTasks([_tokenA, _tokenB])
-    log ConcentratedLiquidityAdded(
-        nftTokenId = nftTokenId,
-        pool = _pool,
-        tokenA = _tokenA,
-        amountA = addedTokenA,
-        tokenB = _tokenB,
-        amountB = addedTokenB,
-        liqAdded = liqAdded,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
-        legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
-        signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
-    )
-    return liqAdded, addedTokenA, addedTokenB, nftTokenId
-
-
-# remove liquidity
-
-
-@nonreentrant
-@external
-def removeLiquidity(
-    _legoId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _lpToken: address,
-    _lpAmount: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ, False, [_tokenA, _tokenB], [_legoId])
-
-    # remove liquidity via lego partner
-    amountAReceived: uint256 = 0
-    amountBReceived: uint256 = 0
-    lpAmountBurned: uint256 = 0
-    lpAmount: uint256 = self._getAmountAndApprove(_lpToken, _lpAmount, cd.legoAddr)
-    amountAReceived, amountBReceived, lpAmountBurned = extcall Lego(cd.legoAddr).removeLiquidity(_pool, _tokenA, _tokenB, _lpToken, lpAmount, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_lpToken).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-
-    self._performPostActionTasks([_tokenA, _tokenB, _lpToken])
-    log LiquidityRemoved(
-        pool = _pool,
-        tokenA = _tokenA,
-        amountAReceived = amountAReceived,
-        tokenB = _tokenB,
-        amountBReceived = amountBReceived,
-        lpToken = _lpToken,
-        lpAmountBurned = lpAmountBurned,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
-        legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
-        signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
-    )
-    return amountAReceived, amountBReceived, lpAmountBurned
-
-
-@nonreentrant
-@external
-def removeLiquidityConcentrated(
-    _legoId: uint256,
-    _nftAddr: address,
-    _nftTokenId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _liqToRemove: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
-
-    # must have nft liq position
-    assert _nftAddr != empty(address) # dev: invalid nft addr
-    assert _nftTokenId != 0 # dev: invalid nft token id
-    extcall IERC721(_nftAddr).safeTransferFrom(self, cd.legoAddr, _nftTokenId, ERC721_RECEIVE_DATA)
-
-    # remove liquidity via lego partner
-    amountAReceived: uint256 = 0
-    amountBReceived: uint256 = 0
-    liqRemoved: uint256 = 0
-    isDepleted: bool = False
-    amountAReceived, amountBReceived, liqRemoved, isDepleted = extcall Lego(cd.legoAddr).removeLiquidityConcentrated(_nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
-
-    # validate the nft came back (if not depleted)
-    if not isDepleted:
-        assert staticcall IERC721(_nftAddr).ownerOf(_nftTokenId) == self # dev: nft not returned
-
-    self._performPostActionTasks([_tokenA, _tokenB])
-    log ConcentratedLiquidityRemoved(
-        nftTokenId = _nftTokenId,
-        pool = _pool,
-        tokenA = _tokenA,
-        amountAReceived = amountAReceived,
-        tokenB = _tokenB,
-        amountBReceived = amountBReceived,
-        liqRemoved = liqRemoved,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
-        legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
-        signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
-    )
-    return amountAReceived, amountBReceived, liqRemoved
-
-
-##################
-# Transfer Funds #
-##################
-
-
-@nonreentrant
-@external
-def transferFunds(
-    _recipient: address,
-    _asset: address = empty(address),
-    _amount: uint256 = max_value(uint256),
-) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [_asset])
-    return self._transferFunds(_recipient, _asset, _amount, cd)
-
-
-@internal
-def _transferFunds(
-    _recipient: address,
-    _asset: address,
-    _amount: uint256,
-    _cd: ActionData,
-) -> uint256:
-
-    # validate recipient
-    if _recipient != _cd.walletOwner:
-        assert staticcall WalletConfig(_cd.walletConfig).canTransferToRecipient(_recipient) # dev: recipient not allowed
-
-    # handle eth
-    amount: uint256 = 0
-    if _asset == empty(address):
-        amount = min(_amount, self.balance)
-        assert amount != 0 # dev: nothing to transfer
-        send(_recipient, amount)
-
-    # erc20 tokens
-    else:
-        amount = min(_amount, staticcall IERC20(_asset).balanceOf(self))
-        assert amount != 0 # dev: no balance for _token
-        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
-        self._performPostActionTasks([_asset])
-
-    log FundsTransferred(
-        asset = _asset,
-        amount = amount,
-        recipient = _recipient,
-        signer = _cd.signer,
-        isSignerAgent = _cd.isSignerAgent,
-    )
-    return amount
 
 
 #################
@@ -1193,6 +957,237 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
         isSignerAgent = cd.isSignerAgent,
     )
     return amount
+
+
+#############
+# Liquidity #
+#############
+
+
+# add / remove liquidity (simple)
+
+
+@nonreentrant
+@external
+def addLiquidity(
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _minLpAmount: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ, False, [_tokenA, _tokenB], [_legoId])
+
+    # token approvals
+    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
+    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, cd.legoAddr)
+
+    # add liquidity via lego partner
+    lpToken: address = empty(address)
+    lpAmountReceived: uint256 = 0
+    addedTokenA: uint256 = 0
+    addedTokenB: uint256 = 0
+    lpToken, lpAmountReceived, addedTokenA, addedTokenB = extcall Lego(cd.legoAddr).addLiquidity(_pool, _tokenA, _tokenB, amountA, amountB, _minAmountA, _minAmountB, _minLpAmount, _extraAddr, _extraVal, _extraData, self)
+
+    # remove approvals
+    if amountA != 0:
+        assert extcall IERC20(_tokenA).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+    if amountB != 0:
+        assert extcall IERC20(_tokenB).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+
+    self._performPostActionTasks([_tokenA, _tokenB, lpToken])
+    log LiquidityAdded(
+        pool = _pool,
+        tokenA = _tokenA,
+        amountA = addedTokenA,
+        tokenB = _tokenB,
+        amountB = addedTokenB,
+        lpToken = lpToken,
+        lpAmountReceived = lpAmountReceived,
+        extraAddr = _extraAddr,
+        extraVal = _extraVal,
+        extraData = _extraData,
+        legoId = cd.legoId,
+        legoAddr = cd.legoAddr,
+        signer = cd.signer,
+        isSignerAgent = cd.isSignerAgent,
+    )
+    return lpAmountReceived, addedTokenA, addedTokenB
+
+
+@nonreentrant
+@external
+def removeLiquidity(
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ, False, [_tokenA, _tokenB], [_legoId])
+
+    # remove liquidity via lego partner
+    amountAReceived: uint256 = 0
+    amountBReceived: uint256 = 0
+    lpAmountBurned: uint256 = 0
+    lpAmount: uint256 = self._getAmountAndApprove(_lpToken, _lpAmount, cd.legoAddr)
+    amountAReceived, amountBReceived, lpAmountBurned = extcall Lego(cd.legoAddr).removeLiquidity(_pool, _tokenA, _tokenB, _lpToken, lpAmount, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
+    assert extcall IERC20(_lpToken).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+
+    self._performPostActionTasks([_tokenA, _tokenB, _lpToken])
+    log LiquidityRemoved(
+        pool = _pool,
+        tokenA = _tokenA,
+        amountAReceived = amountAReceived,
+        tokenB = _tokenB,
+        amountBReceived = amountBReceived,
+        lpToken = _lpToken,
+        lpAmountBurned = lpAmountBurned,
+        extraAddr = _extraAddr,
+        extraVal = _extraVal,
+        extraData = _extraData,
+        legoId = cd.legoId,
+        legoAddr = cd.legoAddr,
+        signer = cd.signer,
+        isSignerAgent = cd.isSignerAgent,
+    )
+    return amountAReceived, amountBReceived, lpAmountBurned
+
+
+# concentrated liquidity
+
+
+@nonreentrant
+@external
+def addLiquidityConcentrated(
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _tickLower: int24 = min_value(int24),
+    _tickUpper: int24 = max_value(int24),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256, uint256):
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.ADD_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
+
+    # token approvals
+    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, cd.legoAddr)
+    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, cd.legoAddr)
+
+    # transfer nft to lego (if applicable)
+    hasNftLiqPosition: bool = _nftAddr != empty(address) and _nftTokenId != 0
+    if hasNftLiqPosition:
+        extcall IERC721(_nftAddr).safeTransferFrom(self, cd.legoAddr, _nftTokenId, ERC721_RECEIVE_DATA)
+
+    # add liquidity via lego partner
+    liqAdded: uint256 = 0
+    addedTokenA: uint256 = 0
+    addedTokenB: uint256 = 0
+    nftTokenId: uint256 = 0
+    liqAdded, addedTokenA, addedTokenB, nftTokenId = extcall Lego(cd.legoAddr).addLiquidityConcentrated(_nftTokenId, _pool, _tokenA, _tokenB, _tickLower, _tickUpper, amountA, amountB, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
+
+    # make sure nft is back
+    assert staticcall IERC721(_nftAddr).ownerOf(nftTokenId) == self # dev: nft not returned
+
+    # remove approvals
+    if amountA != 0:
+        assert extcall IERC20(_tokenA).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+    if amountB != 0:
+        assert extcall IERC20(_tokenB).approve(cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+
+    self._performPostActionTasks([_tokenA, _tokenB])
+    log ConcentratedLiquidityAdded(
+        nftTokenId = nftTokenId,
+        pool = _pool,
+        tokenA = _tokenA,
+        amountA = addedTokenA,
+        tokenB = _tokenB,
+        amountB = addedTokenB,
+        liqAdded = liqAdded,
+        extraAddr = _extraAddr,
+        extraVal = _extraVal,
+        extraData = _extraData,
+        legoId = cd.legoId,
+        legoAddr = cd.legoAddr,
+        signer = cd.signer,
+        isSignerAgent = cd.isSignerAgent,
+    )
+    return liqAdded, addedTokenA, addedTokenB, nftTokenId
+
+
+@nonreentrant
+@external
+def removeLiquidityConcentrated(
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.REMOVE_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
+
+    # must have nft liq position
+    assert _nftAddr != empty(address) # dev: invalid nft addr
+    assert _nftTokenId != 0 # dev: invalid nft token id
+    extcall IERC721(_nftAddr).safeTransferFrom(self, cd.legoAddr, _nftTokenId, ERC721_RECEIVE_DATA)
+
+    # remove liquidity via lego partner
+    amountAReceived: uint256 = 0
+    amountBReceived: uint256 = 0
+    liqRemoved: uint256 = 0
+    isDepleted: bool = False
+    amountAReceived, amountBReceived, liqRemoved, isDepleted = extcall Lego(cd.legoAddr).removeLiquidityConcentrated(_nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
+
+    # validate the nft came back (if not depleted)
+    if not isDepleted:
+        assert staticcall IERC721(_nftAddr).ownerOf(_nftTokenId) == self # dev: nft not returned
+
+    self._performPostActionTasks([_tokenA, _tokenB])
+    log ConcentratedLiquidityRemoved(
+        nftTokenId = _nftTokenId,
+        pool = _pool,
+        tokenA = _tokenA,
+        amountAReceived = amountAReceived,
+        tokenB = _tokenB,
+        amountBReceived = amountBReceived,
+        liqRemoved = liqRemoved,
+        extraAddr = _extraAddr,
+        extraVal = _extraVal,
+        extraData = _extraData,
+        legoId = cd.legoId,
+        legoAddr = cd.legoAddr,
+        signer = cd.signer,
+        isSignerAgent = cd.isSignerAgent,
+    )
+    return amountAReceived, amountBReceived, liqRemoved
 
 
 ####################

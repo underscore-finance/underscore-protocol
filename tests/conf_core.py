@@ -66,8 +66,8 @@ def undy_hq(
     # special permission setup
 
     # switchboard can set token blacklists
-    undy_hq_deploy.initiateHqConfigChange(3, False, True, sender=deploy3r)
-    assert undy_hq_deploy.confirmHqConfigChange(3, sender=deploy3r)
+    undy_hq_deploy.initiateHqConfigChange(5, False, True, sender=deploy3r)
+    assert undy_hq_deploy.confirmHqConfigChange(5, sender=deploy3r)
 
     # finish undy hq setup
     assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
@@ -89,8 +89,8 @@ def undy_token(deploy3r, fork, whale):
         deploy3r,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
-        0,
-        ZERO_ADDRESS,
+        10_000_000 * EIGHTEEN_DECIMALS,
+        whale,
         name="undy_token",
     )
 
@@ -190,11 +190,11 @@ def lego_book_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def lego_book(lego_book_deploy, deploy3r):
+def lego_book(lego_book_deploy, deploy3r, mock_lego):
 
-    # # register lego
-    # assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=deploy3r)
-    # assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=deploy3r) == 1
+    # register mock lego
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=deploy3r)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=deploy3r) == 1
 
     # finish registry setup
     assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
@@ -237,4 +237,4 @@ def user_wallet_config_template():
 
 @pytest.fixture(scope="session")
 def agent_template():
-    return boa.load_partial("contracts/core/agent/Agent.vy").deploy_as_blueprint()
+    return boa.load_partial("contracts/core/agent/AgentOptimized.vy").deploy_as_blueprint()

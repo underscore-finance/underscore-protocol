@@ -1,4 +1,5 @@
 # @version 0.4.3
+# pragma optimize codesize
 
 from interfaces import Wallet
 from interfaces import LegoPartner as Lego
@@ -427,7 +428,7 @@ def confirmMintOrRedeemAsset(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
+) -> uint256:
     owner: address = self.owner
     if msg.sender != owner:
         self._isValidSignature(abi_encode(CONFIRM_MINT_REDEEM_TYPE_HASH, _userWallet, _legoId, _tokenIn, _tokenOut, _extraAddr, _extraVal, _extraData, _sig.expiration), _sig)
@@ -498,7 +499,7 @@ def borrow(
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
-) -> (address, uint256):
+) -> uint256:
     owner: address = self.owner
     if msg.sender != owner:
         self._isValidSignature(abi_encode(BORROW_TYPE_HASH, _userWallet, _legoId, _borrowAsset, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration), _sig)
@@ -786,7 +787,7 @@ def performBatchActions(
 
         # confirm mint / redeem
         elif i.action == Wallet.ActionType.CONFIRM_MINT_REDEEM:
-            naValueA, prevAmountReceived = extcall Wallet(_userWallet).confirmMintOrRedeemAsset(i.legoId, i.asset, i.altAsset, i.extraAddr, i.extraVal, i.extraData)
+            prevAmountReceived = extcall Wallet(_userWallet).confirmMintOrRedeemAsset(i.legoId, i.asset, i.altAsset, i.extraAddr, i.extraVal, i.extraData)
 
         # add collateral
         elif i.action == Wallet.ActionType.ADD_COLLATERAL:
@@ -808,7 +809,7 @@ def performBatchActions(
             amount: uint256 = i.amount
             if i.usePrevAmountOut and prevAmountReceived != 0:
                 amount = prevAmountReceived
-            naAddyA, prevAmountReceived = extcall Wallet(_userWallet).borrow(i.legoId, i.asset, amount, i.extraAddr, i.extraVal, i.extraData)
+            prevAmountReceived = extcall Wallet(_userWallet).borrow(i.legoId, i.asset, amount, i.extraAddr, i.extraVal, i.extraData)
 
         # repay debt
         elif i.action == Wallet.ActionType.REPAY_DEBT:

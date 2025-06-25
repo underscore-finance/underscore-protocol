@@ -1,6 +1,7 @@
 # @version 0.4.3
 
 flag ActionType:
+    TRANSFER
     EARN_DEPOSIT
     EARN_WITHDRAW
     EARN_REBALANCE
@@ -11,14 +12,14 @@ flag ActionType:
     REMOVE_COLLATERAL
     BORROW
     REPAY_DEBT
-    ADD_LIQ
-    ADD_LIQ_CONC
-    REMOVE_LIQ
-    REMOVE_LIQ_CONC
-    TRANSFER
     REWARDS
     ETH_TO_WETH
     WETH_TO_ETH
+    ADD_LIQ
+    REMOVE_LIQ
+    ADD_LIQ_CONC
+    REMOVE_LIQ_CONC
+
 
 struct ActionData:
     undyHq: address
@@ -53,6 +54,20 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
 @pure
 @external
 def apiVersion() -> String[28]:
+    ...
+
+
+##################
+# Transfer Funds #
+##################
+
+
+@external
+def transferFunds(
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+) -> uint256:
     ...
 
 
@@ -144,13 +159,13 @@ def confirmMintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256):
+) -> uint256:
     ...
 
 
-########
-# Debt #
-########
+###################
+# Debt Management #
+###################
 
 
 # add collateral
@@ -194,7 +209,7 @@ def borrow(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (address, uint256):
+) -> uint256:
     ...
 
 
@@ -209,104 +224,6 @@ def repayDebt(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
-    ...
-
-
-#################
-# Add Liquidity #
-#################
-
-
-@external
-def addLiquidity(
-    _legoId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _minLpAmount: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    ...
-
-
-@external
-def addLiquidityConcentrated(
-    _legoId: uint256,
-    _nftAddr: address,
-    _nftTokenId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _tickLower: int24 = min_value(int24),
-    _tickUpper: int24 = max_value(int24),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256, uint256):
-    ...
-
-
-####################
-# Remove Liquidity #
-####################
-
-
-@external
-def removeLiquidity(
-    _legoId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _lpToken: address,
-    _lpAmount: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    ...
-
-
-@external
-def removeLiquidityConcentrated(
-    _legoId: uint256,
-    _nftAddr: address,
-    _nftTokenId: uint256,
-    _pool: address,
-    _tokenA: address,
-    _tokenB: address,
-    _liqToRemove: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
-    ...
-
-
-##################
-# Transfer Funds #
-##################
-
-
-@external
-def transferFunds(
-    _recipient: address,
-    _asset: address = empty(address),
-    _amount: uint256 = max_value(uint256),
 ) -> uint256:
     ...
 
@@ -347,6 +264,91 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
 
 @external
 def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
+    ...
+
+
+#################
+# Add Liquidity #
+#################
+
+
+# add / remove liquidity (simple)
+
+
+@external
+def addLiquidity(
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _minLpAmount: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
+    ...
+
+
+@external
+def removeLiquidity(
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
+    ...
+
+
+# add / remove liquidity (concentrated)
+
+
+@external
+def addLiquidityConcentrated(
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _tickLower: int24 = min_value(int24),
+    _tickUpper: int24 = max_value(int24),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256, uint256):
+    ...
+
+
+@external
+def removeLiquidityConcentrated(
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256, uint256):
     ...
 
 

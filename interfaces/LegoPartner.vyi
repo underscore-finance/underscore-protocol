@@ -37,11 +37,11 @@ def withdrawFromYield(_vaultToken: address, _amount: uint256, _extraAddr: addres
     ...
 
 @external
-def confirmMintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> (uint256, uint256):
+def confirmMintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> uint256:
     ...
 
 @external
-def borrow(_borrowAsset: address, _amount: uint256, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> (address, uint256):
+def borrow(_borrowAsset: address, _amount: uint256, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> uint256:
     ...
 
 @external
@@ -63,4 +63,9 @@ def addCollateral(_asset: address, _amount: uint256, _extraAddr: address, _extra
 @view
 @external
 def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String[64], uint256):
+    ...
+
+@view
+@external
+def hasCapability(_action: wi.ActionType) -> bool:
     ...

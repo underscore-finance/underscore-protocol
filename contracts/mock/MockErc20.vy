@@ -44,10 +44,10 @@ isMinter: public(HashMap[address, bool])
 
 
 @deploy
-def __init__(_hq: address, _name: String[32], _symbol: String[32], _decimals: uint8, _supply: uint256):
-    assert _hq != empty(address) # dev: cannot be 0x0
-    self.hq = _hq
-    self.isMinter[_hq] = True
+def __init__(_whale: address, _name: String[32], _symbol: String[32], _decimals: uint8, _supply: uint256):
+    assert _whale != empty(address) # dev: cannot be 0x0
+    self.hq = _whale
+    self.isMinter[_whale] = True
 
     self.name = _name
     self.symbol = _symbol
@@ -55,9 +55,9 @@ def __init__(_hq: address, _name: String[32], _symbol: String[32], _decimals: ui
 
     init_supply: uint256 = _supply * 10 ** convert(_decimals, uint256)
     if init_supply != 0:
-        self.balanceOf[_hq] = init_supply
+        self.balanceOf[_whale] = init_supply
         self.totalSupply = init_supply
-        log Transfer(sender=empty(address), receiver=_hq, value=init_supply)
+        log Transfer(sender=empty(address), receiver=_whale, value=init_supply)
 
 
 @external
