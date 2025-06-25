@@ -5,7 +5,7 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from conf_utils import filter_logs
 
 
-def test_hatchery_create_user_wallet(undy_hq, setUserWalletConfig, hatchery, bob, agent, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet(setUserWalletConfig, hatchery, bob, agent, alice, sally, alpha_token, alpha_token_whale, ledger):
     setUserWalletConfig()
     alpha_token.transfer(hatchery, 10 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
 
@@ -34,7 +34,7 @@ def test_hatchery_create_user_wallet(undy_hq, setUserWalletConfig, hatchery, bob
     assert data.depositPoints == 0
 
 
-def test_hatchery_create_user_wallet_no_trial_funds(undy_hq, setUserWalletConfig, hatchery, bob, agent, sally, alpha_token, ledger):
+def test_hatchery_create_user_wallet_no_trial_funds(setUserWalletConfig, hatchery, bob, agent, sally, alpha_token):
     setUserWalletConfig()
     
     # Create wallet without trial funds
@@ -54,7 +54,7 @@ def test_hatchery_create_user_wallet_no_trial_funds(undy_hq, setUserWalletConfig
     assert alpha_token.balanceOf(wallet_addr) == 0
 
 
-def test_hatchery_create_user_wallet_with_ambassador(undy_hq, setUserWalletConfig, hatchery, bob, agent, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet_with_ambassador(setUserWalletConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
     setUserWalletConfig()
     alpha_token.transfer(hatchery, 20 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
     
@@ -81,7 +81,7 @@ def test_hatchery_create_user_wallet_with_ambassador(undy_hq, setUserWalletConfi
     assert data.ambassador == alice_wallet
 
 
-def test_hatchery_create_user_wallet_creator_not_allowed(undy_hq, setUserWalletConfig, hatchery, bob, alice, mission_control, switchboard_alpha):
+def test_hatchery_create_user_wallet_creator_not_allowed(setUserWalletConfig, hatchery, bob, alice):
     # Set up config with enforced whitelist but don't add alice
     setUserWalletConfig(_enforceCreatorWhitelist=True)
     # Note: alice is not added to whitelist, so she should not be allowed
@@ -90,7 +90,7 @@ def test_hatchery_create_user_wallet_creator_not_allowed(undy_hq, setUserWalletC
         hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=alice)
 
 
-def test_hatchery_create_user_wallet_invalid_setup(undy_hq, setUserWalletConfig, hatchery, bob, sally, mission_control, switchboard_alpha):
+def test_hatchery_create_user_wallet_invalid_setup(setUserWalletConfig, hatchery, bob, sally):
     # Set up config with invalid wallet template
     setUserWalletConfig(_walletTemplate=ZERO_ADDRESS)
     
@@ -98,7 +98,7 @@ def test_hatchery_create_user_wallet_invalid_setup(undy_hq, setUserWalletConfig,
         hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=sally)
 
 
-def test_hatchery_create_user_wallet_max_wallets_reached(undy_hq, setUserWalletConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet_max_wallets_reached(setUserWalletConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale):
     # Set max wallets to 1 (no wallets exist yet)
     setUserWalletConfig(_numUserWalletsAllowed=1)
     alpha_token.transfer(hatchery, 10 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
@@ -111,7 +111,7 @@ def test_hatchery_create_user_wallet_max_wallets_reached(undy_hq, setUserWalletC
         hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=sally)
 
 
-def test_hatchery_create_user_wallet_insufficient_trial_funds(undy_hq, setUserWalletConfig, hatchery, bob, sally, alpha_token, ledger):
+def test_hatchery_create_user_wallet_insufficient_trial_funds(setUserWalletConfig, hatchery, bob, sally, alpha_token):
     setUserWalletConfig()
     # Don't transfer any tokens to hatchery
     
@@ -124,7 +124,7 @@ def test_hatchery_create_user_wallet_insufficient_trial_funds(undy_hq, setUserWa
     assert alpha_token.balanceOf(wallet_addr) == 0
 
 
-def test_hatchery_create_agent(undy_hq, mission_control, switchboard_alpha, hatchery, bob, sally, agent_template, ledger):
+def test_hatchery_create_agent(mission_control, switchboard_alpha, hatchery, bob, sally, agent_template, ledger):
     # Set up agent config
     config = (
         agent_template,  # agentTemplate
@@ -148,7 +148,7 @@ def test_hatchery_create_agent(undy_hq, mission_control, switchboard_alpha, hatc
     assert ledger.numAgents() == 2  # First agent gets index 1, so numAgents is 2
 
 
-def test_hatchery_create_agent_creator_not_allowed(undy_hq, mission_control, switchboard_alpha, hatchery, bob, alice, agent_template):
+def test_hatchery_create_agent_creator_not_allowed(mission_control, switchboard_alpha, hatchery, bob, alice, agent_template):
     # Set up config with enforced whitelist but don't add alice
     config = (
         agent_template,
@@ -161,7 +161,7 @@ def test_hatchery_create_agent_creator_not_allowed(undy_hq, mission_control, swi
         hatchery.createAgent(bob, sender=alice)
 
 
-def test_hatchery_create_agent_invalid_setup(undy_hq, mission_control, switchboard_alpha, hatchery, bob, sally):
+def test_hatchery_create_agent_invalid_setup(mission_control, switchboard_alpha, hatchery, bob, sally):
     # Set up config with invalid agent template
     config = (
         ZERO_ADDRESS,  # Invalid template
@@ -174,7 +174,7 @@ def test_hatchery_create_agent_invalid_setup(undy_hq, mission_control, switchboa
         hatchery.createAgent(bob, sender=sally)
 
 
-def test_hatchery_create_agent_max_agents_reached(undy_hq, mission_control, switchboard_alpha, hatchery, bob, alice, sally, agent_template, ledger):
+def test_hatchery_create_agent_max_agents_reached(mission_control, switchboard_alpha, hatchery, bob, alice, sally, agent_template):
     # Set max agents to 1 (no agents exist yet)
     config = (
         agent_template,
@@ -192,7 +192,7 @@ def test_hatchery_create_agent_max_agents_reached(undy_hq, mission_control, swit
         hatchery.createAgent(bob, sender=sally)
 
 
-def test_hatchery_paused(undy_hq, setUserWalletConfig, hatchery, bob, sally, mission_control, switchboard_alpha, agent_template):
+def test_hatchery_paused(setUserWalletConfig, hatchery, bob, sally, mission_control, switchboard_alpha, agent_template):
     setUserWalletConfig()
     
     # Set up agent config
@@ -212,7 +212,7 @@ def test_hatchery_paused(undy_hq, setUserWalletConfig, hatchery, bob, sally, mis
         hatchery.createAgent(bob, sender=sally)
 
 
-def test_hatchery_create_user_wallet_default_params(undy_hq, setUserWalletConfig, hatchery, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet_default_params(setUserWalletConfig, hatchery, sally, alpha_token, alpha_token_whale):
     setUserWalletConfig()
     alpha_token.transfer(hatchery, 10 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
     
@@ -224,7 +224,7 @@ def test_hatchery_create_user_wallet_default_params(undy_hq, setUserWalletConfig
     assert log.creator == sally
 
 
-def test_hatchery_create_agent_default_params(undy_hq, mission_control, switchboard_alpha, hatchery, sally, agent_template, ledger):
+def test_hatchery_create_agent_default_params(mission_control, switchboard_alpha, hatchery, sally, agent_template):
     # Set up agent config
     config = (agent_template, 100, False)
     mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
