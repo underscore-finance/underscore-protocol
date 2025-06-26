@@ -24,9 +24,9 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, agent):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, agent_eoa):
     def setUserWalletConfig(
-        _defaultAgent = agent,
+        _defaultAgent = agent_eoa,
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
         _trialAsset = alpha_token,
@@ -48,3 +48,22 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
         mission_control.setTimeLockBoundaries(_minTimeLock, _maxTimeLock, sender=switchboard_alpha.address)
     yield setUserWalletConfig
+
+
+@pytest.fixture(scope="session")
+def setAgentConfig(mission_control, switchboard_alpha, agent_template):
+    def setAgentConfig(
+        _agentTemplate = agent_template,
+        _numAgentsAllowed = 100,
+        _enforceCreatorWhitelist = False,
+        _minTimeLock = 10,
+        _maxTimeLock = 100,
+    ):
+        config = (
+            _agentTemplate,
+            _numAgentsAllowed,
+            _enforceCreatorWhitelist,
+        )
+        mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
+        mission_control.setTimeLockBoundaries(_minTimeLock, _maxTimeLock, sender=switchboard_alpha.address)
+    yield setAgentConfig

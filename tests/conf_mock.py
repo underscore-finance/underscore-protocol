@@ -46,7 +46,7 @@ def whale(env):
 
 
 @pytest.fixture(scope="session")
-def agent(env):
+def agent_eoa(env):
     return env.generate_address("agent")
 
 

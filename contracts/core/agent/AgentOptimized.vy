@@ -12,6 +12,7 @@ interface Registry:
 
 struct PendingOwnerChange:
     newOwner: address
+    initiatedBlock: uint256
     confirmBlock: uint256
 
 struct Signature:
@@ -20,27 +21,40 @@ struct Signature:
     expiration: uint256
 
 struct ActionInstruction:
-    usePrevAmountOut: bool
-    action: uint8
-    legoId: uint16
-    asset: address
-    target: address
-    amount: uint256
-    asset2: address
-    amount2: uint256
-    minOut1: uint256
-    minOut2: uint256
-    tickLower: int24
-    tickUpper: int24
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
-    auxData: bytes32
+    usePrevAmountOut: bool      # Use output from previous instruction as amount
+    action: uint8               # Action type (0-17, see ActionType enum)
+    legoId: uint16             # Protocol/Lego ID (use amount2 for toLegoId in rebalance)
+    asset: address             # Primary asset/token (or vaultToken for withdrawals)
+    target: address            # Varies: recipient/vaultAddr/tokenOut/pool based on action
+    amount: uint256            # Primary amount (or max_value for "all")
+    asset2: address            # Secondary asset (tokenB for liquidity ops)
+    amount2: uint256           # Varies: amountB for liquidity, toLegoId for rebalance
+    minOut1: uint256           # Min output for primary asset (or minAmountOut)
+    minOut2: uint256           # Min output for secondary asset (liquidity ops)
+    tickLower: int24           # For concentrated liquidity positions
+    tickUpper: int24           # For concentrated liquidity positions
+    extraAddr: address         # Protocol-specific extra parameter
+    extraVal: uint256          # Protocol-specific extra value
+    extraData: bytes32         # Protocol-specific extra data
+    auxData: bytes32           # Packed data: lpToken addr (action 15) or pool+nftId (16-17)
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
 
-event OwnershipChanged:
+event OwnershipChangeInitiated:
     prevOwner: indexed(address)
     newOwner: indexed(address)
+    confirmBlock: uint256
+
+event OwnershipChangeConfirmed:
+    prevOwner: indexed(address)
+    newOwner: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+
+event OwnershipChangeCancelled:
+    cancelledOwner: indexed(address)
+    cancelledBy: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
 
 event TimeLockSet:
     numBlocks: uint256
@@ -54,82 +68,510 @@ usedSigs: public(HashMap[Bytes[65], bool])
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
-MC_ID: constant(uint256) = 3
+MISSION_CONTROL_ID: constant(uint256) = 3
 
-# Unified signature validation
+# unified signature validation
 SIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000000000000000000000
 
 UNDY_HQ: public(immutable(address))
-MIN_TL: public(immutable(uint256))
-MAX_TL: public(immutable(uint256))
+MIN_TIMELOCK: public(immutable(uint256))
+MAX_TIMELOCK: public(immutable(uint256))
 
 
 @deploy
-def __init__(_hq: address, _owner: address, _min: uint256, _max: uint256):
-    assert empty(address) not in [_hq, _owner] # dev: invalid addrs
-    UNDY_HQ = _hq
+def __init__(_undyHq: address, _owner: address, _minTimeLock: uint256, _maxTimeLock: uint256):
+    assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
+    UNDY_HQ = _undyHq
     self.owner = _owner
-    assert _min < _max # dev: invalid delay
-    MIN_TL = _min
-    MAX_TL = _max
-    self.timeLock = _min
+
+    # time lock
+    assert _minTimeLock < _maxTimeLock # dev: invalid delay
+    MIN_TIMELOCK = _minTimeLock
+    MAX_TIMELOCK = _maxTimeLock
+    self.timeLock = _minTimeLock
 
 
-# Ownership
+###########
+# Actions #
+###########
+
+
+@nonreentrant
 @external
-def changeOwnership(_new: address):
-    assert msg.sender == self.owner # dev: no perms
-    assert _new not in [empty(address), self.owner] # dev: invalid new owner
-    self.pendingOwner = PendingOwnerChange(newOwner=_new, confirmBlock=block.number + self.timeLock)
-    log OwnershipChanged(prevOwner=self.owner, newOwner=_new)
+def depositForYield(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _vaultAddr: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, address, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(0, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraAddr, _extraVal, _extraData)
 
 
+@nonreentrant
 @external
-def confirmOwnershipChange():
-    p: PendingOwnerChange = self.pendingOwner
-    assert p.newOwner != empty(address) # dev: no pending owner
-    assert block.number >= p.confirmBlock # dev: time delay not reached
-    assert msg.sender == p.newOwner # dev: only new owner can confirm
-    old: address = self.owner
-    self.owner = p.newOwner
-    self.pendingOwner = empty(PendingOwnerChange)
-    log OwnershipChanged(prevOwner=old, newOwner=p.newOwner)
+def withdrawFromYield(
+    _userWallet: address,
+    _legoId: uint256,
+    _vaultToken: address,
+    _amount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, address, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(1, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraAddr, _extraVal, _extraData)
 
 
+@nonreentrant
 @external
-def setTimeLock(_n: uint256):
-    assert msg.sender == self.owner # dev: no perms
-    assert _n >= MIN_TL and _n <= MAX_TL # dev: invalid delay
-    self.timeLock = _n
-    log TimeLockSet(numBlocks=_n)
+def rebalanceYieldPosition(
+    _userWallet: address,
+    _fromLegoId: uint256,
+    _fromVaultToken: address,
+    _toLegoId: uint256,
+    _toVaultAddr: address = empty(address),
+    _fromVaultAmount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, address, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(2, uint8), _userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).rebalanceYieldPosition(_fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraAddr, _extraVal, _extraData)
 
 
-# Unified auth check
+@nonreentrant
+@external
+def swapTokens(
+    _userWallet: address,
+    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
+    _sig: Signature = empty(Signature),
+) -> (address, uint256, address, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(3, uint8), _userWallet, _swapInstructions, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).swapTokens(_swapInstructions)
+
+
+@nonreentrant
+@external
+def mintOrRedeemAsset(
+    _userWallet: address,
+    _legoId: uint256,
+    _tokenIn: address,
+    _tokenOut: address,
+    _amountIn: uint256 = max_value(uint256),
+    _minAmountOut: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256, bool):
+    self._authenticateAccess(keccak256(abi_encode(convert(4, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def confirmMintOrRedeemAsset(
+    _userWallet: address,
+    _legoId: uint256,
+    _tokenIn: address,
+    _tokenOut: address,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(5, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).confirmMintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def addCollateral(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(6, uint8), _userWallet, _legoId, _asset, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).addCollateral(_legoId, _asset, _amount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def removeCollateral(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(7, uint8), _userWallet, _legoId, _asset, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).removeCollateral(_legoId, _asset, _amount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def borrow(
+    _userWallet: address,
+    _legoId: uint256,
+    _borrowAsset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(8, uint8), _userWallet, _legoId, _borrowAsset, _amount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).borrow(_legoId, _borrowAsset, _amount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def repayDebt(
+    _userWallet: address,
+    _legoId: uint256,
+    _paymentAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(9, uint8), _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def addLiquidity(
+    _userWallet: address,
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _minLpAmount: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).addLiquidity(_legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def addLiquidityConcentrated(
+    _userWallet: address,
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256 = max_value(uint256),
+    _amountB: uint256 = max_value(uint256),
+    _tickLower: int24 = min_value(int24),
+    _tickUpper: int24 = max_value(int24),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256, uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).addLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def removeLiquidity(
+    _userWallet: address,
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(12, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).removeLiquidity(_legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def removeLiquidityConcentrated(
+    _userWallet: address,
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256 = max_value(uint256),
+    _minAmountA: uint256 = 0,
+    _minAmountB: uint256 = 0,
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(13, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).removeLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def transferFunds(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(14, uint8), _userWallet, _recipient, _asset, _amount, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount)
+
+
+@nonreentrant
+@external
+def claimRewards(
+    _userWallet: address,
+    _legoId: uint256,
+    _rewardToken: address = empty(address),
+    _rewardAmount: uint256 = max_value(uint256),
+    _extraAddr: address = empty(address),
+    _extraVal: uint256 = 0,
+    _extraData: bytes32 = empty(bytes32),
+    _sig: Signature = empty(Signature),
+) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(15, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _extraAddr, _extraVal, _extraData, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).claimRewards(_legoId, _rewardToken, _rewardAmount, _extraAddr, _extraVal, _extraData)
+
+
+@nonreentrant
+@external
+def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(16, uint8), _userWallet, _amount, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).convertEthToWeth(_amount)
+
+
+@nonreentrant
+@external
+def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> uint256:
+    self._authenticateAccess(keccak256(abi_encode(convert(17, uint8), _userWallet, _amount, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).convertWethToEth(_amount)
+
+
+#################
+# Batch Actions #
+#################
+
+
+@nonreentrant
+@external
+def performBatchActions(
+    _userWallet: address,
+    _instructions: DynArray[ActionInstruction, MAX_INSTRUCTIONS],
+    _sig: Signature = empty(Signature),
+) -> bool:
+    if msg.sender != self.owner:
+        messageHash: bytes32 = keccak256(abi_encode(_userWallet, _instructions, _sig.expiration))
+        self._authenticateAccess(messageHash, _sig)
+    
+    assert len(_instructions) > 0 # dev: no instructions
+
+    prevAmountReceived: uint256 = 0
+    for instruction: ActionInstruction in _instructions:
+        prevAmountReceived = self._executeAction(_userWallet, instruction, prevAmountReceived)
+
+    return True
+
+
 @internal
-def _auth(_h: bytes32, _sig: Signature):
+def _executeAction(_userWallet: address, instruction: ActionInstruction, prevAmountReceived: uint256) -> uint256:
+    amount: uint256 = instruction.amount
+    if instruction.usePrevAmountOut and prevAmountReceived != 0:
+        amount = prevAmountReceived
+    
+    # transfer funds
+    if instruction.action == 0:
+        return extcall Wallet(_userWallet).transferFunds(instruction.target, instruction.asset, amount)
+
+    # deposit for yield
+    elif instruction.action == 1:
+        assetAmount: uint256 = 0
+        vaultToken: address = empty(address)
+        assetAmount, vaultToken, prevAmountReceived = extcall Wallet(_userWallet).depositForYield(convert(instruction.legoId, uint256), instruction.asset, instruction.target, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # withdraw from yield
+    elif instruction.action == 2:
+        underlyingAmount: uint256 = 0
+        underlyingToken: address = empty(address)
+        underlyingAmount, underlyingToken, prevAmountReceived = extcall Wallet(_userWallet).withdrawFromYield(convert(instruction.legoId, uint256), instruction.asset, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # rebalance yield position
+    elif instruction.action == 3:
+        underlyingAmount: uint256 = 0
+        underlyingToken: address = empty(address)
+        # NOTE: amount2 is used as toLegoId (not an amount!)
+        # Params: fromLegoId, fromVaultToken, toLegoId (amount2), toVaultAddr (target), fromVaultAmount
+        underlyingAmount, underlyingToken, prevAmountReceived = extcall Wallet(_userWallet).rebalanceYieldPosition(convert(instruction.legoId, uint256), instruction.asset, instruction.amount2, instruction.target, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # swap tokens
+    elif instruction.action == 4:
+        if instruction.usePrevAmountOut and prevAmountReceived != 0:
+            instruction.swapInstructions[0].amountIn = prevAmountReceived
+        tokenIn: address = empty(address)
+        amountIn: uint256 = 0
+        tokenOut: address = empty(address)
+        tokenIn, amountIn, tokenOut, prevAmountReceived = extcall Wallet(_userWallet).swapTokens(instruction.swapInstructions)
+        return prevAmountReceived
+
+    # mint or redeem asset
+    elif instruction.action == 5:
+        assetTokenAmount: uint256 = 0
+        isPending: bool = False
+        assetTokenAmount, prevAmountReceived, isPending = extcall Wallet(_userWallet).mintOrRedeemAsset(convert(instruction.legoId, uint256), instruction.asset, instruction.target, amount, instruction.minOut1, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # confirm mint or redeem asset
+    elif instruction.action == 6:
+        return extcall Wallet(_userWallet).confirmMintOrRedeemAsset(convert(instruction.legoId, uint256), instruction.asset, instruction.target, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+
+    # add collateral
+    elif instruction.action == 7:
+        extcall Wallet(_userWallet).addCollateral(convert(instruction.legoId, uint256), instruction.asset, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return 0
+
+    # remove collateral
+    elif instruction.action == 8:
+        return extcall Wallet(_userWallet).removeCollateral(convert(instruction.legoId, uint256), instruction.asset, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+
+    # borrow
+    elif instruction.action == 9:
+        return extcall Wallet(_userWallet).borrow(convert(instruction.legoId, uint256), instruction.asset, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+
+    # repay debt
+    elif instruction.action == 10:
+        extcall Wallet(_userWallet).repayDebt(convert(instruction.legoId, uint256), instruction.asset, amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return 0
+
+    # claim rewards
+    elif instruction.action == 11:
+        return extcall Wallet(_userWallet).claimRewards(convert(instruction.legoId, uint256), instruction.asset, instruction.amount, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+
+    # convert eth to weth
+    elif instruction.action == 12:
+        return extcall Wallet(_userWallet).convertEthToWeth(amount)
+
+    # convert weth to eth
+    elif instruction.action == 13:
+        return extcall Wallet(_userWallet).convertWethToEth(amount)
+
+    # add liquidity
+    elif instruction.action == 14:
+        amountA: uint256 = 0
+        amountB: uint256 = 0
+        prevAmountReceived, amountA, amountB = extcall Wallet(_userWallet).addLiquidity(convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, amount, instruction.amount2, instruction.minOut1, instruction.minOut2, convert(instruction.auxData, uint256), instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # remove liquidity
+    elif instruction.action == 15:
+        # Extract lpToken address from auxData (lower 160 bits)
+        lpToken: address = convert(convert(instruction.auxData, uint256) & convert(max_value(uint160), uint256), address)
+        amountB: uint256 = 0
+        lpAmountBurned: uint256 = 0
+        # Params: legoId, pool (target), tokenA, tokenB, lpToken, lpAmount, minAmountA (minOut1), minAmountB (minOut2)
+        # NOTE: Returns (amountA, amountB, lpBurned) - we pass forward amountA only
+        prevAmountReceived, amountB, lpAmountBurned = extcall Wallet(_userWallet).removeLiquidity(convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, lpToken, amount, instruction.minOut1, instruction.minOut2, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    # add liquidity concentrated
+    elif instruction.action == 16:
+        # Extract pool address (upper 160 bits) and nftId (lower 96 bits) from auxData
+        pool: address = convert(convert(instruction.auxData, uint256) >> 96, address)
+        nftId: uint256 = convert(instruction.auxData, uint256) & convert(max_value(uint96), uint256)
+        # Params: legoId, nftAddr (target), nftId, pool, tokenA, tokenB, amountA, amountB (amount2)
+        extcall Wallet(_userWallet).addLiquidityConcentrated(convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, amount, instruction.amount2, instruction.tickLower, instruction.tickUpper, instruction.minOut1, instruction.minOut2, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return 0
+
+    # remove liquidity concentrated
+    elif instruction.action == 17:
+        # Extract pool address (upper 160 bits) and nftId (lower 96 bits) from auxData
+        pool: address = convert(convert(instruction.auxData, uint256) >> 96, address)
+        nftId: uint256 = convert(instruction.auxData, uint256) & convert(max_value(uint96), uint256)
+        amountA: uint256 = 0
+        amountB: uint256 = 0
+        # Params: legoId, nftAddr (target), nftId, pool, tokenA, tokenB, liqToRemove, minAmountA (minOut1), minAmountB (minOut2)
+        # NOTE: Returns (amountA, amountB, liquidity) - we pass forward amountA only
+        prevAmountReceived, amountA, amountB = extcall Wallet(_userWallet).removeLiquidityConcentrated(convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, amount, instruction.minOut1, instruction.minOut2, instruction.extraAddr, instruction.extraVal, instruction.extraData)
+        return prevAmountReceived
+
+    else:
+        raise "Invalid action"
+
+
+##################
+# Authentication #
+##################
+
+
+@internal
+def _authenticateAccess(_messageHash: bytes32, _sig: Signature):
     if msg.sender != self.owner:
         assert not self.usedSigs[_sig.signature] # dev: signature already used
+        assert _sig.signer != empty(address) # dev: invalid signer
+        assert self._verify(_messageHash, _sig) == self.owner # dev: invalid signer
         assert _sig.expiration >= block.timestamp # dev: signature expired
-        assert self._verify(_h, _sig) == self.owner # dev: invalid signer
         self.usedSigs[_sig.signature] = True
 
 
 @view
 @internal
-def _verify(_h: bytes32, _s: Signature) -> address:
-    d: bytes32 = keccak256(concat(SIG_PREFIX, self._dom(), _h))
-    r: Bytes[32] = raw_call(
+def _verify(_messageHash: bytes32, _sig: Signature) -> address:
+    digest: bytes32 = keccak256(concat(SIG_PREFIX, self._domainSeparator(), _messageHash))
+    result: Bytes[32] = raw_call(
         0x0000000000000000000000000000000000000001,
-        abi_encode(d, convert(slice(_s.signature, 64, 1), uint8), slice(_s.signature, 0, 32), slice(_s.signature, 32, 32)),
+        abi_encode(digest, convert(slice(_sig.signature, 64, 1), uint8), slice(_sig.signature, 0, 32), slice(_sig.signature, 32, 32)),
         max_outsize=32,
         is_static_call=True
     )
-    return abi_decode(r, address) if len(r) == 32 else empty(address)
+    return abi_decode(result, address) if len(result) == 32 else empty(address)
 
 
 @view
 @internal
-def _dom() -> bytes32:
+def _domainSeparator() -> bytes32:
     return keccak256(abi_encode(
         keccak256('EIP712Domain(string name,uint256 chainId,address verifyingContract)'),
         keccak256('UnderscoreAgent'),
@@ -138,409 +580,77 @@ def _dom() -> bytes32:
     ))
 
 
-# Individual actions with unified auth
-@nonreentrant
+#############
+# Ownership #
+#############
+
+
 @external
-def depositForYield(
-    _w: address,
-    _l: uint256,
-    _a: address,
-    _v: address = empty(address),
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, address, uint256):
-    self._auth(keccak256(abi_encode(convert(0, uint8), _w, _l, _a, _v, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).depositForYield(_l, _a, _v, _amt, _ea, _ev, _ed)
+def changeOwnership(_newOwner: address):
+    currentOwner: address = self.owner
+    assert msg.sender == currentOwner # dev: no perms
+    assert _newOwner not in [empty(address), currentOwner] # dev: invalid new owner
+
+    confirmBlock: uint256 = block.number + self.timeLock
+    self.pendingOwner = PendingOwnerChange(
+        newOwner = _newOwner,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+    )
+    log OwnershipChangeInitiated(prevOwner=currentOwner, newOwner=_newOwner, confirmBlock=confirmBlock)
 
 
-@nonreentrant
 @external
-def withdrawFromYield(
-    _w: address,
-    _l: uint256,
-    _v: address,
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, address, uint256):
-    self._auth(keccak256(abi_encode(convert(1, uint8), _w, _l, _v, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).withdrawFromYield(_l, _v, _amt, _ea, _ev, _ed)
+def confirmOwnershipChange():
+    data: PendingOwnerChange = self.pendingOwner
+    assert data.newOwner != empty(address) # dev: no pending owner
+    assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
+    assert msg.sender == data.newOwner # dev: only new owner can confirm
+
+    prevOwner: address = self.owner
+    self.owner = data.newOwner
+    self.pendingOwner = empty(PendingOwnerChange)
+    log OwnershipChangeConfirmed(prevOwner=prevOwner, newOwner=data.newOwner, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
 
 
-@nonreentrant
 @external
-def rebalanceYieldPosition(
-    _w: address,
-    _fl: uint256,
-    _fv: address,
-    _tl: uint256,
-    _tv: address = empty(address),
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, address, uint256):
-    self._auth(keccak256(abi_encode(convert(2, uint8), _w, _fl, _fv, _tl, _tv, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).rebalanceYieldPosition(_fl, _fv, _tl, _tv, _amt, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def swapTokens(
-    _w: address,
-    _si: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
-    _s: Signature = empty(Signature),
-) -> (address, uint256, address, uint256):
-    self._auth(keccak256(abi_encode(convert(3, uint8), _w, _si, _s.expiration)), _s)
-    return extcall Wallet(_w).swapTokens(_si)
-
-
-@nonreentrant
-@external
-def mintOrRedeemAsset(
-    _w: address,
-    _l: uint256,
-    _ti: address,
-    _to: address,
-    _ai: uint256 = max_value(uint256),
-    _mo: uint256 = 0,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, uint256, bool):
-    self._auth(keccak256(abi_encode(convert(4, uint8), _w, _l, _ti, _to, _ai, _mo, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).mintOrRedeemAsset(_l, _ti, _to, _ai, _mo, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def confirmMintOrRedeemAsset(
-    _w: address,
-    _l: uint256,
-    _ti: address,
-    _to: address,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(5, uint8), _w, _l, _ti, _to, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).confirmMintOrRedeemAsset(_l, _ti, _to, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def addCollateral(
-    _w: address,
-    _l: uint256,
-    _a: address,
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(6, uint8), _w, _l, _a, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).addCollateral(_l, _a, _amt, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def removeCollateral(
-    _w: address,
-    _l: uint256,
-    _a: address,
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(7, uint8), _w, _l, _a, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).removeCollateral(_l, _a, _amt, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def borrow(
-    _w: address,
-    _l: uint256,
-    _b: address,
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(8, uint8), _w, _l, _b, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).borrow(_l, _b, _amt, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def repayDebt(
-    _w: address,
-    _l: uint256,
-    _p: address,
-    _amt: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(9, uint8), _w, _l, _p, _amt, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).repayDebt(_l, _p, _amt, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def addLiquidity(
-    _w: address,
-    _l: uint256,
-    _p: address,
-    _ta: address,
-    _tb: address,
-    _aa: uint256 = max_value(uint256),
-    _ab: uint256 = max_value(uint256),
-    _ma: uint256 = 0,
-    _mb: uint256 = 0,
-    _ml: uint256 = 0,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, uint256, uint256):
-    self._auth(keccak256(abi_encode(convert(10, uint8), _w, _l, _p, _ta, _tb, _aa, _ab, _ma, _mb, _ml, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).addLiquidity(_l, _p, _ta, _tb, _aa, _ab, _ma, _mb, _ml, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def addLiquidityConcentrated(
-    _w: address,
-    _l: uint256,
-    _n: address,
-    _id: uint256,
-    _p: address,
-    _ta: address,
-    _tb: address,
-    _aa: uint256 = max_value(uint256),
-    _ab: uint256 = max_value(uint256),
-    _tl: int24 = min_value(int24),
-    _tu: int24 = max_value(int24),
-    _ma: uint256 = 0,
-    _mb: uint256 = 0,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, uint256, uint256, uint256):
-    self._auth(keccak256(abi_encode(convert(11, uint8), _w, _l, _n, _id, _p, _ta, _tb, _aa, _ab, _tl, _tu, _ma, _mb, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).addLiquidityConcentrated(_l, _n, _id, _p, _ta, _tb, _aa, _ab, _tl, _tu, _ma, _mb, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def removeLiquidity(
-    _w: address,
-    _l: uint256,
-    _p: address,
-    _ta: address,
-    _tb: address,
-    _lp: address,
-    _amt: uint256 = max_value(uint256),
-    _ma: uint256 = 0,
-    _mb: uint256 = 0,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, uint256, uint256):
-    self._auth(keccak256(abi_encode(convert(12, uint8), _w, _l, _p, _ta, _tb, _lp, _amt, _ma, _mb, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).removeLiquidity(_l, _p, _ta, _tb, _lp, _amt, _ma, _mb, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def removeLiquidityConcentrated(
-    _w: address,
-    _l: uint256,
-    _n: address,
-    _id: uint256,
-    _p: address,
-    _ta: address,
-    _tb: address,
-    _amt: uint256 = max_value(uint256),
-    _ma: uint256 = 0,
-    _mb: uint256 = 0,
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> (uint256, uint256, uint256):
-    self._auth(keccak256(abi_encode(convert(13, uint8), _w, _l, _n, _id, _p, _ta, _tb, _amt, _ma, _mb, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).removeLiquidityConcentrated(_l, _n, _id, _p, _ta, _tb, _amt, _ma, _mb, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def transferFunds(
-    _w: address,
-    _r: address,
-    _a: address = empty(address),
-    _amt: uint256 = max_value(uint256),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(14, uint8), _w, _r, _a, _amt, _s.expiration)), _s)
-    return extcall Wallet(_w).transferFunds(_r, _a, _amt)
-
-
-@nonreentrant
-@external
-def claimRewards(
-    _w: address,
-    _l: uint256,
-    _rt: address = empty(address),
-    _ra: uint256 = max_value(uint256),
-    _ea: address = empty(address),
-    _ev: uint256 = 0,
-    _ed: bytes32 = empty(bytes32),
-    _s: Signature = empty(Signature),
-) -> uint256:
-    self._auth(keccak256(abi_encode(convert(15, uint8), _w, _l, _rt, _ra, _ea, _ev, _ed, _s.expiration)), _s)
-    return extcall Wallet(_w).claimRewards(_l, _rt, _ra, _ea, _ev, _ed)
-
-
-@nonreentrant
-@external
-def convertEthToWeth(_w: address, _amt: uint256 = max_value(uint256), _s: Signature = empty(Signature)) -> uint256:
-    self._auth(keccak256(abi_encode(convert(16, uint8), _w, _amt, _s.expiration)), _s)
-    return extcall Wallet(_w).convertEthToWeth(_amt)
-
-
-@nonreentrant
-@external
-def convertWethToEth(_w: address, _amt: uint256 = max_value(uint256), _s: Signature = empty(Signature)) -> uint256:
-    self._auth(keccak256(abi_encode(convert(17, uint8), _w, _amt, _s.expiration)), _s)
-    return extcall Wallet(_w).convertWethToEth(_amt)
-
-
-# Batch actions
-@nonreentrant
-@external
-def performBatchActions(
-    _w: address,
-    _inst: DynArray[ActionInstruction, MAX_INSTRUCTIONS],
-    _s: Signature = empty(Signature),
-) -> bool:
+def cancelOwnershipChange():
     if msg.sender != self.owner:
-        h: bytes32 = keccak256(abi_encode(_w, _inst, _s.expiration))
-        self._auth(h, _s)
-    
-    assert len(_inst) > 0 # dev: no instructions
-    p: uint256 = 0  # prevAmountReceived
-    
-    for i: ActionInstruction in _inst:
-        p = self._exec(_w, i, p)
-    
-    return True
+        missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
+        assert staticcall MissionControl(missionControl).canPerformSecurityAction(msg.sender) # dev: no perms
+
+    data: PendingOwnerChange = self.pendingOwner
+    assert data.confirmBlock != 0 # dev: no pending change
+    self.pendingOwner = empty(PendingOwnerChange)
+    log OwnershipChangeCancelled(cancelledOwner=data.newOwner, cancelledBy=msg.sender, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
 
 
+# utils
+
+
+@view
+@external
+def hasPendingOwnerChange() -> bool:
+    return self._hasPendingOwnerChange()
+
+
+@view
 @internal
-def _exec(_w: address, i: ActionInstruction, p: uint256) -> uint256:
-    amt: uint256 = i.amount
-    if i.usePrevAmountOut and p != 0:
-        amt = p
-    
-    # Direct action dispatch without enum conversion
-    if i.action == 0:  # EARN_DEPOSIT
-        a: uint256 = 0
-        b: address = empty(address)
-        a, b, p = extcall Wallet(_w).depositForYield(convert(i.legoId, uint256), i.asset, i.target, amt, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 1:  # EARN_WITHDRAW
-        a: uint256 = 0
-        b: address = empty(address)
-        a, b, p = extcall Wallet(_w).withdrawFromYield(convert(i.legoId, uint256), i.asset, amt, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 2:  # EARN_REBALANCE
-        a: uint256 = 0
-        b: address = empty(address)
-        a, b, p = extcall Wallet(_w).rebalanceYieldPosition(convert(i.legoId, uint256), i.asset, i.amount2, i.target, amt, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 3:  # SWAP
-        if i.usePrevAmountOut and p != 0:
-            i.swapInstructions[0].amountIn = p
-        a: address = empty(address)
-        b: uint256 = 0
-        c: address = empty(address)
-        a, b, c, p = extcall Wallet(_w).swapTokens(i.swapInstructions)
-        return p
-    elif i.action == 4:  # MINT_REDEEM
-        a: uint256 = 0
-        b: bool = False
-        a, p, b = extcall Wallet(_w).mintOrRedeemAsset(convert(i.legoId, uint256), i.asset, i.target, amt, i.minOut1, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 5:  # CONFIRM_MINT_REDEEM
-        p = extcall Wallet(_w).confirmMintOrRedeemAsset(convert(i.legoId, uint256), i.asset, i.target, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 6:  # ADD_COLLATERAL
-        extcall Wallet(_w).addCollateral(convert(i.legoId, uint256), i.asset, amt, i.extraAddr, i.extraVal, i.extraData)
-        return 0
-    elif i.action == 7:  # REMOVE_COLLATERAL
-        return extcall Wallet(_w).removeCollateral(convert(i.legoId, uint256), i.asset, amt, i.extraAddr, i.extraVal, i.extraData)
-    elif i.action == 8:  # BORROW
-        p = extcall Wallet(_w).borrow(convert(i.legoId, uint256), i.asset, amt, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 9:  # REPAY_DEBT
-        extcall Wallet(_w).repayDebt(convert(i.legoId, uint256), i.asset, amt, i.extraAddr, i.extraVal, i.extraData)
-        return 0
-    elif i.action == 10:  # ADD_LIQ
-        if i.usePrevAmountOut and p != 0:
-            amt = p
-        a: uint256 = 0
-        b: uint256 = 0
-        p, a, b = extcall Wallet(_w).addLiquidity(convert(i.legoId, uint256), i.target, i.asset, i.asset2, amt, i.amount2, i.minOut1, i.minOut2, convert(i.auxData, uint256), i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 11:  # ADD_LIQ_CONC
-        if i.usePrevAmountOut and p != 0:
-            amt = p
-        pool: address = convert(convert(i.auxData, uint256) >> 96, address)
-        nftId: uint256 = convert(i.auxData, uint256) & convert(max_value(uint96), uint256)
-        extcall Wallet(_w).addLiquidityConcentrated(convert(i.legoId, uint256), i.target, nftId, pool, i.asset, i.asset2, amt, i.amount2, i.tickLower, i.tickUpper, i.minOut1, i.minOut2, i.extraAddr, i.extraVal, i.extraData)
-        return 0
-    elif i.action == 12:  # REMOVE_LIQ
-        if i.usePrevAmountOut and p != 0:
-            amt = p
-        lpToken: address = convert(convert(i.auxData, uint256) & convert(max_value(uint160), uint256), address)
-        a: uint256 = 0
-        b: uint256 = 0
-        p, a, b = extcall Wallet(_w).removeLiquidity(convert(i.legoId, uint256), i.target, i.asset, i.asset2, lpToken, amt, i.minOut1, i.minOut2, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 13:  # REMOVE_LIQ_CONC
-        if i.usePrevAmountOut and p != 0:
-            amt = p
-        pool: address = convert(convert(i.auxData, uint256) >> 96, address)
-        nftId: uint256 = convert(i.auxData, uint256) & convert(max_value(uint96), uint256)
-        a: uint256 = 0
-        b: uint256 = 0
-        p, a, b = extcall Wallet(_w).removeLiquidityConcentrated(convert(i.legoId, uint256), i.target, nftId, pool, i.asset, i.asset2, amt, i.minOut1, i.minOut2, i.extraAddr, i.extraVal, i.extraData)
-        return p
-    elif i.action == 14:  # TRANSFER
-        extcall Wallet(_w).transferFunds(i.target, i.asset, amt)
-        return 0
-    elif i.action == 15:  # REWARDS
-        return extcall Wallet(_w).claimRewards(convert(i.legoId, uint256), i.asset, i.amount, i.extraAddr, i.extraVal, i.extraData)
-    elif i.action == 16:  # ETH_TO_WETH
-        return extcall Wallet(_w).convertEthToWeth(amt)
-    elif i.action == 17:  # WETH_TO_ETH
-        return extcall Wallet(_w).convertWethToEth(amt)
-    else:
-        raise "Invalid action"
+def _hasPendingOwnerChange() -> bool:
+    return self.pendingOwner.confirmBlock != 0
+
+
+#############
+# Time Lock #
+#############
+
+
+# time lock
+
+
+@external
+def setTimeLock(_numBlocks: uint256):
+    assert msg.sender == self.owner # dev: no perms
+    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid delay
+    self.timeLock = _numBlocks
+    log TimeLockSet(numBlocks=_numBlocks)
