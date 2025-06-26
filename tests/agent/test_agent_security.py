@@ -622,17 +622,15 @@ def test_signature_recovery_empty_result(agent, user_wallet, bob, alice, mock_le
     current_nonce = agent.getNonce()
     
     # Create signature that would cause ecrecover to return empty result
-    # Using all zeros for r, s, v typically causes this, but in practice
-    # it often recovers to a valid address that isn't the owner
+    # Using all zeros for r, s, v - but now s=0 is explicitly rejected
     r = b'\x00' * 32
     s = b'\x00' * 32
     v = b'\x1b'  # 27
     
-    empty_recovery_sig = (r + s + v, current_nonce, valid_time)
+    zero_s_sig = (r + s + v, current_nonce, valid_time)
     
-    # This will likely fail with "invalid signer" since the recovered address
-    # won't match the owner, but we're testing the recovery mechanism works
-    with boa.reverts("invalid signer"):
+    # The new validation now catches s=0 explicitly
+    with boa.reverts("invalid s value (zero)"):
         agent.depositForYield(
             user_wallet,
             1,
@@ -642,7 +640,7 @@ def test_signature_recovery_empty_result(agent, user_wallet, bob, alice, mock_le
             ZERO_ADDRESS,
             0,
             b'\x00' * 32,
-            empty_recovery_sig,
+            zero_s_sig,
             sender=alice
         )
 

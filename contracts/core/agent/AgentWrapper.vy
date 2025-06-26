@@ -583,6 +583,7 @@ def _verify(_messageHash: bytes32, _sig: Signature) -> address:
 
     # prevent signature malleability by ensuring s is in lower half of curve order
     s_uint: uint256 = convert(s, uint256)
+    assert s_uint != 0 # dev: invalid s value (zero)
     assert s_uint <= convert(0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0, uint256) # dev: invalid s value
 
     # create digest with EIP-712
