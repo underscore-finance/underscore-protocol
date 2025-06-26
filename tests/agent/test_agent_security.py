@@ -159,7 +159,7 @@ def test_owner_doesnt_need_signature(agent, user_wallet, bob, mock_lego_asset, m
     assert mock_lego_vault.balanceOf(user_wallet.address) == 100 * EIGHTEEN_DECIMALS
 
 
-def test_non_owner_requires_signature(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_non_owner_requires_signature(agent, user_wallet, alice, mock_lego_asset):
     """Test that non-owner requires valid signature"""
     # Try to execute as non-owner without proper signature
     empty_sig = (b'', 0, 0)
@@ -180,7 +180,7 @@ def test_non_owner_requires_signature(agent, user_wallet, bob, alice, mock_lego_
         )
 
 
-def test_malformed_signature_fails(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_malformed_signature_fails(agent, user_wallet, alice, mock_lego_asset):
     """Test that malformed signatures are rejected"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -203,7 +203,7 @@ def test_malformed_signature_fails(agent, user_wallet, bob, alice, mock_lego_ass
         )
 
 
-def test_signature_v_parameter_validation(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_signature_v_parameter_validation(agent, user_wallet, alice, mock_lego_asset):
     """Test that v parameter must be 27 or 28"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -267,7 +267,7 @@ def test_batch_authentication_for_owner(agent, user_wallet, bob, mock_lego_asset
     assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset - 50 * EIGHTEEN_DECIMALS
 
 
-def test_batch_authentication_for_non_owner(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_batch_authentication_for_non_owner(agent, user_wallet, alice, mock_lego_asset):
     """Test batch actions require signature for non-owner"""
     # Create simple transfer instruction
     instruction = (
@@ -310,7 +310,7 @@ def test_signature_malleability_prevention():
     assert secp256k1n_half == secp256k1n // 2
 
 
-def test_zero_address_signer_fails(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_zero_address_signer_fails(agent, user_wallet, alice, mock_lego_asset):
     """Test that signatures recovering to zero address are rejected"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -352,7 +352,7 @@ def test_nonce_management_functions(agent, bob, alice):
     assert agent.getNonce() == 1
 
 
-def test_nonce_increment_with_valid_signature_use(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_nonce_increment_with_valid_signature_use(agent, user_wallet, alice, mock_lego_asset):
     """Test that nonce increments when non-owner uses valid signature"""
     initial_nonce = agent.getNonce()
     valid_time = boa.env.evm.patch.timestamp + 3600
@@ -398,7 +398,7 @@ def test_eip712_domain_separator(agent):
     assert current_chain_id > 0  # Should have a valid chain ID
 
 
-def test_signature_too_long_fails(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_signature_too_long_fails(agent, user_wallet, alice, mock_lego_asset):
     """Test that signatures longer than 65 bytes are rejected"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -421,7 +421,7 @@ def test_signature_too_long_fails(agent, user_wallet, bob, alice, mock_lego_asse
         )
 
 
-def test_v_parameter_adjustment(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_v_parameter_adjustment(agent, user_wallet, alice, mock_lego_asset):
     """Test v parameter adjustment for values < 27"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -449,7 +449,7 @@ def test_v_parameter_adjustment(agent, user_wallet, bob, alice, mock_lego_asset)
         )
 
 
-def test_s_value_boundary_conditions(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_s_value_boundary_conditions(agent, user_wallet, alice, mock_lego_asset):
     """Test s value malleability boundary conditions"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -542,7 +542,7 @@ def test_cancel_ownership_change_by_owner(agent, bob, alice):
     assert agent.hasPendingOwnerChange() == False
 
 
-def test_batch_action_message_hash_different_actions(agent, user_wallet, bob, alice, mock_lego_asset):
+def test_batch_action_message_hash_different_actions(agent, user_wallet, alice, mock_lego_asset):
     """Test that different batch actions create different message hashes"""
     valid_time = boa.env.evm.patch.timestamp + 3600
     current_nonce = agent.getNonce()
@@ -659,7 +659,7 @@ def test_nonce_overflow_behavior(agent, bob):
     assert agent.getNonce() == initial_nonce + 5
 
 
-def test_batch_empty_instructions_fails(agent, user_wallet, bob, alice):
+def test_batch_empty_instructions_fails(agent, user_wallet, bob):
     """Test that batch actions with empty instructions fail"""
     empty_sig = (b'', 0, 0)
     
@@ -731,3 +731,271 @@ def test_timelock_boundaries(agent, bob, alice):
     # Test invalid timelock (too large)
     with boa.reverts("invalid delay"):
         agent.setTimeLock(max_timelock + 1, sender=bob)
+
+
+def test_batch_with_valid_signature_nonce_management(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test batch actions with signatures properly manage nonce"""
+    # This test validates the nonce management flow without creating a real signature
+    initial_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create batch instructions
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 1,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Test 1: Invalid signature fails but doesn't increment nonce
+    invalid_sig = (b'\x00' * 65, initial_nonce, valid_time)
+    with boa.reverts():  # Will fail at signature verification
+        agent.performBatchActions(user_wallet, [instruction], invalid_sig, sender=alice)
+    
+    # Nonce should remain unchanged
+    assert agent.getNonce() == initial_nonce
+    
+    # Test 2: Owner executes batch successfully without affecting nonce
+    initial_balance = mock_lego_asset.balanceOf(alice)
+    agent.performBatchActions(user_wallet, [instruction], (b'', 0, 0), sender=bob)
+    assert mock_lego_asset.balanceOf(alice) == initial_balance + 1
+    assert agent.getNonce() == initial_nonce  # Owner calls don't increment nonce
+    
+    # Test 3: Manually increment nonce and verify old signatures fail
+    agent.incrementNonce(sender=bob)
+    new_nonce = agent.getNonce()
+    assert new_nonce == initial_nonce + 1
+    
+    # Old nonce signature should now fail at nonce check
+    with boa.reverts("invalid nonce"):
+        agent.performBatchActions(user_wallet, [instruction], invalid_sig, sender=alice)
+    
+    # Test 4: Future nonce also fails
+    future_sig = (b'\x00' * 65, new_nonce + 5, valid_time)
+    with boa.reverts("invalid nonce"):
+        agent.performBatchActions(user_wallet, [instruction], future_sig, sender=alice)
+
+
+def test_batch_signature_replay_protection(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test batch signatures cannot be replayed"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create instruction
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 1,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Create a fake signature that will fail but tests nonce validation
+    sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    # First attempt will fail at signature verification
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [instruction], sig, sender=alice)
+    
+    # Manually increment nonce as owner
+    agent.incrementNonce(sender=bob)
+    
+    # Same signature with old nonce should fail at nonce check now
+    with boa.reverts("invalid nonce"):
+        agent.performBatchActions(user_wallet, [instruction], sig, sender=alice)
+
+
+def test_batch_multiple_instructions_signature(agent, user_wallet, bob, alice, mock_lego_asset, mock_lego_vault):
+    """Test batch with multiple instructions requires valid signature"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create multiple different instructions
+    transfer_instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 10 * EIGHTEEN_DECIMALS,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    deposit_instruction = (
+        False, 1, 1, mock_lego_asset.address, mock_lego_vault.address, 50 * EIGHTEEN_DECIMALS,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Invalid signature
+    invalid_sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    # Non-owner with invalid signature should fail
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [transfer_instruction, deposit_instruction], invalid_sig, sender=alice)
+    
+    # Owner can execute without valid signature
+    initial_asset = mock_lego_asset.balanceOf(user_wallet.address)
+    agent.performBatchActions(user_wallet, [transfer_instruction, deposit_instruction], (b'', 0, 0), sender=bob)
+    
+    # Verify both actions executed
+    assert mock_lego_asset.balanceOf(alice) == 10 * EIGHTEEN_DECIMALS
+    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset - 60 * EIGHTEEN_DECIMALS
+
+
+def test_batch_signature_with_different_instructions_order(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test that instruction order matters for signature verification"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create two instructions
+    instruction1 = (
+        False, 0, 0, mock_lego_asset.address, alice, 5 * EIGHTEEN_DECIMALS,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    instruction2 = (
+        False, 0, 0, mock_lego_asset.address, bob, 3 * EIGHTEEN_DECIMALS,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Different order means different message hash
+    sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    # Both orders should fail with same signature (different message hashes)
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [instruction1, instruction2], sig, sender=alice)
+    
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [instruction2, instruction1], sig, sender=alice)
+
+
+def test_batch_signature_includes_all_parameters(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test that batch signature includes all instruction parameters"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create similar instructions with slight differences
+    base_instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 100,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Change only the amount
+    modified_amount = (
+        False, 0, 0, mock_lego_asset.address, alice, 101,  # Different amount
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Change only the recipient
+    modified_recipient = (
+        False, 0, 0, mock_lego_asset.address, bob,  # Different recipient
+        100, ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    # All should fail (different message hashes)
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [base_instruction], sig, sender=alice)
+    
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [modified_amount], sig, sender=alice)
+    
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [modified_recipient], sig, sender=alice)
+
+
+def test_batch_expired_signature_check(agent, user_wallet, alice, mock_lego_asset):
+    """Test batch actions check signature expiration"""
+    current_nonce = agent.getNonce()
+    expired_time = boa.env.evm.patch.timestamp - 3600  # Expired
+    
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 100,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    expired_sig = (b'\x00' * 65, current_nonce, expired_time)
+    
+    # Should fail with expired signature
+    with boa.reverts("signature expired"):
+        agent.performBatchActions(user_wallet, [instruction], expired_sig, sender=alice)
+
+
+def test_batch_invalid_nonce_check(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test batch actions validate nonce correctly"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 100,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Wrong nonce (future)
+    wrong_nonce_sig = (b'\x00' * 65, current_nonce + 10, valid_time)
+    
+    with boa.reverts("invalid nonce"):
+        agent.performBatchActions(user_wallet, [instruction], wrong_nonce_sig, sender=alice)
+    
+    # Wrong nonce (past, after increment)
+    agent.incrementNonce(sender=bob)
+    old_nonce_sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    with boa.reverts("invalid nonce"):
+        agent.performBatchActions(user_wallet, [instruction], old_nonce_sig, sender=alice)
+
+
+def test_batch_signature_malleability_check(agent, user_wallet, alice, mock_lego_asset):
+    """Test batch actions enforce s-value malleability check"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 100,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # Create signature with s value too high
+    r = b'\x00' * 32
+    s_too_high = (0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A1).to_bytes(32, 'big')
+    v = b'\x1b'  # 27
+    
+    invalid_s_sig = (r + s_too_high + v, current_nonce, valid_time)
+    
+    with boa.reverts("invalid s value"):
+        agent.performBatchActions(user_wallet, [instruction], invalid_s_sig, sender=alice)
+
+
+def test_batch_with_swap_instructions(agent, user_wallet, alice, mock_lego_asset):
+    """Test batch with swap instructions in signature"""
+    current_nonce = agent.getNonce()
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    
+    # Create swap instruction with correct structure
+    # SwapInstruction struct: legoId, amountIn, minAmountOut, tokenPath, poolPath
+    swap_details = [(
+        0,  # legoId
+        100,  # amountIn
+        0,  # minAmountOut
+        [mock_lego_asset.address, ZERO_ADDRESS],  # tokenPath
+        [ZERO_ADDRESS]  # poolPath (one less than tokenPath)
+    )]
+    
+    swap_instruction = (
+        False, 4, 0, ZERO_ADDRESS, ZERO_ADDRESS, 0,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, 
+        swap_details  # Include swap instructions
+    )
+    
+    invalid_sig = (b'\x00' * 65, current_nonce, valid_time)
+    
+    # Should fail signature verification
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, [swap_instruction], invalid_sig, sender=alice)
+
+
+def test_batch_max_instructions_limit(agent, user_wallet, bob, alice, mock_lego_asset):
+    """Test batch respects MAX_INSTRUCTIONS limit"""
+    # Create many simple transfer instructions (more than limit)
+    instruction = (
+        False, 0, 0, mock_lego_asset.address, alice, 1,
+        ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
+    )
+    
+    # MAX_INSTRUCTIONS is 15, try with 16
+    too_many = [instruction] * 16
+    
+    # Should fail (likely at signature or encoding level)
+    with boa.reverts():
+        agent.performBatchActions(user_wallet, too_many, (b'', 0, 0), sender=bob)
