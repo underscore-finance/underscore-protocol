@@ -237,4 +237,4 @@ def user_wallet_config_template():
 
 @pytest.fixture(scope="session")
 def agent_template():
-    return boa.load_partial("contracts/core/agent/AgentOptimized.vy").deploy_as_blueprint()
+    return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()

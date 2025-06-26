@@ -1,6 +1,6 @@
 # ActionInstruction Field Mapping Guide
 
-This document provides a clear mapping of how ActionInstruction struct fields are used for each action type in AgentOptimized.vy.
+This document provides a clear mapping of how ActionInstruction struct fields are used for each action type in AgentWrapper.vy.
 
 ## Field Usage by Action
 

@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from contracts.core.userWallet import UserWallet
-from contracts.core.agent import AgentOptimized
+from contracts.core.agent import AgentWrapper
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
@@ -26,7 +26,7 @@ def agent(setAgentConfig, setUserWalletConfig, hatchery, bob):
     assert wallet_addr != ZERO_ADDRESS
 
     setUserWalletConfig(_defaultAgent=wallet_addr)
-    return AgentOptimized.at(wallet_addr)
+    return AgentWrapper.at(wallet_addr)
 
 
 # tests
