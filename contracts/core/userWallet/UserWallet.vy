@@ -77,13 +77,8 @@ event YieldDeposit:
     vaultToken: indexed(address)
     vaultTokenAmount: uint256
     txUsdValue: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event YieldWithdrawal:
     vaultToken: indexed(address)
@@ -91,13 +86,8 @@ event YieldWithdrawal:
     underlyingAsset: indexed(address)
     underlyingAmountReceived: uint256
     txUsdValue: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event OverallSwapPerformed:
     tokenIn: indexed(address)
@@ -108,7 +98,6 @@ event OverallSwapPerformed:
     numLegos: uint256
     numInstructions: uint256
     signer: indexed(address)
-    isManager: bool
 
 event SpecificSwapInstructionPerformed:
     tokenIn: indexed(address)
@@ -121,7 +110,6 @@ event SpecificSwapInstructionPerformed:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event AssetMintedOrRedeemed:
     tokenIn: indexed(address)
@@ -130,74 +118,44 @@ event AssetMintedOrRedeemed:
     tokenOutAmount: uint256
     isPending: bool
     txUsdValue: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event AssetMintedOrRedeemedConfirmed:
     tokenIn: indexed(address)
     tokenOut: indexed(address)
     tokenOutAmount: uint256
     txUsdValue: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event CollateralAdded:
     asset: indexed(address)
     amountDeposited: uint256
     txUsdValue: uint256
-    extraAddr: indexed(address)
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event CollateralRemoved:
     asset: indexed(address)
     amountRemoved: uint256
     txUsdValue: uint256
-    extraAddr: indexed(address)
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event NewBorrow:
     borrowAsset: indexed(address)
     borrowAmount: uint256
     txUsdValue: uint256
-    extraAddr: indexed(address)
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event DebtRepayment:
     paymentAsset: indexed(address)
     repaidAmount: uint256
     txUsdValue: uint256
-    extraAddr: indexed(address)
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event LiquidityAdded:
     pool: indexed(address)
@@ -208,13 +166,8 @@ event LiquidityAdded:
     txUsdValue: uint256
     lpToken: address
     lpAmountReceived: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: address
-    isManager: bool
 
 event ConcentratedLiquidityAdded:
     nftTokenId: uint256
@@ -225,13 +178,8 @@ event ConcentratedLiquidityAdded:
     amountB: uint256
     txUsdValue: uint256
     liqAdded: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: address
-    isManager: bool
 
 event LiquidityRemoved:
     pool: indexed(address)
@@ -242,13 +190,8 @@ event LiquidityRemoved:
     txUsdValue: uint256
     lpToken: address
     lpAmountBurned: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: address
-    isManager: bool
 
 event ConcentratedLiquidityRemoved:
     nftTokenId: uint256
@@ -259,45 +202,33 @@ event ConcentratedLiquidityRemoved:
     amountBReceived: uint256
     txUsdValue: uint256
     liqRemoved: uint256
-    extraAddr: address
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
-    legoAddr: address
     signer: address
-    isManager: bool
 
 event FundsTransferred:
     asset: indexed(address)
     amount: uint256
     recipient: indexed(address)
     signer: indexed(address)
-    isManager: bool
 
 event EthWrapped:
     amount: uint256
     paidEth: uint256
     txUsdValue: uint256
     signer: indexed(address)
-    isManager: bool
 
 event WethUnwrapped:
     amount: uint256
     txUsdValue: uint256
     signer: indexed(address)
-    isManager: bool
 
 event RewardsClaimed:
     rewardToken: indexed(address)
     rewardAmount: uint256
     txUsdValue: uint256
-    extraAddr: indexed(address)
-    extraVal: uint256
-    extraData: bytes32
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isManager: bool
 
 event NftRecovered:
     collection: indexed(address)
@@ -428,7 +359,6 @@ def transferFunds(
         amount = amount,
         recipient = _recipient,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amount, txUsdValue
 
@@ -486,13 +416,8 @@ def _depositForYield(
         vaultToken = vaultToken,
         vaultTokenAmount = vaultTokenAmountReceived,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = _cd.legoId,
-        legoAddr = _cd.legoAddr,
         signer = _cd.signer,
-        isManager = _cd.isManager,
     )
     return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
 
@@ -551,13 +476,8 @@ def _withdrawFromYield(
         underlyingAsset = underlyingAsset,
         underlyingAmountReceived = underlyingAmount,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = _cd.legoId,
-        legoAddr = _cd.legoAddr,
         signer = _cd.signer,
-        isManager = _cd.isManager,
     )
     return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue
 
@@ -646,7 +566,6 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         numLegos = len(legoIds),
         numInstructions = len(_instructions),
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
@@ -682,7 +601,6 @@ def _performSwapInstruction(
         legoId = _i.legoId,
         legoAddr = legoAddr,
         signer = _cd.signer,
-        isManager = _cd.isManager,
     )
     return tokenOut, tokenOutAmount, txUsdValue
 
@@ -747,13 +665,8 @@ def mintOrRedeemAsset(
         tokenOutAmount = tokenOutAmount,
         isPending = isPending,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return tokenInAmount, tokenOutAmount, isPending, txUsdValue
 
@@ -781,13 +694,8 @@ def confirmMintOrRedeemAsset(
         tokenOut = _tokenOut,
         tokenOutAmount = tokenOutAmount,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return tokenOutAmount, txUsdValue
 
@@ -828,13 +736,8 @@ def addCollateral(
         asset = _asset,
         amountDeposited = amountDeposited,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amountDeposited, txUsdValue
 
@@ -863,13 +766,8 @@ def removeCollateral(
         asset = _asset,
         amountRemoved = amountRemoved,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amountRemoved, txUsdValue
 
@@ -899,13 +797,8 @@ def borrow(
         borrowAsset = _borrowAsset,
         borrowAmount = borrowAmount,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return borrowAmount, txUsdValue
 
@@ -936,13 +829,8 @@ def repayDebt(
         paymentAsset = _paymentAsset,
         repaidAmount = repaidAmount,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return repaidAmount, txUsdValue
 
@@ -977,13 +865,9 @@ def claimRewards(
         rewardToken = _rewardToken,
         rewardAmount = rewardAmount,
         txUsdValue = txUsdValue,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return rewardAmount, txUsdValue
 
@@ -1018,7 +902,6 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
         paidEth = msg.value,
         txUsdValue = txUsdValue,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amount, txUsdValue
 
@@ -1045,7 +928,6 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
         amount = amount,
         txUsdValue = txUsdValue,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amount, txUsdValue
 
@@ -1104,13 +986,8 @@ def addLiquidity(
         txUsdValue = txUsdValue,
         lpToken = lpToken,
         lpAmountReceived = lpAmountReceived,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return lpAmountReceived, addedTokenA, addedTokenB, txUsdValue
 
@@ -1151,13 +1028,8 @@ def removeLiquidity(
         txUsdValue = txUsdValue,
         lpToken = _lpToken,
         lpAmountBurned = lpAmountBurned,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amountAReceived, amountBReceived, lpAmountBurned, txUsdValue
 
@@ -1222,13 +1094,8 @@ def addLiquidityConcentrated(
         amountB = addedTokenB,
         txUsdValue = txUsdValue,
         liqAdded = liqAdded,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return liqAdded, addedTokenA, addedTokenB, nftTokenId, txUsdValue
 
@@ -1278,13 +1145,8 @@ def removeLiquidityConcentrated(
         amountBReceived = amountBReceived,
         txUsdValue = txUsdValue,
         liqRemoved = liqRemoved,
-        extraAddr = _extraAddr,
-        extraVal = _extraVal,
-        extraData = _extraData,
         legoId = cd.legoId,
-        legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isManager = cd.isManager,
     )
     return amountAReceived, amountBReceived, liqRemoved, txUsdValue
 

@@ -72,9 +72,7 @@ def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     assert event.vaultToken == vault.address
     assert event.vaultTokenAmount == deposit_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
@@ -121,9 +119,7 @@ def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
     assert event.underlyingAsset == asset.address
     assert event.underlyingAmountReceived == withdraw_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
@@ -179,9 +175,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     assert withdrawal_event.underlyingAsset == asset.address
     assert withdrawal_event.underlyingAmountReceived == rebalance_amount
     assert withdrawal_event.legoId == 1
-    assert withdrawal_event.legoAddr == mock_lego.address
     assert withdrawal_event.signer == owner
-    assert withdrawal_event.isManager == False
     
     # Verify deposit event (to asset as "vault")
     assert len(deposit_logs) == 1  # Only one from rebalance (we cleared events)
@@ -191,9 +185,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     assert rebalance_deposit_event.vaultToken == asset.address  # Using asset as "vault"
     assert rebalance_deposit_event.vaultTokenAmount == rebalance_amount
     assert rebalance_deposit_event.legoId == 1
-    assert rebalance_deposit_event.legoAddr == mock_lego.address
     assert rebalance_deposit_event.signer == owner
-    assert rebalance_deposit_event.isManager == False
 
 
 def test_swap_tokens(setup_wallet_with_tokens, bob):
@@ -244,7 +236,6 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     assert overall_event.numLegos == 1
     assert overall_event.numInstructions == 1
     assert overall_event.signer == owner
-    assert overall_event.isManager == False
     
     # Verify specific swap event
     assert len(specific_swap_logs) == 1
@@ -256,9 +247,7 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     assert specific_event.numTokens == 2
     assert specific_event.numPools == 0
     assert specific_event.legoId == 1
-    assert specific_event.legoAddr == mock_lego.address
     assert specific_event.signer == owner
-    assert specific_event.isManager == False
 
 
 def test_mint_asset_immediate(setup_wallet_with_tokens, bob):
@@ -308,9 +297,7 @@ def test_mint_asset_immediate(setup_wallet_with_tokens, bob):
     assert event.tokenOutAmount == mint_amount
     assert event.isPending == False
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
@@ -387,9 +374,7 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     assert mint_event.tokenOutAmount == 0  # No output yet for pending
     assert mint_event.isPending == True
     assert mint_event.legoId == 1
-    assert mint_event.legoAddr == mock_lego.address
     assert mint_event.signer == owner
-    assert mint_event.isManager == False
     
     # Verify confirmation event
     assert len(confirm_logs) == 1
@@ -398,9 +383,7 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     assert confirm_event.tokenOut == asset_alt.address
     assert confirm_event.tokenOutAmount == mint_amount
     assert confirm_event.legoId == 1
-    assert confirm_event.legoAddr == mock_lego.address
     assert confirm_event.signer == owner
-    assert confirm_event.isManager == False
 
 
 def test_add_collateral(setup_wallet_with_tokens, bob):
@@ -439,9 +422,7 @@ def test_add_collateral(setup_wallet_with_tokens, bob):
     assert event.asset == asset.address
     assert event.amountDeposited == collateral_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_remove_collateral(setup_wallet_with_tokens, bob):
@@ -484,9 +465,7 @@ def test_remove_collateral(setup_wallet_with_tokens, bob):
     assert event.asset == asset.address
     assert event.amountRemoved == remove_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_borrow(setup_wallet_with_tokens, mock_lego_debt_token, bob):
@@ -529,9 +508,7 @@ def test_borrow(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     assert event.borrowAsset == mock_lego_debt_token.address
     assert event.borrowAmount == borrow_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
@@ -578,9 +555,7 @@ def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     assert event.paymentAsset == mock_lego_debt_token.address
     assert event.repaidAmount == repay_amount
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_claim_rewards(setup_wallet_with_tokens, bob):
@@ -622,7 +597,6 @@ def test_claim_rewards(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_add_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
@@ -680,9 +654,7 @@ def test_add_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     assert event.lpToken == mock_lego_lp_token.address
     assert event.lpAmountReceived == expected_lp
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
@@ -746,9 +718,7 @@ def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     assert event.lpToken == mock_lego_lp_token.address
     assert event.lpAmountBurned == lp_to_remove
     assert event.legoId == 1
-    assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isManager == False
 
 
 def test_multiple_operations_sequence(setup_wallet_with_tokens, mock_lego_debt_token, bob):
