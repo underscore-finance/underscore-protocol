@@ -19,6 +19,7 @@ struct AssetConfig:
     maxIncrease: uint256
     performanceFee: uint256
     decimals: uint256
+    stalePriceNumBlocks: uint256
 
 struct UserWalletConfig:
     defaultAgent: address
@@ -34,11 +35,22 @@ struct AgentConfig:
     numAgentsAllowed: uint256
     enforceCreatorWhitelist: bool
 
-struct TimeLockBoundaries:
+struct TimeBoundaries:
     minTimeLock: uint256
     maxTimeLock: uint256
+    minManagerPeriod: uint256
+    maxManagerPeriod: uint256
 
 # helpers
+
+struct WalletAssetConfig:
+    hasConfig: bool
+    isYieldAsset: bool
+    isRebasing: bool
+    maxIncrease: uint256
+    performanceFee: uint256
+    decimals: uint256
+    stalePriceNumBlocks: uint256
 
 struct UserWalletCreationConfig:
     defaultAgent: address
@@ -50,6 +62,8 @@ struct UserWalletCreationConfig:
     isCreatorAllowed: bool
     minTimeLock: uint256
     maxTimeLock: uint256
+    minManagerPeriod: uint256
+    maxManagerPeriod: uint256
 
 struct AgentCreationConfig:
     agentTemplate: address
@@ -61,12 +75,13 @@ struct AgentCreationConfig:
 # core configs
 userWalletConfig: public(UserWalletConfig)
 agentConfig: public(AgentConfig)
-assetConfig: public(AssetConfig)
+assetConfig: public(HashMap[address, AssetConfig])
 
 # other
+feeRecipient: public(address)
 creatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted
 canPerformSecurityAction: public(HashMap[address, bool]) # signer -> can perform security action
-timelock: public(TimeLockBoundaries)
+timeBoundaries: public(TimeBoundaries)
 
 # locked
 isLockedSigner: public(HashMap[address, bool]) # signer -> is locked
@@ -93,7 +108,7 @@ def setUserWalletConfig(_config: UserWalletConfig):
 @external
 def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
     config: UserWalletConfig = self.userWalletConfig
-    timelock: TimeLockBoundaries = self.timelock
+    timeBoundaries: TimeBoundaries = self.timeBoundaries
     return UserWalletCreationConfig(
         defaultAgent = config.defaultAgent,
         walletTemplate = config.walletTemplate,
@@ -102,8 +117,10 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         trialAmount = config.trialAmount,
         numUserWalletsAllowed = config.numUserWalletsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
-        minTimeLock = timelock.minTimeLock,
-        maxTimeLock = timelock.maxTimeLock,
+        minTimeLock = timeBoundaries.minTimeLock,
+        maxTimeLock = timeBoundaries.maxTimeLock,
+        minManagerPeriod = timeBoundaries.minManagerPeriod,
+        maxManagerPeriod = timeBoundaries.maxManagerPeriod,
     )
 
 
@@ -122,13 +139,13 @@ def setAgentConfig(_config: AgentConfig):
 @external
 def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
     config: AgentConfig = self.agentConfig
-    timelock: TimeLockBoundaries = self.timelock
+    timeBoundaries: TimeBoundaries = self.timeBoundaries
     return AgentCreationConfig(
         agentTemplate = config.agentTemplate,
         numAgentsAllowed = config.numAgentsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
-        minTimeLock = timelock.minTimeLock,
-        maxTimeLock = timelock.maxTimeLock,
+        minTimeLock = timeBoundaries.minTimeLock,
+        maxTimeLock = timeBoundaries.maxTimeLock,
     )
 
 
@@ -138,14 +155,34 @@ def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
 
 
 @external
-def setAssetConfig(_config: AssetConfig):
+def setAssetConfig(_asset: address, _config: AssetConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.assetConfig = _config
+    self.assetConfig[_asset] = _config
+
+
+# NOTE: creating different struct for user wallet in case main config struct diverges, updates, changes
+
+
+@external
+def getUserWalletAssetConfig(_asset: address) -> WalletAssetConfig:
+    config: AssetConfig = self.assetConfig[_asset]
+    return WalletAssetConfig(
+        hasConfig = config.hasConfig,
+        isYieldAsset = config.isYieldAsset,
+        isRebasing = config.isRebasing,
+        maxIncrease = config.maxIncrease,
+        performanceFee = config.performanceFee,
+        decimals = config.decimals,
+        stalePriceNumBlocks = config.stalePriceNumBlocks,
+    )
 
 
 #########
 # Other #
 #########
+
+
+# can perform security action
 
 
 @external
@@ -154,26 +191,40 @@ def setCanPerformSecurityAction(_signer: address, _canPerform: bool):
     self.canPerformSecurityAction[_signer] = _canPerform
 
 
+# creator whitelist
+
+
 @external
 def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.creatorWhitelist[_creator] = _isWhitelisted
 
 
+# time lock boundaries
+
+
 @external
-def setTimeLockBoundaries(_minTimeLock: uint256, _maxTimeLock: uint256):
+def setTimeLockBoundaries(_timeBoundaries: TimeBoundaries):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _minTimeLock < _maxTimeLock # dev: invalid time lock boundaries
-    self.timelock = TimeLockBoundaries(
-        minTimeLock = _minTimeLock,
-        maxTimeLock = _maxTimeLock,
-    )
+    self.timeBoundaries = _timeBoundaries
+
+
+# locked signer
 
 
 @external
 def setLockedSigner(_signer: address, _isLocked: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.isLockedSigner[_signer] = _isLocked
+
+
+# fee recipient
+
+
+@external
+def setFeeRecipient(_feeRecipient: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.feeRecipient = _feeRecipient
 
 
 #########

@@ -39,3 +39,10 @@ TOKENS = {
         "BTC": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
     },
 }
+
+
+INTEGRATION_ADDYS = {
+    "base": {
+        "RIPE_HQ": "0x6162df1b329E157479F8f1407E888260E0EC3d2b",
+    },
+}

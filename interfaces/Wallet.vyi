@@ -67,7 +67,7 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -88,7 +88,7 @@ def depositForYield(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, address, uint256):
+) -> (uint256, address, uint256, uint256):
     ...
 
 
@@ -103,7 +103,7 @@ def withdrawFromYield(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, address, uint256):
+) -> (uint256, address, uint256, uint256):
     ...
 
 
@@ -120,7 +120,7 @@ def rebalanceYieldPosition(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, address, uint256):
+) -> (uint256, address, uint256, uint256):
     ...
 
 
@@ -130,7 +130,7 @@ def rebalanceYieldPosition(
 
 
 @external
-def swapTokens(_instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256):
+def swapTokens(_instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
     ...
 
 
@@ -147,7 +147,7 @@ def mintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, bool):
+) -> (uint256, uint256, bool, uint256):
     ...
 
 
@@ -159,7 +159,7 @@ def confirmMintOrRedeemAsset(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -179,7 +179,7 @@ def addCollateral(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -194,7 +194,7 @@ def removeCollateral(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -209,7 +209,7 @@ def borrow(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -224,7 +224,7 @@ def repayDebt(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -241,7 +241,7 @@ def claimRewards(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> uint256:
+) -> (uint256, uint256):
     ...
 
 
@@ -255,7 +255,7 @@ def claimRewards(
 
 @payable
 @external
-def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
+def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     ...
 
 
@@ -263,7 +263,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
 
 
 @external
-def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
+def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     ...
 
 
@@ -289,7 +289,7 @@ def addLiquidity(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
+) -> (uint256, uint256, uint256, uint256):
     ...
 
 
@@ -306,7 +306,7 @@ def removeLiquidity(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
+) -> (uint256, uint256, uint256, uint256):
     ...
 
 
@@ -330,7 +330,7 @@ def addLiquidityConcentrated(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256, uint256):
+) -> (uint256, uint256, uint256, uint256, uint256):
     ...
 
 
@@ -348,7 +348,7 @@ def removeLiquidityConcentrated(
     _extraAddr: address = empty(address),
     _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256, uint256):
+) -> (uint256, uint256, uint256, uint256):
     ...
 
 

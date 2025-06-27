@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from config.BluePrint import PARAMS, TOKENS
+from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
 
 
@@ -35,6 +35,7 @@ def undy_hq(
     ledger,
     mission_control,
     hatchery,
+    price_desk,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -56,12 +57,16 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 4
 
     # 5
-    assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 5
+    assert undy_hq_deploy.startAddNewAddressToRegistry(price_desk, "Price Desk", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(price_desk, sender=deploy3r) == 5
 
     # 6
+    assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 6
+
+    # 7
     assert undy_hq_deploy.startAddNewAddressToRegistry(hatchery, "Hatchery", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 6
+    assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 7
 
     # special permission setup
 
@@ -216,7 +221,23 @@ def hatchery(undy_hq_deploy, fork):
         "contracts/core/Hatchery.vy",
         undy_hq_deploy,
         TOKENS[fork]["WETH"],
+        TOKENS[fork]["ETH"],
         name="hatchery",
+    )
+
+
+# price desk
+
+
+@pytest.fixture(scope="session")
+def price_desk(undy_hq_deploy, fork, mock_ripe):
+    ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ"]
+
+    return boa.load(
+        "contracts/core/PriceDesk.vy",
+        undy_hq_deploy,
+        ripe_hq,
+        name="price_desk",
     )
 
 

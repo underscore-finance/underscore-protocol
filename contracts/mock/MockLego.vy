@@ -85,7 +85,7 @@ def depositForYield(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, address, uint256):
+) -> (uint256, address, uint256, uint256):
     assert self._areValidTokens([_asset, _vaultAddr]) # dev: invalid tokens
 
     amount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
@@ -95,7 +95,7 @@ def depositForYield(
     extcall MockToken(_asset).burn(amount)
     extcall MockToken(_vaultAddr).mint(_recipient, amount)
 
-    return amount, _vaultAddr, amount
+    return amount, _vaultAddr, amount, amount
 
 
 # withdraw
@@ -109,7 +109,7 @@ def withdrawFromYield(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, address, uint256):
+) -> (uint256, address, uint256, uint256):
     assert self._areValidTokens([_vaultToken]) # dev: invalid tokens
 
     amount: uint256 = min(_amount, staticcall IERC20(_vaultToken).balanceOf(msg.sender))
@@ -120,7 +120,7 @@ def withdrawFromYield(
     extcall MockToken(_vaultToken).burn(amount)
     extcall MockToken(asset).mint(_recipient, amount)
 
-    return amount, asset, amount
+    return amount, asset, amount, amount
 
 
 ###################
@@ -135,7 +135,7 @@ def swapTokens(
     _tokenPath: DynArray[address, MAX_TOKEN_PATH],
     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
     _recipient: address,
-) -> (uint256, uint256):
+) -> (uint256, uint256, uint256):
     assert len(_tokenPath) >= 2 # dev: invalid token path
     tokenIn: address = _tokenPath[0]
     tokenOut: address = _tokenPath[len(_tokenPath) - 1]
@@ -148,7 +148,7 @@ def swapTokens(
     extcall MockToken(tokenIn).burn(amount)
     extcall MockToken(tokenOut).mint(_recipient, amount)
 
-    return amount, amount
+    return amount, amount, amount
     
 
 # mint / redeem
@@ -164,7 +164,7 @@ def mintOrRedeemAsset(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, uint256, bool):
+) -> (uint256, uint256, bool, uint256):
     assert self._areValidTokens([_tokenIn, _tokenOut]) # dev: invalid tokens
 
     amount: uint256 = min(_tokenInAmount, staticcall IERC20(_tokenIn).balanceOf(msg.sender))
@@ -173,8 +173,10 @@ def mintOrRedeemAsset(
     extcall MockToken(_tokenIn).burn(amount)
 
     # immediate mint (default)
+    usdValue: uint256 = 0
     if _extraVal == 0:
         extcall MockToken(_tokenOut).mint(_recipient, amount)
+        usdValue = amount
 
     # create pending mint
     else:
@@ -185,7 +187,7 @@ def mintOrRedeemAsset(
         )
         amount = 0
 
-    return amount, amount, _extraVal != 0
+    return amount, amount, _extraVal != 0, usdValue
     
 
 @external
@@ -196,7 +198,7 @@ def confirmMintOrRedeemAsset(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> uint256:
+) -> (uint256, uint256):
     pending: PendingMintOrRedeem = self.pendingMintOrRedeem[msg.sender]
     assert pending.tokenIn == _tokenIn and pending.tokenOut == _tokenOut # dev: invalid tokens
     assert pending.amount != 0 # dev: nothing to confirm
@@ -204,7 +206,7 @@ def confirmMintOrRedeemAsset(
     extcall MockToken(pending.tokenOut).mint(_recipient, pending.amount)
     self.pendingMintOrRedeem[msg.sender] = empty(PendingMintOrRedeem)
 
-    return pending.amount
+    return pending.amount, pending.amount
 
 
 ########
@@ -220,7 +222,7 @@ def addCollateral(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> uint256:
+) -> (uint256, uint256):
     assert self._areValidTokens([_asset]) # dev: invalid tokens
     assert self.hasAccess # dev: no access
 
@@ -229,7 +231,7 @@ def addCollateral(
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
 
     extcall MockToken(_asset).burn(amount)
-    return amount
+    return amount, amount
 
 
 @external
@@ -240,12 +242,12 @@ def removeCollateral(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> uint256:
+) -> (uint256, uint256):
     assert self._areValidTokens([_asset]) # dev: invalid tokens
     assert self.hasAccess # dev: no access
 
     extcall MockToken(_asset).mint(_recipient, _amount)
-    return _amount
+    return _amount, _amount
 
 
 @external
@@ -256,7 +258,7 @@ def borrow(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> uint256:
+) -> (uint256, uint256):
     assert _borrowAsset == self.debtToken # dev: invalid borrow asset
     assert self.hasAccess # dev: no access
 
@@ -264,7 +266,7 @@ def borrow(
     assert _amount != max_value(uint256) # dev: too high
 
     extcall MockToken(_borrowAsset).mint(_recipient, _amount)
-    return _amount
+    return _amount, _amount
 
 
 @external
@@ -275,7 +277,7 @@ def repayDebt(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> uint256:
+) -> (uint256, uint256):
     assert _paymentAsset == self.debtToken # dev: invalid payment asset
     assert self.hasAccess # dev: no access
 
@@ -284,7 +286,7 @@ def repayDebt(
     assert extcall IERC20(_paymentAsset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
 
     extcall MockToken(_paymentAsset).burn(amount)
-    return amount
+    return amount, amount
 
 
 #################
@@ -300,12 +302,12 @@ def claimRewards(
     _extraAddr: address,
     _extraVal: uint256,
     _extraData: bytes32,
-) -> uint256:
+) -> (uint256, uint256):
     assert self._areValidTokens([_rewardToken]) # dev: invalid tokens
     assert self.hasAccess # dev: no access
 
     extcall MockToken(_rewardToken).mint(_user, _rewardAmount)
-    return _rewardAmount
+    return _rewardAmount, _rewardAmount
 
 
 #############
@@ -330,7 +332,7 @@ def addLiquidity(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (address, uint256, uint256, uint256):
+) -> (address, uint256, uint256, uint256, uint256):
     assert self._areValidTokens([_tokenA, _tokenB]) # dev: invalid tokens
 
     actualAmountA: uint256 = 0
@@ -356,7 +358,7 @@ def addLiquidity(
 
     lpToken: address = self.lpToken
     extcall MockToken(lpToken).mint(_recipient, lpAmount)
-    return lpToken, lpAmount, actualAmountA, actualAmountB
+    return lpToken, lpAmount, actualAmountA, actualAmountB, lpAmount
 
 
 # remove liquidity
@@ -375,7 +377,7 @@ def removeLiquidity(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, uint256, uint256):
+) -> (uint256, uint256, uint256, uint256):
     assert self._areValidTokens([_tokenA, _tokenB, _lpToken]) # dev: invalid tokens
     assert _lpToken == self.lpToken # dev: invalid lp token
 
@@ -390,7 +392,7 @@ def removeLiquidity(
     extcall MockToken(self.asset).mint(_recipient, halfAmount)
     extcall MockToken(self.altAsset).mint(_recipient, halfAmount)
 
-    return halfAmount, halfAmount, actualLpAmount
+    return halfAmount, halfAmount, actualLpAmount, actualLpAmount
 
 
 # concentrated liquidity
@@ -412,8 +414,8 @@ def addLiquidityConcentrated(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, uint256, uint256, uint256):
-    return 0, 0, 0, 0
+) -> (uint256, uint256, uint256, uint256, uint256):
+    return 0, 0, 0, 0, 0
 
 
 @external
@@ -429,8 +431,8 @@ def removeLiquidityConcentrated(
     _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-) -> (uint256, uint256, uint256, bool):
-    return 0, 0, 0, False
+) -> (uint256, uint256, uint256, bool, uint256):
+    return 0, 0, 0, False, 0
 
 
 ###############

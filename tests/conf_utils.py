@@ -35,6 +35,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
+        _minManagerPeriod = 10,
+        _maxManagerPeriod = 100,
     ):
         config = (
             _defaultAgent,
@@ -46,7 +48,14 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _enforceCreatorWhitelist,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
-        mission_control.setTimeLockBoundaries(_minTimeLock, _maxTimeLock, sender=switchboard_alpha.address)
+
+        time_boundaries = (
+            _minTimeLock,
+            _maxTimeLock,
+            _minManagerPeriod,
+            _maxManagerPeriod,
+        )
+        mission_control.setTimeLockBoundaries(time_boundaries, sender=switchboard_alpha.address)
     yield setUserWalletConfig
 
 
@@ -58,6 +67,8 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
+        _minManagerPeriod = 10,
+        _maxManagerPeriod = 100,
     ):
         config = (
             _agentTemplate,
@@ -65,5 +76,36 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
             _enforceCreatorWhitelist,
         )
         mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-        mission_control.setTimeLockBoundaries(_minTimeLock, _maxTimeLock, sender=switchboard_alpha.address)
+
+        time_boundaries = (
+            _minTimeLock,
+            _maxTimeLock,
+            _minManagerPeriod,
+            _maxManagerPeriod,
+        )
+        mission_control.setTimeLockBoundaries(time_boundaries, sender=switchboard_alpha.address)
     yield setAgentConfig
+
+
+@pytest.fixture(scope="session")
+def setAssetConfig(mission_control, switchboard_alpha):
+    def setAssetConfig(
+        _asset,
+        _isYieldAsset,
+        _isRebasing,
+        _maxIncrease,
+        _performanceFee,
+        _decimals,
+        _stalePriceNumBlocks,
+    ):
+        config = (
+            True,
+            _isYieldAsset,
+            _isRebasing,
+            _maxIncrease,
+            _performanceFee,
+            _decimals,
+            _stalePriceNumBlocks,
+        )
+        mission_control.setAssetConfig(_asset, config, sender=switchboard_alpha.address)
+    yield setAssetConfig

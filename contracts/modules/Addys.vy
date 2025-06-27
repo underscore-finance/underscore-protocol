@@ -16,6 +16,7 @@ struct Addys:
     ledger: address
     missionControl: address
     legoBook: address
+    priceDesk: address
     switchboard: address
     hatchery: address
 
@@ -27,8 +28,9 @@ UNDY_TOKEN_ID: constant(uint256) = 1
 LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
-SWITCHBOARD_ID: constant(uint256) = 5
-HATCHERY_ID: constant(uint256) = 6
+PRICE_DESK_ID: constant(uint256) = 5
+SWITCHBOARD_ID: constant(uint256) = 6
+HATCHERY_ID: constant(uint256) = 7
 
 
 @deploy
@@ -66,6 +68,7 @@ def _generateAddys() -> Addys:
         ledger=staticcall UndyHq(hq).getAddr(LEDGER_ID),
         missionControl=staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),
         legoBook=staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
+        priceDesk=staticcall UndyHq(hq).getAddr(PRICE_DESK_ID),
         switchboard=staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),
         hatchery=staticcall UndyHq(hq).getAddr(HATCHERY_ID),
     )
@@ -184,6 +187,21 @@ def _getLegoBookId() -> uint256:
 @internal
 def _getLegoBookAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)
+
+
+# price desk
+
+
+@view
+@internal
+def _getPriceDeskId() -> uint256:
+    return PRICE_DESK_ID
+
+
+@view
+@internal
+def _getPriceDeskAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(PRICE_DESK_ID)
 
 
 # switchboard

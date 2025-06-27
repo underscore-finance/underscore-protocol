@@ -37,6 +37,8 @@ struct UserWalletCreationConfig:
     isCreatorAllowed: bool
     minTimeLock: uint256
     maxTimeLock: uint256
+    minManagerPeriod: uint256
+    maxManagerPeriod: uint256
 
 struct AgentCreationConfig:
     agentTemplate: address
@@ -61,13 +63,15 @@ event AgentCreated:
     creator: indexed(address)
 
 WETH: public(immutable(address))
+ETH: public(immutable(address))
 
 
 @deploy
-def __init__(_undyHq: address, _wethAddr: address):
+def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
     WETH = _wethAddr
+    ETH = _ethAddr
 
 
 ######################
@@ -104,8 +108,8 @@ def createUserWallet(
         trialFundsAmount = config.trialAmount
 
     # create wallet contracts
-    walletConfigAddr: address = create_from_blueprint(config.configTemplate, a.hq, _owner, config.defaultAgent, config.minTimeLock, config.maxTimeLock)
-    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, walletConfigAddr, trialFundsAsset, trialFundsAmount)
+    walletConfigAddr: address = create_from_blueprint(config.configTemplate, a.hq, _owner, config.defaultAgent, config.minManagerPeriod, config.maxManagerPeriod, config.minTimeLock, config.maxTimeLock)
+    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr, trialFundsAsset, trialFundsAmount)
     assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
 
     # update ledger

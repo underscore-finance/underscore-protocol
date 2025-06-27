@@ -11,9 +11,11 @@ interface Registry:
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
 
-struct ManagerPeriodData:
-    txCount: uint256
-    volume: uint256
+struct ManagerData:
+    numTxsInPeriod: uint256
+    totalUsdValueInPeriod: uint256
+    numTxs: uint256
+    totalUsdValue: uint256
     lastTxBlock: uint256
 
 struct Limits:
@@ -21,6 +23,7 @@ struct Limits:
     maxVolumePerPeriod: uint256
     maxNumTxsPerPeriod: uint256
     txCooldownBlocks: uint256
+    failOnZeroPrice: bool
 
 struct LegoPerms:
     canManageYield: bool
@@ -140,7 +143,7 @@ pendingOwner: public(PendingOwnerChange)
 
 # managers
 managerSettings: public(HashMap[address, ManagerSettings])
-managerPeriodData: public(HashMap[address, ManagerPeriodData])
+managerPeriodData: public(HashMap[address, ManagerData])
 
 # managers (iterable)
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -172,7 +175,9 @@ ONE_YEAR_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 365
 # registry ids
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
-HATCHERY_ID: constant(uint256) = 6
+PRICE_DESK_ID: constant(uint256) = 5
+SWITCHBOARD_ID: constant(uint256) = 6
+HATCHERY_ID: constant(uint256) = 7
 
 UNDY_HQ: public(immutable(address))
 MIN_TIMELOCK: public(immutable(uint256))
@@ -248,6 +253,9 @@ def apiVersion() -> String[28]:
 ##################
 
 
+# check basic permissions
+
+
 @view
 @external
 def canPerformAction(
@@ -279,7 +287,7 @@ def canPerformAction(
 
     # then, check global manager permissions
     globalConfig: GlobalManagerSettings = self.globalManagerSettings
-    return self._checkPermissions(
+    if not self._checkPermissions(
         _action,
         _assets,
         _legoIds,
@@ -287,7 +295,17 @@ def canPerformAction(
         globalConfig.allowedAssets,
         globalConfig.legoPerms,
         globalConfig.transferPerms,
-    )
+    ):
+        return False
+
+    # validate limits (the ones we can do before knowing tx value)
+    limits: Limits = self._getCurrentLimits(config.limits, globalConfig.limits)
+    data: ManagerData = self._getLatestManagerData(_signer, globalConfig.managerPeriod)
+    if limits.maxNumTxsPerPeriod != 0 and data.numTxsInPeriod >= limits.maxNumTxsPerPeriod:
+        return False # max num txs per period reached
+
+    # check cooldown
+    return data.lastTxBlock + limits.txCooldownBlocks < block.number
 
 
 @view
@@ -340,6 +358,79 @@ def _canPerformAction(_action: wi.ActionType, _legoPerms: LegoPerms, _canTransfe
         return _legoPerms.canClaimRewards
     else:
         return True
+
+
+# update transaction details / volume
+
+
+@external
+def addNewManagerTransaction(_manager: address, _txUsdValue: uint256):
+    assert msg.sender == self.wallet # dev: no perms
+
+    # config
+    config: ManagerSettings = self.managerSettings[_manager]
+    globalConfig: GlobalManagerSettings = self.globalManagerSettings
+
+    # validate tx value
+    limits: Limits = self._getCurrentLimits(config.limits, globalConfig.limits)
+
+    # check zero price
+    if _txUsdValue == 0:
+        assert not limits.failOnZeroPrice # dev: zero price not allowed
+
+    # validate max volume per tx
+    if limits.maxVolumePerTx != 0:
+        assert _txUsdValue <= limits.maxVolumePerTx # dev: tx value exceeds max volume per tx
+
+    # validate caps per period
+    data: ManagerData = self._getLatestManagerData(_manager, globalConfig.managerPeriod)
+    if limits.maxVolumePerPeriod != 0:
+        assert data.totalUsdValueInPeriod + _txUsdValue <= limits.maxVolumePerPeriod # dev: max volume per period reached
+    if limits.maxNumTxsPerPeriod != 0:
+        assert data.numTxsInPeriod < limits.maxNumTxsPerPeriod # dev: max num txs per period reached
+
+    # check cooldown
+    if limits.txCooldownBlocks != 0:
+        assert data.lastTxBlock + limits.txCooldownBlocks < block.number # dev: tx cooldown not reached
+
+    # update transaction details
+    data.numTxsInPeriod += 1
+    data.totalUsdValueInPeriod += _txUsdValue
+    data.totalUsdValue += _txUsdValue
+    data.numTxs += 1
+    data.lastTxBlock = block.number
+    self.managerPeriodData[_manager] = data
+
+
+@view
+@internal
+def _getCurrentLimits(_managerLimits: Limits, _globalLimits: Limits) -> Limits:
+    limits: Limits = _globalLimits
+
+    if _managerLimits.maxVolumePerTx != 0:
+        limits.maxVolumePerTx = min(limits.maxVolumePerTx, _managerLimits.maxVolumePerTx)
+    if _managerLimits.maxVolumePerPeriod != 0:
+        limits.maxVolumePerPeriod = min(limits.maxVolumePerPeriod, _managerLimits.maxVolumePerPeriod)
+    if _managerLimits.maxNumTxsPerPeriod != 0:
+        limits.maxNumTxsPerPeriod = min(limits.maxNumTxsPerPeriod, _managerLimits.maxNumTxsPerPeriod)
+    if _managerLimits.txCooldownBlocks != 0:
+        limits.txCooldownBlocks = max(limits.txCooldownBlocks, _managerLimits.txCooldownBlocks) # using max here!
+
+    limits.failOnZeroPrice = _managerLimits.failOnZeroPrice or _globalLimits.failOnZeroPrice
+    return limits
+
+
+@view
+@internal
+def _getLatestManagerData(_manager: address, _managerPeriod: uint256) -> ManagerData:
+    data: ManagerData = self.managerPeriodData[_manager]
+
+    # reset if period has ended
+    if data.lastTxBlock + _managerPeriod < block.number:
+        data.numTxsInPeriod = 0
+        data.totalUsdValueInPeriod = 0
+
+    return data
 
 
 #############
@@ -568,7 +659,7 @@ def cancelPendingGlobalManagerSettings() -> bool:
 
 
 @external
-def setManagerSettings(
+def setSpecificManagerSettings(
     _manager: address,
     _limits: Limits,
     _legoPerms: LegoPerms,
@@ -644,12 +735,12 @@ def setManagerSettings(
 
 
 @external
-def removeManager(_manager: address) -> bool:
+def removeSpecificManager(_manager: address) -> bool:
     assert msg.sender == self.owner # dev: no perms
     assert self.indexOfManager[_manager] != 0 # dev: manager not found
 
     self.managerSettings[_manager] = empty(ManagerSettings)
-    self.managerPeriodData[_manager] = empty(ManagerPeriodData)
+    self.managerPeriodData[_manager] = empty(ManagerData)
     self._deregisterManager(_manager)
 
     log ManagerRemoved(manager = _manager)
@@ -660,7 +751,7 @@ def removeManager(_manager: address) -> bool:
 
 
 @external
-def adjustActivationLength(_manager: address, _activationLength: uint256, _shouldResetStartBlock: bool = False) -> bool:
+def adjustSpecificManagerActivationLength(_manager: address, _activationLength: uint256, _shouldResetStartBlock: bool = False) -> bool:
     assert msg.sender == self.owner # dev: no perms
 
     # validation
@@ -685,7 +776,9 @@ def adjustActivationLength(_manager: address, _activationLength: uint256, _shoul
     return True
 
 
-# validation / utils
+##########################
+# Manager Settings Utils #
+##########################
 
 
 @view

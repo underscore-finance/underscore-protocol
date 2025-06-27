@@ -192,3 +192,13 @@ def mock_lego_lp_token(governance):
 @pytest.fixture(scope="session")
 def mock_lego_debt_token(governance):
     return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Debt Token", "MOCK DEBT", 18, 1_000_000_000, name="mock_lego_debt_token")
+
+
+################
+# Integrations #
+################
+
+
+@pytest.fixture(scope="session")
+def mock_ripe():
+    return boa.load("contracts/mock/MockRipe.vy", name="mock_ripe")
