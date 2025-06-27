@@ -27,18 +27,29 @@ interface MissionControl:
 interface WalletConfig:
     def setWallet(_wallet: address) -> bool: nonpayable
 
-struct UserWalletCreationConfig:
-    defaultAgent: address
+struct UserWalletConfig:
     walletTemplate: address
     configTemplate: address
     trialAsset: address
     trialAmount: uint256
     numUserWalletsAllowed: uint256
-    isCreatorAllowed: bool
-    minTimeLock: uint256
-    maxTimeLock: uint256
+    enforceCreatorWhitelist: bool
+    minKeyActionTimeLock: uint256
+    maxKeyActionTimeLock: uint256
+
+struct ManagerConfig:
+    startingAgent: address
+    startingAgentActivationLength: uint256
+    managerPeriod: uint256
+    defaultStartDelay: uint256
+    defaultActivationLength: uint256
     minManagerPeriod: uint256
     maxManagerPeriod: uint256
+
+struct UserWalletCreationConfig:
+    walletConfig: UserWalletConfig
+    managerConfig: ManagerConfig
+    isCreatorAllowed: bool
 
 struct AgentCreationConfig:
     agentTemplate: address
@@ -70,6 +81,7 @@ ETH: public(immutable(address))
 def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
+
     WETH = _wethAddr
     ETH = _ethAddr
 
@@ -88,9 +100,12 @@ def createUserWallet(
     assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
 
+    allConfig: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
+    config: UserWalletConfig = allConfig.walletConfig
+    managerConfig: ManagerConfig = allConfig.managerConfig
+
     # validation
-    config: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
-    assert config.isCreatorAllowed # dev: creator not allowed
+    assert allConfig.isCreatorAllowed # dev: creator not allowed
     assert empty(address) not in [config.walletTemplate, config.configTemplate, _owner] # dev: invalid setup
     if config.numUserWalletsAllowed != 0:
         assert staticcall Ledger(a.ledger).numUserWallets() < config.numUserWalletsAllowed # dev: max user wallets reached
@@ -108,7 +123,20 @@ def createUserWallet(
         trialFundsAmount = config.trialAmount
 
     # create wallet contracts
-    walletConfigAddr: address = create_from_blueprint(config.configTemplate, a.hq, _owner, config.defaultAgent, config.minManagerPeriod, config.maxManagerPeriod, config.minTimeLock, config.maxTimeLock)
+    walletConfigAddr: address = create_from_blueprint(
+        config.configTemplate,
+        a.hq,
+        _owner,
+        managerConfig.startingAgent,
+        managerConfig.startingAgentActivationLength,
+        managerConfig.managerPeriod,
+        managerConfig.defaultStartDelay,
+        managerConfig.defaultActivationLength,
+        managerConfig.minManagerPeriod,
+        managerConfig.maxManagerPeriod,
+        config.minKeyActionTimeLock,
+        config.maxKeyActionTimeLock,
+    )
     mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr, trialFundsAsset, trialFundsAmount)
     assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
 
@@ -123,7 +151,7 @@ def createUserWallet(
         mainAddr=mainWalletAddr,
         configAddr=walletConfigAddr,
         owner=_owner,
-        agent=config.defaultAgent,
+        agent=managerConfig.startingAgent,
         ambassador=ambassador,
         creator=msg.sender,
         trialFundsAsset=trialFundsAsset,

@@ -190,7 +190,11 @@ MAX_MANAGER_PERIOD: public(immutable(uint256))
 def __init__(
     _undyHq: address,
     _owner: address,
-    _initialManager: address,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
+    _managerPeriod: uint256,
+    _defaultStartDelay: uint256,
+    _defaultActivationLength: uint256,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
     _minTimeLock: uint256,
@@ -200,30 +204,34 @@ def __init__(
     UNDY_HQ = _undyHq
     self.owner = _owner
 
-    # manager periods
+    # manager periods (set this first)
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
     MIN_MANAGER_PERIOD = _minManagerPeriod
     MAX_MANAGER_PERIOD = _maxManagerPeriod
 
     # global manager settings
     config: GlobalManagerSettings = empty(GlobalManagerSettings)
-    config.managerPeriod = ONE_DAY_IN_BLOCKS
-    config.startDelay = ONE_DAY_IN_BLOCKS
-    config.activationLength = ONE_MONTH_IN_BLOCKS
+    assert self._isValidManagerPeriod(_managerPeriod) # dev: invalid manager period
+    assert self._isValidStartDelay(_defaultStartDelay) # dev: invalid start delay
+    assert self._isValidActivationLength(_defaultActivationLength) # dev: invalid activation length
+    config.managerPeriod = _managerPeriod
+    config.startDelay = _defaultStartDelay
+    config.activationLength = _defaultActivationLength
     config.legoPerms, config.transferPerms = self._createHappyDefaults()
     self.globalManagerSettings = config
 
     # initial manager
-    if _initialManager != empty(address):
-        self.managerSettings[_initialManager] = ManagerSettings(
+    if _startingAgent != empty(address):
+        assert self._isValidActivationLength(_startingAgentActivationLength) # dev: invalid activation length
+        self.managerSettings[_startingAgent] = ManagerSettings(
             startBlock = block.number,
-            expiryBlock = block.number + (5 * ONE_YEAR_IN_BLOCKS),
+            expiryBlock = block.number + _startingAgentActivationLength,
             limits = empty(Limits), # no limits
             legoPerms = config.legoPerms, # all set to True
             transferPerms = config.transferPerms, # all set to True
             allowedAssets = [],
         )
-        self._registerManager(_initialManager)
+        self._registerManager(_startingAgent)
 
     # time lock
     assert _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -305,7 +313,10 @@ def canPerformAction(
         return False # max num txs per period reached
 
     # check cooldown
-    return data.lastTxBlock + limits.txCooldownBlocks < block.number
+    if limits.txCooldownBlocks != 0 and data.lastTxBlock + limits.txCooldownBlocks > block.number:
+        return False
+
+    return True
 
 
 @view
@@ -779,6 +790,12 @@ def adjustSpecificManagerActivationLength(_manager: address, _activationLength: 
 ##########################
 # Manager Settings Utils #
 ##########################
+
+
+@view
+@external
+def isManager(_manager: address) -> bool:
+    return self.indexOfManager[_manager] != 0
 
 
 @view

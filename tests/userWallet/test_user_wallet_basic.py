@@ -7,8 +7,9 @@ from conf_utils import filter_logs
 
 
 @pytest.fixture(scope="module")
-def user_wallet(setUserWalletConfig, hatchery, bob):
+def user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob):
     setUserWalletConfig()
+    setManagerConfig()  # Set up manager config with default agent
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
     return UserWallet.at(wallet_addr)
@@ -43,7 +44,7 @@ def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call depositForYield
-    assetAmount, vaultToken, vaultTokenAmountReceived = user_wallet.depositForYield(
+    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = user_wallet.depositForYield(
         1,  # legoId for MockLego
         asset.address,
         vault.address,
@@ -73,7 +74,7 @@ def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
@@ -83,7 +84,7 @@ def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
     
     # First deposit some tokens
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    user_wallet.depositForYield(1, asset.address, vault.address, deposit_amount, sender=owner)
+    _, _, _, _ = user_wallet.depositForYield(1, asset.address, vault.address, deposit_amount, sender=owner)
     
     # Initial balances after deposit
     initial_asset_balance = asset.balanceOf(user_wallet.address)
@@ -93,7 +94,7 @@ def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
     withdraw_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call withdrawFromYield
-    underlyingAmount, underlyingToken, vaultTokenAmountWithdrawn = user_wallet.withdrawFromYield(
+    vaultTokenAmountWithdrawn, underlyingToken, underlyingAmount, txUsdValue = user_wallet.withdrawFromYield(
         1,  # legoId for MockLego
         vault.address,
         withdraw_amount,
@@ -104,9 +105,9 @@ def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
     withdrawal_logs = filter_logs(user_wallet, "YieldWithdrawal")
     
     # Verify return values
-    assert underlyingAmount == withdraw_amount
-    assert underlyingToken == asset.address
     assert vaultTokenAmountWithdrawn == withdraw_amount
+    assert underlyingToken == asset.address
+    assert underlyingAmount == withdraw_amount
     
     # Verify balances
     assert asset.balanceOf(user_wallet.address) == initial_asset_balance + withdraw_amount
@@ -122,7 +123,7 @@ def test_withdraw_from_yield(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
@@ -148,7 +149,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     _ = user_wallet.get_logs()
     
     # Call rebalanceYieldPosition - using asset as the "toVault" for simplicity
-    underlyingAmount, underlyingToken, vaultTokenAmount = user_wallet.rebalanceYieldPosition(
+    underlyingAmount, toVaultToken, vaultTokenAmount, txUsdValue = user_wallet.rebalanceYieldPosition(
         1,  # fromLegoId
         vault.address,  # fromVault
         1,  # toLegoId (same MockLego)
@@ -163,7 +164,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     
     # Verify return values
     assert underlyingAmount == rebalance_amount
-    assert underlyingToken == asset.address
+    assert toVaultToken == asset.address
     assert vaultTokenAmount == rebalance_amount
     
     # Verify balances - vault should decrease, asset should increase
@@ -180,7 +181,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     assert withdrawal_event.legoId == 1
     assert withdrawal_event.legoAddr == mock_lego.address
     assert withdrawal_event.signer == owner
-    assert withdrawal_event.isSignerAgent == False
+    assert withdrawal_event.isManager == False
     
     # Verify deposit event (to asset as "vault")
     assert len(deposit_logs) == 1  # Only one from rebalance (we cleared events)
@@ -192,7 +193,7 @@ def test_rebalance_yield_position(setup_wallet_with_tokens, bob):
     assert rebalance_deposit_event.legoId == 1
     assert rebalance_deposit_event.legoAddr == mock_lego.address
     assert rebalance_deposit_event.signer == owner
-    assert rebalance_deposit_event.isSignerAgent == False
+    assert rebalance_deposit_event.isManager == False
 
 
 def test_swap_tokens(setup_wallet_with_tokens, bob):
@@ -217,7 +218,7 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     )]
     
     # Call swapTokens
-    tokenIn, amountIn, tokenOut, amountOut = user_wallet.swapTokens(swap_instructions, sender=owner)
+    tokenIn, amountIn, tokenOut, amountOut, txUsdValue = user_wallet.swapTokens(swap_instructions, sender=owner)
     
     # Get events
     overall_swap_logs = filter_logs(user_wallet, "OverallSwapPerformed")
@@ -243,7 +244,7 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     assert overall_event.numLegos == 1
     assert overall_event.numInstructions == 1
     assert overall_event.signer == owner
-    assert overall_event.isSignerAgent == False
+    assert overall_event.isManager == False
     
     # Verify specific swap event
     assert len(specific_swap_logs) == 1
@@ -257,7 +258,7 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     assert specific_event.legoId == 1
     assert specific_event.legoAddr == mock_lego.address
     assert specific_event.signer == owner
-    assert specific_event.isSignerAgent == False
+    assert specific_event.isManager == False
 
 
 def test_mint_asset_immediate(setup_wallet_with_tokens, bob):
@@ -274,7 +275,7 @@ def test_mint_asset_immediate(setup_wallet_with_tokens, bob):
     
     # Call mintOrRedeemAsset with _extraVal = 0 for immediate mint
     # Using asset as input and asset_alt as output to simulate a mint operation
-    assetTokenAmount, outputAmount, isPending = user_wallet.mintOrRedeemAsset(
+    assetTokenAmount, outputAmount, isPending, txUsdValue = user_wallet.mintOrRedeemAsset(
         1,  # legoId
         asset.address,  # tokenIn
         asset_alt.address,  # tokenOut (different token to simulate minting)
@@ -309,7 +310,7 @@ def test_mint_asset_immediate(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
@@ -325,7 +326,7 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     mint_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call mintOrRedeemAsset with _extraVal = 1 for pending mint
-    assetTokenAmount, outputAmount, isPending = user_wallet.mintOrRedeemAsset(
+    assetTokenAmount, outputAmount, isPending, txUsdValue = user_wallet.mintOrRedeemAsset(
         1,  # legoId
         asset.address,  # tokenIn
         asset_alt.address,  # tokenOut
@@ -355,8 +356,8 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     assert pending_mint[1] == asset_alt.address  # tokenOut
     assert pending_mint[2] == mint_amount  # amount
     
-    # Confirm the mint - returns single uint256
-    outputAmount2 = user_wallet.confirmMintOrRedeemAsset(
+    # Confirm the mint - returns (uint256, uint256)
+    outputAmount2, txUsdValue2 = user_wallet.confirmMintOrRedeemAsset(
         1,  # legoId
         asset.address,  # tokenIn
         asset_alt.address,  # tokenOut
@@ -388,7 +389,7 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     assert mint_event.legoId == 1
     assert mint_event.legoAddr == mock_lego.address
     assert mint_event.signer == owner
-    assert mint_event.isSignerAgent == False
+    assert mint_event.isManager == False
     
     # Verify confirmation event
     assert len(confirm_logs) == 1
@@ -399,7 +400,7 @@ def test_mint_asset_pending_and_confirm(setup_wallet_with_tokens, bob):
     assert confirm_event.legoId == 1
     assert confirm_event.legoAddr == mock_lego.address
     assert confirm_event.signer == owner
-    assert confirm_event.isSignerAgent == False
+    assert confirm_event.isManager == False
 
 
 def test_add_collateral(setup_wallet_with_tokens, bob):
@@ -414,7 +415,7 @@ def test_add_collateral(setup_wallet_with_tokens, bob):
     collateral_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call addCollateral
-    amount_added = user_wallet.addCollateral(
+    amount_added, txUsdValue = user_wallet.addCollateral(
         1,  # legoId
         asset.address,
         collateral_amount,
@@ -440,7 +441,7 @@ def test_add_collateral(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_remove_collateral(setup_wallet_with_tokens, bob):
@@ -450,7 +451,7 @@ def test_remove_collateral(setup_wallet_with_tokens, bob):
     
     # First add collateral
     collateral_amount = 100 * EIGHTEEN_DECIMALS
-    user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
+    _, _ = user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
     
     # Initial balance after adding collateral
     initial_asset_balance = asset.balanceOf(user_wallet.address)
@@ -459,7 +460,7 @@ def test_remove_collateral(setup_wallet_with_tokens, bob):
     remove_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call removeCollateral
-    amount_removed = user_wallet.removeCollateral(
+    amount_removed, txUsdValue = user_wallet.removeCollateral(
         1,  # legoId
         asset.address,
         remove_amount,
@@ -485,7 +486,7 @@ def test_remove_collateral(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_borrow(setup_wallet_with_tokens, mock_lego_debt_token, bob):
@@ -503,8 +504,8 @@ def test_borrow(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     # Borrow 100 debt tokens
     borrow_amount = 100 * EIGHTEEN_DECIMALS
     
-    # Call borrow - returns single uint256
-    amount_borrowed = user_wallet.borrow(
+    # Call borrow - returns (uint256, uint256)
+    amount_borrowed, txUsdValue = user_wallet.borrow(
         1,  # legoId
         mock_lego_debt_token.address,
         borrow_amount,
@@ -530,7 +531,7 @@ def test_borrow(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
@@ -540,11 +541,11 @@ def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     
     # Setup: Add collateral and borrow
     collateral_amount = 200 * EIGHTEEN_DECIMALS
-    user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
+    _, _ = user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
     
     borrow_amount = 100 * EIGHTEEN_DECIMALS
-    # borrow returns single uint256
-    user_wallet.borrow(1, mock_lego_debt_token.address, borrow_amount, sender=owner)
+    # borrow returns (uint256, uint256)
+    _, _ = user_wallet.borrow(1, mock_lego_debt_token.address, borrow_amount, sender=owner)
     
     # Initial debt token balance after borrowing
     initial_debt_balance = mock_lego_debt_token.balanceOf(user_wallet.address)
@@ -553,7 +554,7 @@ def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     repay_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call repayDebt
-    amount_repaid = user_wallet.repayDebt(
+    amount_repaid, txUsdValue = user_wallet.repayDebt(
         1,  # legoId
         mock_lego_debt_token.address,
         repay_amount,
@@ -579,7 +580,7 @@ def test_repay_debt(setup_wallet_with_tokens, mock_lego_debt_token, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_claim_rewards(setup_wallet_with_tokens, bob):
@@ -595,7 +596,7 @@ def test_claim_rewards(setup_wallet_with_tokens, bob):
     initial_asset_balance = asset.balanceOf(user_wallet.address)
     
     # Call claimRewards
-    rewards_claimed = user_wallet.claimRewards(
+    rewards_claimed, txUsdValue = user_wallet.claimRewards(
         1,  # legoId
         asset.address,  # rewardToken
         reward_amount,  # rewardAmount
@@ -621,7 +622,7 @@ def test_claim_rewards(setup_wallet_with_tokens, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_add_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
@@ -639,7 +640,7 @@ def test_add_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     amount_b = 100 * EIGHTEEN_DECIMALS
     
     # Call addLiquidity
-    lp_amount, actual_amount_a, actual_amount_b = user_wallet.addLiquidity(
+    lp_amount, actual_amount_a, actual_amount_b, txUsdValue = user_wallet.addLiquidity(
         1,  # legoId
         boa.env.eoa,  # pool (not used in mock)
         asset.address,  # tokenA
@@ -681,7 +682,7 @@ def test_add_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
@@ -692,7 +693,7 @@ def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     # First add liquidity
     amount_a = 100 * EIGHTEEN_DECIMALS
     amount_b = 100 * EIGHTEEN_DECIMALS
-    user_wallet.addLiquidity(
+    _, _, _, _ = user_wallet.addLiquidity(
         1, boa.env.eoa, asset.address, asset_alt.address,
         amount_a, amount_b, 0, 0, 0, sender=owner
     )
@@ -705,8 +706,8 @@ def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     # Remove half the liquidity
     lp_to_remove = initial_lp_balance // 2
     
-    # Call removeLiquidity - MockLego returns (amountA, amountB, lpBurned)
-    amount_a_received, amount_b_received, lp_burned = user_wallet.removeLiquidity(
+    # Call removeLiquidity - now returns (amountA, amountB, lpBurned, txUsdValue)
+    amount_a_received, amount_b_received, lp_burned, txUsdValue = user_wallet.removeLiquidity(
         1,  # legoId
         boa.env.eoa,  # pool (not used in mock)
         asset.address,  # tokenA
@@ -747,7 +748,7 @@ def test_remove_liquidity(setup_wallet_with_tokens, mock_lego_lp_token, bob):
     assert event.legoId == 1
     assert event.legoAddr == mock_lego.address
     assert event.signer == owner
-    assert event.isSignerAgent == False
+    assert event.isManager == False
 
 
 def test_multiple_operations_sequence(setup_wallet_with_tokens, mock_lego_debt_token, bob):
@@ -757,18 +758,18 @@ def test_multiple_operations_sequence(setup_wallet_with_tokens, mock_lego_debt_t
     
     # 1. Deposit into yield vault
     deposit_amount = 200 * EIGHTEEN_DECIMALS
-    user_wallet.depositForYield(1, asset.address, vault.address, deposit_amount, sender=owner)
+    _, _, _, _ = user_wallet.depositForYield(1, asset.address, vault.address, deposit_amount, sender=owner)
     assert vault.balanceOf(user_wallet.address) == deposit_amount
     
     # 2. Add collateral
     collateral_amount = 100 * EIGHTEEN_DECIMALS
-    user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
+    _, _ = user_wallet.addCollateral(1, asset.address, collateral_amount, sender=owner)
     # MockLego doesn't track collateral, just verify the wallet balance decreased
     assert asset.balanceOf(user_wallet.address) < 1000 * EIGHTEEN_DECIMALS  # Started with 1000, used some for deposit and collateral
     
     # 3. Borrow against collateral
     borrow_amount = 50 * EIGHTEEN_DECIMALS
-    user_wallet.borrow(1, mock_lego_debt_token.address, borrow_amount, sender=owner)
+    _, _ = user_wallet.borrow(1, mock_lego_debt_token.address, borrow_amount, sender=owner)
     assert mock_lego_debt_token.balanceOf(user_wallet.address) == borrow_amount
     
     # 4. Swap some tokens
@@ -780,18 +781,18 @@ def test_multiple_operations_sequence(setup_wallet_with_tokens, mock_lego_debt_t
         [asset.address, asset_alt.address],  # tokenPath
         []  # poolPath
     )]
-    user_wallet.swapTokens(swap_instructions, sender=owner)
+    _, _, _, _, _ = user_wallet.swapTokens(swap_instructions, sender=owner)
     
     # 5. Add liquidity
     liq_amount = 50 * EIGHTEEN_DECIMALS
-    user_wallet.addLiquidity(
+    _, _, _, _ = user_wallet.addLiquidity(
         1, boa.env.eoa, asset.address, asset_alt.address,
         liq_amount, liq_amount, 0, 0, 0, sender=owner
     )
     
     # 6. Withdraw from yield
     withdraw_amount = 100 * EIGHTEEN_DECIMALS
-    user_wallet.withdrawFromYield(1, vault.address, withdraw_amount, sender=owner)
+    _, _, _, _ = user_wallet.withdrawFromYield(1, vault.address, withdraw_amount, sender=owner)
     assert vault.balanceOf(user_wallet.address) == deposit_amount - withdraw_amount
     
     # All operations should have completed successfully

@@ -1,5 +1,5 @@
 import pytest
-from constants import HUNDRED_PERCENT, EIGHTEEN_DECIMALS
+from constants import HUNDRED_PERCENT, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS
 
 
 def filter_logs(contract, event_name, _strict=False):
@@ -24,9 +24,8 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, agent_eoa):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token):
     def setUserWalletConfig(
-        _defaultAgent = agent_eoa,
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
         _trialAsset = alpha_token,
@@ -35,27 +34,18 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
-        _minManagerPeriod = 10,
-        _maxManagerPeriod = 100,
     ):
         config = (
-            _defaultAgent,
             _walletTemplate,
             _configTemplate,
             _trialAsset,
             _trialAmount,
             _numUserWalletsAllowed,
             _enforceCreatorWhitelist,
-        )
-        mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
-
-        time_boundaries = (
             _minTimeLock,
             _maxTimeLock,
-            _minManagerPeriod,
-            _maxManagerPeriod,
         )
-        mission_control.setTimeLockBoundaries(time_boundaries, sender=switchboard_alpha.address)
+        mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
 
 
@@ -65,10 +55,6 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
         _agentTemplate = agent_template,
         _numAgentsAllowed = 100,
         _enforceCreatorWhitelist = False,
-        _minTimeLock = 10,
-        _maxTimeLock = 100,
-        _minManagerPeriod = 10,
-        _maxManagerPeriod = 100,
     ):
         config = (
             _agentTemplate,
@@ -76,14 +62,6 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
             _enforceCreatorWhitelist,
         )
         mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-
-        time_boundaries = (
-            _minTimeLock,
-            _maxTimeLock,
-            _minManagerPeriod,
-            _maxManagerPeriod,
-        )
-        mission_control.setTimeLockBoundaries(time_boundaries, sender=switchboard_alpha.address)
     yield setAgentConfig
 
 
@@ -109,3 +87,27 @@ def setAssetConfig(mission_control, switchboard_alpha):
         )
         mission_control.setAssetConfig(_asset, config, sender=switchboard_alpha.address)
     yield setAssetConfig
+
+
+@pytest.fixture(scope="session")
+def setManagerConfig(mission_control, switchboard_alpha, agent_eoa):
+    def setManagerConfig(
+        _startingAgent = agent_eoa,
+        _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
+        _managerPeriod = ONE_DAY_IN_BLOCKS,
+        _defaultStartDelay = ONE_DAY_IN_BLOCKS,
+        _defaultActivationLength = ONE_MONTH_IN_BLOCKS,
+        _minManagerPeriod = ONE_DAY_IN_BLOCKS // 2,
+        _maxManagerPeriod = 30 * ONE_DAY_IN_BLOCKS,
+    ):
+        config = (
+            _startingAgent,
+            _startingAgentActivationLength,
+            _managerPeriod,
+            _defaultStartDelay,
+            _defaultActivationLength,
+            _minManagerPeriod,
+            _maxManagerPeriod,
+        )
+        mission_control.setManagerConfig(config, sender=switchboard_alpha.address)
+    yield setManagerConfig

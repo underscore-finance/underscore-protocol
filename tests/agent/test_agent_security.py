@@ -8,8 +8,11 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
-def user_wallet(hatchery, bob, mock_lego_asset, whale, agent): # must load `agent` here!
+def user_wallet(hatchery, bob, mock_lego_asset, whale, setManagerConfig, agent): # must load `agent` here!
     from contracts.core.userWallet import UserWallet
+    
+    # Set the agent as the starting agent for new wallets
+    setManagerConfig(_startingAgent=agent.address)
     
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
@@ -22,12 +25,13 @@ def user_wallet(hatchery, bob, mock_lego_asset, whale, agent): # must load `agen
 
 @pytest.fixture(scope="module")
 def agent(setAgentConfig, setUserWalletConfig, hatchery, bob):
+    # Set up wallet config with proper timelock values for agent
+    setUserWalletConfig(_minTimeLock=10, _maxTimeLock=100)
     setAgentConfig()
 
     wallet_addr = hatchery.createAgent(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
 
-    setUserWalletConfig(_defaultAgent=wallet_addr)
     return AgentWrapper.at(wallet_addr)
 
 

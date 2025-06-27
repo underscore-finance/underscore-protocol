@@ -5,8 +5,9 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from conf_utils import filter_logs
 
 
-def test_hatchery_create_user_wallet(setUserWalletConfig, hatchery, bob, agent_eoa, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob, agent_eoa, alice, sally, alpha_token, alpha_token_whale, ledger):
     setUserWalletConfig()
+    setManagerConfig()  # Set up manager config with default agent
     
     # Ensure hatchery has enough trial funds
     hatchery_balance = alpha_token.balanceOf(hatchery)
@@ -24,7 +25,7 @@ def test_hatchery_create_user_wallet(setUserWalletConfig, hatchery, bob, agent_e
     assert log.mainAddr == wallet_addr
     assert log.configAddr != ZERO_ADDRESS
     assert log.owner == bob
-    assert log.agent == agent_eoa
+    assert log.agent == agent_eoa  # This is the starting agent from manager config
     assert log.ambassador == ZERO_ADDRESS # alice not a underscore wallet
     assert log.creator == sally
     assert log.trialFundsAsset == alpha_token.address
@@ -45,8 +46,9 @@ def test_hatchery_create_user_wallet(setUserWalletConfig, hatchery, bob, agent_e
     assert data.depositPoints == 0
 
 
-def test_hatchery_create_user_wallet_no_trial_funds(setUserWalletConfig, hatchery, bob, agent_eoa, sally, alpha_token):
+def test_hatchery_create_user_wallet_no_trial_funds(setUserWalletConfig, setManagerConfig, hatchery, bob, agent_eoa, sally, alpha_token):
     setUserWalletConfig()
+    setManagerConfig()
     
     # Create wallet without trial funds
     wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, False, sender=sally)
@@ -65,8 +67,9 @@ def test_hatchery_create_user_wallet_no_trial_funds(setUserWalletConfig, hatcher
     assert alpha_token.balanceOf(wallet_addr) == 0
 
 
-def test_hatchery_create_user_wallet_with_ambassador(setUserWalletConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet_with_ambassador(setUserWalletConfig, setManagerConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
     setUserWalletConfig()
+    setManagerConfig()
     
     # Ensure hatchery has enough trial funds (need 20 for 2 wallets)
     hatchery_balance = alpha_token.balanceOf(hatchery)
@@ -107,12 +110,13 @@ def test_hatchery_create_user_wallet_invalid_setup(setUserWalletConfig, hatchery
         hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=sally)
 
 
-def test_hatchery_create_user_wallet_max_wallets_reached(setUserWalletConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
+def test_hatchery_create_user_wallet_max_wallets_reached(setUserWalletConfig, setManagerConfig, hatchery, bob, alice, sally, alpha_token, alpha_token_whale, ledger):
     # Get current wallet count
     current_wallet_count = ledger.numUserWallets()
     
     # Set max wallets to current + 1 (so we can create exactly one more)
     setUserWalletConfig(_numUserWalletsAllowed=current_wallet_count + 1)
+    setManagerConfig()
     
     # Ensure hatchery has enough trial funds
     hatchery_balance = alpha_token.balanceOf(hatchery)
@@ -127,8 +131,9 @@ def test_hatchery_create_user_wallet_max_wallets_reached(setUserWalletConfig, ha
         hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=sally)
 
 
-def test_hatchery_create_user_wallet_insufficient_trial_funds(setUserWalletConfig, hatchery, bob, sally, alpha_token):
+def test_hatchery_create_user_wallet_insufficient_trial_funds(setUserWalletConfig, setManagerConfig, hatchery, bob, sally, alpha_token):
     setUserWalletConfig()
+    setManagerConfig()
     # Don't transfer any tokens to hatchery
     
     wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, True, sender=sally)
@@ -140,18 +145,14 @@ def test_hatchery_create_user_wallet_insufficient_trial_funds(setUserWalletConfi
     assert alpha_token.balanceOf(wallet_addr) == 0
 
 
-def test_hatchery_create_agent(mission_control, switchboard_alpha, hatchery, bob, sally, agent_template, ledger):
+def test_hatchery_create_agent(setUserWalletConfig, setAgentConfig, hatchery, bob, sally, ledger):
     # Get initial count
     initial_agent_count = ledger.numAgents()
     
-    # Set up agent config
-    config = (
-        agent_template,  # agentTemplate
-        100,            # numAgentsAllowed
-        False,          # enforceCreatorWhitelist
-    )
-    mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-    mission_control.setTimeLockBoundaries(10, 100, sender=switchboard_alpha.address)
+    # Set up wallet config first (needed for agent timelocks)
+    setUserWalletConfig()
+    # Set up agent config using the fixture
+    setAgentConfig()
     
     # Create agent
     agent_addr = hatchery.createAgent(bob, sender=sally)
@@ -195,18 +196,14 @@ def test_hatchery_create_agent_invalid_setup(mission_control, switchboard_alpha,
         hatchery.createAgent(bob, sender=sally)
 
 
-def test_hatchery_create_agent_max_agents_reached(mission_control, switchboard_alpha, hatchery, bob, alice, sally, agent_template, ledger):
+def test_hatchery_create_agent_max_agents_reached(setUserWalletConfig, setAgentConfig, hatchery, bob, alice, sally, ledger):
     # Get current agent count
     current_agent_count = ledger.numAgents()
     
+    # Set up wallet config first (needed for agent timelocks)
+    setUserWalletConfig()
     # Set max agents to current + 1
-    config = (
-        agent_template,
-        current_agent_count + 1,  # numAgentsAllowed
-        False,
-    )
-    mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-    mission_control.setTimeLockBoundaries(10, 100, sender=switchboard_alpha.address)
+    setAgentConfig(_numAgentsAllowed=current_agent_count + 1)
     
     # Create one agent (should succeed)
     hatchery.createAgent(alice, sender=sally)
@@ -216,13 +213,10 @@ def test_hatchery_create_agent_max_agents_reached(mission_control, switchboard_a
         hatchery.createAgent(bob, sender=sally)
 
 
-def test_hatchery_paused(setUserWalletConfig, hatchery, bob, sally, mission_control, switchboard_alpha, agent_template):
+def test_hatchery_paused(setUserWalletConfig, setManagerConfig, setAgentConfig, hatchery, bob, sally, switchboard_alpha):
     setUserWalletConfig()
-    
-    # Set up agent config
-    config = (agent_template, 100, False)
-    mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-    mission_control.setTimeLockBoundaries(10, 100, sender=switchboard_alpha.address)
+    setManagerConfig()
+    setAgentConfig()
     
     # Pause the contract
     hatchery.pause(True, sender=switchboard_alpha.address)
@@ -239,8 +233,9 @@ def test_hatchery_paused(setUserWalletConfig, hatchery, bob, sally, mission_cont
     hatchery.pause(False, sender=switchboard_alpha.address)
 
 
-def test_hatchery_create_user_wallet_default_params(setUserWalletConfig, hatchery, sally, alpha_token, alpha_token_whale):
+def test_hatchery_create_user_wallet_default_params(setUserWalletConfig, setManagerConfig, hatchery, sally, alpha_token, alpha_token_whale):
     setUserWalletConfig()
+    setManagerConfig()  # Set up manager config with default agent
     
     # Ensure hatchery has enough trial funds
     hatchery_balance = alpha_token.balanceOf(hatchery)
@@ -257,11 +252,11 @@ def test_hatchery_create_user_wallet_default_params(setUserWalletConfig, hatcher
     assert log.creator == sally
 
 
-def test_hatchery_create_agent_default_params(mission_control, switchboard_alpha, hatchery, sally, agent_template):
-    # Set up agent config
-    config = (agent_template, 100, False)
-    mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-    mission_control.setTimeLockBoundaries(10, 100, sender=switchboard_alpha.address)
+def test_hatchery_create_agent_default_params(setUserWalletConfig, setAgentConfig, hatchery, sally):
+    # Set up wallet config first (needed for agent timelocks)
+    setUserWalletConfig()
+    # Set up agent config using the fixture
+    setAgentConfig()
     
     # Create agent using default params (msg.sender as owner)
     agent_addr = hatchery.createAgent(sender=sally)

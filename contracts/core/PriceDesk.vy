@@ -143,7 +143,6 @@ def updateAndGetPriceFromWallet(
     return data.price
 
 
-
 ####################
 # Ripe Integration #
 ####################

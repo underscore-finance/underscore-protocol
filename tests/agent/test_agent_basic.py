@@ -1,13 +1,15 @@
 import pytest
 import boa
 
-from contracts.core.userWallet import UserWallet
+from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
-def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, agent): # must load `agent` here!
+def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, setManagerConfig, agent):
+    setManagerConfig(_startingAgent = agent.address)
+
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
 
@@ -19,13 +21,18 @@ def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, agen
 
 
 @pytest.fixture(scope="module")
-def agent(setAgentConfig, setUserWalletConfig, hatchery, bob):
-    setAgentConfig()
+def user_wallet_config(user_wallet):
+    return UserWalletConfig.at(user_wallet.walletConfig())
 
+
+@pytest.fixture(scope="module")
+def agent(hatchery, bob, setAgentConfig, setUserWalletConfig):
+    setUserWalletConfig()
+    setAgentConfig()
+    
     wallet_addr = hatchery.createAgent(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
 
-    setUserWalletConfig(_defaultAgent=wallet_addr)
     return AgentWrapper.at(wallet_addr)
 
 
@@ -44,7 +51,7 @@ def test_agent_deposit_for_yield(user_wallet, bob, agent, mock_lego_asset, mock_
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call depositForYield
-    assetAmount, vaultToken, vaultTokenAmountReceived = agent.depositForYield(
+    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = agent.depositForYield(
         user_wallet,
         1,  # legoId for MockLego
         mock_lego_asset.address,
@@ -63,13 +70,13 @@ def test_agent_deposit_for_yield(user_wallet, bob, agent, mock_lego_asset, mock_
     assert mock_lego_vault.balanceOf(user_wallet.address) == initial_vault_balance + deposit_amount
 
 
-def test_agent_withdraw_from_yield(user_wallet, bob, agent, mock_lego_asset, mock_lego_vault):
+def test_agent_withdraw_from_yield(user_wallet, bob, agent, mock_lego_asset, mock_lego_vault, user_wallet_config):
     """Test withdrawing assets from yield vault through agent"""
     agent_owner = bob
     
     # First deposit some tokens
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    agent.depositForYield(user_wallet, 1, mock_lego_asset.address, mock_lego_vault.address, deposit_amount, sender=agent_owner)
+    _, _, _, _ = agent.depositForYield(user_wallet, 1, mock_lego_asset.address, mock_lego_vault.address, deposit_amount, sender=agent_owner)
     
     # Initial balances after deposit
     initial_asset_balance = mock_lego_asset.balanceOf(user_wallet.address)
@@ -79,7 +86,7 @@ def test_agent_withdraw_from_yield(user_wallet, bob, agent, mock_lego_asset, moc
     withdraw_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call withdrawFromYield
-    underlyingAmount, underlyingToken, vaultTokenAmountWithdrawn = agent.withdrawFromYield(
+    vaultTokenAmountWithdrawn, underlyingToken, underlyingAmount, txUsdValue = agent.withdrawFromYield(
         user_wallet,
         1,  # legoId for MockLego
         mock_lego_vault.address,
@@ -88,9 +95,9 @@ def test_agent_withdraw_from_yield(user_wallet, bob, agent, mock_lego_asset, moc
     )
     
     # Verify return values
-    assert underlyingAmount == withdraw_amount
-    assert underlyingToken == mock_lego_asset.address
     assert vaultTokenAmountWithdrawn == withdraw_amount
+    assert underlyingToken == mock_lego_asset.address
+    assert underlyingAmount == withdraw_amount
     
     # Verify balances
     assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset_balance + withdraw_amount
@@ -103,7 +110,7 @@ def test_agent_rebalance_yield_position(user_wallet, bob, agent, mock_lego_asset
     
     # First deposit into vault
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    agent.depositForYield(user_wallet, 1, mock_lego_asset.address, mock_lego_vault.address, deposit_amount, sender=agent_owner)
+    _, _, _, _ = agent.depositForYield(user_wallet, 1, mock_lego_asset.address, mock_lego_vault.address, deposit_amount, sender=agent_owner)
     
     # Initial balances
     initial_vault_balance = mock_lego_vault.balanceOf(user_wallet.address)
@@ -113,7 +120,7 @@ def test_agent_rebalance_yield_position(user_wallet, bob, agent, mock_lego_asset
     rebalance_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call rebalanceYieldPosition - using asset as the "toVault" for simplicity
-    underlyingAmount, underlyingToken, vaultTokenAmount = agent.rebalanceYieldPosition(
+    underlyingAmount, toVaultToken, vaultTokenAmount, txUsdValue = agent.rebalanceYieldPosition(
         user_wallet,
         1,  # fromLegoId
         mock_lego_vault.address,  # fromVault
@@ -125,7 +132,7 @@ def test_agent_rebalance_yield_position(user_wallet, bob, agent, mock_lego_asset
     
     # Verify return values
     assert underlyingAmount == rebalance_amount
-    assert underlyingToken == mock_lego_asset.address
+    assert toVaultToken == mock_lego_asset.address
     assert vaultTokenAmount == rebalance_amount
     
     # Verify balances - vault should decrease, asset should increase
@@ -154,7 +161,7 @@ def test_agent_swap_tokens(user_wallet, bob, agent, mock_lego_asset, mock_lego_a
     )]
     
     # Call swapTokens
-    tokenIn, amountIn, tokenOut, amountOut = agent.swapTokens(
+    tokenIn, amountIn, tokenOut, amountOut, txUsdValue = agent.swapTokens(
         user_wallet,
         swap_instructions,
         sender=agent_owner
@@ -183,7 +190,7 @@ def test_agent_mint_asset_immediate(user_wallet, bob, agent, mock_lego_asset, mo
     mint_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call mintOrRedeemAsset with _extraVal = 0 for immediate mint
-    assetTokenAmount, outputAmount, isPending = agent.mintOrRedeemAsset(
+    assetTokenAmount, outputAmount, isPending, txUsdValue = agent.mintOrRedeemAsset(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,  # tokenIn
@@ -218,7 +225,7 @@ def test_agent_mint_asset_pending_and_confirm(user_wallet, bob, agent, mock_lego
     mint_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call mintOrRedeemAsset with _extraVal = 1 for pending mint
-    assetTokenAmount, outputAmount, isPending = agent.mintOrRedeemAsset(
+    assetTokenAmount, outputAmount, isPending, txUsdValue = agent.mintOrRedeemAsset(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,  # tokenIn
@@ -246,8 +253,8 @@ def test_agent_mint_asset_pending_and_confirm(user_wallet, bob, agent, mock_lego
     assert pending_mint[1] == mock_lego_asset_alt.address  # tokenOut
     assert pending_mint[2] == mint_amount  # amount
     
-    # Confirm the mint - returns single uint256
-    outputAmount2 = agent.confirmMintOrRedeemAsset(
+    # Confirm the mint - returns (uint256, uint256)
+    outputAmount2, txUsdValue2 = agent.confirmMintOrRedeemAsset(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,  # tokenIn
@@ -278,7 +285,7 @@ def test_agent_add_collateral(user_wallet, bob, agent, mock_lego_asset):
     collateral_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call addCollateral
-    amount_added = agent.addCollateral(
+    amount_added, txUsdValue = agent.addCollateral(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,
@@ -299,7 +306,7 @@ def test_agent_remove_collateral(user_wallet, bob, agent, mock_lego_asset):
     
     # First add collateral
     collateral_amount = 100 * EIGHTEEN_DECIMALS
-    agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
+    _, _ = agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
     
     # Initial balance after adding collateral
     initial_asset_balance = mock_lego_asset.balanceOf(user_wallet.address)
@@ -308,7 +315,7 @@ def test_agent_remove_collateral(user_wallet, bob, agent, mock_lego_asset):
     remove_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call removeCollateral
-    amount_removed = agent.removeCollateral(
+    amount_removed, txUsdValue = agent.removeCollateral(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,
@@ -329,7 +336,7 @@ def test_agent_borrow(user_wallet, bob, agent, mock_lego_asset, mock_lego_debt_t
     
     # First add collateral
     collateral_amount = 200 * EIGHTEEN_DECIMALS
-    agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
+    _, _ = agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
     
     # Initial debt token balance
     initial_debt_balance = mock_lego_debt_token.balanceOf(user_wallet.address)
@@ -337,8 +344,8 @@ def test_agent_borrow(user_wallet, bob, agent, mock_lego_asset, mock_lego_debt_t
     # Borrow 100 debt tokens
     borrow_amount = 100 * EIGHTEEN_DECIMALS
     
-    # Call borrow - returns single uint256
-    amount_borrowed = agent.borrow(
+    # Call borrow - returns (uint256, uint256)
+    amount_borrowed, txUsdValue = agent.borrow(
         user_wallet,
         1,  # legoId
         mock_lego_debt_token.address,
@@ -359,10 +366,10 @@ def test_agent_repay_debt(user_wallet, bob, agent, mock_lego_asset, mock_lego_de
     
     # Setup: Add collateral and borrow
     collateral_amount = 200 * EIGHTEEN_DECIMALS
-    agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
+    _, _ = agent.addCollateral(user_wallet, 1, mock_lego_asset.address, collateral_amount, sender=agent_owner)
     
     borrow_amount = 100 * EIGHTEEN_DECIMALS
-    agent.borrow(user_wallet, 1, mock_lego_debt_token.address, borrow_amount, sender=agent_owner)
+    _, _ = agent.borrow(user_wallet, 1, mock_lego_debt_token.address, borrow_amount, sender=agent_owner)
     
     # Initial debt token balance after borrowing
     initial_debt_balance = mock_lego_debt_token.balanceOf(user_wallet.address)
@@ -371,7 +378,7 @@ def test_agent_repay_debt(user_wallet, bob, agent, mock_lego_asset, mock_lego_de
     repay_amount = 50 * EIGHTEEN_DECIMALS
     
     # Call repayDebt
-    amount_repaid = agent.repayDebt(
+    amount_repaid, txUsdValue = agent.repayDebt(
         user_wallet,
         1,  # legoId
         mock_lego_debt_token.address,
@@ -397,7 +404,7 @@ def test_agent_claim_rewards(user_wallet, bob, agent, mock_lego_asset):
     initial_asset_balance = mock_lego_asset.balanceOf(user_wallet.address)
     
     # Call claimRewards
-    rewards_claimed = agent.claimRewards(
+    rewards_claimed, txUsdValue = agent.claimRewards(
         user_wallet,
         1,  # legoId
         mock_lego_asset.address,  # rewardToken
@@ -426,7 +433,7 @@ def test_agent_add_liquidity(user_wallet, bob, agent, mock_lego_asset, mock_lego
     amount_b = 100 * EIGHTEEN_DECIMALS
     
     # Call addLiquidity
-    lp_amount, actual_amount_a, actual_amount_b = agent.addLiquidity(
+    lp_amount, actual_amount_a, actual_amount_b, txUsdValue = agent.addLiquidity(
         user_wallet,
         1,  # legoId
         boa.env.eoa,  # pool (not used in mock)
@@ -461,7 +468,7 @@ def test_agent_remove_liquidity(user_wallet, bob, agent, mock_lego_asset, mock_l
     # First add liquidity
     amount_a = 100 * EIGHTEEN_DECIMALS
     amount_b = 100 * EIGHTEEN_DECIMALS
-    agent.addLiquidity(
+    _, _, _, _ = agent.addLiquidity(
         user_wallet, 1, boa.env.eoa, mock_lego_asset.address, mock_lego_asset_alt.address,
         amount_a, amount_b, 0, 0, 0, sender=agent_owner
     )
@@ -474,8 +481,8 @@ def test_agent_remove_liquidity(user_wallet, bob, agent, mock_lego_asset, mock_l
     # Remove half the liquidity
     lp_to_remove = initial_lp_balance // 2
     
-    # Call removeLiquidity - MockLego returns (amountA, amountB, lpBurned)
-    amount_a_received, amount_b_received, lp_burned = agent.removeLiquidity(
+    # Call removeLiquidity - now returns (amountA, amountB, lpBurned, txUsdValue)
+    amount_a_received, amount_b_received, lp_burned, txUsdValue = agent.removeLiquidity(
         user_wallet,
         1,  # legoId
         boa.env.eoa,  # pool (not used in mock)

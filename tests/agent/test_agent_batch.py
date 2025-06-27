@@ -7,7 +7,10 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
-def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, agent): # must load `agent` here!
+def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, setManagerConfig, agent): # must load `agent` here!
+    # Set the agent as the starting agent for new wallets
+    setManagerConfig(_startingAgent=agent.address)
+    
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
 
@@ -20,12 +23,13 @@ def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, agen
 
 @pytest.fixture(scope="module")
 def agent(setAgentConfig, setUserWalletConfig, hatchery, bob):
+    # Set up wallet config with proper timelock values for agent
+    setUserWalletConfig(_minTimeLock=10, _maxTimeLock=100)
     setAgentConfig()
 
     wallet_addr = hatchery.createAgent(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
 
-    setUserWalletConfig(_defaultAgent=wallet_addr)
     return AgentWrapper.at(wallet_addr)
 
 
@@ -728,7 +732,7 @@ def test_batch_liquidity_removal_limitation(user_wallet, bob, agent, mock_lego_a
 
 
 def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_asset, charlie):
-    """Test batch with actions that return 0 (can't chain with usePrevAmountOut)"""
+    """Test batch with actions that now return amounts (due to USD value updates)"""
     agent_owner = bob
     
     # Initial balance
@@ -743,26 +747,26 @@ def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_a
             asset=mock_lego_asset.address,
             amount=10 * EIGHTEEN_DECIMALS
         ),
-        # Add collateral returns 0
+        # Add collateral now returns the amount added (not 0)
         create_action_instruction(
             action=7,  # ADD_COLLATERAL
             legoId=1,
             asset=mock_lego_asset.address,
             amount=20 * EIGHTEEN_DECIMALS
         ),
-        # Try to use prev amount (should be 0 from add collateral, so will use original amount)
+        # Try to use prev amount (will be 20 from add collateral)
         create_action_instruction(
             action=0,  # TRANSFER
-            usePrevAmountOut=True,  # Will try to use prev amount, but since it's 0, will use amount
+            usePrevAmountOut=True,  # Will use prev amount (20 ETH from add collateral)
             target=charlie,
             asset=mock_lego_asset.address,
-            amount=30 * EIGHTEEN_DECIMALS  # Will NOT be overridden since prevAmount is 0
+            amount=30 * EIGHTEEN_DECIMALS  # Will be overridden to 20 ETH
         )
     ]
     
     # Execute batch
     agent.performBatchActions(user_wallet, instructions, sender=agent_owner)
     
-    # Verify: all three actions happened (transfer 10, collateral 20, transfer 30)
-    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - 10 * EIGHTEEN_DECIMALS - 20 * EIGHTEEN_DECIMALS - 30 * EIGHTEEN_DECIMALS
-    assert mock_lego_asset.balanceOf(charlie) == initial_charlie_balance + 10 * EIGHTEEN_DECIMALS + 30 * EIGHTEEN_DECIMALS  # Both transfers
+    # Verify: transfer 10, collateral 20, transfer 20 (using prev amount from collateral)
+    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - 10 * EIGHTEEN_DECIMALS - 20 * EIGHTEEN_DECIMALS - 20 * EIGHTEEN_DECIMALS
+    assert mock_lego_asset.balanceOf(charlie) == initial_charlie_balance + 10 * EIGHTEEN_DECIMALS + 20 * EIGHTEEN_DECIMALS  # Both transfers

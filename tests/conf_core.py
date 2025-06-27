@@ -64,6 +64,8 @@ def undy_hq(
     assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 6
 
+    # other
+
     # 7
     assert undy_hq_deploy.startAddNewAddressToRegistry(hatchery, "Hatchery", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 7
@@ -71,8 +73,8 @@ def undy_hq(
     # special permission setup
 
     # switchboard can set token blacklists
-    undy_hq_deploy.initiateHqConfigChange(5, False, True, sender=deploy3r)
-    assert undy_hq_deploy.confirmHqConfigChange(5, sender=deploy3r)
+    undy_hq_deploy.initiateHqConfigChange(6, False, True, sender=deploy3r)
+    assert undy_hq_deploy.confirmHqConfigChange(6, sender=deploy3r)
 
     # finish undy hq setup
     assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
