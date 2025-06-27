@@ -10,7 +10,7 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletConfig:
-    def canAccessWallet(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS]) -> bool: view
+    def canPerformAction(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
     def canTransferToRecipient(_recipient: address) -> bool: view
     def owner() -> address: view
 
@@ -31,7 +31,7 @@ struct ActionData:
     trialFundsAsset: address
     trialFundsAmount: uint256
     signer: address
-    isSignerAgent: bool
+    isManager: bool
     legoId: uint256
     legoAddr: address
 
@@ -66,7 +66,7 @@ event YieldDeposit:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event YieldWithdrawal:
     vaultToken: indexed(address)
@@ -79,7 +79,7 @@ event YieldWithdrawal:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event OverallSwapPerformed:
     tokenIn: indexed(address)
@@ -89,7 +89,7 @@ event OverallSwapPerformed:
     numLegos: uint256
     numInstructions: uint256
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event SpecificSwapInstructionPerformed:
     tokenIn: indexed(address)
@@ -101,7 +101,7 @@ event SpecificSwapInstructionPerformed:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event AssetMintedOrRedeemed:
     tokenIn: indexed(address)
@@ -115,7 +115,7 @@ event AssetMintedOrRedeemed:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event AssetMintedOrRedeemedConfirmed:
     tokenIn: indexed(address)
@@ -127,7 +127,7 @@ event AssetMintedOrRedeemedConfirmed:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event CollateralAdded:
     asset: indexed(address)
@@ -138,7 +138,7 @@ event CollateralAdded:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event CollateralRemoved:
     asset: indexed(address)
@@ -149,7 +149,7 @@ event CollateralRemoved:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event NewBorrow:
     borrowAsset: indexed(address)
@@ -160,7 +160,7 @@ event NewBorrow:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event DebtRepayment:
     paymentAsset: indexed(address)
@@ -171,7 +171,7 @@ event DebtRepayment:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event LiquidityAdded:
     pool: indexed(address)
@@ -187,7 +187,7 @@ event LiquidityAdded:
     legoId: uint256
     legoAddr: address
     signer: address
-    isSignerAgent: bool
+    isManager: bool
 
 event ConcentratedLiquidityAdded:
     nftTokenId: uint256
@@ -203,7 +203,7 @@ event ConcentratedLiquidityAdded:
     legoId: uint256
     legoAddr: address
     signer: address
-    isSignerAgent: bool
+    isManager: bool
 
 event LiquidityRemoved:
     pool: indexed(address)
@@ -219,7 +219,7 @@ event LiquidityRemoved:
     legoId: uint256
     legoAddr: address
     signer: address
-    isSignerAgent: bool
+    isManager: bool
 
 event ConcentratedLiquidityRemoved:
     nftTokenId: uint256
@@ -235,27 +235,27 @@ event ConcentratedLiquidityRemoved:
     legoId: uint256
     legoAddr: address
     signer: address
-    isSignerAgent: bool
+    isManager: bool
 
 event FundsTransferred:
     asset: indexed(address)
     amount: uint256
     recipient: indexed(address)
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event EthWrapped:
     amount: uint256
     paidEth: uint256
     weth: indexed(address)
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event WethUnwrapped:
     amount: uint256
     weth: indexed(address)
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event RewardsClaimed:
     rewardToken: indexed(address)
@@ -266,7 +266,7 @@ event RewardsClaimed:
     legoId: uint256
     legoAddr: address
     signer: indexed(address)
-    isSignerAgent: bool
+    isManager: bool
 
 event NftRecovered:
     collection: indexed(address)
@@ -352,7 +352,7 @@ def transferFunds(
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
 ) -> uint256:
-    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [_asset])
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [_asset], [], _recipient)
     return self._transferFunds(_recipient, _asset, _amount, cd)
 
 
@@ -387,7 +387,7 @@ def _transferFunds(
         amount = amount,
         recipient = _recipient,
         signer = _cd.signer,
-        isSignerAgent = _cd.isSignerAgent,
+        isManager = _cd.isManager,
     )
     return amount
 
@@ -449,7 +449,7 @@ def _depositForYield(
         legoId = _cd.legoId,
         legoAddr = _cd.legoAddr,
         signer = _cd.signer,
-        isSignerAgent = _cd.isSignerAgent,
+        isManager = _cd.isManager,
     )
     return assetAmount, vaultToken, vaultTokenAmountReceived
 
@@ -512,7 +512,7 @@ def _withdrawFromYield(
         legoId = _cd.legoId,
         legoAddr = _cd.legoAddr,
         signer = _cd.signer,
-        isSignerAgent = _cd.isSignerAgent,
+        isManager = _cd.isManager,
     )
     return vaultTokenAmountBurned, underlyingAsset, underlyingAmount
 
@@ -580,7 +580,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         lastTokenOut, lastTokenOutAmount = self._performSwapInstruction(amountIn, i, cd)
 
     # TODO: handle tx fees
-    # if cd.isSignerAgent:
+    # if cd.isManager:
     #     self._handleTransactionFees(wi.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
 
     self._performPostActionTasks([tokenIn, tokenOut])
@@ -592,7 +592,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         numLegos = len(legoIds),
         numInstructions = len(_instructions),
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount
 
@@ -626,7 +626,7 @@ def _performSwapInstruction(
         legoId = _i.legoId,
         legoAddr = legoAddr,
         signer = _cd.signer,
-        isSignerAgent = _cd.isSignerAgent,
+        isManager = _cd.isManager,
     )
     return tokenOut, tokenOutAmount
 
@@ -695,7 +695,7 @@ def mintOrRedeemAsset(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return tokenInAmount, tokenOutAmount, isPending
 
@@ -726,7 +726,7 @@ def confirmMintOrRedeemAsset(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return tokenOutAmount
 
@@ -770,7 +770,7 @@ def addCollateral(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amountDeposited
 
@@ -801,7 +801,7 @@ def removeCollateral(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amountRemoved
 
@@ -834,7 +834,7 @@ def borrow(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return borrowAmount
 
@@ -868,7 +868,7 @@ def repayDebt(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return repaidAmount
 
@@ -892,7 +892,7 @@ def claimRewards(
     rewardAmount: uint256 = extcall Lego(cd.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraAddr, _extraVal, _extraData)
 
     # TODO: handle tx fees
-    # if cd.isSignerAgent:
+    # if cd.isManager:
     #     self._handleTransactionFees(wi.ActionType.REWARDS, _rewardToken, rewardAmount, cd)
 
     self._performPostActionTasks([_rewardToken])
@@ -905,7 +905,7 @@ def claimRewards(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return rewardAmount
 
@@ -936,7 +936,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> uint256:
         paidEth = msg.value,
         weth = weth,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amount
 
@@ -959,7 +959,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> uint256:
         amount = amount,
         weth = weth,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amount
 
@@ -1022,7 +1022,7 @@ def addLiquidity(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return lpAmountReceived, addedTokenA, addedTokenB
 
@@ -1067,7 +1067,7 @@ def removeLiquidity(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amountAReceived, amountBReceived, lpAmountBurned
 
@@ -1136,7 +1136,7 @@ def addLiquidityConcentrated(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return liqAdded, addedTokenA, addedTokenB, nftTokenId
 
@@ -1190,7 +1190,7 @@ def removeLiquidityConcentrated(
         legoId = cd.legoId,
         legoAddr = cd.legoAddr,
         signer = cd.signer,
-        isSignerAgent = cd.isSignerAgent,
+        isManager = cd.isManager,
     )
     return amountAReceived, amountBReceived, liqRemoved
 
@@ -1204,17 +1204,18 @@ def removeLiquidityConcentrated(
 def _performPreActionTasks(
     _signer: address,
     _action: wi.ActionType,
-    _shouldCheckAccess: bool = False,
-    _assets: DynArray[address, MAX_ASSETS] = [],
+    _shouldCheckAccess: bool,
+    _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
+    _transferRecipient: address = empty(address),
 ) -> ActionData:
     cd: ActionData = self._getActionDataBundle()
 
     # access control
     cd.signer = _signer
     if _signer != cd.walletOwner:
-        assert staticcall WalletConfig(cd.walletConfig).canAccessWallet(_signer, _action, _assets, _legoIds) # dev: signer cannot access wallet
-        cd.isSignerAgent = True
+        assert staticcall WalletConfig(cd.walletConfig).canPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient) # dev: signer cannot access wallet
+        cd.isManager = True
 
     # get specific lego addr if specified
     if len(_legoIds) != 0:
@@ -1275,7 +1276,7 @@ def _getActionDataBundle() -> ActionData:
         trialFundsAsset = self.trialFundsAsset,
         trialFundsAmount = self.trialFundsAmount,
         signer = empty(address),
-        isSignerAgent = False,
+        isManager = False,
         legoId = 0,
         legoAddr = empty(address),
     )

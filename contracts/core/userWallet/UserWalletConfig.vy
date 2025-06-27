@@ -83,6 +83,56 @@ event OwnershipChangeCancelled:
 event TimeLockSet:
     numBlocks: uint256
 
+event GlobalManagerSettingsModified:
+    state: String[10]
+    managerPeriod: uint256
+    startDelay: uint256
+    activationLength: uint256
+    maxVolumePerTx: uint256
+    maxVolumePerPeriod: uint256
+    maxNumTxsPerPeriod: uint256
+    txCooldownBlocks: uint256
+    canManageYield: bool
+    canBuyAndSell: bool
+    canManageDebt: bool
+    canManageLiq: bool
+    canClaimRewards: bool
+    numAllowedLegos: uint256
+    canTransfer: bool
+    canCreateCheque: bool
+    canAddPendingRecipient: bool
+    numAllowedRecipients: uint256
+    numAllowedAssets: uint256
+
+event ManagerSettingsModified:
+    manager: indexed(address)
+    state: String[10]
+    startBlock: uint256
+    expiryBlock: uint256
+    maxVolumePerTx: uint256
+    maxVolumePerPeriod: uint256
+    maxNumTxsPerPeriod: uint256
+    txCooldownBlocks: uint256
+    canManageYield: bool
+    canBuyAndSell: bool
+    canManageDebt: bool
+    canManageLiq: bool
+    canClaimRewards: bool
+    numAllowedLegos: uint256
+    canTransfer: bool
+    canCreateCheque: bool
+    canAddPendingRecipient: bool
+    numAllowedRecipients: uint256
+    numAllowedAssets: uint256
+
+event ManagerRemoved:
+    manager: indexed(address)
+
+event ManagerActivationLengthAdjusted:
+    manager: indexed(address)
+    activationLength: uint256
+    didRestart: bool
+
 # core
 wallet: public(address)
 owner: public(address)
@@ -104,9 +154,6 @@ pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
 # config
 timeLock: public(uint256)
 didSetWallet: public(bool)
-
-# TODO: TEMPORARY
-initialAgent: public(address)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -139,7 +186,6 @@ def __init__(
     _undyHq: address,
     _owner: address,
     _initialManager: address,
-    _defaultManagerSettings: GlobalManagerSettings,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
     _minTimeLock: uint256,
@@ -149,19 +195,30 @@ def __init__(
     UNDY_HQ = _undyHq
     self.owner = _owner
 
-    # TODO: TEMPORARY
-    self.initialAgent = _initialManager
-
-    # validate global manager settings
+    # manager periods
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
     MIN_MANAGER_PERIOD = _minManagerPeriod
     MAX_MANAGER_PERIOD = _maxManagerPeriod
-    assert self._isValidGlobalManagerTimes(_defaultManagerSettings.managerPeriod, _defaultManagerSettings.startDelay, _defaultManagerSettings.activationLength) # dev: invalid manager periods
-    assert self._isValidLimits(_defaultManagerSettings.limits) # dev: invalid limits
-    assert self._isValidLegoPerms(_defaultManagerSettings.legoPerms) # dev: invalid lego perms
-    assert self._isValidTransferPerms(_defaultManagerSettings.transferPerms) # dev: invalid transfer perms
-    assert self._isValidAllowedAssets(_defaultManagerSettings.allowedAssets) # dev: invalid allowed assets
-    self.globalManagerSettings = _defaultManagerSettings
+
+    # global manager settings
+    config: GlobalManagerSettings = empty(GlobalManagerSettings)
+    config.managerPeriod = ONE_DAY_IN_BLOCKS
+    config.startDelay = ONE_DAY_IN_BLOCKS
+    config.activationLength = ONE_MONTH_IN_BLOCKS
+    config.legoPerms, config.transferPerms = self._createHappyDefaults()
+    self.globalManagerSettings = config
+
+    # initial manager
+    if _initialManager != empty(address):
+        self.managerSettings[_initialManager] = ManagerSettings(
+            startBlock = block.number,
+            expiryBlock = block.number + (5 * ONE_YEAR_IN_BLOCKS),
+            limits = empty(Limits), # no limits
+            legoPerms = config.legoPerms, # all set to True
+            transferPerms = config.transferPerms, # all set to True
+            allowedAssets = [],
+        )
+        self._registerManager(_initialManager)
 
     # time lock
     assert _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -184,6 +241,105 @@ def setWallet(_wallet: address) -> bool:
 @external
 def apiVersion() -> String[28]:
     return API_VERSION
+
+
+##################
+# Access Control #
+##################
+
+
+@view
+@external
+def canPerformAction(
+    _signer: address,
+    _action: wi.ActionType,
+    _assets: DynArray[address, MAX_ASSETS] = [],
+    _legoIds: DynArray[uint256, MAX_LEGOS] = [],
+    _transferRecipient: address = empty(address),
+) -> bool:
+    if self.indexOfManager[_signer] == 0:
+        return False # signer is not a manager
+
+    # manager is not active
+    config: ManagerSettings = self.managerSettings[_signer]
+    if config.startBlock > block.number or config.expiryBlock < block.number:
+        return False
+
+    # first, check manager permissions
+    if not self._checkPermissions(
+        _action,
+        _assets,
+        _legoIds,
+        _transferRecipient,
+        config.allowedAssets,
+        config.legoPerms,
+        config.transferPerms,
+    ):
+        return False
+
+    # then, check global manager permissions
+    globalConfig: GlobalManagerSettings = self.globalManagerSettings
+    return self._checkPermissions(
+        _action,
+        _assets,
+        _legoIds,
+        _transferRecipient,
+        globalConfig.allowedAssets,
+        globalConfig.legoPerms,
+        globalConfig.transferPerms,
+    )
+
+
+@view
+@internal
+def _checkPermissions(
+    _action: wi.ActionType,
+    _assets: DynArray[address, MAX_ASSETS],
+    _legoIds: DynArray[uint256, MAX_LEGOS],
+    _transferRecipient: address,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _legoPerms: LegoPerms,
+    _transferPerms: TransferPerms,
+) -> bool:
+
+    # check allowed assets
+    if len(_allowedAssets) != 0:
+        for a: address in _assets:
+            if a != empty(address) and a not in _allowedAssets:
+                return False
+
+    # check allowed lego ids
+    if len(_legoPerms.allowedLegos) != 0:
+        for lid: uint256 in _legoIds:
+            if lid != 0 and lid not in _legoPerms.allowedLegos:
+                return False
+
+    # check allowed recipients
+    if _action == wi.ActionType.TRANSFER:
+        if len(_transferPerms.allowedRecipients) != 0:
+            if _transferRecipient not in _transferPerms.allowedRecipients:
+                return False
+
+    return self._canPerformAction(_action, _legoPerms, _transferPerms.canTransfer)
+
+
+@view
+@internal
+def _canPerformAction(_action: wi.ActionType, _legoPerms: LegoPerms, _canTransfer: bool) -> bool:
+    if _action == wi.ActionType.TRANSFER:
+        return _canTransfer
+    elif _action in (wi.ActionType.EARN_DEPOSIT | wi.ActionType.EARN_WITHDRAW | wi.ActionType.EARN_REBALANCE):
+        return _legoPerms.canManageYield
+    elif _action in (wi.ActionType.SWAP | wi.ActionType.MINT_REDEEM | wi.ActionType.CONFIRM_MINT_REDEEM):
+        return _legoPerms.canBuyAndSell
+    elif _action in (wi.ActionType.ADD_COLLATERAL | wi.ActionType.REMOVE_COLLATERAL | wi.ActionType.BORROW | wi.ActionType.REPAY_DEBT):
+        return _legoPerms.canManageDebt
+    elif _action in (wi.ActionType.ADD_LIQ | wi.ActionType.REMOVE_LIQ | wi.ActionType.ADD_LIQ_CONC | wi.ActionType.REMOVE_LIQ_CONC):
+        return _legoPerms.canManageLiq
+    elif _action == wi.ActionType.REWARDS:
+        return _legoPerms.canClaimRewards
+    else:
+        return True
 
 
 #############
@@ -282,8 +438,10 @@ def setPendingGlobalManagerSettings(
 ) -> bool:
     assert msg.sender == self.owner # dev: no perms
 
-     # validation
-    assert self._isValidGlobalManagerTimes(_managerPeriod, _startDelay, _activationLength) # dev: invalid manager periods
+    # validation
+    assert self._isValidManagerPeriod(_managerPeriod) # dev: invalid manager period
+    assert self._isValidStartDelay(_startDelay) # dev: invalid start delay
+    assert self._isValidActivationLength(_activationLength) # dev: invalid activation length
     assert self._isValidLimits(_limits) # dev: invalid limits
     assert self._isValidLegoPerms(_legoPerms) # dev: invalid lego perms
     assert self._isValidTransferPerms(_transferPerms) # dev: invalid transfer perms
@@ -306,19 +464,27 @@ def setPendingGlobalManagerSettings(
         confirmBlock = block.number + self.timeLock,
     )
 
-    # TODO: add event
-    return True
-
-
-@view
-@internal
-def _isValidGlobalManagerTimes(_managerPeriod: uint256, _startDelay: uint256, _activationLength: uint256) -> bool:
-    if _managerPeriod < MIN_MANAGER_PERIOD or _managerPeriod > MAX_MANAGER_PERIOD:
-        return False
-    if _startDelay > 3 * ONE_MONTH_IN_BLOCKS:
-        return False
-    if _activationLength > 5 * ONE_YEAR_IN_BLOCKS:
-        return False
+    log GlobalManagerSettingsModified(
+        state = "PENDING",
+        managerPeriod = _managerPeriod,
+        startDelay = _startDelay,
+        activationLength = _activationLength,
+        maxVolumePerTx = _limits.maxVolumePerTx,
+        maxVolumePerPeriod = _limits.maxVolumePerPeriod,
+        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = _limits.txCooldownBlocks,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canManageDebt = _legoPerms.canManageDebt,
+        canManageLiq = _legoPerms.canManageLiq,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        canTransfer = _transferPerms.canTransfer,
+        canCreateCheque = _transferPerms.canCreateCheque,
+        canAddPendingRecipient = _transferPerms.canAddPendingRecipient,
+        numAllowedRecipients = len(_transferPerms.allowedRecipients),
+        numAllowedAssets = len(_allowedAssets),
+    )
     return True
 
 
@@ -331,11 +497,30 @@ def confirmPendingGlobalManagerSettings() -> bool:
 
     data: PendingGlobalManagerSettings = self.pendingGlobalManagerSettings
     assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
-
     self.globalManagerSettings = data.config
     self.pendingGlobalManagerSettings = empty(PendingGlobalManagerSettings)
 
-    # TODO: add event
+    log GlobalManagerSettingsModified(
+        state = "CONFIRMED",
+        managerPeriod = data.config.managerPeriod,
+        startDelay = data.config.startDelay,
+        activationLength = data.config.activationLength,
+        maxVolumePerTx = data.config.limits.maxVolumePerTx,
+        maxVolumePerPeriod = data.config.limits.maxVolumePerPeriod,
+        maxNumTxsPerPeriod = data.config.limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = data.config.limits.txCooldownBlocks,
+        canManageYield = data.config.legoPerms.canManageYield,
+        canBuyAndSell = data.config.legoPerms.canBuyAndSell,
+        canManageDebt = data.config.legoPerms.canManageDebt,
+        canManageLiq = data.config.legoPerms.canManageLiq,
+        canClaimRewards = data.config.legoPerms.canClaimRewards,
+        numAllowedLegos = len(data.config.legoPerms.allowedLegos),
+        canTransfer = data.config.transferPerms.canTransfer,
+        canCreateCheque = data.config.transferPerms.canCreateCheque,
+        canAddPendingRecipient = data.config.transferPerms.canAddPendingRecipient,
+        numAllowedRecipients = len(data.config.transferPerms.allowedRecipients),
+        numAllowedAssets = len(data.config.allowedAssets),
+    )
     return True
 
 
@@ -350,13 +535,36 @@ def cancelPendingGlobalManagerSettings() -> bool:
     assert data.confirmBlock != 0 # dev: no pending change
     self.pendingGlobalManagerSettings = empty(PendingGlobalManagerSettings)
 
-    # TODO: add event
+    log GlobalManagerSettingsModified(
+        state = "CANCELLED",
+        managerPeriod = data.config.managerPeriod,
+        startDelay = data.config.startDelay,
+        activationLength = data.config.activationLength,
+        maxVolumePerTx = data.config.limits.maxVolumePerTx,
+        maxVolumePerPeriod = data.config.limits.maxVolumePerPeriod,
+        maxNumTxsPerPeriod = data.config.limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = data.config.limits.txCooldownBlocks,
+        canManageYield = data.config.legoPerms.canManageYield,
+        canBuyAndSell = data.config.legoPerms.canBuyAndSell,
+        canManageDebt = data.config.legoPerms.canManageDebt,
+        canManageLiq = data.config.legoPerms.canManageLiq,
+        canClaimRewards = data.config.legoPerms.canClaimRewards,
+        numAllowedLegos = len(data.config.legoPerms.allowedLegos),
+        canTransfer = data.config.transferPerms.canTransfer,
+        canCreateCheque = data.config.transferPerms.canCreateCheque,
+        canAddPendingRecipient = data.config.transferPerms.canAddPendingRecipient,
+        numAllowedRecipients = len(data.config.transferPerms.allowedRecipients),
+        numAllowedAssets = len(data.config.allowedAssets),
+    )
     return True
 
 
 #############################
 # Specific Manager Settings #
 #############################
+
+
+# set manager settings
 
 
 @external
@@ -372,29 +580,108 @@ def setManagerSettings(
     assert msg.sender == self.owner # dev: no perms
 
     # validation
-    assert _manager != empty(address) # dev: invalid manager
+    assert _manager not in [empty(address), self.owner] # dev: invalid manager
     assert self._isValidLimits(_limits) # dev: invalid limits
     assert self._isValidLegoPerms(_legoPerms) # dev: invalid lego perms
     assert self._isValidTransferPerms(_transferPerms) # dev: invalid transfer perms
     assert self._isValidAllowedAssets(_allowedAssets) # dev: invalid allowed assets
 
-    # set manager settings
-    config: ManagerSettings = ManagerSettings(
-        startBlock = 0,
-        expiryBlock = 0,
-        limits = _limits,
-        legoPerms = _legoPerms,
-        transferPerms = _transferPerms,
-        allowedAssets = _allowedAssets,
-    )
-    config.startBlock, config.expiryBlock = self._getStartAndExpiryBlocks(_startDelay, _activationLength)
+    config: ManagerSettings = empty(ManagerSettings)
+    stateStr: String[10] = empty(String[10])
+
+    # existing manager
+    alreadyRegistered: bool = self.indexOfManager[_manager] != 0
+    if alreadyRegistered:
+        config = self.managerSettings[_manager]
+        config.limits = _limits
+        config.legoPerms = _legoPerms
+        config.transferPerms = _transferPerms
+        config.allowedAssets = _allowedAssets
+        stateStr = "UPDATED"
+    
+    # new manager
+    else:
+        config = ManagerSettings(
+            startBlock = 0,
+            expiryBlock = 0,
+            limits = _limits,
+            legoPerms = _legoPerms,
+            transferPerms = _transferPerms,
+            allowedAssets = _allowedAssets,
+        )
+        config.startBlock, config.expiryBlock = self._getStartAndExpiryBlocksForNewManager(_startDelay, _activationLength)
+        self._registerManager(_manager)
+        stateStr = "ADDED"
+
+    # update config
     self.managerSettings[_manager] = config
 
-    # register manager
-    if self.indexOfManager[_manager] == 0:
-        self._registerManager(_manager)
+    log ManagerSettingsModified(
+        manager = _manager,
+        state = stateStr,
+        startBlock = config.startBlock,
+        expiryBlock = config.expiryBlock,
+        maxVolumePerTx = config.limits.maxVolumePerTx,
+        maxVolumePerPeriod = config.limits.maxVolumePerPeriod,
+        maxNumTxsPerPeriod = config.limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = config.limits.txCooldownBlocks,
+        canManageYield = config.legoPerms.canManageYield,
+        canBuyAndSell = config.legoPerms.canBuyAndSell,
+        canManageDebt = config.legoPerms.canManageDebt,
+        canManageLiq = config.legoPerms.canManageLiq,
+        canClaimRewards = config.legoPerms.canClaimRewards,
+        numAllowedLegos = len(config.legoPerms.allowedLegos),
+        canTransfer = config.transferPerms.canTransfer,
+        canCreateCheque = config.transferPerms.canCreateCheque,
+        canAddPendingRecipient = config.transferPerms.canAddPendingRecipient,
+        numAllowedRecipients = len(config.transferPerms.allowedRecipients),
+        numAllowedAssets = len(config.allowedAssets),
+    )
+    return True
 
-    # TODO: add event
+
+# remove manager
+
+
+@external
+def removeManager(_manager: address) -> bool:
+    assert msg.sender == self.owner # dev: no perms
+    assert self.indexOfManager[_manager] != 0 # dev: manager not found
+
+    self.managerSettings[_manager] = empty(ManagerSettings)
+    self.managerPeriodData[_manager] = empty(ManagerPeriodData)
+    self._deregisterManager(_manager)
+
+    log ManagerRemoved(manager = _manager)
+    return True
+
+
+# adjust activation length
+
+
+@external
+def adjustActivationLength(_manager: address, _activationLength: uint256, _shouldResetStartBlock: bool = False) -> bool:
+    assert msg.sender == self.owner # dev: no perms
+
+    # validation
+    assert self.indexOfManager[_manager] != 0 # dev: manager not found
+    config: ManagerSettings = self.managerSettings[_manager]
+    assert config.startBlock < block.number # dev: manager not active yet
+    assert self._isValidActivationLength(_activationLength) # dev: invalid activation length
+
+    # update config
+    didRestart: bool = False
+    if config.expiryBlock < block.number or _shouldResetStartBlock:
+        config.startBlock = block.number
+        didRestart = True
+    config.expiryBlock = config.startBlock + _activationLength
+    self.managerSettings[_manager] = config
+
+    log ManagerActivationLengthAdjusted(
+        manager = _manager,
+        activationLength = _activationLength,
+        didRestart = didRestart,
+    )
     return True
 
 
@@ -403,15 +690,18 @@ def setManagerSettings(
 
 @view
 @internal
-def _getStartAndExpiryBlocks(_startDelay: uint256, _activationLength: uint256) -> (uint256, uint256):
+def _getStartAndExpiryBlocksForNewManager(_startDelay: uint256, _activationLength: uint256) -> (uint256, uint256):
     config: GlobalManagerSettings = self.globalManagerSettings
 
-    startDelay: uint256 = max(_startDelay, config.startDelay)
+    startDelay: uint256 = config.startDelay
+    if _startDelay != 0:
+        startDelay = max(startDelay, _startDelay) # using max here as extra protection
+    assert self._isValidStartDelay(startDelay) # dev: invalid start delay
+
     activationLength: uint256 = config.activationLength
     if _activationLength != 0:
         activationLength = min(activationLength, _activationLength)
-
-    assert self._isValidGlobalManagerTimes(config.managerPeriod, startDelay, activationLength) # dev: invalid manager periods
+    assert self._isValidActivationLength(activationLength) # dev: invalid activation length
 
     startBlock: uint256 = block.number + startDelay
     expiryBlock: uint256 = startBlock + activationLength
@@ -512,7 +802,43 @@ def _isValidAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]) 
     return True
 
 
-# register/deregister manager
+@view
+@internal
+def _isValidStartDelay(_startDelay: uint256) -> bool:
+    return _startDelay <= 6 * ONE_MONTH_IN_BLOCKS
+
+
+@view
+@internal
+def _isValidManagerPeriod(_managerPeriod: uint256) -> bool:
+    return _managerPeriod >= MIN_MANAGER_PERIOD and _managerPeriod <= MAX_MANAGER_PERIOD
+
+
+@view
+@internal
+def _isValidActivationLength(_numBlocks: uint256) -> bool:
+    return _numBlocks <= 5 * ONE_YEAR_IN_BLOCKS and _numBlocks >= ONE_DAY_IN_BLOCKS
+
+
+@pure
+@internal
+def _createHappyDefaults() -> (LegoPerms, TransferPerms):
+    return LegoPerms(
+        canManageYield = True,
+        canBuyAndSell = True,
+        canManageDebt = True,
+        canManageLiq = True,
+        canClaimRewards = True,
+        allowedLegos = [],
+    ), TransferPerms(
+        canTransfer = True,
+        canCreateCheque = True,
+        canAddPendingRecipient = True,
+        allowedRecipients = [],
+    )
+
+
+# register / deregister manager
 
 
 @internal
@@ -558,17 +884,6 @@ def _deregisterManager(_manager: address) -> bool:
 @external
 def canTransferToRecipient(_recipient: address) -> bool:
     return True
-
-
-@view
-@external
-def canAccessWallet(
-    _signer: address,
-    _action: wi.ActionType,
-    _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS],
-) -> bool:
-    return _signer == self.initialAgent
 
 
 @view
