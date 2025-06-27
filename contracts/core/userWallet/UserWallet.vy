@@ -481,17 +481,22 @@ def _withdrawFromYield(
     _shouldPerformPostActionTasks: bool,
     _cd: ActionData,
 ) -> (uint256, address, uint256):
-    amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
 
-    # some vault tokens require max value approval (comp v3)
-    assert extcall IERC20(_vaultToken).approve(_cd.legoAddr, max_value(uint256), default_return_value=True) # dev: approval failed
+    amount: uint256 = _amount
+    if _vaultToken != empty(address):
+        amount = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
+
+        # some vault tokens require max value approval (comp v3)
+        assert extcall IERC20(_vaultToken).approve(_cd.legoAddr, max_value(uint256), default_return_value=True) # dev: approval failed
 
     # withdraw from yield
     vaultTokenAmountBurned: uint256 = 0
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     vaultTokenAmountBurned, underlyingAsset, underlyingAmount = extcall Lego(_cd.legoAddr).withdrawFromYield(_vaultToken, amount, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_vaultToken).approve(_cd.legoAddr, 0, default_return_value=True) # dev: approval failed
+
+    if _vaultToken != empty(address):
+        assert extcall IERC20(_vaultToken).approve(_cd.legoAddr, 0, default_return_value=True) # dev: approval failed
 
     if _shouldPerformPostActionTasks:
         self._performPostActionTasks([underlyingAsset, _vaultToken])
