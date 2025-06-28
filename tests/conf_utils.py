@@ -34,8 +34,6 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
-        _defaultSwapFee = 1_00,
-        _defaultRewardsFee = 10_00,
     ):
         config = (
             _walletTemplate,
@@ -46,11 +44,22 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
-            _defaultSwapFee,
-            _defaultRewardsFee,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
+
+
+@pytest.fixture(scope="session")
+def setWalletFees(mission_control, switchboard_alpha):
+    def setWalletFees(
+        _swapFee = 1_00,
+        _rewardsFee = 20_00,
+        _yieldFee = 20_00,
+        _stableSwapFee = 10,
+    ):
+        config = (_swapFee, _rewardsFee, _yieldFee, _stableSwapFee)
+        mission_control.setWalletFees(config, sender=switchboard_alpha.address)
+    yield setWalletFees
 
 
 @pytest.fixture(scope="session")
@@ -73,25 +82,33 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
 def setAssetConfig(mission_control, switchboard_alpha):
     def setAssetConfig(
         _asset,
-        _isYieldAsset,
-        _isRebasing,
-        _maxYieldIncrease,
-        _yieldProfitFee,
-        _decimals,
-        _stalePriceNumBlocks,
-        _swapFee,
-        _rewardsFee,
+        _isStablecoin = False,
+        _stalePriceNumBlocks = 0,
+        _swapFee = 1_00,
+        _rewardsFee = 20_00,
+        _yieldFee = 20_00,
+        _isYieldAsset = False,
+        _maxYieldIncrease = 10_00,
+        _isRebasing = False,
     ):
-        config = (
-            True,
+        fees = (
+            _swapFee,
+            _rewardsFee,
+            _yieldFee,
+            0,
+        )
+        yieldConfig = (
             _isYieldAsset,
             _isRebasing,
             _maxYieldIncrease,
-            _yieldProfitFee,
-            _decimals,
+        )
+        config = (
+            True,
+            _isStablecoin,
+            _asset.decimals(),
             _stalePriceNumBlocks,
-            _swapFee,
-            _rewardsFee,
+            fees,
+            yieldConfig,
         )
         mission_control.setAssetConfig(_asset, config, sender=switchboard_alpha.address)
     yield setAssetConfig

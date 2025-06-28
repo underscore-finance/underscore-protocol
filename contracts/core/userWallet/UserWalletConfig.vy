@@ -23,6 +23,7 @@ struct ActionData:
     isManager: bool
     legoId: uint256
     legoAddr: address
+    eth: address
 
 struct ManagerData:
     numTxsInPeriod: uint256
@@ -156,6 +157,7 @@ event ManagerActivationLengthAdjusted:
 
 # core
 wallet: public(address)
+groupId: public(uint256)
 owner: public(address)
 pendingOwner: public(PendingOwnerChange)
 
@@ -217,6 +219,7 @@ def __init__(
     _defaultActivationLength: uint256,
     _trialFundsAsset: address,
     _trialFundsAmount: uint256,
+    _groupId: uint256,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
     _minTimeLock: uint256,
@@ -225,6 +228,7 @@ def __init__(
     assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
     UNDY_HQ = _undyHq
     self.owner = _owner
+    self.groupId = _groupId
 
     # trial funds info
     if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
@@ -313,6 +317,7 @@ def _getActionDataBundle() -> ActionData:
         isManager = False,
         legoId = 0,
         legoAddr = empty(address),
+        eth = empty(address),
     )
 
 

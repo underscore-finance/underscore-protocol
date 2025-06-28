@@ -89,6 +89,7 @@ def createUserWallet(
     _owner: address = msg.sender,
     _ambassador: address = empty(address),
     _shouldUseTrialFunds: bool = True,
+    _groupId: uint256 = 1,
 ) -> address:
     assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
@@ -125,6 +126,7 @@ def createUserWallet(
         config.defaultActivationLength,
         trialFundsAsset,
         trialFundsAmount,
+        _groupId,
         config.minManagerPeriod,
         config.maxManagerPeriod,
         config.minKeyActionTimeLock,
