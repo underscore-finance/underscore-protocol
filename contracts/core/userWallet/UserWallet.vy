@@ -10,18 +10,16 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletConfig:
-    def canPerformAction(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
+    def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
     def addNewManagerTransaction(_manager: address, _txUsdValue: uint256): nonpayable
     def canTransferToRecipient(_recipient: address) -> bool: view
-    def owner() -> address: view
+    def getActionDataBundle() -> ActionData: view
 
 interface PriceDesk:
     def updateAndGetPriceFromWallet(_asset: address, _isYieldAsset: bool, _staleBlocks: uint256) -> uint256: nonpayable
-    def getPrice(_asset: address, _isYieldAsset: bool, _staleBlocks: uint256) -> uint256: view
 
 interface MissionControl:
     def getUserWalletAssetConfig(_asset: address) -> WalletAssetConfig: view
-    def feeRecipient() -> address: view
 
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
@@ -233,7 +231,7 @@ event RewardsClaimed:
 event NftRecovered:
     collection: indexed(address)
     nftTokenId: uint256
-    owner: indexed(address)
+    recipient: indexed(address)
 
 # data 
 walletConfig: public(address)
@@ -245,22 +243,17 @@ assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
-
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+MAX_SWAP_FEE: constant(uint256) = 2_00 # 2%
+MAX_REWARDS_FEE: constant(uint256) = 25_00 # 25%
+MAX_YIELD_FEE: constant(uint256) = 25_00 # 25%
 
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
 API_VERSION: constant(String[28]) = "0.1.0"
-MISSION_CONTROL_ID: constant(uint256) = 3
-LEGO_BOOK_ID: constant(uint256) = 4
-PRICE_DESK_ID: constant(uint256) = 5
-SWITCHBOARD_ID: constant(uint256) = 6
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -273,8 +266,6 @@ def __init__(
     _wethAddr: address,
     _ethAddr: address,
     _walletConfig: address,
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
 ):
     assert empty(address) not in [_undyHq, _wethAddr, _walletConfig] # dev: invalid addrs
     self.walletConfig = _walletConfig
@@ -283,10 +274,6 @@ def __init__(
     WETH = _wethAddr
     ETH = _ethAddr
 
-    # trial funds info
-    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
-        self.trialFundsAsset = _trialFundsAsset
-        self.trialFundsAmount = _trialFundsAmount
 
 
 @payable
@@ -1166,13 +1153,7 @@ def _performPreActionTasks(
     _transferRecipient: address = empty(address),
     _shouldCheckYieldProfit: bool = True,
 ) -> ActionData:
-    cd: ActionData = self._getActionDataBundle()
-
-    # access control
-    cd.signer = _signer
-    if _signer != cd.walletOwner:
-        assert staticcall WalletConfig(cd.walletConfig).canPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient) # dev: signer cannot access wallet
-        cd.isManager = True
+    cd: ActionData = staticcall WalletConfig(self.walletConfig).validateAccessAndGetBundle(_signer, _action, _assets, _legoIds, _transferRecipient)
 
     # get specific lego addr if specified
     if len(_legoIds) != 0:
@@ -1214,34 +1195,6 @@ def _updateDepositPointsPreAction():
     totalData.depositPoints += newDepositPoints
     totalData.lastUpdate = block.number
     self.totals = totalData
-
-
-# core data
-
-
-@view
-@internal
-def _getActionDataBundle() -> ActionData:
-    undyHq: address = UNDY_HQ
-    walletConfig: address = self.walletConfig
-    missionControl: address = staticcall Registry(undyHq).getAddr(MISSION_CONTROL_ID)
-    return ActionData(
-        undyHq = undyHq,
-        missionControl = missionControl,
-        legoBook = staticcall Registry(undyHq).getAddr(LEGO_BOOK_ID),
-        priceDesk = staticcall Registry(undyHq).getAddr(PRICE_DESK_ID),
-        switchboard = staticcall Registry(undyHq).getAddr(SWITCHBOARD_ID),
-        feeRecipient = staticcall MissionControl(missionControl).feeRecipient(),
-        wallet = self,
-        walletConfig = walletConfig,
-        walletOwner = staticcall WalletConfig(walletConfig).owner(),
-        trialFundsAsset = self.trialFundsAsset,
-        trialFundsAmount = self.trialFundsAmount,
-        signer = empty(address),
-        isManager = False,
-        legoId = 0,
-        legoAddr = empty(address),
-    )
 
 
 # allow lego to perform action
@@ -1343,7 +1296,7 @@ def _performPostActionTasks(
 
 @external
 def updateAsset(_asset: address, _shouldCheckYield: bool):
-    cd: ActionData = self._getActionDataBundle()
+    cd: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle()
     assert staticcall Switchboard(cd.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
 
     assert _asset != empty(address) # dev: invalid asset
@@ -1501,9 +1454,7 @@ def _realizeRebaseYield(_asset: address, _data: AssetData, _currentBal: uint256,
 
     # calc fee (if any)
     profitAmount: uint256 = currentBalance - _data.assetBalance
-    feeAmount: uint256 = profitAmount * _data.config.performanceFee // HUNDRED_PERCENT
-    if feeAmount != 0 and _feeRecipient != empty(address):
-        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
+    self._payFee(_asset, profitAmount, _data.config.performanceFee, _feeRecipient)
 
 
 @internal
@@ -1538,13 +1489,18 @@ def _realizeNormalYield(
 
     # calc fee (if any)
     profitUsdValue: uint256 = newUsdValue - prevUsdValue
-    feeUsdValue: uint256 = profitUsdValue * data.config.performanceFee // HUNDRED_PERCENT
-    if feeUsdValue != 0 and _feeRecipient != empty(address):
-        feeAmount: uint256 = feeUsdValue * (10 ** data.config.decimals) // data.lastPrice
-        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
+    profitAmount: uint256 = profitUsdValue * (10 ** data.config.decimals) // data.lastPrice
+    self._payFee(_asset, profitAmount, _data.config.performanceFee, _feeRecipient)
 
     # `lastPrice` is only thing saved here
     self.assetData[_asset] = data
+
+
+@internal
+def _payFee(_asset: address, _profitAmount: uint256, _feeRatio: uint256, _feeRecipient: address):
+    feeAmount: uint256 = _profitAmount * _feeRatio // HUNDRED_PERCENT
+    if feeAmount != 0 and _feeRecipient != empty(address):
+        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
 
 
 #############
@@ -1589,18 +1545,17 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
 
 
 @external
-def recoverNft(_collection: address, _nftTokenId: uint256) -> bool:
-    owner: address = staticcall WalletConfig(self.walletConfig).owner()
-    assert msg.sender == owner # dev: no perms
-
-    if staticcall IERC721(_collection).ownerOf(_nftTokenId) != self:
+def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
+    cd: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle()
+    assert staticcall Switchboard(cd.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
+    if staticcall IERC721(_collection).ownerOf(_nftTokenId) != self or _recipient == empty(address):
         return False
 
-    extcall IERC721(_collection).safeTransferFrom(self, owner, _nftTokenId)
+    extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
     log NftRecovered(
-        collection=_collection,
-        nftTokenId=_nftTokenId,
-        owner=owner,
+        collection = _collection,
+        nftTokenId = _nftTokenId,
+        recipient = _recipient,
     )
     return True
 

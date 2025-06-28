@@ -4,12 +4,30 @@
 from interfaces import Wallet as wi
 from ethereum.ercs import IERC20
 
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
+    def feeRecipient() -> address: view
+
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
+struct ActionData:
+    undyHq: address
+    missionControl: address
+    legoBook: address
+    priceDesk: address
+    switchboard: address
+    feeRecipient: address
+    wallet: address
+    walletConfig: address
+    walletOwner: address
+    trialFundsAsset: address
+    trialFundsAmount: uint256
+    signer: address
+    isManager: bool
+    legoId: uint256
+    legoAddr: address
 
 struct ManagerData:
     numTxsInPeriod: uint256
@@ -158,6 +176,10 @@ pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
 timeLock: public(uint256)
 didSetWallet: public(bool)
 
+# trial funds info
+trialFundsAsset: public(address)
+trialFundsAmount: public(uint256)
+
 API_VERSION: constant(String[28]) = "0.1.0"
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
@@ -195,6 +217,8 @@ def __init__(
     _managerPeriod: uint256,
     _defaultStartDelay: uint256,
     _defaultActivationLength: uint256,
+    _trialFundsAsset: address,
+    _trialFundsAmount: uint256,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
     _minTimeLock: uint256,
@@ -203,6 +227,11 @@ def __init__(
     assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
     UNDY_HQ = _undyHq
     self.owner = _owner
+
+    # trial funds info
+    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
+        self.trialFundsAsset = _trialFundsAsset
+        self.trialFundsAmount = _trialFundsAmount
 
     # manager periods (set this first)
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
@@ -256,9 +285,63 @@ def apiVersion() -> String[28]:
     return API_VERSION
 
 
+#############
+# Core Data #
+#############
+
+
+@view
+@external
+def getActionDataBundle() -> ActionData:
+    return self._getActionDataBundle()
+
+
+@view
+@internal
+def _getActionDataBundle() -> ActionData:
+    undyHq: address = UNDY_HQ
+    missionControl: address = staticcall Registry(undyHq).getAddr(MISSION_CONTROL_ID)
+    return ActionData(
+        undyHq = undyHq,
+        missionControl = missionControl,
+        legoBook = staticcall Registry(undyHq).getAddr(LEGO_BOOK_ID),
+        priceDesk = staticcall Registry(undyHq).getAddr(PRICE_DESK_ID),
+        switchboard = staticcall Registry(undyHq).getAddr(SWITCHBOARD_ID),
+        feeRecipient = staticcall MissionControl(missionControl).feeRecipient(),
+        wallet = self.wallet,
+        walletConfig = self,
+        walletOwner = self.owner,
+        trialFundsAsset = self.trialFundsAsset,
+        trialFundsAmount = self.trialFundsAmount,
+        signer = empty(address),
+        isManager = False,
+        legoId = 0,
+        legoAddr = empty(address),
+    )
+
+
 ##################
 # Access Control #
 ##################
+
+
+@view
+@external
+def validateAccessAndGetBundle(
+    _signer: address,
+    _action: wi.ActionType,
+    _assets: DynArray[address, MAX_ASSETS] = [],
+    _legoIds: DynArray[uint256, MAX_LEGOS] = [],
+    _transferRecipient: address = empty(address),
+) -> ActionData:
+    owner: address = self.owner
+    if _signer != owner:
+        assert self._canManagerPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
+
+    data: ActionData = self._getActionDataBundle()
+    data.signer = _signer
+    data.isManager = _signer != owner
+    return data
 
 
 # check basic permissions
@@ -266,12 +349,24 @@ def apiVersion() -> String[28]:
 
 @view
 @external
-def canPerformAction(
+def canManagerPerformAction(
     _signer: address,
     _action: wi.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
+) -> bool:
+    return self._canManagerPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient)
+
+
+@view
+@internal
+def _canManagerPerformAction(
+    _signer: address,
+    _action: wi.ActionType,
+    _assets: DynArray[address, MAX_ASSETS],
+    _legoIds: DynArray[uint256, MAX_LEGOS],
+    _transferRecipient: address,
 ) -> bool:
     if self.indexOfManager[_signer] == 0:
         return False # signer is not a manager
@@ -349,12 +444,12 @@ def _checkPermissions(
             if _transferRecipient not in _transferPerms.allowedRecipients:
                 return False
 
-    return self._canPerformAction(_action, _legoPerms, _transferPerms.canTransfer)
+    return self._canPerformSpecificAction(_action, _legoPerms, _transferPerms.canTransfer)
 
 
 @view
 @internal
-def _canPerformAction(_action: wi.ActionType, _legoPerms: LegoPerms, _canTransfer: bool) -> bool:
+def _canPerformSpecificAction(_action: wi.ActionType, _legoPerms: LegoPerms, _canTransfer: bool) -> bool:
     if _action == wi.ActionType.TRANSFER:
         return _canTransfer
     elif _action in (wi.ActionType.EARN_DEPOSIT | wi.ActionType.EARN_WITHDRAW | wi.ActionType.EARN_REBALANCE):

@@ -361,5 +361,5 @@ def removeLiquidityConcentrated(
 
 
 @external
-def recoverNft(_collection: address, _nftTokenId: uint256) -> bool:
+def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
     ...
