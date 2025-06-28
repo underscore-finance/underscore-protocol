@@ -13,8 +13,10 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
 struct UserWalletData:
-    ambassador: address
+    usdValue: uint256
     depositPoints: uint256
+    lastUpdate: uint256
+    ambassador: address
 
 # user wallet data
 userWalletData: public(HashMap[address, UserWalletData]) # user wallet -> data
@@ -55,9 +57,20 @@ def createUserWallet(_user: address, _ambassador: address):
 
     # set data
     self.userWalletData[_user] = UserWalletData(
-        ambassador = _ambassador,
+        usdValue = 0,
         depositPoints = 0,
+        lastUpdate = block.number,
+        ambassador = _ambassador,
     )
+
+
+# set user wallet data
+
+
+@external
+def setUserWalletData(_user: address, _data: UserWalletData):
+    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    self.userWalletData[_user] = _data
 
 
 # utils
@@ -82,6 +95,12 @@ def _getNumUserWallets() -> uint256:
 @external
 def isUserWallet(_user: address) -> bool:
     return self.indexOfUserWallet[_user] != 0
+
+
+@view
+@external
+def getLastTotalUsdValue(_user: address) -> uint256:
+    return self.userWalletData[_user].usdValue
 
 
 ##########

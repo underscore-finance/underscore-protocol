@@ -15,8 +15,8 @@ from ethereum.ercs import IERC20
 
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
-    def createAgent(_agent: address): nonpayable
     def isUserWallet(_user: address) -> bool: view
+    def createAgent(_agent: address): nonpayable
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
 
@@ -27,29 +27,22 @@ interface MissionControl:
 interface WalletConfig:
     def setWallet(_wallet: address) -> bool: nonpayable
 
-struct UserWalletConfig:
+struct UserWalletCreationConfig:
+    numUserWalletsAllowed: uint256
+    isCreatorAllowed: bool
     walletTemplate: address
     configTemplate: address
-    trialAsset: address
-    trialAmount: uint256
-    numUserWalletsAllowed: uint256
-    enforceCreatorWhitelist: bool
-    minKeyActionTimeLock: uint256
-    maxKeyActionTimeLock: uint256
-
-struct ManagerConfig:
     startingAgent: address
     startingAgentActivationLength: uint256
     managerPeriod: uint256
     defaultStartDelay: uint256
     defaultActivationLength: uint256
+    trialAsset: address
+    trialAmount: uint256
     minManagerPeriod: uint256
     maxManagerPeriod: uint256
-
-struct UserWalletCreationConfig:
-    walletConfig: UserWalletConfig
-    managerConfig: ManagerConfig
-    isCreatorAllowed: bool
+    minKeyActionTimeLock: uint256
+    maxKeyActionTimeLock: uint256
 
 struct AgentCreationConfig:
     agentTemplate: address
@@ -100,12 +93,10 @@ def createUserWallet(
     assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
 
-    allConfig: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
-    config: UserWalletConfig = allConfig.walletConfig
-    managerConfig: ManagerConfig = allConfig.managerConfig
+    config: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
 
     # validation
-    assert allConfig.isCreatorAllowed # dev: creator not allowed
+    assert config.isCreatorAllowed # dev: creator not allowed
     assert empty(address) not in [config.walletTemplate, config.configTemplate, _owner] # dev: invalid setup
     if config.numUserWalletsAllowed != 0:
         assert staticcall Ledger(a.ledger).numUserWallets() < config.numUserWalletsAllowed # dev: max user wallets reached
@@ -127,15 +118,15 @@ def createUserWallet(
         config.configTemplate,
         a.hq,
         _owner,
-        managerConfig.startingAgent,
-        managerConfig.startingAgentActivationLength,
-        managerConfig.managerPeriod,
-        managerConfig.defaultStartDelay,
-        managerConfig.defaultActivationLength,
+        config.startingAgent,
+        config.startingAgentActivationLength,
+        config.managerPeriod,
+        config.defaultStartDelay,
+        config.defaultActivationLength,
         trialFundsAsset,
         trialFundsAmount,
-        managerConfig.minManagerPeriod,
-        managerConfig.maxManagerPeriod,
+        config.minManagerPeriod,
+        config.maxManagerPeriod,
         config.minKeyActionTimeLock,
         config.maxKeyActionTimeLock,
     )
@@ -153,7 +144,7 @@ def createUserWallet(
         mainAddr=mainWalletAddr,
         configAddr=walletConfigAddr,
         owner=_owner,
-        agent=managerConfig.startingAgent,
+        agent=config.startingAgent,
         ambassador=ambassador,
         creator=msg.sender,
         trialFundsAsset=trialFundsAsset,

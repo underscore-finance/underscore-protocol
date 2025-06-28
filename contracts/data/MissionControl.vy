@@ -16,10 +16,12 @@ struct AssetConfig:
     hasConfig: bool
     isYieldAsset: bool
     isRebasing: bool
-    maxIncrease: uint256
-    performanceFee: uint256
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
     decimals: uint256
     stalePriceNumBlocks: uint256
+    swapFee: uint256
+    rewardsFee: uint256
 
 struct UserWalletConfig:
     walletTemplate: address
@@ -30,6 +32,8 @@ struct UserWalletConfig:
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
+    defaultSwapFee: uint256
+    defaultRewardsFee: uint256
 
 struct AgentConfig:
     agentTemplate: address
@@ -51,15 +55,27 @@ struct WalletAssetConfig:
     hasConfig: bool
     isYieldAsset: bool
     isRebasing: bool
-    maxIncrease: uint256
-    performanceFee: uint256
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
     decimals: uint256
     stalePriceNumBlocks: uint256
 
 struct UserWalletCreationConfig:
-    walletConfig: UserWalletConfig
-    managerConfig: ManagerConfig
+    numUserWalletsAllowed: uint256
     isCreatorAllowed: bool
+    walletTemplate: address
+    configTemplate: address
+    startingAgent: address
+    startingAgentActivationLength: uint256
+    managerPeriod: uint256
+    defaultStartDelay: uint256
+    defaultActivationLength: uint256
+    trialAsset: address
+    trialAmount: uint256
+    minManagerPeriod: uint256
+    maxManagerPeriod: uint256
+    minKeyActionTimeLock: uint256
+    maxKeyActionTimeLock: uint256
 
 struct AgentCreationConfig:
     agentTemplate: address
@@ -100,26 +116,37 @@ def setUserWalletConfig(_config: UserWalletConfig):
     self.userWalletConfig = _config
 
 
-@view
-@external
-def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
-    config: UserWalletConfig = self.userWalletConfig
-    return UserWalletCreationConfig(
-        walletConfig = config,
-        managerConfig = self.managerConfig,
-        isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
-    )
-
-
-##################
-# Manager Config #
-##################
-
-
 @external
 def setManagerConfig(_config: ManagerConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.managerConfig = _config
+
+
+# helper
+
+
+@view
+@external
+def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
+    config: UserWalletConfig = self.userWalletConfig
+    managerConfig: ManagerConfig = self.managerConfig
+    return UserWalletCreationConfig(
+        numUserWalletsAllowed = config.numUserWalletsAllowed,
+        isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
+        walletTemplate = config.walletTemplate,
+        configTemplate = config.configTemplate,
+        startingAgent = managerConfig.startingAgent,
+        startingAgentActivationLength = managerConfig.startingAgentActivationLength,
+        managerPeriod = managerConfig.managerPeriod,
+        defaultStartDelay = managerConfig.defaultStartDelay,
+        defaultActivationLength = managerConfig.defaultActivationLength,
+        trialAsset = config.trialAsset,
+        trialAmount = config.trialAmount,
+        minManagerPeriod = managerConfig.minManagerPeriod,
+        maxManagerPeriod = managerConfig.maxManagerPeriod,
+        minKeyActionTimeLock = config.minKeyActionTimeLock,
+        maxKeyActionTimeLock = config.maxKeyActionTimeLock,
+    )
 
 
 ################
@@ -131,6 +158,9 @@ def setManagerConfig(_config: ManagerConfig):
 def setAgentConfig(_config: AgentConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.agentConfig = _config
+
+
+# helper
 
 
 @view
@@ -168,11 +198,30 @@ def getUserWalletAssetConfig(_asset: address) -> WalletAssetConfig:
         hasConfig = config.hasConfig,
         isYieldAsset = config.isYieldAsset,
         isRebasing = config.isRebasing,
-        maxIncrease = config.maxIncrease,
-        performanceFee = config.performanceFee,
+        maxYieldIncrease = config.maxYieldIncrease,
+        yieldProfitFee = config.yieldProfitFee,
         decimals = config.decimals,
         stalePriceNumBlocks = config.stalePriceNumBlocks,
     )
+
+
+@view
+@external
+def getSwapFee(_user: address, _asset: address) -> uint256:
+    config: AssetConfig = self.assetConfig[_asset]
+    if config.hasConfig:
+        return config.swapFee
+    return self.userWalletConfig.defaultSwapFee
+
+
+@view
+@external
+def getRewardsFee(_user: address, _asset: address) -> uint256:
+    config: AssetConfig = self.assetConfig[_asset]
+    if config.hasConfig:
+        return config.rewardsFee
+    return self.userWalletConfig.defaultRewardsFee
+
 
 
 #########

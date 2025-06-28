@@ -4,26 +4,21 @@
 from interfaces import Wallet as wi
 from ethereum.ercs import IERC20
 
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
-    def feeRecipient() -> address: view
-
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
+interface WalletBackpack:
+    def getBackpackData(_userWallet: address) -> BackpackData: view
+
 struct ActionData:
-    undyHq: address
-    missionControl: address
     legoBook: address
-    priceDesk: address
-    switchboard: address
+    walletBackpack: address
     feeRecipient: address
     wallet: address
     walletConfig: address
     walletOwner: address
-    trialFundsAsset: address
-    trialFundsAmount: uint256
+    lastTotalUsdValue: uint256
     signer: address
     isManager: bool
     legoId: uint256
@@ -83,6 +78,11 @@ struct PendingOwnerChange:
     newOwner: address
     initiatedBlock: uint256
     confirmBlock: uint256
+
+struct BackpackData:
+    legoBook: address
+    feeRecipient: address
+    lastTotalUsdValue: uint256
 
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
@@ -195,11 +195,9 @@ ONE_MONTH_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 30
 ONE_YEAR_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 365
 
 # registry ids
-MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
-PRICE_DESK_ID: constant(uint256) = 5
-SWITCHBOARD_ID: constant(uint256) = 6
-HATCHERY_ID: constant(uint256) = 7
+HATCHERY_ID: constant(uint256) = 6
+WALLET_BACKPACK_ID: constant(uint256) = 7
 
 UNDY_HQ: public(immutable(address))
 MIN_TIMELOCK: public(immutable(uint256))
@@ -299,20 +297,18 @@ def getActionDataBundle() -> ActionData:
 @view
 @internal
 def _getActionDataBundle() -> ActionData:
-    undyHq: address = UNDY_HQ
-    missionControl: address = staticcall Registry(undyHq).getAddr(MISSION_CONTROL_ID)
+    walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+    wallet: address = self.wallet
+    backpackData: BackpackData = staticcall WalletBackpack(walletBackpack).getBackpackData(wallet)
+
     return ActionData(
-        undyHq = undyHq,
-        missionControl = missionControl,
-        legoBook = staticcall Registry(undyHq).getAddr(LEGO_BOOK_ID),
-        priceDesk = staticcall Registry(undyHq).getAddr(PRICE_DESK_ID),
-        switchboard = staticcall Registry(undyHq).getAddr(SWITCHBOARD_ID),
-        feeRecipient = staticcall MissionControl(missionControl).feeRecipient(),
-        wallet = self.wallet,
+        legoBook = backpackData.legoBook,
+        walletBackpack = walletBackpack,
+        feeRecipient = backpackData.feeRecipient,
+        wallet = wallet,
         walletConfig = self,
         walletOwner = self.owner,
-        trialFundsAsset = self.trialFundsAsset,
-        trialFundsAmount = self.trialFundsAmount,
+        lastTotalUsdValue = backpackData.lastTotalUsdValue,
         signer = empty(address),
         isManager = False,
         legoId = 0,
@@ -466,7 +462,9 @@ def _canPerformSpecificAction(_action: wi.ActionType, _legoPerms: LegoPerms, _ca
         return True
 
 
-# update transaction details / volume
+###################
+# Add Transaction #
+###################
 
 
 @external
@@ -575,8 +573,8 @@ def confirmOwnershipChange():
 @external
 def cancelOwnershipChange():
     if msg.sender != self.owner:
-        missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
-        assert staticcall MissionControl(missionControl).canPerformSecurityAction(msg.sender) # dev: no perms
+        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+        assert msg.sender == walletBackpack # dev: no perms
 
     data: PendingOwnerChange = self.pendingOwner
     assert data.confirmBlock != 0 # dev: no pending change

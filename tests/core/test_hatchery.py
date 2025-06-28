@@ -83,7 +83,7 @@ def test_hatchery_create_user_wallet_with_ambassador(setUserWalletConfig, setMan
     # Create bob's wallet with alice as ambassador
     wallet_addr = hatchery.createUserWallet(bob, alice_wallet, True, sender=sally)
     
-    # Get all logs and find the one for bob's wallet
+    # Get the log for bob's wallet creation - it will be the first log after this transaction
     bob_log = filter_logs(hatchery, "UserWalletCreated")[0]
     assert bob_log.owner == bob
     assert bob_log.mainAddr == wallet_addr

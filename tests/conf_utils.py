@@ -34,6 +34,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
+        _defaultSwapFee = 1_00,
+        _defaultRewardsFee = 10_00,
     ):
         config = (
             _walletTemplate,
@@ -44,6 +46,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
+            _defaultSwapFee,
+            _defaultRewardsFee,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
@@ -71,19 +75,23 @@ def setAssetConfig(mission_control, switchboard_alpha):
         _asset,
         _isYieldAsset,
         _isRebasing,
-        _maxIncrease,
-        _performanceFee,
+        _maxYieldIncrease,
+        _yieldProfitFee,
         _decimals,
         _stalePriceNumBlocks,
+        _swapFee,
+        _rewardsFee,
     ):
         config = (
             True,
             _isYieldAsset,
             _isRebasing,
-            _maxIncrease,
-            _performanceFee,
+            _maxYieldIncrease,
+            _yieldProfitFee,
             _decimals,
             _stalePriceNumBlocks,
+            _swapFee,
+            _rewardsFee,
         )
         mission_control.setAssetConfig(_asset, config, sender=switchboard_alpha.address)
     yield setAssetConfig
