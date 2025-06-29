@@ -26,7 +26,7 @@ interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 interface UserWallet:
-    def updateAssetData(_asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
 
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
@@ -162,12 +162,12 @@ def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256
 
 
 @external
-def updateAssetInWallet(_user: address, _asset: address, _shouldCheckYield: bool):
+def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shouldCheckYield: bool):
     a: addys.Addys = addys._getAddys()
     assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
 
     assert _asset != empty(address) # dev: invalid asset
-    newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_asset, _shouldCheckYield)
+    newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_legoId, _asset, _shouldCheckYield)
     self._updateDepositPoints(_user, newUserValue, a.ledger)
 
 
@@ -313,6 +313,12 @@ def updateAndGetUsdValue(
     # TODO: might need to use legoAddr for some prices
 
     return data.price * _amount // (10 ** _decimals)
+
+
+@external
+def updateAndGetPricePerShare(_asset: address, _legoAddr: address) -> uint256:
+    # TODO: implement this
+    return 0
 
 
 # ripe integration 

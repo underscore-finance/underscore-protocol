@@ -5,6 +5,7 @@ implements: Lego
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
 from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
 
 interface MockToken:
     def mint(_to: address, _value: uint256): nonpayable
@@ -481,27 +482,7 @@ def _areValidTokens(_tokens: DynArray[address, 6]) -> bool:
 #################
 
 
-# asset amount -> usd value
-
-
 @view
 @external
-def getUsdValue(_asset: address, _amount: uint256, _decimals: uint256) -> uint256:
-    if _amount == 0 or _asset == empty(address):
-        return 0
-    price: uint256 = 0 # TODO: implement this
-    return price * _amount // (10 ** _decimals)
-
-
-# usd value -> asset amount
-
-
-@view
-@external
-def getAssetAmount(_asset: address, _usdValue: uint256, _decimals: uint256) -> uint256:
-    if _usdValue == 0 or _asset == empty(address):
-        return 0
-    price: uint256 = 0 # TODO: implement this
-    if price == 0:
-        return 0
-    return _usdValue * (10 ** _decimals) // price
+def getPricePerShare(_yieldAsset: address) -> uint256:
+    return 1 * (10 ** convert(staticcall IERC20Detailed(_yieldAsset).decimals(), uint256))

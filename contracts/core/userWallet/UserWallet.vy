@@ -12,11 +12,11 @@ from ethereum.ercs import IERC721
 interface WalletBackpack:
     def updateAndGetUsdValue(_asset: address, _amount: uint256, _decimals: uint256, _isYieldAsset: bool, _legoAddr: address) -> uint256: nonpayable
     def getYieldAssetConfig(_asset: address, _legoId: uint256, _underlyingAsset: address) -> YieldAssetConfig: view
-    def performPostActionTasks(_newUserValue: uint256): nonpayable
-    def updateAndGetPriceFromWallet(_asset: address, _isYieldAsset: bool) -> uint256: nonpayable
+    def updateAndGetPricePerShare(_asset: address, _legoAddr: address) -> uint256: nonpayable
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
     def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256): view
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
+    def performPostActionTasks(_newUserValue: uint256): nonpayable
 
 interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
@@ -34,8 +34,8 @@ interface Registry:
 struct WalletAssetData:
     assetBalance: uint256
     usdValue: uint256
-    lastPrice: uint256
-    lastPriceUpdate: uint256
+    lastPricePerShare: uint256
+    lastPricePerShareUpdate: uint256
     decimals: uint256
     isYieldAsset: bool
 
@@ -1224,11 +1224,14 @@ def _performPostActionTasks(
 
 
 @external
-def updateAssetData(_asset: address, _shouldCheckYield: bool) -> uint256:
+def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
     cd: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle()
     assert msg.sender == cd.walletBackpack # dev: no perms
     cd.eth = ETH
     cd.weth = WETH
+    if _legoId != 0:
+        cd.legoId = _legoId
+        cd.legoAddr = staticcall Registry(cd.legoBook).getAddr(_legoId)
 
     # check for yield
     if _shouldCheckYield:
@@ -1346,7 +1349,7 @@ def _checkForYieldProfits(_asset: address, _cd: ActionData):
     if config.isRebasing:
         self._handleRebaseYieldAsset(_asset, config, data.assetBalance, currentBalance, _cd.feeRecipient)
     else:
-        self._handleNormalYieldAsset(_asset, data, config, currentBalance, _cd.feeRecipient, _cd.walletBackpack)
+        self._handleNormalYieldAsset(_asset, data, config, currentBalance, _cd.feeRecipient, _cd.legoAddr, _cd.walletBackpack)
 
 
 @internal
@@ -1357,24 +1360,25 @@ def _handleRebaseYieldAsset(
     _currentBalance: uint256,
     _feeRecipient: address,
 ):
-    currentBalance: uint256 = _currentBalance
+    # no profits if balance decreased or stayed the same
+    if _currentBalance <= _lastBalance:
+        return 
+    
+    # calculate the actual profit
+    uncappedProfit: uint256 = _currentBalance - _lastBalance
+    actualProfit: uint256 = uncappedProfit
+    
+    # apply max yield increase cap if configured
     if _config.maxYieldIncrease != 0:
-        maxBalance: uint256 = _lastBalance + (_lastBalance * _config.maxYieldIncrease // HUNDRED_PERCENT)
-
-        # possible edge case where user may have directly sent yield-bearing token into wallet
-        # let's treat max balance as the point at which we exit early, as this appears to be the case
-        if currentBalance >= maxBalance:
-            return
-
-        currentBalance = min(currentBalance, maxBalance)
-
-    # no profits
-    if currentBalance <= _lastBalance:
+        maxAllowedProfit: uint256 = _lastBalance * _config.maxYieldIncrease // HUNDRED_PERCENT
+        actualProfit = min(uncappedProfit, maxAllowedProfit)
+    
+    # no profits after applying cap
+    if actualProfit == 0:
         return
-
-    # calc fee (if any)
-    profitAmount: uint256 = currentBalance - _lastBalance
-    self._payFee(_asset, profitAmount, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
+    
+    # calculate and pay fee on the capped profit
+    self._payFee(_asset, actualProfit, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
 
 
 @internal
@@ -1384,38 +1388,41 @@ def _handleNormalYieldAsset(
     _config: YieldAssetConfig,
     _currentBal: uint256,
     _feeRecipient: address,
+    _legoAddr: address,
     _walletBackpack: address,
 ):
     data: WalletAssetData = _data
-
-    # only updating price in asset data
-    prevLastPrice: uint256 = data.lastPrice
-    if data.lastPriceUpdate != block.number:
-        data.lastPrice = extcall WalletBackpack(_walletBackpack).updateAndGetPriceFromWallet(_asset, data.isYieldAsset)
-        data.lastPriceUpdate = block.number
-
-    # nothing to do here
-    if data.lastPrice == 0 or data.lastPrice == prevLastPrice:
+    prevPricePerShare: uint256 = data.lastPricePerShare
+    
+    # get current price per share (how many underlying tokens per vault token)
+    currentPricePerShare: uint256 = prevPricePerShare
+    if data.lastPricePerShareUpdate != block.number:
+        currentPricePerShare = extcall WalletBackpack(_walletBackpack).updateAndGetPricePerShare(_asset, _legoAddr)
+        data.lastPricePerShare = currentPricePerShare
+        data.lastPricePerShareUpdate = block.number
+    
+    # nothing to do if price hasn't changed or increased
+    if currentPricePerShare == 0 or currentPricePerShare <= prevPricePerShare:
         return
-
-    prevUsdValue: uint256 = data.usdValue
-
-    # new values (with ceiling)
-    assetBalance: uint256 = min(_currentBal, data.assetBalance) # only count what we last saved
-    newUsdValue: uint256 = data.lastPrice * assetBalance // (10 ** data.decimals)
+    
+    # calculate underlying amounts
+    trackedBalance: uint256 = min(_currentBal, data.assetBalance)
+    prevUnderlyingAmount: uint256 = trackedBalance * prevPricePerShare // (10 ** data.decimals)
+    currentUnderlyingAmount: uint256 = trackedBalance * currentPricePerShare // (10 ** data.decimals)
+    
+    # apply max yield increase cap if configured (in underlying terms)
     if _config.maxYieldIncrease != 0:
-        newUsdValue = min(newUsdValue, prevUsdValue + (prevUsdValue * _config.maxYieldIncrease // HUNDRED_PERCENT))
+        maxAllowedUnderlying: uint256 = prevUnderlyingAmount + (prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT)
+        currentUnderlyingAmount = min(currentUnderlyingAmount, maxAllowedUnderlying)
 
-    # no profits
-    if newUsdValue <= prevUsdValue:
-        return
-
-    # calc fee (if any)
-    profitUsdValue: uint256 = newUsdValue - prevUsdValue
-    profitAmount: uint256 = profitUsdValue * (10 ** data.decimals) // data.lastPrice
-    self._payFee(_asset, profitAmount, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
-
-    # `lastPrice` is only thing saved here
+    # calculate profit in underlying tokens
+    profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
+    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** data.decimals) // currentPricePerShare
+    
+    # pay fee on the profit (in vault tokens)
+    self._payFee(_asset, profitInVaultTokens, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
+    
+    # save the updated price per share
     self.assetData[_asset] = data
 
 

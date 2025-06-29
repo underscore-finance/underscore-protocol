@@ -69,3 +69,8 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 @external
 def hasCapability(_action: wi.ActionType) -> bool:
     ...
+
+@view
+@external
+def getPricePerShare(_yieldAsset: address) -> uint256:
+    ...
