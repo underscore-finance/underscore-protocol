@@ -236,6 +236,7 @@ numAssets: public(uint256) # num assets
 
 # yield asset config
 yieldAssetConfig: public(HashMap[address, YieldAssetConfig]) # asset -> config
+checkedYield: transient(HashMap[address, bool]) # asset -> checked
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_FEE: constant(uint256) = 5_00 # 5%
@@ -1334,6 +1335,10 @@ def _checkForYieldProfits(_asset: address, _cd: ActionData):
     if _asset == empty(address):
         return
 
+    # skip if already checked
+    if self.checkedYield[_asset]:
+        return
+
     # nothing to do here (nothing saved, not a yield asset)
     data: WalletAssetData = self.assetData[_asset]
     if data.assetBalance == 0 or not data.isYieldAsset:
@@ -1350,6 +1355,9 @@ def _checkForYieldProfits(_asset: address, _cd: ActionData):
         self._handleRebaseYieldAsset(_asset, config, data.assetBalance, currentBalance, _cd.feeRecipient)
     else:
         self._handleNormalYieldAsset(_asset, data, config, currentBalance, _cd.feeRecipient, _cd.legoAddr, _cd.walletBackpack)
+
+    # mark as checked
+    self.checkedYield[_asset] = True
 
 
 @internal
