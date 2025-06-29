@@ -41,9 +41,13 @@ def test_hatchery_create_user_wallet(setUserWalletConfig, setManagerConfig, hatc
     # Verify count increased
     assert ledger.numUserWallets() > initial_wallet_count
 
-    data = ledger.userWalletData(wallet_addr)
-    assert data.ambassador == ZERO_ADDRESS
-    assert data.depositPoints == 0
+    # Check ambassador is not set (since alice is not a wallet)
+    assert ledger.ambassadors(wallet_addr) == ZERO_ADDRESS
+    
+    # Check initial points data
+    points_data = ledger.userPoints(wallet_addr)
+    assert points_data.depositPoints == 0
+    assert points_data.usdValue == 0
 
 
 def test_hatchery_create_user_wallet_no_trial_funds(setUserWalletConfig, setManagerConfig, hatchery, bob, agent_eoa, sally, alpha_token):
@@ -89,8 +93,8 @@ def test_hatchery_create_user_wallet_with_ambassador(setUserWalletConfig, setMan
     assert bob_log.mainAddr == wallet_addr
     assert bob_log.ambassador == alice_wallet  # alice's wallet is the ambassador
     
-    data = ledger.userWalletData(wallet_addr)
-    assert data.ambassador == alice_wallet
+    # Check ambassador is set to alice's wallet
+    assert ledger.ambassadors(wallet_addr) == alice_wallet
 
 
 def test_hatchery_create_user_wallet_creator_not_allowed(setUserWalletConfig, hatchery, bob, alice):

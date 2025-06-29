@@ -10,18 +10,19 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletBackpack:
+    def updateAndGetUsdValue(_asset: address, _amount: uint256, _decimals: uint256, _isYieldAsset: bool, _legoAddr: address) -> uint256: nonpayable
     def getYieldAssetConfig(_asset: address, _legoId: uint256, _underlyingAsset: address) -> YieldAssetConfig: view
-    def performPostActionTasks(_prevTotalUsdValue: uint256, _newTotalUsdValue: uint256): nonpayable
+    def performPostActionTasks(_newUserValue: uint256): nonpayable
     def updateAndGetPriceFromWallet(_asset: address, _isYieldAsset: bool) -> uint256: nonpayable
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
     def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256): view
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
-    def updateUserDepositPoints() -> uint256: nonpayable
 
 interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
     def addNewManagerTransaction(_manager: address, _txUsdValue: uint256): nonpayable
     def canTransferToRecipient(_recipient: address) -> bool: view
+    def getActionDataBundle() -> ActionData: view
 
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
@@ -340,9 +341,7 @@ def transferFunds(
             self.assetData[asset] = data
 
     # get tx usd value
-    price: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetPriceFromWallet(asset, data.isYieldAsset)
-    txUsdValue: uint256 = price * amount // (10 ** data.decimals)
-
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(asset, amount, data.decimals, data.isYieldAsset, cd.legoAddr)
     self._performPostActionTasks([asset], txUsdValue, cd)
     log FundsTransferred(
         asset = asset,
@@ -897,9 +896,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     assert amount != 0 # dev: nothing to convert
     extcall WethContract(weth).deposit(value=amount)
 
-    price: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetPriceFromWallet(weth, False)
-    txUsdValue: uint256 = price * amount // (10 ** 18)
-
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(weth, amount, 18, False, cd.legoAddr)
     self._performPostActionTasks([eth, weth], txUsdValue, cd)
     log EthWrapped(
         amount = amount,
@@ -924,9 +921,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
     extcall WethContract(weth).withdraw(amount)
 
-    price: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetPriceFromWallet(weth, False)
-    txUsdValue: uint256 = price * amount // (10 ** 18)
-
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(weth, amount, 18, False, cd.legoAddr)
     self._performPostActionTasks([weth, eth], txUsdValue, cd)
     log WethUnwrapped(
         amount = amount,
@@ -1183,9 +1178,6 @@ def _performPreActionTasks(
     if _shouldCheckAccess and cd.legoAddr != empty(address):
         self._checkLegoAccessForAction(cd.legoAddr, _action)
 
-    # update deposit points
-    extcall WalletBackpack(cd.walletBackpack).updateUserDepositPoints()
-
     # check for yield to realize
     checkedAssets: DynArray[address, MAX_ASSETS] = []
     for a: address in _assets:
@@ -1193,70 +1185,10 @@ def _performPreActionTasks(
             continue
         if a in [cd.eth, cd.weth]:
             continue
-        self._checkForYieldProfits(a, cd.legoId, cd.feeRecipient, cd.walletBackpack)
+        self._checkForYieldProfits(a, cd)
         checkedAssets.append(a)
 
     return cd
-
-
-# allow lego to perform action
-
-
-@internal
-def _checkLegoAccessForAction(_legoAddr: address, _action: wi.ActionType):
-    targetAddr: address = empty(address)
-    accessAbi: String[64] = empty(String[64])
-    numInputs: uint256 = 0
-    targetAddr, accessAbi, numInputs = staticcall Lego(_legoAddr).getAccessForLego(self, _action)
-
-    # nothing to do here
-    if targetAddr == empty(address):
-        return
-
-    method_abi: bytes4 = convert(slice(keccak256(accessAbi), 0, 4), bytes4)
-    success: bool = False
-    response: Bytes[32] = b""
-
-    # assumes input is: lego addr (operator)
-    if numInputs == 1:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure=False,
-            max_outsize=32,
-        )
-    
-    # assumes input (and order) is: user (self), lego addr (operator)
-    elif numInputs == 2:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure=False,
-            max_outsize=32,
-        )
-
-    # assumes input (and order) is: user (self), lego addr (operator), allowed bool
-    elif numInputs == 3:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-                convert(True, bytes32),
-            ),
-            revert_on_failure=False,
-            max_outsize=32,
-        )
-
-    assert success # dev: failed to set operator
 
 
 #####################
@@ -1277,10 +1209,10 @@ def _performPostActionTasks(
     # update each asset that was touched
     newTotalUsdValue: uint256 = _cd.lastTotalUsdValue
     for a: address in _assets:
-        newTotalUsdValue = self._updateAssetData(a, _cd.legoId, newTotalUsdValue, _cd.walletBackpack, _cd.eth, _cd.weth)
+        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _cd)
 
-    # update global points + check trial funds
-    extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(_cd.lastTotalUsdValue, newTotalUsdValue)
+    # update points + check trial funds
+    extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue)
 
 
 ##############
@@ -1288,27 +1220,38 @@ def _performPostActionTasks(
 ##############
 
 
+# from wallet backpack
+
+
+@external
+def updateAssetData(_asset: address, _shouldCheckYield: bool) -> uint256:
+    cd: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle()
+    assert msg.sender == cd.walletBackpack # dev: no perms
+    cd.eth = ETH
+    cd.weth = WETH
+
+    # check for yield
+    if _shouldCheckYield:
+        self._checkForYieldProfits(_asset, cd)
+
+    # update asset data
+    return self._updateAssetData(_asset, cd.lastTotalUsdValue, cd)
+
+
 # update asset data
 
 
 @internal
-def _updateAssetData(
-    _asset: address,
-    _legoId: uint256,
-    _totalUsdValue: uint256,
-    _walletBackpack: address,
-    _eth: address,
-    _weth: address,
-) -> uint256:
+def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _cd: ActionData) -> uint256:
     if _asset == empty(address):
-        return _totalUsdValue
+        return _newTotalUsdValue
 
     data: WalletAssetData = self.assetData[_asset]
     prevUsdValue: uint256 = data.usdValue
 
     # ETH / ERC20
     currentBalance: uint256 = 0
-    if _asset == _eth:
+    if _asset == _cd.eth:
         currentBalance = self.balance
     else:
         currentBalance = staticcall IERC20(_asset).balanceOf(self)
@@ -1319,55 +1262,26 @@ def _updateAssetData(
         data.usdValue = 0
         self.assetData[_asset] = data
         self._deregisterAsset(_asset)
-        return _totalUsdValue - prevUsdValue
+        return _newTotalUsdValue - prevUsdValue
 
     # not saved yet, let's make sure we have what we need
     if data.decimals == 0:
-        data.isYieldAsset, data.decimals = self._getCoreAssetData(_asset, _walletBackpack, _eth, _weth)
+        data.isYieldAsset, data.decimals = self._getCoreAssetData(_asset, _cd.walletBackpack, _cd.eth, _cd.weth)
 
     # yield asset config
     if data.isYieldAsset:
-        self._setYieldAssetConfig(_asset, _legoId, empty(address), _walletBackpack)
+        self._setYieldAssetConfig(_asset, _cd.legoId, empty(address), _cd.walletBackpack)
 
-    # price
-    if data.lastPriceUpdate != block.number:
-        data.lastPrice = extcall WalletBackpack(_walletBackpack).updateAndGetPriceFromWallet(_asset, data.isYieldAsset)
-        data.lastPriceUpdate = block.number
-
-    # usd value
-    data.usdValue = 0
-    if data.lastPrice != 0:
-        data.usdValue = data.lastPrice * currentBalance // (10 ** data.decimals)
+    # save data
+    data.usdValue = extcall WalletBackpack(_cd.walletBackpack).updateAndGetUsdValue(_asset, currentBalance, data.decimals, data.isYieldAsset, _cd.legoAddr)
+    data.assetBalance = currentBalance
+    self.assetData[_asset] = data
 
     # register asset (if necessary)
     if self.indexOfAsset[_asset] == 0:
         self._registerAsset(_asset)
 
-    # save data
-    data.assetBalance = currentBalance
-    self.assetData[_asset] = data
-    return _totalUsdValue - prevUsdValue + data.usdValue
-
-
-# from wallet backpack
-
-
-@external
-def updateAssetData(
-    _asset: address,
-    _shouldCheckYield: bool,
-    _lastTotalUsdValue: uint256,
-    _feeRecipient: address,
-) -> uint256:
-    walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-    assert msg.sender == walletBackpack # dev: no perms
-
-    # check for yield
-    if _shouldCheckYield:
-        self._checkForYieldProfits(_asset, 0, _feeRecipient, walletBackpack)
-
-    # update asset data
-    return self._updateAssetData(_asset, 0, _lastTotalUsdValue, walletBackpack, ETH, WETH)
+    return _newTotalUsdValue - prevUsdValue + data.usdValue
 
 
 # register/deregister asset
@@ -1413,12 +1327,7 @@ def _deregisterAsset(_asset: address) -> bool:
 
 
 @internal
-def _checkForYieldProfits(
-    _asset: address,
-    _legoId: uint256,
-    _feeRecipient: address,
-    _walletBackpack: address,
-):
+def _checkForYieldProfits(_asset: address, _cd: ActionData):
     if _asset == empty(address):
         return
 
@@ -1432,24 +1341,21 @@ def _checkForYieldProfits(
     if currentBalance == 0:
         return
 
-    config: YieldAssetConfig = self._setYieldAssetConfig(_asset, _legoId, empty(address), _walletBackpack)
-
-    # rebase asset
+    # check for yield profits
+    config: YieldAssetConfig = self._setYieldAssetConfig(_asset, _cd.legoId, empty(address), _cd.walletBackpack)
     if config.isRebasing:
-        self._realizeRebaseYield(_asset, data.assetBalance, currentBalance, _feeRecipient, config)
-
-    # price increase
+        self._handleRebaseYieldAsset(_asset, config, data.assetBalance, currentBalance, _cd.feeRecipient)
     else:
-        self._realizeNormalYield(_asset, data, currentBalance, _feeRecipient, config, _walletBackpack)
+        self._handleNormalYieldAsset(_asset, data, config, currentBalance, _cd.feeRecipient, _cd.walletBackpack)
 
 
 @internal
-def _realizeRebaseYield(
+def _handleRebaseYieldAsset(
     _asset: address,
+    _config: YieldAssetConfig,
     _lastBalance: uint256,
     _currentBalance: uint256,
     _feeRecipient: address,
-    _config: YieldAssetConfig,
 ):
     currentBalance: uint256 = _currentBalance
     if _config.maxYieldIncrease != 0:
@@ -1472,12 +1378,12 @@ def _realizeRebaseYield(
 
 
 @internal
-def _realizeNormalYield(
+def _handleNormalYieldAsset(
     _asset: address,
     _data: WalletAssetData,
+    _config: YieldAssetConfig,
     _currentBal: uint256,
     _feeRecipient: address,
-    _config: YieldAssetConfig,
     _walletBackpack: address,
 ):
     data: WalletAssetData = _data
@@ -1600,3 +1506,63 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) 
         recipient = _recipient,
     )
     return True
+
+
+# allow lego to perform action
+
+
+@internal
+def _checkLegoAccessForAction(_legoAddr: address, _action: wi.ActionType):
+    targetAddr: address = empty(address)
+    accessAbi: String[64] = empty(String[64])
+    numInputs: uint256 = 0
+    targetAddr, accessAbi, numInputs = staticcall Lego(_legoAddr).getAccessForLego(self, _action)
+
+    # nothing to do here
+    if targetAddr == empty(address):
+        return
+
+    method_abi: bytes4 = convert(slice(keccak256(accessAbi), 0, 4), bytes4)
+    success: bool = False
+    response: Bytes[32] = b""
+
+    # assumes input is: lego addr (operator)
+    if numInputs == 1:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(_legoAddr, bytes32),
+            ),
+            revert_on_failure=False,
+            max_outsize=32,
+        )
+    
+    # assumes input (and order) is: user (self), lego addr (operator)
+    elif numInputs == 2:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(self, bytes32),
+                convert(_legoAddr, bytes32),
+            ),
+            revert_on_failure=False,
+            max_outsize=32,
+        )
+
+    # assumes input (and order) is: user (self), lego addr (operator), allowed bool
+    elif numInputs == 3:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(self, bytes32),
+                convert(_legoAddr, bytes32),
+                convert(True, bytes32),
+            ),
+            revert_on_failure=False,
+            max_outsize=32,
+        )
+
+    assert success # dev: failed to set operator

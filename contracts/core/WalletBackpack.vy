@@ -20,13 +20,13 @@ interface MissionControl:
     def feeRecipient() -> address: view
 
 interface Ledger:
-    def setUserWalletData(_user: address, _data: UserWalletData): nonpayable
-    def userWalletData(_user: address) -> UserWalletData: view
+    def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
+    def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
     def getLastTotalUsdValue(_user: address) -> uint256: view
     def isUserWallet(_user: address) -> bool: view
 
 interface UserWallet:
-    def updateAssetData(_asset: address, _shouldCheckYield: bool, _lastTotalUsdValue: uint256, _feeRecipient: address) -> uint256: nonpayable
+    def updateAssetData(_asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
 
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
@@ -37,9 +37,6 @@ interface Switchboard:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-interface LegoBook:
-    def isLegoAddr(_addr: address) -> bool: view
-
 struct YieldAssetConfig:
     legoId: uint256
     isRebasing: bool
@@ -47,11 +44,10 @@ struct YieldAssetConfig:
     maxYieldIncrease: uint256
     yieldProfitFee: uint256
 
-struct UserWalletData:
+struct PointsData:
     usdValue: uint256
     depositPoints: uint256
     lastUpdate: uint256
-    ambassador: address
 
 struct BackpackData:
     legoBook: address
@@ -65,12 +61,14 @@ struct LastPrice:
 # price cache
 lastPrice: public(HashMap[address, LastPrice]) # asset -> last price
 
+EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
 
-RIPE_PRICE_DESK_ID: constant(uint256) = 7
+# ripe
 RIPE_HQ: immutable(address)
+RIPE_PRICE_DESK_ID: constant(uint256) = 7
 
 
 @deploy
@@ -101,67 +99,61 @@ def getBackpackData(_userWallet: address) -> BackpackData:
     )
 
 
-##################
-# Deposit Points #
-##################
+#####################
+# Post Action Tasks #
+#####################
 
 
-# user deposit points
-
-
-@external
-def updateUserDepositPoints() -> uint256:
-    ledger: address = addys._getLedgerAddr()
-    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
-    return self._updateUserDepositPoints(msg.sender, ledger)
-
-
-@internal
-def _updateUserDepositPoints(_user: address, _ledger: address) -> uint256:
-    data: UserWalletData = staticcall Ledger(_ledger).userWalletData(_user)
-
-    # nothing to do here -- `lastUpdate` will be saved in `_performPostActionTasks`
-    if data.usdValue == 0 or data.lastUpdate == 0 or block.number <= data.lastUpdate:
-        return data.usdValue
-
-    newDepositPoints: uint256 = data.usdValue * (block.number - data.lastUpdate)
-    data.depositPoints += newDepositPoints
-    data.lastUpdate = block.number
-    extcall Ledger(_ledger).setUserWalletData(_user, data)
-
-    return data.usdValue
-
-
-# update global deposit points
+# post action tasks
 
 
 @external
-def updateGlobalDepositPoints(_prevTotalUsdValue: uint256, _newTotalUsdValue: uint256):
-    ledger: address = addys._getLedgerAddr()
-    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
-    self._updateGlobalDepositPoints(_prevTotalUsdValue, _newTotalUsdValue, ledger)
-
-
-@internal
-def _updateGlobalDepositPoints(_prevTotalUsdValue: uint256, _newTotalUsdValue: uint256, _ledger: address):
-    # need `totalUsdValue` for global points
-    # TODO: implement this -- only call if prevUsdValue != _newUsdValue
-    pass
-
-
-# update points + trial funds
-
-
-@external
-def performPostActionTasks(_prevTotalUsdValue: uint256, _newTotalUsdValue: uint256):
+def performPostActionTasks(_newUserValue: uint256):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
-    # check trial funds
+    # check trial funds first
     assert self._doesWalletStillHaveTrialFunds(msg.sender) # dev: user no longer has trial funds
 
-    # update global points
-    self._updateGlobalDepositPoints(_prevTotalUsdValue, _newTotalUsdValue, ledger)
+    # update points
+    self._updateDepositPoints(msg.sender, _newUserValue, ledger)
+
+
+# deposit points
+
+
+@internal
+def _updateDepositPoints(_user: address, _newUserValue: uint256, _ledger: address):
+    userPoints: PointsData = empty(PointsData)
+    globalPoints: PointsData = empty(PointsData)
+    userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
+
+    # update user data
+    prevUserValue: uint256 = userPoints.usdValue
+    userPoints.depositPoints += self._getLatestDepositPoints(prevUserValue, userPoints.lastUpdate)
+    userPoints.usdValue = _newUserValue
+    userPoints.lastUpdate = block.number
+    
+    # update global data
+    globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
+    globalPoints.usdValue -= prevUserValue
+    globalPoints.usdValue += _newUserValue
+    globalPoints.lastUpdate = block.number
+
+    # save data
+    extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
+
+
+# latest points
+
+
+@view
+@internal
+def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256:
+    if _usdValue == 0 or _lastUpdate == 0 or block.number <= _lastUpdate:
+        return 0
+    points: uint256 = _usdValue * (block.number - _lastUpdate)
+    return points // EIGHTEEN_DECIMALS
 
 
 ################
@@ -170,19 +162,13 @@ def performPostActionTasks(_prevTotalUsdValue: uint256, _newTotalUsdValue: uint2
 
 
 @external
-def updateAssetInWallet(_userWallet: address, _asset: address, _shouldCheckYield: bool):
+def updateAssetInWallet(_user: address, _asset: address, _shouldCheckYield: bool):
     a: addys.Addys = addys._getAddys()
     assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
 
-    # first, update user deposit points
-    prevTotalUsdValue: uint256 = self._updateUserDepositPoints(msg.sender, a.ledger)
-
-    # update asset data in user wallet
-    feeRecipient: address = staticcall MissionControl(a.missionControl).feeRecipient()
-    newTotalUsdValue: uint256 = extcall UserWallet(_userWallet).updateAssetData(_asset, _shouldCheckYield, prevTotalUsdValue, feeRecipient)
-
-    # then, update global deposit points
-    self._updateGlobalDepositPoints(prevTotalUsdValue, newTotalUsdValue, a.ledger)
+    assert _asset != empty(address) # dev: invalid asset
+    newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_asset, _shouldCheckYield)
+    self._updateDepositPoints(_user, newUserValue, a.ledger)
 
 
 ###############
@@ -226,8 +212,9 @@ def getYieldAssetConfig(_asset: address, _legoId: uint256, _underlyingAsset: add
     mc: address = addys._getMissionControlAddr()
     yieldAssetConfig: YieldAssetConfig = staticcall MissionControl(mc).yieldAssetConfig(_asset)
 
-    # TODO: if no config, check if any lego defaults.
+    # TODO: if no config, check if any lego defaults (all Aave v3 will be rebasing for example).
     # check underlying for stablecoin, maybe make max increase lower 
+    # use default maxYieldIncrease, and yieldProfitFee if no specific asset config
 
     return yieldAssetConfig
 
@@ -298,20 +285,16 @@ def _getYieldAssetPrice(_asset: address) -> uint256:
     return self._getRipePrice(_asset)
 
 
-@view
-@external
-def getLastPricePerShare(_asset: address) -> (uint256, uint256):
-    pricePerShare: uint256 = 0
-    underlyingAsset: address = empty(address)
-    underlyingPrice: uint256 = 0
-
 # update price
 
 
 @external
-def updateAndGetPriceFromWallet(
+def updateAndGetUsdValue(
     _asset: address,
+    _amount: uint256,
+    _decimals: uint256,
     _isYieldAsset: bool,
+    _legoAddr: address,
 ) -> uint256:
     assert staticcall Ledger(addys._getLedgerAddr()).isUserWallet(msg.sender) # dev: no perms
 
@@ -327,7 +310,9 @@ def updateAndGetPriceFromWallet(
     if didPriceChange:
         self.lastPrice[_asset] = data
 
-    return data.price
+    # TODO: might need to use legoAddr for some prices
+
+    return data.price * _amount // (10 ** _decimals)
 
 
 # ripe integration 

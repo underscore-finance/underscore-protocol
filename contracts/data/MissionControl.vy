@@ -35,12 +35,14 @@ struct UserWalletConfig:
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-    maxYieldIncrease: uint256
 
 struct WalletFees:
     swapFee: uint256
     stableSwapFee: uint256
     rewardsFee: uint256
+
+struct DefaultYieldConfig:
+    maxYieldIncrease: uint256
     yieldProfitFee: uint256
 
 struct AgentConfig:
@@ -87,7 +89,10 @@ struct AgentCreationConfig:
 userWalletConfig: public(UserWalletConfig)
 agentConfig: public(AgentConfig)
 managerConfig: public(ManagerConfig)
+
+# default fees
 walletFees: public(WalletFees)
+defaultYieldConfig: public(DefaultYieldConfig)
 
 # asset config
 assetConfig: public(HashMap[address, AssetConfig])
@@ -129,6 +134,12 @@ def setManagerConfig(_config: ManagerConfig):
 def setWalletFees(_fees: WalletFees):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.walletFees = _fees
+
+
+@external
+def setDefaultYieldConfig(_config: DefaultYieldConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.defaultYieldConfig = _config
 
 
 # helper

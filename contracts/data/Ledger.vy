@@ -12,19 +12,22 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
-struct UserWalletData:
+struct PointsData:
     usdValue: uint256
     depositPoints: uint256
     lastUpdate: uint256
-    ambassador: address
 
-# user wallet data
-userWalletData: public(HashMap[address, UserWalletData]) # user wallet -> data
+# points
+userPoints: public(HashMap[address, PointsData]) # user -> points
+globalPoints: public(PointsData)
 
 # user wallets (iterable)
 userWallets: public(HashMap[uint256, address]) # index -> user wallet
 indexOfUserWallet: public(HashMap[address, uint256]) # user wallet -> index
 numUserWallets: public(uint256) # num userWallets
+
+# ambassadors
+ambassadors: public(HashMap[address, address]) # user -> ambassador
 
 # agents (iterable)
 agents: public(HashMap[uint256, address]) # index -> agent
@@ -55,22 +58,9 @@ def createUserWallet(_user: address, _ambassador: address):
     self.indexOfUserWallet[_user] = wid
     self.numUserWallets = wid + 1
 
-    # set data
-    self.userWalletData[_user] = UserWalletData(
-        usdValue = 0,
-        depositPoints = 0,
-        lastUpdate = block.number,
-        ambassador = _ambassador,
-    )
-
-
-# set user wallet data
-
-
-@external
-def setUserWalletData(_user: address, _data: UserWalletData):
-    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
-    self.userWalletData[_user] = _data
+    # set ambassador
+    if _ambassador != empty(address):
+        self.ambassadors[_user] = _ambassador
 
 
 # utils
@@ -97,10 +87,46 @@ def isUserWallet(_user: address) -> bool:
     return self.indexOfUserWallet[_user] != 0
 
 
+##################
+# Deposit Points #
+##################
+
+
+# set points
+
+
+@external
+def setUserPoints(_user: address, _data: PointsData):
+    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    self.userPoints[_user] = _data
+
+
+@external
+def setGlobalPoints(_data: PointsData):
+    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    self.globalPoints = _data
+
+
+@external
+def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData):
+    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    self.userPoints[_user] = _userData
+    self.globalPoints = _globalData
+
+
+# utils
+
+
 @view
 @external
 def getLastTotalUsdValue(_user: address) -> uint256:
-    return self.userWalletData[_user].usdValue
+    return self.userPoints[_user].usdValue
+
+
+@view
+@external
+def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData):
+    return self.userPoints[_user], self.globalPoints
 
 
 ##########

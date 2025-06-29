@@ -24,6 +24,7 @@ struct ActionData:
     legoId: uint256
     legoAddr: address
     eth: address
+    weth: address
 
 struct ManagerData:
     numTxsInPeriod: uint256
@@ -318,6 +319,7 @@ def _getActionDataBundle() -> ActionData:
         legoId = 0,
         legoAddr = empty(address),
         eth = empty(address),
+        weth = empty(address),
     )
 
 
