@@ -156,8 +156,8 @@ def another_rando_contract():
 
 
 @pytest.fixture(scope="session")
-def mock_lego(mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, governance, whale):
-    ml = boa.load("contracts/mock/MockLego.vy", mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, name="mock_lego")
+def mock_lego(mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, undy_hq_deploy, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, governance, whale):
+    ml = boa.load("contracts/mock/MockLego.vy", undy_hq_deploy, mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, name="mock_lego")
     for a in [mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token]:
         a.setMinter(ml, True, sender=governance.address)
         a.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)

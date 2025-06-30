@@ -2,8 +2,18 @@
 
 implements: Lego
 
+exports: addys.__interface__
+exports: legoAssets.__interface__
+
+initializes: addys
+initializes: legoAssets[addys := addys]
+
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
+
+import contracts.modules.Addys as addys
+import contracts.modules.LegoAssets as legoAssets
+
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
@@ -26,12 +36,18 @@ debtToken: public(address)
 pendingMintOrRedeem: public(HashMap[address, PendingMintOrRedeem])
 hasAccess: public(bool)
 
+# mock price config
+pricePerShare: public(HashMap[address, uint256])
+price: public(HashMap[address, uint256])
+
+
 MAX_TOKEN_PATH: constant(uint256) = 5
 LEGO_ACCESS_ABI: constant(String[64]) = "setLegoAccess(address)"
 
 
 @deploy
 def __init__(
+    _undyHq: address,
     _asset: address,
     _vaultToken: address,
     _altAsset: address,
@@ -39,6 +55,10 @@ def __init__(
     _lpToken: address,
     _debtToken: address,
 ):
+    # modules
+    addys.__init__(_undyHq)
+    legoAssets.__init__(False)
+
     # mock assets
     assert empty(address) not in [_asset, _vaultToken, _altAsset, _altVaultToken, _lpToken, _debtToken] # dev: invalid tokens
     self.asset = _asset
@@ -95,6 +115,9 @@ def depositForYield(
 
     extcall MockToken(_asset).burn(amount)
     extcall MockToken(_vaultAddr).mint(_recipient, amount)
+
+    # register lego asset
+    legoAssets._registerLegoAsset(_asset)
 
     return amount, _vaultAddr, amount, amount
 
@@ -488,7 +511,7 @@ def _areValidTokens(_tokens: DynArray[address, 6]) -> bool:
 @view
 @external
 def getPricePerShare(_yieldAsset: address) -> uint256:
-    return 1 * (10 ** convert(staticcall IERC20Detailed(_yieldAsset).decimals(), uint256))
+    return self.pricePerShare[_yieldAsset]
 
 
 # normal price (not yield)
@@ -497,4 +520,17 @@ def getPricePerShare(_yieldAsset: address) -> uint256:
 @view
 @external
 def getPrice(_asset: address) -> uint256:
-    return 1 * (10 ** 18)
+    return self.price[_asset]
+
+
+# MOCK config
+
+
+@external
+def setPricePerShare(_yieldAsset: address, _pricePerShare: uint256):
+    self.pricePerShare[_yieldAsset] = _pricePerShare
+
+
+@external
+def setPrice(_asset: address, _price: uint256):
+    self.price[_asset] = _price

@@ -3,6 +3,7 @@
 from interfaces import Wallet as wi
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_RECOVER_ASSETS: constant(uint256) = 20
 
 @external
 def addLiquidityConcentrated(_nftTokenId: uint256, _pool: address, _tokenA: address, _tokenB: address, _tickLower: int24, _tickUpper: int24, _amountA: uint256, _amountB: uint256, _minAmountA: uint256, _minAmountB: uint256, _extraAddr: address, _extraVal: uint256, _extraData: bytes32, _recipient: address) -> (uint256, uint256, uint256, uint256, uint256):
@@ -78,4 +79,34 @@ def getPricePerShare(_yieldAsset: address) -> uint256:
 @view
 @external
 def getPrice(_asset: address) -> uint256:
+    ...
+
+
+# LegoAssets.vy
+
+
+@view
+@external
+def isLegoAsset(_asset: address) -> bool:
+    ...
+
+@view
+@external
+def getNumLegoAssets() -> uint256:
+    ...
+
+@external
+def deregisterLegoAsset(_asset: address) -> bool:
+    ...
+
+@external
+def pause(_shouldPause: bool):
+    ...
+
+@external
+def recoverFunds(_recipient: address, _asset: address):
+    ...
+
+@external
+def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):
     ...
