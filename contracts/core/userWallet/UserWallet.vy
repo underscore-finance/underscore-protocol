@@ -42,6 +42,8 @@ struct ActionData:
     wallet: address
     walletConfig: address
     walletOwner: address
+    inEjectMode: bool
+    isFrozen: bool
     lastTotalUsdValue: uint256
     signer: address
     isManager: bool
@@ -321,7 +323,7 @@ def transferFunds(
         assert extcall IERC20(asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
 
     # get tx usd value
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(asset, amount)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(asset, amount, cd.inEjectMode, cd.walletBackpack)
     self._performPostActionTasks([asset], txUsdValue, cd)
     log FundsTransferred(
         asset = asset,
@@ -868,7 +870,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     assert amount != 0 # dev: nothing to convert
     extcall WethContract(weth).deposit(value=amount)
 
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(weth, amount)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, cd.inEjectMode, cd.walletBackpack)
     self._performPostActionTasks([eth, weth], txUsdValue, cd)
     log EthWrapped(
         amount = amount,
@@ -893,7 +895,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
     extcall WethContract(weth).withdraw(amount)
 
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(weth, amount)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, cd.inEjectMode, cd.walletBackpack)
     self._performPostActionTasks([weth, eth], txUsdValue, cd)
     log WethUnwrapped(
         amount = amount,
@@ -1140,6 +1142,14 @@ def _performPreActionTasks(
     cd.eth = ETH
     cd.weth = WETH
 
+    # check if frozen
+    assert not cd.isFrozen # dev: wallet is frozen
+
+    # return early if in eject mode
+    if cd.inEjectMode:
+        assert _action in (wi.ActionType.TRANSFER | wi.ActionType.ETH_TO_WETH | wi.ActionType.WETH_TO_ETH) # dev: invalid action in eject mode
+        return cd
+
     # get specific lego addr if specified
     if len(_legoIds) != 0:
         cd.legoId = _legoIds[0]
@@ -1184,7 +1194,8 @@ def _performPostActionTasks(
         newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _cd)
 
     # update points + check trial funds
-    extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue, _cd.walletConfig)
+    if not _cd.inEjectMode:
+        extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue, _cd.walletConfig)
 
 
 ##############
@@ -1201,12 +1212,9 @@ def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) 
     assert msg.sender == cd.walletBackpack # dev: no perms
     cd.eth = ETH
     cd.weth = WETH
-    if _legoId != 0:
-        cd.legoId = _legoId
-        cd.legoAddr = staticcall Registry(cd.legoBook).getAddr(_legoId)
 
     # check for yield
-    if _shouldCheckYield:
+    if _shouldCheckYield and not cd.inEjectMode:
         self._checkForYieldProfits(_asset, cd)
 
     # update asset data
@@ -1239,8 +1247,12 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _cd: ActionDat
         self._deregisterAsset(_asset)
         return _newTotalUsdValue - prevUsdValue
 
+    # update usd value
+    data.usdValue = 0
+    if not _cd.inEjectMode:
+        data.usdValue, data.isYieldAsset = extcall WalletBackpack(_cd.walletBackpack).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
+
     # save data
-    data.usdValue, data.isYieldAsset = extcall WalletBackpack(_cd.walletBackpack).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
     data.assetBalance = currentBalance
     self.assetData[_asset] = data
 
@@ -1341,6 +1353,16 @@ def _payFee(_asset: address, _amount: uint256, _feeRatio: uint256, _feeRecipient
     feeAmount: uint256 = _amount * _feeRatio // HUNDRED_PERCENT
     if feeAmount != 0 and _feeRecipient != empty(address):
         assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
+
+
+# update price and get usd value
+
+
+@internal
+def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _inEjectMode: bool, _walletBackpack: address) -> uint256:
+    if not _inEjectMode:
+        return extcall WalletBackpack(_walletBackpack).updatePriceAndGetUsdValue(_asset, _amount)
+    return 0
 
 
 # approve

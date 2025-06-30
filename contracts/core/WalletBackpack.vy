@@ -32,12 +32,16 @@ interface Ledger:
 
 interface UserWallet:
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
     def assetData(_asset: address) -> WalletAssetData: view
     def assets(_index: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
 interface UserWalletConfig:
+    def setEjectionMode(_inEjectMode: bool): nonpayable
+    def setFrozen(_isFrozen: bool): nonpayable
+    def cancelOwnershipChange(): nonpayable
     def trialFundsAmount() -> uint256: view
     def trialFundsAsset() -> address: view
 
@@ -220,21 +224,6 @@ def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256
     return points // EIGHTEEN_DECIMALS
 
 
-################
-# Update Asset #
-################
-
-
-@external
-def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shouldCheckYield: bool):
-    a: addys.Addys = addys._getAddys()
-    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
-
-    assert _asset != empty(address) # dev: invalid asset
-    newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_legoId, _asset, _shouldCheckYield)
-    self._updateDepositPoints(_user, newUserValue, a.ledger)
-
-
 ##########################
 # Mission Control Config #
 ##########################
@@ -337,6 +326,10 @@ def _handleNormalYieldAsset(
     _hq: address,
 ) -> (uint256, uint256, uint256):
     currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, _config.legoAddr, _config.staleBlocks, _hq)
+
+    # first time saving it, no profits
+    if _lastYieldPrice == 0:
+        return currentPricePerShare, 0, 0
 
     # nothing to do if price hasn't changed or increased
     if currentPricePerShare == 0 or currentPricePerShare <= _lastYieldPrice:
@@ -762,3 +755,47 @@ def _doesWalletStillHaveTrialFunds(_user: address, _walletConfig: address) -> bo
         amount += underlyingAmount
 
     return amount >= trialFundsAmount
+
+
+##################
+# Config / Admin #
+##################
+
+
+@external
+def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shouldCheckYield: bool):
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
+
+    assert _asset != empty(address) # dev: invalid asset
+    newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_legoId, _asset, _shouldCheckYield)
+    self._updateDepositPoints(_user, newUserValue, a.ledger)
+
+
+@external
+def cancelOwnershipChange(_user: address):
+    assert staticcall Switchboard(addys._getSwitchboardAddr()).isSwitchboardAddr(msg.sender) # dev: no perms
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    extcall UserWalletConfig(walletConfig).cancelOwnershipChange()
+
+
+@external
+def setEjectionMode(_user: address, _inEjectMode: bool):
+    assert staticcall Switchboard(addys._getSwitchboardAddr()).isSwitchboardAddr(msg.sender) # dev: no perms
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    extcall UserWalletConfig(walletConfig).setEjectionMode(_inEjectMode)
+
+
+@external
+def setFrozen(_user: address, _isFrozen: bool):
+    assert staticcall Switchboard(addys._getSwitchboardAddr()).isSwitchboardAddr(msg.sender) # dev: no perms
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    extcall UserWalletConfig(walletConfig).setFrozen(_isFrozen)
+
+
+@external
+def recoverNft(_user: address,_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
+    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: no perms
+    return extcall UserWallet(_user).recoverNft(_collection, _nftTokenId, _recipient)

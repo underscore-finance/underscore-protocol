@@ -18,6 +18,8 @@ struct ActionData:
     wallet: address
     walletConfig: address
     walletOwner: address
+    inEjectMode: bool
+    isFrozen: bool
     lastTotalUsdValue: uint256
     signer: address
     isManager: bool
@@ -106,6 +108,14 @@ event OwnershipChangeCancelled:
 event TimeLockSet:
     numBlocks: uint256
 
+event EjectionModeSet:
+    inEjectMode: bool
+    caller: indexed(address)
+
+event FrozenSet:
+    isFrozen: bool
+    caller: indexed(address)
+
 event GlobalManagerSettingsModified:
     state: String[10]
     managerPeriod: uint256
@@ -176,6 +186,8 @@ globalManagerSettings: public(GlobalManagerSettings)
 pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
 
 # config
+isFrozen: public(bool)
+inEjectMode: public(bool)
 timeLock: public(uint256)
 didSetWallet: public(bool)
 
@@ -302,9 +314,14 @@ def getActionDataBundle() -> ActionData:
 @view
 @internal
 def _getActionDataBundle() -> ActionData:
-    walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
     wallet: address = self.wallet
-    backpackData: BackpackData = staticcall WalletBackpack(walletBackpack).getBackpackData(wallet)
+    inEjectMode: bool = self.inEjectMode
+
+    walletBackpack: address = empty(address)
+    backpackData: BackpackData = empty(BackpackData)
+    if not inEjectMode:
+        walletBackpack = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+        backpackData = staticcall WalletBackpack(walletBackpack).getBackpackData(wallet)
 
     return ActionData(
         legoBook = backpackData.legoBook,
@@ -313,6 +330,8 @@ def _getActionDataBundle() -> ActionData:
         wallet = wallet,
         walletConfig = self,
         walletOwner = self.owner,
+        inEjectMode = inEjectMode,
+        isFrozen = self.isFrozen,
         lastTotalUsdValue = backpackData.lastTotalUsdValue,
         signer = empty(address),
         isManager = False,
@@ -604,9 +623,9 @@ def _hasPendingOwnerChange() -> bool:
     return self.pendingOwner.confirmBlock != 0
 
 
-#############
-# Time Lock #
-#############
+###############
+# Other Admin #
+###############
 
 
 # time lock
@@ -618,6 +637,32 @@ def setTimeLock(_numBlocks: uint256):
     assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid delay
     self.timeLock = _numBlocks
     log TimeLockSet(numBlocks=_numBlocks)
+
+
+# ejection mode
+
+
+@external
+def setEjectionMode(_inEjectMode: bool):
+    if msg.sender != self.owner:
+        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+        assert msg.sender == walletBackpack # dev: no perms
+
+    self.inEjectMode = _inEjectMode
+    log EjectionModeSet(inEjectMode=_inEjectMode, caller=msg.sender)
+
+
+# freeze wallet
+
+
+@external
+def setFrozen(_isFrozen: bool):
+    if msg.sender != self.owner:
+        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+        assert msg.sender == walletBackpack # dev: no perms
+
+    self.isFrozen = _isFrozen
+    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
 
 
 ###########################
@@ -945,6 +990,10 @@ def _isValidLegoPerms(_legoPerms: LegoPerms) -> bool:
 
     # _allowedLegos should be empty if there are no permissions
     if not canDoAnything:
+        return False
+
+    # if in eject mode, can't add legos as permissions
+    if self.inEjectMode:
         return False
 
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
