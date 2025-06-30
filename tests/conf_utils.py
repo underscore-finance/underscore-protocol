@@ -24,7 +24,7 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, governance):
     def setUserWalletConfig(
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
@@ -34,7 +34,17 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
+        _feeRecipient = governance,
+        _swapFee = 1_00,
+        _stableSwapFee = 10,
+        _rewardsFee = 20_00,
+        _staleBlocks = 0,
     ):
+        fees = (
+            _swapFee,
+            _stableSwapFee,
+            _rewardsFee,
+        )
         config = (
             _walletTemplate,
             _configTemplate,
@@ -44,32 +54,12 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
+            _feeRecipient,
+            fees,
+            _staleBlocks,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
-
-
-@pytest.fixture(scope="session")
-def setWalletFees(mission_control, switchboard_alpha):
-    def setWalletFees(
-        _swapFee = 1_00,
-        _stableSwapFee = 10,
-        _rewardsFee = 20_00,
-    ):
-        config = (_swapFee, _stableSwapFee, _rewardsFee)
-        mission_control.setWalletFees(config, sender=switchboard_alpha.address)
-    yield setWalletFees
-
-
-@pytest.fixture(scope="session")
-def setDefaultYieldConfig(mission_control, switchboard_alpha):
-    def setDefaultYieldConfig(
-        _maxYieldIncrease = 5_00,
-        _yieldProfitFee = 20_00,
-    ):
-        config = (_maxYieldIncrease, _yieldProfitFee)
-        mission_control.setDefaultYieldConfig(config, sender=switchboard_alpha.address)
-    yield setDefaultYieldConfig
 
 
 @pytest.fixture(scope="session")
@@ -92,11 +82,12 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
 def setAssetConfig(mission_control, switchboard_alpha, alpha_token):
     def setAssetConfig(
         _asset,
+        _legoId = 1,
+        _isStablecoin = False,
+        _staleBlocks = 0,
         _swapFee = 1_00,
         _stableSwapFee = 25,
         _rewardsFee = 20_00,
-        _isStablecoin = False,
-        _stalePriceNumBlocks = 0,
         _isYieldAsset = False,
         _isRebasing = False,
         _underlyingAsset = alpha_token,
@@ -108,24 +99,22 @@ def setAssetConfig(mission_control, switchboard_alpha, alpha_token):
             _stableSwapFee,
             _rewardsFee,
         )
+        yieldConfig = (
+            _isRebasing,
+            _underlyingAsset,
+            _maxYieldIncrease,
+            _yieldProfitFee,
+        )
         config = (
+            _legoId,
             _isStablecoin,
-            _isYieldAsset,
             _asset.decimals(),
-            _stalePriceNumBlocks,
+            _staleBlocks,
             fees,
+            _isYieldAsset,
+            yieldConfig,
         )
         mission_control.setAssetConfig(_asset, config, sender=switchboard_alpha.address)
-
-        if _isYieldAsset:
-            yieldConfig = (
-                1,
-                _isRebasing,
-                _underlyingAsset,
-                _maxYieldIncrease,
-                _yieldProfitFee,
-            )
-            mission_control.setYieldAssetConfig(_asset, yieldConfig, sender=switchboard_alpha.address)
     yield setAssetConfig
 
 

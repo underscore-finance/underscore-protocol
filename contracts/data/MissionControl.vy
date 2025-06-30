@@ -12,20 +12,6 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
-struct AssetConfig:
-    isStablecoin: bool
-    isYieldAsset: bool
-    decimals: uint256
-    stalePriceNumBlocks: uint256
-    fees: WalletFees
-
-struct YieldAssetConfig:
-    legoId: uint256
-    isRebasing: bool
-    underlyingAsset: address
-    maxYieldIncrease: uint256
-    yieldProfitFee: uint256
-
 struct UserWalletConfig:
     walletTemplate: address
     configTemplate: address
@@ -35,15 +21,29 @@ struct UserWalletConfig:
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
+    feeRecipient: address
+    walletFees: WalletFees
+    defaultStaleBlocks: uint256
+
+struct AssetConfig:
+    legoId: uint256
+    isStablecoin: bool
+    decimals: uint256
+    staleBlocks: uint256
+    fees: WalletFees
+    isYieldAsset: bool
+    yieldConfig: YieldAssetConfig
+
+struct YieldAssetConfig:
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
 
 struct WalletFees:
     swapFee: uint256
     stableSwapFee: uint256
     rewardsFee: uint256
-
-struct DefaultYieldConfig:
-    maxYieldIncrease: uint256
-    yieldProfitFee: uint256
 
 struct AgentConfig:
     agentTemplate: address
@@ -85,26 +85,50 @@ struct AgentCreationConfig:
     minTimeLock: uint256
     maxTimeLock: uint256
 
+struct SwapFeeConfig:
+    tokenInIsStablecoin: bool
+    tokenOutIsStablecoin: bool
+    tokenOutIsConfigured: bool
+    tokenOutSwapFee: uint256
+    genStableSwapFee: uint256
+    genSwapFee: uint256
+
+struct RewardsFeeConfig:
+    tokenIsConfigured: bool
+    tokenRewardsFee: uint256
+    genRewardsFee: uint256
+
+struct AssetUsdValueConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    underlyingAsset: address
+
+struct ProfitCalcConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
+
 # general wallet config
 userWalletConfig: public(UserWalletConfig)
 agentConfig: public(AgentConfig)
 managerConfig: public(ManagerConfig)
 
-# default fees
-walletFees: public(WalletFees)
-defaultYieldConfig: public(DefaultYieldConfig)
-
 # asset config
 assetConfig: public(HashMap[address, AssetConfig])
-yieldAssetConfig: public(HashMap[address, YieldAssetConfig])
 
 # security / limits
 creatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted
 canPerformSecurityAction: public(HashMap[address, bool]) # signer -> can perform security action
 isLockedSigner: public(HashMap[address, bool]) # signer -> is locked
-
-# other
-feeRecipient: public(address)
 
 
 @deploy
@@ -128,18 +152,6 @@ def setUserWalletConfig(_config: UserWalletConfig):
 def setManagerConfig(_config: ManagerConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.managerConfig = _config
-
-
-@external
-def setWalletFees(_fees: WalletFees):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.walletFees = _fees
-
-
-@external
-def setDefaultYieldConfig(_config: DefaultYieldConfig):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.defaultYieldConfig = _config
 
 
 # helper
@@ -167,6 +179,12 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         minKeyActionTimeLock = config.minKeyActionTimeLock,
         maxKeyActionTimeLock = config.maxKeyActionTimeLock,
     )
+
+
+@view
+@external
+def feeRecipient() -> address:
+    return self.userWalletConfig.feeRecipient
 
 
 ################
@@ -197,9 +215,9 @@ def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
     )
 
 
-################
-# Asset Config #
-################
+########################
+# Asset / Yield Config #
+########################
 
 
 @external
@@ -208,46 +226,80 @@ def setAssetConfig(_asset: address, _config: AssetConfig):
     self.assetConfig[_asset] = _config
 
 
-@external
-def setYieldAssetConfig(_asset: address, _config: YieldAssetConfig):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.yieldAssetConfig[_asset] = _config
-
-
 # helpers
 
 
 @view
 @external
-def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256:
+def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
+    config: AssetConfig = self.assetConfig[_asset]
+
+    staleBlocks: uint256 = config.staleBlocks
+    if config.decimals == 0:
+        staleBlocks = self.userWalletConfig.defaultStaleBlocks
+
+    return ProfitCalcConfig(
+        legoId = config.legoId,
+        legoAddr = empty(address),
+        decimals = config.decimals,
+        staleBlocks = staleBlocks,
+        isYieldAsset = config.isYieldAsset,
+        isRebasing = config.yieldConfig.isRebasing,
+        underlyingAsset = config.yieldConfig.underlyingAsset,
+        maxYieldIncrease = config.yieldConfig.maxYieldIncrease,
+        yieldProfitFee = config.yieldConfig.yieldProfitFee,
+    )
+
+
+@view
+@external
+def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
+    config: AssetConfig = self.assetConfig[_asset]
+
+    staleBlocks: uint256 = config.staleBlocks
+    if config.decimals == 0:
+        staleBlocks = self.userWalletConfig.defaultStaleBlocks
+
+    return AssetUsdValueConfig(
+        legoId = config.legoId,
+        legoAddr = empty(address),
+        decimals = config.decimals,
+        staleBlocks = staleBlocks,
+        isYieldAsset = config.isYieldAsset,
+        underlyingAsset = config.yieldConfig.underlyingAsset,
+    )
+
+
+@view
+@external
+def getSwapFeeConfig(_tokenIn: address, _tokenOut: address) -> SwapFeeConfig:
     inConfig: AssetConfig = self.assetConfig[_tokenIn]
     outConfig: AssetConfig = self.assetConfig[_tokenOut]
+    
+    # only call userWalletConfig if we need to get the global swap fee data
+    userWalletConfig: UserWalletConfig = empty(UserWalletConfig)
+    if inConfig.isStablecoin and outConfig.isStablecoin or outConfig.decimals == 0:
+        userWalletConfig = self.userWalletConfig
 
-    # stable swap fee
-    if inConfig.isStablecoin and outConfig.isStablecoin:
-        return self.walletFees.stableSwapFee
-
-    # asset swap fee takes precedence over global swap fee
-    if outConfig.decimals != 0:
-        return outConfig.fees.swapFee
-
-    return self.walletFees.swapFee
-
-
-@view
-@external
-def getRewardsFee(_user: address, _asset: address) -> uint256:
-    config: AssetConfig = self.assetConfig[_asset]
-    if config.decimals != 0:
-        return config.fees.rewardsFee
-    return self.walletFees.rewardsFee
+    return SwapFeeConfig(
+        tokenInIsStablecoin = inConfig.isStablecoin,
+        tokenOutIsStablecoin = outConfig.isStablecoin,
+        tokenOutIsConfigured = outConfig.decimals != 0,
+        tokenOutSwapFee = outConfig.fees.swapFee,
+        genStableSwapFee = userWalletConfig.walletFees.stableSwapFee,
+        genSwapFee = userWalletConfig.walletFees.swapFee,
+    )
 
 
 @view
 @external
-def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256):
+def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig:
     config: AssetConfig = self.assetConfig[_asset]
-    return config.isYieldAsset, config.decimals
+    return RewardsFeeConfig(
+        tokenIsConfigured = config.decimals != 0,
+        tokenRewardsFee = config.fees.rewardsFee,
+        genRewardsFee = self.userWalletConfig.walletFees.rewardsFee,
+    )
 
 
 #########
@@ -280,15 +332,6 @@ def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
 def setLockedSigner(_signer: address, _isLocked: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.isLockedSigner[_signer] = _isLocked
-
-
-# fee recipient
-
-
-@external
-def setFeeRecipient(_feeRecipient: address):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.feeRecipient = _feeRecipient
 
 
 #########

@@ -239,6 +239,8 @@ def wallet_backpack(undy_hq_deploy, fork, mock_ripe):
         "contracts/core/WalletBackpack.vy",
         undy_hq_deploy,
         ripe_hq,
+        TOKENS[fork]["WETH"],
+        TOKENS[fork]["ETH"],
         name="wallet_backpack",
     )
 

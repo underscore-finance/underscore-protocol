@@ -7,8 +7,14 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
-def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, whale, setManagerConfig, agent):
+def user_wallet(hatchery, bob, mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_debt_token, whale, setManagerConfig, agent, setAssetConfig):
     setManagerConfig(_startingAgent = agent.address)
+    
+    # Configure all assets with zero fees for testing
+    setAssetConfig(mock_lego_asset, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(mock_lego_asset_alt, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(mock_lego_vault, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(mock_lego_debt_token, _swapFee=0, _rewardsFee=0)
 
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS

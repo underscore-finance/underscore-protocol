@@ -5,16 +5,14 @@ implements: wi
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 
-from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletBackpack:
-    def updateAndGetUsdValue(_asset: address, _amount: uint256, _decimals: uint256, _isYieldAsset: bool, _legoAddr: address) -> uint256: nonpayable
-    def getYieldAssetConfig(_asset: address, _legoId: uint256, _underlyingAsset: address) -> YieldAssetConfig: view
-    def updateAndGetPricePerShare(_asset: address, _legoAddr: address) -> uint256: nonpayable
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256) -> (uint256, uint256, uint256): nonpayable
+    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
-    def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256): view
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
     def performPostActionTasks(_newUserValue: uint256): nonpayable
 
@@ -34,17 +32,8 @@ interface Registry:
 struct WalletAssetData:
     assetBalance: uint256
     usdValue: uint256
-    lastPricePerShare: uint256
-    lastPricePerShareUpdate: uint256
-    decimals: uint256
     isYieldAsset: bool
-
-struct YieldAssetConfig:
-    legoId: uint256
-    isRebasing: bool
-    underlyingAsset: address
-    maxYieldIncrease: uint256
-    yieldProfitFee: uint256
+    lastYieldPrice: uint256
 
 struct ActionData:
     legoBook: address
@@ -234,8 +223,7 @@ assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
-# yield asset config
-yieldAssetConfig: public(HashMap[address, YieldAssetConfig]) # asset -> config
+# yield
 checkedYield: transient(HashMap[address, bool]) # asset -> checked
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
@@ -332,17 +320,8 @@ def transferFunds(
         assert amount != 0 # dev: no balance for _token
         assert extcall IERC20(asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
 
-    # need decimals for tx usd value
-    data: WalletAssetData = self.assetData[asset]
-    if data.decimals == 0:
-        data.isYieldAsset, data.decimals = self._getCoreAssetData(asset, cd.walletBackpack, cd.eth, cd.weth)
-
-        # only save if there will still be balance
-        if maxBalance > amount:
-            self.assetData[asset] = data
-
     # get tx usd value
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(asset, amount, data.decimals, data.isYieldAsset, cd.legoAddr)
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(asset, amount)
     self._performPostActionTasks([asset], txUsdValue, cd)
     log FundsTransferred(
         asset = asset,
@@ -396,10 +375,6 @@ def _depositForYield(
     txUsdValue: uint256 = 0
     assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_cd.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraAddr, _extraVal, _extraData, self)
     assert extcall IERC20(_asset).approve(_cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-
-    # save yield asset config
-    if empty(address) not in [vaultToken, _asset]:
-        self._setYieldAssetConfig(vaultToken, _cd.legoId, _asset, _cd.walletBackpack)
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
@@ -461,10 +436,6 @@ def _withdrawFromYield(
 
     if _vaultToken != empty(address):
         assert extcall IERC20(_vaultToken).approve(_cd.legoAddr, 0, default_return_value=True) # dev: approval failed
-
-        # save yield asset config
-        if underlyingAsset != empty(address):
-            self._setYieldAssetConfig(_vaultToken, _cd.legoId, underlyingAsset, _cd.walletBackpack)
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
@@ -897,7 +868,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     assert amount != 0 # dev: nothing to convert
     extcall WethContract(weth).deposit(value=amount)
 
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(weth, amount, 18, False, cd.legoAddr)
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(weth, amount)
     self._performPostActionTasks([eth, weth], txUsdValue, cd)
     log EthWrapped(
         amount = amount,
@@ -922,7 +893,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
     extcall WethContract(weth).withdraw(amount)
 
-    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updateAndGetUsdValue(weth, amount, 18, False, cd.legoAddr)
+    txUsdValue: uint256 = extcall WalletBackpack(cd.walletBackpack).updatePriceAndGetUsdValue(weth, amount)
     self._performPostActionTasks([weth, eth], txUsdValue, cd)
     log WethUnwrapped(
         amount = amount,
@@ -1268,16 +1239,8 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _cd: ActionDat
         self._deregisterAsset(_asset)
         return _newTotalUsdValue - prevUsdValue
 
-    # not saved yet, let's make sure we have what we need
-    if data.decimals == 0:
-        data.isYieldAsset, data.decimals = self._getCoreAssetData(_asset, _cd.walletBackpack, _cd.eth, _cd.weth)
-
-    # yield asset config
-    if data.isYieldAsset:
-        self._setYieldAssetConfig(_asset, _cd.legoId, empty(address), _cd.walletBackpack)
-
     # save data
-    data.usdValue = extcall WalletBackpack(_cd.walletBackpack).updateAndGetUsdValue(_asset, currentBalance, data.decimals, data.isYieldAsset, _cd.legoAddr)
+    data.usdValue, data.isYieldAsset = extcall WalletBackpack(_cd.walletBackpack).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
     data.assetBalance = currentBalance
     self.assetData[_asset] = data
 
@@ -1349,96 +1312,20 @@ def _checkForYieldProfits(_asset: address, _cd: ActionData):
     if currentBalance == 0:
         return
 
-    # check for yield profits
-    config: YieldAssetConfig = self._setYieldAssetConfig(_asset, _cd.legoId, empty(address), _cd.walletBackpack)
-    if config.isRebasing:
-        self._handleRebaseYieldAsset(_asset, config, data.assetBalance, currentBalance, _cd.feeRecipient)
-    else:
-        self._handleNormalYieldAsset(_asset, data, config, currentBalance, _cd.feeRecipient, _cd.legoAddr, _cd.walletBackpack)
+    # calculate yield profits
+    yieldProfit: uint256 = 0
+    feeRatio: uint256 = 0
+    data.lastYieldPrice, yieldProfit, feeRatio = extcall WalletBackpack(_cd.walletBackpack).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastYieldPrice)
+
+    # only save if backpack returns a price
+    if data.lastYieldPrice != 0:
+        self.assetData[_asset] = data
+
+    # pay yield fee
+    self._payFee(_asset, yieldProfit, min(feeRatio, MAX_YIELD_FEE), _cd.feeRecipient)
 
     # mark as checked
     self.checkedYield[_asset] = True
-
-
-@internal
-def _handleRebaseYieldAsset(
-    _asset: address,
-    _config: YieldAssetConfig,
-    _lastBalance: uint256,
-    _currentBalance: uint256,
-    _feeRecipient: address,
-):
-    # no profits if balance decreased or stayed the same
-    if _currentBalance <= _lastBalance:
-        return 
-    
-    # calculate the actual profit
-    uncappedProfit: uint256 = _currentBalance - _lastBalance
-    actualProfit: uint256 = uncappedProfit
-    
-    # apply max yield increase cap if configured
-    if _config.maxYieldIncrease != 0:
-        maxAllowedProfit: uint256 = _lastBalance * _config.maxYieldIncrease // HUNDRED_PERCENT
-        actualProfit = min(uncappedProfit, maxAllowedProfit)
-    
-    # no profits after applying cap
-    if actualProfit == 0:
-        return
-    
-    # calculate and pay fee on the capped profit
-    self._payFee(_asset, actualProfit, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
-
-
-@internal
-def _handleNormalYieldAsset(
-    _asset: address,
-    _data: WalletAssetData,
-    _config: YieldAssetConfig,
-    _currentBal: uint256,
-    _feeRecipient: address,
-    _legoAddr: address,
-    _walletBackpack: address,
-):
-    data: WalletAssetData = _data
-    prevPricePerShare: uint256 = data.lastPricePerShare
-    
-    # get current price per share (how many underlying tokens per vault token)
-    currentPricePerShare: uint256 = prevPricePerShare
-    if data.lastPricePerShareUpdate != block.number:
-        currentPricePerShare = extcall WalletBackpack(_walletBackpack).updateAndGetPricePerShare(_asset, _legoAddr)
-        data.lastPricePerShare = currentPricePerShare
-        data.lastPricePerShareUpdate = block.number
-    
-    # nothing to do if price hasn't changed or increased
-    if currentPricePerShare == 0 or currentPricePerShare <= prevPricePerShare:
-        return
-    
-    # calculate underlying amounts
-    trackedBalance: uint256 = min(_currentBal, data.assetBalance)
-    prevUnderlyingAmount: uint256 = trackedBalance * prevPricePerShare // (10 ** data.decimals)
-    currentUnderlyingAmount: uint256 = trackedBalance * currentPricePerShare // (10 ** data.decimals)
-    
-    # apply max yield increase cap if configured (in underlying terms)
-    if _config.maxYieldIncrease != 0:
-        maxAllowedUnderlying: uint256 = prevUnderlyingAmount + (prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT)
-        currentUnderlyingAmount = min(currentUnderlyingAmount, maxAllowedUnderlying)
-
-    # calculate profit in underlying tokens
-    profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
-    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** data.decimals) // currentPricePerShare
-    
-    # pay fee on the profit (in vault tokens)
-    self._payFee(_asset, profitInVaultTokens, min(_config.yieldProfitFee, MAX_YIELD_FEE), _feeRecipient)
-    
-    # save the updated price per share
-    self.assetData[_asset] = data
-
-
-@internal
-def _payFee(_asset: address, _amount: uint256, _feeRatio: uint256, _feeRecipient: address):
-    feeAmount: uint256 = _amount * _feeRatio // HUNDRED_PERCENT
-    if feeAmount != 0 and _feeRecipient != empty(address):
-        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
 
 
 #############
@@ -1446,47 +1333,14 @@ def _payFee(_asset: address, _amount: uint256, _feeRatio: uint256, _feeRecipient
 #############
 
 
-# set yield asset config
+# pay fees
 
 
-@internal 
-def _setYieldAssetConfig(
-    _yieldAsset: address,
-    _legoId: uint256,
-    _underlyingAsset: address,
-    _walletBackpack: address,
-) -> YieldAssetConfig:
-    config: YieldAssetConfig = self.yieldAssetConfig[_yieldAsset]
-    if config.maxYieldIncrease == 0: # using this param to see if we have a config
-        config = staticcall WalletBackpack(_walletBackpack).getYieldAssetConfig(_yieldAsset, _legoId, _underlyingAsset)
-        self.yieldAssetConfig[_yieldAsset] = config
-    return config
-
-
-# get asset config
-
-
-@view
 @internal
-def _getCoreAssetData(
-    _asset: address,
-    _walletBackpack: address,
-    _eth: address,
-    _weth: address,
-) -> (bool, uint256):
-    if _asset in [_eth, _weth]:
-        return False, 18
-
-    # get data
-    isYieldAsset: bool = False
-    decimals: uint256 = 0
-    isYieldAsset, decimals = staticcall WalletBackpack(_walletBackpack).isYieldAssetAndGetDecimals(_asset)
-
-    # no config, at least get decimals
-    if decimals == 0:
-        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-
-    return isYieldAsset, decimals
+def _payFee(_asset: address, _amount: uint256, _feeRatio: uint256, _feeRecipient: address):
+    feeAmount: uint256 = _amount * _feeRatio // HUNDRED_PERCENT
+    if feeAmount != 0 and _feeRecipient != empty(address):
+        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
 
 
 # approve

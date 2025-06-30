@@ -482,7 +482,19 @@ def _areValidTokens(_tokens: DynArray[address, 6]) -> bool:
 #################
 
 
+# price per share
+
+
 @view
 @external
 def getPricePerShare(_yieldAsset: address) -> uint256:
     return 1 * (10 ** convert(staticcall IERC20Detailed(_yieldAsset).decimals(), uint256))
+
+
+# normal price (not yield)
+
+
+@view
+@external
+def getPrice(_asset: address) -> uint256:
+    return 1 * (10 ** 18)

@@ -11,12 +11,14 @@ initializes: deptBasics[addys := addys]
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
+from interfaces import LegoPartner as Lego
+from ethereum.ercs import IERC20Detailed
 
 interface MissionControl:
-    def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
-    def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256): view
-    def getRewardsFee(_user: address, _asset: address) -> uint256: view
-    def yieldAssetConfig(_asset: address) -> YieldAssetConfig: view
+    def getSwapFeeConfig(_tokenIn: address, _tokenOut: address) -> SwapFeeConfig: view
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+    def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
+    def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig: view
     def feeRecipient() -> address: view
 
 interface Ledger:
@@ -37,12 +39,14 @@ interface Switchboard:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-struct YieldAssetConfig:
-    legoId: uint256
-    isRebasing: bool
+struct LastPrice:
+    price: uint256
+    lastUpdate: uint256
+
+struct LastPricePerShare:
     underlyingAsset: address
-    maxYieldIncrease: uint256
-    yieldProfitFee: uint256
+    pricePerShare: uint256
+    lastUpdate: uint256
 
 struct PointsData:
     usdValue: uint256
@@ -54,13 +58,45 @@ struct BackpackData:
     feeRecipient: address
     lastTotalUsdValue: uint256
 
-struct LastPrice:
-    price: uint256
-    lastUpdate: uint256
+# helpers
+
+struct ProfitCalcConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
+
+struct AssetUsdValueConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    underlyingAsset: address
+
+struct SwapFeeConfig:
+    tokenInIsStablecoin: bool
+    tokenOutIsStablecoin: bool
+    tokenOutIsConfigured: bool
+    tokenOutSwapFee: uint256
+    genStableSwapFee: uint256
+    genSwapFee: uint256
+
+struct RewardsFeeConfig:
+    tokenIsConfigured: bool
+    tokenRewardsFee: uint256
+    genRewardsFee: uint256
 
 # price cache
 lastPrice: public(HashMap[address, LastPrice]) # asset -> last price
+lastPricePerShare: public(HashMap[address, LastPricePerShare]) # asset -> last price per share
 
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
@@ -70,14 +106,25 @@ LEGO_BOOK_ID: constant(uint256) = 4
 RIPE_HQ: immutable(address)
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
 
+WETH: public(immutable(address))
+ETH: public(immutable(address))
+
 
 @deploy
-def __init__(_undyHq: address, _ripeHq: address):
+def __init__(
+    _undyHq: address,
+    _ripeHq: address,
+    _wethAddr: address,
+    _ethAddr: address,
+):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
 
     assert _ripeHq != empty(address) # dev: invalid ripe hq
     RIPE_HQ = _ripeHq
+
+    WETH = _wethAddr
+    ETH = _ethAddr
 
 
 ##############
@@ -171,24 +218,6 @@ def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shou
     self._updateDepositPoints(_user, newUserValue, a.ledger)
 
 
-###############
-# Trial Funds #
-###############
-
-
-@view
-@external
-def doesWalletStillHaveTrialFunds(_user: address) -> bool:
-    return self._doesWalletStillHaveTrialFunds(_user)
-
-
-@view
-@internal
-def _doesWalletStillHaveTrialFunds(_user: address) -> bool:
-    # TODO: implement this
-    return True
-
-
 ##########################
 # Mission Control Config #
 ##########################
@@ -197,37 +226,261 @@ def _doesWalletStillHaveTrialFunds(_user: address) -> bool:
 @view
 @external
 def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256:
-    return staticcall MissionControl(addys._getMissionControlAddr()).getSwapFee(_user, _tokenIn, _tokenOut)
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+    config: SwapFeeConfig = staticcall MissionControl(addys._getMissionControlAddr()).getSwapFeeConfig(_tokenIn, _tokenOut)
+
+    # stable swap fee
+    if config.tokenInIsStablecoin and config.tokenOutIsStablecoin:
+        return config.genStableSwapFee
+
+    # asset swap fee takes precedence over global swap fee
+    if config.tokenOutIsConfigured:
+        return config.tokenOutSwapFee
+
+    return config.genSwapFee
 
 
 @view
 @external
 def getRewardsFee(_user: address, _asset: address) -> uint256:
-    return staticcall MissionControl(addys._getMissionControlAddr()).getRewardsFee(_user, _asset)
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+    config: RewardsFeeConfig = staticcall MissionControl(addys._getMissionControlAddr()).getRewardsFeeConfig(_asset)
+    if config.tokenIsConfigured:
+        return config.tokenRewardsFee
+    return config.genRewardsFee
+
+
+##################
+# Yield Handling #
+##################
+
+
+@external
+def calculateYieldProfits(
+    _asset: address,
+    _currentBalance: uint256,
+    _assetBalance: uint256,
+    _lastYieldPrice: uint256,
+) -> (uint256, uint256, uint256):
+    hq: address = addys._getUndyHq()
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, hq)
+    if not config.isYieldAsset:
+        return 0, 0, 0
+
+    if config.isRebasing:
+        return self._handleRebaseYieldAsset(_asset, config, _currentBalance, _assetBalance)
+    else:
+        return self._handleNormalYieldAsset(_asset, config, _currentBalance, _assetBalance, _lastYieldPrice, hq)
+
+
+# rebasing assets
+
+
+@internal
+def _handleRebaseYieldAsset(
+    _asset: address,
+    _config: ProfitCalcConfig,
+    _currentBalance: uint256,
+    _lastBalance: uint256,
+) -> (uint256, uint256, uint256):
+
+    # no profits if balance decreased or stayed the same
+    if _currentBalance <= _lastBalance:
+        return 0, 0, 0
+    
+    # calculate the actual profit
+    uncappedProfit: uint256 = _currentBalance - _lastBalance
+    actualProfit: uint256 = uncappedProfit
+    
+    # apply max yield increase cap if configured
+    if _config.maxYieldIncrease != 0:
+        maxAllowedProfit: uint256 = _lastBalance * _config.maxYieldIncrease // HUNDRED_PERCENT
+        actualProfit = min(uncappedProfit, maxAllowedProfit)
+    
+    # no profits after applying cap
+    if actualProfit == 0:
+        return 0, 0, 0
+    
+    return 0, actualProfit, _config.yieldProfitFee
+
+
+# normal yield assets
+
+
+@internal
+def _handleNormalYieldAsset(
+    _asset: address,
+    _config: ProfitCalcConfig,
+    _currentBalance: uint256,
+    _lastBalance: uint256,
+    _lastYieldPrice: uint256,
+    _hq: address,
+) -> (uint256, uint256, uint256):
+    currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, _config.legoAddr, _config.staleBlocks, _hq)
+
+    # nothing to do if price hasn't changed or increased
+    if currentPricePerShare == 0 or currentPricePerShare <= _lastYieldPrice:
+        return 0, 0, 0
+    
+    # calculate underlying amounts
+    trackedBalance: uint256 = min(_currentBalance, _lastBalance)
+    prevUnderlyingAmount: uint256 = trackedBalance * _lastYieldPrice // (10 ** _config.decimals)
+    currentUnderlyingAmount: uint256 = trackedBalance * currentPricePerShare // (10 ** _config.decimals)
+    
+    # apply max yield increase cap if configured (in underlying terms)
+    if _config.maxYieldIncrease != 0:
+        maxAllowedUnderlying: uint256 = prevUnderlyingAmount + (prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT)
+        currentUnderlyingAmount = min(currentUnderlyingAmount, maxAllowedUnderlying)
+
+    # calculate profit in underlying tokens
+    profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
+    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // currentPricePerShare
+    
+    return currentPricePerShare, profitInVaultTokens, _config.yieldProfitFee
+
+
+# utils
+
+
+@view
+@internal
+def _getProfitCalcConfig(_asset: address, _hq: address) -> ProfitCalcConfig:
+    missionControl: address = staticcall Registry(_hq).getAddr(MISSION_CONTROL_ID)
+    config: ProfitCalcConfig = staticcall MissionControl(missionControl).getProfitCalcConfig(_asset)
+
+    # get lego addr if needed
+    if config.legoId != 0 and config.legoAddr == empty(address):
+        legoBook: address = staticcall Registry(_hq).getAddr(LEGO_BOOK_ID)
+        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = self._getDecimals(_asset)
+
+    return config
+
+
+######################
+# Prices - USD Value #
+######################
+
+
+# get usd value
 
 
 @view
 @external
-def getYieldAssetConfig(_asset: address, _legoId: uint256, _underlyingAsset: address) -> YieldAssetConfig:
-    mc: address = addys._getMissionControlAddr()
-    yieldAssetConfig: YieldAssetConfig = staticcall MissionControl(mc).yieldAssetConfig(_asset)
+def getUsdValue(_asset: address, _amount: uint256) -> uint256:
+    hq: address = addys._getUndyHq()
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
 
-    # TODO: if no config, check if any lego defaults (all Aave v3 will be rebasing for example).
-    # check underlying for stablecoin, maybe make max increase lower 
-    # use default maxYieldIncrease, and yieldProfitFee if no specific asset config
+    # normal price
+    price: uint256 = 0
+    if not config.isYieldAsset:
+        price = self._getPrice(_asset, hq)
 
-    return yieldAssetConfig
+    # yield price
+    else:
+        pricePerShare: uint256 = self._getPricePerShare(_asset, hq)
+
+        # for yield assets, need to check if it has underlying asset
+        if config.underlyingAsset != empty(address):
+            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, hq)
+            underlyingPrice: uint256 = self._getPrice(config.underlyingAsset, hq)
+            price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
+        else:
+            price = pricePerShare
+
+    # finalize value
+    usdValue: uint256 = price * _amount // (10 ** config.decimals)
+
+    return usdValue
+
+
+# update prices (and get usd value)
+
+
+@external
+def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256:
+    hq: address = addys._getUndyHq()
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+    usdValue: uint256 = 0
+    na: bool = False
+    usdValue, na = self._updatePriceAndGetUsdValue(_asset, _amount, hq)
+    return usdValue
+
+
+@external
+def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool):
+    hq: address = addys._getUndyHq()
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+    return self._updatePriceAndGetUsdValue(_asset, _amount, hq)
+
+
+@internal
+def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _hq: address) -> (uint256, bool):
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, _hq)
+
+    # normal price
+    price: uint256 = 0
+    if not config.isYieldAsset:
+        price = self._updateAndGetPrice(_asset, config.legoAddr, config.staleBlocks, _hq)
+
+    # yield price
+    else:
+        pricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, _hq)
+
+        # for yield assets, need to check if it has underlying asset
+        if config.underlyingAsset != empty(address):
+            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, _hq)
+            underlyingPrice: uint256 = self._updateAndGetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks, _hq)
+            price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
+        else:
+            price = pricePerShare
+
+    # finalize value
+    usdValue: uint256 = price * _amount // (10 ** config.decimals)
+
+    return usdValue, config.isYieldAsset
+
+
+# utils
 
 
 @view
-@external
-def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256):
-    return staticcall MissionControl(addys._getMissionControlAddr()).isYieldAssetAndGetDecimals(_asset)
+@internal
+def _getAssetUsdValueConfig(_asset: address, _hq: address) -> AssetUsdValueConfig:
+    missionControl: address = staticcall Registry(_hq).getAddr(MISSION_CONTROL_ID)
+    config: AssetUsdValueConfig = staticcall MissionControl(missionControl).getAssetUsdValueConfig(_asset)
+
+    # get lego addr if needed
+    if config.legoId != 0 and config.legoAddr == empty(address):
+        legoBook: address = staticcall Registry(_hq).getAddr(LEGO_BOOK_ID)
+        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = self._getDecimals(_asset)
+
+    return config
 
 
-#################
-# Price Support #
-#################
+@view
+@internal
+def _getDecimals(_asset: address) -> uint256:
+    if _asset in [WETH, ETH]:
+        return 18
+    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+
+########################
+# Normal Asset - Price #
+########################
 
 
 # get price
@@ -235,41 +488,50 @@ def isYieldAssetAndGetDecimals(_asset: address) -> (bool, uint256):
 
 @view
 @external
-def getPrice(_asset: address, _isYieldAsset: bool, _staleBlocks: uint256) -> uint256:
+def getPrice(_asset: address) -> uint256:
+    hq: address = addys._getUndyHq()
+    return self._getPrice(_asset, hq)
+
+
+@view
+@internal
+def _getPrice(_asset: address, _hq: address) -> uint256:
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, _hq)
     data: LastPrice = empty(LastPrice)
     na: bool = False
-    data, na = self._getPrice(_asset, _isYieldAsset, _staleBlocks)
+    data, na = self._getPriceAndDidUpdate(_asset, config.legoAddr, config.staleBlocks, _hq)
     return data.price
 
 
 @view
 @internal
-def _getPrice(_asset: address, _isYieldAsset: bool, _staleBlocks: uint256 = 0) -> (LastPrice, bool):
+def _getPriceAndDidUpdate(
+    _asset: address,
+    _legoAddr: address,
+    _staleBlocks: uint256,
+    _hq: address,
+) -> (LastPrice, bool):
     data: LastPrice = self.lastPrice[_asset]
 
     # same block, return cached price
     if data.lastUpdate == block.number:
         return data, False
 
+    # check if recent price is good enough
+    if _staleBlocks != 0 and data.lastUpdate + _staleBlocks > block.number:
+        return data, False
+
     prevPrice: uint256 = data.price
 
-    # yield assets handled slightly differently
-    if _isYieldAsset:
-        data.price = self._getYieldAssetPrice(_asset)
+    # first, check with Lego
+    if _legoAddr != empty(address):
+        data.price = staticcall Lego(_legoAddr).getPrice(_asset)
 
-    # normal assets
-    else:
-
-        # TODO: get stale blocks from asset config
-
-        # check if recent price is good enough
-        if _staleBlocks != 0 and data.lastUpdate + _staleBlocks > block.number:
-            return data, False
-
-        # get price from Ripe
+    # back up plan, check with Ripe
+    if data.price == 0:
         data.price = self._getRipePrice(_asset)
 
-    # check if price changed
+    # check if changed
     didPriceChange: bool = False
     if data.price != prevPrice:
         didPriceChange = True
@@ -278,50 +540,129 @@ def _getPrice(_asset: address, _isYieldAsset: bool, _staleBlocks: uint256 = 0) -
     return data, didPriceChange
 
 
-@view
-@internal
-def _getYieldAssetPrice(_asset: address) -> uint256:
-    # TODO: get CURRENT price per share from Lego, instead of snapshot/weighted ripe price
-    return self._getRipePrice(_asset)
-
-
-# update price
+# update and get price
 
 
 @external
-def updateAndGetUsdValue(
+def updateAndGetPrice(_asset: address) -> uint256:
+    hq: address = addys._getUndyHq()
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+    return self._updateAndGetPrice(_asset, config.legoAddr, config.staleBlocks, hq)
+
+
+@internal
+def _updateAndGetPrice(
     _asset: address,
-    _amount: uint256,
-    _decimals: uint256,
-    _isYieldAsset: bool,
     _legoAddr: address,
+    _staleBlocks: uint256,
+    _hq: address,
 ) -> uint256:
-    assert staticcall Ledger(addys._getLedgerAddr()).isUserWallet(msg.sender) # dev: no perms
-
-    if _asset == empty(address):
-        return 0
-
-    # get latest price
     data: LastPrice = empty(LastPrice)
     didPriceChange: bool = False
-    data, didPriceChange = self._getPrice(_asset, _isYieldAsset)
-
-    # only save if price changed
+    data, didPriceChange = self._getPriceAndDidUpdate(_asset, _legoAddr, _staleBlocks, _hq)
     if didPriceChange:
         self.lastPrice[_asset] = data
+    return data.price
 
-    # TODO: might need to use legoAddr for some prices
 
-    return data.price * _amount // (10 ** _decimals)
+#################################
+# Yield Asset - Price Per Share #
+#################################
+
+
+# get price per share
+
+
+@view
+@external
+def getPricePerShare(_asset: address) -> uint256:
+    hq: address = addys._getUndyHq()
+    return self._getPricePerShare(_asset, hq)
+
+
+@view
+@internal
+def _getPricePerShare(_asset: address, _hq: address) -> uint256:
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, _hq)
+    data: LastPricePerShare = empty(LastPricePerShare)
+    na: bool = False
+    data, na = self._getPricePerShareAndDidUpdate(_asset, config.legoAddr, config.staleBlocks, _hq)
+    return data.pricePerShare
+
+
+@view
+@internal
+def _getPricePerShareAndDidUpdate(
+    _asset: address,
+    _legoAddr: address,
+    _staleBlocks: uint256,
+    _hq: address,
+) -> (LastPricePerShare, bool):
+    data: LastPricePerShare = self.lastPricePerShare[_asset]
+
+    # same block, return cached pricePerShare
+    if data.lastUpdate == block.number:
+        return data, False
+
+    # check if recent pricePerShare is good enough
+    if _staleBlocks != 0 and data.lastUpdate + _staleBlocks > block.number:
+        return data, False
+
+    prevPricePerShare: uint256 = data.pricePerShare
+
+    # first, check with Lego
+    if _legoAddr != empty(address):
+        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset)
+    
+    # back up plan, check with Ripe
+    if data.pricePerShare == 0:
+        data.pricePerShare = self._getRipePrice(_asset)
+
+    # check if changed
+    didPriceChange: bool = False
+    if data.pricePerShare != prevPricePerShare:
+        didPriceChange = True
+
+    data.lastUpdate = block.number
+    return data, didPriceChange
+
+
+# update and get price per share
 
 
 @external
-def updateAndGetPricePerShare(_asset: address, _legoAddr: address) -> uint256:
-    # TODO: implement this
-    return 0
+def updateAndGetPricePerShare(
+    _asset: address,
+    _legoAddr: address,
+    _staleBlocks: uint256,
+) -> uint256:
+    hq: address = addys._getUndyHq()
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+    return self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, hq)
 
 
-# ripe integration 
+@internal
+def _updateAndGetPricePerShare(
+    _asset: address,
+    _legoAddr: address,
+    _staleBlocks: uint256,
+    _hq: address,
+) -> uint256:
+    data: LastPricePerShare = empty(LastPricePerShare)
+    didPriceChange: bool = False
+    data, didPriceChange = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks, _hq)
+    if didPriceChange:
+        self.lastPricePerShare[_asset] = data
+    return data.pricePerShare
+
+
+####################
+# Ripe Integration #
+####################
 
 
 @view
@@ -337,3 +678,23 @@ def _getRipePrice(_asset: address) -> uint256:
     if ripePriceDesk == empty(address):
         return 0
     return staticcall RipePriceDesk(ripePriceDesk).getPrice(_asset, False)
+
+
+###############
+# Trial Funds #
+###############
+
+
+# TODO: implement this
+
+
+@view
+@external
+def doesWalletStillHaveTrialFunds(_user: address) -> bool:
+    return self._doesWalletStillHaveTrialFunds(_user)
+
+
+@view
+@internal
+def _doesWalletStillHaveTrialFunds(_user: address) -> bool:
+    return True
