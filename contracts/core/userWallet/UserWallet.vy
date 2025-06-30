@@ -1251,7 +1251,7 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _cd: ActionDat
     return _newTotalUsdValue - prevUsdValue + data.usdValue
 
 
-# register/deregister asset
+# register / deregister asset
 
 
 @internal
