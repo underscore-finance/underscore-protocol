@@ -12,10 +12,13 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import LegoPartner as Lego
+
+from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface MissionControl:
     def getSwapFeeConfig(_tokenIn: address, _tokenOut: address) -> SwapFeeConfig: view
+    def getUnderlyingAssetAndDecimals(_asset: address) -> (address, uint256): view
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
     def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig: view
@@ -29,6 +32,14 @@ interface Ledger:
 
 interface UserWallet:
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def assetData(_asset: address) -> WalletAssetData: view
+    def assets(_index: uint256) -> address: view
+    def walletConfig() -> address: view
+    def numAssets() -> uint256: view
+
+interface UserWalletConfig:
+    def trialFundsAmount() -> uint256: view
+    def trialFundsAsset() -> address: view
 
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
@@ -38,6 +49,12 @@ interface Switchboard:
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+
+struct WalletAssetData:
+    assetBalance: uint256
+    usdValue: uint256
+    isYieldAsset: bool
+    lastYieldPrice: uint256
 
 struct LastPrice:
     price: uint256
@@ -155,12 +172,12 @@ def getBackpackData(_userWallet: address) -> BackpackData:
 
 
 @external
-def performPostActionTasks(_newUserValue: uint256):
+def performPostActionTasks(_newUserValue: uint256, _walletConfig: address):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
     # check trial funds first
-    assert self._doesWalletStillHaveTrialFunds(msg.sender) # dev: user no longer has trial funds
+    assert self._doesWalletStillHaveTrialFunds(msg.sender, _walletConfig) # dev: user no longer has trial funds
 
     # update points
     self._updateDepositPoints(msg.sender, _newUserValue, ledger)
@@ -685,16 +702,63 @@ def _getRipePrice(_asset: address) -> uint256:
 ###############
 
 
-# TODO: implement this
-
-
 @view
 @external
 def doesWalletStillHaveTrialFunds(_user: address) -> bool:
-    return self._doesWalletStillHaveTrialFunds(_user)
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return self._doesWalletStillHaveTrialFunds(_user, walletConfig)
 
 
 @view
 @internal
-def _doesWalletStillHaveTrialFunds(_user: address) -> bool:
-    return True
+def _doesWalletStillHaveTrialFunds(_user: address, _walletConfig: address) -> bool:
+    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
+    if trialFundsAmount == 0:
+        return True
+    
+    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
+    if trialFundsAsset == empty(address):
+        return True
+    
+    amount: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
+    if amount >= trialFundsAmount:
+        return True
+
+    hq: address = addys._getUndyHq()
+    missionControl: address = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
+
+    numAssets: uint256 = staticcall UserWallet(_walletConfig).numAssets()
+    if numAssets == 0:
+        return False
+
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+        if amount >= trialFundsAmount:
+            return True
+
+        asset: address = staticcall UserWallet(_walletConfig).assets(i)
+        if asset == empty(address):
+            continue
+
+        data: WalletAssetData = staticcall UserWallet(_walletConfig).assetData(asset)
+        if not data.isYieldAsset or data.usdValue == 0:
+            continue
+
+        # get underlying details
+        underlyingAsset: address = empty(address)
+        underlyingDecimals: uint256 = 0
+        underlyingAsset, underlyingDecimals = staticcall MissionControl(missionControl).getUnderlyingAssetAndDecimals(asset)
+        if underlyingAsset != trialFundsAsset:
+            continue
+        
+        underlyingPrice: uint256 = self._getPrice(underlyingAsset, hq)
+        if underlyingPrice == 0:
+            continue
+
+        # get decimals if needed
+        if underlyingDecimals == 0:
+            underlyingDecimals = self._getDecimals(underlyingAsset)
+
+        underlyingAmount: uint256 = data.usdValue * (10 ** underlyingDecimals) // underlyingPrice
+        amount += underlyingAmount
+
+    return amount >= trialFundsAmount

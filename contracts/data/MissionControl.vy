@@ -302,6 +302,14 @@ def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig:
     )
 
 
+@view
+@external
+def getUnderlyingAssetAndDecimals(_asset: address) -> (address, uint256):
+    assetConfig: AssetConfig = self.assetConfig[_asset]
+    underlyingAsset: address = assetConfig.yieldConfig.underlyingAsset
+    return (underlyingAsset, self.assetConfig[underlyingAsset].decimals)
+
+
 #########
 # Other #
 #########

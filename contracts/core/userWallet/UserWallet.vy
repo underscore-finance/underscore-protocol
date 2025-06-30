@@ -13,8 +13,8 @@ interface WalletBackpack:
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
+    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address): nonpayable
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
-    def performPostActionTasks(_newUserValue: uint256): nonpayable
 
 interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
@@ -1184,7 +1184,7 @@ def _performPostActionTasks(
         newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _cd)
 
     # update points + check trial funds
-    extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue)
+    extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue, _cd.walletConfig)
 
 
 ##############
