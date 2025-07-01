@@ -11,9 +11,10 @@ from ethereum.ercs import IERC721
 interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
     def canManagerPerformAction(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
+    def addNewPayeeTransaction(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256): nonpayable
     def addNewManagerTransaction(_manager: address, _txUsdValue: uint256): nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
-    def canTransferToRecipient(_recipient: address) -> bool: view
+    def canTransferToRecipient(_recipient: address, _asset: address) -> bool: view
     def ejectModeFeeDetails() -> EjectModeFeeDetails: view
     def owner() -> address: view
 
@@ -315,8 +316,8 @@ def transferFunds(
         asset = ETH
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [asset], [], _recipient)
     if _recipient != ad.walletOwner:
-        assert staticcall WalletConfig(ad.walletConfig).canTransferToRecipient(_recipient) # dev: recipient not allowed
-    return self._transferFunds(_recipient, asset, _amount, ad)
+        assert staticcall WalletConfig(ad.walletConfig).canTransferToRecipient(_recipient, asset) # dev: recipient not allowed
+    return self._transferFunds(_recipient, asset, _amount, True, ad)
 
 
 @internal
@@ -324,6 +325,7 @@ def _transferFunds(
     _recipient: address,
     _asset: address,
     _amount: uint256,
+    _shouldCheckPayeeCaps: bool,
     _ad: ActionData,
 ) -> (uint256, uint256):
     amount: uint256 = 0
@@ -343,6 +345,11 @@ def _transferFunds(
     # get tx usd value
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, _ad.inEjectMode, _ad.appraiser)
     self._performPostActionTasks([_asset], txUsdValue, _ad)
+
+    # check payee caps
+    if _shouldCheckPayeeCaps:
+        extcall WalletConfig(_ad.walletConfig).addNewPayeeTransaction(_recipient, txUsdValue, _asset, amount)
+
     log FundsTransferred(
         asset = _asset,
         amount = amount,
@@ -374,7 +381,7 @@ def removeTrialFunds() -> uint256:
     # transfer assets
     amount: uint256 = 0
     na: uint256 = 0
-    amount, na = self._transferFunds(hatchery, trialFundsAsset, trialFundsAmount, ad)
+    amount, na = self._transferFunds(hatchery, trialFundsAsset, trialFundsAmount, False, ad)
 
     # update trial funds info
     remainingAmount: uint256 = trialFundsAmount - amount

@@ -61,6 +61,7 @@ struct PayeeData:
     totalUnits: uint256
     totalUsdValue: uint256
     lastTxBlock: uint256
+    periodStartBlock: uint256
 
 struct PayeeLimits:
     perTxCap: uint256
@@ -76,7 +77,7 @@ struct PayeeSettings:
     txCooldownBlocks: uint256
     failOnZeroPrice: bool
     primaryAsset: address
-    primaryAssetDecimals: uint256
+    onlyPrimaryAsset: bool
     unitLimits: PayeeLimits
     usdLimits: PayeeLimits
 
@@ -104,6 +105,7 @@ struct ManagerData:
     numTxs: uint256
     totalUsdValue: uint256
     lastTxBlock: uint256
+    periodStartBlock: uint256
 
 struct ManagerLimits:
     maxVolumePerTx: uint256
@@ -124,7 +126,7 @@ struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
     canAddPendingPayee: bool
-    allowedPayees: DynArray[address, MAX_CONFIG_RECIPIENTS]
+    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
 
 struct WhitelistPerms:
     canAddPending: bool
@@ -335,7 +337,7 @@ API_VERSION: constant(String[28]) = "0.1.0"
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
-MAX_CONFIG_RECIPIENTS: constant(uint256) = 40
+MAX_ALLOWED_PAYEES: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
@@ -708,10 +710,15 @@ def _getCurrentLimits(_managerLimits: ManagerLimits, _globalLimits: ManagerLimit
 def _getLatestManagerData(_manager: address, _managerPeriod: uint256) -> ManagerData:
     data: ManagerData = self.managerPeriodData[_manager]
 
-    # reset if period has ended
-    if data.lastTxBlock + _managerPeriod < block.number:
+    # initialize period if first transaction
+    if data.periodStartBlock == 0:
+        data.periodStartBlock = block.number
+    
+    # check if current period has ended
+    elif block.number >= data.periodStartBlock + _managerPeriod:
         data.numTxsInPeriod = 0
         data.totalUsdValueInPeriod = 0
+        data.periodStartBlock = block.number
 
     return data
 
@@ -1205,23 +1212,23 @@ def _isValidTransferPerms(_transferPerms: TransferPerms) -> bool:
 
     canDoAnything: bool = _transferPerms.canTransfer or _transferPerms.canCreateCheque or _transferPerms.canAddPendingPayee
 
-    # _allowedRecipients should be empty if there are no permissions
+    # _allowedPayees should be empty if there are no permissions
     if not canDoAnything:
         return False
 
-    checkedRecipients: DynArray[address, MAX_CONFIG_RECIPIENTS] = []
+    checkedPayees: DynArray[address, MAX_ALLOWED_PAYEES] = []
     for i: address in _transferPerms.allowedPayees:
         if i == empty(address):
             return False
 
-        # check if recipient is valid
-        if not self._isValidRecipient(i):
+        # check if payee is valid
+        if self.indexOfPayee[i] == 0:
             return False
 
         # duplicates are not allowed
-        if i in checkedRecipients:
+        if i in checkedPayees:
             return False
-        checkedRecipients.append(i)
+        checkedPayees.append(i)
 
     return True
 
@@ -1441,17 +1448,130 @@ def _hasNoManagers(_walletConfig: address) -> bool:
 
 @view
 @external
-def canTransferToRecipient(_recipient: address) -> bool:
+def canTransferToRecipient(_recipient: address, _asset: address) -> bool:
+    # check if recipient is whitelisted (always allowed)
+    if self._isWhitelisted(_recipient):
+        return True
+
+    # check if recipient is a registered payee
+    if self.indexOfPayee[_recipient] == 0:
+        return False
+    
+    # check if payee is active
+    config: PayeeSettings = self.payeeSettings[_recipient]
+    if config.startBlock > block.number or config.expiryBlock < block.number:
+        return False
+
+    # check if asset is allowed
+    if config.primaryAsset != empty(address) and config.onlyPrimaryAsset:
+        if config.primaryAsset != _asset:
+            return False
+
+    # get global settings
+    globalConfig: GlobalPayeeSettings = self.globalPayeeSettings
+    
+    # check transaction limits (the ones we can check before knowing tx value)
+    data: PayeeData = self._getLatestPayeeData(_recipient, config.periodLength)
+    
+    # check max num txs per period (payee specific)
+    if config.maxNumTxsPerPeriod != 0 and data.numTxsInPeriod >= config.maxNumTxsPerPeriod:
+        return False
+    
+    # check max num txs per period (global)
+    if globalConfig.maxNumTxsPerPeriod != 0 and data.numTxsInPeriod >= globalConfig.maxNumTxsPerPeriod:
+        return False
+    
+    # check cooldown (payee specific)
+    if config.txCooldownBlocks != 0 and data.lastTxBlock + config.txCooldownBlocks > block.number:
+        return False
+    
+    # check cooldown (global)
+    if globalConfig.txCooldownBlocks != 0 and data.lastTxBlock + globalConfig.txCooldownBlocks > block.number:
+        return False
+    
     return True
+
+
+@external
+def addNewPayeeTransaction(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256):
+    assert msg.sender == self.wallet  # dev: no perms
+    
+    # get payee and global configs
+    config: PayeeSettings = self.payeeSettings[_recipient]
+    globalConfig: GlobalPayeeSettings = self.globalPayeeSettings
+    
+    # check zero price
+    if _txUsdValue == 0:
+        assert not config.failOnZeroPrice  # dev: zero price not allowed (payee)
+        assert not globalConfig.failOnZeroPrice  # dev: zero price not allowed (global)
+    
+    # get current payee data
+    data: PayeeData = self._getLatestPayeeData(_recipient, config.periodLength)
+    
+    # check unit limits if this is the primary asset
+    if config.primaryAsset == _asset:
+        # check unit limits (payee specific)
+        if config.unitLimits.perTxCap != 0:
+            assert _amount <= config.unitLimits.perTxCap  # dev: amount exceeds payee unit per tx cap
+        
+        if config.unitLimits.perPeriodCap != 0:
+            assert data.totalUnitsInPeriod + _amount <= config.unitLimits.perPeriodCap  # dev: payee unit period cap reached
+        
+        if config.unitLimits.lifetimeCap != 0:
+            assert data.totalUnits + _amount <= config.unitLimits.lifetimeCap  # dev: payee unit lifetime cap reached
+    
+    # check USD limits (payee specific)
+    if config.usdLimits.perTxCap != 0:
+        assert _txUsdValue <= config.usdLimits.perTxCap  # dev: tx value exceeds payee per tx cap
+    
+    if config.usdLimits.perPeriodCap != 0:
+        assert data.totalUsdValueInPeriod + _txUsdValue <= config.usdLimits.perPeriodCap  # dev: payee period cap reached
+    
+    if config.usdLimits.lifetimeCap != 0:
+        assert data.totalUsdValue + _txUsdValue <= config.usdLimits.lifetimeCap  # dev: payee lifetime cap reached
+    
+    # check USD limits (global)
+    if globalConfig.usdLimits.perTxCap != 0:
+        assert _txUsdValue <= globalConfig.usdLimits.perTxCap  # dev: tx value exceeds global per tx cap
+    
+    if globalConfig.usdLimits.perPeriodCap != 0:
+        assert data.totalUsdValueInPeriod + _txUsdValue <= globalConfig.usdLimits.perPeriodCap  # dev: global period cap reached
+    
+    if globalConfig.usdLimits.lifetimeCap != 0:
+        assert data.totalUsdValue + _txUsdValue <= globalConfig.usdLimits.lifetimeCap  # dev: global lifetime cap reached
+    
+    # update transaction details
+    data.numTxsInPeriod += 1
+    data.totalUsdValueInPeriod += _txUsdValue
+    data.totalNumTxs += 1
+    data.totalUsdValue += _txUsdValue
+    data.lastTxBlock = block.number
+    
+    # update unit amounts if this is the primary asset
+    if config.primaryAsset == _asset:
+        data.totalUnitsInPeriod += _amount
+        data.totalUnits += _amount
+    
+    self.payeePeriodData[_recipient] = data
 
 
 @view
 @internal
-def _isValidRecipient(_recipient: address) -> bool:
-
-    # TODO: hook this up
-
-    return True
+def _getLatestPayeeData(_payee: address, _periodLength: uint256) -> PayeeData:
+    data: PayeeData = self.payeePeriodData[_payee]
+    
+    # initialize period if first transaction
+    if data.periodStartBlock == 0:
+        data.periodStartBlock = block.number
+    
+    # check if current period has ended
+    elif block.number >= data.periodStartBlock + _periodLength:
+        data.numTxsInPeriod = 0
+        data.totalUnitsInPeriod = 0
+        data.totalUsdValueInPeriod = 0
+        data.periodStartBlock = block.number
+    
+    return data
 
 
 #############
