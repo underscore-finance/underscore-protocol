@@ -199,9 +199,6 @@ inEjectMode: public(bool)
 timeLock: public(uint256)
 didSetWallet: public(bool)
 
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
 ejectModeFeeDetails: public(EjectModeFeeDetails)
 
 API_VERSION: constant(String[28]) = "0.1.0"
@@ -239,8 +236,6 @@ def __init__(
     _managerPeriod: uint256,
     _defaultStartDelay: uint256,
     _defaultActivationLength: uint256,
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
     _groupId: uint256,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
@@ -251,11 +246,6 @@ def __init__(
     UNDY_HQ = _undyHq
     self.owner = _owner
     self.groupId = _groupId
-
-    # trial funds info
-    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
-        self.trialFundsAsset = _trialFundsAsset
-        self.trialFundsAmount = _trialFundsAmount
 
     # manager periods (set this first)
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
@@ -365,13 +355,23 @@ def validateAccessAndGetBundle(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ActionData:
-    owner: address = self.owner
-    if _signer != owner:
+    data: ActionData = self._getActionDataBundle()
+
+    # trusted signers
+    trustedSigners: DynArray[address, 2] = [self.owner]
+    if data.walletBackpack != empty(address):
+        trustedSigners.append(data.walletBackpack)
+
+    # check permissions if not trusted signer
+    if _signer not in trustedSigners:
         assert self._canManagerPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
 
-    data: ActionData = self._getActionDataBundle()
+    # wallet backpack can only perform withdraw from yield
+    if data.walletBackpack != empty(address) and _signer == data.walletBackpack:
+        assert _action == wi.ActionType.EARN_WITHDRAW # dev: invalid action
+
     data.signer = _signer
-    data.isManager = _signer != owner
+    data.isManager = _signer not in trustedSigners
     return data
 
 

@@ -16,9 +16,21 @@ from interfaces import LegoPartner as Lego
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
+interface UserWallet:
+    def preparePayment(_legoId: uint256, _vaultToken: address, _vaultAmount: uint256, _targetAsset: address) -> (uint256, uint256): nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def clawBackTrialFunds(_vaultTokens: DynArray[address, MAX_TRIAL_FUNDS_ASSETS]) -> bool: nonpayable
+    def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
+    def assetData(_asset: address) -> WalletAssetData: view
+    def removeTrialFunds() -> uint256: nonpayable
+    def assets(_index: uint256) -> address: view
+    def trialFundsAmount() -> uint256: view
+    def trialFundsAsset() -> address: view
+    def walletConfig() -> address: view
+    def numAssets() -> uint256: view
+
 interface MissionControl:
     def getSwapFeeConfig(_tokenIn: address, _tokenOut: address) -> SwapFeeConfig: view
-    def getUnderlyingAssetAndDecimals(_asset: address) -> (address, uint256): view
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
     def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig: view
@@ -31,20 +43,11 @@ interface Ledger:
     def getLastTotalUsdValue(_user: address) -> uint256: view
     def isUserWallet(_user: address) -> bool: view
 
-interface UserWallet:
-    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
-    def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
-    def assetData(_asset: address) -> WalletAssetData: view
-    def assets(_index: uint256) -> address: view
-    def walletConfig() -> address: view
-    def numAssets() -> uint256: view
-
 interface UserWalletConfig:
     def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails): nonpayable
     def setFrozen(_isFrozen: bool): nonpayable
     def cancelOwnershipChange(): nonpayable
-    def trialFundsAmount() -> uint256: view
-    def trialFundsAsset() -> address: view
+    def owner() -> address: view
 
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
@@ -128,6 +131,7 @@ EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
+MAX_TRIAL_FUNDS_ASSETS: constant(uint256) = 20
 
 # ripe
 RIPE_HQ: immutable(address)
@@ -182,12 +186,12 @@ def getBackpackData(_userWallet: address) -> BackpackData:
 
 
 @external
-def performPostActionTasks(_newUserValue: uint256, _walletConfig: address):
+def performPostActionTasks(_newUserValue: uint256):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
     # check trial funds first
-    assert self._doesWalletStillHaveTrialFunds(msg.sender, _walletConfig) # dev: user no longer has trial funds
+    assert self._doesWalletStillHaveTrialFunds(msg.sender) # dev: user no longer has trial funds
 
     # update points
     self._updateDepositPoints(msg.sender, _newUserValue, ledger)
@@ -701,22 +705,94 @@ def _getRipePrice(_asset: address) -> uint256:
 ###############
 
 
+# clawback trial funds
+
+
+@external
+def clawBackTrialFunds(_user: address) -> uint256:
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) or staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
+    return self._clawBackTrialFunds(_user, a.hq)
+
+
+@internal
+def _clawBackTrialFunds(_user: address, _hq: address) -> uint256:
+    trialFundsAmount: uint256 = staticcall UserWallet(_user).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWallet(_user).trialFundsAsset()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
+        return 0
+
+    # add 1% buffer to ensure we recover enough
+    targetRecoveryAmount: uint256 = trialFundsAmount * 101_00 // HUNDRED_PERCENT
+    
+    # if we already have enough, just remove what we have
+    amountRecovered: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
+    if amountRecovered >= targetRecoveryAmount:
+        return extcall UserWallet(_user).removeTrialFunds()
+
+    # find all vault tokens and withdraw from them
+    numAssets: uint256 = staticcall UserWallet(_user).numAssets()
+    if numAssets != 0:
+        for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+            if amountRecovered >= targetRecoveryAmount:
+                break
+                
+            asset: address = staticcall UserWallet(_user).assets(i)
+            if asset == empty(address):
+                continue
+
+            data: WalletAssetData = staticcall UserWallet(_user).assetData(asset)
+            if not data.isYieldAsset or data.assetBalance == 0:
+                continue
+
+            # get underlying details
+            config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _hq)
+            if config.underlyingAsset != trialFundsAsset:
+                continue
+            
+            # get price per share for this vault token
+            pricePerShare: uint256 = self._getPricePerShare(asset, _hq)
+            if pricePerShare == 0:
+                continue
+
+            # calculate how many vault tokens we need to withdraw
+            amountStillNeeded: uint256 = targetRecoveryAmount - amountRecovered
+            vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** config.decimals) // pricePerShare
+            
+            # don't withdraw more than available
+            targetAmount: uint256 = min(vaultTokensNeeded, staticcall IERC20(asset).balanceOf(_user))
+            if targetAmount == 0:
+                continue
+
+            # withdraw vault tokens to get underlying
+            underlyingAmount: uint256 = 0
+            na: uint256 = 0
+            underlyingAmount, na = extcall UserWallet(_user).preparePayment(config.legoId, asset, targetAmount, config.underlyingAsset)
+            
+            # update recovered amount
+            amountRecovered += underlyingAmount
+
+    # now remove trial funds
+    return extcall UserWallet(_user).removeTrialFunds()
+
+
+# check if it remains
+
+
 @view
 @external
 def doesWalletStillHaveTrialFunds(_user: address) -> bool:
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    return self._doesWalletStillHaveTrialFunds(_user, walletConfig)
+    return self._doesWalletStillHaveTrialFunds(_user)
 
 
 @view
 @internal
-def _doesWalletStillHaveTrialFunds(_user: address, _walletConfig: address) -> bool:
-    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
-    if trialFundsAmount == 0:
-        return True
-    
-    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
-    if trialFundsAsset == empty(address):
+def _doesWalletStillHaveTrialFunds(_user: address) -> bool:
+    trialFundsAmount: uint256 = staticcall UserWallet(_user).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWallet(_user).trialFundsAsset()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return True
     
     amount: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
@@ -724,9 +800,8 @@ def _doesWalletStillHaveTrialFunds(_user: address, _walletConfig: address) -> bo
         return True
 
     hq: address = addys._getUndyHq()
-    missionControl: address = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
 
-    numAssets: uint256 = staticcall UserWallet(_walletConfig).numAssets()
+    numAssets: uint256 = staticcall UserWallet(_user).numAssets()
     if numAssets == 0:
         return False
 
@@ -734,30 +809,31 @@ def _doesWalletStillHaveTrialFunds(_user: address, _walletConfig: address) -> bo
         if amount >= trialFundsAmount:
             return True
 
-        asset: address = staticcall UserWallet(_walletConfig).assets(i)
+        asset: address = staticcall UserWallet(_user).assets(i)
         if asset == empty(address):
             continue
 
-        data: WalletAssetData = staticcall UserWallet(_walletConfig).assetData(asset)
-        if not data.isYieldAsset or data.usdValue == 0:
+        data: WalletAssetData = staticcall UserWallet(_user).assetData(asset)
+        if not data.isYieldAsset:
             continue
 
         # get underlying details
-        underlyingAsset: address = empty(address)
-        underlyingDecimals: uint256 = 0
-        underlyingAsset, underlyingDecimals = staticcall MissionControl(missionControl).getUnderlyingAssetAndDecimals(asset)
-        if underlyingAsset != trialFundsAsset:
+        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, hq)
+        if config.underlyingAsset != trialFundsAsset:
             continue
         
-        underlyingPrice: uint256 = self._getPrice(underlyingAsset, hq)
-        if underlyingPrice == 0:
+        # get current balance of vault token
+        vaultBalance: uint256 = staticcall IERC20(asset).balanceOf(_user)
+        if vaultBalance == 0:
+            continue
+            
+        # get price per share for this vault token
+        pricePerShare: uint256 = self._getPricePerShare(asset, hq)
+        if pricePerShare == 0:
             continue
 
-        # get decimals if needed
-        if underlyingDecimals == 0:
-            underlyingDecimals = self._getDecimals(underlyingAsset)
-
-        underlyingAmount: uint256 = data.usdValue * (10 ** underlyingDecimals) // underlyingPrice
+        # calculate underlying amount: vault tokens * pricePerShare / 10^decimals
+        underlyingAmount: uint256 = vaultBalance * pricePerShare // (10 ** config.decimals)
         amount += underlyingAmount
 
     return amount >= trialFundsAmount
@@ -812,7 +888,7 @@ def setEjectionMode(_user: address, _inEjectMode: bool):
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    assert staticcall UserWalletConfig(walletConfig).trialFundsAmount() == 0 # dev: trial funds not empty
+    assert staticcall UserWallet(_user).trialFundsAmount() == 0 # dev: trial funds not empty
 
     feeDetails: EjectModeFeeDetails = empty(EjectModeFeeDetails)
     if _inEjectMode:

@@ -40,7 +40,7 @@ hasAccess: public(bool)
 pricePerShare: public(HashMap[address, uint256])
 price: public(HashMap[address, uint256])
 
-
+EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_TOKEN_PATH: constant(uint256) = 5
 LEGO_ACCESS_ABI: constant(String[64]) = "setLegoAccess(address)"
 
@@ -68,6 +68,19 @@ def __init__(
     self.lpToken = _lpToken
     self.debtToken = _debtToken
     self.hasAccess = False
+
+    self.pricePerShare[_asset] = EIGHTEEN_DECIMALS
+    self.price[_asset] = EIGHTEEN_DECIMALS
+    self.pricePerShare[_vaultToken] = EIGHTEEN_DECIMALS
+    self.price[_vaultToken] = EIGHTEEN_DECIMALS
+    self.pricePerShare[_altAsset] = EIGHTEEN_DECIMALS
+    self.price[_altAsset] = EIGHTEEN_DECIMALS
+    self.pricePerShare[_altVaultToken] = EIGHTEEN_DECIMALS
+    self.price[_altVaultToken] = EIGHTEEN_DECIMALS
+    self.pricePerShare[_lpToken] = EIGHTEEN_DECIMALS
+    self.price[_lpToken] = EIGHTEEN_DECIMALS
+    self.pricePerShare[_debtToken] = EIGHTEEN_DECIMALS
+    self.price[_debtToken] = EIGHTEEN_DECIMALS
 
 
 @view

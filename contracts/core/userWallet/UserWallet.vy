@@ -13,8 +13,8 @@ interface WalletBackpack:
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
-    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address): nonpayable
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
+    def performPostActionTasks(_newUserValue: uint256): nonpayable
 
 interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
@@ -22,6 +22,7 @@ interface WalletConfig:
     def canTransferToRecipient(_recipient: address) -> bool: view
     def ejectModeFeeDetails() -> EjectModeFeeDetails: view
     def getActionDataBundle() -> ActionData: view
+    def owner() -> address: view
 
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
@@ -231,6 +232,10 @@ assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
+# trial funds info
+trialFundsAsset: public(address)
+trialFundsAmount: public(uint256)
+
 # yield
 checkedYield: transient(HashMap[address, bool]) # asset -> checked
 
@@ -242,6 +247,7 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+HATCHERY_ID: constant(uint256) = 6
 WALLET_BACKPACK_ID: constant(uint256) = 7
 
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
@@ -258,6 +264,8 @@ def __init__(
     _wethAddr: address,
     _ethAddr: address,
     _walletConfig: address,
+    _trialFundsAsset: address,
+    _trialFundsAmount: uint256,
 ):
     assert empty(address) not in [_undyHq, _wethAddr, _walletConfig] # dev: invalid addrs
     self.walletConfig = _walletConfig
@@ -265,6 +273,11 @@ def __init__(
     UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
+
+    # trial funds info
+    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
+        self.trialFundsAsset = _trialFundsAsset
+        self.trialFundsAmount = _trialFundsAmount
 
 
 @payable
@@ -1219,7 +1232,7 @@ def _performPostActionTasks(
 
     # update points + check trial funds
     if not _cd.inEjectMode:
-        extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue, _cd.walletConfig)
+        extcall WalletBackpack(_cd.walletBackpack).performPostActionTasks(newTotalUsdValue)
 
 
 ##############
@@ -1422,6 +1435,59 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) 
         recipient = _recipient,
     )
     return True
+
+
+# prepare payment
+
+
+@external
+def preparePayment(
+    _legoId: uint256,
+    _vaultToken: address,
+    _vaultAmount: uint256,
+    _targetAsset: address,
+) -> (uint256, uint256):
+    hq: address = UNDY_HQ
+    walletBackpack: address = staticcall Registry(hq).getAddr(WALLET_BACKPACK_ID)
+    assert msg.sender == walletBackpack # dev: no perms
+
+    cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
+    na: uint256 = 0
+    underlyingAsset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    na, underlyingAsset, underlyingAmount, txUsdValue = self._withdrawFromYield(_vaultToken, _vaultAmount, empty(address), 0, empty(bytes32), True, cd)
+    assert underlyingAsset == _targetAsset # dev: invalid target asset
+   
+    return underlyingAmount, txUsdValue
+
+
+# clawback trial funds
+
+
+@external
+def removeTrialFunds() -> uint256:
+    hq: address = UNDY_HQ
+    walletBackpack: address = staticcall Registry(hq).getAddr(WALLET_BACKPACK_ID)
+    assert msg.sender == walletBackpack or msg.sender == staticcall WalletConfig(self.walletConfig).owner() # dev: no perms
+
+    trialFundsAmount: uint256 = self.trialFundsAmount
+    trialFundsAsset: address = self.trialFundsAsset
+    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
+
+    hatchery: address = staticcall Registry(hq).getAddr(HATCHERY_ID)
+    assert hatchery != empty(address) # dev: invalid recipient
+
+    amount: uint256 = min(trialFundsAmount, staticcall IERC20(trialFundsAsset).balanceOf(self))
+    assert amount != 0 # dev: no balance for trial funds asset
+    assert extcall IERC20(trialFundsAsset).transfer(hatchery, amount) # dev: transfer failed
+
+    remainingAmount: uint256 = trialFundsAmount - amount
+    self.trialFundsAmount = remainingAmount
+    if remainingAmount == 0:
+        self.trialFundsAsset = empty(address)
+
+    return amount
 
 
 # allow lego to perform action
