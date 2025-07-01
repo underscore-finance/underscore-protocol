@@ -321,7 +321,7 @@ def transferFunds(
     cd: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [asset], [], _recipient)
 
     # validate recipient
-    if _recipient != cd.walletOwner:
+    if _recipient != cd.walletOwner and msg.sender != cd.walletConfig:
         assert staticcall WalletConfig(cd.walletConfig).canTransferToRecipient(_recipient) # dev: recipient not allowed
 
     amount: uint256 = 0

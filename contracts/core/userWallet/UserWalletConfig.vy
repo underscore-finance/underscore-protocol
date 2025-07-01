@@ -4,12 +4,29 @@
 from interfaces import Wallet as wi
 from ethereum.ercs import IERC20
 
+interface UserWalletConfig:
+    def indexOfManager(_manager: address) -> uint256: view
+    def hasPendingOwnerChange() -> bool: view
+    def startingAgent() -> address: view
+    def numManagers() -> uint256: view
+    def groupId() -> uint256: view
+    def owner() -> address: view
+
+interface UserWallet:
+    def assets(_index: uint256) -> address: view
+    def trialFundsAmount() -> uint256: view
+    def walletConfig() -> address: view
+    def numAssets() -> uint256: view
+
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
 interface WalletBackpack:
     def getBackpackData(_userWallet: address) -> BackpackData: view
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
 
 struct ActionData:
     legoBook: address
@@ -199,7 +216,9 @@ inEjectMode: public(bool)
 timeLock: public(uint256)
 didSetWallet: public(bool)
 
+# other
 ejectModeFeeDetails: public(EjectModeFeeDetails)
+startingAgent: public(address)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -216,6 +235,7 @@ ONE_MONTH_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 30
 ONE_YEAR_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 365
 
 # registry ids
+LEDGER_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 4
 HATCHERY_ID: constant(uint256) = 6
 WALLET_BACKPACK_ID: constant(uint256) = 7
@@ -275,6 +295,7 @@ def __init__(
             allowedAssets = [],
         )
         self._registerManager(_startingAgent)
+        self.startingAgent = _startingAgent
 
     # time lock
     assert _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -358,7 +379,7 @@ def validateAccessAndGetBundle(
     data: ActionData = self._getActionDataBundle()
 
     # trusted signers
-    trustedSigners: DynArray[address, 2] = [self.owner]
+    trustedSigners: DynArray[address, 3] = [self.owner, self]
     if data.walletBackpack != empty(address):
         trustedSigners.append(data.walletBackpack)
 
@@ -369,6 +390,10 @@ def validateAccessAndGetBundle(
     # wallet backpack can only perform withdraw from yield
     if data.walletBackpack != empty(address) and _signer == data.walletBackpack:
         assert _action == wi.ActionType.EARN_WITHDRAW # dev: invalid action
+
+    # during migration, using `transfer` action
+    if _signer == self:
+        assert _action == wi.ActionType.TRANSFER # dev: invalid action
 
     data.signer = _signer
     data.isManager = _signer not in trustedSigners
@@ -1150,6 +1175,117 @@ def _deregisterManager(_manager: address) -> bool:
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
 
+    return True
+
+
+#############
+# Migration #
+#############
+
+
+# migrate funds
+
+
+@external
+def migrateFunds(_newWallet: address) -> uint256:
+    owner: address = self.owner
+    assert msg.sender == owner # dev: no perms
+
+    wallet: address = self.wallet
+    assert self._canMigrateToNewWallet(_newWallet, owner, wallet) # dev: cannot migrate to new wallet
+
+    numAssets: uint256 = staticcall UserWallet(wallet).numAssets()
+    if numAssets == 0:
+        return 0
+
+    # transfer tokens
+    numMigrated: uint256 = 0
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+        asset: address = staticcall UserWallet(wallet).assets(i)
+        if asset == empty(address):
+            continue
+
+        balance: uint256 = staticcall IERC20(asset).balanceOf(wallet)
+        if balance != 0:
+            extcall wi(_newWallet).transferFunds(_newWallet, asset)
+        numMigrated += 1
+
+    return numMigrated
+
+
+@view
+@internal
+def _canMigrateToNewWallet(_newWallet: address, _owner: address, _thisWallet: address) -> bool:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+
+    # initial validation
+    assert staticcall Ledger(ledger).isUserWallet(_newWallet) # dev: not a user wallet
+    assert staticcall UserWallet(_thisWallet).trialFundsAmount() == 0 # dev: has trial funds
+    assert not self.isFrozen # dev: frozen
+
+    # wallet config checks
+    newWalletConfig: address = staticcall UserWallet(_newWallet).walletConfig()
+    assert self._isMatchingOwnership(newWalletConfig, _owner) # dev: not same owner
+    assert self._hasNoManagers(newWalletConfig) # dev: has managers
+
+    # TODO
+    # TODO: once there is proper transfer/whitelist, let's check that is empty also
+    # TODO
+
+    return True
+
+
+# migrate settings
+
+
+@external
+def migrateSettings(_oldWallet: address):
+    owner: address = self.owner
+    assert msg.sender == owner # dev: no perms
+    assert self._canMigrateSettings(_oldWallet, owner) # dev: cannot migrate settings
+
+    # TODO: migrate all settings
+
+
+@view
+@internal
+def _canMigrateSettings(_oldWallet: address, _owner: address) -> bool:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(_oldWallet) # dev: not a user wallet
+
+    oldWalletConfig: address = staticcall UserWallet(_oldWallet).walletConfig()
+    assert self._isMatchingOwnership(oldWalletConfig, _owner) # dev: not same owner
+    assert self._hasNoManagers(self) # dev: has managers
+
+    # TODO
+    # TODO: once there is proper transfer/whitelist, let's check that is empty also
+    # TODO
+
+    return True
+
+
+# shared utils
+
+
+@view
+@internal
+def _isMatchingOwnership(_walletConfig: address, _owner: address) -> bool:
+    assert _owner == staticcall UserWalletConfig(_walletConfig).owner() # dev: not same owner
+    assert not staticcall UserWalletConfig(_walletConfig).hasPendingOwnerChange() # dev: pending owner change
+    assert not self._hasPendingOwnerChange() # dev: pending owner change
+    assert self.groupId == staticcall UserWalletConfig(_walletConfig).groupId() # dev: wrong group id
+    return True
+
+
+@view
+@internal
+def _hasNoManagers(_walletConfig: address) -> bool:
+    startingAgent: address = staticcall UserWalletConfig(_walletConfig).startingAgent()
+    if startingAgent == empty(address):
+        assert staticcall UserWalletConfig(_walletConfig).numManagers() == 0 # dev: has managers
+    else:
+        assert staticcall UserWalletConfig(_walletConfig).indexOfManager(startingAgent) == 1 # dev: invalid manager
+        assert staticcall UserWalletConfig(_walletConfig).numManagers() == 2 # dev: has other managers
     return True
 
 
