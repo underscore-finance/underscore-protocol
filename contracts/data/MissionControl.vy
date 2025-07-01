@@ -59,6 +59,11 @@ struct ManagerConfig:
     minManagerPeriod: uint256
     maxManagerPeriod: uint256
 
+struct EjectModeFeeDetails:
+    feeRecipient: address
+    swapFee: uint256
+    rewardsFee: uint256
+
 # helpers
 
 struct UserWalletCreationConfig:
@@ -308,6 +313,17 @@ def getUnderlyingAssetAndDecimals(_asset: address) -> (address, uint256):
     assetConfig: AssetConfig = self.assetConfig[_asset]
     underlyingAsset: address = assetConfig.yieldConfig.underlyingAsset
     return (underlyingAsset, self.assetConfig[underlyingAsset].decimals)
+
+
+@view
+@external
+def getEjectModeFeeDetails() -> EjectModeFeeDetails:
+    config: UserWalletConfig = self.userWalletConfig
+    return EjectModeFeeDetails(
+        feeRecipient = config.feeRecipient,
+        swapFee = config.walletFees.swapFee,
+        rewardsFee = config.walletFees.rewardsFee,
+    )
 
 
 #########

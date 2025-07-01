@@ -88,6 +88,11 @@ struct BackpackData:
     feeRecipient: address
     lastTotalUsdValue: uint256
 
+struct EjectModeFeeDetails:
+    feeRecipient: address
+    swapFee: uint256
+    rewardsFee: uint256
+
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
     newOwner: indexed(address)
@@ -110,6 +115,9 @@ event TimeLockSet:
 
 event EjectionModeSet:
     inEjectMode: bool
+    feeRecipient: address
+    swapFee: uint256
+    rewardsFee: uint256
     caller: indexed(address)
 
 event FrozenSet:
@@ -194,6 +202,7 @@ didSetWallet: public(bool)
 # trial funds info
 trialFundsAsset: public(address)
 trialFundsAmount: public(uint256)
+ejectModeFeeDetails: public(EjectModeFeeDetails)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -639,19 +648,6 @@ def setTimeLock(_numBlocks: uint256):
     log TimeLockSet(numBlocks=_numBlocks)
 
 
-# ejection mode
-
-
-@external
-def setEjectionMode(_inEjectMode: bool):
-    if msg.sender != self.owner:
-        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-        assert msg.sender == walletBackpack # dev: no perms
-
-    self.inEjectMode = _inEjectMode
-    log EjectionModeSet(inEjectMode=_inEjectMode, caller=msg.sender)
-
-
 # freeze wallet
 
 
@@ -660,9 +656,32 @@ def setFrozen(_isFrozen: bool):
     if msg.sender != self.owner:
         walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
         assert msg.sender == walletBackpack # dev: no perms
+        assert self.groupId != 0 # dev: must have group id
 
     self.isFrozen = _isFrozen
     log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
+
+
+# ejection mode
+
+
+@external
+def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails):
+    walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
+    assert msg.sender == walletBackpack # dev: no perms
+    assert _inEjectMode != self.inEjectMode # dev: nothing to change
+
+    self.inEjectMode = _inEjectMode
+    if _inEjectMode:
+        self.ejectModeFeeDetails = _feeDetails
+
+    log EjectionModeSet(
+        inEjectMode = _inEjectMode,
+        feeRecipient = _feeDetails.feeRecipient,
+        swapFee = _feeDetails.swapFee,
+        rewardsFee = _feeDetails.rewardsFee,
+        caller = msg.sender,
+    )
 
 
 ###########################

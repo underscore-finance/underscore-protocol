@@ -20,6 +20,7 @@ interface WalletConfig:
     def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
     def addNewManagerTransaction(_manager: address, _txUsdValue: uint256): nonpayable
     def canTransferToRecipient(_recipient: address) -> bool: view
+    def ejectModeFeeDetails() -> EjectModeFeeDetails: view
     def getActionDataBundle() -> ActionData: view
 
 interface WethContract:
@@ -51,6 +52,11 @@ struct ActionData:
     legoAddr: address
     eth: address
     weth: address
+
+struct EjectModeFeeDetails:
+    feeRecipient: address
+    swapFee: uint256
+    rewardsFee: uint256
 
 event YieldDeposit:
     asset: indexed(address)
@@ -527,7 +533,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 
     # handle swap fee
     if lastTokenOut != empty(address):
-        swapFee: uint256 = staticcall WalletBackpack(cd.walletBackpack).getSwapFee(self, tokenIn, lastTokenOut)
+        swapFee: uint256 = self._getSwapFee(tokenIn, lastTokenOut, cd)
         if swapFee != 0 and lastTokenOutAmount != 0:
             self._payFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE),cd.feeRecipient)
 
@@ -605,6 +611,15 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
 
     assert empty(address) not in [tokenIn, tokenOut] # dev: invalid token path
     return tokenIn, tokenOut, legoIds
+
+
+@view
+@internal
+def _getSwapFee(_tokenIn: address, _tokenOut: address, _cd: ActionData) -> uint256:
+    if not _cd.inEjectMode:
+        return staticcall WalletBackpack(_cd.walletBackpack).getSwapFee(self, _tokenIn, _tokenOut)
+    feeDetails: EjectModeFeeDetails = staticcall WalletConfig(_cd.walletConfig).ejectModeFeeDetails()
+    return feeDetails.swapFee
 
 
 # mint / redeem
@@ -833,7 +848,7 @@ def claimRewards(
 
     # handle rewards fee
     if _rewardToken != empty(address):
-        rewardsFee: uint256 = staticcall WalletBackpack(cd.walletBackpack).getRewardsFee(self, _rewardToken)
+        rewardsFee: uint256 = self._getRewardsFee(_rewardToken, cd)
         if rewardsFee != 0 and rewardAmount != 0:
             self._payFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), cd.feeRecipient)
 
@@ -847,6 +862,15 @@ def claimRewards(
         signer = cd.signer,
     )
     return rewardAmount, txUsdValue
+
+
+@view
+@internal
+def _getRewardsFee(_rewardToken: address, _cd: ActionData) -> uint256:
+    if not _cd.inEjectMode:
+        return staticcall WalletBackpack(_cd.walletBackpack).getRewardsFee(self, _rewardToken)
+    feeDetails: EjectModeFeeDetails = staticcall WalletConfig(_cd.walletConfig).ejectModeFeeDetails()
+    return feeDetails.rewardsFee
 
 
 ###############
@@ -1249,6 +1273,7 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _cd: ActionDat
 
     # update usd value
     data.usdValue = 0
+    data.isYieldAsset = False
     if not _cd.inEjectMode:
         data.usdValue, data.isYieldAsset = extcall WalletBackpack(_cd.walletBackpack).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
 

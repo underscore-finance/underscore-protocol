@@ -22,6 +22,7 @@ interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
     def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig: view
+    def getEjectModeFeeDetails() -> EjectModeFeeDetails: view
     def feeRecipient() -> address: view
 
 interface Ledger:
@@ -39,7 +40,7 @@ interface UserWallet:
     def numAssets() -> uint256: view
 
 interface UserWalletConfig:
-    def setEjectionMode(_inEjectMode: bool): nonpayable
+    def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails): nonpayable
     def setFrozen(_isFrozen: bool): nonpayable
     def cancelOwnershipChange(): nonpayable
     def trialFundsAmount() -> uint256: view
@@ -59,6 +60,11 @@ struct WalletAssetData:
     usdValue: uint256
     isYieldAsset: bool
     lastYieldPrice: uint256
+
+struct EjectModeFeeDetails:
+    feeRecipient: address
+    swapFee: uint256
+    rewardsFee: uint256
 
 struct LastPrice:
     price: uint256
@@ -780,13 +786,6 @@ def cancelOwnershipChange(_user: address):
 
 
 @external
-def setEjectionMode(_user: address, _inEjectMode: bool):
-    assert staticcall Switchboard(addys._getSwitchboardAddr()).isSwitchboardAddr(msg.sender) # dev: no perms
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    extcall UserWalletConfig(walletConfig).setEjectionMode(_inEjectMode)
-
-
-@external
 def setFrozen(_user: address, _isFrozen: bool):
     assert staticcall Switchboard(addys._getSwitchboardAddr()).isSwitchboardAddr(msg.sender) # dev: no perms
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
@@ -799,3 +798,25 @@ def recoverNft(_user: address,_collection: address, _nftTokenId: uint256, _recip
     assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: no perms
     return extcall UserWallet(_user).recoverNft(_collection, _nftTokenId, _recipient)
+
+
+##############
+# Eject Mode #
+##############
+
+
+@external
+def setEjectionMode(_user: address, _inEjectMode: bool):
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
+    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
+
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    assert staticcall UserWalletConfig(walletConfig).trialFundsAmount() == 0 # dev: trial funds not empty
+
+    feeDetails: EjectModeFeeDetails = empty(EjectModeFeeDetails)
+    if _inEjectMode:
+        feeDetails = staticcall MissionControl(a.missionControl).getEjectModeFeeDetails()
+        self._updateDepositPoints(_user, 0, a.ledger) # update deposit points, new usd value is zero
+
+    extcall UserWalletConfig(walletConfig).setEjectionMode(_inEjectMode, feeDetails)
