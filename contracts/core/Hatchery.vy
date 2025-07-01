@@ -129,6 +129,8 @@ def createUserWallet(
         config.maxManagerPeriod,
         config.minKeyActionTimeLock,
         config.maxKeyActionTimeLock,
+        WETH,
+        ETH,
     )
     mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr, trialFundsAsset, trialFundsAmount)
     assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet

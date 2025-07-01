@@ -90,19 +90,6 @@ struct AgentCreationConfig:
     minTimeLock: uint256
     maxTimeLock: uint256
 
-struct SwapFeeConfig:
-    tokenInIsStablecoin: bool
-    tokenOutIsStablecoin: bool
-    tokenOutIsConfigured: bool
-    tokenOutSwapFee: uint256
-    genStableSwapFee: uint256
-    genSwapFee: uint256
-
-struct RewardsFeeConfig:
-    tokenIsConfigured: bool
-    tokenRewardsFee: uint256
-    genRewardsFee: uint256
-
 struct AssetUsdValueConfig:
     legoId: uint256
     legoAddr: address
@@ -277,38 +264,6 @@ def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
 
 @view
 @external
-def getSwapFeeConfig(_tokenIn: address, _tokenOut: address) -> SwapFeeConfig:
-    inConfig: AssetConfig = self.assetConfig[_tokenIn]
-    outConfig: AssetConfig = self.assetConfig[_tokenOut]
-    
-    # only call userWalletConfig if we need to get the global swap fee data
-    userWalletConfig: UserWalletConfig = empty(UserWalletConfig)
-    if inConfig.isStablecoin and outConfig.isStablecoin or outConfig.decimals == 0:
-        userWalletConfig = self.userWalletConfig
-
-    return SwapFeeConfig(
-        tokenInIsStablecoin = inConfig.isStablecoin,
-        tokenOutIsStablecoin = outConfig.isStablecoin,
-        tokenOutIsConfigured = outConfig.decimals != 0,
-        tokenOutSwapFee = outConfig.fees.swapFee,
-        genStableSwapFee = userWalletConfig.walletFees.stableSwapFee,
-        genSwapFee = userWalletConfig.walletFees.swapFee,
-    )
-
-
-@view
-@external
-def getRewardsFeeConfig(_asset: address) -> RewardsFeeConfig:
-    config: AssetConfig = self.assetConfig[_asset]
-    return RewardsFeeConfig(
-        tokenIsConfigured = config.decimals != 0,
-        tokenRewardsFee = config.fees.rewardsFee,
-        genRewardsFee = self.userWalletConfig.walletFees.rewardsFee,
-    )
-
-
-@view
-@external
 def getEjectModeFeeDetails() -> EjectModeFeeDetails:
     config: UserWalletConfig = self.userWalletConfig
     return EjectModeFeeDetails(
@@ -316,6 +271,34 @@ def getEjectModeFeeDetails() -> EjectModeFeeDetails:
         swapFee = config.walletFees.swapFee,
         rewardsFee = config.walletFees.rewardsFee,
     )
+
+
+@view
+@external
+def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256:
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+    inConfig: AssetConfig = self.assetConfig[_tokenIn]
+    outConfig: AssetConfig = self.assetConfig[_tokenOut]
+
+    # stable swap fee
+    if inConfig.isStablecoin and outConfig.isStablecoin:
+        return self.userWalletConfig.walletFees.stableSwapFee
+
+    # asset swap fee takes precedence over global swap fee
+    if outConfig.decimals != 0:
+        return outConfig.fees.swapFee
+
+    return self.userWalletConfig.walletFees.swapFee
+
+
+@view
+@external
+def getRewardsFee(_user: address, _asset: address) -> uint256:
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+    config: AssetConfig = self.assetConfig[_asset]
+    if config.decimals != 0:
+        return config.fees.rewardsFee
+    return self.userWalletConfig.walletFees.rewardsFee
 
 
 #########

@@ -221,7 +221,6 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     
     # Get events
     overall_swap_logs = filter_logs(user_wallet, "OverallSwapPerformed")
-    specific_swap_logs = filter_logs(user_wallet, "SpecificSwapInstructionPerformed")
     
     # Verify return values
     assert tokenIn == asset.address
@@ -243,18 +242,6 @@ def test_swap_tokens(setup_wallet_with_tokens, bob):
     assert overall_event.numLegos == 1
     assert overall_event.numInstructions == 1
     assert overall_event.signer == owner
-    
-    # Verify specific swap event
-    assert len(specific_swap_logs) == 1
-    specific_event = specific_swap_logs[0]
-    assert specific_event.tokenIn == asset.address
-    assert specific_event.tokenInAmount == swap_amount
-    assert specific_event.tokenOut == asset_alt.address
-    assert specific_event.tokenOutAmount == swap_amount
-    assert specific_event.numTokens == 2
-    assert specific_event.numPools == 0
-    assert specific_event.legoId == 1
-    assert specific_event.signer == owner
 
 
 def test_mint_asset_immediate(setup_wallet_with_tokens, bob):

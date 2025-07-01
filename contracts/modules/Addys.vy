@@ -18,7 +18,8 @@ struct Addys:
     legoBook: address
     switchboard: address
     hatchery: address
-    walletBackpack: address
+    backpack: address
+    appraiser: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -30,7 +31,8 @@ MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
 SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
-WALLET_BACKPACK_ID: constant(uint256) = 7
+BACKPACK_ID: constant(uint256) = 7
+APPRAISER_ID: constant(uint256) = 8
 
 
 @deploy
@@ -70,7 +72,8 @@ def _generateAddys() -> Addys:
         legoBook = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
         switchboard = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),
         hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),
-        walletBackpack = staticcall UndyHq(hq).getAddr(WALLET_BACKPACK_ID),
+        backpack = staticcall UndyHq(hq).getAddr(BACKPACK_ID),
+        appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
     )
 
 
@@ -110,8 +113,10 @@ def _getUndyHq() -> address:
 
 @view
 @internal
-def _isValidUndyAddr(_addr: address) -> bool:
-    hq: address = UNDY_HQ_FOR_ADDYS
+def _isValidUndyAddr(_addr: address, _hq: address = empty(address)) -> bool:
+    hq: address = _hq
+    if _hq == empty(address):
+        hq = UNDY_HQ_FOR_ADDYS
     
     # core departments
     if staticcall UndyHq(hq).isValidAddr(_addr):
@@ -219,16 +224,31 @@ def _getHatcheryAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HATCHERY_ID)
 
 
-# wallet backpack
+# backpack
 
 
 @view
 @internal
-def _getWalletBackpackId() -> uint256:
-    return WALLET_BACKPACK_ID
+def _getBackpackId() -> uint256:
+    return BACKPACK_ID
 
 
 @view
 @internal
-def _getWalletBackpackAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_BACKPACK_ID)
+def _getBackpackAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BACKPACK_ID)
+
+
+# appraiser
+
+
+@view
+@internal
+def _getAppraiserId() -> uint256:
+    return APPRAISER_ID
+
+
+@view
+@internal
+def _getAppraiserAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)

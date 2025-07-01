@@ -22,15 +22,17 @@ interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
-interface WalletBackpack:
-    def getBackpackData(_userWallet: address) -> BackpackData: view
+interface Backpack:
+    def getBackpackData(_user: address) -> BackpackData: view
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 struct ActionData:
+    missionControl: address
     legoBook: address
-    walletBackpack: address
+    backpack: address
+    appraiser: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -101,7 +103,9 @@ struct PendingOwnerChange:
     confirmBlock: uint256
 
 struct BackpackData:
+    missionControl: address
     legoBook: address
+    appraiser: address
     feeRecipient: address
     lastTotalUsdValue: uint256
 
@@ -224,7 +228,6 @@ API_VERSION: constant(String[28]) = "0.1.0"
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
-MAX_CONFIG_ACTIONS: constant(uint256) = 20
 MAX_CONFIG_RECIPIENTS: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
@@ -238,13 +241,16 @@ ONE_YEAR_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 365
 LEDGER_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 4
 HATCHERY_ID: constant(uint256) = 6
-WALLET_BACKPACK_ID: constant(uint256) = 7
+BACKPACK_ID: constant(uint256) = 7
 
 UNDY_HQ: public(immutable(address))
 MIN_TIMELOCK: public(immutable(uint256))
 MAX_TIMELOCK: public(immutable(uint256))
 MIN_MANAGER_PERIOD: public(immutable(uint256))
 MAX_MANAGER_PERIOD: public(immutable(uint256))
+
+WETH: public(immutable(address))
+ETH: public(immutable(address))
 
 
 @deploy
@@ -261,9 +267,14 @@ def __init__(
     _maxManagerPeriod: uint256,
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
+    _wethAddr: address,
+    _ethAddr: address,
 ):
-    assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
+    assert empty(address) not in [_undyHq, _owner, _wethAddr, _ethAddr] # dev: invalid addrs
     UNDY_HQ = _undyHq
+    WETH = _wethAddr
+    ETH = _ethAddr
+
     self.owner = _owner
     self.groupId = _groupId
 
@@ -327,25 +338,34 @@ def apiVersion() -> String[28]:
 
 @view
 @external
-def getActionDataBundle() -> ActionData:
-    return self._getActionDataBundle()
+def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
+    return self._getActionDataBundle(_legoId, _signer)
 
 
 @view
 @internal
-def _getActionDataBundle() -> ActionData:
+def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     wallet: address = self.wallet
     inEjectMode: bool = self.inEjectMode
 
-    walletBackpack: address = empty(address)
+    # backpack details
+    backpack: address = empty(address)
     backpackData: BackpackData = empty(BackpackData)
     if not inEjectMode:
-        walletBackpack = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-        backpackData = staticcall WalletBackpack(walletBackpack).getBackpackData(wallet)
+        hq: address = UNDY_HQ
+        backpack = staticcall Registry(hq).getAddr(BACKPACK_ID)
+        backpackData = staticcall Backpack(backpack).getBackpackData(wallet)
+
+    # lego details
+    legoAddr: address = empty(address)
+    if _legoId != 0 and backpackData.legoBook != empty(address):
+        legoAddr = staticcall Registry(backpackData.legoBook).getAddr(_legoId)
 
     return ActionData(
+        missionControl = backpackData.missionControl,
         legoBook = backpackData.legoBook,
-        walletBackpack = walletBackpack,
+        backpack = backpack,
+        appraiser = backpackData.appraiser,
         feeRecipient = backpackData.feeRecipient,
         wallet = wallet,
         walletConfig = self,
@@ -353,12 +373,12 @@ def _getActionDataBundle() -> ActionData:
         inEjectMode = inEjectMode,
         isFrozen = self.isFrozen,
         lastTotalUsdValue = backpackData.lastTotalUsdValue,
-        signer = empty(address),
+        signer = _signer,
         isManager = False,
-        legoId = 0,
-        legoAddr = empty(address),
-        eth = empty(address),
-        weth = empty(address),
+        legoId = _legoId,
+        legoAddr = legoAddr,
+        eth = ETH,
+        weth = WETH,
     )
 
 
@@ -376,28 +396,19 @@ def validateAccessAndGetBundle(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ActionData:
-    data: ActionData = self._getActionDataBundle()
+    legoId: uint256 = 0
+    if len(_legoIds) != 0:
+        legoId = _legoIds[0]
 
-    # trusted signers
-    trustedSigners: DynArray[address, 3] = [self.owner, self]
-    if data.walletBackpack != empty(address):
-        trustedSigners.append(data.walletBackpack)
+    # main data for this transaction
+    ad: ActionData = self._getActionDataBundle(legoId, _signer)
 
-    # check permissions if not trusted signer
-    if _signer not in trustedSigners:
+    # check permissions if not owner
+    if _signer != ad.walletOwner:
         assert self._canManagerPerformAction(_signer, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
+        ad.isManager = True
 
-    # wallet backpack can only perform withdraw from yield
-    if data.walletBackpack != empty(address) and _signer == data.walletBackpack:
-        assert _action == wi.ActionType.EARN_WITHDRAW # dev: invalid action
-
-    # during migration, using `transfer` action
-    if _signer == self:
-        assert _action == wi.ActionType.TRANSFER # dev: invalid action
-
-    data.signer = _signer
-    data.isManager = _signer not in trustedSigners
-    return data
+    return ad
 
 
 # check basic permissions
@@ -495,7 +506,7 @@ def _checkPermissions(
                 return False
 
     # check allowed recipients
-    if _action == wi.ActionType.TRANSFER:
+    if _action == wi.ActionType.TRANSFER and _transferRecipient != empty(address):
         if len(_transferPerms.allowedRecipients) != 0:
             if _transferRecipient not in _transferPerms.allowedRecipients:
                 return False
@@ -633,8 +644,8 @@ def confirmOwnershipChange():
 @external
 def cancelOwnershipChange():
     if msg.sender != self.owner:
-        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-        assert msg.sender == walletBackpack # dev: no perms
+        backpack: address = staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+        assert msg.sender == backpack # dev: no perms
 
     data: PendingOwnerChange = self.pendingOwner
     assert data.confirmBlock != 0 # dev: no pending change
@@ -679,8 +690,8 @@ def setTimeLock(_numBlocks: uint256):
 @external
 def setFrozen(_isFrozen: bool):
     if msg.sender != self.owner:
-        walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-        assert msg.sender == walletBackpack # dev: no perms
+        backpack: address = staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+        assert msg.sender == backpack # dev: no perms
         assert self.groupId != 0 # dev: must have group id
 
     self.isFrozen = _isFrozen
@@ -692,8 +703,8 @@ def setFrozen(_isFrozen: bool):
 
 @external
 def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails):
-    walletBackpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-    assert msg.sender == walletBackpack # dev: no perms
+    backpack: address = staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+    assert msg.sender == backpack # dev: no perms
     assert _inEjectMode != self.inEjectMode # dev: nothing to change
 
     self.inEjectMode = _inEjectMode

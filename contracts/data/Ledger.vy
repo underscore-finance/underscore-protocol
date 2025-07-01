@@ -97,19 +97,19 @@ def isUserWallet(_user: address) -> bool:
 
 @external
 def setUserPoints(_user: address, _data: PointsData):
-    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    assert msg.sender == addys._getBackpackAddr() # dev: only wallet backpack allowed
     self.userPoints[_user] = _data
 
 
 @external
 def setGlobalPoints(_data: PointsData):
-    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    assert msg.sender == addys._getBackpackAddr() # dev: only wallet backpack allowed
     self.globalPoints = _data
 
 
 @external
 def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData):
-    assert msg.sender == addys._getWalletBackpackAddr() # dev: only wallet backpack allowed
+    assert msg.sender == addys._getBackpackAddr() # dev: only wallet backpack allowed
     self.userPoints[_user] = _userData
     self.globalPoints = _globalData
 

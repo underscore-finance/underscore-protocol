@@ -35,7 +35,8 @@ def undy_hq(
     ledger,
     mission_control,
     hatchery,
-    wallet_backpack,
+    backpack,
+    appraiser,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -67,8 +68,12 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 6
 
     # 7
-    assert undy_hq_deploy.startAddNewAddressToRegistry(wallet_backpack, "Wallet Backpack", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(wallet_backpack, sender=deploy3r) == 7
+    assert undy_hq_deploy.startAddNewAddressToRegistry(backpack, "Backpack", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(backpack, sender=deploy3r) == 7
+
+    # 8
+    assert undy_hq_deploy.startAddNewAddressToRegistry(appraiser, "Appraiser", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
 
     # special permission setup
 
@@ -228,20 +233,34 @@ def hatchery(undy_hq_deploy, fork):
     )
 
 
-# wallet backpack
+# backpack
 
 
 @pytest.fixture(scope="session")
-def wallet_backpack(undy_hq_deploy, fork, mock_ripe):
+def backpack(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/Backpack.vy",
+        undy_hq_deploy,
+        TOKENS[fork]["WETH"],
+        TOKENS[fork]["ETH"],
+        name="backpack",
+    )
+
+
+# appraiser
+
+
+@pytest.fixture(scope="session")
+def appraiser(undy_hq_deploy, fork, mock_ripe):
     ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ"]
 
     return boa.load(
-        "contracts/core/WalletBackpack.vy",
+        "contracts/core/Appraiser.vy",
         undy_hq_deploy,
         ripe_hq,
         TOKENS[fork]["WETH"],
         TOKENS[fork]["ETH"],
-        name="wallet_backpack",
+        name="appraiser",
     )
 
 
