@@ -67,7 +67,7 @@ struct PayeeLimits:
     perPeriodCap: uint256
     lifetimeCap: uint256
 
-struct Payee:
+struct PayeeSettings:
     startBlock: uint256
     expiryBlock: uint256
     canPull: bool
@@ -80,10 +80,19 @@ struct Payee:
     unitLimits: PayeeLimits
     usdLimits: PayeeLimits
 
-struct GlobalRecipientSettings:
+struct GlobalPayeeSettings:
     defaultPeriodLength: uint256
     timeLockOnModify: uint256
     activationLength: uint256
+    maxNumTxsPerPeriod: uint256
+    txCooldownBlocks: uint256
+    failOnZeroPrice: bool
+    usdLimits: PayeeLimits
+
+struct PendingGlobalPayeeSettings:
+    config: GlobalPayeeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
 
 struct PendingWhitelist:
     initiatedBlock: uint256
@@ -289,9 +298,22 @@ managers: public(HashMap[uint256, address]) # index -> manager
 indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
 
-# global config
+# global manager config
 globalManagerSettings: public(GlobalManagerSettings)
 pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
+
+# payees
+payeeSettings: public(HashMap[address, PayeeSettings])
+payeePeriodData: public(HashMap[address, PayeeData])
+
+# payees (iterable)
+payees: public(HashMap[uint256, address]) # index -> payee
+indexOfPayee: public(HashMap[address, uint256]) # payee -> index
+numPayees: public(uint256) # num payees
+
+# global payee config
+globalPayeeSettings: public(GlobalPayeeSettings)
+pendingGlobalPayeeSettings: public(PendingGlobalPayeeSettings)
 
 # whitelist
 whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
@@ -594,7 +616,7 @@ def _checkPermissions(
     # check allowed recipients
     if _action == wi.ActionType.TRANSFER and _transferRecipient != empty(address):
         if len(_transferPerms.allowedPayees) != 0:
-            if _transferRecipient not in _transferPerms.allowedPayees:
+            if not self._isWhitelisted(_transferRecipient) and _transferRecipient not in _transferPerms.allowedPayees:
                 return False
 
     return self._canPerformSpecificAction(_action, _legoPerms, _transferPerms.canTransfer)
@@ -1412,9 +1434,9 @@ def _hasNoManagers(_walletConfig: address) -> bool:
     return True
 
 
-#########
-# TO DO #
-#########
+##########
+# Payees #
+##########
 
 
 @view
