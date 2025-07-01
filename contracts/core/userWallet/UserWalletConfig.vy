@@ -28,6 +28,12 @@ interface Backpack:
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
+flag WhitelistAction:
+    ADD_WHITELIST
+    CONFIRM_WHITELIST
+    CANCEL_WHITELIST
+    REMOVE_WHITELIST
+
 struct ActionData:
     missionControl: address
     legoBook: address
@@ -47,6 +53,42 @@ struct ActionData:
     eth: address
     weth: address
 
+struct PayeeData:
+    numTxsInPeriod: uint256
+    totalUnitsInPeriod: uint256
+    totalUsdValueInPeriod: uint256
+    totalNumTxs: uint256
+    totalUnits: uint256
+    totalUsdValue: uint256
+    lastTxBlock: uint256
+
+struct PayeeLimits:
+    perTxCap: uint256
+    perPeriodCap: uint256
+    lifetimeCap: uint256
+
+struct Payee:
+    startBlock: uint256
+    expiryBlock: uint256
+    canPull: bool
+    periodLength: uint256
+    maxNumTxsPerPeriod: uint256
+    txCooldownBlocks: uint256
+    failOnZeroPrice: bool
+    primaryAsset: address
+    primaryAssetDecimals: uint256
+    unitLimits: PayeeLimits
+    usdLimits: PayeeLimits
+
+struct GlobalRecipientSettings:
+    defaultPeriodLength: uint256
+    timeLockOnModify: uint256
+    activationLength: uint256
+
+struct PendingWhitelist:
+    initiatedBlock: uint256
+    confirmBlock: uint256
+
 struct ManagerData:
     numTxsInPeriod: uint256
     totalUsdValueInPeriod: uint256
@@ -54,7 +96,7 @@ struct ManagerData:
     totalUsdValue: uint256
     lastTxBlock: uint256
 
-struct Limits:
+struct ManagerLimits:
     maxVolumePerTx: uint256
     maxVolumePerPeriod: uint256
     maxNumTxsPerPeriod: uint256
@@ -72,14 +114,21 @@ struct LegoPerms:
 struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingRecipient: bool
-    allowedRecipients: DynArray[address, MAX_CONFIG_RECIPIENTS]
+    canAddPendingPayee: bool
+    allowedPayees: DynArray[address, MAX_CONFIG_RECIPIENTS]
+
+struct WhitelistPerms:
+    canAddPending: bool
+    canConfirm: bool
+    canCancel: bool
+    canRemove: bool
 
 struct ManagerSettings:
     startBlock: uint256
     expiryBlock: uint256
-    limits: Limits
+    limits: ManagerLimits
     legoPerms: LegoPerms
+    whitelistPerms: WhitelistPerms
     transferPerms: TransferPerms
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
 
@@ -87,8 +136,9 @@ struct GlobalManagerSettings:
     managerPeriod: uint256
     startDelay: uint256
     activationLength: uint256
-    limits: Limits
+    limits: ManagerLimits
     legoPerms: LegoPerms
+    whitelistPerms: WhitelistPerms
     transferPerms: TransferPerms
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
 
@@ -160,9 +210,13 @@ event GlobalManagerSettingsModified:
     canManageLiq: bool
     canClaimRewards: bool
     numAllowedLegos: uint256
+    canAddPendingWhitelist: bool
+    canConfirmWhitelist: bool
+    canCancelWhitelist: bool
+    canRemoveWhitelist: bool
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingRecipient: bool
+    canAddPendingPayee: bool
     numAllowedRecipients: uint256
     numAllowedAssets: uint256
 
@@ -181,9 +235,13 @@ event ManagerSettingsModified:
     canManageLiq: bool
     canClaimRewards: bool
     numAllowedLegos: uint256
+    canAddPendingWhitelist: bool
+    canConfirmWhitelist: bool
+    canCancelWhitelist: bool
+    canRemoveWhitelist: bool
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingRecipient: bool
+    canAddPendingPayee: bool
     numAllowedRecipients: uint256
     numAllowedAssets: uint256
 
@@ -194,6 +252,27 @@ event ManagerActivationLengthAdjusted:
     manager: indexed(address)
     activationLength: uint256
     didRestart: bool
+
+event WhitelistAddrPending:
+    addr: indexed(address)
+    confirmBlock: uint256
+    addedBy: indexed(address)
+
+event WhitelistAddrConfirmed:
+    addr: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    confirmedBy: indexed(address)
+
+event WhitelistAddrCancelled:
+    addr: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
+
+event WhitelistAddrRemoved:
+    addr: indexed(address)
+    removedBy: indexed(address)
 
 # core
 wallet: public(address)
@@ -213,6 +292,12 @@ numManagers: public(uint256) # num managers
 # global config
 globalManagerSettings: public(GlobalManagerSettings)
 pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
+
+# whitelist
+whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
+indexOfWhitelist: public(HashMap[address, uint256]) # whitelist -> index
+numWhitelisted: public(uint256) # num whitelisted
+pendingWhitelist: public(HashMap[address, PendingWhitelist]) # addr -> pending whitelist
 
 # config
 isFrozen: public(bool)
@@ -291,7 +376,7 @@ def __init__(
     config.managerPeriod = _managerPeriod
     config.startDelay = _defaultStartDelay
     config.activationLength = _defaultActivationLength
-    config.legoPerms, config.transferPerms = self._createHappyDefaults()
+    config.legoPerms, config.transferPerms, config.whitelistPerms = self._createHappyDefaults()
     self.globalManagerSettings = config
 
     # initial manager
@@ -300,8 +385,9 @@ def __init__(
         self.managerSettings[_startingAgent] = ManagerSettings(
             startBlock = block.number,
             expiryBlock = block.number + _startingAgentActivationLength,
-            limits = empty(Limits), # no limits
+            limits = empty(ManagerLimits), # no limits
             legoPerms = config.legoPerms, # all set to True
+            whitelistPerms = config.whitelistPerms, # can cancel, can confirm
             transferPerms = config.transferPerms, # all set to True
             allowedAssets = [],
         )
@@ -469,7 +555,7 @@ def _canManagerPerformAction(
         return False
 
     # validate limits (the ones we can do before knowing tx value)
-    limits: Limits = self._getCurrentLimits(config.limits, globalConfig.limits)
+    limits: ManagerLimits = self._getCurrentLimits(config.limits, globalConfig.limits)
     data: ManagerData = self._getLatestManagerData(_signer, globalConfig.managerPeriod)
     if limits.maxNumTxsPerPeriod != 0 and data.numTxsInPeriod >= limits.maxNumTxsPerPeriod:
         return False # max num txs per period reached
@@ -507,8 +593,8 @@ def _checkPermissions(
 
     # check allowed recipients
     if _action == wi.ActionType.TRANSFER and _transferRecipient != empty(address):
-        if len(_transferPerms.allowedRecipients) != 0:
-            if _transferRecipient not in _transferPerms.allowedRecipients:
+        if len(_transferPerms.allowedPayees) != 0:
+            if _transferRecipient not in _transferPerms.allowedPayees:
                 return False
 
     return self._canPerformSpecificAction(_action, _legoPerms, _transferPerms.canTransfer)
@@ -547,7 +633,7 @@ def addNewManagerTransaction(_manager: address, _txUsdValue: uint256):
     globalConfig: GlobalManagerSettings = self.globalManagerSettings
 
     # validate tx value
-    limits: Limits = self._getCurrentLimits(config.limits, globalConfig.limits)
+    limits: ManagerLimits = self._getCurrentLimits(config.limits, globalConfig.limits)
 
     # check zero price
     if _txUsdValue == 0:
@@ -579,8 +665,8 @@ def addNewManagerTransaction(_manager: address, _txUsdValue: uint256):
 
 @view
 @internal
-def _getCurrentLimits(_managerLimits: Limits, _globalLimits: Limits) -> Limits:
-    limits: Limits = _globalLimits
+def _getCurrentLimits(_managerLimits: ManagerLimits, _globalLimits: ManagerLimits) -> ManagerLimits:
+    limits: ManagerLimits = _globalLimits
 
     if _managerLimits.maxVolumePerTx != 0:
         limits.maxVolumePerTx = min(limits.maxVolumePerTx, _managerLimits.maxVolumePerTx)
@@ -733,8 +819,9 @@ def setPendingGlobalManagerSettings(
     _managerPeriod: uint256,
     _startDelay: uint256,
     _activationLength: uint256,
-    _limits: Limits,
+    _limits: ManagerLimits,
     _legoPerms: LegoPerms,
+    _whitelistPerms: WhitelistPerms,
     _transferPerms: TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
 ) -> bool:
@@ -755,6 +842,7 @@ def setPendingGlobalManagerSettings(
         activationLength = _activationLength,
         limits = _limits,
         legoPerms = _legoPerms,
+        whitelistPerms = _whitelistPerms,
         transferPerms = _transferPerms,
         allowedAssets = _allowedAssets,
     )
@@ -781,10 +869,14 @@ def setPendingGlobalManagerSettings(
         canManageLiq = _legoPerms.canManageLiq,
         canClaimRewards = _legoPerms.canClaimRewards,
         numAllowedLegos = len(_legoPerms.allowedLegos),
+        canAddPendingWhitelist = _whitelistPerms.canAddPending,
+        canConfirmWhitelist = _whitelistPerms.canConfirm,
+        canCancelWhitelist = _whitelistPerms.canCancel,
+        canRemoveWhitelist = _whitelistPerms.canRemove,
         canTransfer = _transferPerms.canTransfer,
         canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingRecipient = _transferPerms.canAddPendingRecipient,
-        numAllowedRecipients = len(_transferPerms.allowedRecipients),
+        canAddPendingPayee = _transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(_transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
     )
     return True
@@ -817,10 +909,14 @@ def confirmPendingGlobalManagerSettings() -> bool:
         canManageLiq = data.config.legoPerms.canManageLiq,
         canClaimRewards = data.config.legoPerms.canClaimRewards,
         numAllowedLegos = len(data.config.legoPerms.allowedLegos),
+        canAddPendingWhitelist = data.config.whitelistPerms.canAddPending,
+        canConfirmWhitelist = data.config.whitelistPerms.canConfirm,
+        canCancelWhitelist = data.config.whitelistPerms.canCancel,
+        canRemoveWhitelist = data.config.whitelistPerms.canRemove,
         canTransfer = data.config.transferPerms.canTransfer,
         canCreateCheque = data.config.transferPerms.canCreateCheque,
-        canAddPendingRecipient = data.config.transferPerms.canAddPendingRecipient,
-        numAllowedRecipients = len(data.config.transferPerms.allowedRecipients),
+        canAddPendingPayee = data.config.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(data.config.transferPerms.allowedPayees),
         numAllowedAssets = len(data.config.allowedAssets),
     )
     return True
@@ -852,10 +948,14 @@ def cancelPendingGlobalManagerSettings() -> bool:
         canManageLiq = data.config.legoPerms.canManageLiq,
         canClaimRewards = data.config.legoPerms.canClaimRewards,
         numAllowedLegos = len(data.config.legoPerms.allowedLegos),
+        canAddPendingWhitelist = data.config.whitelistPerms.canAddPending,
+        canConfirmWhitelist = data.config.whitelistPerms.canConfirm,
+        canCancelWhitelist = data.config.whitelistPerms.canCancel,
+        canRemoveWhitelist = data.config.whitelistPerms.canRemove,
         canTransfer = data.config.transferPerms.canTransfer,
         canCreateCheque = data.config.transferPerms.canCreateCheque,
-        canAddPendingRecipient = data.config.transferPerms.canAddPendingRecipient,
-        numAllowedRecipients = len(data.config.transferPerms.allowedRecipients),
+        canAddPendingPayee = data.config.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(data.config.transferPerms.allowedPayees),
         numAllowedAssets = len(data.config.allowedAssets),
     )
     return True
@@ -872,8 +972,9 @@ def cancelPendingGlobalManagerSettings() -> bool:
 @external
 def setSpecificManagerSettings(
     _manager: address,
-    _limits: Limits,
+    _limits: ManagerLimits,
     _legoPerms: LegoPerms,
+    _whitelistPerms: WhitelistPerms,
     _transferPerms: TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
     _startDelay: uint256 = 0,
@@ -897,6 +998,7 @@ def setSpecificManagerSettings(
         config = self.managerSettings[_manager]
         config.limits = _limits
         config.legoPerms = _legoPerms
+        config.whitelistPerms = _whitelistPerms
         config.transferPerms = _transferPerms
         config.allowedAssets = _allowedAssets
         stateStr = "UPDATED"
@@ -908,6 +1010,7 @@ def setSpecificManagerSettings(
             expiryBlock = 0,
             limits = _limits,
             legoPerms = _legoPerms,
+            whitelistPerms = _whitelistPerms,
             transferPerms = _transferPerms,
             allowedAssets = _allowedAssets,
         )
@@ -933,10 +1036,14 @@ def setSpecificManagerSettings(
         canManageLiq = config.legoPerms.canManageLiq,
         canClaimRewards = config.legoPerms.canClaimRewards,
         numAllowedLegos = len(config.legoPerms.allowedLegos),
+        canAddPendingWhitelist = config.whitelistPerms.canAddPending,
+        canConfirmWhitelist = config.whitelistPerms.canConfirm,
+        canCancelWhitelist = config.whitelistPerms.canCancel,
+        canRemoveWhitelist = config.whitelistPerms.canRemove,
         canTransfer = config.transferPerms.canTransfer,
         canCreateCheque = config.transferPerms.canCreateCheque,
-        canAddPendingRecipient = config.transferPerms.canAddPendingRecipient,
-        numAllowedRecipients = len(config.transferPerms.allowedRecipients),
+        canAddPendingPayee = config.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(config.transferPerms.allowedPayees),
         numAllowedAssets = len(config.allowedAssets),
     )
     return True
@@ -1020,7 +1127,7 @@ def _getStartAndExpiryBlocksForNewManager(_startDelay: uint256, _activationLengt
 
 @view
 @internal
-def _isValidLimits(_limits: Limits) -> bool:
+def _isValidLimits(_limits: ManagerLimits) -> bool:
     # Note: 0 values are treated as "unlimited" throughout this validation
     
     # only validate if both values are non-zero (not unlimited)
@@ -1071,17 +1178,17 @@ def _isValidLegoPerms(_legoPerms: LegoPerms) -> bool:
 @view
 @internal
 def _isValidTransferPerms(_transferPerms: TransferPerms) -> bool:
-    if len(_transferPerms.allowedRecipients) == 0:
+    if len(_transferPerms.allowedPayees) == 0:
         return True
 
-    canDoAnything: bool = _transferPerms.canTransfer or _transferPerms.canCreateCheque or _transferPerms.canAddPendingRecipient
+    canDoAnything: bool = _transferPerms.canTransfer or _transferPerms.canCreateCheque or _transferPerms.canAddPendingPayee
 
     # _allowedRecipients should be empty if there are no permissions
     if not canDoAnything:
         return False
 
     checkedRecipients: DynArray[address, MAX_CONFIG_RECIPIENTS] = []
-    for i: address in _transferPerms.allowedRecipients:
+    for i: address in _transferPerms.allowedPayees:
         if i == empty(address):
             return False
 
@@ -1136,7 +1243,7 @@ def _isValidActivationLength(_numBlocks: uint256) -> bool:
 
 @pure
 @internal
-def _createHappyDefaults() -> (LegoPerms, TransferPerms):
+def _createHappyDefaults() -> (LegoPerms, TransferPerms, WhitelistPerms):
     return LegoPerms(
         canManageYield = True,
         canBuyAndSell = True,
@@ -1147,8 +1254,13 @@ def _createHappyDefaults() -> (LegoPerms, TransferPerms):
     ), TransferPerms(
         canTransfer = True,
         canCreateCheque = True,
-        canAddPendingRecipient = True,
-        allowedRecipients = [],
+        canAddPendingPayee = True,
+        allowedPayees = [],
+    ), WhitelistPerms(
+        canAddPending = False,
+        canConfirm = True,
+        canCancel = True,
+        canRemove = False,
     )
 
 
@@ -1316,5 +1428,160 @@ def canTransferToRecipient(_recipient: address) -> bool:
 def _isValidRecipient(_recipient: address) -> bool:
 
     # TODO: hook this up
+
+    return True
+
+
+#############
+# Whitelist #
+#############
+
+
+# is whitelisted
+
+
+@view
+@external
+def isWhitelisted(_addr: address) -> bool:
+    return self._isWhitelisted(_addr)
+
+
+@view
+@internal
+def _isWhitelisted(_addr: address) -> bool:
+    return self.indexOfWhitelist[_addr] != 0
+
+
+# add whitelist
+
+
+@nonreentrant
+@external
+def addWhitelistAddr(_addr: address):
+    assert self._canManageWhitelist(msg.sender, WhitelistAction.ADD_WHITELIST) # dev: no perms
+
+    assert _addr not in [empty(address), self, self.wallet, self.owner] # dev: invalid addr
+    assert not self._isWhitelisted(_addr) # dev: already whitelisted
+    assert self.pendingWhitelist[_addr].initiatedBlock == 0 # dev: pending whitelist already exists
+
+    # this uses same delay as ownership change
+    confirmBlock: uint256 = block.number + self.timeLock
+    self.pendingWhitelist[_addr] = PendingWhitelist(
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+    )
+    log WhitelistAddrPending(addr=_addr, confirmBlock=confirmBlock, addedBy=msg.sender)
+
+
+# confirm whitelist
+
+
+@nonreentrant
+@external
+def confirmWhitelistAddr(_addr: address):
+    assert self._canManageWhitelist(msg.sender, WhitelistAction.CONFIRM_WHITELIST) # dev: no perms
+
+    data: PendingWhitelist = self.pendingWhitelist[_addr]
+    assert data.initiatedBlock != 0 # dev: no pending whitelist
+    assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
+
+    self._registerWhitelist(_addr)
+    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+    log WhitelistAddrConfirmed(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, confirmedBy=msg.sender)
+
+
+# cancel pending whitelist
+
+
+@nonreentrant
+@external
+def cancelPendingWhitelistAddr(_addr: address):
+    assert self._canManageWhitelist(msg.sender, WhitelistAction.CANCEL_WHITELIST) # dev: no perms
+
+    data: PendingWhitelist = self.pendingWhitelist[_addr]
+    assert data.initiatedBlock != 0 # dev: no pending whitelist
+    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+    log WhitelistAddrCancelled(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, cancelledBy=msg.sender)
+
+
+# remove whitelist
+
+
+@nonreentrant
+@external
+def removeWhitelistAddr(_addr: address):
+    assert self._canManageWhitelist(msg.sender, WhitelistAction.REMOVE_WHITELIST) # dev: no perms
+    assert self._isWhitelisted(_addr) # dev: not whitelisted
+
+    self._deregisterWhitelist(_addr)
+    log WhitelistAddrRemoved(addr=_addr, removedBy=msg.sender)
+
+
+# permissions
+
+
+@view
+@internal
+def _canManageWhitelist(_signer: address, _action: WhitelistAction) -> bool:
+    if _signer == self.owner:
+        return True
+
+    if self.indexOfManager[_signer] == 0:
+        return False # signer is not a manager
+
+    # manager is not active
+    config: ManagerSettings = self.managerSettings[_signer]
+    globalConfig: GlobalManagerSettings = self.globalManagerSettings
+
+    if _action == WhitelistAction.ADD_WHITELIST:
+        return config.whitelistPerms.canAddPending and globalConfig.whitelistPerms.canAddPending
+    elif _action == WhitelistAction.CONFIRM_WHITELIST:
+        return config.whitelistPerms.canConfirm and globalConfig.whitelistPerms.canConfirm
+    elif _action == WhitelistAction.CANCEL_WHITELIST:
+        if _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID):
+            return True
+        return config.whitelistPerms.canCancel and globalConfig.whitelistPerms.canCancel
+    elif _action == WhitelistAction.REMOVE_WHITELIST:
+        return config.whitelistPerms.canRemove and globalConfig.whitelistPerms.canRemove
+    else:
+        return False
+
+
+# register / deregister whitelist
+
+
+@internal
+def _registerWhitelist(_addr: address):
+    if self._isWhitelisted(_addr):
+        return
+
+    wid: uint256 = self.numWhitelisted
+    if wid == 0:
+        wid = 1 # not using 0 index
+    self.whitelistAddr[wid] = _addr
+    self.indexOfWhitelist[_addr] = wid
+    self.numWhitelisted = wid + 1
+
+
+@internal
+def _deregisterWhitelist(_addr: address) -> bool:
+    numWhitelisted: uint256 = self.numWhitelisted
+    if numWhitelisted == 0:
+        return False
+
+    targetIndex: uint256 = self.indexOfWhitelist[_addr]
+    if targetIndex == 0:
+        return False
+
+    # update data
+    lastIndex: uint256 = numWhitelisted - 1
+    self.numWhitelisted = lastIndex
+    self.indexOfWhitelist[_addr] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.whitelistAddr[lastIndex]
+        self.whitelistAddr[targetIndex] = lastItem
+        self.indexOfWhitelist[lastItem] = targetIndex
 
     return True
