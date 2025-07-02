@@ -37,6 +37,7 @@ def undy_hq(
     hatchery,
     backpack,
     appraiser,
+    sentinel,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -74,6 +75,10 @@ def undy_hq(
     # 8
     assert undy_hq_deploy.startAddNewAddressToRegistry(appraiser, "Appraiser", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
+
+    # 9
+    assert undy_hq_deploy.startAddNewAddressToRegistry(sentinel, "Sentinel", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(sentinel, sender=deploy3r) == 9
 
     # special permission setup
 
@@ -261,6 +266,18 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
         TOKENS[fork]["WETH"],
         TOKENS[fork]["ETH"],
         name="appraiser",
+    )
+
+
+# sentinel
+
+
+@pytest.fixture(scope="session")
+def sentinel(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/Sentinel.vy",
+        undy_hq_deploy,
+        name="sentinel",
     )
 
 

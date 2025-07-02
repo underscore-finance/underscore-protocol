@@ -20,6 +20,7 @@ struct Addys:
     hatchery: address
     backpack: address
     appraiser: address
+    sentinel: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -33,6 +34,7 @@ SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
 BACKPACK_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
+SENTINEL_ID: constant(uint256) = 9
 
 
 @deploy
@@ -74,6 +76,7 @@ def _generateAddys() -> Addys:
         hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),
         backpack = staticcall UndyHq(hq).getAddr(BACKPACK_ID),
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
+        sentinel = staticcall UndyHq(hq).getAddr(SENTINEL_ID),
     )
 
 
@@ -252,3 +255,18 @@ def _getAppraiserId() -> uint256:
 @internal
 def _getAppraiserAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)
+
+
+# sentinel
+
+
+@view
+@internal
+def _getSentinelId() -> uint256:
+    return SENTINEL_ID
+
+
+@view
+@internal
+def _getSentinelAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SENTINEL_ID)

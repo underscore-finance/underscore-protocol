@@ -761,3 +761,101 @@ def test_multiple_operations_sequence(setup_wallet_with_tokens, mock_lego_debt_t
     
     # All operations should have completed successfully
     assert True  # If we got here, all operations worked
+
+
+# Transfer Tests
+
+
+def test_transfer_trusted(setup_wallet_with_tokens, bob, alice):
+    """Test transferFundsTrusted which bypasses recipient checks"""
+    user_wallet, mock_lego, asset, vault, asset_alt = setup_wallet_with_tokens
+    owner = bob
+    recipient = alice
+    wallet_config = user_wallet.walletConfig()
+    
+    # Initial balance
+    initial_wallet_balance = asset.balanceOf(user_wallet.address)
+    initial_recipient_balance = asset.balanceOf(recipient)
+    assert initial_wallet_balance == 1000 * EIGHTEEN_DECIMALS  # Verify wallet has tokens
+    
+    # Use transferFundsTrusted from wallet config (bypasses recipient checks)
+    # This simulates a trusted transfer like removing trial funds
+    transfer_amount = 100 * EIGHTEEN_DECIMALS
+    
+    # First, let's just try a direct transfer without recipient checks
+    # by mocking the wallet config call
+    with boa.env.prank(wallet_config):
+        amount_transferred, tx_usd_value = user_wallet.transferFundsTrusted(
+            recipient, asset.address, transfer_amount
+        )
+    
+    # Verify transfer
+    assert amount_transferred == transfer_amount
+    assert asset.balanceOf(user_wallet.address) == initial_wallet_balance - transfer_amount
+    assert asset.balanceOf(recipient) == initial_recipient_balance + transfer_amount
+
+
+def test_transfer_to_owner(setup_wallet_with_tokens, bob):
+    """Test transfer to owner (should work without whitelist)"""
+    user_wallet, mock_lego, asset, vault, asset_alt = setup_wallet_with_tokens
+    owner = bob
+    
+    # Check initial balances
+    initial_wallet_balance = asset.balanceOf(user_wallet.address)
+    initial_owner_balance = asset.balanceOf(owner)
+    assert initial_wallet_balance == 1000 * EIGHTEEN_DECIMALS
+    
+    # Transfer to owner should work without whitelist
+    transfer_amount = 100 * EIGHTEEN_DECIMALS
+    amount_transferred, tx_usd_value = user_wallet.transferFunds(
+        owner, asset.address, transfer_amount, sender=owner
+    )
+    
+    # Verify the transfer
+    assert amount_transferred == transfer_amount
+    assert tx_usd_value > 0
+    assert asset.balanceOf(user_wallet.address) == initial_wallet_balance - transfer_amount
+    assert asset.balanceOf(owner) == initial_owner_balance + transfer_amount
+
+
+def test_transfer_to_whitelisted(setup_wallet_with_tokens, bob, alice):
+    """Test transfer to whitelisted address"""
+    user_wallet, mock_lego, asset, vault, asset_alt = setup_wallet_with_tokens
+    owner = bob
+    recipient = alice
+    wallet_config_addr = user_wallet.walletConfig()
+    
+    # Import the contract to access it
+    from contracts.core.userWallet import UserWalletConfig
+    wallet_config = UserWalletConfig.at(wallet_config_addr)
+    
+    # Get timelock value
+    time_lock = wallet_config.timeLock()
+    
+    # Whitelist the recipient
+    wallet_config.addWhitelistAddr(recipient, sender=owner)
+    
+    # Time travel to after timelock
+    boa.env.time_travel(blocks=time_lock)
+    
+    # Confirm whitelist
+    wallet_config.confirmWhitelistAddr(recipient, sender=owner)
+    
+    # Verify recipient is whitelisted
+    assert wallet_config.isWhitelisted(recipient) == True
+    
+    # Now transfer should work
+    initial_wallet_balance = asset.balanceOf(user_wallet.address)
+    initial_recipient_balance = asset.balanceOf(recipient)
+    
+    transfer_amount = 100 * EIGHTEEN_DECIMALS
+    amount_transferred, tx_usd_value = user_wallet.transferFunds(
+        recipient, asset.address, transfer_amount, sender=owner
+    )
+    
+    # Verify transfer
+    assert amount_transferred == transfer_amount
+    assert tx_usd_value > 0
+    assert asset.balanceOf(user_wallet.address) == initial_wallet_balance - transfer_amount
+    assert asset.balanceOf(recipient) == initial_recipient_balance + transfer_amount
+

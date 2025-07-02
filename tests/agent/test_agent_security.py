@@ -606,15 +606,15 @@ def test_interleaved_owner_nonowner_calls(agent, user_wallet, bob, alice, mock_l
     empty_sig = (b'', 0, 0)
     invalid_sig = (b'\x00' * 65, initial_nonce, boa.env.evm.patch.timestamp + 3600)
     
-    # Owner call (should succeed)
-    agent.transferFunds(user_wallet, alice, mock_lego_asset.address, 1, empty_sig, sender=bob)
+    # Owner call (should succeed) - transfer to owner
+    agent.transferFunds(user_wallet, bob, mock_lego_asset.address, 1, empty_sig, sender=bob)
     
-    # Non-owner call (should fail)
+    # Non-owner call (should fail) - even when transferring to owner
     with boa.reverts():
-        agent.transferFunds(user_wallet, alice, mock_lego_asset.address, 1, invalid_sig, sender=alice)
+        agent.transferFunds(user_wallet, bob, mock_lego_asset.address, 1, invalid_sig, sender=alice)
     
-    # Another owner call (should succeed)
-    agent.transferFunds(user_wallet, alice, mock_lego_asset.address, 1, empty_sig, sender=bob)
+    # Another owner call (should succeed) - transfer to owner
+    agent.transferFunds(user_wallet, bob, mock_lego_asset.address, 1, empty_sig, sender=bob)
     
     # Nonce should remain unchanged (owner calls don't affect nonce)
     assert agent.getNonce() == initial_nonce
@@ -745,7 +745,7 @@ def test_batch_with_valid_signature_nonce_management(agent, user_wallet, bob, al
     
     # Create batch instructions
     instruction = (
-        False, 0, 0, mock_lego_asset.address, alice, 1,
+        False, 0, 0, mock_lego_asset.address, bob, 1,  # Transfer to owner instead of alice
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
@@ -758,9 +758,9 @@ def test_batch_with_valid_signature_nonce_management(agent, user_wallet, bob, al
     assert agent.getNonce() == initial_nonce
     
     # Test 2: Owner executes batch successfully without affecting nonce
-    initial_balance = mock_lego_asset.balanceOf(alice)
+    initial_balance = mock_lego_asset.balanceOf(bob)
     agent.performBatchActions(user_wallet, [instruction], (b'', 0, 0), sender=bob)
-    assert mock_lego_asset.balanceOf(alice) == initial_balance + 1
+    assert mock_lego_asset.balanceOf(bob) == initial_balance + 1
     assert agent.getNonce() == initial_nonce  # Owner calls don't increment nonce
     
     # Test 3: Manually increment nonce and verify old signatures fail
@@ -785,7 +785,7 @@ def test_batch_signature_replay_protection(agent, user_wallet, bob, alice, mock_
     
     # Create instruction
     instruction = (
-        False, 0, 0, mock_lego_asset.address, alice, 1,
+        False, 0, 0, mock_lego_asset.address, bob, 1,  # Transfer to owner instead of alice
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
@@ -811,7 +811,7 @@ def test_batch_multiple_instructions_signature(agent, user_wallet, bob, alice, m
     
     # Create multiple different instructions
     transfer_instruction = (
-        False, 0, 0, mock_lego_asset.address, alice, 10 * EIGHTEEN_DECIMALS,
+        False, 0, 0, mock_lego_asset.address, bob, 10 * EIGHTEEN_DECIMALS,  # Transfer to owner
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
@@ -832,8 +832,8 @@ def test_batch_multiple_instructions_signature(agent, user_wallet, bob, alice, m
     agent.performBatchActions(user_wallet, [transfer_instruction, deposit_instruction], (b'', 0, 0), sender=bob)
     
     # Verify both actions executed
-    assert mock_lego_asset.balanceOf(alice) == 10 * EIGHTEEN_DECIMALS
-    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset - 60 * EIGHTEEN_DECIMALS
+    assert mock_lego_vault.balanceOf(user_wallet.address) == 50 * EIGHTEEN_DECIMALS  # Deposited to vault
+    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset - 60 * EIGHTEEN_DECIMALS  # 10 transferred + 50 deposited
 
 
 def test_batch_signature_with_different_instructions_order(agent, user_wallet, bob, alice, mock_lego_asset):
@@ -843,7 +843,7 @@ def test_batch_signature_with_different_instructions_order(agent, user_wallet, b
     
     # Create two instructions
     instruction1 = (
-        False, 0, 0, mock_lego_asset.address, alice, 5 * EIGHTEEN_DECIMALS,
+        False, 0, 0, mock_lego_asset.address, bob, 5 * EIGHTEEN_DECIMALS,  # Transfer to owner
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
@@ -870,19 +870,19 @@ def test_batch_signature_includes_all_parameters(agent, user_wallet, bob, alice,
     
     # Create similar instructions with slight differences
     base_instruction = (
-        False, 0, 0, mock_lego_asset.address, alice, 100,
+        False, 0, 0, mock_lego_asset.address, bob, 100,  # Transfer to owner
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
     # Change only the amount
     modified_amount = (
-        False, 0, 0, mock_lego_asset.address, alice, 101,  # Different amount
+        False, 0, 0, mock_lego_asset.address, bob, 101,  # Different amount, same owner recipient
         ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     
     # Change only the recipient
     modified_recipient = (
-        False, 0, 0, mock_lego_asset.address, bob,  # Different recipient
+        False, 0, 0, mock_lego_asset.address, user_wallet.address,  # Different recipient (self)
         100, ZERO_ADDRESS, 0, 0, 0, 0, 0, ZERO_ADDRESS, 0, b'\x00' * 32, b'\x00' * 32, []
     )
     

@@ -17,14 +17,10 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface UserWallet:
-    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
     def assetData(_asset: address) -> WalletAssetData: view
-    def removeTrialFunds() -> uint256: nonpayable
     def assets(_index: uint256) -> address: view
-    def trialFundsAmount() -> uint256: view
-    def trialFundsAsset() -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
@@ -41,9 +37,13 @@ interface MissionControl:
     def feeRecipient() -> address: view
 
 interface UserWalletConfig:
+    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
     def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails): nonpayable
+    def removeTrialFunds() -> uint256: nonpayable
     def setFrozen(_isFrozen: bool): nonpayable
     def cancelOwnershipChange(): nonpayable
+    def trialFundsAmount() -> uint256: view
+    def trialFundsAsset() -> address: view
     def owner() -> address: view
 
 interface Appraiser:
@@ -157,6 +157,7 @@ def getBackpackData(_user: address) -> BackpackData:
 @external
 def performPostActionTasks(
     _newUserValue: uint256,
+    _walletConfig: address,
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
@@ -165,7 +166,7 @@ def performPostActionTasks(
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
     # check trial funds first
-    assert self._doesWalletStillHaveTrialFunds(msg.sender, _missionControl, _legoBook, _appraiser) # dev: user no longer has trial funds
+    assert self._doesWalletStillHaveTrialFunds(msg.sender, _walletConfig, _missionControl, _legoBook, _appraiser) # dev: user no longer has trial funds
 
     # update points
     self._updateDepositPoints(msg.sender, _newUserValue, ledger)
@@ -341,18 +342,19 @@ def clawBackTrialFunds(_user: address) -> uint256:
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) or staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
-    return self._clawBackTrialFunds(_user, a.missionControl, a.legoBook, a.appraiser)
+    return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
 
 
 @internal
 def _clawBackTrialFunds(
     _user: address,
+    _walletConfig: address,
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
 ) -> uint256:
-    trialFundsAmount: uint256 = staticcall UserWallet(_user).trialFundsAmount()
-    trialFundsAsset: address = staticcall UserWallet(_user).trialFundsAsset()
+    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
     if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return 0
 
@@ -362,7 +364,7 @@ def _clawBackTrialFunds(
     # if we already have enough, just remove what we have
     amountRecovered: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
     if amountRecovered >= targetRecoveryAmount:
-        return extcall UserWallet(_user).removeTrialFunds()
+        return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
 
     # find all vault tokens and withdraw from them
     numAssets: uint256 = staticcall UserWallet(_user).numAssets()
@@ -401,13 +403,13 @@ def _clawBackTrialFunds(
             # withdraw vault tokens to get underlying
             underlyingAmount: uint256 = 0
             na: uint256 = 0
-            underlyingAmount, na = extcall UserWallet(_user).preparePayment(config.underlyingAsset, config.legoId, asset, targetAmount)
+            underlyingAmount, na = extcall UserWalletConfig(_walletConfig).preparePayment(config.underlyingAsset, config.legoId, asset, targetAmount)
 
             # update recovered amount
             amountRecovered += underlyingAmount
 
     # now remove trial funds
-    return extcall UserWallet(_user).removeTrialFunds()
+    return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
 
 
 # check if it remains
@@ -417,19 +419,21 @@ def _clawBackTrialFunds(
 @external
 def doesWalletStillHaveTrialFunds(_user: address) -> bool:
     a: addys.Addys = addys._getAddys()
-    return self._doesWalletStillHaveTrialFunds(_user, a.missionControl, a.legoBook, a.appraiser)
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return self._doesWalletStillHaveTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
 
 
 @view
 @internal
 def _doesWalletStillHaveTrialFunds(
     _user: address,
+    _walletConfig: address,
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
 ) -> bool:
-    trialFundsAmount: uint256 = staticcall UserWallet(_user).trialFundsAmount()
-    trialFundsAsset: address = staticcall UserWallet(_user).trialFundsAsset()
+    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
     if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return True
 
@@ -524,7 +528,7 @@ def setEjectionMode(_user: address, _inEjectMode: bool):
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    assert staticcall UserWallet(_user).trialFundsAmount() == 0 # dev: trial funds not empty
+    assert staticcall UserWalletConfig(walletConfig).trialFundsAmount() == 0 # dev: trial funds not empty
 
     feeDetails: EjectModeFeeDetails = empty(EjectModeFeeDetails)
     if _inEjectMode:

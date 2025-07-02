@@ -541,25 +541,26 @@ def test_batch_max_instructions(user_wallet, bob, agent, mock_lego_asset, mock_l
     assert result == True
 
 
-def test_batch_transfer_chain(user_wallet, bob, agent, mock_lego_asset, charlie):
+def test_batch_transfer_chain(user_wallet, bob, agent, mock_lego_asset):
     """Test chaining transfers with different amounts"""
     agent_owner = bob
     
     # Initial balance
-    initial_balance = mock_lego_asset.balanceOf(user_wallet.address)
+    initial_wallet_balance = mock_lego_asset.balanceOf(user_wallet.address)
+    initial_owner_balance = mock_lego_asset.balanceOf(bob)
     
     instructions = [
-        # Transfer 100 to charlie
+        # Transfer 100 to owner
         create_action_instruction(
             action=0,  # TRANSFER
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
             amount=100 * EIGHTEEN_DECIMALS
         ),
-        # Transfer another 50 to charlie
+        # Transfer another 50 to owner
         create_action_instruction(
             action=0,  # TRANSFER
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
             amount=50 * EIGHTEEN_DECIMALS
         )
@@ -569,8 +570,8 @@ def test_batch_transfer_chain(user_wallet, bob, agent, mock_lego_asset, charlie)
     agent.performBatchActions(user_wallet, instructions, sender=agent_owner)
     
     # Verify total transferred
-    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - 150 * EIGHTEEN_DECIMALS
-    assert mock_lego_asset.balanceOf(charlie) == 150 * EIGHTEEN_DECIMALS
+    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_wallet_balance - 150 * EIGHTEEN_DECIMALS
+    assert mock_lego_asset.balanceOf(bob) == initial_owner_balance + 150 * EIGHTEEN_DECIMALS
 
 
 def test_batch_invalid_action_fails(user_wallet, bob, agent):
@@ -627,23 +628,24 @@ def test_batch_rewards_and_compound(user_wallet, bob, agent, mock_lego_asset, mo
 
 # Edge case tests
 
-def test_batch_use_prev_amount_without_prev_output(user_wallet, bob, agent, mock_lego_asset, charlie):
+def test_batch_use_prev_amount_without_prev_output(user_wallet, bob, agent, mock_lego_asset):
     """Test using prevAmountOut when no previous output exists"""
     agent_owner = bob
     
     # Initial balance
     initial_balance = mock_lego_asset.balanceOf(user_wallet.address)
+    initial_owner_balance = mock_lego_asset.balanceOf(bob)
     
     # Try to use prevAmountOut on first instruction (should use original amount)
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    transfer_amount = 100 * EIGHTEEN_DECIMALS
     
     instructions = [
         create_action_instruction(
             action=0,  # TRANSFER
             usePrevAmountOut=True,  # No previous output, should use amount
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
-            amount=deposit_amount
+            amount=transfer_amount
         )
     ]
     
@@ -651,21 +653,23 @@ def test_batch_use_prev_amount_without_prev_output(user_wallet, bob, agent, mock
     agent.performBatchActions(user_wallet, instructions, sender=agent_owner)
     
     # Verify: transferred the specified amount (not 0)
-    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - deposit_amount
+    assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - transfer_amount
+    assert mock_lego_asset.balanceOf(bob) == initial_owner_balance + transfer_amount
 
 
-def test_batch_with_signature_verification(user_wallet, bob, agent, mock_lego_asset, charlie):
+def test_batch_with_signature_verification(user_wallet, bob, agent, mock_lego_asset):
     """Test batch actions work correctly with owner authentication"""
     agent_owner = bob
     
     # Initial balance
     initial_balance = mock_lego_asset.balanceOf(user_wallet.address)
+    initial_owner_balance = mock_lego_asset.balanceOf(bob)
     
     # Create simple transfer instruction
     instructions = [
         create_action_instruction(
             action=0,  # TRANSFER
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
             amount=50 * EIGHTEEN_DECIMALS
         )
@@ -677,6 +681,7 @@ def test_batch_with_signature_verification(user_wallet, bob, agent, mock_lego_as
     
     # Verify transfer happened
     assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - 50 * EIGHTEEN_DECIMALS
+    assert mock_lego_asset.balanceOf(bob) == initial_owner_balance + 50 * EIGHTEEN_DECIMALS
 
 
 def test_batch_liquidity_removal_limitation(user_wallet, bob, agent, mock_lego_asset, mock_lego_asset_alt, mock_lego_lp_token):
@@ -737,19 +742,19 @@ def test_batch_liquidity_removal_limitation(user_wallet, bob, agent, mock_lego_a
     assert mock_lego_asset_alt.balanceOf(user_wallet.address) == initial_asset_alt_balance + (lp_to_remove // 2) - expected_token_a_from_removal
 
 
-def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_asset, charlie):
+def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_asset):
     """Test batch with actions that now return amounts (due to USD value updates)"""
     agent_owner = bob
     
     # Initial balance
     initial_balance = mock_lego_asset.balanceOf(user_wallet.address)
-    initial_charlie_balance = mock_lego_asset.balanceOf(charlie)
+    initial_owner_balance = mock_lego_asset.balanceOf(bob)
     
     instructions = [
         # Transfer returns the amount transferred
         create_action_instruction(
             action=0,  # TRANSFER
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
             amount=10 * EIGHTEEN_DECIMALS
         ),
@@ -764,7 +769,7 @@ def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_a
         create_action_instruction(
             action=0,  # TRANSFER
             usePrevAmountOut=True,  # Will use prev amount (20 ETH from add collateral)
-            target=charlie,
+            target=bob,  # Transfer to owner
             asset=mock_lego_asset.address,
             amount=30 * EIGHTEEN_DECIMALS  # Will be overridden to 20 ETH
         )
@@ -775,4 +780,4 @@ def test_batch_all_actions_that_return_zero(user_wallet, bob, agent, mock_lego_a
     
     # Verify: transfer 10, collateral 20, transfer 20 (using prev amount from collateral)
     assert mock_lego_asset.balanceOf(user_wallet.address) == initial_balance - 10 * EIGHTEEN_DECIMALS - 20 * EIGHTEEN_DECIMALS - 20 * EIGHTEEN_DECIMALS
-    assert mock_lego_asset.balanceOf(charlie) == initial_charlie_balance + 10 * EIGHTEEN_DECIMALS + 20 * EIGHTEEN_DECIMALS  # Both transfers
+    assert mock_lego_asset.balanceOf(bob) == initial_owner_balance + 10 * EIGHTEEN_DECIMALS + 20 * EIGHTEEN_DECIMALS  # Both transfers

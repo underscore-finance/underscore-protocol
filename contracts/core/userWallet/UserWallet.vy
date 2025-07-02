@@ -9,18 +9,15 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletConfig:
-    def validateAccessAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
-    def canManagerPerformAction(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
-    def addNewPayeeTransaction(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256): nonpayable
-    def addNewManagerTransaction(_manager: address, _txUsdValue: uint256): nonpayable
+    def checkSignerPermissionsAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
+    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256, _sentinel: address) -> bool: nonpayable
+    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _sentinel: address) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
-    def canTransferToRecipient(_recipient: address, _asset: address) -> bool: view
     def ejectModeFeeDetails() -> EjectModeFeeDetails: view
-    def owner() -> address: view
 
 interface Backpack:
     def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address, _appraiser: address) -> (uint256, uint256, uint256): nonpayable
-    def performPostActionTasks(_newUserValue: uint256, _missionControl: address, _legoBook: address, _appraiser: address): nonpayable
+    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address): nonpayable
 
 interface Appraiser:
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
@@ -53,6 +50,7 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
+    sentinel: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -228,10 +226,6 @@ assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
-
 # yield
 checkedYield: transient(HashMap[address, bool]) # asset -> checked
 
@@ -245,12 +239,11 @@ ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
 API_VERSION: constant(String[28]) = "0.1.0"
 
 # max fees
-MAX_SWAP_FEE: constant(uint256) = 5_00 # 5%
-MAX_REWARDS_FEE: constant(uint256) = 40_00 # 40%
-MAX_YIELD_FEE: constant(uint256) = 40_00 # 40%
+MAX_SWAP_FEE: constant(uint256) = 5_00
+MAX_REWARDS_FEE: constant(uint256) = 25_00
+MAX_YIELD_FEE: constant(uint256) = 25_00
 
 # addr ids
-HATCHERY_ID: constant(uint256) = 6
 WALLET_BACKPACK_ID: constant(uint256) = 7
 
 UNDY_HQ: public(immutable(address))
@@ -264,20 +257,13 @@ def __init__(
     _wethAddr: address,
     _ethAddr: address,
     _walletConfig: address,
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
 ):
-    assert empty(address) not in [_undyHq, _wethAddr, _walletConfig] # dev: invalid addrs
+    assert empty(address) not in [_undyHq, _wethAddr, _ethAddr, _walletConfig] # dev: invalid addrs
     self.walletConfig = _walletConfig
 
     UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
-
-    # trial funds info
-    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
-        self.trialFundsAsset = _trialFundsAsset
-        self.trialFundsAmount = _trialFundsAmount
 
 
 @payable
@@ -315,9 +301,7 @@ def transferFunds(
     if asset == empty(address):
         asset = ETH
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [asset], [], _recipient)
-    if _recipient != ad.walletOwner:
-        assert staticcall WalletConfig(ad.walletConfig).canTransferToRecipient(_recipient, asset) # dev: recipient not allowed
-    return self._transferFunds(_recipient, asset, _amount, True, ad)
+    return self._transferFunds(_recipient, asset, _amount, True, True, ad)
 
 
 @internal
@@ -325,31 +309,33 @@ def _transferFunds(
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _shouldCheckPayeeCaps: bool,
+    _shouldCheckRecipientLimits: bool,
+    _shouldCheckManagerLimits: bool,
     _ad: ActionData,
 ) -> (uint256, uint256):
     amount: uint256 = 0
 
-    # handle eth
+    # finalize amount
     if _asset == _ad.eth:
         amount = min(_amount, self.balance)
-        assert amount != 0 # dev: nothing to transfer
-        send(_recipient, amount)
-
-    # erc20 tokens
     else:
         amount = min(_amount, staticcall IERC20(_asset).balanceOf(self))
-        assert amount != 0 # dev: no balance for _token
-        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
+    assert amount != 0 # dev: nothing to transfer
 
     # get tx usd value
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, _ad.inEjectMode, _ad.appraiser)
-    self._performPostActionTasks([_asset], txUsdValue, _ad)
 
-    # check payee caps
-    if _shouldCheckPayeeCaps:
-        extcall WalletConfig(_ad.walletConfig).addNewPayeeTransaction(_recipient, txUsdValue, _asset, amount)
+    # check recipient limits
+    if _shouldCheckRecipientLimits:
+        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount, _ad.sentinel) # dev: recipient not allowed
 
+    # do the actual transfer
+    if _asset == _ad.eth:
+        send(_recipient, amount)
+    else:
+        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
+    
+    self._performPostActionTasks([_asset], txUsdValue, _ad, _shouldCheckManagerLimits)
     log FundsTransferred(
         asset = _asset,
         amount = amount,
@@ -359,37 +345,28 @@ def _transferFunds(
     return amount, txUsdValue
 
 
-# remove trial funds (special transfer)
+# trusted call from wallet config (remove trial funds, migration)
 
 
 @external
-def removeTrialFunds() -> uint256:
-    trialFundsAmount: uint256 = self.trialFundsAmount
-    trialFundsAsset: address = self.trialFundsAsset
-    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
+def transferFundsTrusted(
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+    _ad: ActionData = empty(ActionData),
+) -> (uint256, uint256):
+    walletConfig: address = self.walletConfig
+    assert msg.sender == walletConfig # dev: no perms
 
-    # check if caller can perform action
-    ad: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(0, msg.sender)
-    if ad.signer not in [ad.backpack, ad.walletOwner]:
-        assert staticcall WalletConfig(ad.walletConfig).canManagerPerformAction(ad.signer, wi.ActionType.TRANSFER, [trialFundsAsset]) # dev: no perms
-        ad.isManager = True
+    ad: ActionData = _ad
+    if ad.signer == empty(address):
+        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(0, walletConfig)
 
-    # recipient
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert hatchery != empty(address) # dev: invalid recipient
-
-    # transfer assets
-    amount: uint256 = 0
-    na: uint256 = 0
-    amount, na = self._transferFunds(hatchery, trialFundsAsset, trialFundsAmount, False, ad)
-
-    # update trial funds info
-    remainingAmount: uint256 = trialFundsAmount - amount
-    self.trialFundsAmount = remainingAmount
-    if remainingAmount == 0:
-        self.trialFundsAsset = empty(address)
-
-    return amount
+    asset: address = _asset
+    if asset == empty(address):
+        asset = ETH
+    self._checkForYieldProfits(asset, ad)
+    return self._transferFunds(_recipient, asset, _amount, False, False, ad)
 
 
 #########
@@ -466,7 +443,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
-    return self._withdrawFromYield(_vaultToken, _amount, _extraAddr, _extraVal, _extraData, True, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraAddr, _extraVal, _extraData, True, True, ad)
 
 
 @internal
@@ -477,6 +454,7 @@ def _withdrawFromYield(
     _extraVal: uint256,
     _extraData: bytes32,
     _shouldPerformPostActionTasks: bool,
+    _shouldCheckManagerLimits: bool,
     _ad: ActionData,
 ) -> (uint256, address, uint256, uint256):
 
@@ -499,7 +477,7 @@ def _withdrawFromYield(
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
-        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad)
+        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _shouldCheckManagerLimits)
 
     log YieldWithdrawal(
         vaultToken = _vaultToken,
@@ -518,29 +496,20 @@ def _withdrawFromYield(
 
 @external
 def preparePayment(
-    _targetAsset: address,
     _legoId: uint256,
     _vaultToken: address,
     _vaultAmount: uint256 = max_value(uint256),
-) -> (uint256, uint256):
-    # check if caller can perform action
-    ad: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
-    if ad.signer not in [ad.backpack, ad.walletOwner]:
-        assert staticcall WalletConfig(ad.walletConfig).canManagerPerformAction(ad.signer, wi.ActionType.EARN_WITHDRAW, [_vaultToken], [_legoId]) # dev: no perms
-        ad.isManager = True
+    _ad: ActionData = empty(ActionData),
+) -> (uint256, address, uint256, uint256):
+    walletConfig: address = self.walletConfig
+    assert msg.sender == walletConfig # dev: no perms
 
-    # check for yield profits
+    ad: ActionData = _ad
+    if ad.signer == empty(address):
+        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(_legoId, walletConfig)
+
     self._checkForYieldProfits(_vaultToken, ad)
-    
-    # withdraw from yield position
-    na: uint256 = 0
-    underlyingAsset: address = empty(address)
-    underlyingAmount: uint256 = 0
-    txUsdValue: uint256 = 0
-    na, underlyingAsset, underlyingAmount, txUsdValue = self._withdrawFromYield(_vaultToken, _vaultAmount, empty(address), 0, empty(bytes32), True, ad)
-    assert underlyingAsset == _targetAsset # dev: invalid target asset
-   
-    return underlyingAmount, txUsdValue
+    return self._withdrawFromYield(_vaultToken, _vaultAmount, empty(address), 0, empty(bytes32), True, False, ad)
 
 
 # rebalance position
@@ -565,7 +534,7 @@ def rebalanceYieldPosition(
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     withdrawTxUsdValue: uint256 = 0
-    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraAddr, _extraVal, _extraData, False, ad)
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraAddr, _extraVal, _extraData, False, True, ad)
 
     # deposit
     toVaultToken: address = empty(address)
@@ -1231,9 +1200,12 @@ def removeLiquidityConcentrated(
     return amountAReceived, amountBReceived, liqRemoved, txUsdValue
 
 
-####################
-# Pre Action Tasks #
-####################
+#################
+# House Keeping #
+#################
+
+
+# pre action tasks
 
 
 @internal
@@ -1245,7 +1217,7 @@ def _performPreActionTasks(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ActionData:
-    ad: ActionData = staticcall WalletConfig(self.walletConfig).validateAccessAndGetBundle(_signer, _action, _assets, _legoIds, _transferRecipient)
+    ad: ActionData = staticcall WalletConfig(self.walletConfig).checkSignerPermissionsAndGetBundle(_signer, _action, _assets, _legoIds, _transferRecipient)
 
     # cannot perform any actions if wallet is frozen
     assert not ad.isFrozen # dev: frozen wallet
@@ -1270,9 +1242,7 @@ def _performPreActionTasks(
     return ad
 
 
-#####################
-# Post Action Tasks #
-#####################
+# post action tasks
 
 
 @internal
@@ -1280,10 +1250,11 @@ def _performPostActionTasks(
     _assets: DynArray[address, MAX_ASSETS],
     _txUsdValue: uint256,
     _ad: ActionData,
+    _shouldCheckManagerLimits: bool = True,
 ):
     # first, check and update manager caps
-    if _ad.isManager:
-        extcall WalletConfig(_ad.walletConfig).addNewManagerTransaction(_ad.signer, _txUsdValue)
+    if _shouldCheckManagerLimits:
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue, _ad.sentinel) # dev: manager limits not allowed
 
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
@@ -1292,7 +1263,7 @@ def _performPostActionTasks(
 
     # update points + check trial funds
     if not _ad.inEjectMode:
-        extcall Backpack(_ad.backpack).performPostActionTasks(newTotalUsdValue, _ad.missionControl, _ad.legoBook, _ad.appraiser)
+        extcall Backpack(_ad.backpack).performPostActionTasks(newTotalUsdValue, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser)
 
 
 ##############
@@ -1306,7 +1277,7 @@ def _performPostActionTasks(
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
     ad: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
-    assert msg.sender == ad.backpack # dev: no perms
+    assert ad.signer == ad.backpack # dev: no perms
 
     # check for yield
     if _shouldCheckYield and not ad.inEjectMode:
@@ -1365,7 +1336,7 @@ def _updateAssetData(
     return _newTotalUsdValue - prevUsdValue + data.usdValue
 
 
-# asset registration
+# register asset
 
 
 @internal
@@ -1376,6 +1347,9 @@ def _registerAsset(_asset: address):
     self.assets[aid] = _asset
     self.indexOfAsset[_asset] = aid
     self.numAssets = aid + 1
+
+
+# deregister asset
 
 
 @internal
@@ -1491,18 +1465,9 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
 
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
-    backpack: address = staticcall Registry(UNDY_HQ).getAddr(WALLET_BACKPACK_ID)
-    assert msg.sender == backpack # dev: no perms
-
-    if staticcall IERC721(_collection).ownerOf(_nftTokenId) != self or _recipient == empty(address):
-        return False
-
+    assert msg.sender == self.walletConfig # dev: no perms
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
-    log NftRecovered(
-        collection = _collection,
-        nftTokenId = _nftTokenId,
-        recipient = _recipient,
-    )
+    log NftRecovered(collection = _collection, nftTokenId = _nftTokenId, recipient = _recipient)
     return True
 
 

@@ -119,12 +119,15 @@ def createUserWallet(
         config.configTemplate,
         a.hq,
         _owner,
+        a.sentinel,
         config.startingAgent,
         config.startingAgentActivationLength,
         config.managerPeriod,
         config.defaultStartDelay,
         config.defaultActivationLength,
         _groupId,
+        trialFundsAsset,
+        trialFundsAmount,
         config.minManagerPeriod,
         config.maxManagerPeriod,
         config.minKeyActionTimeLock,
@@ -132,7 +135,7 @@ def createUserWallet(
         WETH,
         ETH,
     )
-    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr, trialFundsAsset, trialFundsAmount)
+    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr)
     assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
 
     # update ledger
