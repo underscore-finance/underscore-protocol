@@ -10,8 +10,8 @@ from ethereum.ercs import IERC721
 
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
-    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256, _sentinel: address) -> bool: nonpayable
-    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _sentinel: address) -> bool: nonpayable
+    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256, _paymaster: address) -> bool: nonpayable
+    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _bossValidator: address) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
     def ejectModeFeeDetails() -> EjectModeFeeDetails: view
 
@@ -50,7 +50,8 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    sentinel: address
+    bossValidator: address
+    paymaster: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -212,11 +213,6 @@ event RewardsClaimed:
     legoAddr: address
     signer: indexed(address)
 
-event NftRecovered:
-    collection: indexed(address)
-    nftTokenId: uint256
-    recipient: indexed(address)
-
 # data 
 walletConfig: public(address)
 
@@ -242,9 +238,6 @@ API_VERSION: constant(String[28]) = "0.1.0"
 MAX_SWAP_FEE: constant(uint256) = 5_00
 MAX_REWARDS_FEE: constant(uint256) = 25_00
 MAX_YIELD_FEE: constant(uint256) = 25_00
-
-# addr ids
-WALLET_BACKPACK_ID: constant(uint256) = 7
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -327,7 +320,7 @@ def _transferFunds(
 
     # check recipient limits
     if _shouldCheckRecipientLimits:
-        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount, _ad.sentinel) # dev: recipient not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount, _ad.paymaster) # dev: recipient not allowed
 
     # do the actual transfer
     if _asset == _ad.eth:
@@ -1217,6 +1210,9 @@ def _performPreActionTasks(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ActionData:
+    legoId: uint256 = 0
+    if len(_legoIds) != 0:
+        legoId = _legoIds[0]
     ad: ActionData = staticcall WalletConfig(self.walletConfig).checkSignerPermissionsAndGetBundle(_signer, _action, _assets, _legoIds, _transferRecipient)
 
     # cannot perform any actions if wallet is frozen
@@ -1254,7 +1250,7 @@ def _performPostActionTasks(
 ):
     # first, check and update manager caps
     if _shouldCheckManagerLimits:
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue, _ad.sentinel) # dev: manager limits not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue, _ad.bossValidator) # dev: manager limits not allowed
 
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
@@ -1467,7 +1463,6 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
     assert msg.sender == self.walletConfig # dev: no perms
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
-    log NftRecovered(collection = _collection, nftTokenId = _nftTokenId, recipient = _recipient)
     return True
 
 

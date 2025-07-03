@@ -20,7 +20,8 @@ struct Addys:
     hatchery: address
     backpack: address
     appraiser: address
-    sentinel: address
+    bossValidator: address
+    paymaster: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -34,7 +35,8 @@ SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
 BACKPACK_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
-SENTINEL_ID: constant(uint256) = 9
+BOSS_VALIDATOR_ID: constant(uint256) = 9
+PAYMASTER_ID: constant(uint256) = 10
 
 
 @deploy
@@ -76,7 +78,8 @@ def _generateAddys() -> Addys:
         hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),
         backpack = staticcall UndyHq(hq).getAddr(BACKPACK_ID),
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
-        sentinel = staticcall UndyHq(hq).getAddr(SENTINEL_ID),
+        bossValidator = staticcall UndyHq(hq).getAddr(BOSS_VALIDATOR_ID),
+        paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
     )
 
 
@@ -257,16 +260,31 @@ def _getAppraiserAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)
 
 
-# sentinel
+# boss validator
 
 
 @view
 @internal
-def _getSentinelId() -> uint256:
-    return SENTINEL_ID
+def _getBossValidatorId() -> uint256:
+    return BOSS_VALIDATOR_ID
 
 
 @view
 @internal
-def _getSentinelAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SENTINEL_ID)
+def _getBossValidatorAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BOSS_VALIDATOR_ID)
+
+
+# paymaster
+
+
+@view
+@internal
+def _getPaymasterId() -> uint256:
+    return PAYMASTER_ID
+
+
+@view
+@internal
+def _getPaymasterAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(PAYMASTER_ID)

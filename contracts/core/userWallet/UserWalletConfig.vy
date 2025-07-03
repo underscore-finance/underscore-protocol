@@ -2,55 +2,29 @@
 # pragma optimize codesize
 
 from interfaces import Wallet as wi
-from ethereum.ercs import IERC20
-from ethereum.ercs import IERC721
 
-interface UserWalletConfig:
-    def indexOfManager(_manager: address) -> uint256: view
-    def hasPendingOwnerChange() -> bool: view
-    def startingAgent() -> address: view
-    def numManagers() -> uint256: view
-    def groupId() -> uint256: view
-    def owner() -> address: view
-
-interface Sentinel:
+interface BossValidator:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: ManagerData, _config: ManagerSettings, _globalConfig: GlobalManagerSettings, _userWalletConfig: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
-    def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
-    def canSignerPerformAction(_user: address, _signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: ManagerLimits, _globalLimits: ManagerLimits, _managerPeriod: uint256, _data: ManagerData) -> ManagerData: view
-    def canManageWhitelist(_signer: address, _isOwner: bool, _isManager: bool, _action: WhitelistAction, _config: WhitelistPerms, _globalConfig: WhitelistPerms) -> bool: view
+    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> GlobalManagerSettings: view
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> ManagerSettings: view
 
-interface UserWallet:
-    def transferFundsTrusted(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, uint256): nonpayable
-    def preparePayment(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, address, uint256, uint256): nonpayable
-    def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
-    def assets(_index: uint256) -> address: view
-    def trialFundsAmount() -> uint256: view
-    def walletConfig() -> address: view
-    def numAssets() -> uint256: view
-
-interface Registry:
-    def isValidRegId(_regId: uint256) -> bool: view
-    def getAddr(_regId: uint256) -> address: view
+interface Paymaster:
+    def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
 
 interface Backpack:
     def getBackpackData(_user: address) -> BackpackData: view
 
-interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
-
-flag WhitelistAction:
-    ADD_WHITELIST
-    CONFIRM_WHITELIST
-    CANCEL_WHITELIST
-    REMOVE_WHITELIST
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 struct ActionData:
     missionControl: address
     legoBook: address
     backpack: address
     appraiser: address
-    sentinel: address
+    bossValidator: address
+    paymaster: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -79,6 +53,15 @@ struct ManagerConfigBundle:
     config: ManagerSettings
     globalConfig: GlobalManagerSettings
     data: ManagerData
+
+struct ManagerSettingsBundle:
+    owner: address
+    isManager: bool
+    bossValidator: address
+    timeLock: uint256
+    inEjectMode: bool
+    walletConfig: address
+    legoBook: address
 
 struct ManagerData:
     numTxsInPeriod: uint256
@@ -174,17 +157,7 @@ struct PayeeLimits:
     perPeriodCap: uint256
     lifetimeCap: uint256
 
-struct PendingGlobalPayeeSettings:
-    config: GlobalPayeeSettings
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
 struct PendingWhitelist:
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-struct PendingGlobalManagerSettings:
-    config: GlobalManagerSettings
     initiatedBlock: uint256
     confirmBlock: uint256
 
@@ -236,116 +209,33 @@ event FrozenSet:
     isFrozen: bool
     caller: indexed(address)
 
-event GlobalManagerSettingsModified:
-    state: String[10]
-    managerPeriod: uint256
-    startDelay: uint256
-    activationLength: uint256
-    maxVolumePerTx: uint256
-    maxVolumePerPeriod: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    canManageYield: bool
-    canBuyAndSell: bool
-    canManageDebt: bool
-    canManageLiq: bool
-    canClaimRewards: bool
-    numAllowedLegos: uint256
-    canAddPendingWhitelist: bool
-    canConfirmWhitelist: bool
-    canCancelWhitelist: bool
-    canRemoveWhitelist: bool
-    canTransfer: bool
-    canCreateCheque: bool
-    canAddPendingPayee: bool
-    numAllowedRecipients: uint256
-    numAllowedAssets: uint256
-
-event ManagerSettingsModified:
-    manager: indexed(address)
-    state: String[10]
-    startBlock: uint256
-    expiryBlock: uint256
-    maxVolumePerTx: uint256
-    maxVolumePerPeriod: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    canManageYield: bool
-    canBuyAndSell: bool
-    canManageDebt: bool
-    canManageLiq: bool
-    canClaimRewards: bool
-    numAllowedLegos: uint256
-    canAddPendingWhitelist: bool
-    canConfirmWhitelist: bool
-    canCancelWhitelist: bool
-    canRemoveWhitelist: bool
-    canTransfer: bool
-    canCreateCheque: bool
-    canAddPendingPayee: bool
-    numAllowedRecipients: uint256
-    numAllowedAssets: uint256
-
-event ManagerRemoved:
-    manager: indexed(address)
-
-event ManagerActivationLengthAdjusted:
-    manager: indexed(address)
-    activationLength: uint256
-    didRestart: bool
-
-event WhitelistAddrPending:
-    addr: indexed(address)
-    confirmBlock: uint256
-    addedBy: indexed(address)
-
-event WhitelistAddrConfirmed:
-    addr: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    confirmedBy: indexed(address)
-
-event WhitelistAddrCancelled:
-    addr: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    cancelledBy: indexed(address)
-
-event WhitelistAddrRemoved:
-    addr: indexed(address)
-    removedBy: indexed(address)
-
 # core
 wallet: public(address)
 groupId: public(uint256)
 owner: public(address)
 pendingOwner: public(PendingOwnerChange)
 
+# helper contracts
+bossValidator: public(address)
+paymaster: public(address)
+
+# trial funds info
+trialFundsAsset: public(address)
+trialFundsAmount: public(uint256)
+
 # managers
 managerSettings: public(HashMap[address, ManagerSettings])
 managerPeriodData: public(HashMap[address, ManagerData])
-
-# managers (iterable)
 managers: public(HashMap[uint256, address]) # index -> manager
 indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
 
-# global manager config
-globalManagerSettings: public(GlobalManagerSettings)
-pendingGlobalManagerSettings: public(PendingGlobalManagerSettings)
-
 # payees
 payeeSettings: public(HashMap[address, PayeeSettings])
 payeePeriodData: public(HashMap[address, PayeeData])
-
-# payees (iterable)
 payees: public(HashMap[uint256, address]) # index -> payee
 indexOfPayee: public(HashMap[address, uint256]) # payee -> index
 numPayees: public(uint256) # num payees
-
-# global payee config
-globalPayeeSettings: public(GlobalPayeeSettings)
-pendingGlobalPayeeSettings: public(PendingGlobalPayeeSettings)
 
 # whitelist
 whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
@@ -353,20 +243,18 @@ indexOfWhitelist: public(HashMap[address, uint256]) # whitelist -> index
 numWhitelisted: public(uint256) # num whitelisted
 pendingWhitelist: public(HashMap[address, PendingWhitelist]) # addr -> pending whitelist
 
+# global config
+globalManagerSettings: public(GlobalManagerSettings)
+globalPayeeSettings: public(GlobalPayeeSettings)
+
 # config
+timeLock: public(uint256)
 isFrozen: public(bool)
 inEjectMode: public(bool)
-timeLock: public(uint256)
-didSetWallet: public(bool)
-sentinel: public(address)
-
-# other
 ejectModeFeeDetails: public(EjectModeFeeDetails)
-startingAgent: public(address)
 
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
+startingAgent: public(address)
+didSetWallet: public(bool)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -376,83 +264,81 @@ MAX_ALLOWED_PAYEES: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
-# time (blocks)
-ONE_DAY_IN_BLOCKS: constant(uint256) = 43_200
-ONE_MONTH_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 30
-ONE_YEAR_IN_BLOCKS: constant(uint256) = ONE_DAY_IN_BLOCKS * 365
-
 # registry ids
-LEDGER_ID: constant(uint256) = 2
-LEGO_BOOK_ID: constant(uint256) = 4
 HATCHERY_ID: constant(uint256) = 6
 BACKPACK_ID: constant(uint256) = 7
+LEGO_BOOK_ID: constant(uint256) = 4
 
 UNDY_HQ: public(immutable(address))
-MIN_TIMELOCK: public(immutable(uint256))
-MAX_TIMELOCK: public(immutable(uint256))
-MIN_MANAGER_PERIOD: public(immutable(uint256))
-MAX_MANAGER_PERIOD: public(immutable(uint256))
-
 WETH: public(immutable(address))
 ETH: public(immutable(address))
+
+MIN_TIMELOCK: public(immutable(uint256))
+MAX_TIMELOCK: public(immutable(uint256))
 
 
 @deploy
 def __init__(
     _undyHq: address,
     _owner: address,
-    _sentinel: address,
+    _groupId: uint256,
+    # key contracts
+    _bossValidator: address,
+    _paymaster: address,
+    # initial agent
     _startingAgent: address,
     _startingAgentActivationLength: uint256,
+    # global manager settings
     _managerPeriod: uint256,
-    _defaultStartDelay: uint256,
     _defaultActivationLength: uint256,
-    _groupId: uint256,
+    # trial funds
     _trialFundsAsset: address,
     _trialFundsAmount: uint256,
-    _minManagerPeriod: uint256,
-    _maxManagerPeriod: uint256,
-    _minTimeLock: uint256,
-    _maxTimeLock: uint256,
+    # key addrs
     _wethAddr: address,
     _ethAddr: address,
+    # timelock
+    _minTimeLock: uint256,
+    _maxTimeLock: uint256,
 ):
-    assert empty(address) not in [_undyHq, _owner, _sentinel, _wethAddr, _ethAddr] # dev: invalid addrs
+    assert empty(address) not in [_undyHq, _owner, _bossValidator, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
     UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
 
+    # core
     self.owner = _owner
     self.groupId = _groupId
-    self.sentinel = _sentinel
+
+    # set key addrs
+    self.bossValidator = _bossValidator
+    self.paymaster = _paymaster
 
     # trial funds info
     if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
         self.trialFundsAsset = _trialFundsAsset
         self.trialFundsAmount = _trialFundsAmount
 
-    # manager periods (set this first)
-    assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
-    MIN_MANAGER_PERIOD = _minManagerPeriod
-    MAX_MANAGER_PERIOD = _maxManagerPeriod
+    # timelock
+    assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
+    MIN_TIMELOCK = _minTimeLock
+    MAX_TIMELOCK = _maxTimeLock
+    self.timeLock = _minTimeLock
 
-    # # global manager settings
-    config: GlobalManagerSettings = empty(GlobalManagerSettings)
-    # assert self._isValidManagerPeriod(_managerPeriod) # dev: invalid manager period
-    # assert self._isValidStartDelay(_defaultStartDelay) # dev: invalid start delay
-    # assert self._isValidActivationLength(_defaultActivationLength) # dev: invalid activation length
-    config.managerPeriod = _managerPeriod
-    config.startDelay = _defaultStartDelay
-    config.activationLength = _defaultActivationLength
-    config.canOwnerManage = True
-    config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyDefaults()
-    self.globalManagerSettings = config
+    # set global manager settings
+    self.globalManagerSettings = staticcall BossValidator(_bossValidator).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _defaultActivationLength)
 
-    # initialize global payee settings with defaults
+    # initial agent
+    if _startingAgent != empty(address):
+        self.managerSettings[_startingAgent] = staticcall BossValidator(_bossValidator).createStarterAgentSettings(_startingAgentActivationLength)
+        self.startingAgent = _startingAgent
+        self._registerManager(_startingAgent)
+
+    # TODO: global payee settings
     self.globalPayeeSettings = GlobalPayeeSettings(
-        defaultPeriodLength = ONE_DAY_IN_BLOCKS,
-        timeLockOnModify = ONE_DAY_IN_BLOCKS,
-        activationLength = ONE_YEAR_IN_BLOCKS,
+        defaultPeriodLength = 43_200,
+        timeLockOnModify = 43_200,
+        activationLength = 43_200 * 365,
         maxNumTxsPerPeriod = 0,
         txCooldownBlocks = 0,
         failOnZeroPrice = False,
@@ -463,27 +349,6 @@ def __init__(
         ),
         canPayOwner = True,
     )
-
-    # initial manager
-    if _startingAgent != empty(address):
-        # assert self._isValidActivationLength(_startingAgentActivationLength) # dev: invalid activation length
-        self.managerSettings[_startingAgent] = ManagerSettings(
-            startBlock = block.number,
-            expiryBlock = block.number + _startingAgentActivationLength,
-            limits = empty(ManagerLimits), # no limits
-            legoPerms = config.legoPerms, # all set to True
-            whitelistPerms = config.whitelistPerms, # can cancel, can confirm
-            transferPerms = config.transferPerms, # all set to True
-            allowedAssets = [],
-        )
-        self._registerManager(_startingAgent)
-        self.startingAgent = _startingAgent
-
-    # time lock
-    assert _minTimeLock < _maxTimeLock # dev: invalid delay
-    MIN_TIMELOCK = _minTimeLock
-    MAX_TIMELOCK = _maxTimeLock
-    self.timeLock = _minTimeLock
 
 
 @external
@@ -503,7 +368,7 @@ def apiVersion() -> String[28]:
 
 
 ##################
-# Access Control #
+# Manager Limits #
 ##################
 
 
@@ -528,7 +393,7 @@ def checkSignerPermissionsAndGetBundle(
 
     # main validation
     c: ManagerConfigBundle = self._getManagerConfigs(_signer, ad.walletOwner)
-    assert staticcall Sentinel(ad.sentinel).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, self, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
+    assert staticcall BossValidator(ad.bossValidator).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, ad.walletConfig, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
 
     # signer is not owner
     if not c.isOwner:
@@ -541,12 +406,12 @@ def checkSignerPermissionsAndGetBundle(
 
 
 @external
-def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _sentinel: address) -> bool:
+def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _bossValidator: address) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
     config: ManagerSettings = self.managerSettings[_manager]
     globalConfig: GlobalManagerSettings = self.globalManagerSettings
-    data: ManagerData = staticcall Sentinel(_sentinel).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
+    data: ManagerData = staticcall BossValidator(_bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
     self.managerPeriodData[_manager] = data
     return True
 
@@ -562,7 +427,7 @@ def checkRecipientLimitsAndUpdateData(
     _txUsdValue: uint256,
     _asset: address,
     _amount: uint256,
-    _sentinel: address,
+    _paymaster: address,
 ) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
@@ -571,7 +436,7 @@ def checkRecipientLimitsAndUpdateData(
     # check if payee is valid
     canPayRecipient: bool = False
     data: PayeeData = empty(PayeeData)
-    canPayRecipient, data = staticcall Sentinel(_sentinel).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    canPayRecipient, data = staticcall Paymaster(_paymaster).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
 
     # !!!!
     assert canPayRecipient # dev: invalid payee
@@ -583,771 +448,12 @@ def checkRecipientLimitsAndUpdateData(
     return True
 
 
-###########################
-# Global Manager Settings #
-###########################
-
-
-# # set pending global manager settings
-
-
-# @external
-# def setPendingGlobalManagerSettings(
-#     _managerPeriod: uint256,
-#     _startDelay: uint256,
-#     _activationLength: uint256,
-#     _limits: ManagerLimits,
-#     _legoPerms: LegoPerms,
-#     _whitelistPerms: WhitelistPerms,
-#     _transferPerms: TransferPerms,
-#     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-# ) -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-
-#     # validation
-#     assert self._isValidManagerPeriod(_managerPeriod) # dev: invalid manager period
-#     assert self._isValidStartDelay(_startDelay) # dev: invalid start delay
-#     assert self._isValidActivationLength(_activationLength) # dev: invalid activation length
-#     assert self._isValidLimits(_limits) # dev: invalid limits
-#     assert self._isValidLegoPerms(_legoPerms) # dev: invalid lego perms
-#     assert self._isValidTransferPerms(_transferPerms) # dev: invalid transfer perms
-#     assert self._isValidAllowedAssets(_allowedAssets) # dev: invalid allowed assets
-
-#     config: GlobalManagerSettings = GlobalManagerSettings(
-#         managerPeriod = _managerPeriod,
-#         startDelay = _startDelay,
-#         activationLength = _activationLength,
-#         limits = _limits,
-#         legoPerms = _legoPerms,
-#         whitelistPerms = _whitelistPerms,
-#         transferPerms = _transferPerms,
-#         allowedAssets = _allowedAssets,
-#     )
-
-#     # put in pending state
-#     self.pendingGlobalManagerSettings = PendingGlobalManagerSettings(
-#         config = config,
-#         initiatedBlock = block.number,
-#         confirmBlock = block.number + self.timeLock,
-#     )
-
-#     log GlobalManagerSettingsModified(
-#         state = "PENDING",
-#         managerPeriod = _managerPeriod,
-#         startDelay = _startDelay,
-#         activationLength = _activationLength,
-#         maxVolumePerTx = _limits.maxVolumePerTx,
-#         maxVolumePerPeriod = _limits.maxVolumePerPeriod,
-#         maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
-#         txCooldownBlocks = _limits.txCooldownBlocks,
-#         canManageYield = _legoPerms.canManageYield,
-#         canBuyAndSell = _legoPerms.canBuyAndSell,
-#         canManageDebt = _legoPerms.canManageDebt,
-#         canManageLiq = _legoPerms.canManageLiq,
-#         canClaimRewards = _legoPerms.canClaimRewards,
-#         numAllowedLegos = len(_legoPerms.allowedLegos),
-#         canAddPendingWhitelist = _whitelistPerms.canAddPending,
-#         canConfirmWhitelist = _whitelistPerms.canConfirm,
-#         canCancelWhitelist = _whitelistPerms.canCancel,
-#         canRemoveWhitelist = _whitelistPerms.canRemove,
-#         canTransfer = _transferPerms.canTransfer,
-#         canCreateCheque = _transferPerms.canCreateCheque,
-#         canAddPendingPayee = _transferPerms.canAddPendingPayee,
-#         numAllowedRecipients = len(_transferPerms.allowedPayees),
-#         numAllowedAssets = len(_allowedAssets),
-#     )
-#     return True
-
-
-# # confirm global manager settings
-
-
-# @external
-# def confirmPendingGlobalManagerSettings() -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-
-#     data: PendingGlobalManagerSettings = self.pendingGlobalManagerSettings
-#     assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
-#     self.globalManagerSettings = data.config
-#     self.pendingGlobalManagerSettings = empty(PendingGlobalManagerSettings)
-
-#     log GlobalManagerSettingsModified(
-#         state = "CONFIRMED",
-#         managerPeriod = data.config.managerPeriod,
-#         startDelay = data.config.startDelay,
-#         activationLength = data.config.activationLength,
-#         maxVolumePerTx = data.config.limits.maxVolumePerTx,
-#         maxVolumePerPeriod = data.config.limits.maxVolumePerPeriod,
-#         maxNumTxsPerPeriod = data.config.limits.maxNumTxsPerPeriod,
-#         txCooldownBlocks = data.config.limits.txCooldownBlocks,
-#         canManageYield = data.config.legoPerms.canManageYield,
-#         canBuyAndSell = data.config.legoPerms.canBuyAndSell,
-#         canManageDebt = data.config.legoPerms.canManageDebt,
-#         canManageLiq = data.config.legoPerms.canManageLiq,
-#         canClaimRewards = data.config.legoPerms.canClaimRewards,
-#         numAllowedLegos = len(data.config.legoPerms.allowedLegos),
-#         canAddPendingWhitelist = data.config.whitelistPerms.canAddPending,
-#         canConfirmWhitelist = data.config.whitelistPerms.canConfirm,
-#         canCancelWhitelist = data.config.whitelistPerms.canCancel,
-#         canRemoveWhitelist = data.config.whitelistPerms.canRemove,
-#         canTransfer = data.config.transferPerms.canTransfer,
-#         canCreateCheque = data.config.transferPerms.canCreateCheque,
-#         canAddPendingPayee = data.config.transferPerms.canAddPendingPayee,
-#         numAllowedRecipients = len(data.config.transferPerms.allowedPayees),
-#         numAllowedAssets = len(data.config.allowedAssets),
-#     )
-#     return True
-
-
-# # cancel global manager settings
-
-
-# @external
-# def cancelPendingGlobalManagerSettings() -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-
-#     data: PendingGlobalManagerSettings = self.pendingGlobalManagerSettings
-#     assert data.confirmBlock != 0 # dev: no pending change
-#     self.pendingGlobalManagerSettings = empty(PendingGlobalManagerSettings)
-
-#     log GlobalManagerSettingsModified(
-#         state = "CANCELLED",
-#         managerPeriod = data.config.managerPeriod,
-#         startDelay = data.config.startDelay,
-#         activationLength = data.config.activationLength,
-#         maxVolumePerTx = data.config.limits.maxVolumePerTx,
-#         maxVolumePerPeriod = data.config.limits.maxVolumePerPeriod,
-#         maxNumTxsPerPeriod = data.config.limits.maxNumTxsPerPeriod,
-#         txCooldownBlocks = data.config.limits.txCooldownBlocks,
-#         canManageYield = data.config.legoPerms.canManageYield,
-#         canBuyAndSell = data.config.legoPerms.canBuyAndSell,
-#         canManageDebt = data.config.legoPerms.canManageDebt,
-#         canManageLiq = data.config.legoPerms.canManageLiq,
-#         canClaimRewards = data.config.legoPerms.canClaimRewards,
-#         numAllowedLegos = len(data.config.legoPerms.allowedLegos),
-#         canAddPendingWhitelist = data.config.whitelistPerms.canAddPending,
-#         canConfirmWhitelist = data.config.whitelistPerms.canConfirm,
-#         canCancelWhitelist = data.config.whitelistPerms.canCancel,
-#         canRemoveWhitelist = data.config.whitelistPerms.canRemove,
-#         canTransfer = data.config.transferPerms.canTransfer,
-#         canCreateCheque = data.config.transferPerms.canCreateCheque,
-#         canAddPendingPayee = data.config.transferPerms.canAddPendingPayee,
-#         numAllowedRecipients = len(data.config.transferPerms.allowedPayees),
-#         numAllowedAssets = len(data.config.allowedAssets),
-#     )
-#     return True
-
-
-#############################
-# Specific Manager Settings #
-#############################
-
-
-# # set manager settings
-
-
-# @external
-# def setSpecificManagerSettings(
-#     _manager: address,
-#     _limits: ManagerLimits,
-#     _legoPerms: LegoPerms,
-#     _whitelistPerms: WhitelistPerms,
-#     _transferPerms: TransferPerms,
-#     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-#     _startDelay: uint256 = 0,
-#     _activationLength: uint256 = 0,
-# ) -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-
-#     # validation
-#     assert _manager not in [empty(address), self.owner] # dev: invalid manager
-#     assert self._isValidLimits(_limits) # dev: invalid limits
-#     assert self._isValidLegoPerms(_legoPerms) # dev: invalid lego perms
-#     assert self._isValidTransferPerms(_transferPerms) # dev: invalid transfer perms
-#     assert self._isValidAllowedAssets(_allowedAssets) # dev: invalid allowed assets
-
-#     config: ManagerSettings = empty(ManagerSettings)
-#     stateStr: String[10] = empty(String[10])
-
-#     # existing manager
-#     alreadyRegistered: bool = self.indexOfManager[_manager] != 0
-#     if alreadyRegistered:
-#         config = self.managerSettings[_manager]
-#         config.limits = _limits
-#         config.legoPerms = _legoPerms
-#         config.whitelistPerms = _whitelistPerms
-#         config.transferPerms = _transferPerms
-#         config.allowedAssets = _allowedAssets
-#         stateStr = "UPDATED"
-    
-#     # new manager
-#     else:
-#         config = ManagerSettings(
-#             startBlock = 0,
-#             expiryBlock = 0,
-#             limits = _limits,
-#             legoPerms = _legoPerms,
-#             whitelistPerms = _whitelistPerms,
-#             transferPerms = _transferPerms,
-#             allowedAssets = _allowedAssets,
-#         )
-#         config.startBlock, config.expiryBlock = self._getStartAndExpiryBlocksForNewManager(_startDelay, _activationLength)
-#         self._registerManager(_manager)
-#         stateStr = "ADDED"
-
-#     # update config
-#     self.managerSettings[_manager] = config
-
-#     log ManagerSettingsModified(
-#         manager = _manager,
-#         state = stateStr,
-#         startBlock = config.startBlock,
-#         expiryBlock = config.expiryBlock,
-#         maxVolumePerTx = config.limits.maxVolumePerTx,
-#         maxVolumePerPeriod = config.limits.maxVolumePerPeriod,
-#         maxNumTxsPerPeriod = config.limits.maxNumTxsPerPeriod,
-#         txCooldownBlocks = config.limits.txCooldownBlocks,
-#         canManageYield = config.legoPerms.canManageYield,
-#         canBuyAndSell = config.legoPerms.canBuyAndSell,
-#         canManageDebt = config.legoPerms.canManageDebt,
-#         canManageLiq = config.legoPerms.canManageLiq,
-#         canClaimRewards = config.legoPerms.canClaimRewards,
-#         numAllowedLegos = len(config.legoPerms.allowedLegos),
-#         canAddPendingWhitelist = config.whitelistPerms.canAddPending,
-#         canConfirmWhitelist = config.whitelistPerms.canConfirm,
-#         canCancelWhitelist = config.whitelistPerms.canCancel,
-#         canRemoveWhitelist = config.whitelistPerms.canRemove,
-#         canTransfer = config.transferPerms.canTransfer,
-#         canCreateCheque = config.transferPerms.canCreateCheque,
-#         canAddPendingPayee = config.transferPerms.canAddPendingPayee,
-#         numAllowedRecipients = len(config.transferPerms.allowedPayees),
-#         numAllowedAssets = len(config.allowedAssets),
-#     )
-#     return True
-
-
-# # remove manager
-
-
-# @external
-# def removeSpecificManager(_manager: address) -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-#     assert self.indexOfManager[_manager] != 0 # dev: manager not found
-
-#     self.managerSettings[_manager] = empty(ManagerSettings)
-#     self.managerPeriodData[_manager] = empty(ManagerData)
-#     self._deregisterManager(_manager)
-
-#     log ManagerRemoved(manager = _manager)
-#     return True
-
-
-# # adjust activation length
-
-
-# @external
-# def adjustSpecificManagerActivationLength(_manager: address, _activationLength: uint256, _shouldResetStartBlock: bool = False) -> bool:
-#     assert msg.sender == self.owner # dev: no perms
-
-#     # validation
-#     assert self.indexOfManager[_manager] != 0 # dev: manager not found
-#     config: ManagerSettings = self.managerSettings[_manager]
-#     assert config.startBlock < block.number # dev: manager not active yet
-#     assert self._isValidActivationLength(_activationLength) # dev: invalid activation length
-
-#     # update config
-#     didRestart: bool = False
-#     if config.expiryBlock < block.number or _shouldResetStartBlock:
-#         config.startBlock = block.number
-#         didRestart = True
-#     config.expiryBlock = config.startBlock + _activationLength
-#     self.managerSettings[_manager] = config
-
-#     log ManagerActivationLengthAdjusted(
-#         manager = _manager,
-#         activationLength = _activationLength,
-#         didRestart = didRestart,
-#     )
-#     return True
-
-
-##########################
-# Manager Settings Utils #
-##########################
-
-
-@view
-@external
-def isManager(_manager: address) -> bool:
-    return self.indexOfManager[_manager] != 0
-
-
-# @view
-# @internal
-# def _getStartAndExpiryBlocksForNewManager(_startDelay: uint256, _activationLength: uint256) -> (uint256, uint256):
-#     config: GlobalManagerSettings = self.globalManagerSettings
-
-#     startDelay: uint256 = config.startDelay
-#     if _startDelay != 0:
-#         startDelay = max(startDelay, _startDelay) # using max here as extra protection
-#     assert self._isValidStartDelay(startDelay) # dev: invalid start delay
-
-#     activationLength: uint256 = config.activationLength
-#     if _activationLength != 0:
-#         activationLength = min(activationLength, _activationLength)
-#     assert self._isValidActivationLength(activationLength) # dev: invalid activation length
-
-#     startBlock: uint256 = block.number + startDelay
-#     expiryBlock: uint256 = startBlock + activationLength
-#     return startBlock, expiryBlock
-
-
-# @view
-# @internal
-# def _isValidLimits(_limits: ManagerLimits) -> bool:
-#     # Note: 0 values are treated as "unlimited" throughout this validation
-    
-#     # only validate if both values are non-zero (not unlimited)
-#     if _limits.maxVolumePerTx != 0 and _limits.maxVolumePerPeriod != 0:
-#         if _limits.maxVolumePerTx > _limits.maxVolumePerPeriod:
-#             return False
-
-#     # cooldown cannot exceed period length (unless cooldown is 0 = no cooldown)
-#     if _limits.txCooldownBlocks != 0 and _limits.txCooldownBlocks > self.globalManagerSettings.managerPeriod:
-#         return False
-
-#     return True
-
-
-# @view
-# @internal
-# def _isValidLegoPerms(_legoPerms: LegoPerms) -> bool:
-#     if len(_legoPerms.allowedLegos) == 0:
-#         return True
-
-#     canDoAnything: bool = _legoPerms.canManageYield or _legoPerms.canBuyAndSell or _legoPerms.canManageDebt or _legoPerms.canManageLiq or _legoPerms.canClaimRewards
-
-#     # _allowedLegos should be empty if there are no permissions
-#     if not canDoAnything:
-#         return False
-
-#     # if in eject mode, can't add legos as permissions
-#     if self.inEjectMode:
-#         return False
-
-#     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-#     if legoBook == empty(address):
-#         return False
-
-#     checkedLegos: DynArray[uint256, MAX_CONFIG_LEGOS] = []
-#     for i: uint256 in _legoPerms.allowedLegos:
-#         if not staticcall Registry(legoBook).isValidRegId(i):
-#             return False
-
-#         # duplicates are not allowed
-#         if i in checkedLegos:
-#             return False
-#         checkedLegos.append(i)
-
-#     return True
-
-
-# @view
-# @internal
-# def _isValidTransferPerms(_transferPerms: TransferPerms) -> bool:
-#     if len(_transferPerms.allowedPayees) == 0:
-#         return True
-
-#     canDoAnything: bool = _transferPerms.canTransfer or _transferPerms.canCreateCheque or _transferPerms.canAddPendingPayee
-
-#     # _allowedPayees should be empty if there are no permissions
-#     if not canDoAnything:
-#         return False
-
-#     checkedPayees: DynArray[address, MAX_ALLOWED_PAYEES] = []
-#     for i: address in _transferPerms.allowedPayees:
-#         if i == empty(address):
-#             return False
-
-#         # check if payee is valid
-#         if self.indexOfPayee[i] == 0:
-#             return False
-
-#         # duplicates are not allowed
-#         if i in checkedPayees:
-#             return False
-#         checkedPayees.append(i)
-
-#     return True
-
-
-# @view
-# @internal
-# def _isValidAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]) -> bool:
-#     if len(_allowedAssets) == 0:
-#         return True
-
-#     checkedAssets: DynArray[address, MAX_CONFIG_ASSETS] = []
-#     for i: address in _allowedAssets:
-#         if i == empty(address):
-#             return False
-
-#         # duplicates are not allowed
-#         if i in checkedAssets:
-#             return False
-#         checkedAssets.append(i)
-
-#     return True
-
-
-# @view
-# @internal
-# def _isValidStartDelay(_startDelay: uint256) -> bool:
-#     return _startDelay <= 6 * ONE_MONTH_IN_BLOCKS
-
-
-# @view
-# @internal
-# def _isValidManagerPeriod(_managerPeriod: uint256) -> bool:
-#     return _managerPeriod >= MIN_MANAGER_PERIOD and _managerPeriod <= MAX_MANAGER_PERIOD
-
-
-# @view
-# @internal
-# def _isValidActivationLength(_numBlocks: uint256) -> bool:
-#     return _numBlocks <= 5 * ONE_YEAR_IN_BLOCKS and _numBlocks >= ONE_DAY_IN_BLOCKS
-
-
-@pure
-@internal
-def _createHappyDefaults() -> (LegoPerms, WhitelistPerms, TransferPerms):
-    return LegoPerms(
-        canManageYield = True,
-        canBuyAndSell = True,
-        canManageDebt = True,
-        canManageLiq = True,
-        canClaimRewards = True,
-        allowedLegos = [],
-    ), WhitelistPerms(
-        canAddPending = False,
-        canConfirm = True,
-        canCancel = True,
-        canRemove = False,
-    ), TransferPerms(
-        canTransfer = True,
-        canCreateCheque = True,
-        canAddPendingPayee = True,
-        allowedPayees = [],
-    )
-
-
-# register manager
-
-
-@internal
-def _registerManager(_manager: address):
-    mid: uint256 = self.numManagers
-    if mid == 0:
-        mid = 1 # not using 0 index
-    self.managers[mid] = _manager
-    self.indexOfManager[_manager] = mid
-    self.numManagers = mid + 1
-
-
-# deregister manager
-
-
-@internal
-def _deregisterManager(_manager: address) -> bool:
-    numManagers: uint256 = self.numManagers
-    if numManagers == 0:
-        return False
-
-    targetIndex: uint256 = self.indexOfManager[_manager]
-    if targetIndex == 0:
-        return False
-
-    # update data
-    lastIndex: uint256 = numManagers - 1
-    self.numManagers = lastIndex
-    self.indexOfManager[_manager] = 0
-
-    # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.managers[lastIndex]
-        self.managers[targetIndex] = lastItem
-        self.indexOfManager[lastItem] = targetIndex
-
-    return True
-
-
-#############
-# Migration #
-#############
-
-
-# migrate funds
-
-
-@external
-def migrateFunds(_newWallet: address) -> uint256:
-    owner: address = self.owner
-    assert msg.sender == owner # dev: no perms
-
-    wallet: address = self.wallet
-    assert self._canMigrateToNewWallet(_newWallet, owner, wallet) # dev: cannot migrate to new wallet
-
-    numAssets: uint256 = staticcall UserWallet(wallet).numAssets()
-    if numAssets == 0:
-        return 0
-
-    # transfer tokens
-    numMigrated: uint256 = 0
-    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
-        asset: address = staticcall UserWallet(wallet).assets(i)
-        if asset == empty(address):
-            continue
-
-        balance: uint256 = staticcall IERC20(asset).balanceOf(wallet)
-        if balance != 0:
-            extcall wi(_newWallet).transferFunds(_newWallet, asset)
-        numMigrated += 1
-
-    return numMigrated
-
-
-@view
-@internal
-def _canMigrateToNewWallet(_newWallet: address, _owner: address, _thisWallet: address) -> bool:
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-
-    # initial validation
-    assert staticcall Ledger(ledger).isUserWallet(_newWallet) # dev: not a user wallet
-    assert staticcall UserWallet(_thisWallet).trialFundsAmount() == 0 # dev: has trial funds
-    assert not self.isFrozen # dev: frozen
-
-    # wallet config checks
-    newWalletConfig: address = staticcall UserWallet(_newWallet).walletConfig()
-    assert self._isMatchingOwnership(newWalletConfig, _owner) # dev: not same owner
-    assert self._hasNoManagers(newWalletConfig) # dev: has managers
-
-    # TODO
-    # TODO: once there is proper transfer/whitelist, let's check that is empty also
-    # TODO
-
-    return True
-
-
-# migrate settings
-
-
-@external
-def migrateSettings(_oldWallet: address):
-    owner: address = self.owner
-    assert msg.sender == owner # dev: no perms
-    assert self._canMigrateSettings(_oldWallet, owner) # dev: cannot migrate settings
-
-    # TODO: migrate all settings
-
-
-@view
-@internal
-def _canMigrateSettings(_oldWallet: address, _owner: address) -> bool:
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-    assert staticcall Ledger(ledger).isUserWallet(_oldWallet) # dev: not a user wallet
-
-    oldWalletConfig: address = staticcall UserWallet(_oldWallet).walletConfig()
-    assert self._isMatchingOwnership(oldWalletConfig, _owner) # dev: not same owner
-    assert self._hasNoManagers(self) # dev: has managers
-
-    # TODO
-    # TODO: once there is proper transfer/whitelist, let's check that is empty also
-    # TODO
-
-    return True
-
-
-# shared utils
-
-
-@view
-@internal
-def _isMatchingOwnership(_walletConfig: address, _owner: address) -> bool:
-    assert _owner == staticcall UserWalletConfig(_walletConfig).owner() # dev: not same owner
-    assert not staticcall UserWalletConfig(_walletConfig).hasPendingOwnerChange() # dev: pending owner change
-    assert not self._hasPendingOwnerChange() # dev: pending owner change
-    assert self.groupId == staticcall UserWalletConfig(_walletConfig).groupId() # dev: wrong group id
-    return True
-
-
-@view
-@internal
-def _hasNoManagers(_walletConfig: address) -> bool:
-    startingAgent: address = staticcall UserWalletConfig(_walletConfig).startingAgent()
-    if startingAgent == empty(address):
-        assert staticcall UserWalletConfig(_walletConfig).numManagers() == 0 # dev: has managers
-    else:
-        assert staticcall UserWalletConfig(_walletConfig).indexOfManager(startingAgent) == 1 # dev: invalid manager
-        assert staticcall UserWalletConfig(_walletConfig).numManagers() == 2 # dev: has other managers
-    return True
-
-
-##########
-# Payees #
-##########
-
-
-# is payee
-
-
-@view
-@external
-def isRegisteredPayee(_addr: address) -> bool:
-    return self._isRegisteredPayee(_addr)
-
-
-@view
-@internal
-def _isRegisteredPayee(_addr: address) -> bool:
-    return self.indexOfPayee[_addr] != 0
-
-
-#############
-# Whitelist #
-#############
-
-
-# is whitelisted
-
-
-@view
-@external
-def isWhitelisted(_addr: address) -> bool:
-    return self._isWhitelisted(_addr)
-
-
-@view
-@internal
-def _isWhitelisted(_addr: address) -> bool:
-    return self.indexOfWhitelist[_addr] != 0
-
-
-# add whitelist
-
-
-@nonreentrant
-@external
-def addWhitelistAddr(_addr: address):
-    c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-    assert staticcall Sentinel(self.sentinel).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.ADD_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-    assert _addr not in [empty(address), self, self.wallet, self.owner] # dev: invalid addr
-    assert not self._isWhitelisted(_addr) # dev: already whitelisted
-    assert self.pendingWhitelist[_addr].initiatedBlock == 0 # dev: pending whitelist already exists
-
-    # this uses same delay as ownership change
-    confirmBlock: uint256 = block.number + self.timeLock
-    self.pendingWhitelist[_addr] = PendingWhitelist(
-        initiatedBlock = block.number,
-        confirmBlock = confirmBlock,
-    )
-    log WhitelistAddrPending(addr=_addr, confirmBlock=confirmBlock, addedBy=msg.sender)
-
-
-# confirm whitelist
-
-
-@nonreentrant
-@external
-def confirmWhitelistAddr(_addr: address):
-    c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-    assert staticcall Sentinel(self.sentinel).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.CONFIRM_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-    data: PendingWhitelist = self.pendingWhitelist[_addr]
-    assert data.initiatedBlock != 0 # dev: no pending whitelist
-    assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
-
-    self._registerWhitelist(_addr)
-    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
-    log WhitelistAddrConfirmed(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, confirmedBy=msg.sender)
-
-
-# cancel pending whitelist
-
-
-@nonreentrant
-@external
-def cancelPendingWhitelistAddr(_addr: address):
-    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
-        c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-        assert staticcall Sentinel(self.sentinel).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-    data: PendingWhitelist = self.pendingWhitelist[_addr]
-    assert data.initiatedBlock != 0 # dev: no pending whitelist
-    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
-    log WhitelistAddrCancelled(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, cancelledBy=msg.sender)
-
-
-# remove whitelist
-
-
-@nonreentrant
-@external
-def removeWhitelistAddr(_addr: address):
-    c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-    assert staticcall Sentinel(self.sentinel).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-    assert self._isWhitelisted(_addr) # dev: not whitelisted
-    self._deregisterWhitelist(_addr)
-    log WhitelistAddrRemoved(addr=_addr, removedBy=msg.sender)
-
-
-# register whitelist
-
-
-@internal
-def _registerWhitelist(_addr: address):
-    if self._isWhitelisted(_addr):
-        return
-
-    wid: uint256 = self.numWhitelisted
-    if wid == 0:
-        wid = 1 # not using 0 index
-    self.whitelistAddr[wid] = _addr
-    self.indexOfWhitelist[_addr] = wid
-    self.numWhitelisted = wid + 1
-
-
-# deregister whitelist
-
-
-@internal
-def _deregisterWhitelist(_addr: address) -> bool:
-    numWhitelisted: uint256 = self.numWhitelisted
-    if numWhitelisted == 0:
-        return False
-
-    targetIndex: uint256 = self.indexOfWhitelist[_addr]
-    if targetIndex == 0:
-        return False
-
-    # update data
-    lastIndex: uint256 = numWhitelisted - 1
-    self.numWhitelisted = lastIndex
-    self.indexOfWhitelist[_addr] = 0
-
-    # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.whitelistAddr[lastIndex]
-        self.whitelistAddr[targetIndex] = lastItem
-        self.indexOfWhitelist[lastItem] = targetIndex
-
-    return True
-
-
 #############
 # Ownership #
 #############
+
+
+# change ownership
 
 
 @external
@@ -1362,7 +468,10 @@ def changeOwnership(_newOwner: address):
         initiatedBlock = block.number,
         confirmBlock = confirmBlock,
     )
-    log OwnershipChangeInitiated(prevOwner=currentOwner, newOwner=_newOwner, confirmBlock=confirmBlock)
+    log OwnershipChangeInitiated(prevOwner = currentOwner, newOwner = _newOwner, confirmBlock = confirmBlock)
+
+
+# confirm ownership change
 
 
 @external
@@ -1375,7 +484,10 @@ def confirmOwnershipChange():
     prevOwner: address = self.owner
     self.owner = data.newOwner
     self.pendingOwner = empty(PendingOwnerChange)
-    log OwnershipChangeConfirmed(prevOwner=prevOwner, newOwner=data.newOwner, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
+    log OwnershipChangeConfirmed(prevOwner = prevOwner, newOwner = data.newOwner, initiatedBlock = data.initiatedBlock, confirmBlock = data.confirmBlock)
+
+
+# cancel ownership change
 
 
 @external
@@ -1386,10 +498,10 @@ def cancelOwnershipChange():
     data: PendingOwnerChange = self.pendingOwner
     assert data.confirmBlock != 0 # dev: no pending change
     self.pendingOwner = empty(PendingOwnerChange)
-    log OwnershipChangeCancelled(cancelledOwner=data.newOwner, cancelledBy=msg.sender, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
+    log OwnershipChangeCancelled(cancelledOwner = data.newOwner, cancelledBy = msg.sender, initiatedBlock = data.initiatedBlock, confirmBlock = data.confirmBlock)
 
 
-# utils
+# utilities
 
 
 @view
@@ -1436,18 +548,16 @@ def setFrozen(_isFrozen: bool):
 
 
 @external
-def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails):
+def setEjectionMode(_shouldEject: bool, _feeDetails: EjectModeFeeDetails):
     # NOTE: this needs to be triggered from Backpack, as it has other side effects / reactions
-    backpack: address = staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
-    assert msg.sender == backpack # dev: no perms
-    assert _inEjectMode != self.inEjectMode # dev: nothing to change
+    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
 
-    self.inEjectMode = _inEjectMode
-    if _inEjectMode:
-        self.ejectModeFeeDetails = _feeDetails
+    assert _shouldEject != self.inEjectMode # dev: nothing to change
+    self.inEjectMode = _shouldEject
+    self.ejectModeFeeDetails = _feeDetails
 
     log EjectionModeSet(
-        inEjectMode = _inEjectMode,
+        inEjectMode = _shouldEject,
         feeRecipient = _feeDetails.feeRecipient,
         swapFee = _feeDetails.swapFee,
         rewardsFee = _feeDetails.rewardsFee,
@@ -1455,76 +565,278 @@ def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails):
     )
 
 
+####################
+# Manager Settings #
+####################
+
+
+@view
+@external
+def isManager(_manager: address) -> bool:
+    return self._isManager(_manager)
+
+
+@view
+@internal
+def _isManager(_manager: address) -> bool:
+    return self.indexOfManager[_manager] != 0
+
+
+# global manager settings
+
+
+@external
+def setGlobalManagerSettings(_config: GlobalManagerSettings):
+    assert msg.sender == self.bossValidator # dev: no perms
+    self.globalManagerSettings = _config
+
+
+# add manager
+
+
+@external
+def addManager(_manager: address, _config: ManagerSettings):
+    assert msg.sender == self.bossValidator # dev: no perms
+    self.managerSettings[_manager] = _config
+    self._registerManager(_manager)
+
+
+@internal
+def _registerManager(_manager: address):
+    if self._isManager(_manager):
+        return
+
+    mid: uint256 = self.numManagers
+    if mid == 0:
+        mid = 1 # not using 0 index
+    self.managers[mid] = _manager
+    self.indexOfManager[_manager] = mid
+    self.numManagers = mid + 1
+    
+
+# update manager
+
+
+@external
+def updateManager(_manager: address, _config: ManagerSettings):
+    assert msg.sender == self.bossValidator # dev: no perms
+    self.managerSettings[_manager] = _config
+
+
+# remove manager
+
+
+@external
+def removeManager(_manager: address):
+    assert msg.sender == self.bossValidator # dev: no perms
+
+    numManagers: uint256 = self.numManagers
+    if numManagers == 0:
+        return
+
+    targetIndex: uint256 = self.indexOfManager[_manager]
+    if targetIndex == 0:
+        return
+
+    self.managerSettings[_manager] = empty(ManagerSettings)
+    self.managerPeriodData[_manager] = empty(ManagerData)
+
+    # update data
+    lastIndex: uint256 = numManagers - 1
+    self.numManagers = lastIndex
+    self.indexOfManager[_manager] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.managers[lastIndex]
+        self.managers[targetIndex] = lastItem
+        self.indexOfManager[lastItem] = targetIndex
+
+
+##################
+# Payee Settings #
+##################
+
+
+@view
+@external
+def isRegisteredPayee(_addr: address) -> bool:
+    return self._isRegisteredPayee(_addr)
+
+
+@view
+@internal
+def _isRegisteredPayee(_addr: address) -> bool:
+    return self.indexOfPayee[_addr] != 0
+
+
+# global payee settings
+
+
+@external
+def setGlobalPayeeSettings(_config: GlobalPayeeSettings):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.globalPayeeSettings = _config
+
+
+# add payee
+
+
+@external
+def addPayee(_payee: address, _config: PayeeSettings):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.payeeSettings[_payee] = _config
+    self._registerPayee(_payee)
+
+
+@internal
+def _registerPayee(_payee: address):
+    if self._isRegisteredPayee(_payee):
+        return
+
+    pid: uint256 = self.numPayees
+    if pid == 0:
+        pid = 1 # not using 0 index
+    self.payees[pid] = _payee
+    self.indexOfPayee[_payee] = pid
+    self.numPayees = pid + 1
+    
+
+# update payee
+
+
+@external
+def updatePayee(_payee: address, _config: PayeeSettings):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.payeeSettings[_payee] = _config
+
+
+# remove payee
+
+
+@external
+def removePayee(_payee: address):
+    assert msg.sender == self.paymaster # dev: no perms
+
+    numPayees: uint256 = self.numPayees
+    if numPayees == 0:
+        return
+
+    targetIndex: uint256 = self.indexOfPayee[_payee]
+    if targetIndex == 0:
+        return
+
+    self.payeeSettings[_payee] = empty(PayeeSettings)
+    self.payeePeriodData[_payee] = empty(PayeeData)
+
+    # update data
+    lastIndex: uint256 = numPayees - 1
+    self.numPayees = lastIndex
+    self.indexOfPayee[_payee] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.payees[lastIndex]
+        self.payees[targetIndex] = lastItem
+        self.indexOfPayee[lastItem] = targetIndex
+
+
+#############
+# Whitelist #
+#############
+
+
+# is whitelisted
+
+
+@view
+@external
+def isWhitelisted(_addr: address) -> bool:
+    return self._isWhitelisted(_addr)
+
+
+@view
+@internal
+def _isWhitelisted(_addr: address) -> bool:
+    return self.indexOfWhitelist[_addr] != 0
+
+
+# add whitelist
+
+
+@external
+def addPendingWhitelistAddr(_addr: address, _pending: PendingWhitelist):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.pendingWhitelist[_addr] = _pending
+
+
+# cancel pending whitelist
+
+
+@external
+def cancelPendingWhitelistAddr(_addr: address):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+
+
+# confirm whitelist
+
+
+@external
+def confirmWhitelistAddr(_addr: address):
+    assert msg.sender == self.paymaster # dev: no perms
+
+    if self._isWhitelisted(_addr):
+        return
+
+    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+
+    wid: uint256 = self.numWhitelisted
+    if wid == 0:
+        wid = 1 # not using 0 index
+    self.whitelistAddr[wid] = _addr
+    self.indexOfWhitelist[_addr] = wid
+    self.numWhitelisted = wid + 1
+
+
+# remove whitelist
+
+
+@external
+def removeWhitelistAddr(_addr: address):
+    assert msg.sender == self.paymaster # dev: no perms
+
+    numWhitelisted: uint256 = self.numWhitelisted
+    if numWhitelisted == 0:
+        return
+
+    targetIndex: uint256 = self.indexOfWhitelist[_addr]
+    if targetIndex == 0:
+        return
+
+    # update data
+    lastIndex: uint256 = numWhitelisted - 1
+    self.numWhitelisted = lastIndex
+    self.indexOfWhitelist[_addr] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.whitelistAddr[lastIndex]
+        self.whitelistAddr[targetIndex] = lastItem
+        self.indexOfWhitelist[lastItem] = targetIndex
+
+
 #############
 # Utilities #
 #############
 
 
-# remove trial funds
-
-
-@external
-def removeTrialFunds() -> uint256:
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
-
-    # trial funds info
-    trialFundsAmount: uint256 = self.trialFundsAmount
-    trialFundsAsset: address = self.trialFundsAsset
-    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
-
-    # recipient
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert hatchery != empty(address) # dev: invalid recipient
-
-    # transfer assets
-    amount: uint256 = 0
-    na: uint256 = 0
-    amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
-
-    # update trial funds info
-    remainingAmount: uint256 = trialFundsAmount - amount
-    self.trialFundsAmount = remainingAmount
-    if remainingAmount == 0:
-        self.trialFundsAsset = empty(address)
-
-    return amount
-
-
-# prepare payment
-
-
-@external
-def preparePayment(
-    _targetAsset: address,
-    _legoId: uint256,
-    _vaultToken: address,
-    _vaultAmount: uint256 = max_value(uint256),
-) -> (uint256, uint256):
-    ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
-
-    # withdraw from yield position
-    na: uint256 = 0
-    underlyingAsset: address = empty(address)
-    underlyingAmount: uint256 = 0
-    txUsdValue: uint256 = 0
-    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
-    assert underlyingAsset == _targetAsset # dev: invalid target asset
-   
-    return underlyingAmount, txUsdValue
-
-
-# recover nft
-
-
-@external
-def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
-    assert _recipient != empty(address) # dev: invalid recipient
-    wallet: address = self.wallet
-    assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
-    return extcall UserWallet(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+@view
+@internal
+def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+    if _inEjectMode:
+        return False
+    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
 
 
 # action data bundle
@@ -1560,7 +872,8 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         legoBook = backpackData.legoBook,
         backpack = backpack,
         appraiser = backpackData.appraiser,
-        sentinel = self.sentinel,
+        bossValidator = self.bossValidator,
+        paymaster = self.paymaster,
         feeRecipient = backpackData.feeRecipient,
         wallet = wallet,
         walletConfig = self,
@@ -1595,6 +908,20 @@ def _getManagerConfigs(_signer: address, _walletOwner: address) -> ManagerConfig
         config = self.managerSettings[_signer],
         globalConfig = self.globalManagerSettings,
         data = self.managerPeriodData[_signer],
+    )
+
+
+@view
+@external
+def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle:
+    return ManagerSettingsBundle(
+        owner = self.owner,
+        isManager = self._isManager(_manager),
+        bossValidator = self.bossValidator,
+        timeLock = self.timeLock,
+        inEjectMode = self.inEjectMode,
+        walletConfig = self,
+        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
     )
 
 
@@ -1634,12 +961,179 @@ def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
     )
 
 
-# is signer backpack
+# # remove trial funds
 
 
-@view
-@internal
-def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
-    if _inEjectMode:
-        return False
-    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+# @external
+# def removeTrialFunds() -> uint256:
+#     ad: ActionData = self._getActionDataBundle(0, msg.sender)
+#     assert ad.signer == ad.backpack # dev: no perms
+
+#     # trial funds info
+#     trialFundsAmount: uint256 = self.trialFundsAmount
+#     trialFundsAsset: address = self.trialFundsAsset
+#     assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
+
+#     # recipient
+#     hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
+#     assert hatchery != empty(address) # dev: invalid recipient
+
+#     # transfer assets
+#     amount: uint256 = 0
+#     na: uint256 = 0
+#     amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
+
+#     # update trial funds info
+#     remainingAmount: uint256 = trialFundsAmount - amount
+#     self.trialFundsAmount = remainingAmount
+#     if remainingAmount == 0:
+#         self.trialFundsAsset = empty(address)
+
+#     return amount
+
+
+# # prepare payment
+
+
+# @external
+# def preparePayment(
+#     _targetAsset: address,
+#     _legoId: uint256,
+#     _vaultToken: address,
+#     _vaultAmount: uint256 = max_value(uint256),
+# ) -> (uint256, uint256):
+#     ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
+#     assert ad.signer == ad.backpack # dev: no perms
+
+#     # withdraw from yield position
+#     na: uint256 = 0
+#     underlyingAsset: address = empty(address)
+#     underlyingAmount: uint256 = 0
+#     txUsdValue: uint256 = 0
+#     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
+#     assert underlyingAsset == _targetAsset # dev: invalid target asset
+   
+#     return underlyingAmount, txUsdValue
+
+
+# # recover nft
+
+
+# @external
+# def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
+#     assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
+#     assert _recipient != empty(address) # dev: invalid recipient
+#     wallet: address = self.wallet
+#     assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
+#     return extcall UserWallet(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+
+
+# #############
+# # Migration #
+# #############
+
+
+# # migrate funds
+
+
+# @external
+# def migrateFunds(_newWallet: address) -> uint256:
+#     owner: address = self.owner
+#     assert msg.sender == owner # dev: no perms
+
+#     wallet: address = self.wallet
+#     assert self._canMigrateToNewWallet(_newWallet, owner, wallet) # dev: cannot migrate to new wallet
+
+#     numAssets: uint256 = staticcall UserWallet(wallet).numAssets()
+#     if numAssets == 0:
+#         return 0
+
+#     # transfer tokens
+#     numMigrated: uint256 = 0
+#     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+#         asset: address = staticcall UserWallet(wallet).assets(i)
+#         if asset == empty(address):
+#             continue
+
+#         balance: uint256 = staticcall IERC20(asset).balanceOf(wallet)
+#         if balance != 0:
+#             extcall wi(_newWallet).transferFunds(_newWallet, asset)
+#         numMigrated += 1
+
+#     return numMigrated
+
+
+# @view
+# @internal
+# def _canMigrateToNewWallet(_newWallet: address, _owner: address, _thisWallet: address) -> bool:
+#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+
+#     # initial validation
+#     assert staticcall Ledger(ledger).isUserWallet(_newWallet) # dev: not a user wallet
+#     assert staticcall UserWallet(_thisWallet).trialFundsAmount() == 0 # dev: has trial funds
+#     assert not self.isFrozen # dev: frozen
+
+#     # wallet config checks
+#     newWalletConfig: address = staticcall UserWallet(_newWallet).walletConfig()
+#     assert self._isMatchingOwnership(newWalletConfig, _owner) # dev: not same owner
+#     assert self._hasNoManagers(newWalletConfig) # dev: has managers
+
+#     # TODO
+#     # TODO: once there is proper transfer/whitelist, let's check that is empty also
+#     # TODO
+
+#     return True
+
+
+# # migrate settings
+
+
+# @external
+# def migrateSettings(_oldWallet: address):
+#     owner: address = self.owner
+#     assert msg.sender == owner # dev: no perms
+#     assert self._canMigrateSettings(_oldWallet, owner) # dev: cannot migrate settings
+
+#     # TODO: migrate all settings
+
+
+# @view
+# @internal
+# def _canMigrateSettings(_oldWallet: address, _owner: address) -> bool:
+#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+#     assert staticcall Ledger(ledger).isUserWallet(_oldWallet) # dev: not a user wallet
+
+#     oldWalletConfig: address = staticcall UserWallet(_oldWallet).walletConfig()
+#     assert self._isMatchingOwnership(oldWalletConfig, _owner) # dev: not same owner
+#     assert self._hasNoManagers(self) # dev: has managers
+
+#     # TODO
+#     # TODO: once there is proper transfer/whitelist, let's check that is empty also
+#     # TODO
+
+#     return True
+
+
+# # shared utils
+
+
+# @view
+# @internal
+# def _isMatchingOwnership(_walletConfig: address, _owner: address) -> bool:
+#     assert _owner == staticcall UserWalletConfig(_walletConfig).owner() # dev: not same owner
+#     assert not staticcall UserWalletConfig(_walletConfig).hasPendingOwnerChange() # dev: pending owner change
+#     assert not self._hasPendingOwnerChange() # dev: pending owner change
+#     assert self.groupId == staticcall UserWalletConfig(_walletConfig).groupId() # dev: wrong group id
+#     return True
+
+
+# @view
+# @internal
+# def _hasNoManagers(_walletConfig: address) -> bool:
+#     startingAgent: address = staticcall UserWalletConfig(_walletConfig).startingAgent()
+#     if startingAgent == empty(address):
+#         assert staticcall UserWalletConfig(_walletConfig).numManagers() == 0 # dev: has managers
+#     else:
+#         assert staticcall UserWalletConfig(_walletConfig).indexOfManager(startingAgent) == 1 # dev: invalid manager
+#         assert staticcall UserWalletConfig(_walletConfig).numManagers() == 2 # dev: has other managers
+#     return True

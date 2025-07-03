@@ -119,21 +119,20 @@ def createUserWallet(
         config.configTemplate,
         a.hq,
         _owner,
-        a.sentinel,
+        _groupId,
+        a.bossValidator,
+        a.paymaster,
         config.startingAgent,
         config.startingAgentActivationLength,
         config.managerPeriod,
-        config.defaultStartDelay,
+        # config.defaultStartDelay, # TODO: remove this from mission control config
         config.defaultActivationLength,
-        _groupId,
         trialFundsAsset,
         trialFundsAmount,
-        config.minManagerPeriod,
-        config.maxManagerPeriod,
-        config.minKeyActionTimeLock,
-        config.maxKeyActionTimeLock,
         WETH,
         ETH,
+        config.minKeyActionTimeLock,
+        config.maxKeyActionTimeLock,
     )
     mainWalletAddr: address = create_from_blueprint(config.walletTemplate, a.hq, WETH, ETH, walletConfigAddr)
     assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet

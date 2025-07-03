@@ -37,7 +37,8 @@ def undy_hq(
     hatchery,
     backpack,
     appraiser,
-    sentinel,
+    boss_validator,
+    paymaster,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -77,8 +78,12 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
 
     # 9
-    assert undy_hq_deploy.startAddNewAddressToRegistry(sentinel, "Sentinel", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(sentinel, sender=deploy3r) == 9
+    assert undy_hq_deploy.startAddNewAddressToRegistry(boss_validator, "Boss Validator", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(boss_validator, sender=deploy3r) == 9
+
+    # 10
+    assert undy_hq_deploy.startAddNewAddressToRegistry(paymaster, "Paymaster", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(paymaster, sender=deploy3r) == 10
 
     # special permission setup
 
@@ -269,15 +274,32 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
     )
 
 
-# sentinel
+# boss validator
 
 
 @pytest.fixture(scope="session")
-def sentinel(undy_hq_deploy):
+def boss_validator(undy_hq_deploy, fork):
     return boa.load(
-        "contracts/core/Sentinel.vy",
+        "contracts/core/BossValidator.vy",
         undy_hq_deploy,
-        name="sentinel",
+        PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MAX_START_DELAY"],
+        PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
+        name="boss_validator",
+    )
+
+
+# paymaster
+
+
+@pytest.fixture(scope="session")
+def paymaster(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/Paymaster.vy",
+        undy_hq_deploy,
+        name="paymaster",
     )
 
 
