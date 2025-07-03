@@ -506,7 +506,7 @@ def createPayeeSettings(createPayeeLimits):
 def createGlobalPayeeSettings(createPayeeLimits):
     def createGlobalPayeeSettings(
         _defaultPeriodLength = ONE_DAY_IN_BLOCKS,
-        _timeLockOnModify = ONE_DAY_IN_BLOCKS,
+        _startDelay = ONE_DAY_IN_BLOCKS,
         _activationLength = ONE_YEAR_IN_BLOCKS,
         _maxNumTxsPerPeriod = 0,  # 0 = unlimited
         _txCooldownBlocks = 0,  # 0 = no cooldown
@@ -520,7 +520,7 @@ def createGlobalPayeeSettings(createPayeeLimits):
             
         return (
             _defaultPeriodLength,
-            _timeLockOnModify,
+            _startDelay,
             _activationLength,
             _maxNumTxsPerPeriod,
             _txCooldownBlocks,
@@ -537,7 +537,7 @@ def setGlobalPayeeSettings(createGlobalPayeeSettings, paymaster):
     def setGlobalPayeeSettings(
         _userWalletConfig,  # UserWalletConfig instance
         _defaultPeriodLength = ONE_DAY_IN_BLOCKS,
-        _timeLockOnModify = ONE_DAY_IN_BLOCKS,
+        _startDelay = ONE_DAY_IN_BLOCKS,
         _activationLength = ONE_YEAR_IN_BLOCKS,
         _maxNumTxsPerPeriod = 0,
         _txCooldownBlocks = 0,
@@ -548,7 +548,7 @@ def setGlobalPayeeSettings(createGlobalPayeeSettings, paymaster):
         # Create the settings
         settings = createGlobalPayeeSettings(
             _defaultPeriodLength,
-            _timeLockOnModify,
+            _startDelay,
             _activationLength,
             _maxNumTxsPerPeriod,
             _txCooldownBlocks,

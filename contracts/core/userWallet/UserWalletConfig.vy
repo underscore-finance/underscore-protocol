@@ -183,6 +183,11 @@ struct PayeeLimits:
     perPeriodCap: uint256
     lifetimeCap: uint256
 
+struct PendingPayee:
+    settings: PayeeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+
 struct PendingWhitelist:
     initiatedBlock: uint256
     confirmBlock: uint256
@@ -262,6 +267,7 @@ payeePeriodData: public(HashMap[address, PayeeData])
 payees: public(HashMap[uint256, address]) # index -> payee
 indexOfPayee: public(HashMap[address, uint256]) # payee -> index
 numPayees: public(uint256) # num payees
+pendingPayees: public(HashMap[address, PendingPayee])
 
 # whitelist
 whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
@@ -762,6 +768,70 @@ def removePayee(_payee: address):
         self.indexOfPayee[lastItem] = targetIndex
 
 
+##################
+# Pending Payees #
+##################
+
+
+# add pending payee
+
+
+@external
+def addPendingPayee(_payee: address, _pending: PendingPayee):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.pendingPayees[_payee] = _pending
+
+
+# cancel pending payee
+
+
+@external
+def cancelPendingPayee(_payee: address):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.pendingPayees[_payee] = empty(PendingPayee)
+
+
+# confirm pending payee
+
+
+@external
+def confirmPendingPayee(_payee: address):
+    assert msg.sender == self.paymaster # dev: no perms
+
+    if self._isRegisteredPayee(_payee):
+        return
+
+    self.payeeSettings[_payee] = self.pendingPayees[_payee].settings
+    self.pendingPayees[_payee] = empty(PendingPayee)
+    self._registerPayee(_payee)
+
+
+# check if caller can add pending payee
+
+
+@view
+@external
+def canAddPendingPayee(_caller: address) -> bool:
+    # owner can always add payees directly (not pending)
+    if _caller == self.owner:
+        return False
+    
+    # check if caller is a manager
+    if not self._isManager(_caller):
+        return False
+    
+    # get manager settings
+    managerSettings: ManagerSettings = self.managerSettings[_caller]
+    
+    # check if manager is active
+    if managerSettings.startBlock > block.number or managerSettings.expiryBlock < block.number:
+        return False
+    
+    # check if manager has permission
+    globalSettings: GlobalManagerSettings = self.globalManagerSettings
+    return managerSettings.transferPerms.canAddPendingPayee and globalSettings.transferPerms.canAddPendingPayee
+
+
 #############
 # Whitelist #
 #############
@@ -1012,7 +1082,7 @@ def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfi
 
 @view
 @external
-def getPayeeManagementBundle(_payee: address, _signer: address) -> PayeeManagementBundle:
+def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle:
     owner: address = self.owner
     return PayeeManagementBundle(
         owner = owner,

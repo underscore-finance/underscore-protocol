@@ -1,21 +1,24 @@
 # @version 0.4.3
 # pragma optimize codesize
 
-from interfaces import Wallet as wi
-
 interface UserWalletConfig:
-    def getPayeeManagementBundle(_payee: address, _signer: address) -> PayeeManagementBundle: view
     def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle: view
     def addPendingWhitelistAddr(_addr: address, _pending: PendingWhitelist): nonpayable
+    def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle: view
     def getRecipientConfigs(_recipient: address) -> RecipientConfigBundle: view
+    def addPendingPayee(_payee: address, _pending: PendingPayee): nonpayable
     def setGlobalPayeeSettings(_config: GlobalPayeeSettings): nonpayable
     def updatePayee(_payee: address, _config: PayeeSettings): nonpayable
     def addPayee(_payee: address, _config: PayeeSettings): nonpayable
     def cancelPendingWhitelistAddr(_addr: address): nonpayable
     def payeeSettings(_payee: address) -> PayeeSettings: view
     def globalPayeeSettings() -> GlobalPayeeSettings: view
+    def pendingPayees(_payee: address) -> PendingPayee: view
+    def canAddPendingPayee(_caller: address) -> bool: view
     def confirmWhitelistAddr(_addr: address): nonpayable
+    def confirmPendingPayee(_payee: address): nonpayable
     def removeWhitelistAddr(_addr: address): nonpayable
+    def cancelPendingPayee(_payee: address): nonpayable
     def isRegisteredPayee(_addr: address) -> bool: view
     def isWhitelisted(_addr: address) -> bool: view
     def removePayee(_payee: address): nonpayable
@@ -113,6 +116,11 @@ struct PayeeLimits:
     perPeriodCap: uint256
     lifetimeCap: uint256
 
+struct PendingPayee:
+    settings: PayeeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+
 struct WhitelistPerms:
     canAddPending: bool
     canConfirm: bool
@@ -198,6 +206,39 @@ event GlobalPayeeSettingsModified:
     usdPerTxCap: uint256
     usdPerPeriodCap: uint256
     usdLifetimeCap: uint256
+
+event PayeePending:
+    user: indexed(address)
+    payee: indexed(address)
+    confirmBlock: uint256
+    addedBy: indexed(address)
+    canPull: bool
+    periodLength: uint256
+    maxNumTxsPerPeriod: uint256
+    txCooldownBlocks: uint256
+    failOnZeroPrice: bool
+    primaryAsset: address
+    onlyPrimaryAsset: bool
+    unitPerTxCap: uint256
+    unitPerPeriodCap: uint256
+    unitLifetimeCap: uint256
+    usdPerTxCap: uint256
+    usdPerPeriodCap: uint256
+    usdLifetimeCap: uint256
+
+event PayeePendingConfirmed:
+    user: indexed(address)
+    payee: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    confirmedBy: indexed(address)
+
+event PayeePendingCancelled:
+    user: indexed(address)
+    payee: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
 
 UNDY_HQ: public(immutable(address))
 BACKPACK_ID: constant(uint256) = 7
@@ -493,139 +534,6 @@ def _checkTransactionLimits(
     return True
 
 
-########################
-# Whitelist Management #
-########################
-
-
-# add whitelist
-
-
-@external
-def addWhitelistAddr(_user: address, _addr: address):
-    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
-    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.ADD_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
-
-    assert _addr not in [empty(address), c.wallet, c.owner, c.walletConfig] # dev: invalid addr
-    assert not c.isWhitelisted # dev: already whitelisted
-    assert c.pendingWhitelist.initiatedBlock == 0 # dev: pending whitelist already exists
-
-    # this uses same delay as ownership change
-    confirmBlock: uint256 = block.number + c.timeLock
-    c.pendingWhitelist = PendingWhitelist(
-        initiatedBlock = block.number,
-        confirmBlock = confirmBlock,
-    )
-    extcall UserWalletConfig(c.walletConfig).addPendingWhitelistAddr(_addr, c.pendingWhitelist)
-    log WhitelistAddrPending(user = _user, addr = _addr, confirmBlock = confirmBlock, addedBy = msg.sender)
-
-
-# confirm whitelist
-
-
-@external
-def confirmWhitelistAddr(_user: address, _addr: address):
-    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
-    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CONFIRM_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
-
-    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
-    assert c.pendingWhitelist.confirmBlock != 0 and block.number >= c.pendingWhitelist.confirmBlock # dev: time delay not reached
-
-    extcall UserWalletConfig(c.walletConfig).confirmWhitelistAddr(_addr)
-    log WhitelistAddrConfirmed(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, confirmedBy = msg.sender)
-
-
-# cancel pending whitelist
-
-
-@external
-def cancelPendingWhitelistAddr(_user: address, _addr: address):
-    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
-    if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
-        assert self._isSignerBackpack(msg.sender, c.inEjectMode) # dev: no perms
-
-    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
-    extcall UserWalletConfig(c.walletConfig).cancelPendingWhitelistAddr(_addr)
-    log WhitelistAddrCancelled(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, cancelledBy = msg.sender)
-
-
-# remove whitelist
-
-
-@external
-def removeWhitelistAddr(_user: address, _addr: address):
-    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
-    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
-    assert c.isWhitelisted # dev: not whitelisted
-    extcall UserWalletConfig(c.walletConfig).removeWhitelistAddr(_addr)
-    log WhitelistAddrRemoved(user = _user, addr = _addr, removedBy = msg.sender)
-
-
-# can manage whitelist
-
-
-@view
-@internal
-def _canManageWhitelist(
-    _isOwner: bool,
-    _isManager: bool,
-    _action: WhitelistAction,
-    _config: WhitelistPerms,
-    _globalConfig: WhitelistPerms,
-) -> bool:
-
-    # check if signer is the owner
-    if _isOwner:
-        return True
-
-    # check if signer is a manager
-    if not _isManager:
-        return False 
-
-    # add to whitelist
-    if _action == WhitelistAction.ADD_WHITELIST:
-        return _config.canAddPending and _globalConfig.canAddPending
-    
-    # confirm whitelist
-    elif _action == WhitelistAction.CONFIRM_WHITELIST:
-        return _config.canConfirm and _globalConfig.canConfirm
-    
-    # cancel whitelist
-    elif _action == WhitelistAction.CANCEL_WHITELIST:
-        return _config.canCancel and _globalConfig.canCancel
-    
-    # remove from whitelist
-    elif _action == WhitelistAction.REMOVE_WHITELIST:
-        return _config.canRemove and _globalConfig.canRemove
-    
-    # invalid action
-    else:
-        return False
-
-
-# validation and get wallet config
-
-
-@view
-@internal
-def _validateAndGetWhitelistConfig(_user: address, _addr: address, _signer: address) -> WhitelistConfigBundle:
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-    assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    return staticcall UserWalletConfig(walletConfig).getWhitelistConfigBundle(_addr, _signer)
-
-
-# is signer backpack
-
-
-@view
-@internal
-def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
-    if _inEjectMode:
-        return False
-    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
-
-
 ####################
 # Payee Management #
 ####################
@@ -639,6 +547,7 @@ def addPayee(
     _user: address,
     _payee: address,
     _canPull: bool,
+    _periodLength: uint256,
     _maxNumTxsPerPeriod: uint256,
     _txCooldownBlocks: uint256,
     _failOnZeroPrice: bool,
@@ -646,25 +555,113 @@ def addPayee(
     _onlyPrimaryAsset: bool,
     _unitLimits: PayeeLimits,
     _usdLimits: PayeeLimits,
-    _periodLength: uint256 = 0,
     _startDelay: uint256 = 0,
     _activationLength: uint256 = 0,
 ) -> bool:
-    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee, msg.sender)
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
     assert msg.sender == bundle.owner # dev: no perms
 
-    # validate payee address
-    assert _payee not in [empty(address), bundle.wallet, bundle.owner, bundle.walletConfig] # dev: invalid payee
-    assert not bundle.isRegisteredPayee # dev: payee already exists
-    assert not bundle.isWhitelisted # dev: already whitelisted
-    assert not bundle.isManager # dev: payee cannot be manager
+    # prepare and validate payee settings
+    config: PayeeSettings = self._validateAndPrepareNewPayeeConfig(
+        _payee,
+        bundle,
+        _canPull,
+        _periodLength,
+        _maxNumTxsPerPeriod,
+        _txCooldownBlocks,
+        _failOnZeroPrice,
+        _primaryAsset,
+        _onlyPrimaryAsset,
+        _unitLimits,
+        _usdLimits,
+        _startDelay,
+        _activationLength,
+    )
 
-    # create validated payee settings
-    config: PayeeSettings = PayeeSettings(
-        startBlock = 0, # will be set by _validateAndCreatePayeeSettings
-        expiryBlock = 0, # will be set by _validateAndCreatePayeeSettings
+    # add payee to wallet config
+    extcall UserWalletConfig(bundle.walletConfig).addPayee(_payee, config)
+    log PayeeAdded(
+        user = _user,
+        payee = _payee,
+        startBlock = config.startBlock,
+        expiryBlock = config.expiryBlock,
+        canPull = config.canPull,
+        periodLength = config.periodLength,
+        maxNumTxsPerPeriod = config.maxNumTxsPerPeriod,
+        txCooldownBlocks = config.txCooldownBlocks,
+        failOnZeroPrice = config.failOnZeroPrice,
+        primaryAsset = config.primaryAsset,
+        onlyPrimaryAsset = config.onlyPrimaryAsset,
+        unitPerTxCap = config.unitLimits.perTxCap,
+        unitPerPeriodCap = config.unitLimits.perPeriodCap,
+        unitLifetimeCap = config.unitLimits.lifetimeCap,
+        usdPerTxCap = config.usdLimits.perTxCap,
+        usdPerPeriodCap = config.usdLimits.perPeriodCap,
+        usdLifetimeCap = config.usdLimits.lifetimeCap,
+    )
+    return True
+
+
+# prepare and validate payee settings
+
+
+@view
+@internal
+def _validateAndPrepareNewPayeeConfig(
+    _payee: address,
+    _bundle: PayeeManagementBundle,
+    _canPull: bool,
+    _periodLength: uint256,
+    _maxNumTxsPerPeriod: uint256,
+    _txCooldownBlocks: uint256,
+    _failOnZeroPrice: bool,
+    _primaryAsset: address,
+    _onlyPrimaryAsset: bool,
+    _unitLimits: PayeeLimits,
+    _usdLimits: PayeeLimits,
+    _startDelay: uint256,
+    _activationLength: uint256,
+) -> PayeeSettings:
+    assert _payee not in [empty(address), _bundle.wallet, _bundle.owner, _bundle.walletConfig] # dev: invalid payee
+    assert not _bundle.isRegisteredPayee # dev: payee already exists
+    assert not _bundle.isWhitelisted # dev: already whitelisted
+    
+    # calculate start delay
+    startDelay: uint256 = max(_bundle.globalPayeeSettings.startDelay, _bundle.timeLock)
+    if _startDelay != 0:
+        startDelay = max(startDelay, _startDelay)
+
+    # calculate activation length
+    activationLength: uint256 = _bundle.globalPayeeSettings.activationLength
+    if _activationLength != 0:
+        activationLength = min(activationLength, _activationLength)
+
+    # use global default period length if not specified
+    periodLength: uint256 = _periodLength
+    if periodLength == 0:
+        periodLength = _bundle.globalPayeeSettings.defaultPeriodLength
+
+    # validate the settings
+    assert (
+        self._validateStartDelay(startDelay, _bundle.timeLock) and
+        self._validatePayeePeriod(periodLength) and
+        self._validateActivationLength(activationLength) and
+        self._validatePayeeCooldown(_txCooldownBlocks, periodLength) and
+        self._validatePrimaryAsset(_primaryAsset, _onlyPrimaryAsset) and
+        self._validatePayeeLimits(_unitLimits) and
+        self._validatePayeeLimits(_usdLimits) and
+        self._validatePullPayee(_canPull, _unitLimits, _usdLimits)
+    ) # dev: invalid settings
+
+    # create start and expiry blocks
+    startBlock: uint256 = block.number + startDelay
+    expiryBlock: uint256 = startBlock + activationLength
+
+    return PayeeSettings(
+        startBlock = startBlock,
+        expiryBlock = expiryBlock,
         canPull = _canPull,
-        periodLength = _periodLength,
+        periodLength = periodLength,
         maxNumTxsPerPeriod = _maxNumTxsPerPeriod,
         txCooldownBlocks = _txCooldownBlocks,
         failOnZeroPrice = _failOnZeroPrice,
@@ -672,95 +669,6 @@ def addPayee(
         onlyPrimaryAsset = _onlyPrimaryAsset,
         unitLimits = _unitLimits,
         usdLimits = _usdLimits,
-    )
-    validatedConfig: PayeeSettings = self._validateAndCreatePayeeSettings(
-        config,
-        _startDelay,
-        _activationLength,
-        bundle.timeLock,
-        bundle.globalPayeeSettings,
-    )
-
-    # add payee to wallet config
-    extcall UserWalletConfig(bundle.walletConfig).addPayee(_payee, validatedConfig)
-    log PayeeAdded(
-        user = _user,
-        payee = _payee,
-        startBlock = validatedConfig.startBlock,
-        expiryBlock = validatedConfig.expiryBlock,
-        canPull = validatedConfig.canPull,
-        periodLength = validatedConfig.periodLength,
-        maxNumTxsPerPeriod = validatedConfig.maxNumTxsPerPeriod,
-        txCooldownBlocks = validatedConfig.txCooldownBlocks,
-        failOnZeroPrice = validatedConfig.failOnZeroPrice,
-        primaryAsset = validatedConfig.primaryAsset,
-        onlyPrimaryAsset = validatedConfig.onlyPrimaryAsset,
-        unitPerTxCap = validatedConfig.unitLimits.perTxCap,
-        unitPerPeriodCap = validatedConfig.unitLimits.perPeriodCap,
-        unitLifetimeCap = validatedConfig.unitLimits.lifetimeCap,
-        usdPerTxCap = validatedConfig.usdLimits.perTxCap,
-        usdPerPeriodCap = validatedConfig.usdLimits.perPeriodCap,
-        usdLifetimeCap = validatedConfig.usdLimits.lifetimeCap,
-    )
-    return True
-
-
-# validate and create payee settings
-
-
-@view
-@internal
-def _validateAndCreatePayeeSettings(
-    _config: PayeeSettings,
-    _startDelay: uint256,
-    _activationLength: uint256,
-    _currentTimeLock: uint256,
-    _globalConfig: GlobalPayeeSettings,
-) -> PayeeSettings:
-
-    # calculate start delay
-    startDelay: uint256 = max(_globalConfig.startDelay, _currentTimeLock)
-    if _startDelay != 0:
-        startDelay = max(startDelay, _startDelay)
-
-    # calculate activation length
-    activationLength: uint256 = _globalConfig.activationLength
-    if _activationLength != 0:
-        activationLength = min(activationLength, _activationLength)
-
-    # use global default period length if not specified
-    periodLength: uint256 = _config.periodLength
-    if periodLength == 0:
-        periodLength = _globalConfig.defaultPeriodLength
-
-    # validate the complete settings
-    assert (
-        self._validateStartDelay(startDelay, _currentTimeLock) and
-        self._validatePayeePeriod(periodLength) and
-        self._validateActivationLength(activationLength) and
-        self._validatePayeeCooldown(_config.txCooldownBlocks, periodLength) and
-        self._validatePrimaryAsset(_config.primaryAsset, _config.onlyPrimaryAsset) and
-        self._validatePayeeLimits(_config.unitLimits) and
-        self._validatePayeeLimits(_config.usdLimits) and
-        self._validatePullPayee(_config.canPull, _config.unitLimits, _config.usdLimits)
-    ) # dev: invalid settings
-
-    # create settings with calculated timing
-    startBlock: uint256 = block.number + startDelay
-    expiryBlock: uint256 = startBlock + activationLength
-
-    return PayeeSettings(
-        startBlock = startBlock,
-        expiryBlock = expiryBlock,
-        canPull = _config.canPull,
-        periodLength = periodLength,
-        maxNumTxsPerPeriod = _config.maxNumTxsPerPeriod,
-        txCooldownBlocks = _config.txCooldownBlocks,
-        failOnZeroPrice = _config.failOnZeroPrice,
-        primaryAsset = _config.primaryAsset,
-        onlyPrimaryAsset = _config.onlyPrimaryAsset,
-        unitLimits = _config.unitLimits,
-        usdLimits = _config.usdLimits,
     )
 
 
@@ -781,7 +689,7 @@ def updatePayee(
     _unitLimits: PayeeLimits,
     _usdLimits: PayeeLimits,
 ) -> bool:
-    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee, msg.sender)
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
     assert msg.sender == bundle.owner # dev: no perms
 
     # validate payee exists
@@ -841,7 +749,7 @@ def updatePayee(
 
 @external
 def removePayee(_user: address, _payee: address) -> bool:
-    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee, msg.sender)
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
     assert msg.sender == bundle.owner # dev: no perms
 
     # validate payee exists
@@ -850,6 +758,130 @@ def removePayee(_user: address, _payee: address) -> bool:
     # remove payee from wallet config
     extcall UserWalletConfig(bundle.walletConfig).removePayee(_payee)
     log PayeeRemoved(user = _user, payee = _payee)
+    return True
+
+
+# add pending payee (for managers)
+
+
+@external
+def addPendingPayee(
+    _user: address,
+    _payee: address,
+    _canPull: bool,
+    _periodLength: uint256,
+    _maxNumTxsPerPeriod: uint256,
+    _txCooldownBlocks: uint256,
+    _failOnZeroPrice: bool,
+    _primaryAsset: address,
+    _onlyPrimaryAsset: bool,
+    _unitLimits: PayeeLimits,
+    _usdLimits: PayeeLimits,
+    _startDelay: uint256 = 0,
+    _activationLength: uint256 = 0,
+) -> bool:
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
+    assert staticcall UserWalletConfig(bundle.walletConfig).canAddPendingPayee(msg.sender) # dev: no permission to add pending payee
+
+    # check if pending payee already exists
+    pendingPayee: PendingPayee = staticcall UserWalletConfig(bundle.walletConfig).pendingPayees(_payee)
+    assert pendingPayee.initiatedBlock == 0 # dev: pending payee already exists
+
+    # validate and prepare payee settings
+    config: PayeeSettings = self._validateAndPrepareNewPayeeConfig(
+        _payee,
+        bundle,
+        _canPull,
+        _periodLength,
+        _maxNumTxsPerPeriod,
+        _txCooldownBlocks,
+        _failOnZeroPrice,
+        _primaryAsset,
+        _onlyPrimaryAsset,
+        _unitLimits,
+        _usdLimits,
+        _startDelay,
+        _activationLength,
+    )
+
+    # create pending payee with timelock
+    confirmBlock: uint256 = block.number + bundle.timeLock
+    pending: PendingPayee = PendingPayee(
+        settings = config,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+    )
+    extcall UserWalletConfig(bundle.walletConfig).addPendingPayee(_payee, pending)
+
+    log PayeePending(
+        user = _user,
+        payee = _payee,
+        confirmBlock = confirmBlock,
+        addedBy = msg.sender,
+        canPull = config.canPull,
+        periodLength = config.periodLength,
+        maxNumTxsPerPeriod = config.maxNumTxsPerPeriod,
+        txCooldownBlocks = config.txCooldownBlocks,
+        failOnZeroPrice = config.failOnZeroPrice,
+        primaryAsset = config.primaryAsset,
+        onlyPrimaryAsset = config.onlyPrimaryAsset,
+        unitPerTxCap = config.unitLimits.perTxCap,
+        unitPerPeriodCap = config.unitLimits.perPeriodCap,
+        unitLifetimeCap = config.unitLimits.lifetimeCap,
+        usdPerTxCap = config.usdLimits.perTxCap,
+        usdPerPeriodCap = config.usdLimits.perPeriodCap,
+        usdLifetimeCap = config.usdLimits.lifetimeCap,
+    )
+    return True
+
+
+# confirm pending payee (for owner)
+
+
+@external
+def confirmPendingPayee(_user: address, _payee: address) -> bool:
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
+    assert msg.sender == bundle.owner # dev: no perms
+    
+    # get pending payee
+    pendingPayee: PendingPayee = staticcall UserWalletConfig(bundle.walletConfig).pendingPayees(_payee)
+    assert pendingPayee.initiatedBlock != 0 # dev: no pending payee
+    assert pendingPayee.confirmBlock != 0 and block.number >= pendingPayee.confirmBlock # dev: time delay not reached
+    
+    # confirm the pending payee
+    extcall UserWalletConfig(bundle.walletConfig).confirmPendingPayee(_payee)
+    log PayeePendingConfirmed(
+        user = _user,
+        payee = _payee,
+        initiatedBlock = pendingPayee.initiatedBlock,
+        confirmBlock = pendingPayee.confirmBlock,
+        confirmedBy = msg.sender
+    )
+    return True
+
+
+# cancel pending payee
+
+
+@external
+def cancelPendingPayee(_user: address, _payee: address) -> bool:
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
+    if msg.sender != bundle.owner and not self._isSignerBackpack(msg.sender, bundle.inEjectMode):
+        assert staticcall UserWalletConfig(bundle.walletConfig).canAddPendingPayee(msg.sender) # dev: no permission to cancel pending payee
+
+    # get pending payee
+    pendingPayee: PendingPayee = staticcall UserWalletConfig(bundle.walletConfig).pendingPayees(_payee)
+    assert pendingPayee.initiatedBlock != 0 # dev: no pending payee
+
+    # cancel the pending payee
+    extcall UserWalletConfig(bundle.walletConfig).cancelPendingPayee(_payee)
+    log PayeePendingCancelled(
+        user = _user,
+        payee = _payee,
+        initiatedBlock = pendingPayee.initiatedBlock,
+        confirmBlock = pendingPayee.confirmBlock,
+        cancelledBy = msg.sender
+    )
     return True
 
 
@@ -870,7 +902,7 @@ def setGlobalPayeeSettings(
     _usdLimits: PayeeLimits,
     _canPayOwner: bool,
 ) -> bool:
-    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, empty(address), msg.sender)
+    bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, empty(address))
     assert msg.sender == bundle.owner # dev: no perms
 
     # create config struct
@@ -1033,8 +1065,141 @@ def _validatePayeeLimits(_limits: PayeeLimits) -> bool:
 
 @view
 @internal
-def _validateAndGetPayeeManagementBundle(_user: address, _payee: address, _signer: address) -> PayeeManagementBundle:
+def _validateAndGetPayeeManagementBundle(_user: address, _payee: address) -> PayeeManagementBundle:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
     assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    return staticcall UserWalletConfig(walletConfig).getPayeeManagementBundle(_payee, _signer)
+    return staticcall UserWalletConfig(walletConfig).getPayeeManagementBundle(_payee)
+
+
+# is signer backpack
+
+
+@view
+@internal
+def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+    if _inEjectMode:
+        return False
+    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+
+
+########################
+# Whitelist Management #
+########################
+
+
+# add whitelist
+
+
+@external
+def addWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.ADD_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+
+    assert _addr not in [empty(address), c.wallet, c.owner, c.walletConfig] # dev: invalid addr
+    assert not c.isWhitelisted # dev: already whitelisted
+    assert c.pendingWhitelist.initiatedBlock == 0 # dev: pending whitelist already exists
+
+    # this uses same delay as ownership change
+    confirmBlock: uint256 = block.number + c.timeLock
+    c.pendingWhitelist = PendingWhitelist(
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+    )
+    extcall UserWalletConfig(c.walletConfig).addPendingWhitelistAddr(_addr, c.pendingWhitelist)
+    log WhitelistAddrPending(user = _user, addr = _addr, confirmBlock = confirmBlock, addedBy = msg.sender)
+
+
+# confirm whitelist
+
+
+@external
+def confirmWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CONFIRM_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+
+    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
+    assert c.pendingWhitelist.confirmBlock != 0 and block.number >= c.pendingWhitelist.confirmBlock # dev: time delay not reached
+
+    extcall UserWalletConfig(c.walletConfig).confirmWhitelistAddr(_addr)
+    log WhitelistAddrConfirmed(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, confirmedBy = msg.sender)
+
+
+# cancel pending whitelist
+
+
+@external
+def cancelPendingWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
+        assert self._isSignerBackpack(msg.sender, c.inEjectMode) # dev: no perms
+
+    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
+    extcall UserWalletConfig(c.walletConfig).cancelPendingWhitelistAddr(_addr)
+    log WhitelistAddrCancelled(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, cancelledBy = msg.sender)
+
+
+# remove whitelist
+
+
+@external
+def removeWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+    assert c.isWhitelisted # dev: not whitelisted
+    extcall UserWalletConfig(c.walletConfig).removeWhitelistAddr(_addr)
+    log WhitelistAddrRemoved(user = _user, addr = _addr, removedBy = msg.sender)
+
+
+# can manage whitelist
+
+
+@view
+@internal
+def _canManageWhitelist(
+    _isOwner: bool,
+    _isManager: bool,
+    _action: WhitelistAction,
+    _config: WhitelistPerms,
+    _globalConfig: WhitelistPerms,
+) -> bool:
+
+    # check if signer is the owner
+    if _isOwner:
+        return True
+
+    # check if signer is a manager
+    if not _isManager:
+        return False 
+
+    # add to whitelist
+    if _action == WhitelistAction.ADD_WHITELIST:
+        return _config.canAddPending and _globalConfig.canAddPending
+    
+    # confirm whitelist
+    elif _action == WhitelistAction.CONFIRM_WHITELIST:
+        return _config.canConfirm and _globalConfig.canConfirm
+    
+    # cancel whitelist
+    elif _action == WhitelistAction.CANCEL_WHITELIST:
+        return _config.canCancel and _globalConfig.canCancel
+    
+    # remove from whitelist
+    elif _action == WhitelistAction.REMOVE_WHITELIST:
+        return _config.canRemove and _globalConfig.canRemove
+    
+    # invalid action
+    else:
+        return False
+
+
+# validation and get wallet config
+
+
+@view
+@internal
+def _validateAndGetWhitelistConfig(_user: address, _addr: address, _signer: address) -> WhitelistConfigBundle:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return staticcall UserWalletConfig(walletConfig).getWhitelistConfigBundle(_addr, _signer)
