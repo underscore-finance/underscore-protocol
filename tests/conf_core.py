@@ -284,9 +284,9 @@ def boss_validator(undy_hq_deploy, fork):
         undy_hq_deploy,
         PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
         PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
-        PARAMS[fork]["BOSS_MAX_START_DELAY"],
         PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_START_DELAY"],
         name="boss_validator",
     )
 
@@ -295,10 +295,15 @@ def boss_validator(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def paymaster(undy_hq_deploy):
+def paymaster(undy_hq_deploy, fork):
     return boa.load(
         "contracts/core/Paymaster.vy",
         undy_hq_deploy,
+        PARAMS[fork]["PAYMASTER_MIN_PAYEE_PERIOD"],
+        PARAMS[fork]["PAYMASTER_MAX_PAYEE_PERIOD"],
+        PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
+        PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
+        PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
         name="paymaster",
     )
 

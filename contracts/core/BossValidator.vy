@@ -171,6 +171,7 @@ MAX_ALLOWED_PAYEES: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
+# manager validation bounds
 MIN_MANAGER_PERIOD: public(immutable(uint256))
 MAX_MANAGER_PERIOD: public(immutable(uint256))
 MAX_START_DELAY: public(immutable(uint256))
@@ -183,14 +184,12 @@ def __init__(
     _undyHq: address,
     _minManagerPeriod: uint256,
     _maxManagerPeriod: uint256,
-    _maxStartDelay: uint256,
     _minActivationLength: uint256,
     _maxActivationLength: uint256,
+    _maxStartDelay: uint256,
 ):
     assert _undyHq != empty(address) # dev: invalid undy hq
     UNDY_HQ = _undyHq
-
-    MAX_START_DELAY = _maxStartDelay
 
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
     MIN_MANAGER_PERIOD = _minManagerPeriod
@@ -199,6 +198,8 @@ def __init__(
     assert _minActivationLength != 0 and _minActivationLength < _maxActivationLength # dev: invalid activation length
     MIN_ACTIVATION_LENGTH = _minActivationLength
     MAX_ACTIVATION_LENGTH = _maxActivationLength
+
+    MAX_START_DELAY = _maxStartDelay
 
 
 ######################

@@ -124,22 +124,30 @@ def setManagerConfig(mission_control, switchboard_alpha, agent_eoa):
         _startingAgent = agent_eoa,
         _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
         _managerPeriod = ONE_DAY_IN_BLOCKS,
-        _defaultStartDelay = ONE_DAY_IN_BLOCKS,
         _defaultActivationLength = ONE_MONTH_IN_BLOCKS,
-        _minManagerPeriod = ONE_DAY_IN_BLOCKS // 2,
-        _maxManagerPeriod = 30 * ONE_DAY_IN_BLOCKS,
     ):
         config = (
             _startingAgent,
             _startingAgentActivationLength,
             _managerPeriod,
-            _defaultStartDelay,
             _defaultActivationLength,
-            _minManagerPeriod,
-            _maxManagerPeriod,
         )
         mission_control.setManagerConfig(config, sender=switchboard_alpha.address)
     yield setManagerConfig
+
+
+@pytest.fixture(scope="session")
+def setPayeeConfig(mission_control, switchboard_alpha):
+    def setPayeeConfig(
+        _payeePeriod = ONE_DAY_IN_BLOCKS,
+        _payeeActivationLength = ONE_MONTH_IN_BLOCKS,
+    ):
+        config = (
+            _payeePeriod,
+            _payeeActivationLength,
+        )
+        mission_control.setPayeeConfig(config, sender=switchboard_alpha.address)
+    yield setPayeeConfig
 
 
 ###########

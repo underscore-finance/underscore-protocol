@@ -54,10 +54,11 @@ struct ManagerConfig:
     startingAgent: address
     startingAgentActivationLength: uint256
     managerPeriod: uint256
-    defaultStartDelay: uint256
-    defaultActivationLength: uint256
-    minManagerPeriod: uint256
-    maxManagerPeriod: uint256
+    managerActivationLength: uint256
+
+struct PayeeConfig:
+    payeePeriod: uint256
+    payeeActivationLength: uint256
 
 struct EjectModeFeeDetails:
     feeRecipient: address
@@ -74,12 +75,11 @@ struct UserWalletCreationConfig:
     startingAgent: address
     startingAgentActivationLength: uint256
     managerPeriod: uint256
-    defaultStartDelay: uint256
-    defaultActivationLength: uint256
+    managerActivationLength: uint256
+    payeePeriod: uint256
+    payeeActivationLength: uint256
     trialAsset: address
     trialAmount: uint256
-    minManagerPeriod: uint256
-    maxManagerPeriod: uint256
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
 
@@ -113,6 +113,7 @@ struct ProfitCalcConfig:
 userWalletConfig: public(UserWalletConfig)
 agentConfig: public(AgentConfig)
 managerConfig: public(ManagerConfig)
+payeeConfig: public(PayeeConfig)
 
 # asset config
 assetConfig: public(HashMap[address, AssetConfig])
@@ -146,6 +147,12 @@ def setManagerConfig(_config: ManagerConfig):
     self.managerConfig = _config
 
 
+@external
+def setPayeeConfig(_config: PayeeConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.payeeConfig = _config
+
+
 # helper
 
 
@@ -154,6 +161,7 @@ def setManagerConfig(_config: ManagerConfig):
 def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
     config: UserWalletConfig = self.userWalletConfig
     managerConfig: ManagerConfig = self.managerConfig
+    payeeConfig: PayeeConfig = self.payeeConfig
     return UserWalletCreationConfig(
         numUserWalletsAllowed = config.numUserWalletsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
@@ -162,12 +170,11 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         startingAgent = managerConfig.startingAgent,
         startingAgentActivationLength = managerConfig.startingAgentActivationLength,
         managerPeriod = managerConfig.managerPeriod,
-        defaultStartDelay = managerConfig.defaultStartDelay,
-        defaultActivationLength = managerConfig.defaultActivationLength,
+        managerActivationLength = managerConfig.managerActivationLength,
+        payeePeriod = payeeConfig.payeePeriod,
+        payeeActivationLength = payeeConfig.payeeActivationLength,
         trialAsset = config.trialAsset,
         trialAmount = config.trialAmount,
-        minManagerPeriod = managerConfig.minManagerPeriod,
-        maxManagerPeriod = managerConfig.maxManagerPeriod,
         minKeyActionTimeLock = config.minKeyActionTimeLock,
         maxKeyActionTimeLock = config.maxKeyActionTimeLock,
     )

@@ -35,12 +35,11 @@ struct UserWalletCreationConfig:
     startingAgent: address
     startingAgentActivationLength: uint256
     managerPeriod: uint256
-    defaultStartDelay: uint256
-    defaultActivationLength: uint256
+    managerActivationLength: uint256
+    payeePeriod: uint256
+    payeeActivationLength: uint256
     trialAsset: address
     trialAmount: uint256
-    minManagerPeriod: uint256
-    maxManagerPeriod: uint256
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
 
@@ -125,8 +124,9 @@ def createUserWallet(
         config.startingAgent,
         config.startingAgentActivationLength,
         config.managerPeriod,
-        # config.defaultStartDelay, # TODO: remove this from mission control config
-        config.defaultActivationLength,
+        config.managerActivationLength,
+        config.payeePeriod,
+        config.payeeActivationLength,
         trialFundsAsset,
         trialFundsAmount,
         WETH,

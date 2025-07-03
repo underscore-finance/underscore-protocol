@@ -11,6 +11,7 @@ interface BossValidator:
 
 interface Paymaster:
     def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
 
 interface Backpack:
     def getBackpackData(_user: address) -> BackpackData: view
@@ -75,6 +76,18 @@ struct WhitelistConfigBundle:
     isOwner: bool
     whitelistPerms: WhitelistPerms
     globalWhitelistPerms: WhitelistPerms
+
+struct PayeeManagementBundle:
+    owner: address
+    wallet: address
+    isRegisteredPayee: bool
+    isWhitelisted: bool
+    isManager: bool
+    payeeSettings: PayeeSettings
+    globalPayeeSettings: GlobalPayeeSettings
+    timeLock: uint256
+    walletConfig: address
+    inEjectMode: bool
 
 struct ManagerData:
     numTxsInPeriod: uint256
@@ -157,7 +170,7 @@ struct PayeeSettings:
 
 struct GlobalPayeeSettings:
     defaultPeriodLength: uint256
-    timeLockOnModify: uint256
+    startDelay: uint256
     activationLength: uint256
     maxNumTxsPerPeriod: uint256
     txCooldownBlocks: uint256
@@ -301,9 +314,12 @@ def __init__(
     # initial agent
     _startingAgent: address,
     _startingAgentActivationLength: uint256,
-    # global manager settings
+    # default manager settings
     _managerPeriod: uint256,
-    _defaultActivationLength: uint256,
+    _managerActivationLength: uint256,
+    # default payee settings
+    _payeePeriod: uint256,
+    _payeeActivationLength: uint256,
     # trial funds
     _trialFundsAsset: address,
     _trialFundsAmount: uint256,
@@ -339,7 +355,7 @@ def __init__(
     self.timeLock = _minTimeLock
 
     # set global manager settings
-    self.globalManagerSettings = staticcall BossValidator(_bossValidator).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _defaultActivationLength)
+    self.globalManagerSettings = staticcall BossValidator(_bossValidator).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
 
     # initial agent
     if _startingAgent != empty(address):
@@ -347,21 +363,13 @@ def __init__(
         self.startingAgent = _startingAgent
         self._registerManager(_startingAgent)
 
-    # TODO: global payee settings
-    self.globalPayeeSettings = GlobalPayeeSettings(
-        defaultPeriodLength = 43_200,
-        timeLockOnModify = 43_200,
-        activationLength = 43_200 * 365,
-        maxNumTxsPerPeriod = 0,
-        txCooldownBlocks = 0,
-        failOnZeroPrice = False,
-        usdLimits = PayeeLimits(
-            perTxCap = max_value(uint256),  # No limit
-            perPeriodCap = max_value(uint256),  # No limit
-            lifetimeCap = max_value(uint256),  # No limit
-        ),
-        canPayOwner = True,
-    )
+    # set global payee settings using defaults from paymaster
+    payeePeriod: uint256 = _payeePeriod
+    payeeActivationLength: uint256 = _payeeActivationLength
+    if _payeePeriod == 0 or _payeeActivationLength == 0:
+        payeePeriod = _managerPeriod
+        payeeActivationLength = _managerActivationLength
+    self.globalPayeeSettings = staticcall Paymaster(_paymaster).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
 
 
 @external
@@ -996,6 +1004,27 @@ def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfi
         isOwner = _signer == owner,
         whitelistPerms = self.managerSettings[_signer].whitelistPerms,
         globalWhitelistPerms = self.globalManagerSettings.whitelistPerms,
+    )
+
+
+# payee management bundle
+
+
+@view
+@external
+def getPayeeManagementBundle(_payee: address, _signer: address) -> PayeeManagementBundle:
+    owner: address = self.owner
+    return PayeeManagementBundle(
+        owner = owner,
+        wallet = self.wallet,
+        isRegisteredPayee = self._isRegisteredPayee(_payee),
+        isWhitelisted = self._isWhitelisted(_payee),
+        isManager = self._isManager(_payee),
+        payeeSettings = self.payeeSettings[_payee],
+        globalPayeeSettings = self.globalPayeeSettings,
+        timeLock = self.timeLock,
+        walletConfig = self,
+        inEjectMode = self.inEjectMode,
     )
 
 
