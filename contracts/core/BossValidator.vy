@@ -431,7 +431,7 @@ def _checkTransactionLimits(
 # check manager usd limits
 
 
-@view
+@pure
 @internal
 def _checkManagerUsdLimits(_txUsdValue: uint256, _config: ManagerLimits, _data: ManagerData) -> bool:
 
@@ -723,7 +723,7 @@ def _validateActivationLength(_activationLength: uint256) -> bool:
     return _activationLength >= MIN_ACTIVATION_LENGTH and _activationLength <= MAX_ACTIVATION_LENGTH
 
 
-@view
+@pure
 @internal
 def _validateManagerLimits(_limits: ManagerLimits, _managerPeriod: uint256) -> bool:
     # NOTE: 0 values are treated as "unlimited" throughout this validation
@@ -810,7 +810,7 @@ def _validateTransferPerms(_transferPerms: TransferPerms, _walletConfig: address
     return True
 
 
-@view
+@pure
 @internal
 def _validateAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]) -> bool:
     if len(_allowedAssets) == 0:
