@@ -63,6 +63,19 @@ struct ManagerSettingsBundle:
     walletConfig: address
     legoBook: address
 
+struct WhitelistConfigBundle:
+    owner: address
+    wallet: address
+    isWhitelisted: bool
+    pendingWhitelist: PendingWhitelist
+    timeLock: uint256
+    walletConfig: address
+    inEjectMode: bool
+    isManager: bool
+    isOwner: bool
+    whitelistPerms: WhitelistPerms
+    globalWhitelistPerms: WhitelistPerms
+
 struct ManagerData:
     numTxsInPeriod: uint256
     totalUsdValueInPeriod: uint256
@@ -911,6 +924,9 @@ def _getManagerConfigs(_signer: address, _walletOwner: address) -> ManagerConfig
     )
 
 
+# manager settings bundle
+
+
 @view
 @external
 def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle:
@@ -958,6 +974,28 @@ def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
         config = config,
         globalConfig = globalConfig,
         data = data,
+    )
+
+
+# whitelist config bundle
+
+
+@view
+@external
+def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle:
+    owner: address = self.owner
+    return WhitelistConfigBundle(
+        owner = owner,
+        wallet = self.wallet,
+        isWhitelisted = self._isWhitelisted(_addr),
+        pendingWhitelist = self.pendingWhitelist[_addr],
+        timeLock = self.timeLock,
+        walletConfig = self,
+        inEjectMode = self.inEjectMode,
+        isManager = self._isManager(_signer),
+        isOwner = _signer == owner,
+        whitelistPerms = self.managerSettings[_signer].whitelistPerms,
+        globalWhitelistPerms = self.globalManagerSettings.whitelistPerms,
     )
 
 

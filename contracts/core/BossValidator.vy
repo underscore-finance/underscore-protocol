@@ -187,7 +187,7 @@ def __init__(
     _minActivationLength: uint256,
     _maxActivationLength: uint256,
 ):
-    assert empty(address) not in [_undyHq] # dev: invalid addrs
+    assert _undyHq != empty(address) # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     MAX_START_DELAY = _maxStartDelay

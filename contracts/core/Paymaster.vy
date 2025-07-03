@@ -15,10 +15,27 @@ from interfaces import Department
 from interfaces import Wallet as wi
 
 interface UserWalletConfig:
+    def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle: view
+    def addPendingWhitelistAddr(_addr: address, _pending: PendingWhitelist): nonpayable
     def getRecipientConfigs(_recipient: address) -> RecipientConfigBundle: view
+    def cancelPendingWhitelistAddr(_addr: address): nonpayable
+    def confirmWhitelistAddr(_addr: address): nonpayable
+    def removeWhitelistAddr(_addr: address): nonpayable
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 interface UserWallet:
     def walletConfig() -> address: view
+
+flag WhitelistAction:
+    ADD_WHITELIST
+    CONFIRM_WHITELIST
+    CANCEL_WHITELIST
+    REMOVE_WHITELIST
 
 struct RecipientConfigBundle:
     isWhitelisted: bool
@@ -27,6 +44,23 @@ struct RecipientConfigBundle:
     config: PayeeSettings
     globalConfig: GlobalPayeeSettings
     data: PayeeData
+
+struct WhitelistConfigBundle:
+    owner: address
+    wallet: address
+    isWhitelisted: bool
+    pendingWhitelist: PendingWhitelist
+    timeLock: uint256
+    walletConfig: address
+    inEjectMode: bool
+    isManager: bool
+    isOwner: bool
+    whitelistPerms: WhitelistPerms
+    globalWhitelistPerms: WhitelistPerms
+
+struct PendingWhitelist:
+    initiatedBlock: uint256
+    confirmBlock: uint256
 
 struct PayeeData:
     numTxsInPeriod: uint256
@@ -66,9 +100,48 @@ struct PayeeLimits:
     perPeriodCap: uint256
     lifetimeCap: uint256
 
+struct WhitelistPerms:
+    canAddPending: bool
+    canConfirm: bool
+    canCancel: bool
+    canRemove: bool
+
+event WhitelistAddrPending:
+    user: indexed(address)
+    addr: indexed(address)
+    confirmBlock: uint256
+    addedBy: indexed(address)
+
+event WhitelistAddrConfirmed:
+    user: indexed(address)
+    addr: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    confirmedBy: indexed(address)
+
+event WhitelistAddrCancelled:
+    user: indexed(address)
+    addr: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
+
+event WhitelistAddrRemoved:
+    user: indexed(address)
+    addr: indexed(address)
+    removedBy: indexed(address)
+
+BACKPACK_ID: constant(uint256) = 7
+LEDGER_ID: constant(uint256) = 2
+
+UNDY_HQ: public(immutable(address))
+
 
 @deploy
 def __init__(_undyHq: address):
+    assert _undyHq != empty(address) # dev: invalid undy hq
+    UNDY_HQ = _undyHq
+
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
 
@@ -337,144 +410,129 @@ def _checkTransactionLimits(
 ########################
 
 
-# flag WhitelistAction:
-#     ADD_WHITELIST
-#     CONFIRM_WHITELIST
-#     CANCEL_WHITELIST
-#     REMOVE_WHITELIST
+# add whitelist
 
 
-# # add whitelist
+@external
+def addWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.ADD_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+
+    assert _addr not in [empty(address), c.wallet, c.owner, c.walletConfig] # dev: invalid addr
+    assert not c.isWhitelisted # dev: already whitelisted
+    assert c.pendingWhitelist.initiatedBlock == 0 # dev: pending whitelist already exists
+
+    # this uses same delay as ownership change
+    confirmBlock: uint256 = block.number + c.timeLock
+    c.pendingWhitelist = PendingWhitelist(
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+    )
+    extcall UserWalletConfig(c.walletConfig).addPendingWhitelistAddr(_addr, c.pendingWhitelist)
+    log WhitelistAddrPending(user = _user, addr = _addr, confirmBlock = confirmBlock, addedBy = msg.sender)
 
 
-# @external
-# def addWhitelistAddr(_user: address, _addr: address):
-#     walletConfig: address = self._validateAndGetWalletConfig(_user)
-#     bossValidator: address = staticcall UserWalletConfig(walletConfig).bossValidator()
-#     c: ManagerConfigBundle = staticcall UserWalletConfig(walletConfig).getManagerConfigs(msg.sender)
-#     assert staticcall BossValidator(bossValidator).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.ADD_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-#     assert _addr not in [empty(address), self, self.wallet, self.owner] # dev: invalid addr
-#     assert not self._isWhitelisted(_addr) # dev: already whitelisted
-#     assert self.pendingWhitelist[_addr].initiatedBlock == 0 # dev: pending whitelist already exists
-
-#     # this uses same delay as ownership change
-#     confirmBlock: uint256 = block.number + self.timeLock
-#     self.pendingWhitelist[_addr] = PendingWhitelist(
-#         initiatedBlock = block.number,
-#         confirmBlock = confirmBlock,
-#     )
-#     log WhitelistAddrPending(addr=_addr, confirmBlock=confirmBlock, addedBy=msg.sender)
+# confirm whitelist
 
 
-# # confirm whitelist
+@external
+def confirmWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CONFIRM_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+
+    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
+    assert c.pendingWhitelist.confirmBlock != 0 and block.number >= c.pendingWhitelist.confirmBlock # dev: time delay not reached
+
+    extcall UserWalletConfig(c.walletConfig).confirmWhitelistAddr(_addr)
+    log WhitelistAddrConfirmed(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, confirmedBy = msg.sender)
 
 
-# @external
-# def confirmWhitelistAddr(_user: address, _addr: address):
-#     c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-#     assert staticcall BossValidator(bossValidator).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.CONFIRM_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-#     data: PendingWhitelist = self.pendingWhitelist[_addr]
-#     assert data.initiatedBlock != 0 # dev: no pending whitelist
-#     assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
-
-#     self._registerWhitelist(_addr)
-#     self.pendingWhitelist[_addr] = empty(PendingWhitelist)
-#     log WhitelistAddrConfirmed(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, confirmedBy=msg.sender)
+# cancel pending whitelist
 
 
-# # cancel pending whitelist
+@external
+def cancelPendingWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
+        assert self._isSignerBackpack(msg.sender, c.inEjectMode) # dev: no perms
+
+    assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
+    extcall UserWalletConfig(c.walletConfig).cancelPendingWhitelistAddr(_addr)
+    log WhitelistAddrCancelled(user = _user, addr = _addr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, cancelledBy = msg.sender)
 
 
-# @external
-# def cancelPendingWhitelistAddr(_user: address, _addr: address):
-#     if not self._isSignerBackpack(msg.sender, self.inEjectMode):
-#         c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-#         assert staticcall BossValidator(bossValidator).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-#     data: PendingWhitelist = self.pendingWhitelist[_addr]
-#     assert data.initiatedBlock != 0 # dev: no pending whitelist
-#     self.pendingWhitelist[_addr] = empty(PendingWhitelist)
-#     log WhitelistAddrCancelled(addr=_addr, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock, cancelledBy=msg.sender)
+# remove whitelist
 
 
-# # remove whitelist
+@external
+def removeWhitelistAddr(_user: address, _addr: address):
+    c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
+    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+    assert c.isWhitelisted # dev: not whitelisted
+    extcall UserWalletConfig(c.walletConfig).removeWhitelistAddr(_addr)
+    log WhitelistAddrRemoved(user = _user, addr = _addr, removedBy = msg.sender)
 
 
-# @external
-# def removeWhitelistAddr(_user: address, _addr: address):
-#     c: ManagerConfigBundle = self._getManagerConfigs(msg.sender, self.owner)
-#     assert staticcall BossValidator(bossValidator).canManageWhitelist(msg.sender, c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.config.whitelistPerms, c.globalConfig.whitelistPerms) # dev: no perms
-
-#     assert self._isWhitelisted(_addr) # dev: not whitelisted
-#     self._deregisterWhitelist(_addr)
-#     log WhitelistAddrRemoved(addr=_addr, removedBy=msg.sender)
+# can manage whitelist
 
 
-# # utils
+@view
+@internal
+def _canManageWhitelist(
+    _isOwner: bool,
+    _isManager: bool,
+    _action: WhitelistAction,
+    _config: WhitelistPerms,
+    _globalConfig: WhitelistPerms,
+) -> bool:
 
+    # check if signer is the owner
+    if _isOwner:
+        return True
 
-# @view
-# @internal
-# def _validateAndGetWalletConfig(_user: address) -> address:
-#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-#     assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
-#     return staticcall UserWallet(_user).walletConfig()
+    # check if signer is a manager
+    if not _isManager:
+        return False 
 
-
-# @view
-# @external
-# def canManageWhitelist(
-#     _signer: address,
-#     _isOwner: bool,
-#     _isManager: bool,
-#     _action: WhitelistAction,
-#     _config: WhitelistPerms,
-#     _globalConfig: WhitelistPerms,
-# ) -> bool:
-
-#     # check if signer is the owner
-#     if _isOwner:
-#         return True
-
-#     # check if signer is a manager
-#     if not _isManager:
-#         return False 
-
-#     # add to whitelist
-#     if _action == WhitelistAction.ADD_WHITELIST:
-#         return _config.canAddPending and _globalConfig.canAddPending
+    # add to whitelist
+    if _action == WhitelistAction.ADD_WHITELIST:
+        return _config.canAddPending and _globalConfig.canAddPending
     
-#     # confirm whitelist
-#     elif _action == WhitelistAction.CONFIRM_WHITELIST:
-#         return _config.canConfirm and _globalConfig.canConfirm
+    # confirm whitelist
+    elif _action == WhitelistAction.CONFIRM_WHITELIST:
+        return _config.canConfirm and _globalConfig.canConfirm
     
-#     # cancel whitelist
-#     elif _action == WhitelistAction.CANCEL_WHITELIST:
-#         return _config.canCancel and _globalConfig.canCancel
+    # cancel whitelist
+    elif _action == WhitelistAction.CANCEL_WHITELIST:
+        return _config.canCancel and _globalConfig.canCancel
     
-#     # remove from whitelist
-#     elif _action == WhitelistAction.REMOVE_WHITELIST:
-#         return _config.canRemove and _globalConfig.canRemove
+    # remove from whitelist
+    elif _action == WhitelistAction.REMOVE_WHITELIST:
+        return _config.canRemove and _globalConfig.canRemove
     
-#     # invalid action
-#     else:
-#         return False
+    # invalid action
+    else:
+        return False
 
 
+# validation and get wallet config
 
-#############
-# Utilities #
-#############
+
+@view
+@internal
+def _validateAndGetWhitelistConfig(_user: address, _addr: address, _signer: address) -> WhitelistConfigBundle:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return staticcall UserWalletConfig(walletConfig).getWhitelistConfigBundle(_addr, _signer)
 
 
 # is signer backpack
 
 
-# @view
-# @internal
-# def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
-#     if _inEjectMode:
-#         return False
-#     return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+@view
+@internal
+def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+    if _inEjectMode:
+        return False
+    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
