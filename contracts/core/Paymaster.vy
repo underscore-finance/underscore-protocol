@@ -528,7 +528,7 @@ def _checkTransactionLimits(
     if _maxNumTxsPerPeriod != 0 and _numTxsInPeriod >= _maxNumTxsPerPeriod:
         return False
     
-    if _txCooldownBlocks != 0 and _lastTxBlock + _txCooldownBlocks > block.number:
+    if _txCooldownBlocks != 0 and _lastTxBlock != 0 and _lastTxBlock + _txCooldownBlocks > block.number:
         return False
     
     return True
@@ -750,7 +750,8 @@ def updatePayee(
 @external
 def removePayee(_user: address, _payee: address) -> bool:
     bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
-    assert msg.sender == bundle.owner # dev: no perms
+    if msg.sender not in [bundle.owner, _payee]:
+        assert self._isSignerBackpack(msg.sender, bundle.inEjectMode) # dev: no perms
 
     # validate payee exists
     assert bundle.isRegisteredPayee # dev: payee not found
@@ -1145,7 +1146,9 @@ def cancelPendingWhitelistAddr(_user: address, _addr: address):
 @external
 def removeWhitelistAddr(_user: address, _addr: address):
     c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
-    assert self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
+    if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
+        assert self._isSignerBackpack(msg.sender, c.inEjectMode) or msg.sender == _addr # dev: no perms
+
     assert c.isWhitelisted # dev: not whitelisted
     extcall UserWalletConfig(c.walletConfig).removeWhitelistAddr(_addr)
     log WhitelistAddrRemoved(user = _user, addr = _addr, removedBy = msg.sender)

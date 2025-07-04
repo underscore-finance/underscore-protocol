@@ -164,6 +164,7 @@ event ManagerActivationLengthAdjusted:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
+BACKPACK_ID: constant(uint256) = 7
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
@@ -1071,7 +1072,8 @@ def updateManager(
 @external
 def removeManager(_user: address, _manager: address) -> bool:
     kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
-    assert msg.sender == kconfig.owner # dev: no perms
+    if msg.sender not in [kconfig.owner, _manager]:
+        assert self._isSignerBackpack(msg.sender, kconfig.inEjectMode) # dev: no perms
     assert kconfig.isManager # dev: manager not found
     extcall UserWalletConfig(kconfig.walletConfig).removeManager(_manager)
     log ManagerRemoved(user = _user, manager = _manager)
@@ -1127,3 +1129,14 @@ def _validateAndGetConfig(_user: address, _manager: address) -> ManagerSettingsB
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     return staticcall UserWalletConfig(walletConfig).getManagerSettingsBundle(_manager)
+
+
+# is signer backpack
+
+
+@view
+@internal
+def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+    if _inEjectMode:
+        return False
+    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)

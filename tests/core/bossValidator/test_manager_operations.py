@@ -421,11 +421,39 @@ def test_only_owner_can_add_manager(setup_contracts, createManagerLimits, create
 
 
 def test_only_owner_can_remove_manager(setup_contracts, createManagerLimits, createLegoPerms,
-                                      createWhitelistPerms, createTransferPerms, alice):
-    """Test that only owner can remove managers"""
+                                      createWhitelistPerms, createTransferPerms):
+    """Test that only authorized parties can remove managers"""
     ctx = setup_contracts
     boss = ctx['boss_validator']
     wallet = ctx['wallet']
+    owner = ctx['owner']
+    manager = ctx['manager']
+    random_addr = boa.env.generate_address()  # Random unauthorized address
+    
+    # Add manager as owner
+    boss.addManager(
+        wallet.address,
+        manager,
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        sender=owner
+    )
+    
+    # Non-owner and non-manager tries to remove
+    with boa.reverts("no perms"):
+        boss.removeManager(wallet.address, manager, sender=random_addr)
+
+
+def test_manager_can_remove_themselves(setup_contracts, createManagerLimits, createLegoPerms,
+                                      createWhitelistPerms, createTransferPerms):
+    """Test that managers can remove themselves"""
+    ctx = setup_contracts
+    boss = ctx['boss_validator']
+    wallet = ctx['wallet']
+    wallet_config = ctx['wallet_config']
     owner = ctx['owner']
     manager = ctx['manager']
     
@@ -441,9 +469,58 @@ def test_only_owner_can_remove_manager(setup_contracts, createManagerLimits, cre
         sender=owner
     )
     
-    # Non-owner tries to remove
-    with boa.reverts():
-        boss.removeManager(wallet.address, manager, sender=alice)
+    # Verify manager exists
+    assert wallet_config.isManager(manager)
+    
+    # Manager removes themselves
+    tx = boss.removeManager(wallet.address, manager, sender=manager)
+    
+    # Check event
+    events = filter_logs(boss, "ManagerRemoved")
+    assert len(events) == 1
+    assert events[0].user == wallet.address
+    assert events[0].manager == manager
+    
+    # Verify manager removed
+    assert not wallet_config.isManager(manager)
+
+
+def test_backpack_can_remove_manager(setup_contracts, createManagerLimits, createLegoPerms,
+                                    createWhitelistPerms, createTransferPerms, backpack):
+    """Test that Backpack can remove managers in non-eject mode"""
+    ctx = setup_contracts
+    boss = ctx['boss_validator']
+    wallet = ctx['wallet']
+    wallet_config = ctx['wallet_config']
+    owner = ctx['owner']
+    manager = ctx['manager']
+    
+    # Add manager as owner
+    boss.addManager(
+        wallet.address,
+        manager,
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        sender=owner
+    )
+    
+    # Verify manager exists
+    assert wallet_config.isManager(manager)
+    
+    # Backpack removes manager
+    tx = boss.removeManager(wallet.address, manager, sender=backpack.address)
+    
+    # Check event
+    events = filter_logs(boss, "ManagerRemoved")
+    assert len(events) == 1
+    assert events[0].user == wallet.address
+    assert events[0].manager == manager
+    
+    # Verify manager removed
+    assert not wallet_config.isManager(manager)
 
 
 # Test complex scenarios
