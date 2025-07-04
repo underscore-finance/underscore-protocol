@@ -20,20 +20,6 @@ flag ActionType:
     ADD_LIQ_CONC
     REMOVE_LIQ_CONC
 
-
-struct ActionData:
-    undyHq: address
-    legoRegistry: address
-    wallet: address
-    walletConfig: address
-    walletOwner: address
-    trialFundsAsset: address
-    trialFundsInitialAmount: uint256
-    signer: address
-    isSignerAgent: bool
-    legoId: uint256
-    legoAddr: address
-
 struct SwapInstruction:
     legoId: uint256
     amountIn: uint256
@@ -361,5 +347,5 @@ def removeLiquidityConcentrated(
 
 
 @external
-def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
+def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     ...

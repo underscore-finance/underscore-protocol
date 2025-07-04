@@ -13,7 +13,6 @@ interface WalletConfig:
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256, _paymaster: address) -> bool: nonpayable
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _bossValidator: address) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
-    def ejectModeFeeDetails() -> EjectModeFeeDetails: view
 
 interface Backpack:
     def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address, _appraiser: address) -> (uint256, uint256, uint256): nonpayable
@@ -39,11 +38,6 @@ struct WalletAssetData:
     usdValue: uint256
     isYieldAsset: bool
     lastYieldPrice: uint256
-
-struct EjectModeFeeDetails:
-    feeRecipient: address
-    swapFee: uint256
-    rewardsFee: uint256
 
 struct ActionData:
     missionControl: address
@@ -577,7 +571,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 
     # handle swap fee
     if lastTokenOut != empty(address):
-        swapFee: uint256 = self._getSwapFee(tokenIn, lastTokenOut, ad.inEjectMode, ad.missionControl, ad.walletConfig)
+        swapFee: uint256 = staticcall MissionControl(ad.missionControl).getSwapFee(self, tokenIn, lastTokenOut)
         if swapFee != 0 and lastTokenOutAmount != 0:
             self._payFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE),ad.feeRecipient)
 
@@ -642,21 +636,6 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
 
     assert empty(address) not in [tokenIn, tokenOut] # dev: invalid token path
     return tokenIn, tokenOut, legoIds
-
-
-@view
-@internal
-def _getSwapFee(
-    _tokenIn: address,
-    _tokenOut: address,
-    _inEjectMode: bool,
-    _missionControl: address,
-    _walletConfig: address,
-) -> uint256:
-    if not _inEjectMode:
-        return staticcall MissionControl(_missionControl).getSwapFee(self, _tokenIn, _tokenOut)
-    feeDetails: EjectModeFeeDetails = staticcall WalletConfig(_walletConfig).ejectModeFeeDetails()
-    return feeDetails.swapFee
 
 
 # mint / redeem
@@ -888,7 +867,7 @@ def claimRewards(
 
     # handle rewards fee
     if _rewardToken != empty(address):
-        rewardsFee: uint256 = self._getRewardsFee(_rewardToken, ad.inEjectMode, ad.missionControl, ad.walletConfig)
+        rewardsFee: uint256 = staticcall MissionControl(ad.missionControl).getRewardsFee(self, _rewardToken)
         if rewardsFee != 0 and rewardAmount != 0:
             self._payFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), ad.feeRecipient)
 
@@ -902,20 +881,6 @@ def claimRewards(
         signer = ad.signer,
     )
     return rewardAmount, txUsdValue
-
-
-@view
-@internal
-def _getRewardsFee(
-    _rewardToken: address,
-    _inEjectMode: bool,
-    _missionControl: address,
-    _walletConfig: address,
-) -> uint256:
-    if not _inEjectMode:
-        return staticcall MissionControl(_missionControl).getRewardsFee(self, _rewardToken)
-    feeDetails: EjectModeFeeDetails = staticcall WalletConfig(_walletConfig).ejectModeFeeDetails()
-    return feeDetails.rewardsFee
 
 
 ###############
@@ -1271,16 +1236,26 @@ def _performPostActionTasks(
 
 
 @external
-def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
-    ad: ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
+def updateAssetData(
+    _legoId: uint256,
+    _asset: address,
+    _shouldCheckYield: bool,
+    _totalUsdValue: uint256,
+    _ad: ActionData = empty(ActionData),
+) -> uint256:
+    walletConfig: address = self.walletConfig
+    assert msg.sender == walletConfig # dev: no perms
+
+    ad: ActionData = _ad
+    if ad.signer == empty(address):
+        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(_legoId, walletConfig)
 
     # check for yield
     if _shouldCheckYield and not ad.inEjectMode:
         self._checkForYieldProfits(_asset, ad)
 
     # update asset data
-    return self._updateAssetData(_asset, ad.lastTotalUsdValue, ad.inEjectMode, ad.appraiser, ad.eth)
+    return self._updateAssetData(_asset, _totalUsdValue, ad.inEjectMode, ad.appraiser, ad.eth)
 
 
 # update asset data
@@ -1298,7 +1273,7 @@ def _updateAssetData(
         return _newTotalUsdValue
 
     data: WalletAssetData = self.assetData[_asset]
-    prevUsdValue: uint256 = data.usdValue
+    newTotalUsdValue: uint256 = _newTotalUsdValue - min(data.usdValue, _newTotalUsdValue)
 
     # ETH / ERC20
     currentBalance: uint256 = 0
@@ -1313,13 +1288,14 @@ def _updateAssetData(
         data.usdValue = 0
         self.assetData[_asset] = data
         self._deregisterAsset(_asset)
-        return _newTotalUsdValue - prevUsdValue
+        return newTotalUsdValue
 
     # update usd value
     data.usdValue = 0
     data.isYieldAsset = False
     if not _inEjectMode:
         data.usdValue, data.isYieldAsset = extcall Appraiser(_appraiser).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
+        newTotalUsdValue += data.usdValue
 
     # save data
     data.assetBalance = currentBalance
@@ -1329,7 +1305,7 @@ def _updateAssetData(
     if self.indexOfAsset[_asset] == 0:
         self._registerAsset(_asset)
 
-    return _newTotalUsdValue - prevUsdValue + data.usdValue
+    return newTotalUsdValue
 
 
 # register asset
@@ -1460,10 +1436,9 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
 
 
 @external
-def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
+def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     assert msg.sender == self.walletConfig # dev: no perms
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
-    return True
 
 
 # allow lego to perform action

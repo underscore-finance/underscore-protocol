@@ -10,10 +10,11 @@ interface UserWalletConfig:
     def setGlobalPayeeSettings(_config: GlobalPayeeSettings): nonpayable
     def updatePayee(_payee: address, _config: PayeeSettings): nonpayable
     def addPayee(_payee: address, _config: PayeeSettings): nonpayable
+    def getMigrationConfigBundle() -> MigrationConfigBundle: view
     def cancelPendingWhitelistAddr(_addr: address): nonpayable
     def payeeSettings(_payee: address) -> PayeeSettings: view
-    def globalPayeeSettings() -> GlobalPayeeSettings: view
     def pendingPayees(_payee: address) -> PendingPayee: view
+    def globalPayeeSettings() -> GlobalPayeeSettings: view
     def canAddPendingPayee(_caller: address) -> bool: view
     def confirmWhitelistAddr(_addr: address): nonpayable
     def confirmPendingPayee(_payee: address): nonpayable
@@ -25,15 +26,19 @@ interface UserWalletConfig:
     def isManager(_addr: address) -> bool: view
     def timeLock() -> uint256: view
     def owner() -> address: view
+    def numPayees() -> uint256: view
+    def payees(i: uint256) -> address: view
+    def numWhitelisted() -> uint256: view
+    def whitelistAddr(i: uint256) -> address: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
-
-interface UserWallet:
-    def walletConfig() -> address: view
 
 flag WhitelistAction:
     ADD_WHITELIST
@@ -73,6 +78,18 @@ struct PayeeManagementBundle:
     timeLock: uint256
     walletConfig: address
     inEjectMode: bool
+
+struct MigrationConfigBundle:
+    owner: address
+    trialFundsAmount: uint256
+    isFrozen: bool
+    numPayees: uint256
+    numWhitelisted: uint256
+    numManagers: uint256
+    startingAgent: address
+    startingAgentIndex: uint256
+    hasPendingOwnerChange: bool
+    groupId: uint256
 
 struct PendingWhitelist:
     initiatedBlock: uint256
@@ -1206,3 +1223,202 @@ def _validateAndGetWhitelistConfig(_user: address, _addr: address, _signer: addr
     assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     return staticcall UserWalletConfig(walletConfig).getWhitelistConfigBundle(_addr, _signer)
+
+
+####################
+# Wallet Migration #
+####################
+
+
+# can migrate to new wallet
+
+
+@view
+@external
+def canMigrateToNewWallet(_newWallet: address, _thisWallet: address) -> bool:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+
+    # validate new wallet is Underscore wallet
+    if not staticcall Ledger(ledger).isUserWallet(_newWallet):
+        return False
+
+    # get this wallet data
+    walletConfig: address = staticcall UserWallet(_thisWallet).walletConfig()
+    bundle: MigrationConfigBundle = staticcall UserWalletConfig(walletConfig).getMigrationConfigBundle()
+
+    # cannot migrate if this wallet has trial funds
+    if bundle.trialFundsAmount != 0:
+        return False
+
+    # cannot migrate if this wallet is frozen
+    if bundle.isFrozen:
+        return False
+
+    # cannot migrate if this wallet has pending owner change
+    if bundle.hasPendingOwnerChange:
+        return False
+
+    # new wallet bundle
+    newWalletConfig: address = staticcall UserWallet(_newWallet).walletConfig()
+    newWalletBundle: MigrationConfigBundle = staticcall UserWalletConfig(newWalletConfig).getMigrationConfigBundle()
+
+    # owners must be the same
+    if bundle.owner != newWalletBundle.owner:
+        return False
+
+    # cannot migrate if new wallet has pending owner change
+    if newWalletBundle.hasPendingOwnerChange:
+        return False
+
+    # group id must be the same
+    if bundle.groupId != newWalletBundle.groupId:
+        return False
+
+    # cannot migrate if new wallet is frozen
+    if newWalletBundle.isFrozen:
+        return False
+
+    # new wallet cannot have any payees
+    if newWalletBundle.numPayees != 0:
+        return False
+
+    # new wallet cannot have any whitelisted addresses
+    if newWalletBundle.numWhitelisted != 0:
+        return False
+
+    # cannot have managers (if starting agent is not set)
+    if newWalletBundle.startingAgent == empty(address) and newWalletBundle.numManagers != 0:
+        return False
+    
+    # cannot have managers other than starting agent
+    if newWalletBundle.startingAgent != empty(address):
+        if newWalletBundle.startingAgentIndex != 1:
+            return False
+        if newWalletBundle.numManagers != 2:
+            return False
+
+    return True
+
+
+# can clone config
+
+
+@view
+@external
+def canCopyWalletConfig(_fromWallet: address, _toWallet: address) -> bool:
+    return self._canCopyWalletConfig(_fromWallet, _toWallet)
+
+
+@view
+@internal
+def _canCopyWalletConfig(_fromWallet: address, _toWallet: address) -> bool:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+
+    # validate fromWallet is Underscore wallet
+    if not staticcall Ledger(ledger).isUserWallet(_fromWallet):
+        return False
+
+    # validate toWallet is Underscore wallet
+    if not staticcall Ledger(ledger).isUserWallet(_toWallet):
+        return False
+
+    # get toWallet data
+    toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
+    toBundle: MigrationConfigBundle = staticcall UserWalletConfig(toConfig).getMigrationConfigBundle()
+
+    # cannot copy if toWallet has pending owner change
+    if toBundle.hasPendingOwnerChange:
+        return False
+
+    # cannot copy if toWallet is frozen
+    if toBundle.isFrozen:
+        return False
+
+    # toWallet cannot have any payees
+    if toBundle.numPayees != 0:
+        return False
+
+    # toWallet cannot have any whitelisted addresses
+    if toBundle.numWhitelisted != 0:
+        return False
+
+    # cannot have managers (if starting agent is not set)
+    if toBundle.startingAgent == empty(address) and toBundle.numManagers != 0:
+        return False
+    
+    # cannot have managers other than starting agent
+    if toBundle.startingAgent != empty(address):
+        if toBundle.startingAgentIndex != 1:
+            return False
+        if toBundle.numManagers != 2:
+            return False
+
+    # fromWallet bundle
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    fromBundle: MigrationConfigBundle = staticcall UserWalletConfig(fromConfig).getMigrationConfigBundle()
+
+    # cannot copy if fromWallet is frozen
+    if fromBundle.isFrozen:
+        return False
+
+    # owners must be the same
+    if fromBundle.owner != toBundle.owner:
+        return False
+
+    # group id must be the same
+    if fromBundle.groupId != toBundle.groupId:
+        return False
+
+    # cannot copy if fromWallet has pending owner change
+    if fromBundle.hasPendingOwnerChange:
+        return False
+
+    return True
+
+
+# @external  
+# def clonePayeesAndWhitelist(_fromWallet: address, _toWallet: address):
+#     """Clone payee and whitelist configuration from one wallet to another"""
+#     # Get configs
+#     toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
+#     fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    
+#     # Verify caller is owner of destination wallet
+#     toOwner: address = staticcall UserWalletConfig(toConfig).owner()
+#     assert msg.sender == toOwner # dev: no perms
+    
+#     # Verify we can copy config
+#     assert self._canCopyWalletConfig(_fromWallet, _toWallet) # dev: cannot copy config
+    
+#     # 1. Copy global payee settings
+#     globalPayeeSettings: GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
+#     extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
+    
+#     # 2. Copy all payees
+#     numPayees: uint256 = staticcall UserWalletConfig(fromConfig).numPayees()
+#     for i: uint256 in range(1, numPayees, bound=max_value(uint256)):
+#         payee: address = staticcall UserWalletConfig(fromConfig).payees(i)
+#         if payee == empty(address):
+#             continue
+            
+#         settings: PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
+#         if settings.startBlock != 0:
+#             # Directly add payee to destination config (we're already validated as owner)
+#             extcall UserWalletConfig(toConfig).addPayee(payee, settings)
+    
+#     # 3. Copy all whitelisted addresses
+#     numWhitelisted: uint256 = staticcall UserWalletConfig(fromConfig).numWhitelisted()
+#     for i: uint256 in range(1, numWhitelisted, bound=max_value(uint256)):
+#         addr: address = staticcall UserWalletConfig(fromConfig).whitelistAddr(i)
+#         if addr == empty(address):
+#             continue
+            
+#         # Add to whitelist directly (bypass pending since we're owner and cloning)
+#         # First add as pending with immediate confirm time
+#         pending: PendingWhitelist = PendingWhitelist(
+#             initiatedBlock=block.number,
+#             confirmBlock=block.number  # Can confirm immediately
+#         )
+#         extcall UserWalletConfig(toConfig).addPendingWhitelistAddr(addr, pending)
+#         # Then immediately confirm
+#         extcall UserWalletConfig(toConfig).confirmWhitelistAddr(addr)

@@ -3,6 +3,30 @@
 
 from interfaces import Wallet as wi
 
+from ethereum.ercs import IERC20
+from ethereum.ercs import IERC721
+
+interface UserWallet:
+    def preparePayment(_legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, address, uint256, uint256): nonpayable
+    def transferFundsTrusted(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, uint256): nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ActionData = empty(ActionData)) -> uint256: nonpayable
+    def assets(i: uint256) -> address: view
+    def numAssets() -> uint256: view
+    def walletConfig() -> address: view
+
+interface UserWalletConfig:
+    def globalManagerSettings() -> GlobalManagerSettings: view
+    def globalPayeeSettings() -> GlobalPayeeSettings: view
+    def numManagers() -> uint256: view
+    def managers(i: uint256) -> address: view
+    def owner() -> address: view
+    def managerSettings(_manager: address) -> ManagerSettings: view
+    def numPayees() -> uint256: view
+    def payees(i: uint256) -> address: view
+    def payeeSettings(_payee: address) -> PayeeSettings: view
+    def numWhitelisted() -> uint256: view
+    def whitelistAddr(i: uint256) -> address: view
+
 interface BossValidator:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: ManagerData, _config: ManagerSettings, _globalConfig: GlobalManagerSettings, _userWalletConfig: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: ManagerLimits, _globalLimits: ManagerLimits, _managerPeriod: uint256, _data: ManagerData) -> ManagerData: view
@@ -12,6 +36,8 @@ interface BossValidator:
 interface Paymaster:
     def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
+    def canMigrateToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
+    def canCopyWalletConfig(_oldWallet: address, _thisWallet: address) -> bool: view
 
 interface Backpack:
     def getBackpackData(_user: address) -> BackpackData: view
@@ -76,6 +102,18 @@ struct WhitelistConfigBundle:
     isOwner: bool
     whitelistPerms: WhitelistPerms
     globalWhitelistPerms: WhitelistPerms
+
+struct MigrationConfigBundle:
+    owner: address
+    trialFundsAmount: uint256
+    isFrozen: bool
+    numPayees: uint256
+    numWhitelisted: uint256
+    numManagers: uint256
+    startingAgent: address
+    startingAgentIndex: uint256
+    hasPendingOwnerChange: bool
+    groupId: uint256
 
 struct PayeeManagementBundle:
     owner: address
@@ -204,11 +242,6 @@ struct BackpackData:
     feeRecipient: address
     lastTotalUsdValue: uint256
 
-struct EjectModeFeeDetails:
-    feeRecipient: address
-    swapFee: uint256
-    rewardsFee: uint256
-
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
     newOwner: indexed(address)
@@ -231,14 +264,15 @@ event TimeLockSet:
 
 event EjectionModeSet:
     inEjectMode: bool
-    feeRecipient: address
-    swapFee: uint256
-    rewardsFee: uint256
-    caller: indexed(address)
 
 event FrozenSet:
     isFrozen: bool
     caller: indexed(address)
+
+event NftRecovered:
+    collection: indexed(address)
+    nftTokenId: uint256
+    recipient: indexed(address)
 
 # core
 wallet: public(address)
@@ -283,7 +317,6 @@ globalPayeeSettings: public(GlobalPayeeSettings)
 timeLock: public(uint256)
 isFrozen: public(bool)
 inEjectMode: public(bool)
-ejectModeFeeDetails: public(EjectModeFeeDetails)
 
 startingAgent: public(address)
 didSetWallet: public(bool)
@@ -543,11 +576,6 @@ def _hasPendingOwnerChange() -> bool:
     return self.pendingOwner.confirmBlock != 0
 
 
-###############
-# Other Admin #
-###############
-
-
 # time lock
 
 
@@ -557,39 +585,6 @@ def setTimeLock(_numBlocks: uint256):
     assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid delay
     self.timeLock = _numBlocks
     log TimeLockSet(numBlocks=_numBlocks)
-
-
-# freeze wallet
-
-
-@external
-def setFrozen(_isFrozen: bool):
-    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
-        assert msg.sender == self.owner # dev: no perms
-
-    self.isFrozen = _isFrozen
-    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
-
-
-# ejection mode
-
-
-@external
-def setEjectionMode(_shouldEject: bool, _feeDetails: EjectModeFeeDetails):
-    # NOTE: this needs to be triggered from Backpack, as it has other side effects / reactions
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
-
-    assert _shouldEject != self.inEjectMode # dev: nothing to change
-    self.inEjectMode = _shouldEject
-    self.ejectModeFeeDetails = _feeDetails
-
-    log EjectionModeSet(
-        inEjectMode = _shouldEject,
-        feeRecipient = _feeDetails.feeRecipient,
-        swapFee = _feeDetails.swapFee,
-        rewardsFee = _feeDetails.rewardsFee,
-        caller = msg.sender,
-    )
 
 
 ####################
@@ -1098,179 +1093,184 @@ def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle:
     )
 
 
-# # remove trial funds
+##################
+# Backpack Tools #
+##################
 
 
-# @external
-# def removeTrialFunds() -> uint256:
-#     ad: ActionData = self._getActionDataBundle(0, msg.sender)
-#     assert ad.signer == ad.backpack # dev: no perms
-
-#     # trial funds info
-#     trialFundsAmount: uint256 = self.trialFundsAmount
-#     trialFundsAsset: address = self.trialFundsAsset
-#     assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
-
-#     # recipient
-#     hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-#     assert hatchery != empty(address) # dev: invalid recipient
-
-#     # transfer assets
-#     amount: uint256 = 0
-#     na: uint256 = 0
-#     amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
-
-#     # update trial funds info
-#     remainingAmount: uint256 = trialFundsAmount - amount
-#     self.trialFundsAmount = remainingAmount
-#     if remainingAmount == 0:
-#         self.trialFundsAsset = empty(address)
-
-#     return amount
+# update asset data
 
 
-# # prepare payment
+@external
+def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
+    ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
+    assert ad.signer == ad.backpack # dev: no perms
+    return extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
 
 
-# @external
-# def preparePayment(
-#     _targetAsset: address,
-#     _legoId: uint256,
-#     _vaultToken: address,
-#     _vaultAmount: uint256 = max_value(uint256),
-# ) -> (uint256, uint256):
-#     ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
-#     assert ad.signer == ad.backpack # dev: no perms
+@external
+def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
+    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    assert ad.signer == ad.backpack # dev: no perms
 
-#     # withdraw from yield position
-#     na: uint256 = 0
-#     underlyingAsset: address = empty(address)
-#     underlyingAmount: uint256 = 0
-#     txUsdValue: uint256 = 0
-#     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
-#     assert underlyingAsset == _targetAsset # dev: invalid target asset
+    numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
+    if numAssets == 0:
+        return ad.lastTotalUsdValue
+
+    newTotalUsdValue: uint256 = ad.lastTotalUsdValue
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+        asset: address = staticcall UserWallet(ad.wallet).assets(i)
+        if asset != empty(address):
+            newTotalUsdValue = extcall UserWallet(ad.wallet).updateAssetData(0, asset, _shouldCheckYield, newTotalUsdValue, ad)
+
+    return newTotalUsdValue
+
+
+# remove trial funds
+
+
+@external
+def removeTrialFunds() -> uint256:
+    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    assert ad.signer == ad.backpack # dev: no perms
+
+    # trial funds info
+    trialFundsAmount: uint256 = self.trialFundsAmount
+    trialFundsAsset: address = self.trialFundsAsset
+    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
+
+    # recipient
+    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
+    assert hatchery != empty(address) # dev: invalid recipient
+
+    # transfer assets
+    amount: uint256 = 0
+    na: uint256 = 0
+    amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
+
+    # update trial funds info
+    remainingAmount: uint256 = trialFundsAmount - amount
+    self.trialFundsAmount = remainingAmount
+    if remainingAmount == 0:
+        self.trialFundsAsset = empty(address)
+
+    return amount
+
+
+# prepare payment
+
+
+@external
+def preparePayment(
+    _targetAsset: address,
+    _legoId: uint256,
+    _vaultToken: address,
+    _vaultAmount: uint256 = max_value(uint256),
+) -> (uint256, uint256):
+    ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
+    assert ad.signer == ad.backpack # dev: no perms
+
+    # withdraw from yield position
+    na: uint256 = 0
+    underlyingAsset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
+    assert underlyingAsset == _targetAsset # dev: invalid target asset
    
-#     return underlyingAmount, txUsdValue
+    return underlyingAmount, txUsdValue
 
 
-# # recover nft
+# recover nft
 
 
-# @external
-# def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool:
-#     assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
-#     assert _recipient != empty(address) # dev: invalid recipient
-#     wallet: address = self.wallet
-#     assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
-#     return extcall UserWallet(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+@external
+def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
+    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
+    assert _recipient != empty(address) # dev: invalid recipient
+    wallet: address = self.wallet
+    assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
+    extcall wi(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+    log NftRecovered(collection = _collection, nftTokenId = _nftTokenId, recipient = _recipient)
 
 
-# #############
-# # Migration #
-# #############
+# freeze wallet
 
 
-# # migrate funds
+@external
+def setFrozen(_isFrozen: bool):
+    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
+        assert msg.sender == self.owner # dev: no perms
+
+    self.isFrozen = _isFrozen
+    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
 
 
-# @external
-# def migrateFunds(_newWallet: address) -> uint256:
-#     owner: address = self.owner
-#     assert msg.sender == owner # dev: no perms
-
-#     wallet: address = self.wallet
-#     assert self._canMigrateToNewWallet(_newWallet, owner, wallet) # dev: cannot migrate to new wallet
-
-#     numAssets: uint256 = staticcall UserWallet(wallet).numAssets()
-#     if numAssets == 0:
-#         return 0
-
-#     # transfer tokens
-#     numMigrated: uint256 = 0
-#     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
-#         asset: address = staticcall UserWallet(wallet).assets(i)
-#         if asset == empty(address):
-#             continue
-
-#         balance: uint256 = staticcall IERC20(asset).balanceOf(wallet)
-#         if balance != 0:
-#             extcall wi(_newWallet).transferFunds(_newWallet, asset)
-#         numMigrated += 1
-
-#     return numMigrated
+# ejection mode
 
 
-# @view
-# @internal
-# def _canMigrateToNewWallet(_newWallet: address, _owner: address, _thisWallet: address) -> bool:
-#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+@external
+def setEjectionMode(_shouldEject: bool):
+    # NOTE: this needs to be triggered from Backpack, as it has other side effects / reactions
+    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
+    assert self.trialFundsAmount == 0 # dev: has trial funds
 
-#     # initial validation
-#     assert staticcall Ledger(ledger).isUserWallet(_newWallet) # dev: not a user wallet
-#     assert staticcall UserWallet(_thisWallet).trialFundsAmount() == 0 # dev: has trial funds
-#     assert not self.isFrozen # dev: frozen
-
-#     # wallet config checks
-#     newWalletConfig: address = staticcall UserWallet(_newWallet).walletConfig()
-#     assert self._isMatchingOwnership(newWalletConfig, _owner) # dev: not same owner
-#     assert self._hasNoManagers(newWalletConfig) # dev: has managers
-
-#     # TODO
-#     # TODO: once there is proper transfer/whitelist, let's check that is empty also
-#     # TODO
-
-#     return True
+    assert _shouldEject != self.inEjectMode # dev: nothing to change
+    self.inEjectMode = _shouldEject
+    log EjectionModeSet(inEjectMode = _shouldEject)
 
 
-# # migrate settings
+####################
+# Wallet Migration #
+####################
 
 
-# @external
-# def migrateSettings(_oldWallet: address):
-#     owner: address = self.owner
-#     assert msg.sender == owner # dev: no perms
-#     assert self._canMigrateSettings(_oldWallet, owner) # dev: cannot migrate settings
-
-#     # TODO: migrate all settings
+# migrate funds
 
 
-# @view
-# @internal
-# def _canMigrateSettings(_oldWallet: address, _owner: address) -> bool:
-#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-#     assert staticcall Ledger(ledger).isUserWallet(_oldWallet) # dev: not a user wallet
+@external
+def migrateFunds(_newWallet: address) -> uint256:
+    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    assert msg.sender == ad.walletOwner # dev: no perms
 
-#     oldWalletConfig: address = staticcall UserWallet(_oldWallet).walletConfig()
-#     assert self._isMatchingOwnership(oldWalletConfig, _owner) # dev: not same owner
-#     assert self._hasNoManagers(self) # dev: has managers
+    # important validation!
+    assert staticcall Paymaster(ad.paymaster).canMigrateToNewWallet(_newWallet, ad.wallet) # dev: cannot migrate to new wallet
 
-#     # TODO
-#     # TODO: once there is proper transfer/whitelist, let's check that is empty also
-#     # TODO
+    numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
+    if numAssets == 0:
+        return 0
 
-#     return True
+    # transfer tokens
+    numMigrated: uint256 = 0
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+        asset: address = staticcall UserWallet(ad.wallet).assets(i)
+        if asset == empty(address):
+            continue
 
+        balance: uint256 = staticcall IERC20(asset).balanceOf(ad.wallet)
+        if balance != 0:
+            extcall UserWallet(_newWallet).transferFundsTrusted(_newWallet, asset, max_value(uint256), ad)
+        numMigrated += 1
 
-# # shared utils
-
-
-# @view
-# @internal
-# def _isMatchingOwnership(_walletConfig: address, _owner: address) -> bool:
-#     assert _owner == staticcall UserWalletConfig(_walletConfig).owner() # dev: not same owner
-#     assert not staticcall UserWalletConfig(_walletConfig).hasPendingOwnerChange() # dev: pending owner change
-#     assert not self._hasPendingOwnerChange() # dev: pending owner change
-#     assert self.groupId == staticcall UserWalletConfig(_walletConfig).groupId() # dev: wrong group id
-#     return True
+    return numMigrated
 
 
-# @view
-# @internal
-# def _hasNoManagers(_walletConfig: address) -> bool:
-#     startingAgent: address = staticcall UserWalletConfig(_walletConfig).startingAgent()
-#     if startingAgent == empty(address):
-#         assert staticcall UserWalletConfig(_walletConfig).numManagers() == 0 # dev: has managers
-#     else:
-#         assert staticcall UserWalletConfig(_walletConfig).indexOfManager(startingAgent) == 1 # dev: invalid manager
-#         assert staticcall UserWalletConfig(_walletConfig).numManagers() == 2 # dev: has other managers
-#     return True
+# migration config bundle
+
+
+@view
+@external
+def getMigrationConfigBundle() -> MigrationConfigBundle:
+    startingAgent: address = self.startingAgent
+    return MigrationConfigBundle(
+        owner = self.owner,
+        trialFundsAmount = self.trialFundsAmount,
+        isFrozen = self.isFrozen,
+        numPayees = self.numPayees,
+        numWhitelisted = self.numWhitelisted,
+        numManagers = self.numManagers,
+        startingAgent = startingAgent,
+        startingAgentIndex = self.indexOfManager[startingAgent],
+        hasPendingOwnerChange = self._hasPendingOwnerChange(),
+        groupId = self.groupId,
+    )

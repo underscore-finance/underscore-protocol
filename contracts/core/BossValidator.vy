@@ -14,6 +14,9 @@ interface UserWalletConfig:
     def isRegisteredPayee(_addr: address) -> bool: view
     def isWhitelisted(_addr: address) -> bool: view
     def removeManager(_manager: address): nonpayable
+    def owner() -> address: view
+    def numManagers() -> uint256: view
+    def managers(i: uint256) -> address: view
 
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
@@ -1140,3 +1143,45 @@ def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
     if _inEjectMode:
         return False
     return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+
+
+# ####################
+# # Clone Managers   #
+# ####################
+
+
+# @external
+# def cloneManagers(_fromWallet: address, _toWallet: address):
+#     """Clone manager configuration from one wallet to another"""
+#     # Get configs
+#     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+#     assert staticcall Ledger(ledger).isUserWallet(_fromWallet) # dev: not a user wallet
+#     assert staticcall Ledger(ledger).isUserWallet(_toWallet) # dev: not a user wallet
+    
+#     # Verify caller is owner of destination wallet
+#     toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
+#     toOwner: address = staticcall UserWalletConfig(toConfig).owner()
+#     assert msg.sender == toOwner # dev: no perms
+    
+#     # Get source config
+#     fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    
+#     # Verify same owner and group (similar checks as Paymaster.canCopyWalletConfig)
+#     fromOwner: address = staticcall UserWalletConfig(fromConfig).owner()
+#     assert fromOwner == toOwner # dev: different owners
+    
+#     # 1. Copy global manager settings
+#     globalSettings: GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
+#     extcall UserWalletConfig(toConfig).setGlobalManagerSettings(globalSettings)
+    
+#     # 2. Copy all managers
+#     numManagers: uint256 = staticcall UserWalletConfig(fromConfig).numManagers()
+#     for i: uint256 in range(1, numManagers, bound=max_value(uint256)):
+#         manager: address = staticcall UserWalletConfig(fromConfig).managers(i)
+#         if manager == empty(address):
+#             continue
+            
+#         settings: ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
+#         if settings.startBlock != 0:
+#             # Add manager directly to config
+#             extcall UserWalletConfig(toConfig).addManager(manager, settings)

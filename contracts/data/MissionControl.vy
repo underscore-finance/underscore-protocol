@@ -60,11 +60,6 @@ struct PayeeConfig:
     payeePeriod: uint256
     payeeActivationLength: uint256
 
-struct EjectModeFeeDetails:
-    feeRecipient: address
-    swapFee: uint256
-    rewardsFee: uint256
-
 # helpers
 
 struct UserWalletCreationConfig:
@@ -266,17 +261,6 @@ def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
         staleBlocks = staleBlocks,
         isYieldAsset = config.isYieldAsset,
         underlyingAsset = config.yieldConfig.underlyingAsset,
-    )
-
-
-@view
-@external
-def getEjectModeFeeDetails() -> EjectModeFeeDetails:
-    config: UserWalletConfig = self.userWalletConfig
-    return EjectModeFeeDetails(
-        feeRecipient = config.feeRecipient,
-        swapFee = config.walletFees.swapFee,
-        rewardsFee = config.walletFees.rewardsFee,
     )
 
 

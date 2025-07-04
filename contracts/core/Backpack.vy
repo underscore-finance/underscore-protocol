@@ -16,6 +16,16 @@ from interfaces import LegoPartner as Lego
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
+interface UserWalletConfig:
+    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
+    def setEjectionMode(_inEjectMode: bool): nonpayable
+    def removeTrialFunds() -> uint256: nonpayable
+    def setFrozen(_isFrozen: bool): nonpayable
+    def cancelOwnershipChange(): nonpayable
+    def trialFundsAmount() -> uint256: view
+    def trialFundsAsset() -> address: view
+    def owner() -> address: view
+
 interface UserWallet:
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address) -> bool: nonpayable
@@ -33,18 +43,7 @@ interface Ledger:
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
-    def getEjectModeFeeDetails() -> EjectModeFeeDetails: view
     def feeRecipient() -> address: view
-
-interface UserWalletConfig:
-    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
-    def setEjectionMode(_inEjectMode: bool, _feeDetails: EjectModeFeeDetails): nonpayable
-    def removeTrialFunds() -> uint256: nonpayable
-    def setFrozen(_isFrozen: bool): nonpayable
-    def cancelOwnershipChange(): nonpayable
-    def trialFundsAmount() -> uint256: view
-    def trialFundsAsset() -> address: view
-    def owner() -> address: view
 
 interface Appraiser:
     def updateAndGetPricePerShareWithConfig(_asset: address, _legoAddr: address, _staleBlocks: uint256) -> uint256: nonpayable
@@ -61,11 +60,6 @@ struct WalletAssetData:
     usdValue: uint256
     isYieldAsset: bool
     lastYieldPrice: uint256
-
-struct EjectModeFeeDetails:
-    feeRecipient: address
-    swapFee: uint256
-    rewardsFee: uint256
 
 struct PointsData:
     usdValue: uint256
@@ -522,20 +516,16 @@ def recoverNft(_user: address,_collection: address, _nftTokenId: uint256, _recip
 
 
 @external
-def setEjectionMode(_user: address, _inEjectMode: bool):
+def setEjectionMode(_user: address, _shouldEject: bool):
     a: addys.Addys = addys._getAddys()
     assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    assert staticcall UserWalletConfig(walletConfig).trialFundsAmount() == 0 # dev: trial funds not empty
-
-    feeDetails: EjectModeFeeDetails = empty(EjectModeFeeDetails)
-    if _inEjectMode:
-        feeDetails = staticcall MissionControl(a.missionControl).getEjectModeFeeDetails()
+    if _shouldEject:
         self._updateDepositPoints(_user, 0, a.ledger) # update deposit points, new usd value is zero
 
-    extcall UserWalletConfig(walletConfig).setEjectionMode(_inEjectMode, feeDetails)
+    extcall UserWalletConfig(walletConfig).setEjectionMode(_shouldEject)
 
 
 #########
