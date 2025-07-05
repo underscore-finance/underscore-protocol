@@ -223,30 +223,27 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
-ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UnderscoreErc721"
-API_VERSION: constant(String[28]) = "0.1.0"
+ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UE721"
+API_VERSION: constant(String[28]) = "0.1"
 
 # max fees
 MAX_SWAP_FEE: constant(uint256) = 5_00
 MAX_REWARDS_FEE: constant(uint256) = 25_00
 MAX_YIELD_FEE: constant(uint256) = 25_00
 
-UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
 ETH: public(immutable(address))
 
 
 @deploy
 def __init__(
-    _undyHq: address,
     _wethAddr: address,
     _ethAddr: address,
     _walletConfig: address,
 ):
-    assert empty(address) not in [_undyHq, _wethAddr, _ethAddr, _walletConfig] # dev: invalid addrs
+    assert empty(address) not in [_wethAddr, _ethAddr, _walletConfig] # dev: inv addr
     self.walletConfig = _walletConfig
 
-    UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
 
@@ -305,20 +302,20 @@ def _transferFunds(
         amount = min(_amount, self.balance)
     else:
         amount = min(_amount, staticcall IERC20(_asset).balanceOf(self))
-    assert amount != 0 # dev: nothing to transfer
+    assert amount != 0 # dev: no amt
 
     # get tx usd value
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, _ad.inEjectMode, _ad.appraiser)
 
     # check recipient limits
     if _shouldCheckRecipientLimits:
-        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount) # dev: recipient not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount) # dev: recip
 
     # do the actual transfer
     if _asset == _ad.eth:
         send(_recipient, amount)
     else:
-        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: transfer failed
+        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value=True) # dev: xfer
     
     self._performPostActionTasks([_asset], txUsdValue, _ad, _shouldCheckManagerLimits)
     log FundsTransferred(
@@ -341,7 +338,7 @@ def transferFundsTrusted(
     _ad: ActionData = empty(ActionData),
 ) -> (uint256, uint256):
     walletConfig: address = self.walletConfig
-    assert msg.sender == walletConfig # dev: no perms
+    assert msg.sender == walletConfig # dev: perms
 
     ad: ActionData = _ad
     if ad.signer == empty(address):
@@ -396,7 +393,7 @@ def _depositForYield(
     vaultTokenAmountReceived: uint256 = 0
     txUsdValue: uint256 = 0
     assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(_asset, _ad.legoAddr)
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
@@ -448,7 +445,7 @@ def _withdrawFromYield(
         amount = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
 
         # some vault tokens require max value approval (comp v3)
-        assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, max_value(uint256), default_return_value=True) # dev: approval failed
+        assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, max_value(uint256), default_return_value=True) # dev: appr
 
     # withdraw from yield
     vaultTokenAmountBurned: uint256 = 0
@@ -458,7 +455,7 @@ def _withdrawFromYield(
     vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraAddr, _extraVal, _extraData, self)
 
     if _vaultToken != empty(address):
-        assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+        self._resetApproval(_vaultToken, _ad.legoAddr)
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
@@ -487,7 +484,7 @@ def preparePayment(
     _ad: ActionData = empty(ActionData),
 ) -> (uint256, address, uint256, uint256):
     walletConfig: address = self.walletConfig
-    assert msg.sender == walletConfig # dev: no perms
+    assert msg.sender == walletConfig # dev: perms
 
     ad: ActionData = _ad
     if ad.signer == empty(address):
@@ -560,7 +557,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     for i: wi.SwapInstruction in _instructions:
         if lastTokenOut != empty(address):
             newTokenIn: address = i.tokenPath[0]
-            assert lastTokenOut == newTokenIn # dev: must honor token path
+            assert lastTokenOut == newTokenIn # dev: path
             amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
         
         thisTxUsdValue: uint256 = 0
@@ -594,7 +591,7 @@ def _performSwapInstruction(
     _ad: ActionData,
 ) -> (address, uint256, uint256):
     legoAddr: address = staticcall Registry(_ad.legoBook).getAddr(_i.legoId)
-    assert legoAddr != empty(address) # dev: invalid lego
+    assert legoAddr != empty(address) # dev: lego
 
     # tokens
     tokenIn: address = _i.tokenPath[0]
@@ -603,21 +600,21 @@ def _performSwapInstruction(
     tokenOutAmount: uint256 = 0
     txUsdValue: uint256 = 0
 
-    assert extcall IERC20(tokenIn).approve(legoAddr, _amountIn, default_return_value=True) # dev: approval failed
+    assert extcall IERC20(tokenIn).approve(legoAddr, _amountIn, default_return_value=True) # dev: appr
     tokenInAmount, tokenOutAmount, txUsdValue = extcall Lego(legoAddr).swapTokens(_amountIn, _i.minAmountOut, _i.tokenPath, _i.poolPath, self)
-    assert extcall IERC20(tokenIn).approve(legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(tokenIn, legoAddr)
     return tokenOut, tokenOutAmount, txUsdValue
 
 
 @internal
 def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, address, DynArray[uint256, MAX_LEGOS]):
     numSwapInstructions: uint256 = len(_instructions)
-    assert numSwapInstructions != 0 # dev: no swaps
+    assert numSwapInstructions != 0 # dev: swaps
 
     # lego ids, make sure token paths are valid
     legoIds: DynArray[uint256, MAX_LEGOS] = []
     for i: wi.SwapInstruction in _instructions:
-        assert len(i.tokenPath) >= 2 # dev: invalid token path
+        assert len(i.tokenPath) >= 2 # dev: path
         if i.legoId not in legoIds:
             legoIds.append(i.legoId)
 
@@ -632,7 +629,7 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
         lastRoutePath: DynArray[address, MAX_TOKEN_PATH] = _instructions[numSwapInstructions - 1].tokenPath
         tokenOut = lastRoutePath[len(lastRoutePath) - 1]
 
-    assert empty(address) not in [tokenIn, tokenOut] # dev: invalid token path
+    assert empty(address) not in [tokenIn, tokenOut] # dev: path
     return tokenIn, tokenOut, legoIds
 
 
@@ -659,7 +656,7 @@ def mintOrRedeemAsset(
     isPending: bool = False
     txUsdValue: uint256 = 0
     tokenInAmount, tokenOutAmount, isPending, txUsdValue = extcall Lego(ad.legoAddr).mintOrRedeemAsset(_tokenIn, _tokenOut, tokenInAmount, _minAmountOut, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_tokenIn).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(_tokenIn, ad.legoAddr)
 
     self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ad)
     log AssetMintedOrRedeemed(
@@ -733,7 +730,7 @@ def addCollateral(
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
     amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_asset).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(_asset, ad.legoAddr)
 
     self._performPostActionTasks([_asset], txUsdValue, ad)
     log CollateralAdded(
@@ -828,7 +825,7 @@ def repayDebt(
     repaidAmount: uint256 = 0
     txUsdValue: uint256 = 0
     repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_paymentAsset).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(_paymentAsset, ad.legoAddr)
 
     self._performPostActionTasks([_paymentAsset], txUsdValue, ad)
     log DebtRepayment(
@@ -899,7 +896,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 
     # convert eth to weth
     amount: uint256 = min(_amount, self.balance)
-    assert amount != 0 # dev: nothing to convert
+    assert amount != 0 # dev: no amt
     extcall WethContract(weth).deposit(value=amount)
 
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad.inEjectMode, ad.appraiser)
@@ -977,9 +974,9 @@ def addLiquidity(
 
     # remove approvals
     if amountA != 0:
-        assert extcall IERC20(_tokenA).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+        self._resetApproval(_tokenA, ad.legoAddr)
     if amountB != 0:
-        assert extcall IERC20(_tokenB).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+        self._resetApproval(_tokenB, ad.legoAddr)
 
     self._performPostActionTasks([_tokenA, _tokenB, lpToken], txUsdValue, ad)
     log LiquidityAdded(
@@ -1021,7 +1018,7 @@ def removeLiquidity(
     txUsdValue: uint256 = 0
     lpAmount: uint256 = self._getAmountAndApprove(_lpToken, _lpAmount, ad.legoAddr)
     amountAReceived, amountBReceived, lpAmountBurned, txUsdValue = extcall Lego(ad.legoAddr).removeLiquidity(_pool, _tokenA, _tokenB, _lpToken, lpAmount, _minAmountA, _minAmountB, _extraAddr, _extraVal, _extraData, self)
-    assert extcall IERC20(_lpToken).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+    self._resetApproval(_lpToken, ad.legoAddr)
 
     self._performPostActionTasks([_tokenA, _tokenB, _lpToken], txUsdValue, ad)
     log LiquidityRemoved(
@@ -1085,9 +1082,9 @@ def addLiquidityConcentrated(
 
     # remove approvals
     if amountA != 0:
-        assert extcall IERC20(_tokenA).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+        self._resetApproval(_tokenA, ad.legoAddr)
     if amountB != 0:
-        assert extcall IERC20(_tokenB).approve(ad.legoAddr, 0, default_return_value=True) # dev: approval failed
+        self._resetApproval(_tokenB, ad.legoAddr)
 
     self._performPostActionTasks([_tokenA, _tokenB], txUsdValue, ad)
     log ConcentratedLiquidityAdded(
@@ -1242,7 +1239,7 @@ def updateAssetData(
     _ad: ActionData = empty(ActionData),
 ) -> uint256:
     walletConfig: address = self.walletConfig
-    assert msg.sender == walletConfig # dev: no perms
+    assert msg.sender == walletConfig # dev: perms
 
     ad: ActionData = _ad
     if ad.signer == empty(address):
@@ -1426,8 +1423,17 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
     amount: uint256 = min(_amount, staticcall IERC20(_token).balanceOf(self))
     assert amount != 0 # dev: no balance for _token
     if _legoAddr != empty(address):
-        assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value=True) # dev: approval failed
+        assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value=True) # dev: appr
     return amount
+
+
+# reset approval
+
+
+@internal
+def _resetApproval(_token: address, _legoAddr: address):
+    if _legoAddr != empty(address):
+        assert extcall IERC20(_token).approve(_legoAddr, 0, default_return_value=True) # dev: appr
 
 
 # recover nft
@@ -1435,7 +1441,7 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
 
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
-    assert msg.sender == self.walletConfig # dev: no perms
+    assert msg.sender == self.walletConfig # dev: perms
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
 
 
