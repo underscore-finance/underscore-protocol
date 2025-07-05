@@ -1,10 +1,10 @@
 """
-Test migration validation functions in Paymaster
+Test migration validation functions in Migrator
 """
 import pytest
 import boa
 
-from contracts.core import Paymaster
+from contracts.core import Migrator
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import filter_logs
@@ -102,7 +102,7 @@ def setup_wallets(setUserWalletConfig, setManagerConfig, setPayeeConfig, hatcher
 
 
 @pytest.fixture(scope="module")
-def setup_contracts(setup_wallets, paymaster, alpha_token, bravo_token, governance, createPayeeLimits,
+def setup_contracts(setup_wallets, migrator, paymaster, alpha_token, bravo_token, governance, backpack, createPayeeLimits,
                    createManagerSettings, createTransferPerms, boss_validator):
     """Setup contracts and configurations"""
     wallets = setup_wallets
@@ -140,6 +140,7 @@ def setup_contracts(setup_wallets, paymaster, alpha_token, bravo_token, governan
         'wallet6_config': wallet6_config,
         'wallet7_config': wallet7_config,
         'wallet8_config': wallet8_config,
+        'migrator': migrator,
         'paymaster': paymaster,
         'alpha_token': alpha_token,
         'bravo_token': bravo_token,
@@ -147,6 +148,8 @@ def setup_contracts(setup_wallets, paymaster, alpha_token, bravo_token, governan
         'alice': wallets['alice'],
         'charlie': wallets['charlie'],
         'sally': wallets['sally'],
+        'governance': governance,
+        'backpack': backpack,
         'createPayeeLimits': createPayeeLimits,
         'createManagerSettings': createManagerSettings,
         'createTransferPerms': createTransferPerms,
@@ -160,162 +163,154 @@ def setup_contracts(setup_wallets, paymaster, alpha_token, bravo_token, governan
 def test_can_migrate_basic_valid_case(setup_contracts):
     """Test basic valid migration scenario"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']  # No starting agent, no trial funds
     wallet2 = ctx['wallet2']  # No starting agent, no trial funds
+    bob = ctx['bob']
     
-    # Both wallets owned by bob, no restrictions
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert can_migrate
 
 
 def test_cannot_migrate_to_non_underscore_wallet(setup_contracts):
     """Test cannot migrate to non-Underscore wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
+    bob = ctx['bob']
     random_addr = boa.env.generate_address()
     
-    can_migrate = paymaster.canMigrateToNewWallet(random_addr, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, random_addr, bob)
     assert not can_migrate
 
 
 def test_cannot_migrate_with_trial_funds(setup_contracts):
     """Test cannot migrate wallet with trial funds"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet2 = ctx['wallet2']
-    wallet5 = ctx['wallet5']  # This wallet has trial funds
-    wallet5_config = ctx['wallet5_config']
+    migrator = ctx['migrator']
+    wallet5 = ctx['wallet5']  # Has trial funds
+    wallet1 = ctx['wallet1']
+    sally = ctx['sally']
     
-    # Verify wallet5 has trial funds
-    bundle = wallet5_config.getMigrationConfigBundle()
-    assert bundle.trialFundsAmount > 0
-    
-    # Should not be able to migrate from wallet with trial funds
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet5.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet5.address, wallet1.address, sally)
     assert not can_migrate
 
 
 def test_cannot_migrate_frozen_wallet(setup_contracts, backpack):
-    """Test cannot migrate frozen wallet"""
+    """Test cannot migrate from frozen wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']
-    wallet2 = ctx['wallet2']
-    wallet1_config = ctx['wallet1_config']
-    
-    # Freeze wallet1
-    wallet1_config.setFrozen(True, sender=backpack.address)
-    
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    assert not can_migrate
-    
-    # Unfreeze
-    wallet1_config.setFrozen(False, sender=backpack.address)
-
-
-def test_cannot_migrate_with_pending_owner_change(setup_contracts):
-    """Test cannot migrate with pending owner change"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet1_config = ctx['wallet1_config']
     bob = ctx['bob']
-    alice = ctx['alice']
     
-    # Initiate owner change on wallet1
-    wallet1_config.changeOwnership(alice, sender=bob)
+    # Freeze wallet1
+    wallet1_config.setFrozen(True, sender=backpack.address)
     
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
-    # Cancel owner change
+    # Unfreeze for other tests
+    wallet1_config.setFrozen(False, sender=backpack.address)
+
+
+def test_cannot_migrate_with_pending_owner_change(setup_contracts):
+    """Test cannot migrate from wallet with pending owner change"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']
+    wallet2 = ctx['wallet2']
+    wallet1_config = ctx['wallet1_config']
+    bob = ctx['bob']
+    
+    # Initiate owner change
+    new_owner = boa.env.generate_address()
+    wallet1_config.changeOwnership(new_owner, sender=bob)
+    
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
+    assert not can_migrate
+    
+    # Cancel for other tests
     wallet1_config.cancelOwnershipChange(sender=bob)
 
 
 def test_cannot_migrate_different_owners(setup_contracts):
     """Test cannot migrate between wallets with different owners"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # Owned by bob
-    wallet3 = ctx['wallet3']  # Owned by alice
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']  # Bob's wallet
+    wallet3 = ctx['wallet3']  # Alice's wallet
+    bob = ctx['bob']
     
-    can_migrate = paymaster.canMigrateToNewWallet(wallet3.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet3.address, bob)
     assert not can_migrate
 
 
 def test_cannot_migrate_to_wallet_with_pending_owner_change(setup_contracts):
     """Test cannot migrate to wallet with pending owner change"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
     bob = ctx['bob']
-    alice = ctx['alice']
     
-    # Initiate owner change on wallet2 (destination)
-    wallet2_config.changeOwnership(alice, sender=bob)
+    # Initiate owner change on destination
+    new_owner = boa.env.generate_address()
+    wallet2_config.changeOwnership(new_owner, sender=bob)
     
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
-    # Cancel owner change
+    # Cancel for other tests
     wallet2_config.cancelOwnershipChange(sender=bob)
 
 
 def test_cannot_migrate_different_group_ids(setup_contracts):
     """Test cannot migrate between wallets with different group IDs"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # bob, group ID 1
-    wallet6 = ctx['wallet6']  # bob, group ID 2 (different!)
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']  # Group 1
+    wallet6 = ctx['wallet6']  # Group 2
+    bob = ctx['bob']
     
-    # Cannot migrate between wallets with different group IDs
-    can_migrate = paymaster.canMigrateToNewWallet(wallet6.address, wallet1.address)
-    assert not can_migrate
-    
-    # Try the other direction too
-    can_migrate = paymaster.canMigrateToNewWallet(wallet1.address, wallet6.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet6.address, bob)
     assert not can_migrate
 
 
 def test_cannot_migrate_to_frozen_wallet(setup_contracts, backpack):
     """Test cannot migrate to frozen wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
+    bob = ctx['bob']
     
-    # Freeze wallet2 (destination)
+    # Freeze destination wallet
     wallet2_config.setFrozen(True, sender=backpack.address)
     
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
-    # Unfreeze
+    # Unfreeze for other tests
     wallet2_config.setFrozen(False, sender=backpack.address)
 
 
 def test_cannot_migrate_to_wallet_with_payees(setup_contracts):
-    """Test cannot migrate to wallet with existing payees"""
+    """Test cannot migrate to wallet that has payees"""
     ctx = setup_contracts
+    migrator = ctx['migrator']
     paymaster = ctx['paymaster']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     bob = ctx['bob']
-    payee = boa.env.generate_address()
     alpha_token = ctx['alpha_token']
     createPayeeLimits = ctx['createPayeeLimits']
     
-    # Add payee to wallet2
+    # Add payee to destination wallet
+    payee = boa.env.generate_address()
     unit_limits = createPayeeLimits()
     usd_limits = createPayeeLimits()
     
@@ -334,117 +329,112 @@ def test_cannot_migrate_to_wallet_with_payees(setup_contracts):
         sender=bob
     )
     
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
-    # Remove payee
+    # Clean up
     paymaster.removePayee(wallet2.address, payee, sender=bob)
 
 
 def test_cannot_migrate_to_wallet_with_whitelisted(setup_contracts):
-    """Test cannot migrate to wallet with whitelisted addresses"""
+    """Test cannot migrate to wallet that has whitelisted addresses"""
     ctx = setup_contracts
+    migrator = ctx['migrator']
     paymaster = ctx['paymaster']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
     bob = ctx['bob']
-    addr = boa.env.generate_address()
     
-    # Add whitelisted address to wallet2
+    # Add whitelisted address to destination
+    addr = boa.env.generate_address()
     paymaster.addWhitelistAddr(wallet2.address, addr, sender=bob)
     boa.env.time_travel(blocks=wallet2_config.timeLock() + 1)
     paymaster.confirmWhitelistAddr(wallet2.address, addr, sender=bob)
     
-    # Should not be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
-    # Remove whitelist
+    # Clean up
     paymaster.removeWhitelistAddr(wallet2.address, addr, sender=bob)
 
 
 def test_cannot_migrate_to_wallet_with_managers_no_starting_agent(setup_contracts):
-    """Test cannot migrate to wallet with managers when no starting agent"""
+    """Test cannot migrate to wallet with managers but no starting agent"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # Clean wallet without starting agent
-    wallet2 = ctx['wallet2']  # Clean wallet without starting agent
-    bob = ctx['bob']
-    manager = boa.env.generate_address()
+    migrator = ctx['migrator']
     boss_validator = ctx['boss_validator']
+    wallet1 = ctx['wallet1']
+    wallet2 = ctx['wallet2']
+    bob = ctx['bob']
     createManagerSettings = ctx['createManagerSettings']
     
-    # Add manager to wallet2
+    # Add manager to destination (which has no starting agent)
+    manager = boa.env.generate_address()
     manager_settings = createManagerSettings()
-    # Extract the individual components from the settings tuple
     start_block, expiry_block, limits, lego_perms, whitelist_perms, transfer_perms, allowed_assets = manager_settings
     
     boss_validator.addManager(
         wallet2.address,
         manager,
-        limits,  # limits tuple
-        lego_perms,  # legoPerms tuple
-        whitelist_perms,  # whitelistPerms tuple
-        transfer_perms,  # transferPerms tuple
-        allowed_assets,  # allowed assets list
-        sender=bob
-    )
-    
-    # Should not be able to migrate to wallet with managers when no starting agent
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    assert not can_migrate
-    
-    # Remove manager
-    boss_validator.removeManager(wallet2.address, manager, sender=bob)
-
-
-def test_can_migrate_with_starting_agent_only(setup_contracts):
-    """Test can migrate to wallet with only starting agent as manager"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # bob, no starting agent
-    wallet7 = ctx['wallet7']  # bob, with starting agent
-    
-    # Wallet1 (no starting agent) can migrate to wallet7 (with starting agent only)
-    can_migrate = paymaster.canMigrateToNewWallet(wallet7.address, wallet1.address)
-    assert can_migrate
-
-
-def test_cannot_migrate_with_starting_agent_plus_other_managers(setup_contracts):
-    """Test cannot migrate with starting agent plus additional managers"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # Clean wallet
-    wallet3 = ctx['wallet3']  # Has starting agent
-    alice = ctx['alice']  # Owner of wallet3
-    another_manager = boa.env.generate_address()
-    boss_validator = ctx['boss_validator']
-    createManagerSettings = ctx['createManagerSettings']
-    
-    # Add another manager to wallet3 (which has starting agent)
-    manager_settings = createManagerSettings()
-    # Extract the individual components from the settings tuple
-    start_block, expiry_block, limits, lego_perms, whitelist_perms, transfer_perms, allowed_assets = manager_settings
-    
-    boss_validator.addManager(
-        wallet3.address,
-        another_manager,
         limits,
         lego_perms,
         whitelist_perms,
         transfer_perms,
         allowed_assets,
-        sender=alice  # alice owns wallet3
+        sender=bob
     )
     
-    # Should not be able to migrate (has more than just starting agent)
-    can_migrate = paymaster.canMigrateToNewWallet(wallet3.address, wallet1.address)
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
     # Clean up
-    boss_validator.removeManager(wallet3.address, another_manager, sender=alice)
+    boss_validator.removeManager(wallet2.address, manager, sender=bob)
+
+
+def test_can_migrate_with_starting_agent_only(setup_contracts):
+    """Test can migrate to wallet with only starting agent"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']  # No starting agent
+    wallet7 = ctx['wallet7']  # Has starting agent
+    bob = ctx['bob']
+    
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet7.address, bob)
+    assert can_migrate
+
+
+def test_cannot_migrate_with_starting_agent_plus_other_managers(setup_contracts):
+    """Test cannot migrate to wallet with starting agent plus other managers"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
+    boss_validator = ctx['boss_validator']
+    wallet1 = ctx['wallet1']
+    wallet7 = ctx['wallet7']  # Has starting agent
+    bob = ctx['bob']
+    createManagerSettings = ctx['createManagerSettings']
+    
+    # Add additional manager to wallet7 (which already has starting agent)
+    manager = boa.env.generate_address()
+    manager_settings = createManagerSettings()
+    start_block, expiry_block, limits, lego_perms, whitelist_perms, transfer_perms, allowed_assets = manager_settings
+    
+    boss_validator.addManager(
+        wallet7.address,
+        manager,
+        limits,
+        lego_perms,
+        whitelist_perms,
+        transfer_perms,
+        allowed_assets,
+        sender=bob
+    )
+    
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet7.address, bob)
+    assert not can_migrate
+    
+    # Clean up
+    boss_validator.removeManager(wallet7.address, manager, sender=bob)
 
 
 # Test canCopyWalletConfig
@@ -453,71 +443,72 @@ def test_cannot_migrate_with_starting_agent_plus_other_managers(setup_contracts)
 def test_can_copy_config_basic_valid_case(setup_contracts):
     """Test basic valid config copy scenario"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
+    bob = ctx['bob']
     
-    # Both wallets owned by bob, no restrictions
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert can_copy
 
 
 def test_cannot_copy_from_non_underscore_wallet(setup_contracts):
-    """Test cannot copy from non-Underscore wallet"""
+    """Test cannot copy config from non-Underscore wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet2 = ctx['wallet2']
+    bob = ctx['bob']
     random_addr = boa.env.generate_address()
     
-    can_copy = paymaster.canCopyWalletConfig(random_addr, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(random_addr, wallet2.address, bob)
     assert not can_copy
 
 
 def test_cannot_copy_to_non_underscore_wallet(setup_contracts):
-    """Test cannot copy to non-Underscore wallet"""
+    """Test cannot copy config to non-Underscore wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
+    bob = ctx['bob']
     random_addr = boa.env.generate_address()
     
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, random_addr)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, random_addr, bob)
     assert not can_copy
 
 
 def test_cannot_copy_to_wallet_with_pending_owner_change(setup_contracts):
     """Test cannot copy to wallet with pending owner change"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
     bob = ctx['bob']
-    alice = ctx['alice']
     
-    # Initiate owner change on wallet2 (destination)
-    wallet2_config.changeOwnership(alice, sender=bob)
+    # Initiate owner change on destination
+    new_owner = boa.env.generate_address()
+    wallet2_config.changeOwnership(new_owner, sender=bob)
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
-    # Cancel owner change
+    # Cancel for other tests
     wallet2_config.cancelOwnershipChange(sender=bob)
 
 
 def test_cannot_copy_to_frozen_wallet(setup_contracts, backpack):
     """Test cannot copy to frozen wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
+    bob = ctx['bob']
     
-    # Freeze wallet2 (destination)
+    # Freeze destination
     wallet2_config.setFrozen(True, sender=backpack.address)
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
     # Unfreeze
@@ -525,17 +516,18 @@ def test_cannot_copy_to_frozen_wallet(setup_contracts, backpack):
 
 
 def test_cannot_copy_to_wallet_with_payees(setup_contracts):
-    """Test cannot copy to wallet with existing payees"""
+    """Test cannot copy to wallet that already has payees"""
     ctx = setup_contracts
+    migrator = ctx['migrator']
     paymaster = ctx['paymaster']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     bob = ctx['bob']
-    payee = boa.env.generate_address()
     alpha_token = ctx['alpha_token']
     createPayeeLimits = ctx['createPayeeLimits']
     
-    # Add payee to wallet2
+    # Add payee to destination
+    payee = boa.env.generate_address()
     unit_limits = createPayeeLimits()
     usd_limits = createPayeeLimits()
     
@@ -554,50 +546,49 @@ def test_cannot_copy_to_wallet_with_payees(setup_contracts):
         sender=bob
     )
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
-    # Remove payee
+    # Clean up
     paymaster.removePayee(wallet2.address, payee, sender=bob)
 
 
 def test_cannot_copy_to_wallet_with_whitelisted(setup_contracts):
     """Test cannot copy to wallet with whitelisted addresses"""
     ctx = setup_contracts
+    migrator = ctx['migrator']
     paymaster = ctx['paymaster']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet2_config = ctx['wallet2_config']
     bob = ctx['bob']
-    addr = boa.env.generate_address()
     
-    # Add whitelisted address to wallet2
+    # Add whitelisted address to destination
+    addr = boa.env.generate_address()
     paymaster.addWhitelistAddr(wallet2.address, addr, sender=bob)
     boa.env.time_travel(blocks=wallet2_config.timeLock() + 1)
     paymaster.confirmWhitelistAddr(wallet2.address, addr, sender=bob)
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
-    # Remove whitelist
+    # Clean up
     paymaster.removeWhitelistAddr(wallet2.address, addr, sender=bob)
 
 
 def test_cannot_copy_from_frozen_wallet(setup_contracts, backpack):
     """Test cannot copy from frozen wallet"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet1_config = ctx['wallet1_config']
+    bob = ctx['bob']
     
-    # Freeze wallet1 (source)
+    # Freeze source
     wallet1_config.setFrozen(True, sender=backpack.address)
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
     # Unfreeze
@@ -607,83 +598,73 @@ def test_cannot_copy_from_frozen_wallet(setup_contracts, backpack):
 def test_cannot_copy_different_owners(setup_contracts):
     """Test cannot copy between wallets with different owners"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # Owned by bob
-    wallet3 = ctx['wallet3']  # Owned by alice
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']  # Bob's wallet
+    wallet3 = ctx['wallet3']  # Alice's wallet
+    bob = ctx['bob']
     
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet3.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet3.address, bob)
     assert not can_copy
 
 
 def test_cannot_copy_different_group_ids(setup_contracts):
     """Test cannot copy between wallets with different group IDs"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # bob, group ID 1
-    wallet6 = ctx['wallet6']  # bob, group ID 2 (different!)
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']  # Group 1
+    wallet6 = ctx['wallet6']  # Group 2
+    bob = ctx['bob']
     
-    # Cannot copy config between wallets with different group IDs
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet6.address)
-    assert not can_copy
-    
-    # Try the other direction too
-    can_copy = paymaster.canCopyWalletConfig(wallet6.address, wallet1.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet6.address, bob)
     assert not can_copy
 
 
 def test_cannot_copy_from_wallet_with_pending_owner_change(setup_contracts):
     """Test cannot copy from wallet with pending owner change"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet1_config = ctx['wallet1_config']
     bob = ctx['bob']
-    alice = ctx['alice']
     
-    # Initiate owner change on wallet1 (source)
-    wallet1_config.changeOwnership(alice, sender=bob)
+    # Initiate owner change on source
+    new_owner = boa.env.generate_address()
+    wallet1_config.changeOwnership(new_owner, sender=bob)
     
-    # Should not be able to copy
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
-    # Cancel owner change
+    # Cancel
     wallet1_config.cancelOwnershipChange(sender=bob)
 
 
 def test_can_copy_with_managers_and_starting_agent(setup_contracts):
-    """Test can copy to wallet with starting agent and correct manager setup"""
+    """Test can copy to wallet with only starting agent"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet3 = ctx['wallet3']  # Has starting agent, owned by alice
-    wallet4 = ctx['wallet4']  # Has starting agent, owned by charlie
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']
+    wallet7 = ctx['wallet7']  # Has starting agent
+    bob = ctx['bob']
     
-    # Can't copy between wallets with different owners
-    can_copy = paymaster.canCopyWalletConfig(wallet3.address, wallet4.address)
-    assert not can_copy  # Different owners
-    
-    # This test shows that starting agent alone doesn't enable copying - owners must match
-    # We would need two wallets with same owner and starting agents to properly test this
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet7.address, bob)
+    assert can_copy
 
 
-# Edge cases and potential bugs
-
-
-def test_migration_validation_with_complex_state(setup_contracts):
-    """Test migration validation with complex wallet state"""
+def test_cannot_copy_after_already_migrated_settings(setup_contracts):
+    """Test cannot copy config from wallet that already migrated settings"""
     ctx = setup_contracts
+    migrator = ctx['migrator']
     paymaster = ctx['paymaster']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
     wallet1_config = ctx['wallet1_config']
     bob = ctx['bob']
-    payee = boa.env.generate_address()
-    whitelist_addr = boa.env.generate_address()
     alpha_token = ctx['alpha_token']
     createPayeeLimits = ctx['createPayeeLimits']
     
-    # Setup wallet1 with payees and whitelist
+    # Add some config to wallet1
+    payee = boa.env.generate_address()
     unit_limits = createPayeeLimits()
     usd_limits = createPayeeLimits()
     
@@ -702,170 +683,74 @@ def test_migration_validation_with_complex_state(setup_contracts):
         sender=bob
     )
     
-    paymaster.addWhitelistAddr(wallet1.address, whitelist_addr, sender=bob)
-    boa.env.time_travel(blocks=wallet1_config.timeLock() + 1)
-    paymaster.confirmWhitelistAddr(wallet1.address, whitelist_addr, sender=bob)
+    # Perform migration
+    migrator.cloneConfig(wallet1.address, wallet2.address, sender=bob)
     
-    # Source wallet has payees/whitelist but destination is clean - should be able to migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    assert can_migrate
-    
-    # Can also copy config in this scenario
-    can_copy = paymaster.canCopyWalletConfig(wallet1.address, wallet2.address)
-    assert can_copy
-
-
-def test_starting_agent_index_edge_case(setup_contracts):
-    """Test edge case with starting agent index validation"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    
-    # Test wallet without starting agent (wallet1, wallet2)
-    wallet1 = ctx['wallet1']
-    wallet2 = ctx['wallet2']
-    wallet1_config = ctx['wallet1_config']
-    wallet2_config = ctx['wallet2_config']
-    
-    # Verify wallets without starting agent have correct state
-    bundle1 = wallet1_config.getMigrationConfigBundle()
-    assert bundle1.startingAgent == ZERO_ADDRESS
-    assert bundle1.startingAgentIndex == 0
-    assert bundle1.numManagers == 0  # No managers in clean wallet
-    
-    bundle2 = wallet2_config.getMigrationConfigBundle()
-    assert bundle2.startingAgent == ZERO_ADDRESS
-    assert bundle2.startingAgentIndex == 0
-    assert bundle2.numManagers == 0  # No managers in clean wallet
-    
-    # Can migrate between clean wallets
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    assert can_migrate
-    
-    # Test wallet with starting agent (wallet3)
-    wallet3 = ctx['wallet3']
-    wallet3_config = ctx['wallet3_config']
-    
-    bundle3 = wallet3_config.getMigrationConfigBundle()
-    assert bundle3.startingAgent != ZERO_ADDRESS
-    assert bundle3.startingAgentIndex == 1  # Starting agent at index 1
-    assert bundle3.numManagers == 2  # Owner + starting agent
-    
-    # Cannot migrate from wallet1 to wallet3 due to different owners
-    can_migrate = paymaster.canMigrateToNewWallet(wallet3.address, wallet1.address)
-    assert not can_migrate  # Different owners (bob vs alice)
-
-
-def test_trial_funds_zero_but_asset_set(setup_contracts):
-    """Test edge case where trial funds amount is 0 but asset is still set"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet1 = ctx['wallet1']  # Clean wallet without trial funds
-    wallet2 = ctx['wallet2']  # Clean wallet without trial funds
-    wallet1_config = ctx['wallet1_config']
-    
-    # Verify wallet has no trial funds
+    # Verify flag is set
     bundle = wallet1_config.getMigrationConfigBundle()
-    assert bundle.trialFundsAmount == 0, "wallet1 should have no trial funds"
+    assert bundle.didMigrateSettings
     
-    # Wallets without trial funds can migrate
-    can_migrate = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    assert can_migrate
+    # Try to copy again - should fail
+    wallet7 = ctx['wallet7']
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet7.address, bob)
+    assert not can_copy
+    
+    # Clean up
+    paymaster.removePayee(wallet1.address, payee, sender=bob)
+    paymaster.removePayee(wallet2.address, payee, sender=bob)
 
 
-def test_both_directions_migration_validation(setup_contracts):
-    """Test migration validation works correctly in both directions"""
+def test_cannot_migrate_from_eoa_address(setup_contracts):
+    """Test migration validation fails for EOA addresses"""
     ctx = setup_contracts
-    paymaster = ctx['paymaster']
+    migrator = ctx['migrator']
+    wallet2 = ctx['wallet2']
+    bob = ctx['bob']
+    eoa_address = boa.env.generate_address()
+    
+    can_migrate = migrator.canMigrateFundsToNewWallet(eoa_address, wallet2.address, bob)
+    assert not can_migrate
+
+
+def test_cannot_migrate_to_eoa_address(setup_contracts):
+    """Test migration validation fails when destination is EOA"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
+    wallet1 = ctx['wallet1']
+    bob = ctx['bob']
+    eoa_address = boa.env.generate_address()
+    
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, eoa_address, bob)
+    assert not can_migrate
+
+
+def test_cannot_copy_config_with_non_contract_addresses(setup_contracts):
+    """Test config copy validation fails for non-contract addresses"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
+    bob = ctx['bob']
+    eoa_address1 = boa.env.generate_address()
+    eoa_address2 = boa.env.generate_address()
+    
+    can_copy = migrator.canCopyWalletConfig(eoa_address1, eoa_address2, bob)
+    assert not can_copy
+
+
+def test_cannot_migrate_non_existent_caller(setup_contracts):
+    """Test migration validation with non-existent caller"""
+    ctx = setup_contracts
+    migrator = ctx['migrator']
     wallet1 = ctx['wallet1']
     wallet2 = ctx['wallet2']
+    random_caller = boa.env.generate_address()
     
-    # Both directions should work with clean wallets
-    can_migrate_1_to_2 = paymaster.canMigrateToNewWallet(wallet2.address, wallet1.address)
-    can_migrate_2_to_1 = paymaster.canMigrateToNewWallet(wallet1.address, wallet2.address)
+    # Random caller is not the owner
+    can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, random_caller)
+    assert not can_migrate
     
-    assert can_migrate_1_to_2
-    assert can_migrate_2_to_1
+    can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, random_caller)
+    assert not can_copy
 
 
-def test_copy_config_does_not_check_source_trial_funds(setup_contracts):
-    """Test that canCopyWalletConfig doesn't check source wallet trial funds"""
-    ctx = setup_contracts
-    paymaster = ctx['paymaster']
-    wallet8 = ctx['wallet8']  # bob, with trial funds (source)
-    wallet2 = ctx['wallet2']  # bob, no trial funds (destination)
-    wallet8_config = ctx['wallet8_config']
-    
-    # Verify wallet8 has trial funds
-    bundle = wallet8_config.getMigrationConfigBundle()
-    assert bundle.trialFundsAmount > 0
-    
-    # Should be able to copy from wallet with trial funds
-    can_copy = paymaster.canCopyWalletConfig(wallet8.address, wallet2.address)
-    assert can_copy  # Trial funds in source should not prevent copying
-
-
-# Potential bugs and concerns to raise
-
-
-def test_concern_starting_agent_validation_logic():
-    """
-    CONCERN: The starting agent validation logic seems complex and potentially fragile.
-    
-    The checks for starting agent are:
-    1. If startingAgent == empty(address) and numManagers != 0: return False
-    2. If startingAgent != empty(address):
-       - startingAgentIndex must be 1
-       - numManagers must be 2
-    
-    This assumes:
-    - Owner is always manager index 0
-    - Starting agent is always index 1
-    - No other managers can exist when starting agent is set
-    
-    This could break if the manager indexing logic changes or if there are edge cases
-    in how managers are added/removed.
-    """
-    pass
-
-
-def test_concern_no_validation_of_wallet_states():
-    """
-    CONCERN: The migration validation doesn't check many important wallet states:
-    
-    1. Asset balances - could migrate from wallet with assets to empty wallet
-    2. Pending payees/whitelist - these are not checked
-    3. Manager permissions/settings - not validated
-    4. Global settings differences - not checked
-    
-    This could lead to unexpected behavior during actual migration.
-    """
-    pass
-
-
-def test_concern_group_id_validation():
-    """
-    CONCERN: Group ID validation might be too strict.
-    
-    The requirement that group IDs must match between wallets might prevent
-    legitimate migrations if group IDs are meant to change during migration.
-    
-    Also, there's no validation that group IDs are valid/active.
-    """
-    pass
-
-
-def test_concern_asymmetric_validation():
-    """
-    CONCERN: canMigrateToNewWallet and canCopyWalletConfig have asymmetric validation.
-    
-    canMigrateToNewWallet checks:
-    - Source wallet: trial funds, frozen, pending owner change
-    - Destination wallet: frozen, pending owner change, payees, whitelist, managers
-    
-    canCopyWalletConfig checks:
-    - Source wallet: frozen, pending owner change (NO trial funds check)
-    - Destination wallet: frozen, pending owner change, payees, whitelist, managers
-    
-    This asymmetry might be intentional but could lead to confusion.
-    """
-    pass
+# Note: Fund migration implementation tests are in test_migrate_funds.py
+# Config cloning implementation tests are in test_clone_config.py

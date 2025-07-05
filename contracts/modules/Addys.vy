@@ -22,6 +22,7 @@ struct Addys:
     appraiser: address
     bossValidator: address
     paymaster: address
+    migrator: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -37,6 +38,7 @@ BACKPACK_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
 BOSS_VALIDATOR_ID: constant(uint256) = 9
 PAYMASTER_ID: constant(uint256) = 10
+MIGRATOR_ID: constant(uint256) = 11
 
 
 @deploy
@@ -80,6 +82,7 @@ def _generateAddys() -> Addys:
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
         bossValidator = staticcall UndyHq(hq).getAddr(BOSS_VALIDATOR_ID),
         paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
+        migrator = staticcall UndyHq(hq).getAddr(MIGRATOR_ID),
     )
 
 
@@ -288,3 +291,18 @@ def _getPaymasterId() -> uint256:
 @internal
 def _getPaymasterAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(PAYMASTER_ID)
+
+
+# migrator
+
+
+@view
+@internal
+def _getMigratorId() -> uint256:
+    return MIGRATOR_ID
+
+
+@view
+@internal
+def _getMigratorAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MIGRATOR_ID)

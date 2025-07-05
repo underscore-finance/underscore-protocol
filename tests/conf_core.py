@@ -39,6 +39,7 @@ def undy_hq(
     appraiser,
     boss_validator,
     paymaster,
+    migrator,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -84,6 +85,10 @@ def undy_hq(
     # 10
     assert undy_hq_deploy.startAddNewAddressToRegistry(paymaster, "Paymaster", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(paymaster, sender=deploy3r) == 10
+
+    # 11
+    assert undy_hq_deploy.startAddNewAddressToRegistry(migrator, "Migrator", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(migrator, sender=deploy3r) == 11
 
     # special permission setup
 
@@ -305,6 +310,18 @@ def paymaster(undy_hq_deploy, fork):
         PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
         name="paymaster",
+    )
+
+
+# migrator
+
+
+@pytest.fixture(scope="session")
+def migrator(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/Migrator.vy",
+        undy_hq_deploy,
+        name="migrator",
     )
 
 

@@ -390,7 +390,6 @@ def test_is_valid_payee_exceeds_period_cap(setup_contracts, createPayeeLimits, c
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -462,7 +461,6 @@ def test_is_valid_payee_transaction_cooldown(setup_contracts, createPayeeLimits)
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -546,7 +544,6 @@ def test_is_valid_payee_first_transaction_cooldown_fix(setup_contracts, createPa
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -745,7 +742,6 @@ def test_is_valid_payee_period_reset(setup_contracts, createPayeeLimits):
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -832,7 +828,6 @@ def test_is_valid_payee_max_transactions_per_period(setup_contracts, createPayee
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -852,7 +847,6 @@ def test_is_valid_payee_max_transactions_per_period(setup_contracts, createPayee
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -925,7 +919,6 @@ def test_is_valid_payee_lifetime_cap(setup_contracts, createPayeeLimits):
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     

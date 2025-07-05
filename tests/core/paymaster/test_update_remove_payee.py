@@ -450,7 +450,6 @@ def test_remove_payee_with_pending_data(setup_contracts, setup_payee):
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -569,7 +568,6 @@ def test_update_after_data_accumulation(setup_contracts, setup_payee, createPaye
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     

@@ -10,8 +10,8 @@ from ethereum.ercs import IERC721
 
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ActionData: view
-    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256, _paymaster: address) -> bool: nonpayable
-    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _bossValidator: address) -> bool: nonpayable
+    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
+    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
 
 interface Backpack:
@@ -44,8 +44,6 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    bossValidator: address
-    paymaster: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -314,7 +312,7 @@ def _transferFunds(
 
     # check recipient limits
     if _shouldCheckRecipientLimits:
-        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount, _ad.paymaster) # dev: recipient not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount) # dev: recipient not allowed
 
     # do the actual transfer
     if _asset == _ad.eth:
@@ -1215,7 +1213,7 @@ def _performPostActionTasks(
 ):
     # first, check and update manager caps
     if _shouldCheckManagerLimits:
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue, _ad.bossValidator) # dev: manager limits not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
 
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue

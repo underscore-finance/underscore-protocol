@@ -313,7 +313,6 @@ def test_period_boundary_conditions(setup_contracts, createPayeeLimits):
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -803,7 +802,6 @@ def test_data_consistency_after_operations(setup_contracts, createPayeeLimits):
             usd_value,
             alpha_token.address,
             amount,
-            paymaster.address,
             sender=wallet.address
         )
     
@@ -962,7 +960,6 @@ def test_period_boundary_exact_timing(setup_contracts, createPayeeLimits):
         usd_value,
         alpha_token.address,
         amount,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -1138,7 +1135,6 @@ def test_cannot_bypass_lifetime_limit_with_period_resets(setup_contracts, create
         usd_value_1,
         alpha_token.address,
         amount_1,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -1157,7 +1153,6 @@ def test_cannot_bypass_lifetime_limit_with_period_resets(setup_contracts, create
         usd_value_1,
         alpha_token.address,
         amount_1,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -1180,7 +1175,6 @@ def test_cannot_bypass_lifetime_limit_with_period_resets(setup_contracts, create
         usd_value_1,
         alpha_token.address,
         amount_1,
-        paymaster.address,
         sender=wallet.address
     )
     
@@ -1277,7 +1271,6 @@ def test_data_integrity_across_multiple_updates(setup_contracts, createPayeeLimi
             usd_value,
             alpha_token.address,
             amount,
-            paymaster.address,
             sender=wallet.address
         )
     

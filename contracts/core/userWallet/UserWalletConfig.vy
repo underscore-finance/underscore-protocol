@@ -2,30 +2,28 @@
 # pragma optimize codesize
 
 from interfaces import Wallet as wi
-
-from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
+
+interface UserWalletConfig:
+    def managerSettings(_manager: address) -> ManagerSettings: view
+    def globalManagerSettings() -> GlobalManagerSettings: view
+    def payeeSettings(_payee: address) -> PayeeSettings: view
+    def globalPayeeSettings() -> GlobalPayeeSettings: view
+    def whitelistAddr(i: uint256) -> address: view
+    def managers(i: uint256) -> address: view
+    def payees(i: uint256) -> address: view
+    def numWhitelisted() -> uint256: view
+    def numManagers() -> uint256: view
+    def numPayees() -> uint256: view
+    def owner() -> address: view
 
 interface UserWallet:
     def preparePayment(_legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, address, uint256, uint256): nonpayable
     def transferFundsTrusted(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, uint256): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ActionData = empty(ActionData)) -> uint256: nonpayable
     def assets(i: uint256) -> address: view
-    def numAssets() -> uint256: view
     def walletConfig() -> address: view
-
-interface UserWalletConfig:
-    def globalManagerSettings() -> GlobalManagerSettings: view
-    def globalPayeeSettings() -> GlobalPayeeSettings: view
-    def numManagers() -> uint256: view
-    def managers(i: uint256) -> address: view
-    def owner() -> address: view
-    def managerSettings(_manager: address) -> ManagerSettings: view
-    def numPayees() -> uint256: view
-    def payees(i: uint256) -> address: view
-    def payeeSettings(_payee: address) -> PayeeSettings: view
-    def numWhitelisted() -> uint256: view
-    def whitelistAddr(i: uint256) -> address: view
+    def numAssets() -> uint256: view
 
 interface BossValidator:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: ManagerData, _config: ManagerSettings, _globalConfig: GlobalManagerSettings, _userWalletConfig: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
@@ -36,8 +34,9 @@ interface BossValidator:
 interface Paymaster:
     def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
-    def canMigrateToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
-    def canCopyWalletConfig(_oldWallet: address, _thisWallet: address) -> bool: view
+
+interface Migrator:
+    def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
 
 interface Backpack:
     def getBackpackData(_user: address) -> BackpackData: view
@@ -50,8 +49,6 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    bossValidator: address
-    paymaster: address
     feeRecipient: address
     wallet: address
     walletConfig: address
@@ -114,6 +111,8 @@ struct MigrationConfigBundle:
     startingAgentIndex: uint256
     hasPendingOwnerChange: bool
     groupId: uint256
+    didMigrateSettings: bool
+    didMigrateFunds: bool
 
 struct PayeeManagementBundle:
     owner: address
@@ -283,6 +282,7 @@ pendingOwner: public(PendingOwnerChange)
 # helper contracts
 bossValidator: public(address)
 paymaster: public(address)
+migrator: public(address)
 
 # trial funds info
 trialFundsAsset: public(address)
@@ -320,6 +320,8 @@ inEjectMode: public(bool)
 
 startingAgent: public(address)
 didSetWallet: public(bool)
+didMigrateFunds: public(bool)
+didMigrateSettings: public(bool)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -350,6 +352,7 @@ def __init__(
     # key contracts
     _bossValidator: address,
     _paymaster: address,
+    _migrator: address,
     # initial agent
     _startingAgent: address,
     _startingAgentActivationLength: uint256,
@@ -381,6 +384,7 @@ def __init__(
     # set key addrs
     self.bossValidator = _bossValidator
     self.paymaster = _paymaster
+    self.migrator = _migrator
 
     # trial funds info
     if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
@@ -453,7 +457,7 @@ def checkSignerPermissionsAndGetBundle(
 
     # main validation
     c: ManagerConfigBundle = self._getManagerConfigs(_signer, ad.walletOwner)
-    assert staticcall BossValidator(ad.bossValidator).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, ad.walletConfig, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
+    assert staticcall BossValidator(self.bossValidator).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, ad.walletConfig, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
 
     # signer is not owner
     if not c.isOwner:
@@ -466,12 +470,12 @@ def checkSignerPermissionsAndGetBundle(
 
 
 @external
-def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256, _bossValidator: address) -> bool:
+def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
     config: ManagerSettings = self.managerSettings[_manager]
     globalConfig: GlobalManagerSettings = self.globalManagerSettings
-    data: ManagerData = staticcall BossValidator(_bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
+    data: ManagerData = staticcall BossValidator(self.bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
     self.managerPeriodData[_manager] = data
     return True
 
@@ -487,7 +491,6 @@ def checkRecipientLimitsAndUpdateData(
     _txUsdValue: uint256,
     _asset: address,
     _amount: uint256,
-    _paymaster: address,
 ) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
@@ -496,7 +499,7 @@ def checkRecipientLimitsAndUpdateData(
     # check if payee is valid
     canPayRecipient: bool = False
     data: PayeeData = empty(PayeeData)
-    canPayRecipient, data = staticcall Paymaster(_paymaster).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    canPayRecipient, data = staticcall Paymaster(self.paymaster).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
 
     # !!!!
     assert canPayRecipient # dev: invalid payee
@@ -506,6 +509,42 @@ def checkRecipientLimitsAndUpdateData(
         self.payeePeriodData[_recipient] = data
     
     return True
+
+
+# recipient config bundle
+
+
+@view
+@external
+def getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
+    return self._getRecipientConfigs(_recipient)
+
+
+@view
+@internal
+def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
+    isWhitelisted: bool = self._isWhitelisted(_recipient)
+
+    isOwner: bool = False
+    isPayee: bool = False
+    config: PayeeSettings = empty(PayeeSettings)
+    globalConfig: GlobalPayeeSettings = empty(GlobalPayeeSettings)
+    data: PayeeData = empty(PayeeData)
+    if not isWhitelisted:
+        isOwner = _recipient == self.owner
+        isPayee = self._isRegisteredPayee(_recipient)
+        config = self.payeeSettings[_recipient]
+        globalConfig = self.globalPayeeSettings
+        data = self.payeePeriodData[_recipient]
+
+    return RecipientConfigBundle(
+        isWhitelisted = isWhitelisted,
+        isOwner = isOwner,
+        isPayee = isPayee,
+        config = config,
+        globalConfig = globalConfig,
+        data = data,
+    )
 
 
 #############
@@ -609,7 +648,7 @@ def _isManager(_manager: address) -> bool:
 
 @external
 def setGlobalManagerSettings(_config: GlobalManagerSettings):
-    assert msg.sender == self.bossValidator # dev: no perms
+    assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
     self.globalManagerSettings = _config
 
 
@@ -618,7 +657,7 @@ def setGlobalManagerSettings(_config: GlobalManagerSettings):
 
 @external
 def addManager(_manager: address, _config: ManagerSettings):
-    assert msg.sender == self.bossValidator # dev: no perms
+    assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
     self.managerSettings[_manager] = _config
     self._registerManager(_manager)
 
@@ -675,6 +714,44 @@ def removeManager(_manager: address):
         self.indexOfManager[lastItem] = targetIndex
 
 
+# manager config bundle
+
+
+@view
+@external
+def getManagerConfigs(_signer: address) -> ManagerConfigBundle:
+    return self._getManagerConfigs(_signer, self.owner)
+
+
+@view
+@internal
+def _getManagerConfigs(_signer: address, _walletOwner: address) -> ManagerConfigBundle:
+    return ManagerConfigBundle(
+        isOwner = _signer == _walletOwner,
+        isManager = self.indexOfManager[_signer] != 0,
+        config = self.managerSettings[_signer],
+        globalConfig = self.globalManagerSettings,
+        data = self.managerPeriodData[_signer],
+    )
+
+
+# manager settings bundle
+
+
+@view
+@external
+def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle:
+    return ManagerSettingsBundle(
+        owner = self.owner,
+        isManager = self._isManager(_manager),
+        bossValidator = self.bossValidator,
+        timeLock = self.timeLock,
+        inEjectMode = self.inEjectMode,
+        walletConfig = self,
+        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
+    )
+
+
 ##################
 # Payee Settings #
 ##################
@@ -697,7 +774,7 @@ def _isRegisteredPayee(_addr: address) -> bool:
 
 @external
 def setGlobalPayeeSettings(_config: GlobalPayeeSettings):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.globalPayeeSettings = _config
 
 
@@ -706,7 +783,7 @@ def setGlobalPayeeSettings(_config: GlobalPayeeSettings):
 
 @external
 def addPayee(_payee: address, _config: PayeeSettings):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.payeeSettings[_payee] = _config
     self._registerPayee(_payee)
 
@@ -763,12 +840,7 @@ def removePayee(_payee: address):
         self.indexOfPayee[lastItem] = targetIndex
 
 
-##################
-# Pending Payees #
-##################
-
-
-# add pending payee
+# pending payees
 
 
 @external
@@ -777,16 +849,10 @@ def addPendingPayee(_payee: address, _pending: PendingPayee):
     self.pendingPayees[_payee] = _pending
 
 
-# cancel pending payee
-
-
 @external
 def cancelPendingPayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
     self.pendingPayees[_payee] = empty(PendingPayee)
-
-
-# confirm pending payee
 
 
 @external
@@ -799,6 +865,27 @@ def confirmPendingPayee(_payee: address):
     self.payeeSettings[_payee] = self.pendingPayees[_payee].settings
     self.pendingPayees[_payee] = empty(PendingPayee)
     self._registerPayee(_payee)
+
+
+# payee management bundle
+
+
+@view
+@external
+def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle:
+    owner: address = self.owner
+    return PayeeManagementBundle(
+        owner = owner,
+        wallet = self.wallet,
+        isRegisteredPayee = self._isRegisteredPayee(_payee),
+        isWhitelisted = self._isWhitelisted(_payee),
+        isManager = self._isManager(_payee),
+        payeeSettings = self.payeeSettings[_payee],
+        globalPayeeSettings = self.globalPayeeSettings,
+        timeLock = self.timeLock,
+        walletConfig = self,
+        inEjectMode = self.inEjectMode,
+    )
 
 
 # check if caller can add pending payee
@@ -830,9 +917,6 @@ def canAddPendingPayee(_caller: address) -> bool:
 #############
 # Whitelist #
 #############
-
-
-# is whitelisted
 
 
 @view
@@ -871,11 +955,14 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.paymaster # dev: no perms
+    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+    self._addWhitelistAddr(_addr)
 
+
+@internal
+def _addWhitelistAddr(_addr: address):
     if self._isWhitelisted(_addr):
         return
-
-    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
 
     wid: uint256 = self.numWhitelisted
     if wid == 0:
@@ -883,6 +970,15 @@ def confirmWhitelistAddr(_addr: address):
     self.whitelistAddr[wid] = _addr
     self.indexOfWhitelist[_addr] = wid
     self.numWhitelisted = wid + 1
+
+
+# migration
+
+
+@external
+def addWhitelistAddrViaMigrator(_addr: address):
+    assert msg.sender == self.migrator # dev: no perms
+    self._addWhitelistAddr(_addr)
 
 
 # remove whitelist
@@ -912,20 +1008,31 @@ def removeWhitelistAddr(_addr: address):
         self.indexOfWhitelist[lastItem] = targetIndex
 
 
-#############
-# Utilities #
-#############
+# whitelist config bundle
 
 
 @view
-@internal
-def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
-    if _inEjectMode:
-        return False
-    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+@external
+def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle:
+    owner: address = self.owner
+    return WhitelistConfigBundle(
+        owner = owner,
+        wallet = self.wallet,
+        isWhitelisted = self._isWhitelisted(_addr),
+        pendingWhitelist = self.pendingWhitelist[_addr],
+        timeLock = self.timeLock,
+        walletConfig = self,
+        inEjectMode = self.inEjectMode,
+        isManager = self._isManager(_signer),
+        isOwner = _signer == owner,
+        whitelistPerms = self.managerSettings[_signer].whitelistPerms,
+        globalWhitelistPerms = self.globalManagerSettings.whitelistPerms,
+    )
 
 
-# action data bundle
+######################
+# Action Data Bundle #
+######################
 
 
 @view
@@ -958,8 +1065,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         legoBook = backpackData.legoBook,
         backpack = backpack,
         appraiser = backpackData.appraiser,
-        bossValidator = self.bossValidator,
-        paymaster = self.paymaster,
         feeRecipient = backpackData.feeRecipient,
         wallet = wallet,
         walletConfig = self,
@@ -973,123 +1078,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         legoAddr = legoAddr,
         eth = ETH,
         weth = WETH,
-    )
-
-
-# manager config bundle
-
-
-@view
-@external
-def getManagerConfigs(_signer: address) -> ManagerConfigBundle:
-    return self._getManagerConfigs(_signer, self.owner)
-
-
-@view
-@internal
-def _getManagerConfigs(_signer: address, _walletOwner: address) -> ManagerConfigBundle:
-    return ManagerConfigBundle(
-        isOwner = _signer == _walletOwner,
-        isManager = self.indexOfManager[_signer] != 0,
-        config = self.managerSettings[_signer],
-        globalConfig = self.globalManagerSettings,
-        data = self.managerPeriodData[_signer],
-    )
-
-
-# manager settings bundle
-
-
-@view
-@external
-def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle:
-    return ManagerSettingsBundle(
-        owner = self.owner,
-        isManager = self._isManager(_manager),
-        bossValidator = self.bossValidator,
-        timeLock = self.timeLock,
-        inEjectMode = self.inEjectMode,
-        walletConfig = self,
-        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
-    )
-
-
-# recipient config bundle
-
-
-@view
-@external
-def getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
-    return self._getRecipientConfigs(_recipient)
-
-
-@view
-@internal
-def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
-    isWhitelisted: bool = self._isWhitelisted(_recipient)
-
-    isOwner: bool = False
-    isPayee: bool = False
-    config: PayeeSettings = empty(PayeeSettings)
-    globalConfig: GlobalPayeeSettings = empty(GlobalPayeeSettings)
-    data: PayeeData = empty(PayeeData)
-    if not isWhitelisted:
-        isOwner = _recipient == self.owner
-        isPayee = self._isRegisteredPayee(_recipient)
-        config = self.payeeSettings[_recipient]
-        globalConfig = self.globalPayeeSettings
-        data = self.payeePeriodData[_recipient]
-
-    return RecipientConfigBundle(
-        isWhitelisted = isWhitelisted,
-        isOwner = isOwner,
-        isPayee = isPayee,
-        config = config,
-        globalConfig = globalConfig,
-        data = data,
-    )
-
-
-# whitelist config bundle
-
-
-@view
-@external
-def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle:
-    owner: address = self.owner
-    return WhitelistConfigBundle(
-        owner = owner,
-        wallet = self.wallet,
-        isWhitelisted = self._isWhitelisted(_addr),
-        pendingWhitelist = self.pendingWhitelist[_addr],
-        timeLock = self.timeLock,
-        walletConfig = self,
-        inEjectMode = self.inEjectMode,
-        isManager = self._isManager(_signer),
-        isOwner = _signer == owner,
-        whitelistPerms = self.managerSettings[_signer].whitelistPerms,
-        globalWhitelistPerms = self.globalManagerSettings.whitelistPerms,
-    )
-
-
-# payee management bundle
-
-
-@view
-@external
-def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle:
-    owner: address = self.owner
-    return PayeeManagementBundle(
-        owner = owner,
-        wallet = self.wallet,
-        isRegisteredPayee = self._isRegisteredPayee(_payee),
-        isWhitelisted = self._isWhitelisted(_payee),
-        isManager = self._isManager(_payee),
-        payeeSettings = self.payeeSettings[_payee],
-        globalPayeeSettings = self.globalPayeeSettings,
-        timeLock = self.timeLock,
-        walletConfig = self,
-        inEjectMode = self.inEjectMode,
     )
 
 
@@ -1186,7 +1174,8 @@ def preparePayment(
 
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
+    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
+        assert msg.sender == self.owner # dev: no perms
     assert _recipient != empty(address) # dev: invalid recipient
     wallet: address = self.wallet
     assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
@@ -1220,42 +1209,43 @@ def setEjectionMode(_shouldEject: bool):
     log EjectionModeSet(inEjectMode = _shouldEject)
 
 
+# is signer backpack
+
+
+@view
+@internal
+def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+    if _inEjectMode:
+        return False
+    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+
+
 ####################
 # Wallet Migration #
 ####################
 
 
-# migrate funds
+@external
+def setDidMigrateFunds():
+    assert msg.sender == self.migrator # dev: no perms
+    self.didMigrateFunds = True
 
 
 @external
-def migrateFunds(_newWallet: address) -> uint256:
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
-    assert msg.sender == ad.walletOwner # dev: no perms
-
-    # important validation!
-    assert staticcall Paymaster(ad.paymaster).canMigrateToNewWallet(_newWallet, ad.wallet) # dev: cannot migrate to new wallet
-
-    numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
-    if numAssets == 0:
-        return 0
-
-    # transfer tokens
-    numMigrated: uint256 = 0
-    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
-        asset: address = staticcall UserWallet(ad.wallet).assets(i)
-        if asset == empty(address):
-            continue
-
-        balance: uint256 = staticcall IERC20(asset).balanceOf(ad.wallet)
-        if balance != 0:
-            extcall UserWallet(_newWallet).transferFundsTrusted(_newWallet, asset, max_value(uint256), ad)
-        numMigrated += 1
-
-    return numMigrated
+def setDidMigrateSettings():
+    assert msg.sender == self.migrator # dev: no perms
+    self.didMigrateSettings = True
 
 
-# migration config bundle
+@external
+def transferFundsDuringMigration(
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _ad: ActionData,
+) -> (uint256, uint256):
+    assert msg.sender == self.migrator # dev: no perms
+    return extcall UserWallet(self.wallet).transferFundsTrusted(_recipient, _asset, _amount, _ad)
 
 
 @view
@@ -1273,4 +1263,6 @@ def getMigrationConfigBundle() -> MigrationConfigBundle:
         startingAgentIndex = self.indexOfManager[startingAgent],
         hasPendingOwnerChange = self._hasPendingOwnerChange(),
         groupId = self.groupId,
+        didMigrateSettings = self.didMigrateSettings,
+        didMigrateFunds = self.didMigrateFunds,
     )

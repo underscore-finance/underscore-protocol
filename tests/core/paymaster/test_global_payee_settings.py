@@ -589,7 +589,6 @@ def test_global_settings_interaction_with_payees(setup_contracts, createPayeeLim
             usd_value,
             alpha_token.address,
             amount,
-            paymaster.address,
             sender=wallet.address
         )
         
