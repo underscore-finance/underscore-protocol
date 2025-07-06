@@ -38,7 +38,10 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _stableSwapFee = 10,
         _rewardsFee = 20_00,
         _staleBlocks = 0,
-        _ambassadorFees = 50_00,
+        _ambassadorFeesSwap = 50_00,
+        _ambassadorFeesRewards = 50_00,
+        _ambassadorFeesYieldProfit = 50_00,
+        _depositRewardsAsset = alpha_token,
     ):
         fees = (
             _swapFee,
@@ -46,9 +49,9 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _rewardsFee,
         )
         ambassadorFeeRatio = (
-            _ambassadorFees,
-            _ambassadorFees,
-            _ambassadorFees,
+            _ambassadorFeesSwap,
+            _ambassadorFeesRewards,
+            _ambassadorFeesYieldProfit,
         )
         config = (
             _walletTemplate,
@@ -62,6 +65,7 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             fees,
             ambassadorFeeRatio,
             _staleBlocks,
+            _depositRewardsAsset,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig

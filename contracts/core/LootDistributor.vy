@@ -18,11 +18,14 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface Ledger:
+    def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
+    def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
     def ambassadors(_user: address) -> address: view
     def isUserWallet(_user: address) -> bool: view
 
 interface MissionControl:
     def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: bool) -> AmbassadorConfig: view
+    def getDepositRewardsAsset() -> address: view
 
 interface Appraiser:
     def getPricePerShare(_asset: address) -> uint256: view
@@ -32,6 +35,17 @@ interface UserWallet:
 
 interface UserWalletConfig:
     def owner() -> address: view
+
+struct WalletAssetData:
+    assetBalance: uint256
+    usdValue: uint256
+    isYieldAsset: bool
+    lastYieldPrice: uint256
+
+struct PointsData:
+    usdValue: uint256
+    depositPoints: uint256
+    lastUpdate: uint256
 
 struct AmbassadorConfig:
     ambassador: address
@@ -50,6 +64,16 @@ event LootClaimed:
     asset: indexed(address)
     amount: uint256
 
+event DepositRewardsAdded:
+    asset: indexed(address)
+    amount: uint256
+    adder: indexed(address)
+
+event DepositRewardsClaimed:
+    user: indexed(address)
+    asset: indexed(address)
+    amount: uint256
+
 # claimable loot
 totalClaimableLoot: public(HashMap[address, uint256]) # asset -> amount
 claimableLoot: public(HashMap[address, HashMap[address, uint256]]) # ambassador -> asset -> amount
@@ -59,7 +83,11 @@ claimableAssets: public(HashMap[address, HashMap[uint256, address]]) # ambassado
 indexOfClaimableAsset: public(HashMap[address, HashMap[address, uint256]]) # ambassador -> asset -> index
 numClaimableAssets: public(HashMap[address, uint256]) # ambassador -> num assets
 
+# deposit rewards
+depositRewards: public(uint256) # amount
+
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
+EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 
 
 @deploy
@@ -320,3 +348,158 @@ def _deregisterClaimableAssetForAmbassador(_ambassador: address, _asset: address
         self.indexOfClaimableAsset[_ambassador][lastItem] = targetIndex
 
     return True
+
+
+###################
+# Deposit Rewards #
+###################
+
+
+# add rewards
+
+
+@external
+def addDepositRewards(_amount: uint256):
+    a: addys.Addys = addys._getAddys()
+    asset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset()
+    if asset == empty(address):
+        return
+
+    # finalize amount
+    amount: uint256 = min(_amount, staticcall IERC20(asset).balanceOf(msg.sender))
+    if amount == 0:
+        return
+    assert extcall IERC20(asset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
+
+    self.depositRewards += amount
+    log DepositRewardsAdded(asset = asset, amount = amount, adder = msg.sender)
+
+
+# claim rewards
+
+
+@external
+def claimDepositRewards(_user: address) -> uint256:
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
+
+    # permission check - same as claimLoot
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    if msg.sender != owner:
+        assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+
+    # get rewards asset
+    asset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset()
+    if asset == empty(address):
+        return 0
+
+    # check if there is anything available for rewards
+    available: uint256 = min(self.depositRewards, staticcall IERC20(asset).balanceOf(self))
+    if available == 0:
+        return 0
+
+    # update deposit points first
+    self._updateDepositPoints(_user, 0, False, a.ledger)
+
+    # get updated points
+    userPoints: PointsData = empty(PointsData)
+    globalPoints: PointsData = empty(PointsData)
+    userPoints, globalPoints = staticcall Ledger(a.ledger).getUserAndGlobalPoints(_user)
+
+    # check if user has any points
+    if userPoints.depositPoints == 0 or globalPoints.depositPoints == 0:
+        return 0
+
+    # calculate user's share
+    userRewards: uint256 = min(available * userPoints.depositPoints // globalPoints.depositPoints, staticcall IERC20(asset).balanceOf(self))
+    if userRewards == 0:
+        return 0
+    
+    # transfer rewards to user
+    assert extcall IERC20(asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
+
+    # update deposit rewards tracking
+    self.depositRewards -= userRewards
+
+    # zero out user's points and update global points
+    globalPoints.depositPoints -= userPoints.depositPoints
+    userPoints.depositPoints = 0
+
+    # save updated points
+    extcall Ledger(a.ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
+
+    log DepositRewardsClaimed(
+        user = _user,
+        asset = asset,
+        amount = userRewards,
+    )
+    return userRewards
+
+
+##################
+# Deposit Points #
+##################
+
+
+# update points
+
+
+@external
+def updateDepositPoints(_user: address):
+    a: addys.Addys = addys._getAddys()
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self._updateDepositPoints(_user, 0, False, a.ledger)
+
+
+@external
+def updateDepositPointsFromBackpack(
+    _user: address,
+    _newUserValue: uint256,
+    _didChange: bool,
+    _ledger: address,
+):
+    assert msg.sender == addys._getBackpackAddr() # dev: no perms
+    self._updateDepositPoints(_user, _newUserValue, _didChange, _ledger)
+
+
+@internal
+def _updateDepositPoints(
+    _user: address,
+    _newUserValue: uint256,
+    _didChange: bool,
+    _ledger: address,
+):
+    userPoints: PointsData = empty(PointsData)
+    globalPoints: PointsData = empty(PointsData)
+    userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
+
+    # update user data
+    prevUserValue: uint256 = userPoints.usdValue
+    userPoints.depositPoints += self._getLatestDepositPoints(prevUserValue, userPoints.lastUpdate)
+    userPoints.lastUpdate = block.number
+    if _didChange:
+        userPoints.usdValue = _newUserValue
+    
+    # update global data
+    globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
+    globalPoints.lastUpdate = block.number
+    if _didChange:
+        globalPoints.usdValue -= prevUserValue
+        globalPoints.usdValue += _newUserValue
+
+    # save data
+    extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
+
+
+# latest points
+
+
+@view
+@internal
+def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256:
+    if _usdValue == 0 or _lastUpdate == 0 or block.number <= _lastUpdate:
+        return 0
+    points: uint256 = _usdValue * (block.number - _lastUpdate)
+    return points // EIGHTEEN_DECIMALS
+

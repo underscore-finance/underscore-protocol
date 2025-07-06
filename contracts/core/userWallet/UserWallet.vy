@@ -16,7 +16,7 @@ interface WalletConfig:
 
 interface Backpack:
     def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address, _appraiser: address) -> (uint256, uint256, uint256): nonpayable
-    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address): nonpayable
+    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address, _lootDistributor: address): nonpayable
 
 interface Appraiser:
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
@@ -1223,7 +1223,7 @@ def _performPostActionTasks(
 
     # update points + check trial funds
     if not _ad.inEjectMode:
-        extcall Backpack(_ad.backpack).performPostActionTasks(newTotalUsdValue, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser)
+        extcall Backpack(_ad.backpack).performPostActionTasks(newTotalUsdValue, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.lootDistributor)
 
 
 ##############

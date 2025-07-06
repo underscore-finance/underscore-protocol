@@ -24,6 +24,7 @@ struct UserWalletConfig:
     walletFees: WalletFees
     ambassadorFeeRatio: AmbassadorFees
     defaultStaleBlocks: uint256
+    depositRewardsAsset: address
 
 struct AssetConfig:
     legoId: uint256
@@ -208,6 +209,12 @@ def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: b
         underlyingAsset = underlyingAsset,
         decimals = decimals,
     )
+
+
+@view
+@external
+def getDepositRewardsAsset() -> address:
+    return self.userWalletConfig.depositRewardsAsset
 
 
 ################

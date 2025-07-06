@@ -40,6 +40,7 @@ def undy_hq(
     boss_validator,
     paymaster,
     migrator,
+    loot_distributor,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -89,6 +90,10 @@ def undy_hq(
     # 11
     assert undy_hq_deploy.startAddNewAddressToRegistry(migrator, "Migrator", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(migrator, sender=deploy3r) == 11
+
+    # 12
+    assert undy_hq_deploy.startAddNewAddressToRegistry(loot_distributor, "Loot Distributor", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(loot_distributor, sender=deploy3r) == 12
 
     # special permission setup
 

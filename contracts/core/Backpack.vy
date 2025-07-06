@@ -34,12 +34,6 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface Ledger:
-    def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
-    def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
-    def getLastTotalUsdValue(_user: address) -> uint256: view
-    def isUserWallet(_user: address) -> bool: view
-
 interface Appraiser:
     def updateAndGetPricePerShareWithConfig(_asset: address, _legoAddr: address, _staleBlocks: uint256) -> uint256: nonpayable
     def getPricePerShareWithConfig(_asset: address, _legoAddr: address, _staleBlocks: uint256) -> uint256: view
@@ -47,6 +41,13 @@ interface Appraiser:
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
+
+interface Ledger:
+    def getLastTotalUsdValue(_user: address) -> uint256: view
+    def isUserWallet(_user: address) -> bool: view
+
+interface LootDistributor:
+    def updateDepositPointsFromBackpack(_user: address, _newUserValue: uint256, _didChange: bool, _ledger: address): nonpayable
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -155,6 +156,7 @@ def performPostActionTasks(
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
+    _lootDistributor: address,
 ):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
@@ -163,51 +165,7 @@ def performPostActionTasks(
     assert self._doesWalletStillHaveTrialFunds(msg.sender, _walletConfig, _missionControl, _legoBook, _appraiser) # dev: user no longer has trial funds
 
     # update points
-    self._updateDepositPoints(msg.sender, _newUserValue, True, ledger)
-
-
-# deposit points
-
-
-@internal
-def _updateDepositPoints(
-    _user: address,
-    _newUserValue: uint256,
-    _didChange: bool,
-    _ledger: address,
-):
-    userPoints: PointsData = empty(PointsData)
-    globalPoints: PointsData = empty(PointsData)
-    userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
-
-    # update user data
-    prevUserValue: uint256 = userPoints.usdValue
-    userPoints.depositPoints += self._getLatestDepositPoints(prevUserValue, userPoints.lastUpdate)
-    userPoints.lastUpdate = block.number
-    if _didChange:
-        userPoints.usdValue = _newUserValue
-    
-    # update global data
-    globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
-    globalPoints.lastUpdate = block.number
-    if _didChange:
-        globalPoints.usdValue -= prevUserValue
-        globalPoints.usdValue += _newUserValue
-
-    # save data
-    extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
-
-
-# latest points
-
-
-@view
-@internal
-def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256:
-    if _usdValue == 0 or _lastUpdate == 0 or block.number <= _lastUpdate:
-        return 0
-    points: uint256 = _usdValue * (block.number - _lastUpdate)
-    return points // EIGHTEEN_DECIMALS
+    extcall LootDistributor(_lootDistributor).updateDepositPointsFromBackpack(msg.sender, _newUserValue, True, ledger)
 
 
 ##################
@@ -492,7 +450,7 @@ def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shou
 
     assert _asset != empty(address) # dev: invalid asset
     newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_legoId, _asset, _shouldCheckYield)
-    self._updateDepositPoints(_user, newUserValue, True, a.ledger)
+    extcall LootDistributor(a.lootDistributor).updateDepositPointsFromBackpack(_user, newUserValue, True, a.ledger)
 
 
 @external
@@ -517,13 +475,6 @@ def recoverNft(_user: address,_collection: address, _nftTokenId: uint256, _recip
     return extcall UserWallet(_user).recoverNft(_collection, _nftTokenId, _recipient)
 
 
-@external
-def updateDepositPoints(_user: address):
-    a: addys.Addys = addys._getAddys()
-    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
-    self._updateDepositPoints(_user, 0, False, a.ledger)
-
-
 ##############
 # Eject Mode #
 ##############
@@ -537,7 +488,7 @@ def setEjectionMode(_user: address, _shouldEject: bool):
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     if _shouldEject:
-        self._updateDepositPoints(_user, 0, True, a.ledger) # update deposit points, new usd value is zero
+        extcall LootDistributor(a.lootDistributor).updateDepositPointsFromBackpack(_user, 0, True, a.ledger) # update deposit points, new usd value is zero
 
     extcall UserWalletConfig(walletConfig).setEjectionMode(_shouldEject)
 
