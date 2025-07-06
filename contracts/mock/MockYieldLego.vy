@@ -18,30 +18,19 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC4626
 
-interface RipePriceDesk:
-    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
-
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
-
-# Mock storage for testing
-mockPricePerShare: public(HashMap[address, uint256])
+interface Appraiser:
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
-# ripe
-RIPE_HQ: immutable(address)
-RIPE_PRICE_DESK_ID: constant(uint256) = 7
+# mock price config
+price: public(HashMap[address, uint256])
 
 
 @deploy
-def __init__(_undyHq: address, _ripeHq: address):
+def __init__(_undyHq: address):
     addys.__init__(_undyHq)
     legoAssets.__init__(False)
-
-    assert _ripeHq != empty(address) # dev: invalid ripe hq
-    RIPE_HQ = _ripeHq
 
 
 @view
@@ -93,7 +82,7 @@ def depositForYield(
         depositAmount -= refundAssetAmount
 
     # usd value
-    usdValue: uint256 = self._getRipeUsdValue(_asset, depositAmount)
+    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(_asset, depositAmount)
 
     # register lego asset
     legoAssets._registerLegoAsset(_asset)
@@ -137,29 +126,9 @@ def withdrawFromYield(
 
     # usd value
     asset: address = staticcall IERC4626(_vaultToken).asset()
-    usdValue: uint256 = self._getRipeUsdValue(asset, assetAmountReceived)
+    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(asset, assetAmountReceived)
 
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
-
-
-####################
-# Ripe Integration #
-####################
-
-
-@view
-@external
-def getRipeUsdValue(_asset: address, _amount: uint256) -> uint256:
-    return self._getRipeUsdValue(_asset, _amount)
-
-
-@view
-@internal
-def _getRipeUsdValue(_asset: address, _amount: uint256) -> uint256:
-    ripePriceDesk: address = staticcall Registry(RIPE_HQ).getAddr(RIPE_PRICE_DESK_ID)
-    if ripePriceDesk == empty(address):
-        return 0
-    return staticcall RipePriceDesk(ripePriceDesk).getUsdValue(_asset, _amount, False)
 
 
 #########
@@ -353,13 +322,8 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 @view
 @external
 def getPricePerShare(_yieldAsset: address) -> uint256:
-    return self.mockPricePerShare[_yieldAsset]
-
-
-# Mock setter for testing
-@external
-def setMockPricePerShare(_yieldAsset: address, _price: uint256):
-    self.mockPricePerShare[_yieldAsset] = _price
+    decimals: uint256 = convert(staticcall IERC20Detailed(_yieldAsset).decimals(), uint256)
+    return staticcall IERC4626(_yieldAsset).convertToAssets(10 ** decimals)
 
 
 # normal price (not yield)
@@ -368,4 +332,12 @@ def setMockPricePerShare(_yieldAsset: address, _price: uint256):
 @view
 @external
 def getPrice(_asset: address) -> uint256:
-    return 0
+    return self.price[_asset]
+
+
+# mock (set price)
+
+
+@external
+def setPrice(_asset: address, _price: uint256):
+    self.price[_asset] = _price

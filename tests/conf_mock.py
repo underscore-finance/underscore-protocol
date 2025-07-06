@@ -2,6 +2,7 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS
+from config.BluePrint import TOKENS, INTEGRATION_ADDYS
 
 
 ############
@@ -192,6 +193,37 @@ def mock_lego_lp_token(governance):
 @pytest.fixture(scope="session")
 def mock_lego_debt_token(governance):
     return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Debt Token", "MOCK DEBT", 18, 1_000_000_000, name="mock_lego_debt_token")
+
+
+###################
+# Mock Yield Lego #
+###################
+
+
+@pytest.fixture(scope="session")
+def mock_yield_lego(undy_hq_deploy):
+    return boa.load(
+        "contracts/mock/MockYieldLego.vy",
+        undy_hq_deploy,
+        name="mock_yield_lego",
+    )
+
+
+@pytest.fixture(scope="session")
+def yield_underlying_token(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Yield Underlying Token", "YUT", 18, 1_000_000_000, name="yield_underlying_token")
+
+
+@pytest.fixture(scope="session")
+def yield_vault_token(yield_underlying_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token, name="yield_vault_token")
+
+
+@pytest.fixture(scope="session")
+def yield_underlying_token_whale(env, yield_underlying_token, governance):
+    whale = env.generate_address("yield_underlying_token_whale")
+    yield_underlying_token.mint(whale, 100_000_000 * (10 ** yield_underlying_token.decimals()), sender=governance.address)
+    return whale
 
 
 ################
