@@ -21,8 +21,8 @@ struct UserWalletConfig:
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-    feeRecipient: address
     walletFees: WalletFees
+    ambassadorFeeRatio: AmbassadorFees
     defaultStaleBlocks: uint256
 
 struct AssetConfig:
@@ -39,11 +39,17 @@ struct YieldAssetConfig:
     underlyingAsset: address
     maxYieldIncrease: uint256
     yieldProfitFee: uint256
+    ambassadorBonusRatio: uint256
 
 struct WalletFees:
     swapFee: uint256
     stableSwapFee: uint256
     rewardsFee: uint256
+
+struct AmbassadorFees:
+    swapFee: uint256
+    rewardsFee: uint256
+    yieldProfitFee: uint256
 
 struct AgentConfig:
     agentTemplate: address
@@ -103,6 +109,13 @@ struct ProfitCalcConfig:
     underlyingAsset: address
     maxYieldIncrease: uint256
     yieldProfitFee: uint256
+
+struct AmbassadorConfig:
+    ambassador: address
+    ambassadorFeeRatio: AmbassadorFees
+    ambassadorBonusRatio: uint256
+    underlyingAsset: address
+    decimals: uint256
 
 # general wallet config
 userWalletConfig: public(UserWalletConfig)
@@ -177,8 +190,24 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
 
 @view
 @external
-def feeRecipient() -> address:
-    return self.userWalletConfig.feeRecipient
+def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: bool) -> AmbassadorConfig:
+
+    ambassadorBonusRatio: uint256 = 0
+    underlyingAsset: address = empty(address)
+    decimals: uint256 = 0
+    if _isYieldProfit:
+        assetConfig: AssetConfig = self.assetConfig[_asset]
+        ambassadorBonusRatio = assetConfig.yieldConfig.ambassadorBonusRatio
+        underlyingAsset = assetConfig.yieldConfig.underlyingAsset
+        decimals = assetConfig.decimals
+
+    return AmbassadorConfig(
+        ambassador = _ambassador,
+        ambassadorFeeRatio = self.userWalletConfig.ambassadorFeeRatio,
+        ambassadorBonusRatio = ambassadorBonusRatio,
+        underlyingAsset = underlyingAsset,
+        decimals = decimals,
+    )
 
 
 ################

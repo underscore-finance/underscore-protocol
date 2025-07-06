@@ -23,6 +23,7 @@ struct Addys:
     bossValidator: address
     paymaster: address
     migrator: address
+    lootDistributor: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -39,6 +40,7 @@ APPRAISER_ID: constant(uint256) = 8
 BOSS_VALIDATOR_ID: constant(uint256) = 9
 PAYMASTER_ID: constant(uint256) = 10
 MIGRATOR_ID: constant(uint256) = 11
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 12
 
 
 @deploy
@@ -83,6 +85,7 @@ def _generateAddys() -> Addys:
         bossValidator = staticcall UndyHq(hq).getAddr(BOSS_VALIDATOR_ID),
         paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
         migrator = staticcall UndyHq(hq).getAddr(MIGRATOR_ID),
+        lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),
     )
 
 
@@ -306,3 +309,18 @@ def _getMigratorId() -> uint256:
 @internal
 def _getMigratorAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MIGRATOR_ID)
+
+
+# loot distributor
+
+
+@view
+@internal
+def _getLootDistributorId() -> uint256:
+    return LOOT_DISTRIBUTOR_ID
+
+
+@view
+@internal
+def _getLootDistributorAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LOOT_DISTRIBUTOR_ID)

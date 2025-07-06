@@ -24,7 +24,7 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token, governance):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, alpha_token):
     def setUserWalletConfig(
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
@@ -34,16 +34,21 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = 10,
         _maxTimeLock = 100,
-        _feeRecipient = governance,
         _swapFee = 1_00,
         _stableSwapFee = 10,
         _rewardsFee = 20_00,
         _staleBlocks = 0,
+        _ambassadorFees = 50_00,
     ):
         fees = (
             _swapFee,
             _stableSwapFee,
             _rewardsFee,
+        )
+        ambassadorFeeRatio = (
+            _ambassadorFees,
+            _ambassadorFees,
+            _ambassadorFees,
         )
         config = (
             _walletTemplate,
@@ -54,8 +59,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
-            _feeRecipient,
             fees,
+            ambassadorFeeRatio,
             _staleBlocks,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
@@ -93,6 +98,7 @@ def setAssetConfig(mission_control, switchboard_alpha, alpha_token):
         _underlyingAsset = alpha_token,
         _maxYieldIncrease = 5_00,
         _yieldProfitFee = 20_00,
+        _ambassadorBonusRatio = 50_00,
     ):
         fees = (
             _swapFee,
@@ -104,6 +110,7 @@ def setAssetConfig(mission_control, switchboard_alpha, alpha_token):
             _underlyingAsset,
             _maxYieldIncrease,
             _yieldProfitFee,
+            _ambassadorBonusRatio,
         )
         config = (
             _legoId,

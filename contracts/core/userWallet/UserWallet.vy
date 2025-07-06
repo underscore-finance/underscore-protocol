@@ -22,6 +22,10 @@ interface Appraiser:
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
 
+interface LootDistributor:
+    def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256): nonpayable
+    def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType): nonpayable
+
 interface MissionControl:
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
     def getRewardsFee(_user: address, _asset: address) -> uint256: view
@@ -44,7 +48,7 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    feeRecipient: address
+    lootDistributor: address
     wallet: address
     walletConfig: address
     walletOwner: address
@@ -568,7 +572,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     if lastTokenOut != empty(address):
         swapFee: uint256 = staticcall MissionControl(ad.missionControl).getSwapFee(self, tokenIn, lastTokenOut)
         if swapFee != 0 and lastTokenOutAmount != 0:
-            self._payFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE),ad.feeRecipient)
+            self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE), wi.ActionType.SWAP, ad.lootDistributor)
 
     self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ad)
     log OverallSwapPerformed(
@@ -864,7 +868,7 @@ def claimRewards(
     if _rewardToken != empty(address):
         rewardsFee: uint256 = staticcall MissionControl(ad.missionControl).getRewardsFee(self, _rewardToken)
         if rewardsFee != 0 and rewardAmount != 0:
-            self._payFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), ad.feeRecipient)
+            self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), wi.ActionType.REWARDS, ad.lootDistributor)
 
     self._performPostActionTasks([_rewardToken], txUsdValue, ad)
     log RewardsClaimed(
@@ -1377,7 +1381,7 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
         self.assetData[_asset] = data
 
     # pay yield fee
-    self._payFee(_asset, yieldProfit, min(feeRatio, MAX_YIELD_FEE), _ad.feeRecipient)
+    self._payYieldFee(_asset, yieldProfit, min(feeRatio, MAX_YIELD_FEE), _ad.lootDistributor)
 
     # mark as checked
     self.checkedYield[_asset] = True
@@ -1388,14 +1392,44 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
 #############
 
 
+# pay transaction fees (swap / rewards)
+
+
+@internal
+def _payTransactionFee(
+    _asset: address,
+    _transactionValue: uint256,
+    _feeRatio: uint256,
+    _action: wi.ActionType,
+    _lootDistributor: address,
+):
+    feeAmount: uint256 = _transactionValue * _feeRatio // HUNDRED_PERCENT
+    if _lootDistributor != empty(address) and feeAmount != 0:
+        assert extcall IERC20(_asset).approve(_lootDistributor, feeAmount, default_return_value=True) # dev: appr
+        extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action)
+        self._resetApproval(_asset, _lootDistributor)
+
+
 # pay fees
 
 
 @internal
-def _payFee(_asset: address, _amount: uint256, _feeRatio: uint256, _feeRecipient: address):
-    feeAmount: uint256 = _amount * _feeRatio // HUNDRED_PERCENT
-    if feeAmount != 0 and _feeRecipient != empty(address):
-        assert extcall IERC20(_asset).transfer(_feeRecipient, feeAmount) # dev: transfer failed
+def _payYieldFee(
+    _asset: address,
+    _totalYieldAmount: uint256,
+    _feeRatio: uint256,
+    _lootDistributor: address,
+):
+    if _lootDistributor == empty(address):
+        return
+
+    feeAmount: uint256 = _totalYieldAmount * _feeRatio // HUNDRED_PERCENT
+    if feeAmount != 0:
+        assert extcall IERC20(_asset).transfer(_lootDistributor, feeAmount, default_return_value=True) # dev: xfer
+
+    # notify loot distributor
+    if feeAmount != 0 or _totalYieldAmount != 0:
+        extcall LootDistributor(_lootDistributor).addLootFromYieldProfit(_asset, feeAmount, _totalYieldAmount)
 
 
 # update price and get usd value

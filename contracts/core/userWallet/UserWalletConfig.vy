@@ -49,7 +49,7 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    feeRecipient: address
+    lootDistributor: address
     wallet: address
     walletConfig: address
     walletOwner: address
@@ -238,7 +238,7 @@ struct BackpackData:
     missionControl: address
     legoBook: address
     appraiser: address
-    feeRecipient: address
+    lootDistributor: address
     lastTotalUsdValue: uint256
 
 event OwnershipChangeInitiated:
@@ -1065,7 +1065,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         legoBook = backpackData.legoBook,
         backpack = backpack,
         appraiser = backpackData.appraiser,
-        feeRecipient = backpackData.feeRecipient,
+        lootDistributor = backpackData.lootDistributor,
         wallet = wallet,
         walletConfig = self,
         walletOwner = self.owner,

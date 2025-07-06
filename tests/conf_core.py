@@ -325,6 +325,18 @@ def migrator(undy_hq_deploy, fork):
     )
 
 
+# loot distributor
+
+
+@pytest.fixture(scope="session")
+def loot_distributor(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/LootDistributor.vy",
+        undy_hq_deploy,
+        name="loot_distributor",
+    )
+
+
 #############
 # Templates #
 #############

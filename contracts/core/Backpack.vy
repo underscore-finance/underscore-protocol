@@ -40,14 +40,13 @@ interface Ledger:
     def getLastTotalUsdValue(_user: address) -> uint256: view
     def isUserWallet(_user: address) -> bool: view
 
-interface MissionControl:
-    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
-    def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
-    def feeRecipient() -> address: view
-
 interface Appraiser:
     def updateAndGetPricePerShareWithConfig(_asset: address, _legoAddr: address, _staleBlocks: uint256) -> uint256: nonpayable
     def getPricePerShareWithConfig(_asset: address, _legoAddr: address, _staleBlocks: uint256) -> uint256: view
+
+interface MissionControl:
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+    def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -70,7 +69,7 @@ struct BackpackData:
     missionControl: address
     legoBook: address
     appraiser: address
-    feeRecipient: address
+    lootDistributor: address
     lastTotalUsdValue: uint256
 
 # helpers
@@ -101,6 +100,7 @@ LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
 APPRAISER_ID: constant(uint256) = 8
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 12
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
@@ -135,7 +135,7 @@ def getBackpackData(_user: address) -> BackpackData:
         missionControl = mc,
         legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID),
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
-        feeRecipient = staticcall MissionControl(mc).feeRecipient(),
+        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(_user),
     )
 
@@ -163,14 +163,19 @@ def performPostActionTasks(
     assert self._doesWalletStillHaveTrialFunds(msg.sender, _walletConfig, _missionControl, _legoBook, _appraiser) # dev: user no longer has trial funds
 
     # update points
-    self._updateDepositPoints(msg.sender, _newUserValue, ledger)
+    self._updateDepositPoints(msg.sender, _newUserValue, True, ledger)
 
 
 # deposit points
 
 
 @internal
-def _updateDepositPoints(_user: address, _newUserValue: uint256, _ledger: address):
+def _updateDepositPoints(
+    _user: address,
+    _newUserValue: uint256,
+    _didChange: bool,
+    _ledger: address,
+):
     userPoints: PointsData = empty(PointsData)
     globalPoints: PointsData = empty(PointsData)
     userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
@@ -178,14 +183,16 @@ def _updateDepositPoints(_user: address, _newUserValue: uint256, _ledger: addres
     # update user data
     prevUserValue: uint256 = userPoints.usdValue
     userPoints.depositPoints += self._getLatestDepositPoints(prevUserValue, userPoints.lastUpdate)
-    userPoints.usdValue = _newUserValue
     userPoints.lastUpdate = block.number
+    if _didChange:
+        userPoints.usdValue = _newUserValue
     
     # update global data
     globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
-    globalPoints.usdValue -= prevUserValue
-    globalPoints.usdValue += _newUserValue
     globalPoints.lastUpdate = block.number
+    if _didChange:
+        globalPoints.usdValue -= prevUserValue
+        globalPoints.usdValue += _newUserValue
 
     # save data
     extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
@@ -485,7 +492,7 @@ def updateAssetInWallet(_legoId: uint256, _user: address, _asset: address, _shou
 
     assert _asset != empty(address) # dev: invalid asset
     newUserValue: uint256 = extcall UserWallet(_user).updateAssetData(_legoId, _asset, _shouldCheckYield)
-    self._updateDepositPoints(_user, newUserValue, a.ledger)
+    self._updateDepositPoints(_user, newUserValue, True, a.ledger)
 
 
 @external
@@ -510,6 +517,13 @@ def recoverNft(_user: address,_collection: address, _nftTokenId: uint256, _recip
     return extcall UserWallet(_user).recoverNft(_collection, _nftTokenId, _recipient)
 
 
+@external
+def updateDepositPoints(_user: address):
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Switchboard(a.switchboard).isSwitchboardAddr(msg.sender) # dev: no perms
+    self._updateDepositPoints(_user, 0, False, a.ledger)
+
+
 ##############
 # Eject Mode #
 ##############
@@ -523,7 +537,7 @@ def setEjectionMode(_user: address, _shouldEject: bool):
 
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     if _shouldEject:
-        self._updateDepositPoints(_user, 0, a.ledger) # update deposit points, new usd value is zero
+        self._updateDepositPoints(_user, 0, True, a.ledger) # update deposit points, new usd value is zero
 
     extcall UserWalletConfig(walletConfig).setEjectionMode(_shouldEject)
 

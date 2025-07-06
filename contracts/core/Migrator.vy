@@ -131,7 +131,7 @@ struct ActionData:
     legoBook: address
     backpack: address
     appraiser: address
-    feeRecipient: address
+    lootDistributor: address
     wallet: address
     walletConfig: address
     walletOwner: address
