@@ -193,7 +193,7 @@ def test_global_and_specific_limits(setup_contracts, createGlobalManagerSettings
     # Transaction over global limit should fail
     manager_data = createManagerData()  # Create empty manager data
     
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             60 * EIGHTEEN_DECIMALS,  # Over global limit of 50
             manager_limits,
@@ -459,7 +459,7 @@ def test_usd_tracking_integration(setup_contracts, createManagerLimits,
     assert updated_data[1] == 170 * EIGHTEEN_DECIMALS  # totalUsdValueInPeriod
     
     # Transaction 3: Would exceed per-period limit
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             400 * EIGHTEEN_DECIMALS,  # Would total 570, exceeding 500 limit
             limits,

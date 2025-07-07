@@ -222,8 +222,8 @@ def test_update_and_get_price_per_share(setup_appraiser_test, user_wallet_for_ap
     
     # Check that price is cached
     cached_price_data = appraiser.lastPricePerShare(yield_vault_token)
-    assert cached_price_data[1] == price_per_share  # pricePerShare
-    assert cached_price_data[2] == boa.env.evm.patch.block_number  # lastUpdate
+    assert cached_price_data[0] == price_per_share  # pricePerShare (index 0)
+    assert cached_price_data[1] == boa.env.evm.patch.block_number  # lastUpdate (index 1)
 
 
 def test_price_per_share_returns_zero_for_non_yield_asset(setup_appraiser_test):
@@ -791,14 +791,13 @@ def test_access_control(setup_appraiser_test, alice):
     alpha_token = test_data['alpha_token']
     
     # These should fail when called by non-user wallet
-    # The contract reverts with empty message when permission check fails
-    with boa.reverts():
+    with boa.reverts("no perms"):
         appraiser.updateAndGetNormalAssetPrice(alpha_token, sender=alice)
     
-    with boa.reverts():
+    with boa.reverts("no perms"):
         appraiser.updateAndGetPricePerShare(alpha_token, sender=alice)
     
-    with boa.reverts():
+    with boa.reverts("no perms"):
         appraiser.calculateYieldProfits(
             alpha_token,
             1000 * EIGHTEEN_DECIMALS,
@@ -817,7 +816,7 @@ def test_non_user_wallet_permission_denied(setup_appraiser_test, alice):
     alpha_token = test_data['alpha_token']
     
     # Random address should fail (alice is not a user wallet)
-    with boa.reverts():
+    with boa.reverts("no perms"):
         appraiser.updateAndGetNormalAssetPrice(alpha_token, sender=alice)
 
 
@@ -1028,8 +1027,8 @@ def test_rebasing_yield_balance_decreased(setAssetConfig, appraiser, user_wallet
 
 def test_constructor_validation(env):
     """Test Appraiser constructor validation"""
-    # Deploy with invalid ripe HQ should revert with empty message
-    with boa.reverts():
+    # Deploy with invalid ripe HQ should revert
+    with boa.reverts("invalid ripe hq"):
         boa.load(
             "contracts/core/Appraiser.vy",
             env.generate_address(),  # undy HQ

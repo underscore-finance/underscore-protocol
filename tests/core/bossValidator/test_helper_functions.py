@@ -247,7 +247,7 @@ def test_zero_address_validation(setup_contracts, createManagerLimits, createLeg
     owner = ctx['owner']
     
     # Try to add zero address as manager
-    with boa.reverts():
+    with boa.reverts("invalid manager"):
         boss.addManager(
             wallet.address,
             ZERO_ADDRESS,
@@ -302,7 +302,7 @@ def test_owner_as_manager(setup_contracts, createManagerLimits, createLegoPerms,
     owner = ctx['owner']
     
     # Try to add owner as manager - should fail
-    with boa.reverts():
+    with boa.reverts("invalid manager"):
         boss.addManager(
             wallet.address,
             owner,
@@ -367,7 +367,7 @@ def test_non_existent_wallet(setup_contracts, createManagerLimits, createLegoPer
     fake_wallet = to_checksum_address("0x" + "9" * 40)
     
     # Should fail - wallet doesn't exist
-    with boa.reverts():
+    with boa.reverts("not a user wallet"):
         boss.addManager(
             fake_wallet,
             manager,

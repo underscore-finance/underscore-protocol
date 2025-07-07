@@ -226,7 +226,7 @@ def test_invalid_global_settings_rejected(setup_contracts, createGlobalManagerSe
         _managerPeriod=100  # Too short
     )
     
-    with boa.reverts():
+    with boa.reverts("invalid settings"):
         boss.setGlobalManagerSettings(
             ctx['wallet'].address,  # user wallet address
             invalid_settings[0],  # managerPeriod
@@ -249,7 +249,7 @@ def test_invalid_global_settings_rejected(setup_contracts, createGlobalManagerSe
     
     invalid_settings2 = createGlobalManagerSettings(_limits=invalid_limits)
     
-    with boa.reverts():
+    with boa.reverts("invalid settings"):
         boss.setGlobalManagerSettings(
             ctx['wallet'].address,  # user wallet address
             invalid_settings2[0],  # managerPeriod
@@ -326,7 +326,7 @@ def test_only_boss_validator_can_set_global(setup_contracts, createGlobalManager
     settings = createGlobalManagerSettings()
     
     # Random address tries to set global settings
-    with boa.reverts():
+    with boa.reverts("no perms"):
         wallet_config.setGlobalManagerSettings(
             settings,
             sender=alice

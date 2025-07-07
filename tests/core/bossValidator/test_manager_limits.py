@@ -135,7 +135,7 @@ def test_per_tx_limit(setup_contracts, createManagerData, createManagerLimits):
     )
     
     # Transaction over limit should fail
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             1001 * EIGHTEEN_DECIMALS,  # Over limit
             limits,
@@ -161,7 +161,7 @@ def test_per_period_limit(setup_contracts, createManagerData, createManagerLimit
     )
     
     # Transaction that would exceed period limit
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             200 * EIGHTEEN_DECIMALS,  # Would exceed period limit
             limits,
@@ -186,7 +186,7 @@ def test_lifetime_limit(setup_contracts, createManagerData, createManagerLimits)
     )
     
     # Transaction that would exceed lifetime limit
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             200 * EIGHTEEN_DECIMALS,  # Would exceed lifetime limit
             limits,
@@ -214,7 +214,7 @@ def test_global_limits_override(setup_contracts, createManagerData, createManage
     )
     
     # Should fail on global limit even though specific limit passes
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             600 * EIGHTEEN_DECIMALS,  # Within specific, over global
             specific_limits,
@@ -327,7 +327,7 @@ def test_fail_on_zero_price(setup_contracts, createManagerData, createManagerLim
     limits = createManagerLimits(_failOnZeroPrice=True)
     
     # Zero value transaction should fail
-    with boa.reverts():
+    with boa.reverts("usd value limit exceeded"):
         boss.checkManagerUsdLimitsAndUpdateData(
             0,  # Zero USD value
             limits,

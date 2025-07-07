@@ -134,7 +134,7 @@ def test_add_manager_validation_fails(setup_contracts, createManagerLimits, crea
     )
     
     # Should revert
-    with boa.reverts():
+    with boa.reverts("invalid settings"):
         boss.addManager(
             wallet.address,
             manager,
@@ -208,7 +208,7 @@ def test_update_manager_not_exist(setup_contracts, createManagerLimits, createLe
     manager = ctx['manager']
     
     # Try to update non-existent manager
-    with boa.reverts():
+    with boa.reverts("manager not found"):
         boss.updateManager(
             wallet.address,
             manager,
@@ -270,7 +270,7 @@ def test_remove_non_existent_manager(setup_contracts):
     manager = ctx['manager']
     
     # Try to remove non-existent manager
-    with boa.reverts():
+    with boa.reverts("manager not found"):
         boss.removeManager(wallet.address, manager, sender=owner)
 
 
@@ -407,7 +407,7 @@ def test_only_owner_can_add_manager(setup_contracts, createManagerLimits, create
     manager = ctx['manager']
     
     # Non-owner tries to add manager
-    with boa.reverts():
+    with boa.reverts("no perms"):
         boss.addManager(
             wallet.address,
             manager,

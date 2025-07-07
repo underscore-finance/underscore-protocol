@@ -89,7 +89,7 @@ def test_batch_empty_instructions_fails(user_wallet, bob, agent):
     """Test that empty instruction array fails"""
     agent_owner = bob
     
-    with boa.reverts():
+    with boa.reverts("no instructions"):
         agent.performBatchActions(
             user_wallet,
             [],  # empty instructions
@@ -585,7 +585,7 @@ def test_batch_invalid_action_fails(user_wallet, bob, agent):
         )
     ]
     
-    with boa.reverts():
+    with boa.reverts("Invalid action"):
         agent.performBatchActions(user_wallet, instructions, sender=agent_owner)
 
 

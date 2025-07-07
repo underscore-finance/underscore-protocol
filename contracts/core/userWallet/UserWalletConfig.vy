@@ -910,7 +910,7 @@ def canAddPendingPayee(_caller: address) -> bool:
     managerSettings: ManagerSettings = self.managerSettings[_caller]
     
     # check if manager is active
-    if managerSettings.startBlock > block.number or managerSettings.expiryBlock < block.number:
+    if managerSettings.startBlock > block.number or managerSettings.expiryBlock <= block.number:
         return False
     
     # check if manager has permission
