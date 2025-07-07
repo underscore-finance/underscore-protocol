@@ -115,12 +115,33 @@ def calculateYieldProfits(
     if config.isRebasing:
         return self._handleRebaseYieldAsset(_asset, _currentBalance, _assetBalance, config.maxYieldIncrease, config.yieldProfitFee)
     else:
-        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, config)
+        currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
 
+
+@view
+@external
+def calculateYieldProfitsNoUpdate(
+    _asset: address,
+    _currentBalance: uint256,
+    _assetBalance: uint256,
+    _lastYieldPrice: uint256,
+) -> (uint256, uint256, uint256):
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr())
+    if not config.isYieldAsset:
+        return 0, 0, 0
+
+    if config.isRebasing:
+        return self._handleRebaseYieldAsset(_asset, _currentBalance, _assetBalance, config.maxYieldIncrease, config.yieldProfitFee)
+    else:
+        currentPricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
+    
 
 # rebasing assets
 
 
+@view
 @internal
 def _handleRebaseYieldAsset(
     _asset: address,
@@ -153,28 +174,29 @@ def _handleRebaseYieldAsset(
 # normal yield assets
 
 
+@view
 @internal
 def _handleNormalYieldAsset(
     _asset: address,
     _currentBalance: uint256,
     _lastBalance: uint256,
     _lastYieldPrice: uint256,
+    _currentPricePerShare: uint256,
     _config: ProfitCalcConfig,
 ) -> (uint256, uint256, uint256):
-    currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, _config.legoAddr, _config.staleBlocks)
 
     # first time saving it, no profits
     if _lastYieldPrice == 0:
-        return currentPricePerShare, 0, 0
+        return _currentPricePerShare, 0, 0
 
     # nothing to do if price hasn't changed or increased
-    if currentPricePerShare == 0 or currentPricePerShare <= _lastYieldPrice:
+    if _currentPricePerShare == 0 or _currentPricePerShare <= _lastYieldPrice:
         return 0, 0, 0
     
     # calculate underlying amounts
     trackedBalance: uint256 = min(_currentBalance, _lastBalance)
     prevUnderlyingAmount: uint256 = trackedBalance * _lastYieldPrice // (10 ** _config.decimals)
-    currentUnderlyingAmount: uint256 = trackedBalance * currentPricePerShare // (10 ** _config.decimals)
+    currentUnderlyingAmount: uint256 = trackedBalance * _currentPricePerShare // (10 ** _config.decimals)
     
     # apply max yield increase cap if configured (in underlying terms)
     if _config.maxYieldIncrease != 0:
@@ -183,9 +205,9 @@ def _handleNormalYieldAsset(
 
     # calculate profit in underlying tokens
     profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
-    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // currentPricePerShare
+    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // _currentPricePerShare
     
-    return currentPricePerShare, profitInVaultTokens, _config.yieldProfitFee
+    return _currentPricePerShare, profitInVaultTokens, _config.yieldProfitFee
 
 
 # utils
@@ -338,8 +360,9 @@ def _getNormalAssetPriceAndDidUpdate(
         return data, False
 
     # check if recent price is good enough
-    if _staleBlocks != 0 and data.lastUpdate + _staleBlocks > block.number:
-        return data, False
+    if _staleBlocks != 0 and data.lastUpdate != 0:
+        if data.lastUpdate + _staleBlocks > block.number:
+            return data, False
 
     prevPrice: uint256 = data.price
 
@@ -443,8 +466,9 @@ def _getPricePerShareAndDidUpdate(
         return data, False
 
     # check if recent pricePerShare is good enough
-    if _staleBlocks != 0 and data.lastUpdate + _staleBlocks > block.number:
-        return data, False
+    if _staleBlocks != 0 and data.lastUpdate != 0:
+        if data.lastUpdate + _staleBlocks > block.number:
+            return data, False
 
     prevPricePerShare: uint256 = data.pricePerShare
 

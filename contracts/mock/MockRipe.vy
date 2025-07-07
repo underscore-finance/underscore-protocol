@@ -34,10 +34,3 @@ def getAddr(_regId: uint256) -> address:
 @external
 def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256:
     return self.mockPrices[_asset]
-
-
-@view
-@external
-def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256:
-    decimals: uint256 = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-    return self.mockPrices[_asset] * _amount // (10 ** decimals)
