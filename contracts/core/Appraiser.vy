@@ -33,7 +33,6 @@ struct LastPrice:
     lastUpdate: uint256
 
 struct LastPricePerShare:
-    underlyingAsset: address
     pricePerShare: uint256
     lastUpdate: uint256
 
