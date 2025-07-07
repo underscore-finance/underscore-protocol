@@ -18,12 +18,11 @@ struct Addys:
     legoBook: address
     switchboard: address
     hatchery: address
-    backpack: address
+    lootDistributor: address
     appraiser: address
     bossValidator: address
     paymaster: address
     migrator: address
-    lootDistributor: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -35,12 +34,11 @@ MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
 SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
-BACKPACK_ID: constant(uint256) = 7
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
 BOSS_VALIDATOR_ID: constant(uint256) = 9
 PAYMASTER_ID: constant(uint256) = 10
 MIGRATOR_ID: constant(uint256) = 11
-LOOT_DISTRIBUTOR_ID: constant(uint256) = 12
 
 
 @deploy
@@ -80,12 +78,11 @@ def _generateAddys() -> Addys:
         legoBook = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
         switchboard = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),
         hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),
-        backpack = staticcall UndyHq(hq).getAddr(BACKPACK_ID),
+        lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
         bossValidator = staticcall UndyHq(hq).getAddr(BOSS_VALIDATOR_ID),
         paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
         migrator = staticcall UndyHq(hq).getAddr(MIGRATOR_ID),
-        lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),
     )
 
 
@@ -236,19 +233,19 @@ def _getHatcheryAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HATCHERY_ID)
 
 
-# backpack
+# loot distributor
 
 
 @view
 @internal
-def _getBackpackId() -> uint256:
-    return BACKPACK_ID
+def _getLootDistributorId() -> uint256:
+    return LOOT_DISTRIBUTOR_ID
 
 
 @view
 @internal
-def _getBackpackAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BACKPACK_ID)
+def _getLootDistributorAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LOOT_DISTRIBUTOR_ID)
 
 
 # appraiser
@@ -310,17 +307,3 @@ def _getMigratorId() -> uint256:
 def _getMigratorAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MIGRATOR_ID)
 
-
-# loot distributor
-
-
-@view
-@internal
-def _getLootDistributorId() -> uint256:
-    return LOOT_DISTRIBUTOR_ID
-
-
-@view
-@internal
-def _getLootDistributorAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LOOT_DISTRIBUTOR_ID)

@@ -102,7 +102,7 @@ def setup_wallets(setUserWalletConfig, setManagerConfig, setPayeeConfig, hatcher
 
 
 @pytest.fixture(scope="module")
-def setup_contracts(setup_wallets, migrator, paymaster, alpha_token, bravo_token, governance, backpack, createPayeeLimits,
+def setup_contracts(setup_wallets, migrator, paymaster, alpha_token, bravo_token, governance, switchboard_alpha, createPayeeLimits,
                    createManagerSettings, createTransferPerms, boss_validator):
     """Setup contracts and configurations"""
     wallets = setup_wallets
@@ -149,7 +149,7 @@ def setup_contracts(setup_wallets, migrator, paymaster, alpha_token, bravo_token
         'charlie': wallets['charlie'],
         'sally': wallets['sally'],
         'governance': governance,
-        'backpack': backpack,
+        'switchboard_alpha': switchboard_alpha,
         'createPayeeLimits': createPayeeLimits,
         'createManagerSettings': createManagerSettings,
         'createTransferPerms': createTransferPerms,
@@ -196,7 +196,7 @@ def test_cannot_migrate_with_trial_funds(setup_contracts):
     assert not can_migrate
 
 
-def test_cannot_migrate_frozen_wallet(setup_contracts, backpack):
+def test_cannot_migrate_frozen_wallet(setup_contracts, switchboard_alpha):
     """Test cannot migrate from frozen wallet"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -206,13 +206,13 @@ def test_cannot_migrate_frozen_wallet(setup_contracts, backpack):
     bob = ctx['bob']
     
     # Freeze wallet1
-    wallet1_config.setFrozen(True, sender=backpack.address)
+    wallet1_config.setFrozen(True, sender=switchboard_alpha.address)
     
     can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
     # Unfreeze for other tests
-    wallet1_config.setFrozen(False, sender=backpack.address)
+    wallet1_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 def test_cannot_migrate_with_pending_owner_change(setup_contracts):
@@ -279,7 +279,7 @@ def test_cannot_migrate_different_group_ids(setup_contracts):
     assert not can_migrate
 
 
-def test_cannot_migrate_to_frozen_wallet(setup_contracts, backpack):
+def test_cannot_migrate_to_frozen_wallet(setup_contracts, switchboard_alpha):
     """Test cannot migrate to frozen wallet"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -289,13 +289,13 @@ def test_cannot_migrate_to_frozen_wallet(setup_contracts, backpack):
     bob = ctx['bob']
     
     # Freeze destination wallet
-    wallet2_config.setFrozen(True, sender=backpack.address)
+    wallet2_config.setFrozen(True, sender=switchboard_alpha.address)
     
     can_migrate = migrator.canMigrateFundsToNewWallet(wallet1.address, wallet2.address, bob)
     assert not can_migrate
     
     # Unfreeze for other tests
-    wallet2_config.setFrozen(False, sender=backpack.address)
+    wallet2_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 def test_cannot_migrate_to_wallet_with_payees(setup_contracts):
@@ -496,7 +496,7 @@ def test_cannot_copy_to_wallet_with_pending_owner_change(setup_contracts):
     wallet2_config.cancelOwnershipChange(sender=bob)
 
 
-def test_cannot_copy_to_frozen_wallet(setup_contracts, backpack):
+def test_cannot_copy_to_frozen_wallet(setup_contracts, switchboard_alpha):
     """Test cannot copy to frozen wallet"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -506,13 +506,13 @@ def test_cannot_copy_to_frozen_wallet(setup_contracts, backpack):
     bob = ctx['bob']
     
     # Freeze destination
-    wallet2_config.setFrozen(True, sender=backpack.address)
+    wallet2_config.setFrozen(True, sender=switchboard_alpha.address)
     
     can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
     # Unfreeze
-    wallet2_config.setFrozen(False, sender=backpack.address)
+    wallet2_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 def test_cannot_copy_to_wallet_with_payees(setup_contracts):
@@ -576,7 +576,7 @@ def test_cannot_copy_to_wallet_with_whitelisted(setup_contracts):
     paymaster.removeWhitelistAddr(wallet2.address, addr, sender=bob)
 
 
-def test_cannot_copy_from_frozen_wallet(setup_contracts, backpack):
+def test_cannot_copy_from_frozen_wallet(setup_contracts, switchboard_alpha):
     """Test cannot copy from frozen wallet"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -586,13 +586,13 @@ def test_cannot_copy_from_frozen_wallet(setup_contracts, backpack):
     bob = ctx['bob']
     
     # Freeze source
-    wallet1_config.setFrozen(True, sender=backpack.address)
+    wallet1_config.setFrozen(True, sender=switchboard_alpha.address)
     
     can_copy = migrator.canCopyWalletConfig(wallet1.address, wallet2.address, bob)
     assert not can_copy
     
     # Unfreeze
-    wallet1_config.setFrozen(False, sender=backpack.address)
+    wallet1_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 def test_cannot_copy_different_owners(setup_contracts):

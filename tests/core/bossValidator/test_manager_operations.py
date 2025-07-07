@@ -485,8 +485,8 @@ def test_manager_can_remove_themselves(setup_contracts, createManagerLimits, cre
     assert not wallet_config.isManager(manager)
 
 
-def test_backpack_can_remove_manager(setup_contracts, createManagerLimits, createLegoPerms,
-                                    createWhitelistPerms, createTransferPerms, backpack):
+def test_switchboard_alpha_can_remove_manager(setup_contracts, createManagerLimits, createLegoPerms,
+                                    createWhitelistPerms, createTransferPerms, switchboard_alpha):
     """Test that Backpack can remove managers in non-eject mode"""
     ctx = setup_contracts
     boss = ctx['boss_validator']
@@ -511,7 +511,7 @@ def test_backpack_can_remove_manager(setup_contracts, createManagerLimits, creat
     assert wallet_config.isManager(manager)
     
     # Backpack removes manager
-    tx = boss.removeManager(wallet.address, manager, sender=backpack.address)
+    tx = boss.removeManager(wallet.address, manager, sender=switchboard_alpha.address)
     
     # Check event
     events = filter_logs(boss, "ManagerRemoved")

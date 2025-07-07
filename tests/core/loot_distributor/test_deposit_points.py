@@ -44,8 +44,8 @@ def test_update_deposit_points_accumulation(setup_contracts, ledger, switchboard
     assert updated_global.lastUpdate == initial_block + 100
 
 
-def test_update_deposit_points_from_backpack(setup_contracts, ledger, backpack):
-    """Test deposit points update with value change from backpack"""
+def test_update_deposit_points_with_data(setup_contracts, ledger, switchboard_alpha):
+    """Test deposit points update with value change using updateDepositPointsWithData"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
     alice_wallet = ctx['alice_wallet']
@@ -67,14 +67,13 @@ def test_update_deposit_points_from_backpack(setup_contracts, ledger, backpack):
     # Advance blocks
     boa.env.time_travel(blocks=50)
     
-    # Update from backpack with new value
+    # Update with new value using switchboard
     new_value = 800 * EIGHTEEN_DECIMALS
-    loot.updateDepositPointsFromBackpack(
+    loot.updateDepositPointsWithData(
         alice_wallet.address, 
         new_value,
         True,  # didChange
-        ledger.address,
-        sender=backpack.address
+        sender=switchboard_alpha.address
     )
     
     # Check updated values
@@ -224,7 +223,7 @@ def test_points_with_large_values(setup_contracts, ledger, switchboard_alpha):
     assert updated_user.depositPoints == 10**15  # (10^15 * 10^18 * 1) / 10^18
 
 
-def test_global_points_tracking(setup_contracts, ledger, switchboard_alpha, backpack):
+def test_global_points_tracking(setup_contracts, ledger, switchboard_alpha):
     """Test global points track all users correctly"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -251,17 +250,16 @@ def test_global_points_tracking(setup_contracts, ledger, switchboard_alpha, back
     _, global1 = ledger.getUserAndGlobalPoints(bob_wallet.address)
     assert global1.depositPoints == 100000
     
-    # Update Alice's value via backpack
-    loot.updateDepositPointsFromBackpack(
+    # Update Alice's value via switchboard
+    loot.updateDepositPointsWithData(
         alice_wallet.address,
         800 * EIGHTEEN_DECIMALS,
         True,
-        ledger.address,
-        sender=backpack.address
+        sender=switchboard_alpha.address
     )
     
     # Global should now have: 100000 (from Bob's update) + Alice's points (1000 * 100) = 200000
-    # But Alice's update happens during the backpack call, so total is (1000 * 100) + (1000 * 100) = 200000
+    # But Alice's update happens during the switchboard call, so total is (1000 * 100) + (1000 * 100) = 200000
     # Actually, since Alice starts with different global base, we need to check the actual calculation
     # Global value should be: 1000 - 400 + 800 = 1400
     _, global2 = ledger.getUserAndGlobalPoints(alice_wallet.address)
@@ -271,7 +269,7 @@ def test_global_points_tracking(setup_contracts, ledger, switchboard_alpha, back
     assert global2.usdValue == 1400 * EIGHTEEN_DECIMALS
 
 
-def test_points_with_value_decrease(setup_contracts, ledger, backpack):
+def test_points_with_value_decrease(setup_contracts, ledger, switchboard_alpha):
     """Test points when USD value decreases"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -295,12 +293,11 @@ def test_points_with_value_decrease(setup_contracts, ledger, backpack):
     boa.env.time_travel(blocks=50)
     
     # Decrease value to 300
-    loot.updateDepositPointsFromBackpack(
+    loot.updateDepositPointsWithData(
         bob_wallet.address,
         300 * EIGHTEEN_DECIMALS,
         True,
-        ledger.address,
-        sender=backpack.address
+        sender=switchboard_alpha.address
     )
     
     # Check points accumulated before decrease

@@ -670,7 +670,7 @@ def test_batch_operations(setup_contracts, createPayeeLimits):
     assert settings[3] == ONE_DAY_IN_BLOCKS  # periodLength
 
 
-def test_backpack_can_remove_payee(setup_contracts, createPayeeLimits, backpack):
+def test_switchboard_alpha_can_remove_payee(setup_contracts, createPayeeLimits, switchboard_alpha):
     """Test that Backpack can remove payees in non-eject mode"""
     ctx = setup_contracts
     paymaster = ctx['paymaster']
@@ -703,7 +703,7 @@ def test_backpack_can_remove_payee(setup_contracts, createPayeeLimits, backpack)
     assert wallet_config.isRegisteredPayee(payee)
     
     # Backpack removes payee
-    tx = paymaster.removePayee(wallet.address, payee, sender=backpack.address)
+    tx = paymaster.removePayee(wallet.address, payee, sender=switchboard_alpha.address)
     
     # Check event
     events = filter_logs(paymaster, "PayeeRemoved")

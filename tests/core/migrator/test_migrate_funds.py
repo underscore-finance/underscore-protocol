@@ -95,7 +95,7 @@ def setup_contracts(setup_wallets, migrator, alpha_token, bravo_token, charlie_t
 # Basic fund migration tests
 
 
-def test_migrate_funds_single_asset(setup_contracts, backpack):
+def test_migrate_funds_single_asset(setup_contracts, switchboard_alpha):
     """Test migrating a single asset between wallets"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -114,7 +114,7 @@ def test_migrate_funds_single_asset(setup_contracts, backpack):
         0,  # legoId
         alpha_token.address,
         False,  # shouldCheckYield
-        sender=backpack.address
+        sender=switchboard_alpha.address
     )
     
     # Verify initial state
@@ -143,7 +143,7 @@ def test_migrate_funds_single_asset(setup_contracts, backpack):
     assert bundle.didMigrateFunds
 
 
-def test_migrate_funds_multiple_assets(setup_contracts, backpack):
+def test_migrate_funds_multiple_assets(setup_contracts, switchboard_alpha):
     """Test migrating multiple assets"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -163,7 +163,7 @@ def test_migrate_funds_multiple_assets(setup_contracts, backpack):
     # Register all assets
     source_config = UserWalletConfig.at(source_wallet.walletConfig())
     for token in [alpha_token, bravo_token, charlie_token]:
-        source_config.updateAssetData(0, token.address, False, sender=backpack.address)
+        source_config.updateAssetData(0, token.address, False, sender=switchboard_alpha.address)
     
     # Verify initial state
     assert source_wallet.numAssets() >= 3
@@ -182,7 +182,7 @@ def test_migrate_funds_multiple_assets(setup_contracts, backpack):
     assert charlie_token.balanceOf(dest_wallet2.address) == 3000 * 10**6  # Charlie has 6 decimals
 
 
-def test_migrate_funds_with_zero_balance_assets(setup_contracts, hatchery, backpack):
+def test_migrate_funds_with_zero_balance_assets(setup_contracts, hatchery, switchboard_alpha):
     """Test migration skips assets with zero balance"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -203,8 +203,8 @@ def test_migrate_funds_with_zero_balance_assets(setup_contracts, hatchery, backp
     
     # Register both assets but only alpha has balance
     source_config = UserWalletConfig.at(source_wallet.walletConfig())
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
-    source_config.updateAssetData(0, bravo_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    source_config.updateAssetData(0, bravo_token.address, False, sender=switchboard_alpha.address)
     
     # Migrate funds
     num_migrated = migrator.migrateFunds(source_wallet.address, dest_wallet.address, sender=bob)
@@ -243,7 +243,7 @@ def test_migrate_funds_empty_wallet(setup_contracts, hatchery):
 # Validation tests
 
 
-def test_cannot_migrate_funds_twice(setup_contracts, hatchery, backpack):
+def test_cannot_migrate_funds_twice(setup_contracts, hatchery, switchboard_alpha):
     """Test that funds cannot be migrated twice"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -261,7 +261,7 @@ def test_cannot_migrate_funds_twice(setup_contracts, hatchery, backpack):
     
     # Setup source with funds
     alpha_token.transfer(source_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=governance.address)
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
     
     # First migration should succeed
     num_migrated = migrator.migrateFunds(source_wallet.address, dest1_addr, sender=bob)
@@ -334,7 +334,7 @@ def test_migrate_funds_with_trial_funds(setup_contracts, setUserWalletConfig, se
         migrator.migrateFunds(trial_wallet_addr, dest_addr, sender=bob)
 
 
-def test_migrate_funds_frozen_wallet(setup_contracts, backpack, hatchery):
+def test_migrate_funds_frozen_wallet(setup_contracts, switchboard_alpha, hatchery):
     """Test cannot migrate from frozen wallet"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -348,20 +348,20 @@ def test_migrate_funds_frozen_wallet(setup_contracts, backpack, hatchery):
     source_config = UserWalletConfig.at(source_wallet.walletConfig())
     
     # Freeze source wallet
-    source_config.setFrozen(True, sender=backpack.address)
+    source_config.setFrozen(True, sender=switchboard_alpha.address)
     
     # Should not be able to migrate
     with boa.reverts("cannot migrate to new wallet"):
         migrator.migrateFunds(source_addr, dest_addr, sender=bob)
     
     # Unfreeze
-    source_config.setFrozen(False, sender=backpack.address)
+    source_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 # Edge cases
 
 
-def test_migrate_funds_unregistered_assets(setup_contracts, hatchery, backpack):
+def test_migrate_funds_unregistered_assets(setup_contracts, hatchery, switchboard_alpha):
     """Test that unregistered assets with balance are not migrated"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -382,7 +382,7 @@ def test_migrate_funds_unregistered_assets(setup_contracts, hatchery, backpack):
     bravo_token.transfer(source_wallet.address, 500 * EIGHTEEN_DECIMALS, sender=governance.address)
     
     # Only register alpha token
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
     
     # Migrate funds
     num_migrated = migrator.migrateFunds(source_addr, dest_addr, sender=bob)
@@ -394,7 +394,7 @@ def test_migrate_funds_unregistered_assets(setup_contracts, hatchery, backpack):
     assert bravo_token.balanceOf(source_addr) == 500 * EIGHTEEN_DECIMALS  # Still in source
 
 
-def test_migrate_funds_max_amount_transfer(setup_contracts, hatchery, backpack):
+def test_migrate_funds_max_amount_transfer(setup_contracts, hatchery, switchboard_alpha):
     """Test that max_value(uint256) transfers entire balance"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -414,7 +414,7 @@ def test_migrate_funds_max_amount_transfer(setup_contracts, hatchery, backpack):
     alpha_token.transfer(source_wallet.address, transfer_amount, sender=governance.address)
     
     # Register asset
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
     
     # Migrate with max_value should transfer entire balance
     migrator.migrateFunds(source_addr, dest_addr, sender=bob)
@@ -424,7 +424,7 @@ def test_migrate_funds_max_amount_transfer(setup_contracts, hatchery, backpack):
     assert alpha_token.balanceOf(dest_addr) == transfer_amount
 
 
-def test_migrate_funds_complete_balance_transfer(setup_contracts, hatchery, backpack):
+def test_migrate_funds_complete_balance_transfer(setup_contracts, hatchery, switchboard_alpha):
     """CRITICAL: Test that migration transfers exactly 100% of balance with no funds left behind"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -442,7 +442,7 @@ def test_migrate_funds_complete_balance_transfer(setup_contracts, hatchery, back
     # Transfer a specific amount and verify exact balances
     exact_amount = 123456789012345678901234  # Specific large amount
     alpha_token.transfer(source_wallet.address, exact_amount, sender=governance.address)
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
     
     # Record pre-migration balances
     pre_source_balance = alpha_token.balanceOf(source_wallet.address)

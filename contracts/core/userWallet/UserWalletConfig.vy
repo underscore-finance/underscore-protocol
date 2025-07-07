@@ -35,11 +35,17 @@ interface Paymaster:
     def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
 
+interface LootDistributor:
+    def updateDepositPointsWithData(_user: address, _newUserValue: uint256, _didChange: bool): nonpayable
+
 interface Migrator:
     def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
 
-interface Backpack:
-    def getBackpackData(_user: address) -> BackpackData: view
+interface Ledger:
+    def getLastTotalUsdValue(_user: address) -> uint256: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -47,9 +53,10 @@ interface Registry:
 struct ActionData:
     missionControl: address
     legoBook: address
-    backpack: address
-    appraiser: address
+    switchboard: address
+    hatchery: address
     lootDistributor: address
+    appraiser: address
     wallet: address
     walletConfig: address
     walletOwner: address
@@ -234,13 +241,6 @@ struct PendingOwnerChange:
     initiatedBlock: uint256
     confirmBlock: uint256
 
-struct BackpackData:
-    missionControl: address
-    legoBook: address
-    appraiser: address
-    lootDistributor: address
-    lastTotalUsdValue: uint256
-
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
     newOwner: indexed(address)
@@ -332,9 +332,13 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
 # registry ids
-HATCHERY_ID: constant(uint256) = 6
-BACKPACK_ID: constant(uint256) = 7
+LEDGER_ID: constant(uint256) = 2
+MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
+SWITCHBOARD_ID: constant(uint256) = 5
+HATCHERY_ID: constant(uint256) = 6
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
+APPRAISER_ID: constant(uint256) = 8
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -591,7 +595,7 @@ def confirmOwnershipChange():
 
 @external
 def cancelOwnershipChange():
-    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
+    if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
         assert msg.sender == self.owner # dev: no perms
 
     data: PendingOwnerChange = self.pendingOwner
@@ -1047,31 +1051,44 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     wallet: address = self.wallet
     inEjectMode: bool = self.inEjectMode
 
-    # backpack details
-    backpack: address = empty(address)
-    backpackData: BackpackData = empty(BackpackData)
+    # addys
+    hq: address = empty(address)
+    missionControl: address = empty(address)
+    legoBook: address = empty(address)
+    switchboard: address = empty(address)
+    hatchery: address = empty(address)
+    lootDistributor: address = empty(address)
+    appraiser: address = empty(address)
+    lastTotalUsdValue: uint256 = 0
     if not inEjectMode:
-        hq: address = UNDY_HQ
-        backpack = staticcall Registry(hq).getAddr(BACKPACK_ID)
-        backpackData = staticcall Backpack(backpack).getBackpackData(wallet)
+        hq = UNDY_HQ
+        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
+        legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
+        switchboard = staticcall Registry(hq).getAddr(SWITCHBOARD_ID)
+        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
+        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
+        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
+        ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)
 
     # lego details
     legoAddr: address = empty(address)
-    if _legoId != 0 and backpackData.legoBook != empty(address):
-        legoAddr = staticcall Registry(backpackData.legoBook).getAddr(_legoId)
+    if _legoId != 0 and legoBook != empty(address):
+        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
 
     return ActionData(
-        missionControl = backpackData.missionControl,
-        legoBook = backpackData.legoBook,
-        backpack = backpack,
-        appraiser = backpackData.appraiser,
-        lootDistributor = backpackData.lootDistributor,
+        missionControl = missionControl,
+        legoBook = legoBook,
+        switchboard = switchboard,
+        hatchery = hatchery,
+        lootDistributor = lootDistributor,
+        appraiser = appraiser,
         wallet = wallet,
         walletConfig = self,
         walletOwner = self.owner,
         inEjectMode = inEjectMode,
         isFrozen = self.isFrozen,
-        lastTotalUsdValue = backpackData.lastTotalUsdValue,
+        lastTotalUsdValue = lastTotalUsdValue,
         signer = _signer,
         isManager = False,
         legoId = _legoId,
@@ -1081,9 +1098,9 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     )
 
 
-##################
-# Backpack Tools #
-##################
+################
+# Wallet Tools #
+################
 
 
 # update asset data
@@ -1092,14 +1109,16 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
     ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
-    return extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
+    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+    newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
+    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithData(ad.wallet, newTotalUsdValue, True)
+    return newTotalUsdValue
 
 
 @external
 def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     ad: ActionData = self._getActionDataBundle(0, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
+    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
 
     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
     if numAssets == 0:
@@ -1111,6 +1130,7 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
         if asset != empty(address):
             newTotalUsdValue = extcall UserWallet(ad.wallet).updateAssetData(0, asset, _shouldCheckYield, newTotalUsdValue, ad)
 
+    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithData(ad.wallet, newTotalUsdValue, True)
     return newTotalUsdValue
 
 
@@ -1119,19 +1139,16 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 
 @external
 def removeTrialFunds() -> uint256:
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
+    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
+    assert hatchery == msg.sender and hatchery != empty(address) # dev: no perms
 
     # trial funds info
     trialFundsAmount: uint256 = self.trialFundsAmount
     trialFundsAsset: address = self.trialFundsAsset
     assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
 
-    # recipient
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert hatchery != empty(address) # dev: invalid recipient
-
     # transfer assets
+    ad: ActionData = self._getActionDataBundle(0, msg.sender)
     amount: uint256 = 0
     na: uint256 = 0
     amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
@@ -1156,7 +1173,8 @@ def preparePayment(
     _vaultAmount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
     ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    assert ad.signer == ad.backpack # dev: no perms
+    if msg.sender != ad.hatchery:
+        assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
 
     # withdraw from yield position
     na: uint256 = 0
@@ -1165,7 +1183,7 @@ def preparePayment(
     txUsdValue: uint256 = 0
     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
     assert underlyingAsset == _targetAsset # dev: invalid target asset
-   
+
     return underlyingAmount, txUsdValue
 
 
@@ -1174,7 +1192,7 @@ def preparePayment(
 
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
-    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
+    if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
         assert msg.sender == self.owner # dev: no perms
     assert _recipient != empty(address) # dev: invalid recipient
     wallet: address = self.wallet
@@ -1188,7 +1206,7 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
 
 @external
 def setFrozen(_isFrozen: bool):
-    if not self._isSignerBackpack(msg.sender, self.inEjectMode):
+    if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
         assert msg.sender == self.owner # dev: no perms
 
     self.isFrozen = _isFrozen
@@ -1200,8 +1218,8 @@ def setFrozen(_isFrozen: bool):
 
 @external
 def setEjectionMode(_shouldEject: bool):
-    # NOTE: this needs to be triggered from Backpack, as it has other side effects / reactions
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID) # dev: no perms
+    # NOTE: this needs to be triggered from Switchboard, as it has other side effects / reactions
+    assert self._isSwitchboardAddr(msg.sender, self.inEjectMode) # dev: no perms
     assert self.trialFundsAmount == 0 # dev: has trial funds
 
     assert _shouldEject != self.inEjectMode # dev: nothing to change
@@ -1209,15 +1227,16 @@ def setEjectionMode(_shouldEject: bool):
     log EjectionModeSet(inEjectMode = _shouldEject)
 
 
-# is signer backpack
+# is signer switchboard
 
 
 @view
 @internal
-def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+def _isSwitchboardAddr(_signer: address, _inEjectMode: bool) -> bool:
     if _inEjectMode:
         return False
-    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
 
 
 ####################

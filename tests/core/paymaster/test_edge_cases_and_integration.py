@@ -437,8 +437,8 @@ def test_concurrent_payee_and_whitelist_operations(setup_contracts, createPayeeL
     assert not wallet_config.isRegisteredPayee(addr)
 
 
-def test_backpack_permissions_non_eject(setup_contracts, backpack):
-    """Test backpack permissions in non-eject mode"""
+def test_switchboard_alpha_permissions_non_eject(setup_contracts, switchboard_alpha):
+    """Test switchboard_alpha permissions in non-eject mode"""
     ctx = setup_contracts
     paymaster = ctx['paymaster']
     wallet = ctx['wallet']
@@ -453,7 +453,7 @@ def test_backpack_permissions_non_eject(setup_contracts, backpack):
     paymaster.addWhitelistAddr(wallet.address, addr, sender=owner)
     
     # Backpack can cancel in non-eject mode
-    paymaster.cancelPendingWhitelistAddr(wallet.address, addr, sender=backpack.address)
+    paymaster.cancelPendingWhitelistAddr(wallet.address, addr, sender=switchboard_alpha.address)
     
     # Verify cancelled
     pending = wallet_config.pendingWhitelist(addr)

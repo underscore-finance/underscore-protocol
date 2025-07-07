@@ -129,9 +129,10 @@ struct TransferPerms:
 struct ActionData:
     missionControl: address
     legoBook: address
-    backpack: address
-    appraiser: address
+    switchboard: address
+    hatchery: address
     lootDistributor: address
+    appraiser: address
     wallet: address
     walletConfig: address
     walletOwner: address

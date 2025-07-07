@@ -15,17 +15,18 @@ from interfaces import LegoPartner as Lego
 
 from ethereum.ercs import IERC20Detailed
 
+interface MissionControl:
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+    def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
+
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
 
-interface MissionControl:
-    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
-
-interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
 
 struct LastPrice:
     price: uint256
@@ -46,10 +47,22 @@ struct AssetUsdValueConfig:
     isYieldAsset: bool
     underlyingAsset: address
 
+struct ProfitCalcConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    yieldProfitFee: uint256
+
 # price cache
 lastPrice: public(HashMap[address, LastPrice]) # asset -> last price
 lastPricePerShare: public(HashMap[address, LastPricePerShare]) # asset -> last price per share
 
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 LEDGER_ID: constant(uint256) = 2
 MISSION_CONTROL_ID: constant(uint256) = 3
 LEGO_BOOK_ID: constant(uint256) = 4
@@ -77,6 +90,121 @@ def __init__(
 
     WETH = _wethAddr
     ETH = _ethAddr
+
+
+##################
+# Yield Handling #
+##################
+
+
+@external
+def calculateYieldProfits(
+    _asset: address,
+    _currentBalance: uint256,
+    _assetBalance: uint256,
+    _lastYieldPrice: uint256,
+    _missionControl: address,
+    _legoBook: address,
+) -> (uint256, uint256, uint256):
+    assert self._isCallerUserWallet(msg.sender, addys._getUndyHq()) # dev: no perms
+
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, _missionControl, _legoBook)
+    if not config.isYieldAsset:
+        return 0, 0, 0
+
+    if config.isRebasing:
+        return self._handleRebaseYieldAsset(_asset, _currentBalance, _assetBalance, config.maxYieldIncrease, config.yieldProfitFee)
+    else:
+        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, config)
+
+
+# rebasing assets
+
+
+@internal
+def _handleRebaseYieldAsset(
+    _asset: address,
+    _currentBalance: uint256,
+    _lastBalance: uint256,
+    _maxYieldIncrease: uint256,
+    _yieldProfitFee: uint256,
+) -> (uint256, uint256, uint256):
+
+    # no profits if balance decreased or stayed the same
+    if _currentBalance <= _lastBalance:
+        return 0, 0, 0
+    
+    # calculate the actual profit
+    uncappedProfit: uint256 = _currentBalance - _lastBalance
+    actualProfit: uint256 = uncappedProfit
+    
+    # apply max yield increase cap if configured
+    if _maxYieldIncrease != 0:
+        maxAllowedProfit: uint256 = _lastBalance * _maxYieldIncrease // HUNDRED_PERCENT
+        actualProfit = min(uncappedProfit, maxAllowedProfit)
+    
+    # no profits after applying cap
+    if actualProfit == 0:
+        return 0, 0, 0
+    
+    return 0, actualProfit, _yieldProfitFee
+
+
+# normal yield assets
+
+
+@internal
+def _handleNormalYieldAsset(
+    _asset: address,
+    _currentBalance: uint256,
+    _lastBalance: uint256,
+    _lastYieldPrice: uint256,
+    _config: ProfitCalcConfig,
+) -> (uint256, uint256, uint256):
+    currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, _config.legoAddr, _config.staleBlocks)
+
+    # first time saving it, no profits
+    if _lastYieldPrice == 0:
+        return currentPricePerShare, 0, 0
+
+    # nothing to do if price hasn't changed or increased
+    if currentPricePerShare == 0 or currentPricePerShare <= _lastYieldPrice:
+        return 0, 0, 0
+    
+    # calculate underlying amounts
+    trackedBalance: uint256 = min(_currentBalance, _lastBalance)
+    prevUnderlyingAmount: uint256 = trackedBalance * _lastYieldPrice // (10 ** _config.decimals)
+    currentUnderlyingAmount: uint256 = trackedBalance * currentPricePerShare // (10 ** _config.decimals)
+    
+    # apply max yield increase cap if configured (in underlying terms)
+    if _config.maxYieldIncrease != 0:
+        maxAllowedUnderlying: uint256 = prevUnderlyingAmount + (prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT)
+        currentUnderlyingAmount = min(currentUnderlyingAmount, maxAllowedUnderlying)
+
+    # calculate profit in underlying tokens
+    profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
+    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // currentPricePerShare
+    
+    return currentPricePerShare, profitInVaultTokens, _config.yieldProfitFee
+
+
+# utils
+
+
+@view
+@internal
+def _getProfitCalcConfig(_asset: address, _missionControl: address, _legoBook: address) -> ProfitCalcConfig:
+    config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
+
+    # get lego addr if needed
+    if config.legoId != 0 and config.legoAddr == empty(address):
+        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = self._getDecimals(_asset)
+
+    return config
 
 
 ######################
@@ -349,16 +477,6 @@ def updateAndGetPricePerShare(_asset: address) -> uint256:
     if not config.isYieldAsset:
         return 0
     return self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
-
-
-@external
-def updateAndGetPricePerShareWithConfig(
-    _asset: address,
-    _legoAddr: address,
-    _staleBlocks: uint256,
-) -> uint256:
-    assert msg.sender == addys._getBackpackAddr() # dev: no perms
-    return self._updateAndGetPricePerShare(_asset, _legoAddr, _staleBlocks)
 
 
 @internal

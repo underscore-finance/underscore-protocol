@@ -35,7 +35,6 @@ def undy_hq(
     ledger,
     mission_control,
     hatchery,
-    backpack,
     appraiser,
     boss_validator,
     paymaster,
@@ -72,8 +71,8 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 6
 
     # 7
-    assert undy_hq_deploy.startAddNewAddressToRegistry(backpack, "Backpack", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(backpack, sender=deploy3r) == 7
+    assert undy_hq_deploy.startAddNewAddressToRegistry(loot_distributor, "Loot Distributor", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(loot_distributor, sender=deploy3r) == 7
 
     # 8
     assert undy_hq_deploy.startAddNewAddressToRegistry(appraiser, "Appraiser", sender=deploy3r)
@@ -90,10 +89,6 @@ def undy_hq(
     # 11
     assert undy_hq_deploy.startAddNewAddressToRegistry(migrator, "Migrator", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(migrator, sender=deploy3r) == 11
-
-    # 12
-    assert undy_hq_deploy.startAddNewAddressToRegistry(loot_distributor, "Loot Distributor", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(loot_distributor, sender=deploy3r) == 12
 
     # special permission setup
 
@@ -257,17 +252,15 @@ def hatchery(undy_hq_deploy, fork):
     )
 
 
-# backpack
+# loot distributor
 
 
 @pytest.fixture(scope="session")
-def backpack(undy_hq_deploy, fork):
+def loot_distributor(undy_hq_deploy):
     return boa.load(
-        "contracts/core/Backpack.vy",
+        "contracts/core/LootDistributor.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
-        name="backpack",
+        name="loot_distributor",
     )
 
 
@@ -331,18 +324,6 @@ def migrator(undy_hq_deploy, fork):
         "contracts/core/Migrator.vy",
         undy_hq_deploy,
         name="migrator",
-    )
-
-
-# loot distributor
-
-
-@pytest.fixture(scope="session")
-def loot_distributor(undy_hq_deploy):
-    return boa.load(
-        "contracts/core/LootDistributor.vy",
-        undy_hq_deploy,
-        name="loot_distributor",
     )
 
 

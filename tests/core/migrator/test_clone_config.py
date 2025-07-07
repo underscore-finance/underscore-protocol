@@ -764,7 +764,7 @@ def test_clone_config_with_same_starting_agent(setup_contracts, boss_validator, 
     boss_validator.removeManager(dest_wallet.address, manager1, sender=bob)
 
 
-def test_clone_config_frozen_wallet(setup_contracts, backpack, hatchery):
+def test_clone_config_frozen_wallet(setup_contracts, switchboard_alpha, hatchery):
     """Test cannot clone from or to frozen wallets"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -778,22 +778,22 @@ def test_clone_config_frozen_wallet(setup_contracts, backpack, hatchery):
     dest_config = UserWalletConfig.at(UserWallet.at(dest_addr).walletConfig())
     
     # Test frozen source
-    source_config.setFrozen(True, sender=backpack.address)
+    source_config.setFrozen(True, sender=switchboard_alpha.address)
     with boa.reverts("cannot copy config"):
         migrator.cloneConfig(source_addr, dest_addr, sender=bob)
-    source_config.setFrozen(False, sender=backpack.address)
+    source_config.setFrozen(False, sender=switchboard_alpha.address)
     
     # Test frozen destination
-    dest_config.setFrozen(True, sender=backpack.address)
+    dest_config.setFrozen(True, sender=switchboard_alpha.address)
     with boa.reverts("cannot copy config"):
         migrator.cloneConfig(source_addr, dest_addr, sender=bob)
-    dest_config.setFrozen(False, sender=backpack.address)
+    dest_config.setFrozen(False, sender=switchboard_alpha.address)
 
 
 # Integration tests
 
 
-def test_complete_migration_flow(setup_contracts, hatchery, backpack):
+def test_complete_migration_flow(setup_contracts, hatchery, switchboard_alpha):
     """Test complete migration: clone config and migrate funds to separate wallets"""
     ctx = setup_contracts
     migrator = ctx['migrator']
@@ -843,7 +843,7 @@ def test_complete_migration_flow(setup_contracts, hatchery, backpack):
     
     # Add funds
     alpha_token.transfer(source_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=governance.address)
-    source_config.updateAssetData(0, alpha_token.address, False, sender=backpack.address)
+    source_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
     
     # Step 1: Clone config to one destination
     migrator.cloneConfig(source_wallet.address, config_dest_wallet.address, sender=bob)

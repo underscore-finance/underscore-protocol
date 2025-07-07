@@ -11,7 +11,17 @@ initializes: deptBasics[addys := addys]
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
+
 from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
+
+interface UserWalletConfig:
+    def preparePayment(asset: address, legoId: uint256, underlyingAsset: address, amount: uint256) -> (uint256, uint256): nonpayable
+    def setWallet(_wallet: address) -> bool: nonpayable
+    def removeTrialFunds() -> uint256: nonpayable
+    def trialFundsAmount() -> uint256: view
+    def trialFundsAsset() -> address: view
+    def owner() -> address: view
 
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
@@ -20,12 +30,28 @@ interface Ledger:
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
 
+interface UserWallet:
+    def assetData(asset: address) -> WalletAssetData: view
+    def assets(i: uint256) -> address: view
+    def walletConfig() -> address: view
+    def numAssets() -> uint256: view
+
 interface MissionControl:
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
 
-interface WalletConfig:
-    def setWallet(_wallet: address) -> bool: nonpayable
+interface Appraiser:
+    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256) -> uint256: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
+
+struct WalletAssetData:
+    assetBalance: uint256
+    usdValue: uint256
+    isYieldAsset: bool
+    lastYieldPrice: uint256
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -50,6 +76,14 @@ struct AgentCreationConfig:
     minTimeLock: uint256
     maxTimeLock: uint256
 
+struct AssetUsdValueConfig:
+    legoId: uint256
+    legoAddr: address
+    decimals: uint256
+    staleBlocks: uint256
+    isYieldAsset: bool
+    underlyingAsset: address
+
 event UserWalletCreated:
     mainAddr: indexed(address)
     configAddr: indexed(address)
@@ -64,6 +98,8 @@ event AgentCreated:
     agent: indexed(address)
     owner: indexed(address)
     creator: indexed(address)
+
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
@@ -136,7 +172,7 @@ def createUserWallet(
         config.maxKeyActionTimeLock,
     )
     mainWalletAddr: address = create_from_blueprint(config.walletTemplate, WETH, ETH, walletConfigAddr)
-    assert extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
+    assert extcall UserWalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
 
     # update ledger
     extcall Ledger(a.ledger).createUserWallet(mainWalletAddr, ambassador)
@@ -187,3 +223,197 @@ def createAgent(_owner: address = msg.sender) -> address:
         creator=msg.sender,
     )
     return agentAddr
+
+
+###############
+# Trial Funds #
+###############
+
+
+# clawback trial funds
+
+
+@external
+def clawBackTrialFunds(_user: address) -> uint256:
+    a: addys.Addys = addys._getAddys()
+    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    assert addys._isSwitchboardAddr(msg.sender) or staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
+    return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
+
+
+@internal
+def _clawBackTrialFunds(
+    _user: address,
+    _walletConfig: address,
+    _missionControl: address,
+    _legoBook: address,
+    _appraiser: address,
+) -> uint256:
+    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
+        return 0
+
+    # add 1% buffer to ensure we recover enough
+    targetRecoveryAmount: uint256 = trialFundsAmount * 101_00 // HUNDRED_PERCENT
+
+    # if we already have enough, just remove what we have
+    amountRecovered: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
+    if amountRecovered >= targetRecoveryAmount:
+        return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+
+    # find all vault tokens and withdraw from them
+    numAssets: uint256 = staticcall UserWallet(_user).numAssets()
+    if numAssets != 0:
+        for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+            if amountRecovered >= targetRecoveryAmount:
+                break
+
+            asset: address = staticcall UserWallet(_user).assets(i)
+            if asset == empty(address):
+                continue
+
+            data: WalletAssetData = staticcall UserWallet(_user).assetData(asset)
+            if not data.isYieldAsset or data.assetBalance == 0:
+                continue
+
+            # get underlying details
+            config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook)
+            if config.underlyingAsset != trialFundsAsset:
+                continue
+
+            # get price per share for this vault token
+            pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks)
+            if pricePerShare == 0:
+                continue
+
+            # calculate how many vault tokens we need to withdraw
+            amountStillNeeded: uint256 = targetRecoveryAmount - amountRecovered
+            vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** config.decimals) // pricePerShare
+
+            # withdraw vault tokens to get underlying
+            underlyingAmount: uint256 = 0
+            na: uint256 = 0
+            underlyingAmount, na = extcall UserWalletConfig(_walletConfig).preparePayment(config.underlyingAsset, config.legoId, asset, vaultTokensNeeded)
+
+            # update recovered amount
+            amountRecovered += underlyingAmount
+
+    # now remove trial funds
+    return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+
+
+# check if it remains
+
+
+@view
+@external
+def doesWalletStillHaveTrialFunds(_user: address) -> bool:
+    a: addys.Addys = addys._getAddys()
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return self._doesWalletStillHaveTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
+
+
+@view
+@external
+def doesWalletStillHaveTrialFundsWithAddys(
+    _user: address,
+    _walletConfig: address,
+    _missionControl: address,
+    _legoBook: address,
+    _appraiser: address,
+) -> bool:
+    return self._doesWalletStillHaveTrialFunds(_user, _walletConfig, _missionControl, _legoBook, _appraiser)
+
+
+@view
+@internal
+def _doesWalletStillHaveTrialFunds(
+    _user: address,
+    _walletConfig: address,
+    _missionControl: address,
+    _legoBook: address,
+    _appraiser: address,
+) -> bool:
+    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
+    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
+        return True
+
+    amount: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
+    if amount >= trialFundsAmount:
+        return True
+
+    numAssets: uint256 = staticcall UserWallet(_user).numAssets()
+    if numAssets == 0:
+        return False
+
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+        if amount >= trialFundsAmount:
+            return True
+
+        asset: address = staticcall UserWallet(_user).assets(i)
+        if asset == empty(address):
+            continue
+
+        data: WalletAssetData = staticcall UserWallet(_user).assetData(asset)
+        if not data.isYieldAsset:
+            continue
+
+        # get underlying details
+        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook)
+        if config.underlyingAsset != trialFundsAsset:
+            continue
+
+        # get current balance of vault token
+        vaultBalance: uint256 = staticcall IERC20(asset).balanceOf(_user)
+        if vaultBalance == 0:
+            continue
+
+        # get price per share for this vault token
+        pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks)
+        if pricePerShare == 0:
+            continue
+
+        # calculate underlying amount
+        amount += vaultBalance * pricePerShare // (10 ** config.decimals)
+
+    return amount >= trialFundsAmount
+
+
+# get asset usd value config
+
+
+@view
+@external
+def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
+    a: addys.Addys = addys._getAddys()
+    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook)
+
+
+@view
+@internal
+def _getAssetUsdValueConfig(_asset: address, _missionControl: address, _legoBook: address) -> AssetUsdValueConfig:
+    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
+
+    # get lego addr if needed
+    if config.legoId != 0 and config.legoAddr == empty(address):
+        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = self._getDecimals(_asset)
+
+    return config
+
+
+# get decimals
+
+
+@view
+@internal
+def _getDecimals(_asset: address) -> uint256:
+    if _asset in [WETH, ETH]:
+        return 18
+    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)

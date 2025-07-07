@@ -19,6 +19,9 @@ interface UserWalletConfig:
     def cancelPendingPayee(_payee: address): nonpayable
     def removePayee(_payee: address): nonpayable
 
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
+
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
@@ -234,8 +237,8 @@ event PayeePendingCancelled:
     cancelledBy: indexed(address)
 
 UNDY_HQ: public(immutable(address))
-BACKPACK_ID: constant(uint256) = 7
 LEDGER_ID: constant(uint256) = 2
+SWITCHBOARD_ID: constant(uint256) = 5
 
 # payee validation bounds
 MIN_PAYEE_PERIOD: public(immutable(uint256))
@@ -744,7 +747,7 @@ def updatePayee(
 def removePayee(_user: address, _payee: address) -> bool:
     bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
     if msg.sender not in [bundle.owner, _payee]:
-        assert self._isSignerBackpack(msg.sender, bundle.inEjectMode) # dev: no perms
+        assert self._isSwitchboardAddr(msg.sender, bundle.inEjectMode) # dev: no perms
 
     # validate payee exists
     assert bundle.isRegisteredPayee # dev: payee not found
@@ -860,7 +863,7 @@ def confirmPendingPayee(_user: address, _payee: address) -> bool:
 @external
 def cancelPendingPayee(_user: address, _payee: address) -> bool:
     bundle: PayeeManagementBundle = self._validateAndGetPayeeManagementBundle(_user, _payee)
-    if msg.sender != bundle.owner and not self._isSignerBackpack(msg.sender, bundle.inEjectMode):
+    if msg.sender != bundle.owner and not self._isSwitchboardAddr(msg.sender, bundle.inEjectMode):
         assert staticcall UserWalletConfig(bundle.walletConfig).canAddPendingPayee(msg.sender) # dev: no permission to cancel pending payee
 
     # get pending payee
@@ -1066,15 +1069,16 @@ def _validateAndGetPayeeManagementBundle(_user: address, _payee: address) -> Pay
     return staticcall UserWalletConfig(walletConfig).getPayeeManagementBundle(_payee)
 
 
-# is signer backpack
+# is signer switchboard
 
 
 @view
 @internal
-def _isSignerBackpack(_signer: address, _inEjectMode: bool) -> bool:
+def _isSwitchboardAddr(_signer: address, _inEjectMode: bool) -> bool:
     if _inEjectMode:
         return False
-    return _signer == staticcall Registry(UNDY_HQ).getAddr(BACKPACK_ID)
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
 
 
 ########################
@@ -1126,7 +1130,7 @@ def confirmWhitelistAddr(_user: address, _addr: address):
 def cancelPendingWhitelistAddr(_user: address, _addr: address):
     c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
     if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.CANCEL_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
-        assert self._isSignerBackpack(msg.sender, c.inEjectMode) # dev: no perms
+        assert self._isSwitchboardAddr(msg.sender, c.inEjectMode) # dev: no perms
 
     assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
     extcall UserWalletConfig(c.walletConfig).cancelPendingWhitelistAddr(_addr)
@@ -1140,7 +1144,7 @@ def cancelPendingWhitelistAddr(_user: address, _addr: address):
 def removeWhitelistAddr(_user: address, _addr: address):
     c: WhitelistConfigBundle = self._validateAndGetWhitelistConfig(_user, _addr, msg.sender)
     if not self._canManageWhitelist(c.isOwner, c.isManager, WhitelistAction.REMOVE_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms):
-        assert self._isSignerBackpack(msg.sender, c.inEjectMode) or msg.sender == _addr # dev: no perms
+        assert self._isSwitchboardAddr(msg.sender, c.inEjectMode) or msg.sender == _addr # dev: no perms
 
     assert c.isWhitelisted # dev: not whitelisted
     extcall UserWalletConfig(c.walletConfig).removeWhitelistAddr(_addr)

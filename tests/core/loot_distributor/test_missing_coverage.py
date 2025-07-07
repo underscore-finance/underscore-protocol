@@ -218,8 +218,8 @@ def test_claim_events_ordering(setup_contracts):
     assert events[2].asset == charlie_token.address
 
 
-def test_deposit_points_with_backpack_edge_cases(setup_contracts, backpack, ledger):
-    """Test deposit points update from backpack with edge cases"""
+def test_deposit_points_with_data_edge_cases(setup_contracts, switchboard_alpha, ledger):
+    """Test deposit points update with edge cases using updateDepositPointsWithData"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
     bob_wallet = ctx['bob_wallet']
@@ -231,12 +231,11 @@ def test_deposit_points_with_backpack_edge_cases(setup_contracts, backpack, ledg
     ledger.setUserAndGlobalPoints(bob_wallet.address, user_points, global_points, sender=loot.address)
     
     # Update with zero value
-    loot.updateDepositPointsFromBackpack(
+    loot.updateDepositPointsWithData(
         bob_wallet.address,
         0,  # new value
         True,  # did change
-        ledger.address,
-        sender=backpack.address
+        sender=switchboard_alpha.address
     )
     
     user, global_data = ledger.getUserAndGlobalPoints(bob_wallet.address)

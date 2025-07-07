@@ -27,14 +27,15 @@ interface MissionControl:
     def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: bool) -> AmbassadorConfig: view
     def getDepositRewardsAsset() -> address: view
 
+interface UserWalletConfig:
+    def wallet() -> address: view
+    def owner() -> address: view
+
 interface Appraiser:
     def getPricePerShare(_asset: address) -> uint256: view
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-interface UserWalletConfig:
-    def owner() -> address: view
 
 struct WalletAssetData:
     assetBalance: uint256
@@ -453,14 +454,16 @@ def updateDepositPoints(_user: address):
 
 
 @external
-def updateDepositPointsFromBackpack(
+def updateDepositPointsWithData(
     _user: address,
     _newUserValue: uint256,
     _didChange: bool,
-    _ledger: address,
 ):
-    assert msg.sender == addys._getBackpackAddr() # dev: no perms
-    self._updateDepositPoints(_user, _newUserValue, _didChange, _ledger)
+    ledger: address = addys._getLedgerAddr()
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender) and not addys._isSwitchboardAddr(msg.sender):
+        assert self._validateWalletConfig(_user, msg.sender, ledger) # dev: invalid config
+
+    self._updateDepositPoints(_user, _newUserValue, _didChange, ledger)
 
 
 @internal
@@ -503,3 +506,19 @@ def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256
     points: uint256 = _usdValue * (block.number - _lastUpdate)
     return points // EIGHTEEN_DECIMALS
 
+
+# validate wallet config
+
+
+@view
+@internal
+def _validateWalletConfig(_wallet: address, _caller: address, _ledger: address) -> bool:
+    actualWallet: address = staticcall UserWalletConfig(_caller).wallet()
+    if not staticcall Ledger(_ledger).isUserWallet(actualWallet):
+        return False
+    if actualWallet != _wallet:
+        return False
+    actualConfig: address = staticcall UserWallet(actualWallet).walletConfig()
+    if actualConfig != _caller:
+        return False
+    return True

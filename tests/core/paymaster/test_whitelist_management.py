@@ -491,7 +491,7 @@ def test_whitelist_validation_always_passes(setup_contracts):
     assert data[2] == 0
 
 
-def test_backpack_cancel_whitelist(setup_contracts, undy_hq, backpack):
+def test_switchboard_alpha_cancel_whitelist(setup_contracts, undy_hq, switchboard_alpha):
     """Test that Backpack can cancel pending whitelist in non-eject mode"""
     ctx = setup_contracts
     paymaster = ctx['paymaster']
@@ -506,12 +506,12 @@ def test_backpack_cancel_whitelist(setup_contracts, undy_hq, backpack):
     paymaster.addWhitelistAddr(wallet.address, addr, sender=owner)
     
     # Backpack can cancel
-    tx = paymaster.cancelPendingWhitelistAddr(wallet.address, addr, sender=backpack.address)
+    tx = paymaster.cancelPendingWhitelistAddr(wallet.address, addr, sender=switchboard_alpha.address)
     
     # Check events
     events = filter_logs(paymaster, "WhitelistAddrCancelled")
     assert len(events) == 1
-    assert events[0].cancelledBy == backpack.address
+    assert events[0].cancelledBy == switchboard_alpha.address
     
     # Verify cancelled
     pending = wallet_config.pendingWhitelist(addr)
@@ -557,7 +557,7 @@ def test_multiple_whitelist_operations(setup_contracts):
     assert not wallet_config.isWhitelisted(addrs[2])
 
 
-def test_backpack_can_remove_from_whitelist(setup_contracts, backpack):
+def test_switchboard_alpha_can_remove_from_whitelist(setup_contracts, switchboard_alpha):
     """Test that Backpack can remove addresses from whitelist in non-eject mode"""
     ctx = setup_contracts
     paymaster = ctx['paymaster']
@@ -575,14 +575,14 @@ def test_backpack_can_remove_from_whitelist(setup_contracts, backpack):
     assert wallet_config.isWhitelisted(addr)
     
     # Backpack removes from whitelist
-    tx = paymaster.removeWhitelistAddr(wallet.address, addr, sender=backpack.address)
+    tx = paymaster.removeWhitelistAddr(wallet.address, addr, sender=switchboard_alpha.address)
     
     # Check event
     events = filter_logs(paymaster, "WhitelistAddrRemoved")
     assert len(events) == 1
     assert events[0].user == wallet.address
     assert events[0].addr == addr
-    assert events[0].removedBy == backpack.address
+    assert events[0].removedBy == switchboard_alpha.address
     
     # Verify no longer whitelisted
     assert not wallet_config.isWhitelisted(addr)

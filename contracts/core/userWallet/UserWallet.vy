@@ -14,16 +14,14 @@ interface WalletConfig:
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
 
-interface Backpack:
-    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address, _appraiser: address) -> (uint256, uint256, uint256): nonpayable
-    def performPostActionTasks(_newUserValue: uint256, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address, _lootDistributor: address): nonpayable
-
 interface Appraiser:
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
 
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256): nonpayable
+    def updateDepositPointsWithData(_user: address, _newUserValue: uint256, _didChange: bool): nonpayable
     def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType): nonpayable
 
 interface MissionControl:
@@ -33,6 +31,9 @@ interface MissionControl:
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
     def deposit(): payable
+
+interface Hatchery:
+    def doesWalletStillHaveTrialFundsWithAddys(_user: address, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -46,9 +47,10 @@ struct WalletAssetData:
 struct ActionData:
     missionControl: address
     legoBook: address
-    backpack: address
-    appraiser: address
+    switchboard: address
+    hatchery: address
     lootDistributor: address
+    appraiser: address
     wallet: address
     walletConfig: address
     walletOwner: address
@@ -1221,9 +1223,13 @@ def _performPostActionTasks(
     for a: address in _assets:
         newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _ad.inEjectMode, _ad.appraiser, _ad.eth)
 
-    # update points + check trial funds
     if not _ad.inEjectMode:
-        extcall Backpack(_ad.backpack).performPostActionTasks(newTotalUsdValue, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.lootDistributor)
+
+        # make sure wallet still has trial funds
+        assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser) # dev: wallet has no trial funds
+
+        # update points
+        extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithData(self, newTotalUsdValue, True)
 
 
 ##############
@@ -1231,7 +1237,7 @@ def _performPostActionTasks(
 ##############
 
 
-# from wallet backpack
+# from wallet config
 
 
 @external
@@ -1374,9 +1380,9 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
     # calculate yield profits
     yieldProfit: uint256 = 0
     feeRatio: uint256 = 0
-    data.lastYieldPrice, yieldProfit, feeRatio = extcall Backpack(_ad.backpack).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastYieldPrice, _ad.missionControl, _ad.legoBook, _ad.appraiser)
+    data.lastYieldPrice, yieldProfit, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastYieldPrice, _ad.missionControl, _ad.legoBook)
 
-    # only save if backpack returns a price
+    # only save if appraiser returns a price
     if data.lastYieldPrice != 0:
         self.assetData[_asset] = data
 
