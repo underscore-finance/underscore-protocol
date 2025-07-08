@@ -234,3 +234,8 @@ def yield_underlying_token_whale(env, yield_underlying_token, governance):
 @pytest.fixture(scope="session")
 def mock_ripe():
     return boa.load("contracts/mock/MockRipe.vy", name="mock_ripe")
+
+
+@pytest.fixture(scope="session")
+def mock_weth():
+    return boa.load("contracts/mock/MockWeth.vy", name="mock_weth")
