@@ -19,27 +19,22 @@ import contracts.modules.LegoAssets as legoAssets
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
-interface AeroRouter:
-    def addLiquidity(_tokenA: address, _tokenB: address, _isStable: bool, _amountADesired: uint256, _amountBDesired: uint256, _amountAMin: uint256, _amountBMin: uint256, _recipient: address, _deadline: uint256) -> (uint256, uint256, uint256): nonpayable
-    def removeLiquidity(_tokenA: address, _tokenB: address, _isStable: bool, _lpAmount: uint256, _amountAMin: uint256, _amountBMin: uint256, _recipient: address, _deadline: uint256) -> (uint256, uint256): nonpayable
-    def quoteAddLiquidity(_tokenA: address, _tokenB: address, _isStable: bool, _factory: address, _amountADesired: uint256, _amountBDesired: uint256) -> (uint256, uint256, uint256): view
-    def swapExactTokensForTokens(_amountIn: uint256, _amountOutMin: uint256, _path: DynArray[Route, 10], _to: address, _deadline: uint256) -> DynArray[uint256, 10]: nonpayable
-    def quoteRemoveLiquidity(_tokenA: address, _tokenB: address, _isStable: bool, _factory: address, _liquidity: uint256) -> (uint256, uint256): view
-
-interface AeroClassicPool:
+interface IUniswapV2Pair:
     def swap(_amount0Out: uint256, _amount1Out: uint256, _recipient: address, _data: Bytes[256]): nonpayable
-    def getAmountOut(_amountIn: uint256, _tokenIn: address) -> uint256: view
-    def getReserves() -> (uint256, uint256, uint256): view
-    def tokens() -> (address, address): view
-    def stable() -> bool: view
+    def getReserves() -> (uint112, uint112, uint32): view
+    def token0() -> address: view
+    def token1() -> address: view
 
-interface AeroFactory:
-    def getPool(_tokenA: address, _tokenB: address, _isStable: bool) -> address: view
-    def getFee(_pool: address, _isStable: bool) -> uint256: view
+interface UniV2Router:
+    def addLiquidity(_tokenA: address, _tokenB: address, _amountADesired: uint256, _amountBDesired: uint256, _amountAMin: uint256, _amountBMin: uint256, _recipient: address, _deadline: uint256) -> (uint256, uint256, uint256): nonpayable
+    def removeLiquidity(_tokenA: address, _tokenB: address, _lpAmount: uint256, _amountAMin: uint256, _amountBMin: uint256, _recipient: address, _deadline: uint256) -> (uint256, uint256): nonpayable
 
 interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
     def getNormalAssetPrice(_asset: address) -> uint256: view
+
+interface UniV2Factory:
+    def getPair(_tokenA: address, _tokenB: address) -> address: view
 
 struct BestPool:
     pool: address
@@ -53,7 +48,7 @@ struct Route:
     stable: bool
     factory: address
 
-event AerodromeSwap:
+event UniswapV2Swap:
     sender: indexed(address)
     tokenIn: indexed(address)
     tokenOut: indexed(address)
@@ -63,7 +58,7 @@ event AerodromeSwap:
     numTokens: uint256
     recipient: address
 
-event AerodromeLiquidityAdded:
+event UniswapV2LiquidityAdded:
     sender: indexed(address)
     tokenA: indexed(address)
     tokenB: indexed(address)
@@ -73,7 +68,7 @@ event AerodromeLiquidityAdded:
     usdValue: uint256
     recipient: address
 
-event AerodromeLiquidityRemoved:
+event UniswapV2LiquidityRemoved:
     sender: address
     pool: indexed(address)
     tokenA: indexed(address)
@@ -85,28 +80,28 @@ event AerodromeLiquidityRemoved:
     usdValue: uint256
     recipient: address
 
-# aero
-AERODROME_FACTORY: public(immutable(address))
-AERODROME_ROUTER: public(immutable(address))
+# uniswap v2
+UNISWAP_V2_FACTORY: public(immutable(address))
+UNISWAP_V2_ROUTER: public(immutable(address))
 coreRouterPool: public(address)
 
-MAX_TOKEN_PATH: constant(uint256) = 5
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
+MAX_TOKEN_PATH: constant(uint256) = 5
 
 
 @deploy
 def __init__(
     _undyHq: address,
-    _aerodromeFactory: address,
-    _aerodromeRouter: address,
+    _uniswapV2Factory: address,
+    _uniswapV2Router: address,
     _coreRouterPool: address,
 ):
     addys.__init__(_undyHq)
     legoAssets.__init__(False)
 
-    assert empty(address) not in [_aerodromeFactory, _aerodromeRouter, _coreRouterPool] # dev: invalid addrs
-    AERODROME_FACTORY = _aerodromeFactory
-    AERODROME_ROUTER = _aerodromeRouter
+    assert empty(address) not in [_uniswapV2Factory, _uniswapV2Router, _coreRouterPool] # dev: invalid addrs
+    UNISWAP_V2_FACTORY = _uniswapV2Factory
+    UNISWAP_V2_ROUTER = _uniswapV2Router
     self.coreRouterPool = _coreRouterPool
 
 
@@ -123,7 +118,7 @@ def hasCapability(_action: wi.ActionType) -> bool:
 @view
 @external
 def getRegistries() -> DynArray[address, 10]:
-    return [AERODROME_FACTORY, AERODROME_ROUTER]
+    return [UNISWAP_V2_FACTORY, UNISWAP_V2_ROUTER]
 
 
 #########
@@ -164,7 +159,7 @@ def swapTokens(
 
     # iterate through swap routes
     tempAmountIn: uint256 = amountIn
-    aeroFactory: address = AERODROME_FACTORY
+    uniswapV2Factory: address = UNISWAP_V2_FACTORY
     for i: uint256 in range(numTokens - 1, bound=MAX_TOKEN_PATH):
         tempTokenIn: address = _tokenPath[i]
         tempTokenOut: address = _tokenPath[i + 1]
@@ -176,7 +171,7 @@ def swapTokens(
             recipient = _poolPath[i + 1]
 
         # swap
-        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, recipient, aeroFactory)
+        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, recipient, uniswapV2Factory)
 
     # final amount
     amountOut: uint256 = tempAmountIn
@@ -196,7 +191,7 @@ def swapTokens(
     if usdValue == 0:
         usdValue = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut)
 
-    log AerodromeSwap(
+    log UniswapV2Swap(
         sender = msg.sender,
         tokenIn = tokenIn,
         tokenOut = tokenOut,
@@ -219,22 +214,18 @@ def _swapTokensInPool(
     _tokenOut: address,
     _amountIn: uint256,
     _recipient: address,
-    _aeroFactory: address,
+    _uniswapV2Factory: address,
 ) -> uint256:
-    token0: address = empty(address)
-    token1: address = empty(address)
-    token0, token1 = staticcall AeroClassicPool(_pool).tokens()
-
-    tokens: address[2] = [token0, token1]
+    tokens: address[2] = [staticcall IUniswapV2Pair(_pool).token0(), staticcall IUniswapV2Pair(_pool).token1()]
     assert _tokenIn in tokens # dev: invalid tokenIn
     assert _tokenOut in tokens # dev: invalid tokenOut
     assert _tokenIn != _tokenOut # dev: invalid tokens
 
-    # verify actual aerodrome pool
-    assert staticcall AeroFactory(_aeroFactory).getPool(_tokenIn, _tokenOut, staticcall AeroClassicPool(_pool).stable()) == _pool # dev: invalid pool
+    # verify actual uniswap v2 pool
+    assert staticcall UniV2Factory(_uniswapV2Factory).getPair(_tokenIn, _tokenOut) == _pool # dev: invalid pool
 
-    zeroForOne: bool = _tokenIn == token0
-    amountOut: uint256 = staticcall AeroClassicPool(_pool).getAmountOut(_amountIn, _tokenIn)
+    zeroForOne: bool = _tokenIn == tokens[0]
+    amountOut: uint256 = self._getAmountOut(_pool, zeroForOne, _amountIn)
     assert amountOut != 0 # dev: no tokens swapped
 
     # put in correct order
@@ -244,7 +235,8 @@ def _swapTokensInPool(
         amount0Out = 0
         amount1Out = amountOut
 
-    extcall AeroClassicPool(_pool).swap(amount0Out, amount1Out, _recipient, b"")
+    # perform swap
+    extcall IUniswapV2Pair(_pool).swap(amount0Out, amount1Out, _recipient, b"")
     return amountOut
 
 
@@ -274,11 +266,7 @@ def addLiquidity(
     assert not legoAssets.isPaused # dev: paused
 
     # validate tokens
-    token0: address = empty(address)
-    token1: address = empty(address)
-    token0, token1 = staticcall AeroClassicPool(_pool).tokens()
-
-    tokens: address[2] = [token0, token1]
+    tokens: address[2] = [staticcall IUniswapV2Pair(_pool).token0(), staticcall IUniswapV2Pair(_pool).token1()]
     assert _tokenA in tokens # dev: invalid tokenA
     assert _tokenB in tokens # dev: invalid tokenB
     assert _tokenA != _tokenB # dev: invalid tokens
@@ -298,16 +286,15 @@ def addLiquidity(
     assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, liqAmountB, default_return_value=True) # dev: transfer failed
 
     # approvals
-    router: address = AERODROME_ROUTER
+    router: address = UNISWAP_V2_ROUTER
     assert extcall IERC20(_tokenA).approve(router, liqAmountA, default_return_value=True) # dev: approval failed
     assert extcall IERC20(_tokenB).approve(router, liqAmountB, default_return_value=True) # dev: approval failed
 
     # add liquidity
     lpAmountReceived: uint256 = 0
-    liqAmountA, liqAmountB, lpAmountReceived = extcall AeroRouter(router).addLiquidity(
+    liqAmountA, liqAmountB, lpAmountReceived = extcall UniV2Router(router).addLiquidity(
         _tokenA,
         _tokenB,
-        staticcall AeroClassicPool(_pool).stable(),
         liqAmountA,
         liqAmountB,
         _minAmountA,
@@ -316,8 +303,6 @@ def addLiquidity(
         block.timestamp,
     )
     assert lpAmountReceived != 0 # dev: no liquidity added
-    if _minLpAmount != 0:
-        assert lpAmountReceived >= _minLpAmount # dev: insufficient liquidity added
 
     # reset approvals
     assert extcall IERC20(_tokenA).approve(router, 0, default_return_value=True) # dev: approval failed
@@ -337,7 +322,7 @@ def addLiquidity(
         assert extcall IERC20(_tokenB).transfer(msg.sender, refundAssetAmountB, default_return_value=True) # dev: transfer failed
 
     usdValue: uint256 = self._getUsdValue(_tokenA, liqAmountA, _tokenB, liqAmountB)
-    log AerodromeLiquidityAdded(
+    log UniswapV2LiquidityAdded(
         sender = msg.sender,
         tokenA = _tokenA,
         tokenB = _tokenB,
@@ -370,11 +355,7 @@ def removeLiquidity(
     assert not legoAssets.isPaused # dev: paused
 
     # validate tokens
-    token0: address = empty(address)
-    token1: address = empty(address)
-    token0, token1 = staticcall AeroClassicPool(_pool).tokens()
-
-    tokens: address[2] = [token0, token1]
+    tokens: address[2] = [staticcall IUniswapV2Pair(_pool).token0(), staticcall IUniswapV2Pair(_pool).token1()]
     assert _tokenA in tokens # dev: invalid tokenA
     assert _tokenB in tokens # dev: invalid tokenB
     assert _tokenA != _tokenB # dev: invalid tokens
@@ -388,16 +369,15 @@ def removeLiquidity(
     assert extcall IERC20(_lpToken).transferFrom(msg.sender, self, lpAmount, default_return_value=True) # dev: transfer failed
 
     # approvals
-    router: address = AERODROME_ROUTER
+    router: address = UNISWAP_V2_ROUTER
     assert extcall IERC20(_lpToken).approve(router, lpAmount, default_return_value=True) # dev: approval failed
 
     # remove liquidity
     amountA: uint256 = 0
     amountB: uint256 = 0
-    amountA, amountB = extcall AeroRouter(router).removeLiquidity(
+    amountA, amountB = extcall UniV2Router(router).removeLiquidity(
         _tokenA,
         _tokenB,
-        staticcall AeroClassicPool(_pool).stable(),
         lpAmount,
         _minAmountA,
         _minAmountB,
@@ -419,7 +399,7 @@ def removeLiquidity(
         lpAmount -= refundedLpAmount
 
     usdValue: uint256 = self._getUsdValue(_tokenA, amountA, _tokenB, amountB)
-    log AerodromeLiquidityRemoved(
+    log UniswapV2LiquidityRemoved(
         sender = msg.sender,
         pool = _pool,
         tokenA = _tokenA,
@@ -485,44 +465,20 @@ def getCoreRouterPool() -> address:
 @view
 @external
 def getDeepestLiqPool(_tokenA: address, _tokenB: address) -> BestPool:
-    factory: address = AERODROME_FACTORY
-    reserve0: uint256 = 0
-    reserve1: uint256 = 0
-    na: uint256 = 0
-
-    # get pool options
-    stablePool: address = staticcall AeroFactory(factory).getPool(_tokenA, _tokenB, True)
-    volatilePool: address = staticcall AeroFactory(factory).getPool(_tokenA, _tokenB, False)
-
-    # no pools found
-    if stablePool == empty(address) and volatilePool == empty(address):
+    pool: address = staticcall UniV2Factory(UNISWAP_V2_FACTORY).getPair(_tokenA, _tokenB)
+    if pool == empty(address):
         return empty(BestPool)
 
-    # stable pool
-    stableLiquidity: uint256 = 0
-    if stablePool != empty(address):
-        reserve0, reserve1, na = staticcall AeroClassicPool(stablePool).getReserves()
-        stableLiquidity = reserve0 + reserve1
-
-    # volatile pool
-    volatileLiquidity: uint256 = 0
-    if volatilePool != empty(address):
-        reserve0, reserve1, na = staticcall AeroClassicPool(volatilePool).getReserves()
-        volatileLiquidity = reserve0 + reserve1
-
-    # best pool determined by liquidity
-    bestPoolAddr: address = stablePool
-    bestLiquidity: uint256 = stableLiquidity
-    isStable: bool = True
-    if volatileLiquidity > stableLiquidity:
-        bestPoolAddr = volatilePool
-        bestLiquidity = volatileLiquidity
-        isStable = False
+    # get reserves
+    reserve0: uint112 = 0
+    reserve1: uint112 = 0
+    na: uint32 = 0
+    reserve0, reserve1, na = staticcall IUniswapV2Pair(pool).getReserves()
 
     return BestPool(
-        pool=bestPoolAddr,
-        fee=staticcall AeroFactory(factory).getFee(bestPoolAddr, isStable),
-        liquidity=bestLiquidity,
+        pool=pool,
+        fee=30, # 0.3%, denominator is 100_00
+        liquidity=convert(reserve0 + reserve1, uint256),
         numCoins=2,
     )
 
@@ -530,32 +486,11 @@ def getDeepestLiqPool(_tokenA: address, _tokenB: address) -> BestPool:
 @view
 @external
 def getBestSwapAmountOut(_tokenIn: address, _tokenOut: address, _amountIn: uint256) -> (address, uint256):
-    factory: address = AERODROME_FACTORY
-    stablePool: address = staticcall AeroFactory(factory).getPool(_tokenIn, _tokenOut, True)
-    volatilePool: address = staticcall AeroFactory(factory).getPool(_tokenIn, _tokenOut, False)
-    if stablePool == empty(address) and volatilePool == empty(address):
+    pool: address = staticcall UniV2Factory(UNISWAP_V2_FACTORY).getPair(_tokenIn, _tokenOut)
+    if pool == empty(address):
         return empty(address), 0
-
-    # stable pool
-    stableAmountOut: uint256 = 0
-    if stablePool != empty(address):
-        stableAmountOut = staticcall AeroClassicPool(stablePool).getAmountOut(_amountIn, _tokenIn)
-
-    # volatile pool
-    volatileAmountOut: uint256 = 0
-    if volatilePool != empty(address):
-        volatileAmountOut = staticcall AeroClassicPool(volatilePool).getAmountOut(_amountIn, _tokenIn)
-
-    if stableAmountOut == 0 and volatileAmountOut == 0:
-        return empty(address), 0
-
-    pool: address = stablePool
-    amountOut: uint256 = stableAmountOut
-    if volatileAmountOut > stableAmountOut:
-        pool = volatilePool
-        amountOut = volatileAmountOut
-
-    return pool, amountOut
+    token0: address = staticcall IUniswapV2Pair(pool).token0()
+    return pool, self._getAmountOut(pool, _tokenIn == token0, _amountIn)
 
 
 @view
@@ -566,21 +501,18 @@ def getSwapAmountOut(
     _tokenOut: address,
     _amountIn: uint256,
 ) -> uint256:
-    return staticcall AeroClassicPool(_pool).getAmountOut(_amountIn, _tokenIn)
+    token0: address = staticcall IUniswapV2Pair(_pool).token0()
+    return self._getAmountOut(_pool, _tokenIn == token0, _amountIn)
 
 
 @view
 @external
 def getBestSwapAmountIn(_tokenIn: address, _tokenOut: address, _amountOut: uint256) -> (address, uint256):
-    # TODO: implement stable pools
-    pool: address = staticcall AeroFactory(AERODROME_FACTORY).getPool(_tokenIn, _tokenOut, False)
+    pool: address = staticcall UniV2Factory(UNISWAP_V2_FACTORY).getPair(_tokenIn, _tokenOut)
     if pool == empty(address):
-        return empty(address), max_value(uint256)
-
-    token0: address = empty(address)
-    token1: address = empty(address)
-    token0, token1 = staticcall AeroClassicPool(pool).tokens()
-    return pool, self._getAmountInForVolatilePools(pool, token0 == _tokenIn, _amountOut)
+        return empty(address), 0
+    token0: address = staticcall IUniswapV2Pair(pool).token0()
+    return pool, self._getAmountIn(pool, _tokenIn == token0, _amountOut)
 
 
 @view
@@ -591,13 +523,8 @@ def getSwapAmountIn(
     _tokenOut: address,
     _amountOut: uint256,
 ) -> uint256:
-    if not staticcall AeroClassicPool(_pool).stable():
-        token0: address = empty(address)
-        token1: address = empty(address)
-        token0, token1 = staticcall AeroClassicPool(_pool).tokens()
-        return self._getAmountInForVolatilePools(_pool, token0 == _tokenIn, _amountOut)
-    else:
-        return max_value(uint256) # TODO: implement stable pools
+    token0: address = staticcall IUniswapV2Pair(_pool).token0()
+    return self._getAmountIn(_pool, _tokenIn == token0, _amountOut)
 
 
 @view
@@ -609,7 +536,25 @@ def getAddLiqAmountsIn(
     _availAmountA: uint256,
     _availAmountB: uint256,
 ) -> (uint256, uint256, uint256):
-    return staticcall AeroRouter(AERODROME_ROUTER).quoteAddLiquidity(_tokenA, _tokenB, staticcall AeroClassicPool(_pool).stable(), AERODROME_FACTORY, _availAmountA, _availAmountB)
+    token0: address = staticcall IUniswapV2Pair(_pool).token0()
+
+    reserveA: uint256 = 0
+    reserveB: uint256 = 0
+    reserveA, reserveB = self._getReserves(_pool, _tokenA == token0)
+
+    # insufficient liquidity
+    if reserveA == 0 or reserveB == 0:
+        return 0, 0, 0
+
+    # calculate optimal amounts
+    amountA: uint256 = _availAmountA
+    amountB: uint256 = self._quote(_availAmountA, reserveA, reserveB)
+    if amountB > _availAmountB:
+        maybeAmountA: uint256 = self._quote(_availAmountB, reserveB, reserveA)
+        if maybeAmountA <= _availAmountA:
+            amountA = maybeAmountA
+            amountB = _availAmountB
+    return amountA, amountB, 0
 
 
 @view
@@ -620,27 +565,28 @@ def getRemoveLiqAmountsOut(
     _tokenB: address,
     _lpAmount: uint256,
 ) -> (uint256, uint256):
-    return staticcall AeroRouter(AERODROME_ROUTER).quoteRemoveLiquidity(_tokenA, _tokenB, staticcall AeroClassicPool(_pool).stable(), AERODROME_FACTORY, _lpAmount)
+    token0: address = staticcall IUniswapV2Pair(_pool).token0()
+
+    reserveA: uint256 = 0
+    reserveB: uint256 = 0
+    reserveA, reserveB = self._getReserves(_pool, _tokenA == token0)
+
+    # insufficient liquidity
+    if reserveA == 0 or reserveB == 0:
+        return max_value(uint256), max_value(uint256)
+
+    # calculate expected amounts out
+    totalSupply: uint256 = staticcall IERC20(_pool).totalSupply()
+    expectedAmountA: uint256 = _lpAmount * reserveA // totalSupply
+    expectedAmountB: uint256 = _lpAmount * reserveB // totalSupply
+    return expectedAmountA, expectedAmountB
 
 
 @view
 @external
 def getPriceUnsafe(_pool: address, _targetToken: address, _appraiser: address = empty(address)) -> uint256:
-    if not staticcall AeroClassicPool(_pool).stable():
-        return self._getPriceUnsafeVolatilePool(_pool, _targetToken, _appraiser)
-    else:
-        return 0 # TODO: implement stable pools
-
-
-# internal utils
-
-
-@view
-@internal
-def _getPriceUnsafeVolatilePool(_pool: address, _targetToken: address, _appraiser: address) -> uint256:
-    token0: address = empty(address)
-    token1: address = empty(address)
-    token0, token1 = staticcall AeroClassicPool(_pool).tokens()
+    token0: address = staticcall IUniswapV2Pair(_pool).token0()
+    token1: address = staticcall IUniswapV2Pair(_pool).token1()
 
     # appraiser
     appraiser: address = _appraiser
@@ -659,17 +605,17 @@ def _getPriceUnsafeVolatilePool(_pool: address, _targetToken: address, _appraise
         return 0
 
     # reserves
-    reserve0: uint256 = 0
-    reserve1: uint256 = 0
-    na: uint256 = 0
-    reserve0, reserve1, na = staticcall AeroClassicPool(_pool).getReserves()
+    reserve0: uint112 = 0
+    reserve1: uint112 = 0
+    na: uint32 = 0
+    reserve0, reserve1, na = staticcall IUniswapV2Pair(_pool).getReserves()
 
     # avoid division by zero
     if reserve0 == 0 or reserve1 == 0:
         return 0  
 
     # price of token0 in token1
-    priceZeroToOne: uint256 = reserve1 * EIGHTEEN_DECIMALS // reserve0
+    priceZeroToOne: uint256 = convert(reserve1, uint256) * EIGHTEEN_DECIMALS // convert(reserve0, uint256)
 
     # adjust for decimals: price should be in 18 decimals
     decimals0: uint256 = convert(staticcall IERC20Detailed(token0).decimals(), uint256)
@@ -689,32 +635,74 @@ def _getPriceUnsafeVolatilePool(_pool: address, _targetToken: address, _appraise
     return altPrice * priceToOther // EIGHTEEN_DECIMALS
 
 
+# internal utils
+
+
 @view
 @internal
-def _getAmountInForVolatilePools(_pool: address, _zeroForOne: bool, _amountOut: uint256) -> uint256:
+def _quote(_amountA: uint256, _reserveA: uint256, _reserveB: uint256) -> uint256:
+    return (_amountA * _reserveB) // _reserveA
+
+
+@view
+@internal
+def _getReserves(_pool: address, _isTokenAZeroIndex: bool) -> (uint256, uint256):
+    reserve0: uint112 = 0
+    reserve1: uint112 = 0
+    na: uint32 = 0
+    reserve0, reserve1, na = staticcall IUniswapV2Pair(_pool).getReserves()
+
+    # determine which token is which
+    reserveA: uint256 = convert(reserve0, uint256)
+    reserveB: uint256 = convert(reserve1, uint256)
+    if not _isTokenAZeroIndex:
+        reserveA = convert(reserve1, uint256)
+        reserveB = convert(reserve0, uint256)
+
+    return reserveA, reserveB
+
+
+@view
+@internal
+def _getAmountOut(
+    _pool: address,
+    _zeroForOne: bool,
+    _amountIn: uint256,
+) -> uint256:
+    if _amountIn == 0:
+        return 0
+
+    # get reserves
+    reserveIn: uint256 = 0
+    reserveOut: uint256 = 0
+    reserveIn, reserveOut = self._getReserves(_pool, _zeroForOne)
+    if reserveIn == 0 or reserveOut == 0:
+        return 0
+
+    # calculate amount out
+    amountInWithFee: uint256 = _amountIn * 997 # 1000 - 3 (0.3% fee)
+    numerator: uint256 = amountInWithFee * reserveOut
+    denominator: uint256 = (reserveIn * 1000) + amountInWithFee
+    return numerator // denominator
+
+
+@view
+@internal
+def _getAmountIn(_pool: address, _zeroForOne: bool, _amountOut: uint256) -> uint256:
     if _amountOut == 0 or _amountOut == max_value(uint256):
         return max_value(uint256)
 
-    reserve0: uint256 = 0
-    reserve1: uint256 = 0
-    na: uint256 = 0
-    reserve0, reserve1, na = staticcall AeroClassicPool(_pool).getReserves()
-    if reserve0 == 0 or reserve1 == 0:
+    reserveIn: uint256 = 0
+    reserveOut: uint256 = 0
+    reserveIn, reserveOut = self._getReserves(_pool, _zeroForOne)
+    if reserveIn == 0 or reserveOut == 0:
         return max_value(uint256)
-
-    # determine which token is which
-    reserveIn: uint256 = reserve0
-    reserveOut: uint256 = reserve1
-    if not _zeroForOne:
-        reserveIn = reserve1
-        reserveOut = reserve0
 
     if _amountOut > reserveOut:
         return max_value(uint256)
 
-    fee: uint256 = staticcall AeroFactory(AERODROME_FACTORY).getFee(_pool, False)
-    numerator: uint256 = reserveIn * _amountOut * 100_00
-    denominator: uint256 = (reserveOut - _amountOut) * (100_00 - fee)
+    numerator: uint256 = reserveIn * _amountOut * 1000
+    denominator: uint256 = (reserveOut - _amountOut) * 997
     return (numerator // denominator) + 1
 
 

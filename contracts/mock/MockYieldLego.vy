@@ -17,6 +17,7 @@ import contracts.modules.LegoAssets as legoAssets
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC4626
+from ethereum.ercs import IERC721
 
 interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
@@ -38,7 +39,9 @@ def __init__(_undyHq: address):
 def hasCapability(_action: wi.ActionType) -> bool:
     return _action in (
         wi.ActionType.EARN_DEPOSIT | 
-        wi.ActionType.EARN_WITHDRAW
+        wi.ActionType.EARN_WITHDRAW |
+        wi.ActionType.ADD_LIQ_CONC |
+        wi.ActionType.REMOVE_LIQ_CONC
     )
 
 
@@ -285,7 +288,32 @@ def addLiquidityConcentrated(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, uint256, uint256):
-    return 0, 0, 0, 0, 0
+    # Transfer tokens from sender (simulate liquidity add)
+    if _amountA > 0:
+        assert extcall IERC20(_tokenA).transferFrom(msg.sender, self, _amountA, default_return_value=True)
+    if _amountB > 0:
+        assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, _amountB, default_return_value=True)
+    
+    # For concentrated liquidity, _extraAddr should contain the NFT manager address
+    # The actual NFT token ID handling:
+    nftTokenId: uint256 = _nftTokenId
+    
+    if _nftTokenId == 0:
+        # New position - we use a predetermined token ID
+        # In the test, we pre-mint token ID 1 to the wallet
+        nftTokenId = 1
+    else:
+        # Existing position - NFT was transferred to us, transfer it back
+        if _extraAddr != empty(address):
+            extcall IERC721(_extraAddr).transferFrom(self, _recipient, _nftTokenId)
+    
+    # Mock liquidity amount (sum of amounts)
+    liquidity: uint256 = _amountA + _amountB
+    
+    # Mock USD value
+    usdValue: uint256 = liquidity
+    
+    return nftTokenId, _amountA, _amountB, liquidity, usdValue
 
 
 @external
@@ -302,7 +330,30 @@ def removeLiquidityConcentrated(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, bool, uint256):
-    return 0, 0, 0, False, 0
+    # Mock removing liquidity - return half to each token
+    amountA: uint256 = _liqToRemove // 2
+    amountB: uint256 = _liqToRemove // 2
+    
+    # Transfer tokens to recipient (simulate liquidity removal)
+    if amountA > 0 and staticcall IERC20(_tokenA).balanceOf(self) >= amountA:
+        assert extcall IERC20(_tokenA).transfer(_recipient, amountA, default_return_value=True)
+    if amountB > 0 and staticcall IERC20(_tokenB).balanceOf(self) >= amountB:
+        assert extcall IERC20(_tokenB).transfer(_recipient, amountB, default_return_value=True)
+    
+    # The NFT was transferred to us before this call
+    # We need to transfer it back unless the position is depleted
+    # For simplicity, we'll say it's not depleted
+    isDepleted: bool = False
+    
+    # Transfer NFT back to recipient if not depleted
+    # _extraAddr contains the NFT manager address
+    if not isDepleted and _extraAddr != empty(address):
+        extcall IERC721(_extraAddr).transferFrom(self, _recipient, _nftTokenId)
+    
+    # Mock USD value
+    usdValue: uint256 = _liqToRemove
+    
+    return amountA, amountB, _liqToRemove, isDepleted, usdValue
 
 
 @view
@@ -333,6 +384,16 @@ def getPricePerShare(_yieldAsset: address) -> uint256:
 @external
 def getPrice(_asset: address) -> uint256:
     return self.price[_asset]
+
+
+@external
+def onERC721Received(_operator: address, _from: address, _tokenId: uint256, _data: Bytes[1024]) -> bytes4:
+    """
+    ERC721 receiver function to accept NFT transfers.
+    Returns the correct selector to indicate successful receipt.
+    """
+    # ERC721_RECEIVE_DATA = 0x150b7a02
+    return 0x150b7a02
 
 
 # mock (set price)

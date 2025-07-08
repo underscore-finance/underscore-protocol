@@ -1,0 +1,87 @@
+# @version 0.4.3
+
+# used in smart contracts
+
+
+@view
+@external
+def getLpToken(_pool: address) -> address:
+    ...
+
+
+# helper functions for server
+
+
+@view
+@external
+def getPoolForLpToken(_lpToken: address) -> address:
+    ...
+
+
+@view
+@external
+def getSwapAmountOut(
+    _pool: address,
+    _tokenIn: address,
+    _tokenOut: address,
+    _amountIn: uint256,
+) -> uint256:
+    ...
+
+
+@view
+@external
+def getSwapAmountIn(
+    _pool: address,
+    _tokenIn: address,
+    _tokenOut: address,
+    _amountOut: uint256,
+) -> uint256:
+    ...
+
+
+@view
+@external
+def getAddLiqAmountsIn(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _availAmountA: uint256,
+    _availAmountB: uint256,
+) -> (uint256, uint256, uint256):
+    ...
+
+
+@view
+@external
+def getRemoveLiqAmountsOut(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpAmount: uint256,
+) -> (uint256, uint256):
+    ...
+
+
+@view
+@external
+def getPriceUnsafe(_pool: address, _targetToken: address, _appraiser: address = empty(address)) -> uint256:
+    ...
+
+
+@view
+@external
+def getBestSwapAmountOut(_tokenIn: address, _tokenOut: address, _amountIn: uint256) -> (address, uint256):
+    ...
+
+
+@view
+@external
+def getBestSwapAmountIn(_tokenIn: address, _tokenOut: address, _amountOut: uint256) -> (address, uint256):
+    ...
+
+
+@view
+@external
+def getCoreRouterPool() -> address:
+    ...

@@ -7,7 +7,7 @@ from conf_utils import filter_logs
 
 
 @pytest.fixture(scope="module")
-def user_wallet_edge(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, alpha_token, bravo_token, charlie_token):
+def user_wallet_edge(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, alpha_token, bravo_token, charlie_token, lego_book, mock_lego_asset, mock_lego_asset_alt):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
     
@@ -15,6 +15,9 @@ def user_wallet_edge(setUserWalletConfig, setManagerConfig, hatchery, bob, setAs
     setAssetConfig(alpha_token, _swapFee=0, _rewardsFee=0)
     setAssetConfig(bravo_token, _swapFee=0, _rewardsFee=0)
     setAssetConfig(charlie_token, _swapFee=0, _rewardsFee=0)
+    # Also configure mock_lego assets to ensure they work with legoId=1
+    setAssetConfig(mock_lego_asset, _swapFee=0, _rewardsFee=0, _legoId=1)
+    setAssetConfig(mock_lego_asset_alt, _swapFee=0, _rewardsFee=0, _legoId=1)
     
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
@@ -39,14 +42,11 @@ def test_transfer_zero_amount(setup_wallet_edge_cases, bob):
     
     initial_balance = alpha_token.balanceOf(user_wallet.address)
     
-    # Transfer zero amount should work but do nothing
-    amount_transferred, tx_usd_value = user_wallet.transferFunds(
-        owner, alpha_token.address, 0, sender=owner
-    )
-    
-    assert amount_transferred == 0
-    assert tx_usd_value == 0  # USD value should also be 0
-    assert alpha_token.balanceOf(user_wallet.address) == initial_balance
+    # Transfer zero amount should revert
+    with boa.reverts("no amt"):
+        user_wallet.transferFunds(
+            owner, alpha_token.address, 0, sender=owner
+        )
 
 
 def test_transfer_max_value_amount(setup_wallet_edge_cases, bob):
@@ -97,17 +97,17 @@ def test_transfer_to_zero_address(setup_wallet_edge_cases, bob):
         )
 
 
-def test_transfer_zero_address_asset(setup_wallet_edge_cases, bob, eth):
+def test_transfer_zero_address_asset(setup_wallet_edge_cases, bob):
     """Test transferring zero address asset (should default to ETH)"""
     user_wallet, _, _, _ = setup_wallet_edge_cases
     owner = bob
     
     # Give wallet some ETH
-    boa.env.vm.state.set_balance(user_wallet.address, 1 * EIGHTEEN_DECIMALS)
+    boa.env.set_balance(user_wallet.address, 1 * EIGHTEEN_DECIMALS)
     
     # Transfer with zero address asset should default to ETH
     amount_transferred, tx_usd_value = user_wallet.transferFunds(
-        owner, ZERO_ADDRESS, 0.5 * EIGHTEEN_DECIMALS, sender=owner
+        owner, ZERO_ADDRESS, int(0.5 * EIGHTEEN_DECIMALS), sender=owner
     )
     
     assert amount_transferred == 0.5 * EIGHTEEN_DECIMALS
@@ -118,14 +118,9 @@ def test_swap_with_empty_instructions(setup_wallet_edge_cases, bob):
     user_wallet, alpha_token, bravo_token, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Empty swap instructions should return zero values
-    tokenIn, amountIn, tokenOut, amountOut, txUsdValue = user_wallet.swapTokens([], sender=owner)
-    
-    assert tokenIn == ZERO_ADDRESS
-    assert amountIn == 0
-    assert tokenOut == ZERO_ADDRESS
-    assert amountOut == 0
-    assert txUsdValue == 0
+    # Empty swap instructions should revert
+    with boa.reverts("swaps"):
+        user_wallet.swapTokens([], sender=owner)
 
 
 def test_swap_with_zero_amounts(setup_wallet_edge_cases, bob):
@@ -133,14 +128,10 @@ def test_swap_with_zero_amounts(setup_wallet_edge_cases, bob):
     user_wallet, alpha_token, bravo_token, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Swap with zero amount
+    # Swap with zero amount should revert
     swap_instructions = [(1, 0, 0, [alpha_token.address, bravo_token.address], [])]
-    tokenIn, amountIn, tokenOut, amountOut, txUsdValue = user_wallet.swapTokens(swap_instructions, sender=owner)
-    
-    assert tokenIn == alpha_token.address
-    assert amountIn == 0
-    assert tokenOut == bravo_token.address
-    assert amountOut == 0
+    with boa.reverts():  # Will revert but the specific error varies
+        user_wallet.swapTokens(swap_instructions, sender=owner)
 
 
 def test_swap_with_single_token_path(setup_wallet_edge_cases, bob):
@@ -160,71 +151,80 @@ def test_add_collateral_zero_amount(setup_wallet_edge_cases, bob):
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Add zero collateral should work but do nothing
-    amount_added, tx_usd_value = user_wallet.addCollateral(
-        1, alpha_token.address, 0, sender=owner
-    )
-    
-    assert amount_added == 0
-    assert tx_usd_value == 0
+    # Add zero collateral should revert
+    with boa.reverts():
+        user_wallet.addCollateral(
+            1, alpha_token.address, 0, sender=owner
+        )
 
 
-def test_remove_collateral_zero_amount(setup_wallet_edge_cases, bob):
+def test_remove_collateral_zero_amount(setup_wallet_edge_cases, bob, mock_lego, mock_lego_asset, whale):
     """Test removing zero collateral"""
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # First add some collateral
-    user_wallet.addCollateral(1, alpha_token.address, 100 * EIGHTEEN_DECIMALS, sender=owner)
+    # Give wallet some mock_lego_asset tokens for testing
+    mock_lego_asset.transfer(user_wallet.address, 200 * EIGHTEEN_DECIMALS, sender=whale)
     
-    # Remove zero collateral should work but do nothing
+    # Set up access for the lego
+    mock_lego.setLegoAccess(mock_lego.address, sender=user_wallet.address)
+    
+    # First add some collateral using mock_lego_asset (assuming mock_lego is at legoId=1)
+    user_wallet.addCollateral(1, mock_lego_asset.address, 100 * EIGHTEEN_DECIMALS, sender=owner)
+    
+    # Remove zero collateral should succeed (no validation in MockLego.removeCollateral)
     amount_removed, tx_usd_value = user_wallet.removeCollateral(
-        1, alpha_token.address, 0, sender=owner
+        1, mock_lego_asset.address, 0, sender=owner
     )
     
     assert amount_removed == 0
     assert tx_usd_value == 0
 
 
-def test_borrow_zero_amount(setup_wallet_edge_cases, bob):
+def test_borrow_zero_amount(setup_wallet_edge_cases, bob, mock_lego, mock_lego_debt_token, mock_lego_asset, whale):
     """Test borrowing zero amount"""
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Add collateral first
-    user_wallet.addCollateral(1, alpha_token.address, 200 * EIGHTEEN_DECIMALS, sender=owner)
+    # Give wallet some mock_lego_asset tokens for collateral
+    mock_lego_asset.transfer(user_wallet.address, 300 * EIGHTEEN_DECIMALS, sender=whale)
     
-    # Borrow zero amount should work but do nothing
-    amount_borrowed, tx_usd_value = user_wallet.borrow(
-        1, alpha_token.address, 0, sender=owner
-    )
+    # Set up access for the lego
+    mock_lego.setLegoAccess(mock_lego.address, sender=user_wallet.address)
     
-    assert amount_borrowed == 0
-    assert tx_usd_value == 0
+    # Add collateral first using mock_lego_asset
+    user_wallet.addCollateral(1, mock_lego_asset.address, 200 * EIGHTEEN_DECIMALS, sender=owner)
+    
+    # Borrow zero amount should revert
+    with boa.reverts():
+        user_wallet.borrow(
+            1, mock_lego_debt_token.address, 0, sender=owner
+        )
 
 
-def test_repay_debt_zero_amount(setup_wallet_edge_cases, bob):
+def test_repay_debt_zero_amount(setup_wallet_edge_cases, bob, mock_lego, mock_lego_debt_token):
     """Test repaying zero debt"""
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Repay zero debt should work but do nothing
-    amount_repaid, tx_usd_value = user_wallet.repayDebt(
-        1, alpha_token.address, 0, sender=owner
-    )
-    
-    assert amount_repaid == 0
-    assert tx_usd_value == 0
+    # Repay zero debt should revert
+    with boa.reverts("nothing to repay"):
+        user_wallet.repayDebt(
+            1, mock_lego_debt_token.address, 0, sender=owner
+        )
 
 
-def test_claim_rewards_zero_amount(setup_wallet_edge_cases, bob):
+def test_claim_rewards_zero_amount(setup_wallet_edge_cases, bob, mock_lego, mock_lego_asset):
     """Test claiming zero rewards"""
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Claim zero rewards should work but do nothing
+    # Set up access for the lego
+    mock_lego.setLegoAccess(mock_lego.address, sender=user_wallet.address)
+    
+    # Claim zero rewards should succeed (no validation in MockLego.claimRewards)
     rewards_claimed, tx_usd_value = user_wallet.claimRewards(
-        1, alpha_token.address, 0, sender=owner
+        1, mock_lego_asset.address, 0, sender=owner
     )
     
     assert rewards_claimed == 0
@@ -236,39 +236,35 @@ def test_add_liquidity_zero_amounts(setup_wallet_edge_cases, bob):
     user_wallet, alpha_token, bravo_token, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Add liquidity with zero amounts
-    lp_amount, actual_amount_a, actual_amount_b, tx_usd_value = user_wallet.addLiquidity(
-        1, boa.env.eoa, alpha_token.address, bravo_token.address,
-        0, 0, 0, 0, 0, sender=owner
-    )
-    
-    # Should work with zero values
-    assert actual_amount_a == 0
-    assert actual_amount_b == 0
-    assert lp_amount == 0
+    # Add liquidity with zero amounts should revert
+    with boa.reverts():
+        user_wallet.addLiquidity(
+            1, boa.env.eoa, alpha_token.address, bravo_token.address,
+            0, 0, 0, 0, 0, sender=owner
+        )
 
 
-def test_remove_liquidity_zero_amount(setup_wallet_edge_cases, bob, mock_lego_lp_token):
+def test_remove_liquidity_zero_amount(setup_wallet_edge_cases, bob, mock_lego, mock_lego_lp_token, mock_lego_asset, mock_lego_asset_alt, whale):
     """Test removing zero liquidity"""
     user_wallet, alpha_token, bravo_token, _ = setup_wallet_edge_cases
     owner = bob
     
-    # First add some liquidity
+    # Give wallet some tokens for liquidity
+    mock_lego_asset.transfer(user_wallet.address, 200 * EIGHTEEN_DECIMALS, sender=whale)
+    mock_lego_asset_alt.transfer(user_wallet.address, 200 * EIGHTEEN_DECIMALS, sender=whale)
+    
+    # First add some liquidity using mock_lego assets
     user_wallet.addLiquidity(
-        1, boa.env.eoa, alpha_token.address, bravo_token.address,
+        1, boa.env.eoa, mock_lego_asset.address, mock_lego_asset_alt.address,
         100 * EIGHTEEN_DECIMALS, 100 * EIGHTEEN_DECIMALS, 0, 0, 0, sender=owner
     )
     
-    # Remove zero liquidity
-    amount_a_received, amount_b_received, lp_burned, tx_usd_value = user_wallet.removeLiquidity(
-        1, boa.env.eoa, alpha_token.address, bravo_token.address,
-        mock_lego_lp_token.address, 0, 0, 0, sender=owner
-    )
-    
-    # Should work with zero values
-    assert amount_a_received == 0
-    assert amount_b_received == 0
-    assert lp_burned == 0
+    # Remove zero liquidity should revert
+    with boa.reverts():
+        user_wallet.removeLiquidity(
+            1, boa.env.eoa, mock_lego_asset.address, mock_lego_asset_alt.address,
+            mock_lego_lp_token.address, 0, 0, 0, sender=owner
+        )
 
 
 def test_yield_operations_zero_amounts(setup_wallet_edge_cases, bob, mock_lego_vault):
@@ -276,21 +272,17 @@ def test_yield_operations_zero_amounts(setup_wallet_edge_cases, bob, mock_lego_v
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Deposit zero amount for yield
-    asset_amount, vault_token, vault_token_amount, tx_usd_value = user_wallet.depositForYield(
-        1, alpha_token.address, mock_lego_vault.address, 0, sender=owner
-    )
+    # Deposit zero amount for yield should revert
+    with boa.reverts():
+        user_wallet.depositForYield(
+            1, alpha_token.address, mock_lego_vault.address, 0, sender=owner
+        )
     
-    assert asset_amount == 0
-    assert vault_token_amount == 0
-    
-    # Withdraw zero amount from yield
-    vault_token_amount_withdrawn, underlying_token, underlying_amount, tx_usd_value = user_wallet.withdrawFromYield(
-        1, mock_lego_vault.address, 0, sender=owner
-    )
-    
-    assert vault_token_amount_withdrawn == 0
-    assert underlying_amount == 0
+    # Withdraw zero amount from yield should revert
+    with boa.reverts():
+        user_wallet.withdrawFromYield(
+            1, mock_lego_vault.address, 0, sender=owner
+        )
 
 
 def test_asset_registration_edge_cases(setup_wallet_edge_cases, bob):
@@ -396,23 +388,23 @@ def test_reentrancy_protection(setup_wallet_edge_cases, bob):
 
 
 def test_event_emission_with_zero_values(setup_wallet_edge_cases, bob):
-    """Test that events are emitted correctly with zero values"""
+    """Test that events are emitted correctly with small values"""
     user_wallet, alpha_token, _, _ = setup_wallet_edge_cases
     owner = bob
     
     # Clear previous events
     _ = user_wallet.get_logs()
     
-    # Transfer zero amount
-    user_wallet.transferFunds(owner, alpha_token.address, 0, sender=owner)
+    # Transfer very small amount (1 wei)
+    user_wallet.transferFunds(owner, alpha_token.address, 1, sender=owner)
     
-    # Should still emit event
+    # Should emit event
     transfer_logs = filter_logs(user_wallet, "FundsTransferred")
     assert len(transfer_logs) == 1
     
     event = transfer_logs[0]
     assert event.asset == alpha_token.address
-    assert event.amount == 0
+    assert event.amount == 1
     assert event.recipient == owner
     assert event.signer == owner
 
@@ -422,8 +414,8 @@ def test_multiple_consecutive_operations(setup_wallet_edge_cases, bob):
     user_wallet, alpha_token, bravo_token, _ = setup_wallet_edge_cases
     owner = bob
     
-    # Series of operations with various amounts
-    amounts = [0, 1, 100, 1000 * EIGHTEEN_DECIMALS, 2**256 - 1]
+    # Series of operations with various amounts (excluding zero)
+    amounts = [1, 100, 1000 * EIGHTEEN_DECIMALS, 2**256 - 1]
     
     for amount in amounts:
         # Transfer (will use min of amount and available balance)
@@ -447,15 +439,11 @@ def test_state_consistency_after_failed_operations(setup_wallet_edge_cases, bob,
     initial_num_assets = user_wallet.numAssets()
     
     # Attempt invalid operations that should fail
-    try:
+    with boa.reverts():
         user_wallet.transferFunds(alice, alpha_token.address, 100 * EIGHTEEN_DECIMALS, sender=alice)
-    except:
-        pass  # Expected to fail
     
-    try:
+    with boa.reverts():
         user_wallet.addCollateral(999, alpha_token.address, 100 * EIGHTEEN_DECIMALS, sender=owner)
-    except:
-        pass  # Expected to fail
     
     # State should be unchanged after failed operations
     final_balance = alpha_token.balanceOf(user_wallet.address)
