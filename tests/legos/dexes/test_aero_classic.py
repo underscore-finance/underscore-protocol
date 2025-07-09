@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import TOKENS, TEST_AMOUNTS, INTEGRATION_ADDYS
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, MAX_UINT256
+from constants import EIGHTEEN_DECIMALS
 
 
 POOLS = {
@@ -82,7 +82,7 @@ def test_aerodrome_classic_swap_max_with_pool(
     toToken = getToToken(token_str)
 
     pool = getPool(token_str)
-    testLegoSwap(lego_book.getRegId(lego_aero_classic), fromAsset, toToken, pool)
+    testLegoSwap(lego_aero_classic, fromAsset, toToken, pool)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
@@ -104,7 +104,7 @@ def test_aerodrome_classic_swap_partial_with_pool(
     toToken = getToToken(token_str)
 
     pool = getPool(token_str)
-    testLegoSwap(lego_book.getRegId(lego_aero_classic), fromAsset, toToken, pool, testAmount // 2)
+    testLegoSwap(lego_aero_classic, fromAsset, toToken, pool, testAmount // 2)
 
 
 @pytest.always

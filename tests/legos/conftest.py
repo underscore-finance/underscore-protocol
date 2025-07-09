@@ -132,23 +132,25 @@ def testLegoWithdrawal(bob_user_wallet, bob, lego_book, _test):
 @pytest.fixture(scope="package")
 def testLegoSwap(bob_user_wallet, bob, lego_book, _test):
     def testLegoSwap(
-        _legoId,
+        _lego,
         _tokenIn,
         _tokenOut,
         _pool,
         _amountIn = MAX_UINT256,
         _minAmountOut = 0,
     ):
+        lego_id = lego_book.getRegId(_lego)
+
         # pre balances
         pre_user_from_bal = _tokenIn.balanceOf(bob_user_wallet)
         pre_user_to_bal = _tokenOut.balanceOf(bob_user_wallet)
 
-        lego_addr = lego_book.getAddr(_legoId)
+        lego_addr = lego_book.getAddr(lego_id)
         pre_lego_from_bal = _tokenIn.balanceOf(lego_addr)
         pre_lego_to_bal = _tokenOut.balanceOf(lego_addr)
 
         instruction = (
-            _legoId,
+            lego_id,
             _amountIn,
             _minAmountOut,
             [_tokenIn, _tokenOut],
