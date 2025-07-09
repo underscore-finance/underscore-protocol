@@ -1,6 +1,7 @@
 # @version 0.4.3
 
 implements: Lego
+implements: YieldLego
 
 exports: addys.__interface__
 exports: yld.__interface__
@@ -10,6 +11,7 @@ initializes: yld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
+from interfaces import YieldLego as YieldLego
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
@@ -20,6 +22,7 @@ from ethereum.ercs import IERC4626
 
 interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
+    def getUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -51,7 +54,7 @@ def getRegistries() -> DynArray[address, 10]:
 @view
 @external
 def isYieldLego() -> bool:
-    return False
+    return True
 
 
 @view
@@ -100,7 +103,7 @@ def depositForYield(
 
     # register lego asset
     if not yld._isAssetOpportunity(_asset, _vaultAddr):
-        yld._addAssetOpportunity(_asset, _vaultAddr)
+        self._registerAsset(_asset, _vaultAddr)
 
     # usd value
     usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(_asset, depositAmount)
@@ -143,11 +146,162 @@ def withdrawFromYield(
     # register lego asset
     asset: address = staticcall IERC4626(_vaultToken).asset()
     if not yld._isAssetOpportunity(asset, _vaultToken):
-        yld._addAssetOpportunity(asset, _vaultToken)
+        self._registerAsset(asset, _vaultToken)
 
     # usd value
     usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(asset, assetAmountReceived)
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
+
+
+#############
+# Utilities #
+#############
+
+
+# underlying asset
+
+
+@view
+@external
+def isVaultToken(_vaultToken: address) -> bool:
+    return self._isVaultToken(_vaultToken)
+
+
+@view
+@internal
+def _isVaultToken(_vaultToken: address) -> bool:
+    return yld.vaultToAsset[_vaultToken] != empty(address)
+
+
+@view
+@external
+def getUnderlyingAsset(_vaultToken: address) -> address:
+    return self._getUnderlyingAsset(_vaultToken)
+
+
+@view
+@internal
+def _getUnderlyingAsset(_vaultToken: address) -> address:
+    return yld.vaultToAsset[_vaultToken]
+
+
+# underlying amount
+
+
+@view
+@external
+def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    if not self._isVaultToken(_vaultToken) or _vaultTokenAmount == 0:
+        return 0 # invalid vault token or amount
+    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+
+
+@view
+@internal
+def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+
+
+@view
+@external
+def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    if empty(address) in [_asset, _vaultToken] or _assetAmount == 0:
+        return 0 # bad inputs
+    if self._getUnderlyingAsset(_vaultToken) != _asset:
+        return 0 # invalid vault token or asset
+    return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
+
+
+# usd value
+
+
+@view
+@external
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
+    asset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    usdValue: uint256 = 0
+    asset, underlyingAmount, usdValue = self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+    return usdValue
+
+
+# all underlying data together
+
+
+@view
+@external
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
+    if _vaultTokenAmount == 0 or _vaultToken == empty(address):
+        return empty(address), 0, 0 # bad inputs
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return empty(address), 0, 0 # invalid vault token
+    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    return asset, underlyingAmount, usdValue
+
+
+@view
+@internal
+def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+
+
+# other
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    if not self._isVaultToken(_vaultToken):
+        return 0 # invalid vault token
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return 0
+
+
+################
+# Registration #
+################
+
+
+@external
+def addAssetOpportunity(_asset: address, _vaultAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    self._registerAsset(_asset, _vaultAddr)
+
+
+@internal
+def _registerAsset(_asset: address, _vaultAddr: address):
+    assert extcall IERC20(_asset).approve(_vaultAddr, max_value(uint256), default_return_value=True) # dev: max approval failed
+    yld._addAssetOpportunity(_asset, _vaultAddr)
+
+
+@external
+def removeAssetOpportunity(_asset: address, _vaultAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert extcall IERC20(_asset).approve(_vaultAddr, 0, default_return_value=True) # dev: max approval failed
+    yld._removeAssetOpportunity(_asset, _vaultAddr)
 
 
 #########
