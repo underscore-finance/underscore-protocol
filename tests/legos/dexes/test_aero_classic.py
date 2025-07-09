@@ -1,8 +1,8 @@
 import pytest
 import boa
 
-from config.BluePrint import TOKENS, TEST_AMOUNTS
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
+from config.BluePrint import TOKENS, TEST_AMOUNTS, INTEGRATION_ADDYS
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, MAX_UINT256
 
 
 POOLS = {
@@ -11,6 +11,9 @@ POOLS = {
         "WETH": "0xDE4FB30cCC2f1210FcE2c8aD66410C586C8D1f9A", # msETH/weth (sAMM)
         "AERO": "0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d", # USDC/aero (vAMM)
         "CBBTC": "0xb909F567c5c2Bb1A4271349708CC4637D7318b4A", # VIRTUAL/cbbtc (vAMM)
+        "DOLA": "0xf213F2D02837012dC0236cC105061e121bB03e37", # USDC/dola
+        "BOLD": "0x2De3fE21d32319a1550264dA37846737885Ad7A1", # USDC/bold
+        "WETH_USDC": "0xcDAC0d6c6C59727a65F871236188350531885C43", # weth/usdc
     },
 }
 
@@ -155,6 +158,7 @@ def test_aerodrome_classic_add_liquidity_more_token_A_volatile(
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
+    fork,
 ):
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
@@ -165,7 +169,7 @@ def test_aerodrome_classic_add_liquidity_more_token_A_volatile(
     amountB = 1_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
-    pool = boa.from_etherscan("0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d")
+    pool = boa.from_etherscan(POOLS[fork]["AERO"])
     testLegoLiquidityAddedBasic(lego_aero_classic, pool, tokenA, tokenB, amountA, amountB)
 
 
@@ -175,6 +179,7 @@ def test_aerodrome_classic_add_liquidity_more_token_B_volatile(
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
+    fork,
 ):
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
@@ -185,8 +190,9 @@ def test_aerodrome_classic_add_liquidity_more_token_B_volatile(
     amountB = 10_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
-    pool = boa.from_etherscan("0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d")
+    pool = boa.from_etherscan(POOLS[fork]["AERO"])
     testLegoLiquidityAddedBasic(lego_aero_classic, pool, tokenA, tokenB, amountA, amountB)
+
 
 
 @pytest.always
@@ -195,6 +201,7 @@ def test_aerodrome_classic_add_liquidity_more_token_A_stable(
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
+    fork,
 ):
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
@@ -205,7 +212,7 @@ def test_aerodrome_classic_add_liquidity_more_token_A_stable(
     amountB = 1_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
-    pool = boa.from_etherscan("0xf213F2D02837012dC0236cC105061e121bB03e37")
+    pool = boa.from_etherscan(POOLS[fork]["DOLA"])
     testLegoLiquidityAddedBasic(lego_aero_classic, pool, tokenA, tokenB, amountA, amountB)
 
 
@@ -215,6 +222,7 @@ def test_aerodrome_classic_add_liquidity_more_token_B_stable(
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
+    fork,
 ):
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
@@ -225,7 +233,7 @@ def test_aerodrome_classic_add_liquidity_more_token_B_stable(
     amountB = 10_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
-    pool = boa.from_etherscan("0xf213F2D02837012dC0236cC105061e121bB03e37")
+    pool = boa.from_etherscan(POOLS[fork]["DOLA"])
     testLegoLiquidityAddedBasic(lego_aero_classic, pool, tokenA, tokenB, amountA, amountB)
 
 
@@ -234,114 +242,118 @@ def test_aerodrome_classic_add_liquidity_more_token_B_stable(
 
 @pytest.always
 def test_aerodrome_classic_remove_liq_max_volatile(
-    testLegoLiquidityRemoved,
+    testLegoLiquidityRemovedBasic,
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
-    bob_agent,
+    bob,
     lego_book,
+    fork,
 ):
     legoId = lego_book.getRegId(lego_aero_classic)
-    pool = boa.from_etherscan("0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d")
+    pool = boa.from_etherscan(POOLS[fork]["AERO"])
 
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
     amountA = 10_000 * (10 ** tokenA.decimals())
     tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
 
-    tokenB, whaleB = getTokenAndWhale("aero")
+    tokenB, whaleB = getTokenAndWhale("AERO")
     amountB = 11_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue, _ = bob_user_wallet.addLiquidity(legoId, ZERO_ADDRESS, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob_agent)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
 
     # test remove liquidity
-    testLegoLiquidityRemoved(lego_aero_classic, ZERO_ADDRESS, 0, pool, tokenA, tokenB)
+    testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB)
 
 
 @pytest.always
 def test_aerodrome_classic_remove_liq_partial_volatile(
-    testLegoLiquidityRemoved,
+    testLegoLiquidityRemovedBasic,
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
-    bob_agent,
+    bob,
     lego_book,
+    fork,
 ):
     legoId = lego_book.getRegId(lego_aero_classic)
-    pool = boa.from_etherscan("0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d")
+    pool = boa.from_etherscan(POOLS[fork]["AERO"])
 
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
     amountA = 10_000 * (10 ** tokenA.decimals())
     tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
 
-    tokenB, whaleB = getTokenAndWhale("aero")
+    tokenB, whaleB = getTokenAndWhale("AERO")
     amountB = 11_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue, _ = bob_user_wallet.addLiquidity(legoId, ZERO_ADDRESS, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob_agent)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
 
     # test remove liquidity
-    testLegoLiquidityRemoved(lego_aero_classic, ZERO_ADDRESS, 0, pool, tokenA, tokenB, lpAmountReceived // 2)
+    testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB, lpAmountReceived // 2)
 
 
 @pytest.always
 def test_aerodrome_classic_remove_liq_max_stable(
-    testLegoLiquidityRemoved,
+    testLegoLiquidityRemovedBasic,
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
-    bob_agent,
+    bob,
     lego_book,
+    fork,
 ):
     legoId = lego_book.getRegId(lego_aero_classic)
-    pool = boa.from_etherscan("0xf213F2D02837012dC0236cC105061e121bB03e37")
+    pool = boa.from_etherscan(POOLS[fork]["DOLA"])
 
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
-    amountA = 10_000 * (10 ** tokenA.decimals())
+    amountA = 1_000 * (10 ** tokenA.decimals())
     tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
 
-    tokenB, whaleB = getTokenAndWhale("dola")
-    amountB = 10_000 * (10 ** tokenB.decimals())
+    tokenB, whaleB = getTokenAndWhale("DOLA")
+    amountB = 1_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue, _ = bob_user_wallet.addLiquidity(legoId, ZERO_ADDRESS, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob_agent)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
 
     # test remove liquidity
-    testLegoLiquidityRemoved(lego_aero_classic, ZERO_ADDRESS, 0, pool, tokenA, tokenB)
+    testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB)
 
 
 @pytest.always
 def test_aerodrome_classic_remove_liq_partial_stable(
-    testLegoLiquidityRemoved,
+    testLegoLiquidityRemovedBasic,
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
-    bob_agent,
+    bob,
     lego_book,
+    fork,
 ):
     legoId = lego_book.getRegId(lego_aero_classic)
-    pool = boa.from_etherscan("0xf213F2D02837012dC0236cC105061e121bB03e37")
+    pool = boa.from_etherscan(POOLS[fork]["DOLA"])
 
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
     amountA = 10_000 * (10 ** tokenA.decimals())
     tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
 
-    tokenB, whaleB = getTokenAndWhale("dola")
+    tokenB, whaleB = getTokenAndWhale("DOLA")
     amountB = 10_000 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue, _ = bob_user_wallet.addLiquidity(legoId, ZERO_ADDRESS, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob_agent)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
 
     # test remove liquidity
-    testLegoLiquidityRemoved(lego_aero_classic, ZERO_ADDRESS, 0, pool, tokenA, tokenB, lpAmountReceived // 2)
+    testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB, lpAmountReceived // 2)
 
 
 # helper / utils
@@ -351,20 +363,21 @@ def test_aerodrome_classic_remove_liq_partial_stable(
 def test_aerodrome_classic_get_best_pool(
     getTokenAndWhale,
     lego_aero_classic,
+    fork,
 ):
     tokenA, _ = getTokenAndWhale("USDC")
-    tokenB, _ = getTokenAndWhale("weth")
+    tokenB, _ = getTokenAndWhale("WETH")
 
     best_pool = lego_aero_classic.getDeepestLiqPool(tokenA, tokenB)
-    assert best_pool.pool == "0xcDAC0d6c6C59727a65F871236188350531885C43"
+    assert best_pool.pool == POOLS[fork]["WETH_USDC"]
     assert best_pool.fee == 30
     assert best_pool.liquidity != 0
     assert best_pool.numCoins == 2
 
     # aero
-    tokenB, _ = getTokenAndWhale("aero")
+    tokenB, _ = getTokenAndWhale("AERO")
     best_pool = lego_aero_classic.getDeepestLiqPool(tokenA, tokenB)
-    assert best_pool.pool == "0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d"
+    assert best_pool.pool == POOLS[fork]["AERO"]
     assert best_pool.fee == 30
     assert best_pool.liquidity != 0
     assert best_pool.numCoins == 2
@@ -375,14 +388,15 @@ def test_aerodrome_classic_get_swap_amount_out(
     getTokenAndWhale,
     lego_aero_classic,
     _test,
+    fork,
 ):
     tokenA, _ = getTokenAndWhale("USDC")
-    tokenB, _ = getTokenAndWhale("weth")
-    amount_out = lego_aero_classic.getSwapAmountOut("0xcDAC0d6c6C59727a65F871236188350531885C43", tokenA, tokenB, 2_500 * (10 ** tokenA.decimals()))
+    tokenB, _ = getTokenAndWhale("WETH")
+    amount_out = lego_aero_classic.getSwapAmountOut(POOLS[fork]["WETH_USDC"], tokenA, tokenB, 2_600 * (10 ** tokenA.decimals()))
     _test(1 * (10 ** tokenB.decimals()), amount_out, 100)
 
-    amount_out = lego_aero_classic.getSwapAmountOut("0xcDAC0d6c6C59727a65F871236188350531885C43", tokenB, tokenA, 1 * (10 ** tokenB.decimals()))
-    _test(2_500 * (10 ** tokenA.decimals()), amount_out, 100)
+    amount_out = lego_aero_classic.getSwapAmountOut(POOLS[fork]["WETH_USDC"], tokenB, tokenA, 1 * (10 ** tokenB.decimals()))
+    _test(2_600 * (10 ** tokenA.decimals()), amount_out, 100)
 
 
 @pytest.always
@@ -390,14 +404,15 @@ def test_aerodrome_classic_get_swap_amount_in(
     getTokenAndWhale,
     lego_aero_classic,
     _test,
+    fork,
 ):
     tokenA, _ = getTokenAndWhale("USDC")
-    tokenB, _ = getTokenAndWhale("weth")
-    amount_in = lego_aero_classic.getSwapAmountIn("0xcDAC0d6c6C59727a65F871236188350531885C43", tokenB, tokenA, 2_500 * (10 ** tokenA.decimals()))
+    tokenB, _ = getTokenAndWhale("WETH")
+    amount_in = lego_aero_classic.getSwapAmountIn(POOLS[fork]["WETH_USDC"], tokenB, tokenA, 2_600 * (10 ** tokenA.decimals()))
     _test(1 * (10 ** tokenB.decimals()), amount_in, 100)
 
-    amount_in = lego_aero_classic.getSwapAmountIn("0xcDAC0d6c6C59727a65F871236188350531885C43", tokenA, tokenB, 1 * (10 ** tokenB.decimals()))
-    _test(2_500 * (10 ** tokenA.decimals()), amount_in, 100)
+    amount_in = lego_aero_classic.getSwapAmountIn(POOLS[fork]["WETH_USDC"], tokenA, tokenB, 1 * (10 ** tokenB.decimals()))
+    _test(2_600 * (10 ** tokenA.decimals()), amount_in, 100)
 
 
 @pytest.always
@@ -405,16 +420,17 @@ def test_aerodrome_classic_get_add_liq_amounts_in(
     getTokenAndWhale,
     lego_aero_classic,
     _test,
+    fork,
 ):
-    pool = boa.from_etherscan("0xcDAC0d6c6C59727a65F871236188350531885C43")
+    pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
     tokenA, whaleA = getTokenAndWhale("USDC")
     amountA = 10_000 * (10 ** tokenA.decimals())
-    tokenB, whaleB = getTokenAndWhale("weth")
+    tokenB, whaleB = getTokenAndWhale("WETH")
     amountB = 3 * (10 ** tokenB.decimals())
 
     # reduce amount a
     liq_amount_a, liq_amount_b, _ = lego_aero_classic.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA, amountB)
-    _test(liq_amount_a, 7_500 * (10 ** tokenA.decimals()), 1_00)
+    _test(liq_amount_a, 7_800 * (10 ** tokenA.decimals()), 1_00)
     _test(liq_amount_b, 3 * (10 ** tokenB.decimals()), 1_00)
 
     # set new amount b
@@ -423,7 +439,7 @@ def test_aerodrome_classic_get_add_liq_amounts_in(
     # reduce amount b
     liq_amount_a, liq_amount_b, _ = lego_aero_classic.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA, amountB)
     _test(liq_amount_a, 10_000 * (10 ** tokenA.decimals()), 1_00)
-    _test(liq_amount_b, 4 * (10 ** tokenB.decimals()), 1_00)
+    _test(liq_amount_b, int(3.84 * (10 ** tokenB.decimals())), 1_00)
 
 
 @pytest.always
@@ -431,35 +447,36 @@ def test_aerodrome_classic_get_remove_liq_amounts_out(
     getTokenAndWhale,
     bob_user_wallet,
     lego_aero_classic,
-    bob_agent,
+    bob,
     _test,
     lego_book,
+    fork,
 ):
     legoId = lego_book.getRegId(lego_aero_classic)
-    pool = boa.from_etherscan("0xcDAC0d6c6C59727a65F871236188350531885C43")
+    pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
 
     # setup
     tokenA, whaleA = getTokenAndWhale("USDC")
-    amountA = 7_500 * (10 ** tokenA.decimals())
+    amountA = 7_800 * (10 ** tokenA.decimals())
     tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
 
-    tokenB, whaleB = getTokenAndWhale("weth")
+    tokenB, whaleB = getTokenAndWhale("WETH")
     amountB = 3 * (10 ** tokenB.decimals())
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    liquidityAdded, liqAmountA, liqAmountB, usdValue, nftTokenId = bob_user_wallet.addLiquidity(legoId, ZERO_ADDRESS, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob_agent)
+    liquidityAdded, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
     assert liquidityAdded != 0
 
     # test
     amountAOut, amountBOut = lego_aero_classic.getRemoveLiqAmountsOut(pool, tokenA, tokenB, liquidityAdded)
-    _test(amountAOut, 7_500 * (10 ** tokenA.decimals()), 1_00)
+    _test(amountAOut, 7_800 * (10 ** tokenA.decimals()), 1_00)
     _test(amountBOut, 3 * (10 ** tokenB.decimals()), 1_00)
 
     # re-arrange amounts
     first_amount, second_amount = lego_aero_classic.getRemoveLiqAmountsOut(pool, tokenB, tokenA, liquidityAdded)
     _test(first_amount, 3 * (10 ** tokenB.decimals()), 1_00)
-    _test(second_amount, 7_500 * (10 ** tokenA.decimals()), 1_00)
+    _test(second_amount, 7_800 * (10 ** tokenA.decimals()), 1_00)
 
 
 @pytest.always
@@ -468,13 +485,14 @@ def test_aerodrome_classic_get_price(
     lego_aero_classic,
     appraiser,
     _test,
+    fork,
 ):
-    pool = boa.from_etherscan("0xcDAC0d6c6C59727a65F871236188350531885C43")
+    pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
 
     tokenA, _ = getTokenAndWhale("USDC")
     assert appraiser.getNormalAssetPrice(tokenA) != 0
 
-    tokenB, _ = getTokenAndWhale("weth")
+    tokenB, _ = getTokenAndWhale("WETH")
     exp_weth_price = appraiser.getNormalAssetPrice(tokenB)
     assert exp_weth_price != 0
 
