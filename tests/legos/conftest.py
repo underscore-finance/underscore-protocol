@@ -273,6 +273,17 @@ def testLegoLiquidityAddedBasic(bob_user_wallet, bob, _test, lego_book):
 
 
 @pytest.fixture(scope="package")
+def setupRemoveLiq(bob_user_wallet, bob, lego_book):
+    def setupRemoveLiq(_lego, _pool, _tokenA, _tokenB, _amountA, _amountB):
+        lego_id = lego_book.getRegId(_lego)
+        lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, sender=bob)
+
+        return lpAmountReceived, liqAmountA, liqAmountB, usdValue
+
+    yield setupRemoveLiq
+
+
+@pytest.fixture(scope="package")
 def testLegoLiquidityRemovedBasic(bob_user_wallet, bob, _test, lego_book):
     def testLegoLiquidityRemovedBasic(
         _lego,
@@ -289,13 +300,13 @@ def testLegoLiquidityRemovedBasic(bob_user_wallet, bob, _test, lego_book):
             lp_token = boa.from_etherscan(lp_token_addr)
 
         tokenAddrB = ZERO_ADDRESS
-        if _tokenB.address != ZERO_ADDRESS:
+        if _tokenB != ZERO_ADDRESS:
             tokenAddrB = _tokenB.address
 
         # pre balances
         pre_user_bal_a = _tokenA.balanceOf(bob_user_wallet)
         pre_user_bal_b = 0
-        if _tokenB.address != ZERO_ADDRESS:
+        if _tokenB != ZERO_ADDRESS:
             pre_user_bal_b = _tokenB.balanceOf(bob_user_wallet)
 
         # lp tokens
@@ -303,7 +314,7 @@ def testLegoLiquidityRemovedBasic(bob_user_wallet, bob, _test, lego_book):
 
         pre_lego_bal_a = _tokenA.balanceOf(_lego.address)
         pre_lego_bal_b = 0
-        if _tokenB.address != ZERO_ADDRESS:
+        if _tokenB != ZERO_ADDRESS:
             pre_lego_bal_b = _tokenB.balanceOf(_lego.address)
 
         # remove liquidity
