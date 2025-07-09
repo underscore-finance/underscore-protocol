@@ -102,6 +102,17 @@ def getPrice(_asset: address) -> uint256:
 
 @view
 @external
+def legoId() -> uint256:
+    ...
+
+
+@external
+def setLegoId(_legoId: uint256):
+    ...
+
+
+@view
+@external
 def isPaused() -> bool:
     ...
 

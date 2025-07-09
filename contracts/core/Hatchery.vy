@@ -25,6 +25,7 @@ interface UserWalletConfig:
 
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
     def createAgent(_agent: address): nonpayable
     def numUserWallets() -> uint256: view
@@ -37,9 +38,9 @@ interface UserWallet:
     def numAssets() -> uint256: view
 
 interface MissionControl:
-    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
 interface Appraiser:
     def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256) -> uint256: view
@@ -52,6 +53,12 @@ struct WalletAssetData:
     usdValue: uint256
     isYieldAsset: bool
     lastYieldPrice: uint256
+
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -239,7 +246,7 @@ def clawBackTrialFunds(_user: address) -> uint256:
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     assert addys._isSwitchboardAddr(msg.sender) or staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
-    return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
+    return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
 
 
 @internal
@@ -249,6 +256,7 @@ def _clawBackTrialFunds(
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
+    _ledger: address,
 ) -> uint256:
     trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
     trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
@@ -279,7 +287,7 @@ def _clawBackTrialFunds(
                 continue
 
             # get underlying details
-            config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook)
+            config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook, _ledger)
             if config.underlyingAsset != trialFundsAsset:
                 continue
 
@@ -312,7 +320,7 @@ def _clawBackTrialFunds(
 def doesWalletStillHaveTrialFunds(_user: address) -> bool:
     a: addys.Addys = addys._getAddys()
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    return self._doesWalletStillHaveTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser)
+    return self._doesWalletStillHaveTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
 
 
 @view
@@ -323,8 +331,9 @@ def doesWalletStillHaveTrialFundsWithAddys(
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
+    _ledger: address,
 ) -> bool:
-    return self._doesWalletStillHaveTrialFunds(_user, _walletConfig, _missionControl, _legoBook, _appraiser)
+    return self._doesWalletStillHaveTrialFunds(_user, _walletConfig, _missionControl, _legoBook, _appraiser, _ledger)
 
 
 @view
@@ -335,6 +344,7 @@ def _doesWalletStillHaveTrialFunds(
     _missionControl: address,
     _legoBook: address,
     _appraiser: address,
+    _ledger: address,
 ) -> bool:
     trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
     trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
@@ -362,7 +372,7 @@ def _doesWalletStillHaveTrialFunds(
             continue
 
         # get underlying details
-        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook)
+        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook, _ledger)
         if config.underlyingAsset != trialFundsAsset:
             continue
 
@@ -389,13 +399,27 @@ def _doesWalletStillHaveTrialFunds(
 @external
 def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
     a: addys.Addys = addys._getAddys()
-    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook)
+    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
 
 
 @view
 @internal
-def _getAssetUsdValueConfig(_asset: address, _missionControl: address, _legoBook: address) -> AssetUsdValueConfig:
+def _getAssetUsdValueConfig(
+    _asset: address,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> AssetUsdValueConfig:
     config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.legoId = vaultToken.legoId
+            config.decimals = vaultToken.decimals
+            config.isYieldAsset = True
+            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):

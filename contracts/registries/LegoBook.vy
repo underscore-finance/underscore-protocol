@@ -17,6 +17,7 @@ import contracts.modules.AddressRegistry as registry
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 
+from interfaces import LegoPartner as Lego
 from interfaces import Department
 
 event LegoBackpack:
@@ -60,7 +61,10 @@ def startAddNewAddressToRegistry(_addr: address, _description: String[64]) -> bo
 @external
 def confirmNewAddressToRegistry(_addr: address) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    return registry._confirmNewAddressToRegistry(_addr)
+    legoId: uint256 = registry._confirmNewAddressToRegistry(_addr)
+    if legoId != 0:
+        extcall Lego(_addr).setLegoId(legoId)
+    return legoId
 
 
 @external
@@ -81,7 +85,11 @@ def startAddressUpdateToRegistry(_regId: uint256, _newAddr: address) -> bool:
 @external
 def confirmAddressUpdateToRegistry(_regId: uint256) -> bool:
     assert gov._canGovern(msg.sender) # dev: no perms
-    return registry._confirmAddressUpdateToRegistry(_regId)
+    didUpdate: bool = registry._confirmAddressUpdateToRegistry(_regId)
+    if didUpdate:
+        addr: address = registry._getAddr(_regId)
+        extcall Lego(addr).setLegoId(_regId)
+    return didUpdate
 
 
 @external

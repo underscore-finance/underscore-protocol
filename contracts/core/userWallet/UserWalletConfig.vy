@@ -51,6 +51,7 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 struct ActionData:
+    ledger: address
     missionControl: address
     legoBook: address
     switchboard: address
@@ -1053,6 +1054,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
 
     # addys
     hq: address = empty(address)
+    ledger: address = empty(address)
     missionControl: address = empty(address)
     legoBook: address = empty(address)
     switchboard: address = empty(address)
@@ -1062,13 +1064,13 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     lastTotalUsdValue: uint256 = 0
     if not inEjectMode:
         hq = UNDY_HQ
+        ledger = staticcall Registry(hq).getAddr(LEDGER_ID)
         missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
         legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
         switchboard = staticcall Registry(hq).getAddr(SWITCHBOARD_ID)
         hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
         lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
-        ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
         lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)
 
     # lego details
@@ -1077,6 +1079,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
 
     return ActionData(
+        ledger = ledger,
         missionControl = missionControl,
         legoBook = legoBook,
         switchboard = switchboard,

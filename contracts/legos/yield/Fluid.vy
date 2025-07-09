@@ -16,8 +16,13 @@ from interfaces import Wallet as wi
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
+from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
+
+interface Ledger:
+    def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
+    def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
 interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
@@ -165,6 +170,7 @@ def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address) -> address:
     # register if necessary
     if not isRegistered:
         self._registerAsset(asset, _vaultAddr)
+        self._updateLedgerVaultToken(asset, _vaultAddr)
 
     return _vaultAddr
 
@@ -237,6 +243,7 @@ def _getAssetOnWithdraw(_vaultToken: address) -> address:
     # register if necessary
     if not isRegistered:
         self._registerAsset(asset, _vaultToken)
+        self._updateLedgerVaultToken(asset, _vaultToken)
 
     return asset
 
@@ -244,6 +251,18 @@ def _getAssetOnWithdraw(_vaultToken: address) -> address:
 #############
 # Utilities #
 #############
+
+
+@view
+@external
+def isRebasing() -> bool:
+    return self._isRebasing()
+
+
+@view
+@internal
+def _isRebasing() -> bool:
+    return False
 
 
 # underlying asset
@@ -418,6 +437,25 @@ def isValidAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
 @internal
 def _isValidAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
     return self._isValidFToken(_vaultAddr) and staticcall IERC4626(_vaultAddr).asset() == _asset
+
+
+# update ledger registration
+
+
+@internal
+def _updateLedgerVaultToken(_underlyingAsset: address, _vaultToken: address):
+    if empty(address) in [_underlyingAsset, _vaultToken]:
+        return
+
+    # must have lego id
+    legoId: uint256 = yld.legoId
+    if legoId == 0:
+        return
+
+    ledger: address = addys._getLedgerAddr()
+    if not staticcall Ledger(ledger).isRegisteredVaultToken(_vaultToken):
+        decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+        extcall Ledger(ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
 
 
 #########

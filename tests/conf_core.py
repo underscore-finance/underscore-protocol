@@ -29,7 +29,7 @@ def undy_hq(
     undy_hq_deploy,
     undy_token,
     switchboard,
-    lego_book,
+    lego_book_deploy,
     deploy3r,
     governance,
     ledger,
@@ -57,8 +57,8 @@ def undy_hq(
     # registries
 
     # 4
-    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 4
+    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book_deploy, "Lego Book", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book_deploy, sender=deploy3r) == 4
 
     # 5
     assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)

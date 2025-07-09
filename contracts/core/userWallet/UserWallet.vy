@@ -16,13 +16,13 @@ interface WalletConfig:
 
 interface Appraiser:
     def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
-    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool): nonpayable
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
+    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface LootDistributor:
-    def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256): nonpayable
+    def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address)): nonpayable
+    def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType, _missionControl: address = empty(address)): nonpayable
     def updateDepositPointsWithData(_user: address, _newUserValue: uint256, _didChange: bool): nonpayable
-    def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType): nonpayable
 
 interface MissionControl:
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
@@ -33,7 +33,7 @@ interface WethContract:
     def deposit(): payable
 
 interface Hatchery:
-    def doesWalletStillHaveTrialFundsWithAddys(_user: address, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address) -> bool: view
+    def doesWalletStillHaveTrialFundsWithAddys(_user: address, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address, _ledger: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -45,6 +45,7 @@ struct WalletAssetData:
     lastYieldPrice: uint256
 
 struct ActionData:
+    ledger: address
     missionControl: address
     legoBook: address
     switchboard: address
@@ -311,7 +312,7 @@ def _transferFunds(
     assert amount != 0 # dev: no amt
 
     # get tx usd value
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, _ad.inEjectMode, _ad.appraiser)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, _ad)
 
     # check recipient limits
     if _shouldCheckRecipientLimits:
@@ -574,7 +575,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     if lastTokenOut != empty(address):
         swapFee: uint256 = staticcall MissionControl(ad.missionControl).getSwapFee(self, tokenIn, lastTokenOut)
         if swapFee != 0 and lastTokenOutAmount != 0:
-            swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE), wi.ActionType.SWAP, ad.lootDistributor)
+            swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE), wi.ActionType.SWAP, ad.lootDistributor, ad.missionControl)
             lastTokenOutAmount -= swapFee
 
     actualAmountIn: uint256 = preTokenInBal - staticcall IERC20(tokenIn).balanceOf(self)
@@ -872,7 +873,7 @@ def claimRewards(
     if _rewardToken != empty(address):
         rewardsFee: uint256 = staticcall MissionControl(ad.missionControl).getRewardsFee(self, _rewardToken)
         if rewardsFee != 0 and rewardAmount != 0:
-            rewardsFee = self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), wi.ActionType.REWARDS, ad.lootDistributor)
+            rewardsFee = self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), wi.ActionType.REWARDS, ad.lootDistributor, ad.missionControl)
             rewardAmount -= rewardsFee
 
     self._performPostActionTasks([_rewardToken], txUsdValue, ad)
@@ -908,7 +909,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     assert amount != 0 # dev: no amt
     extcall WethContract(weth).deposit(value=amount)
 
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad.inEjectMode, ad.appraiser)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([eth, weth], txUsdValue, ad)
     log EthWrapped(
         amount = amount,
@@ -933,7 +934,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
     extcall WethContract(weth).withdraw(amount)
 
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad.inEjectMode, ad.appraiser)
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([weth, eth], txUsdValue, ad)
     log WethUnwrapped(
         amount = amount,
@@ -1224,14 +1225,10 @@ def _performPostActionTasks(
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
     for a: address in _assets:
-        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _ad.inEjectMode, _ad.appraiser, _ad.eth)
+        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _ad)
 
     if not _ad.inEjectMode:
-
-        # make sure wallet still has trial funds
-        assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser) # dev: wallet has no trial funds
-
-        # update points
+        assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithData(self, newTotalUsdValue, True)
 
 
@@ -1263,20 +1260,14 @@ def updateAssetData(
         self._checkForYieldProfits(_asset, ad)
 
     # update asset data
-    return self._updateAssetData(_asset, _totalUsdValue, ad.inEjectMode, ad.appraiser, ad.eth)
+    return self._updateAssetData(_asset, _totalUsdValue, ad)
 
 
 # update asset data
 
 
 @internal
-def _updateAssetData(
-    _asset: address,
-    _newTotalUsdValue: uint256,
-    _inEjectMode: bool,
-    _appraiser: address,
-    _eth: address,
-) -> uint256:
+def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ActionData) -> uint256:
     if _asset == empty(address):
         return _newTotalUsdValue
 
@@ -1285,7 +1276,7 @@ def _updateAssetData(
 
     # ETH / ERC20
     currentBalance: uint256 = 0
-    if _asset == _eth:
+    if _asset == _ad.eth:
         currentBalance = self.balance
     else:
         currentBalance = staticcall IERC20(_asset).balanceOf(self)
@@ -1301,8 +1292,8 @@ def _updateAssetData(
     # update usd value
     data.usdValue = 0
     data.isYieldAsset = False
-    if not _inEjectMode:
-        data.usdValue, data.isYieldAsset = extcall Appraiser(_appraiser).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance)
+    if not _ad.inEjectMode:
+        data.usdValue, data.isYieldAsset = extcall Appraiser(_ad.appraiser).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance, _ad.missionControl, _ad.legoBook)
         newTotalUsdValue += data.usdValue
 
     # save data
@@ -1390,7 +1381,7 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
         self.assetData[_asset] = data
 
     # pay yield fee
-    self._payYieldFee(_asset, yieldProfit, min(feeRatio, MAX_YIELD_FEE), _ad.lootDistributor)
+    self._payYieldFee(_asset, yieldProfit, min(feeRatio, MAX_YIELD_FEE), _ad)
 
     # mark as checked
     self.checkedYield[_asset] = True
@@ -1411,11 +1402,12 @@ def _payTransactionFee(
     _feeRatio: uint256,
     _action: wi.ActionType,
     _lootDistributor: address,
+    _missionControl: address,
 ) -> uint256:
     feeAmount: uint256 = _transactionValue * _feeRatio // HUNDRED_PERCENT
     if _lootDistributor != empty(address) and feeAmount != 0:
         assert extcall IERC20(_asset).approve(_lootDistributor, feeAmount, default_return_value=True) # dev: appr
-        extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action)
+        extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action, _missionControl)
         self._resetApproval(_asset, _lootDistributor)
     return feeAmount
 
@@ -1428,33 +1420,28 @@ def _payYieldFee(
     _asset: address,
     _totalYieldAmount: uint256,
     _feeRatio: uint256,
-    _lootDistributor: address,
+    _ad: ActionData,
 ):
-    if _lootDistributor == empty(address):
+    if _ad.lootDistributor == empty(address):
         return
 
     feeAmount: uint256 = _totalYieldAmount * _feeRatio // HUNDRED_PERCENT
     if feeAmount != 0:
-        assert extcall IERC20(_asset).transfer(_lootDistributor, feeAmount, default_return_value=True) # dev: xfer
+        assert extcall IERC20(_asset).transfer(_ad.lootDistributor, feeAmount, default_return_value=True) # dev: xfer
 
     # notify loot distributor
     if feeAmount != 0 or _totalYieldAmount != 0:
-        extcall LootDistributor(_lootDistributor).addLootFromYieldProfit(_asset, feeAmount, _totalYieldAmount)
+        extcall LootDistributor(_ad.lootDistributor).addLootFromYieldProfit(_asset, feeAmount, _totalYieldAmount, _ad.missionControl, _ad.appraiser)
 
 
 # update price and get usd value
 
 
 @internal
-def _updatePriceAndGetUsdValue(
-    _asset: address,
-    _amount: uint256,
-    _inEjectMode: bool,
-    _appraiser: address,
-) -> uint256:
-    if _inEjectMode:
+def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _ad: ActionData) -> uint256:
+    if _ad.inEjectMode:
         return 0
-    return extcall Appraiser(_appraiser).updatePriceAndGetUsdValue(_asset, _amount)
+    return extcall Appraiser(_ad.appraiser).updatePriceAndGetUsdValue(_asset, _amount, _ad.missionControl, _ad.legoBook)
 
 
 # approve

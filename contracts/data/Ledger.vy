@@ -17,6 +17,12 @@ struct PointsData:
     depositPoints: uint256
     lastUpdate: uint256
 
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
+
 # points
 userPoints: public(HashMap[address, PointsData]) # user -> points
 globalPoints: public(PointsData)
@@ -33,6 +39,9 @@ ambassadors: public(HashMap[address, address]) # user -> ambassador
 agents: public(HashMap[uint256, address]) # index -> agent
 indexOfAgent: public(HashMap[address, uint256]) # agent -> index
 numAgents: public(uint256) # num agents
+
+# vault tokens
+vaultTokens: public(HashMap[address, VaultToken]) # vault token -> data
 
 
 @deploy
@@ -127,6 +136,34 @@ def getLastTotalUsdValue(_user: address) -> uint256:
 @external
 def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData):
     return self.userPoints[_user], self.globalPoints
+
+
+################
+# Vault Tokens #
+################
+
+
+@view
+@external
+def isRegisteredVaultToken(_vaultToken: address) -> bool:
+    return self.vaultTokens[_vaultToken].underlyingAsset != empty(address)
+
+
+@external
+def setVaultToken(
+    _vaultToken: address,
+    _legoId: uint256,
+    _underlyingAsset: address,
+    _decimals: uint256,
+    _isRebasing: bool,
+):
+    assert addys._isLegoBookAddr(msg.sender) # dev: no perms
+    self.vaultTokens[_vaultToken] = VaultToken(
+        legoId = _legoId,
+        underlyingAsset = _underlyingAsset,
+        decimals = _decimals,
+        isRebasing = _isRebasing,
+    )
 
 
 ##########

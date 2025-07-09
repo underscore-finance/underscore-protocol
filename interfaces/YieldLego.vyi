@@ -2,6 +2,12 @@
 
 @view
 @external
+def isRebasing() -> bool:
+    ...
+
+
+@view
+@external
 def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     ...
 

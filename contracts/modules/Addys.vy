@@ -153,6 +153,15 @@ def _isSwitchboardAddr(_addr: address) -> bool:
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
 
 
+@view
+@internal
+def _isLegoBookAddr(_addr: address) -> bool:
+    legoBook: address = staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)
+    if legoBook == empty(address):
+        return False
+    return staticcall LegoBook(legoBook).isLegoAddr(_addr)
+
+
 ###############
 # Departments #
 ###############

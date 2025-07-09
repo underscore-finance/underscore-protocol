@@ -20,11 +20,12 @@ from ethereum.ercs import IERC20Detailed
 interface Ledger:
     def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
     def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
     def ambassadors(_user: address) -> address: view
     def isUserWallet(_user: address) -> bool: view
 
 interface MissionControl:
-    def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: bool) -> AmbassadorConfig: view
+    def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig: view
     def getDepositRewardsAsset() -> address: view
 
 interface UserWalletConfig:
@@ -32,16 +33,10 @@ interface UserWalletConfig:
     def owner() -> address: view
 
 interface Appraiser:
-    def getPricePerShare(_asset: address) -> uint256: view
+    def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-struct WalletAssetData:
-    assetBalance: uint256
-    usdValue: uint256
-    isYieldAsset: bool
-    lastYieldPrice: uint256
 
 struct PointsData:
     usdValue: uint256
@@ -50,15 +45,21 @@ struct PointsData:
 
 struct AmbassadorConfig:
     ambassador: address
-    ambassadorFeeRatio: AmbassadorFees
+    ambassadorRevShare: AmbassadorRevShare
     ambassadorBonusRatio: uint256
     underlyingAsset: address
     decimals: uint256
 
-struct AmbassadorFees:
-    swapFee: uint256
-    rewardsFee: uint256
-    yieldProfitFee: uint256
+struct AmbassadorRevShare:
+    swapRatio: uint256
+    rewardsRatio: uint256
+    yieldRatio: uint256
+
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
 
 event LootClaimed:
     user: indexed(address)
@@ -106,7 +107,12 @@ def __init__(_undyHq: address):
 
 
 @external
-def addLootFromSwapOrRewards(_asset: address, _feeAmount: uint256, _action: wi.ActionType):
+def addLootFromSwapOrRewards(
+    _asset: address,
+    _feeAmount: uint256,
+    _action: wi.ActionType,
+    _missionControl: address = empty(address),
+):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
@@ -116,7 +122,11 @@ def addLootFromSwapOrRewards(_asset: address, _feeAmount: uint256, _action: wi.A
         return
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, feeAmount, default_return_value=True) # dev: transfer failed
 
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, False, ledger)
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
+    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, missionControl, ledger)
     if config.ambassador != empty(address):
         self._handleTransactionFeeForAmbassador(_asset, feeAmount, _action, config)
 
@@ -125,11 +135,21 @@ def addLootFromSwapOrRewards(_asset: address, _feeAmount: uint256, _action: wi.A
 
 
 @external
-def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256):
+def addLootFromYieldProfit(
+    _asset: address,
+    _feeAmount: uint256,
+    _totalYieldAmount: uint256,
+    _missionControl: address = empty(address),
+    _appraiser: address = empty(address),
+):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, True, ledger)
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
+    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, missionControl, ledger)
     if config.ambassador == empty(address):
         return
     
@@ -139,7 +159,7 @@ def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmou
 
     # handle yield ambassador bonus
     if config.ambassadorBonusRatio != 0 and config.underlyingAsset != empty(address):
-        self._handleYieldAmbassadorBonus(_asset, _totalYieldAmount, config)
+        self._handleYieldAmbassadorBonus(_asset, _totalYieldAmount, config, _appraiser, missionControl, ledger)
 
 
 # transaction fees
@@ -152,11 +172,11 @@ def _handleTransactionFeeForAmbassador(
     _action: wi.ActionType,
     _config: AmbassadorConfig,
 ):
-    feeRatio: uint256 = _config.ambassadorFeeRatio.yieldProfitFee
+    feeRatio: uint256 = _config.ambassadorRevShare.yieldRatio
     if _action == wi.ActionType.SWAP:
-        feeRatio = _config.ambassadorFeeRatio.swapFee
+        feeRatio = _config.ambassadorRevShare.swapRatio
     elif _action == wi.ActionType.REWARDS:
-        feeRatio = _config.ambassadorFeeRatio.rewardsFee
+        feeRatio = _config.ambassadorRevShare.rewardsRatio
 
     # finalize fee
     ambassadorRatio: uint256 = min(feeRatio, HUNDRED_PERCENT)
@@ -173,14 +193,29 @@ def _handleTransactionFeeForAmbassador(
 def _getAmbassadorConfig(
     _wallet: address,
     _asset: address,
-    _isYieldProfit: bool,
+    _missionControl: address,
     _ledger: address,
 ) -> AmbassadorConfig:
     ambassador: address = staticcall Ledger(_ledger).ambassadors(_wallet)
     if ambassador == empty(address):
         return empty(AmbassadorConfig)
-    return staticcall MissionControl(addys._getMissionControlAddr()).getAmbassadorConfig(ambassador, _asset, _isYieldProfit)
-    
+
+    # config
+    config: AmbassadorConfig = staticcall MissionControl(_missionControl).getAmbassadorConfig(ambassador, _asset)
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.decimals = vaultToken.decimals
+            config.underlyingAsset = vaultToken.underlyingAsset
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    return config
+
 
 ####################
 # Ambassador Bonus #
@@ -192,17 +227,20 @@ def _handleYieldAmbassadorBonus(
     _asset: address,
     _totalYieldAmount: uint256,
     _config: AmbassadorConfig,
+    _appraiser: address,
+    _missionControl: address,
+    _ledger: address,
 ):
     bonusRatio: uint256 = min(_config.ambassadorBonusRatio, HUNDRED_PERCENT)
     bonusAmount: uint256 = _totalYieldAmount * bonusRatio // HUNDRED_PERCENT
 
-    pricePerShare: uint256 = staticcall Appraiser(addys._getAppraiserAddr()).getPricePerShare(_asset)
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+
+    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, _missionControl, empty(address), _ledger)
     if pricePerShare == 0:
         return
-
-    decimals: uint256 = _config.decimals
-    if decimals == 0:
-        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
 
     # how much is available for bonus
     availableForBonus: uint256 = 0
@@ -211,7 +249,7 @@ def _handleYieldAmbassadorBonus(
     if currentBalance > totalClaimable:
         availableForBonus = currentBalance - totalClaimable
 
-    underlyingAmount: uint256 = min(bonusAmount * pricePerShare // (10 ** decimals), availableForBonus)
+    underlyingAmount: uint256 = min(bonusAmount * pricePerShare // (10 ** _config.decimals), availableForBonus)
     if underlyingAmount != 0:
         self._addClaimableLootToAmbassador(_config.ambassador, _config.underlyingAsset, underlyingAmount)
 

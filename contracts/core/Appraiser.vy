@@ -19,11 +19,12 @@ interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
 
+interface Ledger:
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
+    def isUserWallet(_user: address) -> bool: view
+
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
-
-interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -35,6 +36,12 @@ struct LastPrice:
 struct LastPricePerShare:
     pricePerShare: uint256
     lastUpdate: uint256
+
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
 
 # helpers
 
@@ -55,7 +62,7 @@ struct ProfitCalcConfig:
     isRebasing: bool
     underlyingAsset: address
     maxYieldIncrease: uint256
-    yieldProfitFee: uint256
+    performanceFee: uint256
 
 # price cache
 lastPrice: public(HashMap[address, LastPrice]) # asset -> last price
@@ -105,36 +112,39 @@ def calculateYieldProfits(
     _missionControl: address,
     _legoBook: address,
 ) -> (uint256, uint256, uint256):
-    assert self._isCallerUserWallet(msg.sender, addys._getUndyHq()) # dev: no perms
+    ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
+    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
 
-    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, _missionControl, _legoBook)
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, _missionControl, _legoBook, ledger)
     if not config.isYieldAsset:
         return 0, 0, 0
 
     if config.isRebasing:
-        return self._handleRebaseYieldAsset(_asset, _currentBalance, _assetBalance, config.maxYieldIncrease, config.yieldProfitFee)
+        return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
     else:
         currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
-        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
+        return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
 
 
 @view
 @external
 def calculateYieldProfitsNoUpdate(
+    _legoId: uint256,
     _asset: address,
+    _underlyingAsset: address,
     _currentBalance: uint256,
     _assetBalance: uint256,
     _lastYieldPrice: uint256,
 ) -> (uint256, uint256, uint256):
-    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr())
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), addys._getLedgerAddr())
     if not config.isYieldAsset:
         return 0, 0, 0
 
     if config.isRebasing:
-        return self._handleRebaseYieldAsset(_asset, _currentBalance, _assetBalance, config.maxYieldIncrease, config.yieldProfitFee)
+        return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
     else:
         currentPricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
-        return self._handleNormalYieldAsset(_asset, _currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
+        return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
     
 
 # rebasing assets
@@ -143,11 +153,10 @@ def calculateYieldProfitsNoUpdate(
 @view
 @internal
 def _handleRebaseYieldAsset(
-    _asset: address,
     _currentBalance: uint256,
     _lastBalance: uint256,
     _maxYieldIncrease: uint256,
-    _yieldProfitFee: uint256,
+    _performanceFee: uint256,
 ) -> (uint256, uint256, uint256):
 
     # no profits if balance decreased or stayed the same
@@ -167,7 +176,7 @@ def _handleRebaseYieldAsset(
     if actualProfit == 0:
         return 0, 0, 0
     
-    return 0, actualProfit, _yieldProfitFee
+    return 0, actualProfit, _performanceFee
 
 
 # normal yield assets
@@ -176,7 +185,6 @@ def _handleRebaseYieldAsset(
 @view
 @internal
 def _handleNormalYieldAsset(
-    _asset: address,
     _currentBalance: uint256,
     _lastBalance: uint256,
     _lastYieldPrice: uint256,
@@ -206,7 +214,7 @@ def _handleNormalYieldAsset(
     profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
     profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // _currentPricePerShare
     
-    return _currentPricePerShare, profitInVaultTokens, _config.yieldProfitFee
+    return _currentPricePerShare, profitInVaultTokens, _config.performanceFee
 
 
 # utils
@@ -214,15 +222,30 @@ def _handleNormalYieldAsset(
 
 @view
 @internal
-def _getProfitCalcConfig(_asset: address, _missionControl: address, _legoBook: address) -> ProfitCalcConfig:
+def _getProfitCalcConfig(
+    _asset: address,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> ProfitCalcConfig:
     config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.legoId = vaultToken.legoId
+            config.decimals = vaultToken.decimals
+            config.isYieldAsset = True
+            config.isRebasing = vaultToken.isRebasing
+            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):
         config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
 
     # get decimals if needed
-    if config.decimals == 0:
+    if config.isYieldAsset and config.decimals == 0:
         config.decimals = self._getDecimals(_asset)
 
     return config
@@ -238,9 +261,27 @@ def _getProfitCalcConfig(_asset: address, _missionControl: address, _legoBook: a
 
 @view
 @external
-def getUsdValue(_asset: address, _amount: uint256) -> uint256:
-    hq: address = addys._getUndyHq()
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+def getUsdValue(
+    _asset: address,
+    _amount: uint256,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+    _ledger: address = empty(address),
+) -> uint256:
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+    ledger: address = _ledger
+    if _ledger == empty(address):
+        ledger = addys._getLedgerAddr()
+
+    # config
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
 
     # normal price
     price: uint256 = 0
@@ -253,7 +294,7 @@ def getUsdValue(_asset: address, _amount: uint256) -> uint256:
 
         # for yield assets, need to check if it has underlying asset
         if config.underlyingAsset != empty(address):
-            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, hq)
+            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
             underlyingPrice: uint256 = self._getNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
         else:
@@ -269,27 +310,57 @@ def getUsdValue(_asset: address, _amount: uint256) -> uint256:
 
 
 @external
-def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256:
-    hq: address = addys._getUndyHq()
-    if not self._isCallerUserWallet(msg.sender, hq):
-        assert addys._isValidUndyAddr(msg.sender, hq) # dev: no perms
+def updatePriceAndGetUsdValue(
+    _asset: address,
+    _amount: uint256,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+) -> uint256:
+    ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+
     usdValue: uint256 = 0
     na: bool = False
-    usdValue, na = self._updatePriceAndGetUsdValue(_asset, _amount, hq)
+    usdValue, na = self._updatePriceAndGetUsdValue(_asset, _amount, _missionControl, _legoBook, ledger)
     return usdValue
 
 
 @external
-def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256) -> (uint256, bool):
-    hq: address = addys._getUndyHq()
-    if not self._isCallerUserWallet(msg.sender, hq):
-        assert addys._isValidUndyAddr(msg.sender, hq) # dev: no perms
-    return self._updatePriceAndGetUsdValue(_asset, _amount, hq)
+def updatePriceAndGetUsdValueAndIsYieldAsset(
+    _asset: address,
+    _amount: uint256,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+) -> (uint256, bool):
+    ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+    return self._updatePriceAndGetUsdValue(_asset, _amount, _missionControl, _legoBook, ledger)
 
 
 @internal
-def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _hq: address) -> (uint256, bool):
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, _hq)
+def _updatePriceAndGetUsdValue(
+    _asset: address,
+    _amount: uint256,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> (uint256, bool):
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+    ledger: address = _ledger
+    if _ledger == empty(address):
+        ledger = addys._getLedgerAddr()
+
+    # config
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
 
     # normal price
     price: uint256 = 0
@@ -302,15 +373,13 @@ def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _hq: address) 
 
         # for yield assets, need to check if it has underlying asset
         if config.underlyingAsset != empty(address):
-            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, _hq)
+            underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
             underlyingPrice: uint256 = self._updateAndGetNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
         else:
             price = pricePerShare
 
-    # finalize value
     usdValue: uint256 = price * _amount // (10 ** config.decimals)
-
     return usdValue, config.isYieldAsset
 
 
@@ -324,11 +393,27 @@ def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _hq: address) 
 
 @view
 @external
-def getNormalAssetPrice(_asset: address) -> uint256:
-    hq: address = addys._getUndyHq()
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+def getNormalAssetPrice(
+    _asset: address,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+    _ledger: address = empty(address),
+) -> uint256:
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+    ledger: address = _ledger
+    if _ledger == empty(address):
+        ledger = addys._getLedgerAddr()
+
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if config.isYieldAsset:
-        return 0
+        return 0 # cannot get yield price here
     return self._getNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
 
 
@@ -386,13 +471,26 @@ def _getNormalAssetPriceAndDidUpdate(
 
 
 @external
-def updateAndGetNormalAssetPrice(_asset: address) -> uint256:
-    hq: address = addys._getUndyHq()
-    if not self._isCallerUserWallet(msg.sender, hq):
-        assert addys._isValidUndyAddr(msg.sender, hq) # dev: no perms
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+def updateAndGetNormalAssetPrice(
+    _asset: address,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+) -> uint256:
+    ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if config.isYieldAsset:
-        return 0
+        return 0 # cannot get yield price here
     return self._updateAndGetNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
 
 
@@ -420,11 +518,25 @@ def _updateAndGetNormalAssetPrice(
 
 @view
 @external
-def getPricePerShare(_asset: address) -> uint256:
-    hq: address = addys._getUndyHq()
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
-    if not config.isYieldAsset:
-        return 0
+def getPricePerShare(
+    _asset: address,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+    _ledger: address = empty(address),
+) -> uint256:
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+    ledger: address = _ledger
+    if _ledger == empty(address):
+        ledger = addys._getLedgerAddr()
+
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     return self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
 
 
@@ -492,13 +604,26 @@ def _getPricePerShareAndDidUpdate(
 
 
 @external
-def updateAndGetPricePerShare(_asset: address) -> uint256:
-    hq: address = addys._getUndyHq()
-    if not self._isCallerUserWallet(msg.sender, hq):
-        assert addys._isValidUndyAddr(msg.sender, hq) # dev: no perms
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, hq)
+def updateAndGetPricePerShare(
+    _asset: address,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+) -> uint256:
+    ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+
+    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if not config.isYieldAsset:
-        return 0
+        return 0 # cannot get normal price here
     return self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
 
 
@@ -547,20 +672,31 @@ def _getRipePrice(_asset: address) -> uint256:
 @view
 @external
 def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    hq: address = addys._getUndyHq()
-    return self._getAssetUsdValueConfig(_asset, hq)
+    return self._getAssetUsdValueConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), addys._getLedgerAddr())
 
 
 @view
 @internal
-def _getAssetUsdValueConfig(_asset: address, _hq: address) -> AssetUsdValueConfig:
-    missionControl: address = staticcall Registry(_hq).getAddr(MISSION_CONTROL_ID)
-    config: AssetUsdValueConfig = staticcall MissionControl(missionControl).getAssetUsdValueConfig(_asset)
+def _getAssetUsdValueConfig(
+    _asset: address,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> AssetUsdValueConfig:
+    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.legoId = vaultToken.legoId
+            config.decimals = vaultToken.decimals
+            config.isYieldAsset = True
+            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):
-        legoBook: address = staticcall Registry(_hq).getAddr(LEGO_BOOK_ID)
-        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
+        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
 
     # get decimals if needed
     if config.decimals == 0:
@@ -578,20 +714,3 @@ def _getDecimals(_asset: address) -> uint256:
     if _asset in [WETH, ETH]:
         return 18
     return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-
-
-# is user wallet
-
-
-@view
-@external
-def isCallerUserWallet(_caller: address) -> bool:
-    hq: address = addys._getUndyHq()
-    return self._isCallerUserWallet(_caller, hq)
-
-
-@view
-@internal
-def _isCallerUserWallet(_caller: address, _hq: address) -> bool:
-    ledger: address = staticcall Registry(_hq).getAddr(LEDGER_ID)
-    return staticcall Ledger(ledger).isUserWallet(_caller)

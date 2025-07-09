@@ -21,36 +21,40 @@ struct UserWalletConfig:
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-    walletFees: WalletFees
-    ambassadorFeeRatio: AmbassadorFees
     defaultStaleBlocks: uint256
     depositRewardsAsset: address
+    txFees: TxFees
+    ambassadorRevShare: AmbassadorRevShare
+    defaultYieldMaxIncrease: uint256
+    defaultYieldPerformanceFee: uint256
+    defaultYieldAmbassadorBonusRatio: uint256
 
 struct AssetConfig:
     legoId: uint256
     isStablecoin: bool
     decimals: uint256
     staleBlocks: uint256
-    fees: WalletFees
-    isYieldAsset: bool
-    yieldConfig: YieldAssetConfig
+    txFees: TxFees
+    ambassadorRevShare: AmbassadorRevShare
+    yieldConfig: YieldConfig
 
-struct YieldAssetConfig:
-    isRebasing: bool
-    underlyingAsset: address
-    maxYieldIncrease: uint256
-    yieldProfitFee: uint256
-    ambassadorBonusRatio: uint256
-
-struct WalletFees:
+struct TxFees:
     swapFee: uint256
     stableSwapFee: uint256
     rewardsFee: uint256
 
-struct AmbassadorFees:
-    swapFee: uint256
-    rewardsFee: uint256
-    yieldProfitFee: uint256
+struct AmbassadorRevShare:
+    swapRatio: uint256
+    rewardsRatio: uint256
+    yieldRatio: uint256
+
+struct YieldConfig:
+    isYieldAsset: bool
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    performanceFee: uint256
+    ambassadorBonusRatio: uint256
 
 struct AgentConfig:
     agentTemplate: address
@@ -109,11 +113,11 @@ struct ProfitCalcConfig:
     isRebasing: bool
     underlyingAsset: address
     maxYieldIncrease: uint256
-    yieldProfitFee: uint256
+    performanceFee: uint256
 
 struct AmbassadorConfig:
     ambassador: address
-    ambassadorFeeRatio: AmbassadorFees
+    ambassadorRevShare: AmbassadorRevShare
     ambassadorBonusRatio: uint256
     underlyingAsset: address
     decimals: uint256
@@ -191,23 +195,22 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
 
 @view
 @external
-def getAmbassadorConfig(_ambassador: address, _asset: address, _isYieldProfit: bool) -> AmbassadorConfig:
+def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig:
+    assetConfig: AssetConfig = self.assetConfig[_asset]
 
-    ambassadorBonusRatio: uint256 = 0
-    underlyingAsset: address = empty(address)
-    decimals: uint256 = 0
-    if _isYieldProfit:
-        assetConfig: AssetConfig = self.assetConfig[_asset]
-        ambassadorBonusRatio = assetConfig.yieldConfig.ambassadorBonusRatio
-        underlyingAsset = assetConfig.yieldConfig.underlyingAsset
-        decimals = assetConfig.decimals
+    ambassadorRevShare: AmbassadorRevShare = assetConfig.ambassadorRevShare
+    ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
+    if assetConfig.decimals == 0:
+        walletConfig: UserWalletConfig = self.userWalletConfig
+        ambassadorRevShare = walletConfig.ambassadorRevShare
+        ambassadorBonusRatio = walletConfig.defaultYieldAmbassadorBonusRatio
 
     return AmbassadorConfig(
         ambassador = _ambassador,
-        ambassadorFeeRatio = self.userWalletConfig.ambassadorFeeRatio,
+        ambassadorRevShare = ambassadorRevShare,
         ambassadorBonusRatio = ambassadorBonusRatio,
-        underlyingAsset = underlyingAsset,
-        decimals = decimals,
+        underlyingAsset = assetConfig.yieldConfig.underlyingAsset,
+        decimals = assetConfig.decimals,
     )
 
 
@@ -262,41 +265,46 @@ def setAssetConfig(_asset: address, _config: AssetConfig):
 @view
 @external
 def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
-    config: AssetConfig = self.assetConfig[_asset]
+    assetConfig: AssetConfig = self.assetConfig[_asset]
 
-    staleBlocks: uint256 = config.staleBlocks
-    if config.decimals == 0:
-        staleBlocks = self.userWalletConfig.defaultStaleBlocks
+    staleBlocks: uint256 = assetConfig.staleBlocks
+    maxYieldIncrease: uint256 = assetConfig.yieldConfig.maxYieldIncrease
+    performanceFee: uint256 = assetConfig.yieldConfig.performanceFee
+    if assetConfig.decimals == 0:
+        walletConfig: UserWalletConfig = self.userWalletConfig
+        staleBlocks = walletConfig.defaultStaleBlocks
+        maxYieldIncrease = walletConfig.defaultYieldMaxIncrease
+        performanceFee = walletConfig.defaultYieldPerformanceFee
 
     return ProfitCalcConfig(
-        legoId = config.legoId,
+        legoId = assetConfig.legoId,
         legoAddr = empty(address),
-        decimals = config.decimals,
+        decimals = assetConfig.decimals,
         staleBlocks = staleBlocks,
-        isYieldAsset = config.isYieldAsset,
-        isRebasing = config.yieldConfig.isRebasing,
-        underlyingAsset = config.yieldConfig.underlyingAsset,
-        maxYieldIncrease = config.yieldConfig.maxYieldIncrease,
-        yieldProfitFee = config.yieldConfig.yieldProfitFee,
+        isYieldAsset = assetConfig.yieldConfig.isYieldAsset,
+        isRebasing = assetConfig.yieldConfig.isRebasing,
+        underlyingAsset = assetConfig.yieldConfig.underlyingAsset,
+        maxYieldIncrease = maxYieldIncrease,
+        performanceFee = performanceFee,
     )
 
 
 @view
 @external
 def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    config: AssetConfig = self.assetConfig[_asset]
+    assetConfig: AssetConfig = self.assetConfig[_asset]
 
-    staleBlocks: uint256 = config.staleBlocks
-    if config.decimals == 0:
+    staleBlocks: uint256 = assetConfig.staleBlocks
+    if assetConfig.decimals == 0:
         staleBlocks = self.userWalletConfig.defaultStaleBlocks
 
     return AssetUsdValueConfig(
-        legoId = config.legoId,
+        legoId = assetConfig.legoId,
         legoAddr = empty(address),
-        decimals = config.decimals,
+        decimals = assetConfig.decimals,
         staleBlocks = staleBlocks,
-        isYieldAsset = config.isYieldAsset,
-        underlyingAsset = config.yieldConfig.underlyingAsset,
+        isYieldAsset = assetConfig.yieldConfig.isYieldAsset,
+        underlyingAsset = assetConfig.yieldConfig.underlyingAsset,
     )
 
 
@@ -309,13 +317,13 @@ def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256
 
     # stable swap fee
     if inConfig.isStablecoin and outConfig.isStablecoin:
-        return self.userWalletConfig.walletFees.stableSwapFee
+        return self.userWalletConfig.txFees.stableSwapFee
 
     # asset swap fee takes precedence over global swap fee
     if outConfig.decimals != 0:
-        return outConfig.fees.swapFee
+        return outConfig.txFees.swapFee
 
-    return self.userWalletConfig.walletFees.swapFee
+    return self.userWalletConfig.txFees.swapFee
 
 
 @view
@@ -324,8 +332,8 @@ def getRewardsFee(_user: address, _asset: address) -> uint256:
     # NOTE: passing in `_user` in case we ever have different fees for different users in future
     config: AssetConfig = self.assetConfig[_asset]
     if config.decimals != 0:
-        return config.fees.rewardsFee
-    return self.userWalletConfig.walletFees.rewardsFee
+        return config.txFees.rewardsFee
+    return self.userWalletConfig.txFees.rewardsFee
 
 
 #########
