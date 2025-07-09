@@ -1139,8 +1139,8 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 
 @external
 def removeTrialFunds() -> uint256:
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert hatchery == msg.sender and hatchery != empty(address) # dev: no perms
+    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    assert ad.hatchery == msg.sender and ad.hatchery != empty(address) # dev: no perms
 
     # trial funds info
     trialFundsAmount: uint256 = self.trialFundsAmount
@@ -1148,10 +1148,9 @@ def removeTrialFunds() -> uint256:
     assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
 
     # transfer assets
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
     amount: uint256 = 0
     na: uint256 = 0
-    amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(hatchery, trialFundsAsset, trialFundsAmount, ad)
+    amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(ad.hatchery, trialFundsAsset, trialFundsAmount, ad)
 
     # update trial funds info
     remainingAmount: uint256 = trialFundsAmount - amount

@@ -1,0 +1,690 @@
+# @version 0.4.3
+
+implements: Lego
+implements: YieldLego
+
+exports: addys.__interface__
+exports: yld.__interface__
+
+initializes: addys
+initializes: yld[addys := addys]
+
+from interfaces import LegoPartner as Lego
+from interfaces import YieldLego as YieldLego
+from interfaces import Wallet as wi
+
+import contracts.modules.Addys as addys
+import contracts.modules.YieldLegoData as yld
+
+from ethereum.ercs import IERC20
+
+interface AaveProtocolDataProvider:
+    def getReserveTokensAddresses(_asset: address) -> (address, address, address): view
+    def getAllATokens() -> DynArray[TokenData, MAX_ATOKENS]: view
+    def getTotalDebt(_asset: address) -> uint256: view
+
+interface AaveV3Pool:
+    def supply(_asset: address, _amount: uint256, _onBehalfOf: address, _referralCode: uint16): nonpayable
+    def withdraw(_asset: address, _amount: uint256, _to: address): nonpayable
+
+interface Appraiser:
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
+    def getUsdValue(_asset: address, _amount: uint256) -> uint256: view
+
+interface AToken:
+    def UNDERLYING_ASSET_ADDRESS() -> address: view
+    def totalSupply() -> uint256: view
+
+interface AaveV3AddressProvider:
+    def getPoolDataProvider() -> address: view
+
+struct TokenData:
+    symbol: String[32]
+    tokenAddress: address
+
+event AaveV3Deposit:
+    sender: indexed(address)
+    asset: indexed(address)
+    vaultToken: indexed(address)
+    assetAmountDeposited: uint256
+    usdValue: uint256
+    vaultTokenAmountReceived: uint256
+    recipient: address
+
+event AaveV3Withdrawal:
+    sender: indexed(address)
+    asset: indexed(address)
+    vaultToken: indexed(address)
+    assetAmountReceived: uint256
+    usdValue: uint256
+    vaultTokenAmountBurned: uint256
+    recipient: address
+
+# aave v3
+AAVE_V3_POOL: public(immutable(address))
+AAVE_V3_ADDRESS_PROVIDER: public(immutable(address))
+
+MAX_ATOKENS: constant(uint256) = 40
+MAX_TOKEN_PATH: constant(uint256) = 5
+
+
+@deploy
+def __init__(
+    _undyHq: address,
+    _aaveV3: address,
+    _addressProvider: address,
+):
+    addys.__init__(_undyHq)
+    yld.__init__(False)
+
+    assert empty(address) not in [_aaveV3, _addressProvider] # dev: invalid addrs
+    AAVE_V3_POOL = _aaveV3
+    AAVE_V3_ADDRESS_PROVIDER = _addressProvider
+
+
+@view
+@external
+def hasCapability(_action: wi.ActionType) -> bool:
+    return _action in (
+        wi.ActionType.EARN_DEPOSIT | 
+        wi.ActionType.EARN_WITHDRAW
+    )
+
+
+@view
+@external
+def getRegistries() -> DynArray[address, 10]:
+    return [AAVE_V3_POOL, AAVE_V3_ADDRESS_PROVIDER]
+
+
+@view
+@external
+def isYieldLego() -> bool:
+    return True
+
+
+@view
+@external
+def isDexLego() -> bool:
+    return False
+
+
+#########
+# Yield #
+#########
+
+
+# deposit
+
+
+@external
+def depositForYield(
+    _asset: address,
+    _amount: uint256,
+    _vaultAddr: address,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+
+    # verify vault token (register if necessary)
+    vaultToken: address = self._getVaultTokenOnDeposit(_asset, _vaultAddr)
+
+    # pre balances
+    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+    preRecipientVaultBalance: uint256 = staticcall IERC20(vaultToken).balanceOf(_recipient)
+
+    # transfer deposit asset to this contract
+    depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
+    assert depositAmount != 0 # dev: nothing to transfer
+    assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
+
+    # deposit assets into lego partner
+    extcall AaveV3Pool(AAVE_V3_POOL).supply(_asset, depositAmount, _recipient, 0)
+
+    # validate vault token transfer
+    vaultTokenAmountReceived: uint256 = staticcall IERC20(vaultToken).balanceOf(_recipient) - preRecipientVaultBalance
+    assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
+
+    # refund if full deposit didn't get through
+    currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+    refundAssetAmount: uint256 = 0
+    if currentLegoBalance > preLegoBalance:
+        refundAssetAmount = currentLegoBalance - preLegoBalance
+        assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
+        depositAmount -= refundAssetAmount
+
+    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(_asset, depositAmount)
+    log AaveV3Deposit(
+        sender = msg.sender,
+        asset = _asset,
+        vaultToken = vaultToken,
+        assetAmountDeposited = depositAmount,
+        usdValue = usdValue,
+        vaultTokenAmountReceived = vaultTokenAmountReceived,
+        recipient = _recipient,
+    )
+    return depositAmount, vaultToken, vaultTokenAmountReceived, usdValue
+
+
+# asset verification
+
+
+@internal
+def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address) -> address:
+    vaultToken: address = yld.assetOpportunities[_asset][1] # aave v3 only has one opportunity
+    isRegistered: bool = True
+
+    # not yet registered, call aave directly to get vault token
+    if vaultToken == empty(address):
+        vaultToken = self._getAaveVaultToken(_asset, self._getPoolDataProvider())
+        isRegistered = False
+    
+    assert vaultToken != empty(address) # dev: invalid vault token
+
+    # make sure input matches
+    if _vaultAddr != empty(address):
+        assert vaultToken == _vaultAddr # dev: vault token mismatch
+
+    # register if necessary
+    if not isRegistered:
+        self._registerAsset(_asset, vaultToken)
+
+    return vaultToken
+
+
+# withdraw
+
+
+@external
+def withdrawFromYield(
+    _vaultToken: address,
+    _amount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+
+    # verify asset (register if necessary)
+    asset: address = self._getAssetOnWithdraw(_vaultToken)
+
+    # pre balances
+    preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
+    preRecipientAssetBalance: uint256 = staticcall IERC20(asset).balanceOf(_recipient)
+
+    # transfer vaults tokens to this contract
+    vaultTokenAmount: uint256 = min(_amount, staticcall IERC20(_vaultToken).balanceOf(msg.sender))
+    assert vaultTokenAmount != 0 # dev: nothing to transfer
+    assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
+
+    # withdraw assets from lego partner
+    extcall AaveV3Pool(AAVE_V3_POOL).withdraw(asset, max_value(uint256), _recipient)
+
+    # validate asset transfer
+    postRecipientAssetBalance: uint256 = staticcall IERC20(asset).balanceOf(_recipient)
+    assetAmountReceived: uint256 = postRecipientAssetBalance - preRecipientAssetBalance
+    assert assetAmountReceived != 0 # dev: no asset amount received
+
+    # refund if full withdrawal didn't happen
+    currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
+    refundVaultTokenAmount: uint256 = 0
+    if currentLegoVaultBalance > preLegoVaultBalance:
+        refundVaultTokenAmount = currentLegoVaultBalance - preLegoVaultBalance
+        assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
+        vaultTokenAmount -= refundVaultTokenAmount
+
+    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(asset, assetAmountReceived)
+    log AaveV3Withdrawal(
+        sender = msg.sender,
+        asset = asset,
+        vaultToken = _vaultToken,
+        assetAmountReceived = assetAmountReceived,
+        usdValue = usdValue,
+        vaultTokenAmountBurned = vaultTokenAmount,
+        recipient = _recipient,
+    )
+    return vaultTokenAmount, asset, assetAmountReceived, usdValue
+
+
+# vault token verification
+
+
+@internal
+def _getAssetOnWithdraw(_vaultToken: address) -> address:
+    asset: address = yld.vaultToAsset[_vaultToken]
+    isRegistered: bool = True
+
+    # not yet registered, call aave directly to get data
+    if asset == empty(address):
+        dataProvider: address = self._getPoolDataProvider()
+        if self._isValidAToken(_vaultToken, dataProvider):
+            asset = staticcall AToken(_vaultToken).UNDERLYING_ASSET_ADDRESS()
+            isRegistered = False
+
+            # double check it matches
+            assert _vaultToken == self._getAaveVaultToken(asset, dataProvider) # dev: vault token mismatch
+
+    assert asset != empty(address) # dev: invalid vault token
+
+    # register if necessary
+    if not isRegistered:
+        self._registerAsset(asset, _vaultToken)
+
+    return asset
+
+
+#############
+# Utilities #
+#############
+
+
+# underlying asset
+
+
+@view
+@external
+def isVaultToken(_vaultToken: address) -> bool:
+    return self._isVaultToken(_vaultToken)
+
+
+@view
+@internal
+def _isVaultToken(_vaultToken: address) -> bool:
+    if yld.vaultToAsset[_vaultToken] != empty(address):
+        return True
+    return self._isValidAToken(_vaultToken, self._getPoolDataProvider())
+
+
+@view
+@internal
+def _isValidAToken(_aToken: address, _dataProvider: address) -> bool:
+    aTokens: DynArray[TokenData, MAX_ATOKENS] = staticcall AaveProtocolDataProvider(_dataProvider).getAllATokens()
+    for i: uint256 in range(len(aTokens), bound=MAX_ATOKENS):
+        if aTokens[i].tokenAddress == _aToken:
+            return True
+    return False
+
+
+@view
+@internal
+def _getAaveVaultToken(_asset: address, _dataProvider: address) -> address:
+    return (staticcall AaveProtocolDataProvider(_dataProvider).getReserveTokensAddresses(_asset))[0]
+
+
+@view
+@external
+def getUnderlyingAsset(_vaultToken: address) -> address:
+    return self._getUnderlyingAsset(_vaultToken)
+
+
+@view
+@internal
+def _getUnderlyingAsset(_vaultToken: address, _dataProvider: address = empty(address)) -> address:
+    asset: address = yld.vaultToAsset[_vaultToken]
+    if asset != empty(address):
+        return asset
+
+    dataProvider: address = _dataProvider
+    if _dataProvider == empty(address):
+        dataProvider = self._getPoolDataProvider()
+    if self._isValidAToken(_vaultToken, dataProvider):
+        asset = staticcall AToken(_vaultToken).UNDERLYING_ASSET_ADDRESS()
+    return asset
+
+
+# underlying amount
+
+
+@view
+@external
+def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    if not self._isVaultToken(_vaultToken) or _vaultTokenAmount == 0:
+        return 0 # invalid vault token or amount
+    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+
+
+@view
+@internal
+def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    # treated as 1:1
+    return _vaultTokenAmount
+
+
+@view
+@external
+def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    if empty(address) in [_asset, _vaultToken] or _assetAmount == 0:
+        return 0 # bad inputs
+    if self._getUnderlyingAsset(_vaultToken) != _asset:
+        return 0 # invalid vault token or asset
+    # treated as 1:1
+    return _assetAmount
+
+
+# usd value
+
+
+@view
+@external
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
+    asset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    usdValue: uint256 = 0
+    asset, underlyingAmount, usdValue = self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+    return usdValue
+
+
+# all underlying data together
+
+
+@view
+@external
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
+    if _vaultTokenAmount == 0 or _vaultToken == empty(address):
+        return empty(address), 0, 0 # bad inputs
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return empty(address), 0, 0 # invalid vault token
+    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    return asset, underlyingAmount, usdValue
+
+
+@view
+@internal
+def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+
+
+# other
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    if not self._isVaultToken(_vaultToken):
+        return 0 # invalid vault token
+    return staticcall AToken(_vaultToken).totalSupply()
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    dataProvider: address = self._getPoolDataProvider()
+    asset: address = self._getUnderlyingAsset(_vaultToken, dataProvider)
+    if asset == empty(address):
+        return 0 # invalid vault token
+    return staticcall AaveProtocolDataProvider(dataProvider).getTotalDebt(asset)
+
+
+@view
+@internal
+def _getPoolDataProvider() -> address:
+    return staticcall AaveV3AddressProvider(AAVE_V3_ADDRESS_PROVIDER).getPoolDataProvider()
+
+
+################
+# Registration #
+################
+
+
+@external
+def addAssetOpportunity(_asset: address, _vaultAddr: address):
+    # can ignore `_vaultAddr` for aave v3
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._isValidAssetOpportunity(_asset, _vaultAddr) # dev: invalid asset or vault
+    assert not yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    self._registerAsset(_asset, _vaultAddr)
+
+
+@internal
+def _registerAsset(_asset: address, _vaultAddr: address):
+    assert extcall IERC20(_asset).approve(AAVE_V3_POOL, max_value(uint256), default_return_value=True) # dev: max approval failed
+    yld._addAssetOpportunity(_asset, _vaultAddr)
+
+
+@external
+def removeAssetOpportunity(_asset: address, _vaultAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert extcall IERC20(_asset).approve(AAVE_V3_POOL, 0, default_return_value=True) # dev: max approval failed
+    yld._removeAssetOpportunity(_asset, _vaultAddr)
+
+
+# validation
+
+
+@view
+@internal
+def isValidAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
+    return self._isValidAssetOpportunity(_asset, _vaultAddr)
+
+
+@view
+@internal
+def _isValidAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
+    vaultToken: address = self._getAaveVaultToken(_asset, self._getPoolDataProvider())
+    if vaultToken == empty(address):
+        return False
+    return _vaultAddr == vaultToken
+
+
+#########
+# Other #
+#########
+
+
+@external
+def swapTokens(
+    _amountIn: uint256,
+    _minAmountOut: uint256,
+    _tokenPath: DynArray[address, MAX_TOKEN_PATH],
+    _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
+    _recipient: address,
+) -> (uint256, uint256, uint256):
+    return 0, 0, 0
+
+
+@external
+def mintOrRedeemAsset(
+    _tokenIn: address,
+    _tokenOut: address,
+    _tokenInAmount: uint256,
+    _minAmountOut: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256, bool, uint256):
+    return 0, 0, False, 0
+    
+
+@external
+def confirmMintOrRedeemAsset(
+    _tokenIn: address,
+    _tokenOut: address,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def addCollateral(
+    _asset: address,
+    _amount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def removeCollateral(
+    _asset: address,
+    _amount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def borrow(
+    _borrowAsset: address,
+    _amount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def repayDebt(
+    _paymentAsset: address,
+    _paymentAmount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def addLiquidity(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _minLpAmount: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (address, uint256, uint256, uint256, uint256):
+    return empty(address), 0, 0, 0, 0
+
+
+@external
+def removeLiquidity(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256, uint256, uint256):
+    return 0, 0, 0, 0
+
+
+@external
+def addLiquidityConcentrated(
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _tickLower: int24,
+    _tickUpper: int24,
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256, uint256, uint256, uint256):
+    return 0, 0, 0, 0, 0
+
+
+@external
+def removeLiquidityConcentrated(
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraAddr: address,
+    _extraVal: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+) -> (uint256, uint256, uint256, bool, uint256):
+    return 0, 0, 0, False, 0
+
+
+@view
+@external
+def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String[64], uint256):
+    return empty(address), empty(String[64]), 0
+
+
+#################
+# Price Support #
+#################
+
+
+# price per share
+
+
+@view
+@external
+def getPricePerShare(_yieldAsset: address) -> uint256:
+    return 0
+
+
+# normal price (not yield)
+
+
+@view
+@external
+def getPrice(_asset: address) -> uint256:
+    return 0

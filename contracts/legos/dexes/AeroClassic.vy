@@ -4,17 +4,17 @@ implements: Lego
 implements: DexLego
 
 exports: addys.__interface__
-exports: legoAssets.__interface__
+exports: dld.__interface__
 
 initializes: addys
-initializes: legoAssets[addys := addys]
+initializes: dld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import DexLego as DexLego
 from interfaces import Wallet as wi
 
 import contracts.modules.Addys as addys
-import contracts.modules.LegoAssets as legoAssets
+import contracts.modules.DexLegoData as dld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -102,7 +102,7 @@ def __init__(
     _coreRouterPool: address,
 ):
     addys.__init__(_undyHq)
-    legoAssets.__init__(False)
+    dld.__init__(False)
 
     assert empty(address) not in [_aerodromeFactory, _aerodromeRouter, _coreRouterPool] # dev: invalid addrs
     AERODROME_FACTORY = _aerodromeFactory
@@ -126,6 +126,18 @@ def getRegistries() -> DynArray[address, 10]:
     return [AERODROME_FACTORY, AERODROME_ROUTER]
 
 
+@view
+@external
+def isYieldLego() -> bool:
+    return False
+
+
+@view
+@external
+def isDexLego() -> bool:
+    return True
+
+
 #########
 # Swaps #
 #########
@@ -139,7 +151,7 @@ def swapTokens(
     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
     _recipient: address,
 ) -> (uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate inputs
     numTokens: uint256 = len(_tokenPath)
@@ -271,7 +283,7 @@ def addLiquidity(
     _extraData: bytes32,
     _recipient: address,
 ) -> (address, uint256, uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate tokens
     token0: address = empty(address)
@@ -367,7 +379,7 @@ def removeLiquidity(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate tokens
     token0: address = empty(address)

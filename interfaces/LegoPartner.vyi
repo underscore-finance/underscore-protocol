@@ -73,6 +73,21 @@ def hasCapability(_action: wi.ActionType) -> bool:
 
 @view
 @external
+def getRegistries() -> DynArray[address, 10]:
+    ...
+
+@view
+@external
+def isYieldLego() -> bool:
+    ...
+
+@view
+@external
+def isDexLego() -> bool:
+    ...
+
+@view
+@external
 def getPricePerShare(_yieldAsset: address) -> uint256:
     ...
 
@@ -82,31 +97,25 @@ def getPrice(_asset: address) -> uint256:
     ...
 
 
-# LegoAssets.vy
+# common
 
 
 @view
 @external
-def isLegoAsset(_asset: address) -> bool:
+def isPaused() -> bool:
     ...
 
-@view
-@external
-def getNumLegoAssets() -> uint256:
-    ...
-
-@external
-def deregisterLegoAsset(_asset: address) -> bool:
-    ...
 
 @external
 def pause(_shouldPause: bool):
     ...
 
+
 @external
 def recoverFunds(_recipient: address, _asset: address):
     ...
 
+
 @external
-def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):
+def recoverFundsMany(_recipient: address, _assets: DynArray[address, 20]):
     ...

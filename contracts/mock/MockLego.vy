@@ -3,16 +3,16 @@
 implements: Lego
 
 exports: addys.__interface__
-exports: legoAssets.__interface__
+exports: yld.__interface__
 
 initializes: addys
-initializes: legoAssets[addys := addys]
+initializes: yld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
 
 import contracts.modules.Addys as addys
-import contracts.modules.LegoAssets as legoAssets
+import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -57,7 +57,7 @@ def __init__(
 ):
     # modules
     addys.__init__(_undyHq)
-    legoAssets.__init__(False)
+    yld.__init__(False)
 
     # mock assets
     assert empty(address) not in [_asset, _vaultToken, _altAsset, _altVaultToken, _lpToken, _debtToken] # dev: invalid tokens
@@ -102,6 +102,24 @@ def hasCapability(_action: wi.ActionType) -> bool:
     )
 
 
+@view
+@external
+def getRegistries() -> DynArray[address, 10]:
+    return []
+
+
+@view
+@external
+def isYieldLego() -> bool:
+    return False
+
+
+@view
+@external
+def isDexLego() -> bool:
+    return False
+
+
 #########
 # Yield #
 #########
@@ -130,7 +148,8 @@ def depositForYield(
     extcall MockToken(_vaultAddr).mint(_recipient, amount)
 
     # register lego asset
-    legoAssets._registerLegoAsset(_asset)
+    if not yld._isAssetOpportunity(_asset, _vaultAddr):
+        yld._addAssetOpportunity(_asset, _vaultAddr)
 
     return amount, _vaultAddr, amount, amount
 
@@ -156,6 +175,10 @@ def withdrawFromYield(
     asset: address = self.asset
     extcall MockToken(_vaultToken).burn(amount)
     extcall MockToken(asset).mint(_recipient, amount)
+
+    # register lego asset
+    if not yld._isAssetOpportunity(asset, _vaultToken):
+        yld._addAssetOpportunity(asset, _vaultToken)
 
     return amount, asset, amount, amount
 

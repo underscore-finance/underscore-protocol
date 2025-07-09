@@ -19,6 +19,11 @@ import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
 
+event LegoBackpack:
+    addr: indexed(address)
+
+legoBackpack: public(address)
+
 
 @deploy
 def __init__(
@@ -104,3 +109,32 @@ def confirmAddressDisableInRegistry(_regId: uint256) -> bool:
 def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
     assert gov._canGovern(msg.sender) # dev: no perms
     return registry._cancelAddressDisableInRegistry(_regId)
+
+
+#################
+# Lego Backpack #
+#################
+
+
+@external
+def setLegoBackpack(_addr: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    if not self._isValidLegoBackpack(_addr):
+        return False
+    self.legoBackpack = _addr
+    log LegoBackpack(addr = _addr)
+    return True
+
+
+@view
+@external 
+def isValidLegoBackpack(_addr: address) -> bool:
+    return self._isValidLegoBackpack(_addr)
+
+
+@view
+@internal 
+def _isValidLegoBackpack(_addr: address) -> bool:
+    if not _addr.is_contract or _addr == empty(address):
+        return False
+    return _addr != self.legoBackpack

@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS
-from config.BluePrint import TOKENS, INTEGRATION_ADDYS
+from config.BluePrint import TOKENS
 
 
 ############
@@ -49,6 +49,23 @@ def whale(env):
 @pytest.fixture(scope="session")
 def agent_eoa(env):
     return env.generate_address("agent")
+
+
+########
+# WETH #
+########
+
+
+@pytest.fixture(scope="session")
+def mock_weth():
+    return boa.load("contracts/mock/MockWeth.vy", name="mock_weth")
+
+
+@pytest.fixture(scope="session")
+def weth(fork, mock_weth):
+    if fork == "local":
+        return mock_weth
+    return boa.from_etherscan(TOKENS[fork]["WETH"], name="weth")
 
 
 ##########
@@ -239,3 +256,21 @@ def mock_ripe():
 @pytest.fixture(scope="session")
 def mock_weth():
     return boa.load("contracts/mock/MockWeth.vy", name="mock_weth")
+
+
+# mock lego integrations
+
+
+@pytest.fixture(scope="session")
+def alpha_token_comp_vault(alpha_token):
+    return boa.load("contracts/mock/MockCompVault.vy", alpha_token, name="alpha_comp_vault")
+
+
+@pytest.fixture(scope="session")
+def mock_lego_registry(alpha_token_vault, alpha_token_comp_vault):
+    return boa.load("contracts/mock/MockLegoRegistry.vy", [alpha_token_vault, alpha_token_comp_vault], name="mock_registry")
+
+
+@pytest.fixture(scope="session")
+def mock_aave_v3_pool():
+    return boa.load("contracts/mock/MockAaveV3Pool.vy", name="mock_aave_v3_pool")

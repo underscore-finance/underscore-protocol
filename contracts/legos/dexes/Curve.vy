@@ -4,17 +4,17 @@ implements: Lego
 implements: DexLego
 
 exports: addys.__interface__
-exports: legoAssets.__interface__
+exports: dld.__interface__
 
 initializes: addys
-initializes: legoAssets[addys := addys]
+initializes: dld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import DexLego as DexLego
 from interfaces import Wallet as wi
 
 import contracts.modules.Addys as addys
-import contracts.modules.LegoAssets as legoAssets
+import contracts.modules.DexLegoData as dld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -202,7 +202,7 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 @deploy
 def __init__(_undyHq: address, _curveAddressProvider: address):
     addys.__init__(_undyHq)
-    legoAssets.__init__(False)
+    dld.__init__(False)
 
     CURVE_META_REGISTRY = staticcall CurveAddressProvider(_curveAddressProvider).get_address(META_REGISTRY_ID)
     CURVE_REGISTRIES = CurveRegistries(
@@ -231,6 +231,18 @@ def getRegistries() -> DynArray[address, 10]:
     return [CURVE_META_REGISTRY]
 
 
+@view
+@external
+def isYieldLego() -> bool:
+    return False
+
+
+@view
+@external
+def isDexLego() -> bool:
+    return True
+
+
 #########
 # Swaps #
 #########
@@ -244,7 +256,7 @@ def swapTokens(
     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
     _recipient: address,
 ) -> (uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate inputs
     numTokens: uint256 = len(_tokenPath)
@@ -377,7 +389,7 @@ def addLiquidity(
     _extraData: bytes32,
     _recipient: address,
 ) -> (address, uint256, uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     assert empty(address) not in [_tokenA, _tokenB] # dev: invalid tokens
     assert _tokenA != _tokenB # dev: invalid tokens
@@ -578,7 +590,7 @@ def removeLiquidity(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # if one of the tokens is empty, it means they only want to remove liquidity for one token
     assert _tokenA != empty(address) or _tokenB != empty(address) # dev: invalid tokens

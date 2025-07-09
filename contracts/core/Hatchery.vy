@@ -255,13 +255,13 @@ def _clawBackTrialFunds(
     if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return 0
 
-    # add 1% buffer to ensure we recover enough
-    targetRecoveryAmount: uint256 = trialFundsAmount * 101_00 // HUNDRED_PERCENT
-
     # if we already have enough, just remove what we have
     amountRecovered: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
-    if amountRecovered >= targetRecoveryAmount:
+    if amountRecovered >= trialFundsAmount:
         return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+
+    # add 1% buffer to ensure we recover enough
+    targetRecoveryAmount: uint256 = trialFundsAmount * 101_00 // HUNDRED_PERCENT
 
     # find all vault tokens and withdraw from them
     numAssets: uint256 = staticcall UserWallet(_user).numAssets()

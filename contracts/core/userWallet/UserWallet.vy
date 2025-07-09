@@ -552,12 +552,12 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 
     # action data bundle
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.SWAP, False, [tokenIn, tokenOut], legoIds)
-    origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
 
-    amountIn: uint256 = origAmountIn
+    amountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
     lastTokenOut: address = empty(address)
     lastTokenOutAmount: uint256 = 0
     maxTxUsdValue: uint256 = 0
+    preTokenInBal: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
 
     # perform swaps
     for i: wi.SwapInstruction in _instructions:
@@ -574,12 +574,14 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     if lastTokenOut != empty(address):
         swapFee: uint256 = staticcall MissionControl(ad.missionControl).getSwapFee(self, tokenIn, lastTokenOut)
         if swapFee != 0 and lastTokenOutAmount != 0:
-            self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE), wi.ActionType.SWAP, ad.lootDistributor)
+            swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, MAX_SWAP_FEE), wi.ActionType.SWAP, ad.lootDistributor)
+            lastTokenOutAmount -= swapFee
 
+    actualAmountIn: uint256 = preTokenInBal - staticcall IERC20(tokenIn).balanceOf(self)
     self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ad)
     log OverallSwapPerformed(
         tokenIn = tokenIn,
-        tokenInAmount = origAmountIn,
+        tokenInAmount = actualAmountIn,
         tokenOut = lastTokenOut,
         tokenOutAmount = lastTokenOutAmount,
         txUsdValue = maxTxUsdValue,
@@ -587,7 +589,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         numInstructions = len(_instructions),
         signer = ad.signer,
     )
-    return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
+    return tokenIn, actualAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
 
 @internal
@@ -870,7 +872,8 @@ def claimRewards(
     if _rewardToken != empty(address):
         rewardsFee: uint256 = staticcall MissionControl(ad.missionControl).getRewardsFee(self, _rewardToken)
         if rewardsFee != 0 and rewardAmount != 0:
-            self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), wi.ActionType.REWARDS, ad.lootDistributor)
+            rewardsFee = self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, MAX_REWARDS_FEE), wi.ActionType.REWARDS, ad.lootDistributor)
+            rewardAmount -= rewardsFee
 
     self._performPostActionTasks([_rewardToken], txUsdValue, ad)
     log RewardsClaimed(
@@ -1408,12 +1411,13 @@ def _payTransactionFee(
     _feeRatio: uint256,
     _action: wi.ActionType,
     _lootDistributor: address,
-):
+) -> uint256:
     feeAmount: uint256 = _transactionValue * _feeRatio // HUNDRED_PERCENT
     if _lootDistributor != empty(address) and feeAmount != 0:
         assert extcall IERC20(_asset).approve(_lootDistributor, feeAmount, default_return_value=True) # dev: appr
         extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action)
         self._resetApproval(_asset, _lootDistributor)
+    return feeAmount
 
 
 # pay fees

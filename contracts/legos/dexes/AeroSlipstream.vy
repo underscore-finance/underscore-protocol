@@ -4,16 +4,16 @@ implements: Lego
 implements: IUniswapV3Callback
 
 exports: addys.__interface__
-exports: legoAssets.__interface__
+exports: dld.__interface__
 
 initializes: addys
-initializes: legoAssets[addys := addys]
+initializes: dld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
 
 import contracts.modules.Addys as addys
-import contracts.modules.LegoAssets as legoAssets
+import contracts.modules.DexLegoData as dld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -196,7 +196,7 @@ def __init__(
     _coreRouterPool: address,
 ):
     addys.__init__(_undyHq)
-    legoAssets.__init__(False)
+    dld.__init__(False)
 
     assert empty(address) not in [_aeroFactory, _aeroNftPositionManager, _aeroQuoter, _coreRouterPool] # dev: invalid addrs
     AERO_SLIPSTREAM_FACTORY = _aeroFactory
@@ -229,6 +229,18 @@ def getRegistries() -> DynArray[address, 10]:
     return [AERO_SLIPSTREAM_FACTORY, AERO_SLIPSTREAM_NFT_MANAGER, AERO_SLIPSTREAM_QUOTER]
 
 
+@view
+@external
+def isYieldLego() -> bool:
+    return False
+
+
+@view
+@external
+def isDexLego() -> bool:
+    return True
+
+
 #########
 # Swaps #
 #########
@@ -242,7 +254,7 @@ def swapTokens(
     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
     _recipient: address,
 ) -> (uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate inputs
     numTokens: uint256 = len(_tokenPath)
@@ -392,7 +404,7 @@ def addLiquidityConcentrated(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, uint256, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # validate tokens
     tokens: address[2] = [staticcall AeroSlipStreamPool(_pool).token0(), staticcall AeroSlipStreamPool(_pool).token1()]
@@ -617,7 +629,7 @@ def removeLiquidityConcentrated(
     _extraData: bytes32,
     _recipient: address,
 ) -> (uint256, uint256, uint256, bool, uint256):
-    assert not legoAssets.isPaused # dev: paused
+    assert not dld.isPaused # dev: paused
 
     # make sure nft is here
     nftPositionManager: address = AERO_SLIPSTREAM_NFT_MANAGER

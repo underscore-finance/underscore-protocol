@@ -1,0 +1,133 @@
+# @version 0.4.3
+
+@view
+@external
+def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    ...
+
+
+@view
+@external
+def getUnderlyingAsset(_vaultToken: address) -> address:
+    ...
+
+
+@view
+@external
+def isVaultToken(_vaultToken: address) -> bool:
+    ...
+
+
+@view
+@external
+def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    ...
+
+
+@view
+@external
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+    ...
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    ...
+
+
+@external
+def addAssetOpportunity(_asset: address, _vaultAddr: address):
+    ...
+
+
+@external
+def removeAssetOpportunity(_asset: address, _vaultAddr: address):
+    ...
+
+
+# YieldLegoData.vy module
+
+
+@view
+@external
+def assetOpportunities(_asset: address, _index: uint256) -> address:
+    ...
+
+
+@view
+@external
+def indexOfAssetOpportunity(_asset: address, _vaultAddr: address) -> uint256:
+    ...
+
+
+@view
+@external
+def numAssetOpportunities(_asset: address) -> uint256:
+    ...
+
+
+@view
+@external
+def vaultToAsset(_vaultAddr: address) -> address:
+    ...
+
+
+@view
+@external
+def assets(_index: uint256) -> address:
+    ...
+
+
+@view
+@external
+def indexOfAsset(_asset: address) -> uint256:
+    ...
+
+
+@view
+@external
+def numAssets() -> uint256:
+    ...
+
+
+@view
+@external
+def isLegoAsset(_asset: address) -> bool:
+    ...
+
+
+@view
+@external
+def getAssetOpportunities(_asset: address) -> DynArray[address, 40]:
+    ...
+
+
+@view
+@external
+def getAssets() -> DynArray[address, 20]:
+    ...
+
+
+@view
+@external
+def isAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
+    ...
+
+
+@view
+@external
+def getNumLegoAssets() -> uint256:
+    ...
