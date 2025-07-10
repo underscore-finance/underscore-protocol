@@ -86,6 +86,7 @@ depositRewards: public(uint256) # amount
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
+MAX_DEREGISTER_ASSETS: constant(uint256) = 20
 
 
 @deploy
@@ -95,7 +96,7 @@ def __init__(_undyHq: address):
 
 
 ####################
-# Transaction Fees #
+# Protocol Revenue #
 ####################
 
 
@@ -118,13 +119,10 @@ def addLootFromSwapOrRewards(
         return
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, feeAmount, default_return_value=True) # dev: transfer failed
 
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
-
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, missionControl, ledger)
+    # ambassador rev share
+    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, _missionControl, ledger)
     if config.ambassador != empty(address):
-        self._handleTransactionFeeForAmbassador(_asset, feeAmount, _action, config)
+        self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
 
 # yield profit flow
@@ -141,28 +139,29 @@ def addLootFromYieldProfit(
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
-
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, missionControl, ledger)
+    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, _missionControl, ledger)
     if config.ambassador == empty(address):
         return
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     if _feeAmount != 0:
-        self._handleTransactionFeeForAmbassador(_asset, _feeAmount, empty(wi.ActionType), config)
+        self._handleAmbassadorTxFee(_asset, _feeAmount, empty(wi.ActionType), config)
 
-    # handle yield ambassador bonus
+    # ambassador yield bonus
     if config.ambassadorBonusRatio != 0 and config.underlyingAsset != empty(address):
-        self._handleYieldAmbassadorBonus(_asset, _totalYieldAmount, config, _appraiser, missionControl, ledger)
+        self._handleAmbassadorYieldBonus(_asset, _totalYieldAmount, config, _missionControl, _appraiser, ledger)
 
 
-# transaction fees
+#######################
+# Ambassadors Rewards #
+#######################
+
+
+# rev share (transaction fees)
 
 
 @internal
-def _handleTransactionFeeForAmbassador(
+def _handleAmbassadorTxFee(
     _asset: address,
     _feeAmount: uint256,
     _action: wi.ActionType,
@@ -181,7 +180,52 @@ def _handleTransactionFeeForAmbassador(
         self._addClaimableLootToAmbassador(_config.ambassador, _asset, fee)
 
 
+# yield bonus
+
+
+@internal
+def _handleAmbassadorYieldBonus(
+    _asset: address,
+    _totalYieldAmount: uint256,
+    _config: AmbassadorConfig,
+    _missionControl: address,
+    _appraiser: address,
+    _ledger: address,
+):
+    bonusRatio: uint256 = min(_config.ambassadorBonusRatio, HUNDRED_PERCENT)
+    bonusAmount: uint256 = _totalYieldAmount * bonusRatio // HUNDRED_PERCENT
+
+    # get addys (if necessary)
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+
+    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, missionControl, empty(address), _ledger)
+    if pricePerShare == 0:
+        return
+
+    # how much is available for bonus
+    availableForBonus: uint256 = 0
+    currentBalance: uint256 = staticcall IERC20(_config.underlyingAsset).balanceOf(self)
+    totalClaimable: uint256 = self.totalClaimableLoot[_config.underlyingAsset]
+    if currentBalance > totalClaimable:
+        availableForBonus = currentBalance - totalClaimable
+
+    underlyingAmount: uint256 = min(bonusAmount * pricePerShare // (10 ** _config.decimals), availableForBonus)
+    if underlyingAmount != 0:
+        self._addClaimableLootToAmbassador(_config.ambassador, _config.underlyingAsset, underlyingAmount)
+
+
 # get ambassador config
+
+
+@view
+@external
+def getAmbassadorConfig(_wallet: address, _asset: address) -> AmbassadorConfig:
+    return self._getAmbassadorConfig(_wallet, _asset, addys._getMissionControlAddr(), addys._getLedgerAddr())
 
 
 @view
@@ -196,8 +240,13 @@ def _getAmbassadorConfig(
     if ambassador == empty(address):
         return empty(AmbassadorConfig)
 
+    # get mission control (if necessary)
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
     # config
-    config: AmbassadorConfig = staticcall MissionControl(_missionControl).getAmbassadorConfig(ambassador, _asset)
+    config: AmbassadorConfig = staticcall MissionControl(missionControl).getAmbassadorConfig(ambassador, _asset)
 
     # if no specific config, fallback to vault token registration
     if config.decimals == 0:
@@ -211,43 +260,6 @@ def _getAmbassadorConfig(
         config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
 
     return config
-
-
-####################
-# Ambassador Bonus #
-####################
-
-
-@internal
-def _handleYieldAmbassadorBonus(
-    _asset: address,
-    _totalYieldAmount: uint256,
-    _config: AmbassadorConfig,
-    _appraiser: address,
-    _missionControl: address,
-    _ledger: address,
-):
-    bonusRatio: uint256 = min(_config.ambassadorBonusRatio, HUNDRED_PERCENT)
-    bonusAmount: uint256 = _totalYieldAmount * bonusRatio // HUNDRED_PERCENT
-
-    appraiser: address = _appraiser
-    if _appraiser == empty(address):
-        appraiser = addys._getAppraiserAddr()
-
-    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, _missionControl, empty(address), _ledger)
-    if pricePerShare == 0:
-        return
-
-    # how much is available for bonus
-    availableForBonus: uint256 = 0
-    currentBalance: uint256 = staticcall IERC20(_config.underlyingAsset).balanceOf(self)
-    totalClaimable: uint256 = self.totalClaimableLoot[_config.underlyingAsset]
-    if currentBalance > totalClaimable:
-        availableForBonus = currentBalance - totalClaimable
-
-    underlyingAmount: uint256 = min(bonusAmount * pricePerShare // (10 ** _config.decimals), availableForBonus)
-    if underlyingAmount != 0:
-        self._addClaimableLootToAmbassador(_config.ambassador, _config.underlyingAsset, underlyingAmount)
 
 
 ##############
@@ -272,6 +284,7 @@ def claimLoot(_user: address) -> uint256:
         return 0
 
     assetsClaimed: uint256 = 0
+    assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     # iterate through all claimable assets for user
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
@@ -296,11 +309,21 @@ def claimLoot(_user: address) -> uint256:
         self.claimableLoot[_user][asset] -= transferAmount
         assetsClaimed += 1
 
+        # add to deregister list
+        if claimableAmount == transferAmount and len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+            assetsToDeregister.append(asset)
+
         log LootClaimed(
             user = _user,
             asset = asset,
             amount = transferAmount
         )
+
+    # deregister assets
+    if len(assetsToDeregister) != 0:
+        for asset: address in assetsToDeregister:
+            self._deregisterClaimableAssetForAmbassador(_user, asset)
+
     return assetsClaimed
 
 

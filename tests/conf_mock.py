@@ -6,12 +6,18 @@ from config.BluePrint import TOKENS
 from contracts.core.userWallet import UserWallet
 
 
-# generic user wallet
+# generic user wallets
 
 
 @pytest.fixture(scope="session")
-def user_wallet(hatchery, bob):
-    wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 1, sender=bob)
+def ambassador_wallet(hatchery, alice):
+    wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, False, 1, sender=alice)
+    return UserWallet.at(wallet_addr)
+
+
+@pytest.fixture(scope="session")
+def user_wallet(hatchery, bob, ambassador_wallet):
+    wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, False, 1, sender=bob)
     return UserWallet.at(wallet_addr)
 
 
