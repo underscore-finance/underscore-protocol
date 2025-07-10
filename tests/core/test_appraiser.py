@@ -577,3 +577,290 @@ def test_appraiser_update_price_per_share_no_update_when_outside_stale_blocks_bu
 # Prices - USD Value #
 ######################
 
+
+def test_appraiser_get_usd_value_normal_asset(appraiser, alpha_token, mock_ripe):
+    """ Test getUsdValue for normal assets with direct price """
+    
+    # Set price at $20
+    price = 20 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, price)
+    
+    # Test with 100 tokens
+    amount = 100 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.getUsdValue(alpha_token, amount)
+    
+    # 100 tokens * $20 = $2000
+    expected_value = 2000 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+
+
+def test_appraiser_get_usd_value_yield_asset_no_underlying(appraiser, yield_vault_token, mock_ripe):
+    """ Test getUsdValue for yield assets without underlying (treated as normal asset) """
+    
+    # Set direct price for yield token at $50
+    price = 50 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(yield_vault_token, price)
+    
+    # Test with 10 tokens
+    amount = 10 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.getUsdValue(yield_vault_token, amount)
+    
+    # 10 tokens * $50 = $500
+    expected_value = 500 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+
+
+def test_appraiser_get_usd_value_yield_asset_with_underlying(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, mock_ripe):
+    """ Test getUsdValue for yield assets with underlying using price per share """
+    
+    # Register vault token via deposit
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Set underlying token price at $10
+    underlying_price = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(yield_underlying_token, underlying_price)
+    
+    # Double the vault value
+    yield_underlying_token.transfer(yield_vault_token, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Price per share should be 2.0
+    price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert price_per_share == 2 * EIGHTEEN_DECIMALS
+    
+    # Test with 50 vault tokens
+    amount = 50 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.getUsdValue(yield_vault_token, amount)
+    
+    # 50 vault tokens * 2.0 price per share * $10 underlying = $1000
+    expected_value = 1000 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+
+
+def test_appraiser_get_usd_value_uses_cached_prices(appraiser, alpha_token, mock_ripe, lego_book):
+    """ Test that getUsdValue uses cached prices from previous updates """
+    
+    # Set initial price at $20
+    initial_price = 20 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, initial_price)
+    
+    # Update price to cache it
+    appraiser.updateAndGetNormalAssetPrice(alpha_token, sender=lego_book.address)
+    
+    # Change Ripe price to $30
+    new_price = 30 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, new_price)
+    
+    # getUsdValue should use cached price ($20) not new price ($30)
+    amount = 100 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.getUsdValue(alpha_token, amount)
+    
+    # 100 tokens * $20 (cached) = $2000
+    expected_value = 2000 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+
+
+def test_appraiser_update_price_and_get_usd_value_permission_check(appraiser, alpha_token, mock_ripe, bob):
+    """ Test that updatePriceAndGetUsdValue enforces permission checks """
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token, 10 * EIGHTEEN_DECIMALS)
+    
+    # Should fail when called by unauthorized address
+    with boa.reverts("no perms"):
+        appraiser.updatePriceAndGetUsdValue(alpha_token, 100 * EIGHTEEN_DECIMALS, sender=bob)
+
+
+def test_appraiser_update_price_and_get_usd_value_normal_asset(appraiser, alpha_token, mock_ripe, lego_book):
+    """ Test updatePriceAndGetUsdValue for normal assets """
+    
+    # Set price at $25
+    price = 25 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, price)
+    
+    # Test with 40 tokens
+    amount = 40 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.updatePriceAndGetUsdValue(alpha_token, amount, sender=lego_book.address)
+    
+    # 40 tokens * $25 = $1000
+    expected_value = 1000 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+    
+    # Verify price was cached
+    last_price = appraiser.lastPrice(alpha_token)
+    assert last_price.price == price
+    assert last_price.lastUpdate == boa.env.evm.patch.block_number
+
+
+def test_appraiser_update_price_and_get_usd_value_yield_asset(appraiser, yield_vault_token, lego_book, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, mock_ripe):
+    """ Test updatePriceAndGetUsdValue for yield assets with underlying """
+    
+    # Register vault token via deposit
+    yield_underlying_token.approve(mock_yield_lego, 2_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        2_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Set underlying token price at $15
+    underlying_price = 15 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(yield_underlying_token, underlying_price)
+    
+    # Increase vault value by 50%
+    yield_underlying_token.transfer(yield_vault_token, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Price per share should be 1.5
+    price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert price_per_share == 15 * EIGHTEEN_DECIMALS // 10  # 1.5
+    
+    # Test with 100 vault tokens
+    amount = 100 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.updatePriceAndGetUsdValue(yield_vault_token, amount, sender=lego_book.address)
+    
+    # 100 vault tokens * 1.5 price per share * $15 underlying = $2250
+    expected_value = 2250 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+    
+    # Verify both prices were cached
+    last_price_per_share = appraiser.lastPricePerShare(yield_vault_token)
+    assert last_price_per_share.pricePerShare == price_per_share
+    assert last_price_per_share.lastUpdate == boa.env.evm.patch.block_number
+    
+    last_price = appraiser.lastPrice(yield_underlying_token)
+    assert last_price.price == underlying_price
+
+
+def test_appraiser_update_price_and_get_usd_value_caching_behavior(appraiser, alpha_token, mock_ripe, setUserWalletConfig, lego_book):
+    """ Test that updatePriceAndGetUsdValue properly updates cache based on stale blocks """
+    
+    # Set user wallet and stale blocks
+    setUserWalletConfig(_staleBlocks=10)
+    
+    # Set initial price at $30
+    initial_price = 30 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, initial_price)
+    
+    # First update
+    amount = 50 * EIGHTEEN_DECIMALS
+    usd_value1 = appraiser.updatePriceAndGetUsdValue(alpha_token, amount, sender=lego_book.address)
+    assert usd_value1 == 1500 * EIGHTEEN_DECIMALS  # 50 * $30
+    
+    # Advance 5 blocks (within stale blocks)
+    boa.env.time_travel(blocks=5)
+    
+    # Change price to $40
+    new_price = 40 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, new_price)
+    
+    # Second update within stale blocks - should return cached price
+    usd_value2 = appraiser.updatePriceAndGetUsdValue(alpha_token, amount, sender=lego_book.address)
+    assert usd_value2 == 1500 * EIGHTEEN_DECIMALS  # Still 50 * $30 (cached)
+    
+    # Advance beyond stale blocks
+    boa.env.time_travel(blocks=6)  # Total 11 blocks
+    
+    # Third update beyond stale blocks - should get new price
+    usd_value3 = appraiser.updatePriceAndGetUsdValue(alpha_token, amount, sender=lego_book.address)
+    assert usd_value3 == 2000 * EIGHTEEN_DECIMALS  # 50 * $40 (new price)
+    
+    # Verify cache was updated
+    last_price = appraiser.lastPrice(alpha_token)
+    assert last_price.price == new_price
+
+
+def test_appraiser_get_usd_value_zero_amount(appraiser, alpha_token, mock_ripe):
+    """ Test getUsdValue with zero amount returns zero """
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token, 100 * EIGHTEEN_DECIMALS)
+    
+    # Zero amount should return zero USD value
+    usd_value = appraiser.getUsdValue(alpha_token, 0)
+    assert usd_value == 0
+
+
+def test_appraiser_get_usd_value_price_fallback_to_lego(appraiser, alpha_token, mock_ripe, mock_yield_lego, setAssetConfig):
+    """ Test getUsdValue falls back to lego price when Ripe returns zero """
+    
+    # Configure asset with lego
+    setAssetConfig(alpha_token, _legoId=1)
+    
+    # Ripe returns 0
+    mock_ripe.setPrice(alpha_token, 0)
+    
+    # Lego returns $75
+    lego_price = 75 * EIGHTEEN_DECIMALS
+    mock_yield_lego.setPrice(alpha_token, lego_price)
+    
+    # Test with 20 tokens
+    amount = 20 * EIGHTEEN_DECIMALS
+    usd_value = appraiser.getUsdValue(alpha_token, amount)
+    
+    # 20 tokens * $75 = $1500
+    expected_value = 1500 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+
+
+def test_appraiser_usd_value_with_six_decimal_tokens(appraiser, charlie_token, charlie_token_vault, charlie_token_whale, mock_yield_lego, mock_ripe, lego_book):
+    """ Test getUsdValue and updatePriceAndGetUsdValue work correctly with 6 decimal tokens """
+    
+    # Verify both tokens have 6 decimals
+    charlie_decimals = charlie_token.decimals()
+    vault_decimals = charlie_token_vault.decimals()
+    assert charlie_decimals == 6
+    assert vault_decimals == 6
+    
+    # Register vault token via deposit
+    deposit_amount = 10_000 * 10**charlie_decimals  # 10,000 USDC
+    charlie_token.approve(mock_yield_lego, deposit_amount, sender=charlie_token_whale)
+    mock_yield_lego.depositForYield(
+        charlie_token,
+        deposit_amount,
+        charlie_token_vault,
+        sender=charlie_token_whale,
+    )
+    
+    # Set underlying token price at $1 (USDC)
+    underlying_price = 1 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(charlie_token, underlying_price)
+    
+    # Initial price per share should be 1.0 (in 6 decimals)
+    price_per_share = mock_yield_lego.getPricePerShare(charlie_token_vault, vault_decimals)
+    assert price_per_share == 1 * 10**charlie_decimals  # 1.0 in 6 decimals
+    
+    # Test getUsdValue with 5000 vault tokens (6 decimals)
+    vault_amount = 5_000 * 10**vault_decimals
+    usd_value = appraiser.getUsdValue(charlie_token_vault, vault_amount)
+    
+    # 5000 vault tokens * 1.0 price per share * $1 underlying = $5000
+    expected_value = 5_000 * EIGHTEEN_DECIMALS
+    assert usd_value == expected_value
+    
+    # Increase vault value by 50%
+    charlie_token.transfer(charlie_token_vault, 5_000 * 10**charlie_decimals, sender=charlie_token_whale)
+    
+    # Price per share should be 1.5 (in 6 decimals)
+    new_price_per_share = mock_yield_lego.getPricePerShare(charlie_token_vault, vault_decimals)
+    assert new_price_per_share == 15 * 10**charlie_decimals // 10  # 1.5 in 6 decimals
+    
+    # Test updatePriceAndGetUsdValue
+    usd_value2 = appraiser.updatePriceAndGetUsdValue(charlie_token_vault, vault_amount, sender=lego_book.address)
+    
+    # 5000 vault tokens * 1.5 price per share * $1 underlying = $7500
+    expected_value2 = 7_500 * EIGHTEEN_DECIMALS
+    assert usd_value2 == expected_value2
+    
+    # Verify prices were cached correctly
+    last_price_per_share = appraiser.lastPricePerShare(charlie_token_vault)
+    assert last_price_per_share.pricePerShare == new_price_per_share
+    
+    last_price = appraiser.lastPrice(charlie_token)
+    assert last_price.price == underlying_price
+
