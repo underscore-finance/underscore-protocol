@@ -20,13 +20,13 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC4626
 
+interface Appraiser:
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
-
-interface Appraiser:
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
-    def getUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -86,6 +86,8 @@ def depositForYield(
     _recipient: address,
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # pre balances
     preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
@@ -109,10 +111,10 @@ def depositForYield(
     # register lego asset
     if not yld._isAssetOpportunity(_asset, _vaultAddr):
         self._registerAsset(_asset, _vaultAddr)
-        self._updateLedgerVaultToken(_asset, _vaultAddr)
+        self._updateLedgerVaultToken(_asset, _vaultAddr, miniAddys.ledger)
 
     # usd value
-    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(_asset, depositAmount)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
     return depositAmount, _vaultAddr, vaultTokenAmountReceived, usdValue
 
 
@@ -129,6 +131,8 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # pre balances
     preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -154,10 +158,10 @@ def withdrawFromYield(
     asset: address = staticcall IERC4626(_vaultToken).asset()
     if not yld._isAssetOpportunity(asset, _vaultToken):
         self._registerAsset(asset, _vaultToken)
-        self._updateLedgerVaultToken(asset, _vaultToken)
+        self._updateLedgerVaultToken(asset, _vaultToken, miniAddys.ledger)
 
     # usd value
-    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(asset, assetAmountReceived)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(asset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
 
 
@@ -299,6 +303,15 @@ def totalBorrows(_vaultToken: address) -> uint256:
     return 0
 
 
+# price per share
+
+
+@view
+@external
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
+    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
+
+
 ################
 # Registration #
 ################
@@ -328,7 +341,7 @@ def removeAssetOpportunity(_asset: address, _vaultAddr: address):
 
 
 @internal
-def _updateLedgerVaultToken(_underlyingAsset: address, _vaultToken: address):
+def _updateLedgerVaultToken(_underlyingAsset: address, _vaultToken: address, _ledger: address):
     if empty(address) in [_underlyingAsset, _vaultToken]:
         return
 
@@ -337,10 +350,9 @@ def _updateLedgerVaultToken(_underlyingAsset: address, _vaultToken: address):
     if legoId == 0:
         return
 
-    ledger: address = addys._getLedgerAddr()
-    if not staticcall Ledger(ledger).isRegisteredVaultToken(_vaultToken):
+    if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
         decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-        extcall Ledger(ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
+        extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
 
 
 #########
@@ -538,15 +550,6 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 #################
 # Price Support #
 #################
-
-
-# price per share
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
 
 
 # normal price (not yield)

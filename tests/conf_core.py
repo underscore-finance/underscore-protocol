@@ -40,6 +40,10 @@ def undy_hq(
     paymaster,
     migrator,
     loot_distributor,
+    setUserWalletConfig,
+    setManagerConfig,
+    setAgentConfig,
+    setPayeeConfig,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -99,6 +103,12 @@ def undy_hq(
     # finish undy hq setup
     assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
     assert undy_hq_deploy.finishUndyHqSetup(governance, sender=deploy3r)
+
+    # default config
+    setUserWalletConfig()
+    setManagerConfig()
+    setAgentConfig()
+    setPayeeConfig()
 
     return undy_hq_deploy
 
@@ -216,16 +226,16 @@ def lego_book_deploy(undy_hq_deploy, fork):
     )
 
 
-@pytest.fixture(scope="session")
-def lego_book(lego_book_deploy, governance, mock_lego, mock_yield_lego):
-
-    # register mock lego
-    assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=governance.address)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=governance.address) == 1
+@pytest.fixture(scope="session", autouse=True)
+def lego_book(lego_book_deploy, governance, mock_dex_lego, mock_yield_lego):
 
     # register mock yield lego
     assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=governance.address)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=governance.address) == 2
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=governance.address) == 1
+
+    # register mock dex lego
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_dex_lego, "Mock Dex Lego", sender=governance.address)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_dex_lego, sender=governance.address) == 2
 
     # finish registry setup
     assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=governance.address)

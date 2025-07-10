@@ -40,7 +40,7 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _ambassadorRevShare = createAmbassadorRevShare(),
         _defaultYieldMaxIncrease = 5_00,
         _defaultYieldPerformanceFee = 20_00,
-        _defaultYieldAmbassadorBonusRatio = 10_00,
+        _defaultYieldAmbassadorBonusRatio = 0,
     ):
         config = (
             _walletTemplate,
@@ -66,9 +66,9 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
 @pytest.fixture(scope="session")
 def createTxFees():
     def createTxFees(
-        _swapFee = 1_00,
-        _stableSwapFee = 10,
-        _rewardsFee = 20_00,
+        _swapFee = 0,
+        _stableSwapFee = 0,
+        _rewardsFee = 0,
     ):
         return (
             _swapFee,
@@ -81,9 +81,9 @@ def createTxFees():
 @pytest.fixture(scope="session")
 def createAmbassadorRevShare():
     def createAmbassadorRevShare(
-        _swapRatio = 50_00,
-        _rewardsRatio = 50_00,
-        _yieldRatio = 50_00,
+        _swapRatio = 0,
+        _rewardsRatio = 0,
+        _yieldRatio = 0,
     ):
         return (
             _swapRatio,
@@ -130,7 +130,7 @@ def createAssetYieldConfig():
         _underlyingAsset = ZERO_ADDRESS,
         _maxYieldIncrease = 5_00,
         _performanceFee = 20_00,
-        _ambassadorBonusRatio = 50_00,
+        _ambassadorBonusRatio = 0,
     ):
         return (
             _isYieldAsset,

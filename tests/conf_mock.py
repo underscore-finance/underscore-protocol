@@ -82,15 +82,15 @@ def alpha_token(governance):
 
 
 @pytest.fixture(scope="session")
+def alpha_token_vault(alpha_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", alpha_token, name="alpha_erc4626_vault")
+
+
+@pytest.fixture(scope="session")
 def alpha_token_whale(env, alpha_token, governance):
     whale = env.generate_address("alpha_token_whale")
     alpha_token.mint(whale, 100_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
     return whale
-
-
-@pytest.fixture(scope="session")
-def alpha_token_vault(alpha_token):
-    return boa.load("contracts/mock/MockErc4626Vault.vy", alpha_token, name="alpha_erc4626_vault")
 
 
 # bravo token
@@ -102,15 +102,15 @@ def bravo_token(governance):
 
 
 @pytest.fixture(scope="session")
+def bravo_token_vault(bravo_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", bravo_token, name="bravo_erc4626_vault")
+
+
+@pytest.fixture(scope="session")
 def bravo_token_whale(env, bravo_token, governance):
     whale = env.generate_address("bravo_token_whale")
     bravo_token.mint(whale, 100_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
     return whale
-
-
-@pytest.fixture(scope="session")
-def bravo_token_vault(bravo_token):
-    return boa.load("contracts/mock/MockErc4626Vault.vy", bravo_token, name="bravo_erc4626_vault")
 
 
 # charlie token (6 decimals)
@@ -122,15 +122,15 @@ def charlie_token(governance):
 
 
 @pytest.fixture(scope="session")
+def charlie_token_vault(charlie_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", charlie_token, name="charlie_erc4626_vault")
+
+
+@pytest.fixture(scope="session")
 def charlie_token_whale(env, charlie_token, governance):
     whale = env.generate_address("charlie_token_whale")
     charlie_token.mint(whale, 100_000_000 * (10 ** charlie_token.decimals()), sender=governance.address)
     return whale
-
-
-@pytest.fixture(scope="session")
-def charlie_token_vault(charlie_token):
-    return boa.load("contracts/mock/MockErc4626Vault.vy", charlie_token, name="charlie_erc4626_vault")
 
 
 # delta token (8 decimals)
@@ -142,76 +142,57 @@ def delta_token(governance):
 
 
 @pytest.fixture(scope="session")
+def delta_token_vault(delta_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", delta_token, name="delta_erc4626_vault")
+
+
+@pytest.fixture(scope="session")
 def delta_token_whale(env, delta_token, governance):
     whale = env.generate_address("delta_token_whale")
     delta_token.mint(whale, 100_000_000 * (10 ** delta_token.decimals()), sender=governance.address)
     return whale
 
 
-@pytest.fixture(scope="session")
-def delta_token_vault(delta_token):
-    return boa.load("contracts/mock/MockErc4626Vault.vy", delta_token, name="delta_erc4626_vault")
-
-
-###############
-# Other Mocks #
-###############
+#################
+# Mock Dex Lego #
+#################
 
 
 @pytest.fixture(scope="session")
-def mock_rando_contract():
-    return boa.load("contracts/mock/MockRando.vy", name="rando_contract")
-
-
-@pytest.fixture(scope="session")
-def another_rando_contract():
-    return boa.load("contracts/mock/MockRando.vy", name="another_rando_contract")
-
-
-#############
-# Mock Lego #
-#############
-
-
-@pytest.fixture(scope="session")
-def mock_lego(mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, undy_hq_deploy, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, governance, whale):
-    ml = boa.load("contracts/mock/MockLego.vy", undy_hq_deploy, mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token, name="mock_lego")
-    for a in [mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token]:
-        a.setMinter(ml, True, sender=governance.address)
+def mock_dex_lego(mock_dex_asset, mock_dex_asset_alt, undy_hq_deploy, mock_dex_lp_token, mock_dex_debt_token, governance, whale):
+    mdl = boa.load(
+        "contracts/mock/MockDexLego.vy",
+        undy_hq_deploy,
+        mock_dex_asset,
+        mock_dex_asset_alt,
+        mock_dex_lp_token,
+        mock_dex_debt_token,
+        name="mock_dex_lego",
+    )
+    for a in [mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_dex_debt_token]:
+        a.setMinter(mdl, True, sender=governance.address)
         a.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
-    # Set access for MockLego
-    ml.setLegoAccess(ml.address)
-    return ml
+    return mdl
 
 
 @pytest.fixture(scope="session")
-def mock_lego_asset(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Asset", "MOCK", 18, 1_000_000_000, name="mock_lego_asset")
+def mock_dex_asset(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Asset", "MOCK", 18, 1_000_000_000, name="mock_dex_asset")
 
 
 @pytest.fixture(scope="session")
-def mock_lego_vault(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Vault", "MOCK VAULT", 18, 1_000_000_000, name="mock_lego_vault")
+def mock_dex_asset_alt(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Asset Alt", "MOCK ALT", 18, 1_000_000_000, name="mock_dex_asset_alt")
 
 
 @pytest.fixture(scope="session")
-def mock_lego_asset_alt(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Asset Alt", "MOCK ALT", 18, 1_000_000_000, name="mock_lego_asset_alt")
+def mock_dex_lp_token(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock LP Token", "MOCK LP", 18, 1_000_000_000, name="mock_dex_lp_token")
 
 
 @pytest.fixture(scope="session")
-def mock_lego_vault_alt(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Vault Alt", "MOCK VAULT ALT", 18, 1_000_000_000, name="mock_lego_vault_alt")
-
-
-@pytest.fixture(scope="session")
-def mock_lego_lp_token(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock LP Token", "MOCK LP", 18, 1_000_000_000, name="mock_lego_lp_token")
-
-
-@pytest.fixture(scope="session")
-def mock_lego_debt_token(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Debt Token", "MOCK DEBT", 18, 1_000_000_000, name="mock_lego_debt_token")
+def mock_dex_debt_token(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Debt Token", "MOCK DEBT", 18, 1_000_000_000, name="mock_dex_debt_token")
 
 
 ###################
@@ -276,3 +257,18 @@ def mock_lego_registry(alpha_token_vault, alpha_token_comp_vault):
 @pytest.fixture(scope="session")
 def mock_aave_v3_pool():
     return boa.load("contracts/mock/MockAaveV3Pool.vy", name="mock_aave_v3_pool")
+
+
+###############
+# Other Mocks #
+###############
+
+
+@pytest.fixture(scope="session")
+def mock_rando_contract():
+    return boa.load("contracts/mock/MockRando.vy", name="rando_contract")
+
+
+@pytest.fixture(scope="session")
+def another_rando_contract():
+    return boa.load("contracts/mock/MockRando.vy", name="another_rando_contract")
