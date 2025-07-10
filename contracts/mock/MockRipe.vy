@@ -3,11 +3,12 @@
 from ethereum.ercs import IERC20Detailed
 
 mockPrices: public(HashMap[address, uint256]) # asset -> price
+addr: public(address)
 
 
 @deploy
 def __init__():
-    pass
+    self.addr = self
 
 
 # MOCK CONFIG PRICE
@@ -18,13 +19,18 @@ def setPrice(_asset: address, _price: uint256):
     self.mockPrices[_asset] = _price
 
 
+@external
+def setAddr(_addr: address):
+    self.addr = _addr
+
+
 # MOCK RIPE HQ
 
 
 @view
 @external
 def getAddr(_regId: uint256) -> address:
-    return self
+    return self.addr
 
 
 # MOCK RIPE PRICE DESK

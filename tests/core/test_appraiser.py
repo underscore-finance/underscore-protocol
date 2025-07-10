@@ -175,6 +175,25 @@ def test_appraiser_update_normal_asset_price_no_change_behavior(appraiser, alpha
     assert price3 == original_price
 
 
+def test_normal_asset_both_price_sources_return_zero(appraiser, alpha_token, mock_ripe, mock_yield_lego, setAssetConfig):
+    """ Test when both Ripe and Lego return 0 for normal asset price """
+    
+    # Configure asset with lego
+    setAssetConfig(alpha_token, _legoId=1)
+    
+    # Both sources return 0
+    mock_ripe.setPrice(alpha_token, 0)
+    mock_yield_lego.setPrice(alpha_token, 0)
+    
+    # Should return 0 price
+    price = appraiser.getNormalAssetPrice(alpha_token)
+    assert price == 0
+    
+    # USD value should also be 0
+    usd_value = appraiser.getUsdValue(alpha_token, 100 * EIGHTEEN_DECIMALS)
+    assert usd_value == 0
+
+
 #################################
 # Yield Asset - Price Per Share #
 #################################
@@ -415,6 +434,18 @@ def test_appraiser_update_price_per_share_no_update_when_outside_stale_blocks_bu
     cached_price = appraiser.lastPricePerShare(yield_vault_token)
     assert cached_price.pricePerShare == orig_price_per_share  # Same price
     assert cached_price.lastUpdate == original_update_block  # Same update block (no write happened)
+
+
+def test_price_per_share_both_sources_return_zero(appraiser, yield_vault_token, mock_ripe):
+    """ Test when both Lego and Ripe return 0 for price per share """
+    
+    # Lego returns 0 by default (no deposit)
+    # Set Ripe to also return 0
+    mock_ripe.setPrice(yield_vault_token, 0)
+    
+    # Should return 0 price per share
+    price_per_share = appraiser.getPricePerShare(yield_vault_token)
+    assert price_per_share == 0
 
 
 ######################
@@ -709,6 +740,61 @@ def test_appraiser_usd_value_with_six_decimal_tokens(appraiser, charlie_token, c
     assert last_price.price == underlying_price
 
 
+def test_update_price_and_get_usd_value_and_is_yield_asset_normal(appraiser, alpha_token, mock_ripe, user_wallet):
+    """ Test updatePriceAndGetUsdValueAndIsYieldAsset for normal assets """
+    
+    # Set price
+    price = 30 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, price)
+    
+    # Call function
+    amount = 50 * EIGHTEEN_DECIMALS
+    usd_value, is_yield = appraiser.updatePriceAndGetUsdValueAndIsYieldAsset(
+        alpha_token,
+        amount,
+        sender=user_wallet.address
+    )
+    
+    # 50 tokens * $30 = $1500
+    assert usd_value == 1500 * EIGHTEEN_DECIMALS
+    assert is_yield == False
+    
+    # Verify price was cached
+    last_price = appraiser.lastPrice(alpha_token)
+    assert last_price.price == price
+
+
+def test_update_price_and_get_usd_value_and_is_yield_asset_yield(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, mock_ripe, user_wallet):
+    """ Test updatePriceAndGetUsdValueAndIsYieldAsset for yield assets """
+    
+    # Register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Set underlying price
+    mock_ripe.setPrice(yield_underlying_token, 2 * EIGHTEEN_DECIMALS)  # $2
+    
+    # Double vault value
+    yield_underlying_token.transfer(yield_vault_token, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Call function
+    amount = 100 * EIGHTEEN_DECIMALS
+    usd_value, is_yield = appraiser.updatePriceAndGetUsdValueAndIsYieldAsset(
+        yield_vault_token,
+        amount,
+        sender=user_wallet.address
+    )
+    
+    # 100 vault tokens * 2.0 price per share * $2 = $400
+    assert usd_value == 400 * EIGHTEEN_DECIMALS
+    assert is_yield == True
+
+
 ##################
 # Yield Handling #
 ##################
@@ -931,6 +1017,43 @@ def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser,
     assert last_yield_price == 0
     assert actual_profit == 0
     assert performance_fee == 0
+
+
+def test_calculate_yield_profits_external_rebasing(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig, user_wallet):
+    """ Test calculateYieldProfits external function for rebasing yield assets """
+    
+    # Configure as rebasing yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=5_00,  # 5%
+        _performanceFee=25_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Call external function from user wallet
+    current_balance = 1100 * EIGHTEEN_DECIMALS  # 10% increase
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfits(
+        yield_vault_token,
+        current_balance,
+        last_balance,
+        0,  # ignored for rebasing
+        ZERO_ADDRESS,  # Contract now handles empty addresses properly
+        ZERO_ADDRESS,  # Contract now handles empty addresses properly
+        sender=user_wallet.address
+    )
+    
+    # For rebasing: capped at 5%
+    assert last_yield_price == 0
+    assert actual_profit == 50 * EIGHTEEN_DECIMALS  # Capped at 5%
+    assert performance_fee == 25_00
 
 
 # normal yield assets
@@ -1167,6 +1290,173 @@ def test_calculate_yield_profits_no_update_normal_no_cap(appraiser, yield_vault_
     assert performance_fee == 15_00
 
 
+def test_handle_normal_yield_current_price_per_share_zero(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ Test _handleNormalYieldAsset when current price per share is 0 """
+    
+    # Configure as normal yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Don't deposit anything - price per share will be 0
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 1 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # Should return all zeros when current price is 0
+    assert last_yield_price == 0
+    assert actual_profit == 0
+    assert performance_fee == 0
+
+
+def test_calculate_yield_profits_external_normal_yield(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego, user_wallet):
+    """ Test calculateYieldProfits external function for normal yield assets """
+    
+    # Configure as normal yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=10_00,  # 10%
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Increase vault value by 50%
+    yield_underlying_token.transfer(yield_vault_token, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Time travel to ensure we're not in the same block
+    boa.env.time_travel(blocks=1)
+    
+    # Call external function from user wallet
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 1 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfits(
+        yield_vault_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+        ZERO_ADDRESS,  # Contract now handles empty addresses properly
+        ZERO_ADDRESS,  # Contract now handles empty addresses properly
+        sender=user_wallet.address
+    )
+    
+    # Should return current price per share (1.5) and capped profit
+    assert last_yield_price == 15 * EIGHTEEN_DECIMALS // 10  # 1.5
+    # Profit calculation:
+    # - Uncapped profit in underlying: 1000 * (1.5 - 1.0) = 500
+    # - Capped profit in underlying (10% max): 1000 * 0.1 = 100
+    # - Profit in vault tokens: 100 / 1.5 = 66.666...
+    assert actual_profit == 66666666666666666666  # ~66.67 vault tokens
+    assert performance_fee == 20_00
+
+
+def test_calculate_yield_profits_permission_check(appraiser, yield_vault_token, bob):
+    """ Test that calculateYieldProfits enforces user wallet permission """
+    
+    # Should fail when called by non-user wallet
+    with boa.reverts("no perms"):
+        appraiser.calculateYieldProfits(
+            yield_vault_token,
+            1000 * EIGHTEEN_DECIMALS,
+            900 * EIGHTEEN_DECIMALS,
+            0,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            sender=bob
+        )
+
+
+def test_handle_normal_yield_different_balances(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):
+    """ Test _handleNormalYieldAsset when current and last balances differ (tests trackedBalance logic) """
+    
+    # Configure as normal yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=0,  # No cap
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token
+    yield_underlying_token.approve(mock_yield_lego, 2_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        2_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Double the vault value
+    yield_underlying_token.transfer(yield_vault_token, 2_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Time travel
+    boa.env.time_travel(blocks=1)
+    
+    # Test with different balances - uses min(current, last)
+    current_balance = 1500 * EIGHTEEN_DECIMALS  # User deposited more
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 1 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # trackedBalance = min(1500, 1000) = 1000
+    # Profit calculated on 1000 tokens only
+    # prevUnderlying = 1000 * 1.0 = 1000
+    # currentUnderlying = 1000 * 2.0 = 2000
+    # profitInUnderlying = 1000
+    # profitInVaultTokens = 1000 / 2.0 = 500
+    assert last_yield_price == 2 * EIGHTEEN_DECIMALS
+    assert actual_profit == 500 * EIGHTEEN_DECIMALS
+    assert performance_fee == 20_00
+
+
 #########
 # Utils #
 #########
@@ -1322,3 +1612,30 @@ def test_appraiser_get_asset_usd_value_config_with_vault_registration(appraiser,
     # will use global defaults
     assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
 
+
+#########
+# Other #
+#########
+
+
+def test_get_ripe_price_external(appraiser, alpha_token, mock_ripe):
+    """ Test getRipePrice external function """
+    
+    # Set price in Ripe
+    expected_price = 42 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, expected_price)
+    
+    # Call external function
+    price = appraiser.getRipePrice(alpha_token)
+    assert price == expected_price
+
+
+def test_get_ripe_price_no_price_desk(appraiser, alpha_token, mock_ripe):
+    """ Test getRipePrice when price desk is not set """
+    
+    # Set registry to return empty address for price desk
+    mock_ripe.setAddr(ZERO_ADDRESS)
+    
+    # Should return 0
+    price = appraiser.getRipePrice(alpha_token)
+    assert price == 0

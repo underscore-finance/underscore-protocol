@@ -115,7 +115,15 @@ def calculateYieldProfits(
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
 
-    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, _missionControl, _legoBook, ledger)
+    # get addresses if not provided
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
+
+    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, missionControl, legoBook, ledger)
     if not config.isYieldAsset:
         return 0, 0, 0
 

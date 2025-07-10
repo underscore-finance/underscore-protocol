@@ -1,8 +1,18 @@
 import pytest
 import boa
 
-from constants import EIGHTEEN_DECIMALS
+from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from config.BluePrint import TOKENS
+from contracts.core.userWallet import UserWallet
+
+
+# generic user wallet
+
+
+@pytest.fixture(scope="session")
+def user_wallet(hatchery, bob):
+    wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 1, sender=bob)
+    return UserWallet.at(wallet_addr)
 
 
 ############
