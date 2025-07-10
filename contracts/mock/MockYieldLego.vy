@@ -545,9 +545,8 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 
 @view
 @external
-def getPricePerShare(_yieldAsset: address) -> uint256:
-    decimals: uint256 = convert(staticcall IERC20Detailed(_yieldAsset).decimals(), uint256)
-    return staticcall IERC4626(_yieldAsset).convertToAssets(10 ** decimals)
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
+    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
 
 
 # normal price (not yield)
@@ -555,7 +554,7 @@ def getPricePerShare(_yieldAsset: address) -> uint256:
 
 @view
 @external
-def getPrice(_asset: address) -> uint256:
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
     return self.price[_asset]
 
 

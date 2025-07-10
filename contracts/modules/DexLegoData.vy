@@ -2,6 +2,7 @@
 
 uses: addys
 
+from interfaces import LegoPartner as Lego
 import contracts.modules.Addys as addys
 from ethereum.ercs import IERC20
 
@@ -31,6 +32,25 @@ def __init__(_shouldPause: bool):
 ###########
 # General #
 ###########
+
+
+# fill mini addys
+
+
+@view
+@internal
+def _getMiniAddys(_miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys)) -> Lego.MiniAddys:
+    if _miniAddys.ledger != empty(address):
+        return _miniAddys
+    return Lego.MiniAddys(
+        ledger = addys._getLedgerAddr(),
+        missionControl = addys._getMissionControlAddr(),
+        legoBook = addys._getLegoBookAddr(),
+        appraiser = addys._getAppraiserAddr(),
+    )
+
+
+# set lego id
 
 
 @external

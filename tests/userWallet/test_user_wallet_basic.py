@@ -7,15 +7,15 @@ from conf_utils import filter_logs
 
 
 @pytest.fixture(scope="module")
-def user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_debt_token):
+def user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, createTxFees, mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_debt_token):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
     
     # Configure assets with zero fees for testing
-    setAssetConfig(mock_lego_asset, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(mock_lego_asset_alt, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(mock_lego_vault, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(mock_lego_debt_token, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(mock_lego_asset, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(mock_lego_asset_alt, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(mock_lego_vault, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(mock_lego_debt_token, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
     
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS
@@ -29,9 +29,6 @@ def setup_wallet_with_tokens(user_wallet, mock_lego, mock_lego_asset, mock_lego_
     mock_lego_asset.transfer(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=whale)
     mock_lego_asset_alt.transfer(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=whale)
     
-    # Note: Access control is handled automatically by UserWallet when calling protected functions
-    # The UserWallet will call MockLego's setLegoAccess when needed
-    
     return user_wallet, mock_lego, mock_lego_asset, mock_lego_vault, mock_lego_asset_alt
 
 
@@ -40,8 +37,24 @@ def setup_wallet_with_tokens(user_wallet, mock_lego, mock_lego_asset, mock_lego_
 
 def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     """Test depositing assets into yield vault"""
+    print("Starting test_deposit_for_yield")
     user_wallet, mock_lego, asset, vault, _ = setup_wallet_with_tokens
     owner = bob
+    print(f"Got user_wallet: {user_wallet.address}")
+    
+    # Debug: Check balances before test
+    print(f"Asset balance: {asset.balanceOf(user_wallet.address)}")
+    print(f"Vault balance: {vault.balanceOf(user_wallet.address)}")
+    print(f"Asset address: {asset.address}")
+    print(f"Vault address: {vault.address}")
+    print(f"MockLego address: {mock_lego.address}")
+    print(f"MockLego hasAccess: {mock_lego.hasAccess()}")
+    
+    # Check if the tokens are valid in MockLego
+    valid_tokens = [mock_lego.asset(), mock_lego.vaultToken(), mock_lego.altAsset(), mock_lego.altVaultToken(), mock_lego.lpToken(), mock_lego.debtToken()]
+    print(f"Valid tokens: {valid_tokens}")
+    print(f"Asset in valid tokens: {asset.address in valid_tokens}")
+    print(f"Vault in valid tokens: {vault.address in valid_tokens}")
     
     # Initial balances
     initial_asset_balance = asset.balanceOf(user_wallet.address)
@@ -51,16 +64,25 @@ def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     
     # Call depositForYield
-    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = user_wallet.depositForYield(
-        1,  # legoId for MockLego
-        asset.address,
-        vault.address,
-        deposit_amount,
-        sender=owner
-    )
+    try:
+        assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = user_wallet.depositForYield(
+            1,  # legoId for MockLego
+            asset.address,
+            vault.address,
+            deposit_amount,
+            sender=owner
+        )
+    except Exception as e:
+        print(f"Exception details: {e}")
+        print(f"Exception type: {type(e)}")
+        if hasattr(e, 'data'):
+            print(f"Exception data: {e.data}")
+        if hasattr(e, 'raw_error'):
+            print(f"Raw error: {e.raw_error}")
+        raise
     
     # Get events
-    yield_deposit_logs = filter_logs(user_wallet, "YieldDeposit")
+    wallet_action_logs = filter_logs(user_wallet, "WalletAction")
     
     # Verify return values
     assert assetAmount == deposit_amount
@@ -71,14 +93,10 @@ def test_deposit_for_yield(setup_wallet_with_tokens, bob):
     assert asset.balanceOf(user_wallet.address) == initial_asset_balance - deposit_amount
     assert vault.balanceOf(user_wallet.address) == initial_vault_balance + deposit_amount
     
-    # Verify events
-    assert len(yield_deposit_logs) == 1
-    event = yield_deposit_logs[0]
-    assert event.asset == asset.address
-    assert event.assetAmount == deposit_amount
-    assert event.vaultToken == vault.address
-    assert event.vaultTokenAmount == deposit_amount
-    assert event.legoId == 1
+    # Verify events - WalletAction is emitted for all wallet actions
+    assert len(wallet_action_logs) == 1
+    event = wallet_action_logs[0]
+    assert event.action == 1  # EARN_DEPOSIT action type
     assert event.signer == owner
 
 

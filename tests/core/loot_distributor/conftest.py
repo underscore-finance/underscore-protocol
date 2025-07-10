@@ -83,6 +83,11 @@ def setup_contracts(setup_wallets, mission_control, loot_distributor, setUserWal
         _txFees=createTxFees(
             _swapFee=10_00,  # 10%
             _rewardsFee=5_00  # 5%
+        ),
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=100_00,  # 100% of swap fees go to ambassador
+            _rewardsRatio=100_00,  # 100% of rewards fees go to ambassador  
+            _yieldRatio=100_00  # 100% of yield profit fees go to ambassador
         )
     )
     
@@ -92,6 +97,11 @@ def setup_contracts(setup_wallets, mission_control, loot_distributor, setUserWal
         _txFees=createTxFees(
             _swapFee=15_00,  # 15%
             _rewardsFee=20_00  # 20%
+        ),
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=100_00,  # 100% of swap fees go to ambassador
+            _rewardsRatio=100_00,  # 100% of rewards fees go to ambassador  
+            _yieldRatio=100_00  # 100% of yield profit fees go to ambassador
         ),
         _yieldConfig=createAssetYieldConfig(
             _performanceFee=25_00  # 25%

@@ -7,17 +7,17 @@ from conf_utils import filter_logs
 
 
 @pytest.fixture(scope="module")
-def user_wallet_edge(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, alpha_token, bravo_token, charlie_token, lego_book, mock_lego_asset, mock_lego_asset_alt):
+def user_wallet_edge(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, createTxFees, alpha_token, bravo_token, charlie_token, lego_book, mock_lego_asset, mock_lego_asset_alt):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
     
     # Configure assets with zero fees for testing
-    setAssetConfig(alpha_token, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(bravo_token, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(charlie_token, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(alpha_token, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(bravo_token, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(charlie_token, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
     # Also configure mock_lego assets to ensure they work with legoId=1
-    setAssetConfig(mock_lego_asset, _swapFee=0, _rewardsFee=0, _legoId=1)
-    setAssetConfig(mock_lego_asset_alt, _swapFee=0, _rewardsFee=0, _legoId=1)
+    setAssetConfig(mock_lego_asset, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(mock_lego_asset_alt, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
     
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS

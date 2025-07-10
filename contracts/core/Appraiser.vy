@@ -122,7 +122,7 @@ def calculateYieldProfits(
     if config.isRebasing:
         return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
     else:
-        currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
         return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
 
 
@@ -143,7 +143,7 @@ def calculateYieldProfitsNoUpdate(
     if config.isRebasing:
         return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
     else:
-        currentPricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        currentPricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
         return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
     
 
@@ -286,23 +286,21 @@ def getUsdValue(
     # normal price
     price: uint256 = 0
     if not config.isYieldAsset:
-        price = self._getNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
+        price = self._getNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
     # yield price
     else:
-        pricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        pricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
         # for yield assets, need to check if it has underlying asset
         if config.underlyingAsset != empty(address):
             underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
-            underlyingPrice: uint256 = self._getNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks)
+            underlyingPrice: uint256 = self._getNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks, underlyingConfig.decimals)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
         else:
             price = pricePerShare
 
-    # finalize value
     usdValue: uint256 = price * _amount // (10 ** config.decimals)
-
     return usdValue
 
 
@@ -365,16 +363,16 @@ def _updatePriceAndGetUsdValue(
     # normal price
     price: uint256 = 0
     if not config.isYieldAsset:
-        price = self._updateAndGetNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
+        price = self._updateAndGetNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
     # yield price
     else:
-        pricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+        pricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
         # for yield assets, need to check if it has underlying asset
         if config.underlyingAsset != empty(address):
             underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
-            underlyingPrice: uint256 = self._updateAndGetNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks)
+            underlyingPrice: uint256 = self._updateAndGetNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks, underlyingConfig.decimals)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
         else:
             price = pricePerShare
@@ -414,7 +412,7 @@ def getNormalAssetPrice(
     config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if config.isYieldAsset:
         return 0 # cannot get yield price here
-    return self._getNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
+    return self._getNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
 
 @view
@@ -423,10 +421,11 @@ def _getNormalAssetPrice(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> uint256:
     data: LastPrice = empty(LastPrice)
     na: bool = False
-    data, na = self._getNormalAssetPriceAndDidUpdate(_asset, _legoAddr, _staleBlocks)
+    data, na = self._getNormalAssetPriceAndDidUpdate(_asset, _legoAddr, _staleBlocks, _decimals)
     return data.price
 
 
@@ -436,6 +435,7 @@ def _getNormalAssetPriceAndDidUpdate(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> (LastPrice, bool):
     data: LastPrice = self.lastPrice[_asset]
 
@@ -450,13 +450,12 @@ def _getNormalAssetPriceAndDidUpdate(
 
     prevPrice: uint256 = data.price
 
-    # first, check with Lego
-    if _legoAddr != empty(address):
-        data.price = staticcall Lego(_legoAddr).getPrice(_asset)
+    # first, check with Ripe
+    data.price = self._getRipePrice(_asset)
 
-    # back up plan, check with Ripe
-    if data.price == 0:
-        data.price = self._getRipePrice(_asset)
+    # back up plan, check with Lego
+    if data.price == 0 and _legoAddr != empty(address):
+        data.price = staticcall Lego(_legoAddr).getPrice(_asset, _decimals)
 
     # check if changed
     didPriceChange: bool = False
@@ -491,7 +490,7 @@ def updateAndGetNormalAssetPrice(
     config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if config.isYieldAsset:
         return 0 # cannot get yield price here
-    return self._updateAndGetNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks)
+    return self._updateAndGetNormalAssetPrice(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
 
 @internal
@@ -499,10 +498,11 @@ def _updateAndGetNormalAssetPrice(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> uint256:
     data: LastPrice = empty(LastPrice)
     didPriceChange: bool = False
-    data, didPriceChange = self._getNormalAssetPriceAndDidUpdate(_asset, _legoAddr, _staleBlocks)
+    data, didPriceChange = self._getNormalAssetPriceAndDidUpdate(_asset, _legoAddr, _staleBlocks, _decimals)
     if didPriceChange:
         self.lastPrice[_asset] = data
     return data.price
@@ -537,7 +537,7 @@ def getPricePerShare(
         ledger = addys._getLedgerAddr()
 
     config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
-    return self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+    return self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
 
 @view
@@ -546,8 +546,9 @@ def getPricePerShareWithConfig(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> uint256:
-    return self._getPricePerShare(_asset, _legoAddr, _staleBlocks)
+    return self._getPricePerShare(_asset, _legoAddr, _staleBlocks, _decimals)
 
 
 @view
@@ -556,10 +557,11 @@ def _getPricePerShare(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> uint256:
     data: LastPricePerShare = empty(LastPricePerShare)
     na: bool = False
-    data, na = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks)
+    data, na = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks, _decimals)
     return data.pricePerShare
 
 
@@ -569,6 +571,7 @@ def _getPricePerShareAndDidUpdate(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> (LastPricePerShare, bool):
     data: LastPricePerShare = self.lastPricePerShare[_asset]
 
@@ -585,7 +588,8 @@ def _getPricePerShareAndDidUpdate(
 
     # first, check with Lego
     if _legoAddr != empty(address):
-        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset)
+        decimals: uint256 = self._getDecimals(_asset)
+        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset, decimals)
     
     # back up plan, check with Ripe
     if data.pricePerShare == 0:
@@ -624,7 +628,7 @@ def updateAndGetPricePerShare(
     config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
     if not config.isYieldAsset:
         return 0 # cannot get normal price here
-    return self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks)
+    return self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
 
 @internal
@@ -632,10 +636,11 @@ def _updateAndGetPricePerShare(
     _asset: address,
     _legoAddr: address,
     _staleBlocks: uint256,
+    _decimals: uint256,
 ) -> uint256:
     data: LastPricePerShare = empty(LastPricePerShare)
     didPriceChange: bool = False
-    data, didPriceChange = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks)
+    data, didPriceChange = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks, _decimals)
     if didPriceChange:
         self.lastPricePerShare[_asset] = data
     return data.pricePerShare

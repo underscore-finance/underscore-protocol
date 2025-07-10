@@ -179,6 +179,8 @@ def mock_lego(mock_lego_asset, mock_lego_vault, mock_lego_asset_alt, undy_hq_dep
     for a in [mock_lego_asset, mock_lego_asset_alt, mock_lego_vault, mock_lego_vault_alt, mock_lego_lp_token, mock_lego_debt_token]:
         a.setMinter(ml, True, sender=governance.address)
         a.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
+    # Set access for MockLego
+    ml.setLegoAccess(ml.address)
     return ml
 
 

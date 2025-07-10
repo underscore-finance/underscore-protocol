@@ -217,18 +217,18 @@ def lego_book_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def lego_book(lego_book_deploy, deploy3r, mock_lego, mock_yield_lego):
+def lego_book(lego_book_deploy, governance, mock_lego, mock_yield_lego):
 
     # register mock lego
-    assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=deploy3r)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=deploy3r) == 1
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_lego, "Mock Lego", sender=governance.address)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_lego, sender=governance.address) == 1
 
     # register mock yield lego
-    assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=deploy3r)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=deploy3r) == 2
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=governance.address)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=governance.address) == 2
 
     # finish registry setup
-    assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
+    assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=governance.address)
 
     return lego_book_deploy
 

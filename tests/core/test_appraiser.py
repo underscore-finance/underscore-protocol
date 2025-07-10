@@ -18,7 +18,8 @@ def setup_appraiser_test(
     bravo_token,
     charlie_token,
     delta_token,
-    mock_ripe
+    mock_ripe,
+    lego_book  # Ensure MockYieldLego is registered
 ):
     """Setup all necessary configurations for appraiser tests"""
     

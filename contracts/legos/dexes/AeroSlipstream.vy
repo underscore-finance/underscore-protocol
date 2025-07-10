@@ -41,13 +41,13 @@ interface AeroNftPositionManager:
     def positions(_tokenId: uint256) -> PositionData: view
     def burn(_tokenId: uint256): nonpayable
 
+interface Appraiser:
+    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+
 interface AeroQuoter:
     def quoteExactOutputSingle(_params: QuoteExactOutputSingleParams) -> (uint256, uint160, uint32, uint256): nonpayable
     def quoteExactInputSingle(_params: QuoteExactInputSingleParams) -> (uint256, uint160, uint32, uint256): nonpayable
-
-interface Appraiser:
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
-    def getNormalAssetPrice(_asset: address) -> uint256: view
 
 interface IUniswapV3Callback:
     def uniswapV3SwapCallback(_amount0Delta: int256, _amount1Delta: int256, _data: Bytes[256]): nonpayable
@@ -256,6 +256,7 @@ def swapTokens(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
     numTokens: uint256 = len(_tokenPath)
@@ -304,10 +305,9 @@ def swapTokens(
         amountIn -= refundAssetAmount
 
     # get usd values
-    appraiser: address = addys._getAppraiserAddr()
-    usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook)
     if usdValue == 0:
-        usdValue = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut)
+        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook)
 
     log AeroSlipStreamSwap(
         sender = msg.sender,
@@ -407,6 +407,7 @@ def addLiquidityConcentrated(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate tokens
     tokens: address[2] = [staticcall AeroSlipStreamPool(_pool).token0(), staticcall AeroSlipStreamPool(_pool).token1()]
@@ -484,7 +485,7 @@ def addLiquidityConcentrated(
         liqAmountA = amount1
         liqAmountB = amount0
 
-    usdValue: uint256 = self._getUsdValue(_tokenA, liqAmountA, _tokenB, liqAmountB)
+    usdValue: uint256 = self._getUsdValue(_tokenA, liqAmountA, _tokenB, liqAmountB, miniAddys)
     log AeroSlipStreamLiquidityAdded(
         sender = msg.sender,
         tokenA = _tokenA,
@@ -633,6 +634,7 @@ def removeLiquidityConcentrated(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # make sure nft is here
     nftPositionManager: address = AERO_SLIPSTREAM_NFT_MANAGER
@@ -692,7 +694,7 @@ def removeLiquidityConcentrated(
     else:
         extcall IERC721(nftPositionManager).safeTransferFrom(self, _recipient, _nftTokenId)
 
-    usdValue: uint256 = self._getUsdValue(_tokenA, amountA, _tokenB, amountB)
+    usdValue: uint256 = self._getUsdValue(_tokenA, amountA, _tokenB, amountB, miniAddys)
     liquidityRemoved: uint256 = convert(originalLiquidity - positionData.liquidity, uint256)
     log AeroSlipStreamLiquidityRemoved(
         sender = msg.sender,
@@ -718,16 +720,16 @@ def _getUsdValue(
     _amountA: uint256,
     _tokenB: address,
     _amountB: uint256,
+    _miniAddys: Lego.MiniAddys,
 ) -> uint256:
-    appraiser: address = addys._getAppraiserAddr()
 
     usdValueA: uint256 = 0
     if _amountA != 0:
-        usdValueA = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA)
+        usdValueA = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook)
 
     usdValueB: uint256 = 0
     if _amountB != 0:
-        usdValueB = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB)
+        usdValueB = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook)
 
     return usdValueA + usdValueB
 
@@ -936,6 +938,12 @@ def getRemoveLiqAmountsOut(
         return amount0Out, amount1Out
     else:
         return amount1Out, amount0Out
+
+
+@view
+@external
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
+    return 0 # TODO: implement price
 
 
 @view
@@ -1205,11 +1213,6 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 
 @view
 @external
-def getPricePerShare(_yieldAsset: address) -> uint256:
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     return 0
 
-
-@view
-@external
-def getPrice(_asset: address) -> uint256:
-    return 0

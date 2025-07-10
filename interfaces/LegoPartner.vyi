@@ -94,12 +94,12 @@ def isDexLego() -> bool:
 
 @view
 @external
-def getPricePerShare(_yieldAsset: address) -> uint256:
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     ...
 
 @view
 @external
-def getPrice(_asset: address) -> uint256:
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
     ...
 
 

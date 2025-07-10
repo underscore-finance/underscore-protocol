@@ -7,13 +7,13 @@ from conf_utils import filter_logs
 
 
 @pytest.fixture(scope="module")
-def user_wallet_ac(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, mock_lego_asset, mock_lego_asset_alt):
+def user_wallet_ac(setUserWalletConfig, setManagerConfig, hatchery, bob, setAssetConfig, createTxFees, mock_lego_asset, mock_lego_asset_alt):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
     
     # Configure assets with zero fees for testing
-    setAssetConfig(mock_lego_asset, _swapFee=0, _rewardsFee=0)
-    setAssetConfig(mock_lego_asset_alt, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(mock_lego_asset, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
+    setAssetConfig(mock_lego_asset_alt, _legoId=1, _txFees=createTxFees(_swapFee=0, _rewardsFee=0))
     
     wallet_addr = hatchery.createUserWallet(sender=bob)
     assert wallet_addr != ZERO_ADDRESS

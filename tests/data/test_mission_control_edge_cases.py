@@ -17,15 +17,15 @@ def test_zero_address_handling(mission_control, setUserWalletConfig, setAssetCon
     assert config[0] == ZERO_ADDRESS
     assert config[1] == ZERO_ADDRESS
     assert config[2] == ZERO_ADDRESS
-    assert config[11] == ZERO_ADDRESS
+    assert config[9] == ZERO_ADDRESS
 
 
-def test_maximum_values(mission_control, switchboard_alpha, alpha_token):
+def test_maximum_values(mission_control, switchboard_alpha, alpha_token, createTxFees, createAmbassadorRevShare):
     """Test setting maximum allowed values"""
     # Set config with maximum values
     max_uint256 = 2**256 - 1
-    max_fees = (HUNDRED_PERCENT, HUNDRED_PERCENT, HUNDRED_PERCENT)
-    max_ambassador = (HUNDRED_PERCENT, HUNDRED_PERCENT, HUNDRED_PERCENT)
+    max_fees = createTxFees(HUNDRED_PERCENT, HUNDRED_PERCENT, HUNDRED_PERCENT)
+    max_ambassador = createAmbassadorRevShare(HUNDRED_PERCENT, HUNDRED_PERCENT, HUNDRED_PERCENT)
     
     config = (
         alpha_token.address,  # walletTemplate
@@ -36,10 +36,13 @@ def test_maximum_values(mission_control, switchboard_alpha, alpha_token):
         True,  # enforceCreatorWhitelist
         max_uint256,  # minKeyActionTimeLock - maximum (problematic in practice)
         max_uint256,  # maxKeyActionTimeLock - maximum
-        max_fees,  # walletFees - 100% each
-        max_ambassador,  # ambassadorFeeRatio - 100% each
         max_uint256,  # defaultStaleBlocks - maximum
         alpha_token.address,  # depositRewardsAsset
+        max_fees,  # txFees - 100% each
+        max_ambassador,  # ambassadorRevShare - 100% each
+        max_uint256,  # defaultYieldMaxIncrease - maximum
+        max_uint256,  # defaultYieldPerformanceFee - maximum
+        max_uint256,  # defaultYieldAmbassadorBonusRatio - maximum
     )
     
     # This should succeed even with extreme values
@@ -50,23 +53,19 @@ def test_maximum_values(mission_control, switchboard_alpha, alpha_token):
     assert stored[4] == max_uint256  # numUserWalletsAllowed
 
 
-def test_zero_fees(mission_control, setUserWalletConfig, setAssetConfig, alice, alpha_token, bravo_token):
+def test_zero_fees(mission_control, setUserWalletConfig, setAssetConfig, createTxFees, createAmbassadorRevShare, alice, alpha_token, bravo_token):
     """Test zero fee configurations"""
     # Set all fees to zero
     setUserWalletConfig(
-        _swapFee=0,
-        _stableSwapFee=0,
-        _rewardsFee=0,
-        _ambassadorFeesSwap=0,
-        _ambassadorFeesRewards=0,
-        _ambassadorFeesYieldProfit=0,
+        _txFees=createTxFees(_swapFee=0, _stableSwapFee=0, _rewardsFee=0),
+        _ambassadorRevShare=createAmbassadorRevShare(_swapRatio=0, _rewardsRatio=0, _yieldRatio=0),
     )
     
     # Verify zero fees
     assert mission_control.getSwapFee(alice, alpha_token.address, bravo_token.address) == 0
     assert mission_control.getRewardsFee(alice, alpha_token.address) == 0
     
-    config = mission_control.getAmbassadorConfig(alice, alpha_token.address, False)
+    config = mission_control.getAmbassadorConfig(alice, alpha_token.address)
     assert config[1][0] == 0  # swap
     assert config[1][1] == 0  # rewards
     assert config[1][2] == 0  # yield profit
@@ -85,24 +84,26 @@ def test_conflicting_configurations(mission_control, setUserWalletConfig, setAss
     assert config[13] == 100   # max (less than min)
 
 
-def test_asset_config_edge_cases(mission_control, switchboard_alpha, alpha_token, bravo_token):
+def test_asset_config_edge_cases(mission_control, switchboard_alpha, alpha_token, bravo_token, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Test edge cases in asset configuration"""
     # Asset that is both stablecoin and yield asset
-    fees = (100, 25, 2000)
-    yieldConfig = (
-        True,  # isRebasing
-        bravo_token.address,  # underlyingAsset
-        0,  # maxYieldIncrease - 0% allowed increase
-        HUNDRED_PERCENT,  # yieldProfitFee - 100% fee
-        0,  # ambassadorBonusRatio - 0% bonus
+    txFees = createTxFees(100, 25, 2000)
+    ambassadorRevShare = createAmbassadorRevShare(5000, 5000, 5000)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=bravo_token.address,
+        _maxYieldIncrease=0,  # 0% allowed increase
+        _performanceFee=HUNDRED_PERCENT,  # 100% fee
+        _ambassadorBonusRatio=0  # 0% bonus
     )
     config = (
         0,  # legoId - 0 is valid
         True,  # isStablecoin
         0,  # decimals - 0 decimals (triggers defaults)
         0,  # staleBlocks - 0 blocks
-        fees,
-        True,  # isYieldAsset
+        txFees,
+        ambassadorRevShare,
         yieldConfig,
     )
     
@@ -112,24 +113,32 @@ def test_asset_config_edge_cases(mission_control, switchboard_alpha, alpha_token
     assert stored[0] == 0  # legoId can be 0
     assert stored[1] == True  # stablecoin
     assert stored[2] == 0  # 0 decimals
-    assert stored[5] == True  # yield asset
-    assert stored[6][2] == 0  # 0% max yield increase
-    assert stored[6][3] == HUNDRED_PERCENT  # 100% fee
+    assert stored[6][0] == True  # yield asset
+    assert stored[6][3] == 0  # 0% max yield increase
+    assert stored[6][4] == HUNDRED_PERCENT  # 100% fee
 
 
-def test_rapid_config_updates(mission_control, switchboard_alpha, alpha_token, bravo_token, charlie_token):
+def test_rapid_config_updates(mission_control, switchboard_alpha, alpha_token, bravo_token, charlie_token, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Test rapid configuration updates"""
     # Rapidly update configurations
     for i in range(10):
-        fees = (i * 10, i * 5, i * 20)
-        yieldConfig = (i % 2 == 0, alpha_token.address, i * 100, i * 200, i * 300)
+        txFees = createTxFees(i * 10, i * 5, i * 20)
+        ambassadorRevShare = createAmbassadorRevShare(5000, 5000, 5000)
+        yieldConfig = createAssetYieldConfig(
+            _isYieldAsset=(i % 3 == 0),
+            _isRebasing=(i % 2 == 0),
+            _underlyingAsset=alpha_token.address,
+            _maxYieldIncrease=i * 100,
+            _performanceFee=i * 200,
+            _ambassadorBonusRatio=i * 300
+        )
         config = (
             i,  # legoId
             i % 2 == 1,  # alternating stablecoin
             18,  # decimals
             i * 10,  # staleBlocks
-            fees,
-            i % 3 == 0,  # every third is yield
+            txFees,
+            ambassadorRevShare,
             yieldConfig,
         )
         
@@ -192,18 +201,19 @@ def test_multiple_whitelists_and_permissions(mission_control, switchboard_alpha,
     assert mission_control.isLockedSigner(agent_eoa) == True
 
 
-def test_fee_calculation_edge_cases(mission_control, switchboard_alpha, setUserWalletConfig, setAssetConfig, alice, alpha_token, bravo_token):
+def test_fee_calculation_edge_cases(mission_control, switchboard_alpha, setUserWalletConfig, setAssetConfig, createTxFees, createAmbassadorRevShare, createAssetYieldConfig, alice, alpha_token, bravo_token):
     """Test edge cases in fee calculations"""
     # Test with one asset having custom fee, one without
-    setUserWalletConfig(_swapFee=100, _stableSwapFee=10)
+    setUserWalletConfig(_txFees=createTxFees(_swapFee=100, _stableSwapFee=10))
     
     # Bravo has custom fee
-    setAssetConfig(bravo_token, _swapFee=200)
+    setAssetConfig(bravo_token, _txFees=createTxFees(_swapFee=200))
     
     # Alpha has 0 decimals (should use global)
-    fees = (300, 25, 400)  # Should be ignored
-    yieldConfig = (False, ZERO_ADDRESS, 0, 0, 0)
-    config = (1, False, 0, 100, fees, False, yieldConfig)
+    txFees = createTxFees(300, 25, 400)  # Should be ignored
+    ambassadorRevShare = createAmbassadorRevShare(5000, 5000, 5000)
+    yieldConfig = createAssetYieldConfig(_isYieldAsset=False, _underlyingAsset=ZERO_ADDRESS)
+    config = (1, False, 0, 100, txFees, ambassadorRevShare, yieldConfig)
     mission_control.setAssetConfig(alpha_token.address, config, sender=switchboard_alpha.address)
     
     # Swap from alpha (0 decimals) to beta (custom fee)
@@ -215,13 +225,14 @@ def test_fee_calculation_edge_cases(mission_control, switchboard_alpha, setUserW
     assert fee == 100  # Global fee (alpha has 0 decimals)
 
 
-def test_batch_asset_config_pattern(mission_control, switchboard_alpha, alpha_token, bravo_token, charlie_token):
+def test_batch_asset_config_pattern(mission_control, switchboard_alpha, alpha_token, bravo_token, charlie_token, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Test pattern for batch setting asset configs"""
     assets = [alpha_token, bravo_token, charlie_token]
     
     # Configure multiple assets with similar settings
-    base_fees = (100, 25, 2000)
-    base_yield = (False, ZERO_ADDRESS, 0, 0, 0)
+    base_fees = createTxFees(100, 25, 2000)
+    base_ambassador = createAmbassadorRevShare(5000, 5000, 5000)
+    base_yield = createAssetYieldConfig(_isYieldAsset=False, _underlyingAsset=ZERO_ADDRESS)
     
     for i, asset in enumerate(assets):
         config = (
@@ -230,7 +241,7 @@ def test_batch_asset_config_pattern(mission_control, switchboard_alpha, alpha_to
             18,  # decimals
             100,  # staleBlocks
             base_fees,
-            False,  # not yield asset
+            base_ambassador,
             base_yield,
         )
         mission_control.setAssetConfig(asset.address, config, sender=switchboard_alpha.address)
@@ -263,22 +274,22 @@ def test_config_reuse_pattern(mission_control, setUserWalletConfig, setManagerCo
         assert config[7] == ONE_MONTH_IN_BLOCKS  # managerActivationLength
 
 
-def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, setAssetConfig, createAssetYieldConfig, alice, alpha_token, bravo_token):
+def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, setAssetConfig, createAssetYieldConfig, createAmbassadorRevShare, alice, alpha_token, bravo_token):
     """Test ambassador config with various parameter combinations"""
     # Set base config
     setUserWalletConfig(
-        _ambassadorFeesSwap=4500,
-        _ambassadorFeesRewards=3500,
-        _ambassadorFeesYieldProfit=5500,
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=4500,
+            _rewardsRatio=3500,
+            _yieldRatio=5500
+        ),
+        _defaultYieldAmbassadorBonusRatio=5000
     )
     
     # Non-yield asset
     setAssetConfig(alpha_token, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))
-    config = mission_control.getAmbassadorConfig(alice, alpha_token.address, False)
-    assert config[2] == 0  # No bonus for non-yield when called with False
-    
-    config = mission_control.getAmbassadorConfig(alice, alpha_token.address, True)
-    assert config[2] == 5000  # Returns default ambassadorBonusRatio even for non-yield asset when called with True
+    config = mission_control.getAmbassadorConfig(alice, alpha_token.address)
+    assert config[2] == 5000  # Uses default ambassadorBonusRatio for non-yield asset
     
     # Yield asset
     setAssetConfig(
@@ -290,24 +301,22 @@ def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, 
         )
     )
     
-    config = mission_control.getAmbassadorConfig(alice, bravo_token.address, False)
-    assert config[2] == 0  # No bonus when called with False
-    
-    config = mission_control.getAmbassadorConfig(alice, bravo_token.address, True)
-    assert config[2] == 2500  # Bonus when called with True
+    config = mission_control.getAmbassadorConfig(alice, bravo_token.address)
+    assert config[2] == 2500  # Uses asset-specific bonus
     assert config[3] == alpha_token.address  # Underlying asset
     assert config[4] == 18  # Decimals
 
 
-def test_stale_blocks_fallback_logic(mission_control, switchboard_alpha, setUserWalletConfig, alpha_token):
+def test_stale_blocks_fallback_logic(mission_control, switchboard_alpha, setUserWalletConfig, alpha_token, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Test stale blocks fallback to default"""
     # Set default stale blocks
     setUserWalletConfig(_staleBlocks=777)
     
     # Asset with specific stale blocks (decimals > 0)
-    fees = (100, 25, 2000)
-    yieldConfig = (False, ZERO_ADDRESS, 0, 0, 0)
-    config = (1, False, 18, 555, fees, False, yieldConfig)  # 555 stale blocks
+    txFees = createTxFees(100, 25, 2000)
+    ambassadorRevShare = createAmbassadorRevShare(5000, 5000, 5000)
+    yieldConfig = createAssetYieldConfig(_isYieldAsset=False, _underlyingAsset=ZERO_ADDRESS)
+    config = (1, False, 18, 555, txFees, ambassadorRevShare, yieldConfig)  # 555 stale blocks
     mission_control.setAssetConfig(alpha_token.address, config, sender=switchboard_alpha.address)
     
     # Should use asset's stale blocks
@@ -318,7 +327,7 @@ def test_stale_blocks_fallback_logic(mission_control, switchboard_alpha, setUser
     assert usd_config[3] == 555
     
     # Asset with 0 decimals (triggers default)
-    config = (1, False, 0, 555, fees, False, yieldConfig)  # decimals = 0
+    config = (1, False, 0, 555, txFees, ambassadorRevShare, yieldConfig)  # decimals = 0
     mission_control.setAssetConfig(alpha_token.address, config, sender=switchboard_alpha.address)
     
     # Should use default stale blocks

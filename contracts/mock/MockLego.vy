@@ -560,7 +560,7 @@ def _areValidTokens(_tokens: DynArray[address, 6]) -> bool:
 
 @view
 @external
-def getPricePerShare(_yieldAsset: address) -> uint256:
+def getPricePerShare(_yieldAsset: address, _decimals: uint256) -> uint256:
     return self.pricePerShare[_yieldAsset]
 
 
@@ -569,7 +569,7 @@ def getPricePerShare(_yieldAsset: address) -> uint256:
 
 @view
 @external
-def getPrice(_asset: address) -> uint256:
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
     return self.price[_asset]
 
 

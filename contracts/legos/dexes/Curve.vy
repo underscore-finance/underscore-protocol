@@ -77,6 +77,10 @@ interface MetaPoolFour:
     def add_liquidity(_amounts: uint256[4], _minLpAmount: uint256, _recipient: address = msg.sender) -> uint256: nonpayable
     def calc_token_amount(_amounts: uint256[4], _isDeposit: bool) -> uint256: view
 
+interface Appraiser:
+    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+
 interface MetaPoolCommon:
     def remove_liquidity_one_coin(_lpBurnAmount: uint256, _index: int128, _minAmountOut: uint256, _recipient: address = msg.sender) -> uint256: nonpayable
     def calc_withdraw_one_coin(_burnAmount: uint256, _index: int128) -> uint256: view
@@ -96,10 +100,6 @@ interface CommonCurvePool:
 interface CurveRateProvider:
     def get_quotes(_tokenIn: address, _tokenOut: address, _amountIn: uint256) -> DynArray[Quote, MAX_QUOTES]: view
     def get_aggregated_rate(_tokenIn: address, _tokenOut: address) -> uint256: view
-
-interface Appraiser:
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256) -> uint256: nonpayable
-    def getNormalAssetPrice(_asset: address) -> uint256: view
 
 interface CryptoLegacyPool:
     def exchange(_i: uint256, _j: uint256, _dx: uint256, _min_dy: uint256, _use_eth: bool = False) -> uint256: payable
@@ -258,6 +258,7 @@ def swapTokens(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
     numTokens: uint256 = len(_tokenPath)
@@ -306,10 +307,9 @@ def swapTokens(
         amountIn -= refundAssetAmount
 
     # get usd values
-    appraiser: address = addys._getAppraiserAddr()
-    usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook)
     if usdValue == 0:
-        usdValue = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut)
+        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook)
 
     log CurveSwap(
         sender = msg.sender,
@@ -392,6 +392,7 @@ def addLiquidity(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (address, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     assert empty(address) not in [_tokenA, _tokenB] # dev: invalid tokens
     assert _tokenA != _tokenB # dev: invalid tokens
@@ -454,7 +455,7 @@ def addLiquidity(
             assert extcall IERC20(_tokenB).transfer(msg.sender, refundAssetAmountB, default_return_value=True) # dev: transfer failed
             liqAmountB -= refundAssetAmountB
 
-    usdValue: uint256 = self._getUsdValue(_tokenA, liqAmountA, _tokenB, liqAmountB)
+    usdValue: uint256 = self._getUsdValue(_tokenA, liqAmountA, _tokenB, liqAmountB, miniAddys)
     log CurveLiquidityAdded(
         sender = msg.sender,
         tokenA = _tokenA,
@@ -594,6 +595,7 @@ def removeLiquidity(
     _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    miniAddys: Lego.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # if one of the tokens is empty, it means they only want to remove liquidity for one token
     assert _tokenA != empty(address) or _tokenB != empty(address) # dev: invalid tokens
@@ -658,7 +660,7 @@ def removeLiquidity(
         assert extcall IERC20(_lpToken).transfer(msg.sender, refundedLpAmount, default_return_value=True) # dev: transfer failed
         lpAmount -= refundedLpAmount
 
-    usdValue: uint256 = self._getUsdValue(_tokenA, amountA, _tokenB, amountB)
+    usdValue: uint256 = self._getUsdValue(_tokenA, amountA, _tokenB, amountB, miniAddys)
     log CurveLiquidityRemoved(
         sender = msg.sender,
         pool = _pool,
@@ -955,16 +957,16 @@ def _getUsdValue(
     _amountA: uint256,
     _tokenB: address,
     _amountB: uint256,
+    _miniAddys: Lego.MiniAddys,
 ) -> uint256:
-    appraiser: address = addys._getAppraiserAddr()
 
     usdValueA: uint256 = 0
     if _amountA != 0:
-        usdValueA = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA)
+        usdValueA = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook)
 
     usdValueB: uint256 = 0
     if _amountB != 0:
-        usdValueB = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB)
+        usdValueB = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook)
 
     return usdValueA + usdValueB
 
@@ -1189,6 +1191,12 @@ def getRemoveLiqAmountsOut(
         amountB = amountOut
 
     return amountA, amountB
+
+
+@view
+@external
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
+    return 0 # TODO: implement price
 
 
 @view
@@ -1619,11 +1627,5 @@ def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String
 
 @view
 @external
-def getPricePerShare(_yieldAsset: address) -> uint256:
-    return 0
-
-
-@view
-@external
-def getPrice(_asset: address) -> uint256:
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     return 0
