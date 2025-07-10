@@ -14,9 +14,6 @@ event AssetOpportunityRemoved:
     asset: indexed(address)
     vaultAddr: indexed(address)
 
-event LegoIdSet:
-    legoId: uint256
-
 event LegoPauseModified:
     isPaused: bool
 
@@ -26,7 +23,6 @@ event LegoFundsRecovered:
     balance: uint256
 
 # config
-legoId: public(uint256)
 isPaused: public(bool)
 
 # asset opportunities
@@ -258,18 +254,6 @@ def _getMiniAddys(_miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys)) -> Lego.Mi
         legoBook = addys._getLegoBookAddr(),
         appraiser = addys._getAppraiserAddr(),
     )
-
-
-# set lego id
-
-
-@external
-def setLegoId(_legoId: uint256):
-    assert msg.sender == addys._getLegoBookAddr() # dev: no perms
-    prevLegoId: uint256 = self.legoId
-    assert prevLegoId == 0 or prevLegoId == _legoId # dev: invalid lego id
-    self.legoId = _legoId
-    log LegoIdSet(legoId=_legoId)
 
 
 # activate

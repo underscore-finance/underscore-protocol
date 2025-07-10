@@ -1,0 +1,27 @@
+# @version 0.4.3
+
+import interfaces.ConfigStructs as cs
+
+
+@view
+@external
+def userWalletConfig() -> cs.UserWalletConfig:
+    ...
+
+
+@view
+@external
+def agentConfig() -> cs.AgentConfig:
+    ...
+
+
+@view
+@external
+def managerConfig() -> cs.ManagerConfig:
+    ...
+
+
+@view
+@external
+def payeeConfig() -> cs.PayeeConfig:
+    ...

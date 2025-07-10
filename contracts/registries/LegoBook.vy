@@ -61,10 +61,7 @@ def startAddNewAddressToRegistry(_addr: address, _description: String[64]) -> bo
 @external
 def confirmNewAddressToRegistry(_addr: address) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    legoId: uint256 = registry._confirmNewAddressToRegistry(_addr)
-    if legoId != 0:
-        extcall Lego(_addr).setLegoId(legoId)
-    return legoId
+    return registry._confirmNewAddressToRegistry(_addr)
 
 
 @external
@@ -85,11 +82,7 @@ def startAddressUpdateToRegistry(_regId: uint256, _newAddr: address) -> bool:
 @external
 def confirmAddressUpdateToRegistry(_regId: uint256) -> bool:
     assert gov._canGovern(msg.sender) # dev: no perms
-    didUpdate: bool = registry._confirmAddressUpdateToRegistry(_regId)
-    if didUpdate:
-        addr: address = registry._getAddr(_regId)
-        extcall Lego(addr).setLegoId(_regId)
-    return didUpdate
+    return registry._confirmAddressUpdateToRegistry(_regId)
 
 
 @external

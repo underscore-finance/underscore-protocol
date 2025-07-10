@@ -100,6 +100,7 @@ INTEGRATION_ADDYS = {
 
 TOKENS = {
     "base": {
+        "RIPE": "0x2A0a59d6B975828e781EcaC125dBA40d7ee5dDC0",
         # important tokens / representations
         "WETH": "0x4200000000000000000000000000000000000006",
         "ETH": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",

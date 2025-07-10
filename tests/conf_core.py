@@ -29,7 +29,7 @@ def undy_hq(
     undy_hq_deploy,
     undy_token,
     switchboard,
-    lego_book_deploy,
+    lego_book,
     deploy3r,
     governance,
     ledger,
@@ -40,10 +40,6 @@ def undy_hq(
     paymaster,
     migrator,
     loot_distributor,
-    setUserWalletConfig,
-    setManagerConfig,
-    setAgentConfig,
-    setPayeeConfig,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -61,8 +57,8 @@ def undy_hq(
     # registries
 
     # 4
-    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book_deploy, "Lego Book", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book_deploy, sender=deploy3r) == 4
+    assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 4
 
     # 5
     assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
@@ -103,12 +99,6 @@ def undy_hq(
     # finish undy hq setup
     assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
     assert undy_hq_deploy.finishUndyHqSetup(governance, sender=deploy3r)
-
-    # default config
-    setUserWalletConfig()
-    setManagerConfig()
-    setAgentConfig()
-    setPayeeConfig()
 
     return undy_hq_deploy
 
@@ -153,10 +143,11 @@ def ledger(undy_hq_deploy):
 
 
 @pytest.fixture(scope="session")
-def mission_control(undy_hq_deploy):
+def mission_control(undy_hq_deploy, defaults):
     return boa.load(
         "contracts/data/MissionControl.vy",
         undy_hq_deploy,
+        defaults,
         name="mission_control",
     )
 
@@ -207,6 +198,23 @@ def switchboard_alpha(undy_hq_deploy, fork):
     )
 
 
+# defaults
+
+
+@pytest.fixture(scope="session")
+def defaults(fork, user_wallet_template, user_wallet_config_template, agent_template, agent_eoa):
+    d = ZERO_ADDRESS
+    if fork == "local":
+        d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa)
+    elif fork == "base":
+        # TODO: get actual agent contract here instead of using `agent_eoa`
+        trial_funds_asset = TOKENS[fork]["USDC"]
+        trial_funds_amount = 10 * (10 ** 6)
+        rewards_asset = TOKENS[fork]["RIPE"]
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
+    return d
+
+
 #########
 # Legos #
 #########
@@ -226,19 +234,19 @@ def lego_book_deploy(undy_hq_deploy, fork):
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
-def lego_book(lego_book_deploy, governance, mock_dex_lego, mock_yield_lego):
+@pytest.fixture(scope="session")
+def lego_book(lego_book_deploy, deploy3r, mock_dex_lego, mock_yield_lego):
 
     # register mock yield lego
-    assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=governance.address)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=governance.address) == 1
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=deploy3r)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=deploy3r) == 1
 
     # register mock dex lego
-    assert lego_book_deploy.startAddNewAddressToRegistry(mock_dex_lego, "Mock Dex Lego", sender=governance.address)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_dex_lego, sender=governance.address) == 2
+    assert lego_book_deploy.startAddNewAddressToRegistry(mock_dex_lego, "Mock Dex Lego", sender=deploy3r)
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_dex_lego, sender=deploy3r) == 2
 
     # finish registry setup
-    assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=governance.address)
+    assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
 
     return lego_book_deploy
 

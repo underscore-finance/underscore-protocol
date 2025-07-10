@@ -13,6 +13,7 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import LegoPartner as Lego
 from interfaces import Wallet as wi
+import interfaces.ConfigStructs as cs
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -45,15 +46,10 @@ struct PointsData:
 
 struct AmbassadorConfig:
     ambassador: address
-    ambassadorRevShare: AmbassadorRevShare
+    ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     underlyingAsset: address
     decimals: uint256
-
-struct AmbassadorRevShare:
-    swapRatio: uint256
-    rewardsRatio: uint256
-    yieldRatio: uint256
 
 struct VaultToken:
     legoId: uint256

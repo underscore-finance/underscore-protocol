@@ -1,0 +1,60 @@
+# @version 0.4.3
+
+struct UserWalletConfig:
+    walletTemplate: address
+    configTemplate: address
+    trialAsset: address
+    trialAmount: uint256
+    numUserWalletsAllowed: uint256
+    enforceCreatorWhitelist: bool
+    minKeyActionTimeLock: uint256
+    maxKeyActionTimeLock: uint256
+    defaultStaleBlocks: uint256
+    depositRewardsAsset: address
+    txFees: TxFees
+    ambassadorRevShare: AmbassadorRevShare
+    defaultYieldMaxIncrease: uint256
+    defaultYieldPerformanceFee: uint256
+    defaultYieldAmbassadorBonusRatio: uint256
+
+struct AssetConfig:
+    legoId: uint256
+    isStablecoin: bool
+    decimals: uint256
+    staleBlocks: uint256
+    txFees: TxFees
+    ambassadorRevShare: AmbassadorRevShare
+    yieldConfig: YieldConfig
+
+struct TxFees:
+    swapFee: uint256
+    stableSwapFee: uint256
+    rewardsFee: uint256
+
+struct AmbassadorRevShare:
+    swapRatio: uint256
+    rewardsRatio: uint256
+    yieldRatio: uint256
+
+struct YieldConfig:
+    isYieldAsset: bool
+    isRebasing: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    performanceFee: uint256
+    ambassadorBonusRatio: uint256
+
+struct AgentConfig:
+    agentTemplate: address
+    numAgentsAllowed: uint256
+    enforceCreatorWhitelist: bool
+    startingAgent: address
+    startingAgentActivationLength: uint256
+
+struct ManagerConfig:
+    managerPeriod: uint256
+    managerActivationLength: uint256
+
+struct PayeeConfig:
+    payeePeriod: uint256
+    payeeActivationLength: uint256

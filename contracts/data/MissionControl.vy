@@ -10,66 +10,10 @@ initializes: deptBasics[addys := addys]
 
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
+
 from interfaces import Department
-
-struct UserWalletConfig:
-    walletTemplate: address
-    configTemplate: address
-    trialAsset: address
-    trialAmount: uint256
-    numUserWalletsAllowed: uint256
-    enforceCreatorWhitelist: bool
-    minKeyActionTimeLock: uint256
-    maxKeyActionTimeLock: uint256
-    defaultStaleBlocks: uint256
-    depositRewardsAsset: address
-    txFees: TxFees
-    ambassadorRevShare: AmbassadorRevShare
-    defaultYieldMaxIncrease: uint256
-    defaultYieldPerformanceFee: uint256
-    defaultYieldAmbassadorBonusRatio: uint256
-
-struct AssetConfig:
-    legoId: uint256
-    isStablecoin: bool
-    decimals: uint256
-    staleBlocks: uint256
-    txFees: TxFees
-    ambassadorRevShare: AmbassadorRevShare
-    yieldConfig: YieldConfig
-
-struct TxFees:
-    swapFee: uint256
-    stableSwapFee: uint256
-    rewardsFee: uint256
-
-struct AmbassadorRevShare:
-    swapRatio: uint256
-    rewardsRatio: uint256
-    yieldRatio: uint256
-
-struct YieldConfig:
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
-    maxYieldIncrease: uint256
-    performanceFee: uint256
-    ambassadorBonusRatio: uint256
-
-struct AgentConfig:
-    agentTemplate: address
-    numAgentsAllowed: uint256
-    enforceCreatorWhitelist: bool
-
-struct ManagerConfig:
-    startingAgent: address
-    startingAgentActivationLength: uint256
-    managerPeriod: uint256
-    managerActivationLength: uint256
-
-struct PayeeConfig:
-    payeePeriod: uint256
-    payeeActivationLength: uint256
+import interfaces.ConfigStructs as cs
+from interfaces import Defaults
 
 # helpers
 
@@ -117,19 +61,19 @@ struct ProfitCalcConfig:
 
 struct AmbassadorConfig:
     ambassador: address
-    ambassadorRevShare: AmbassadorRevShare
+    ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     underlyingAsset: address
     decimals: uint256
 
-# general wallet config
-userWalletConfig: public(UserWalletConfig)
-agentConfig: public(AgentConfig)
-managerConfig: public(ManagerConfig)
-payeeConfig: public(PayeeConfig)
+# global configs
+userWalletConfig: public(cs.UserWalletConfig)
+agentConfig: public(cs.AgentConfig)
+managerConfig: public(cs.ManagerConfig)
+payeeConfig: public(cs.PayeeConfig)
 
 # asset config
-assetConfig: public(HashMap[address, AssetConfig])
+assetConfig: public(HashMap[address, cs.AssetConfig])
 
 # security / limits
 creatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted
@@ -138,9 +82,15 @@ isLockedSigner: public(HashMap[address, bool]) # signer -> is locked
 
 
 @deploy
-def __init__(_undyHq: address):
+def __init__(_undyHq: address, _defaults: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
+
+    if _defaults != empty(address):
+        self.userWalletConfig = staticcall Defaults(_defaults).userWalletConfig()
+        self.agentConfig = staticcall Defaults(_defaults).agentConfig()
+        self.managerConfig = staticcall Defaults(_defaults).managerConfig()
+        self.payeeConfig = staticcall Defaults(_defaults).payeeConfig()
 
 
 ######################
@@ -149,19 +99,19 @@ def __init__(_undyHq: address):
 
 
 @external
-def setUserWalletConfig(_config: UserWalletConfig):
+def setUserWalletConfig(_config: cs.UserWalletConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.userWalletConfig = _config
 
 
 @external
-def setManagerConfig(_config: ManagerConfig):
+def setManagerConfig(_config: cs.ManagerConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.managerConfig = _config
 
 
 @external
-def setPayeeConfig(_config: PayeeConfig):
+def setPayeeConfig(_config: cs.PayeeConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.payeeConfig = _config
 
@@ -172,16 +122,17 @@ def setPayeeConfig(_config: PayeeConfig):
 @view
 @external
 def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
-    config: UserWalletConfig = self.userWalletConfig
-    managerConfig: ManagerConfig = self.managerConfig
-    payeeConfig: PayeeConfig = self.payeeConfig
+    config: cs.UserWalletConfig = self.userWalletConfig
+    managerConfig: cs.ManagerConfig = self.managerConfig
+    payeeConfig: cs.PayeeConfig = self.payeeConfig
+    agentConfig: cs.AgentConfig = self.agentConfig
     return UserWalletCreationConfig(
         numUserWalletsAllowed = config.numUserWalletsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
         walletTemplate = config.walletTemplate,
         configTemplate = config.configTemplate,
-        startingAgent = managerConfig.startingAgent,
-        startingAgentActivationLength = managerConfig.startingAgentActivationLength,
+        startingAgent = agentConfig.startingAgent,
+        startingAgentActivationLength = agentConfig.startingAgentActivationLength,
         managerPeriod = managerConfig.managerPeriod,
         managerActivationLength = managerConfig.managerActivationLength,
         payeePeriod = payeeConfig.payeePeriod,
@@ -196,12 +147,12 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
 @view
 @external
 def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig:
-    assetConfig: AssetConfig = self.assetConfig[_asset]
+    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
 
-    ambassadorRevShare: AmbassadorRevShare = assetConfig.ambassadorRevShare
+    ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
     ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
     if assetConfig.decimals == 0:
-        walletConfig: UserWalletConfig = self.userWalletConfig
+        walletConfig: cs.UserWalletConfig = self.userWalletConfig
         ambassadorRevShare = walletConfig.ambassadorRevShare
         ambassadorBonusRatio = walletConfig.defaultYieldAmbassadorBonusRatio
 
@@ -226,7 +177,7 @@ def getDepositRewardsAsset() -> address:
 
 
 @external
-def setAgentConfig(_config: AgentConfig):
+def setAgentConfig(_config: cs.AgentConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.agentConfig = _config
 
@@ -237,8 +188,8 @@ def setAgentConfig(_config: AgentConfig):
 @view
 @external
 def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
-    config: AgentConfig = self.agentConfig
-    userConfig: UserWalletConfig = self.userWalletConfig
+    config: cs.AgentConfig = self.agentConfig
+    userConfig: cs.UserWalletConfig = self.userWalletConfig
     return AgentCreationConfig(
         agentTemplate = config.agentTemplate,
         numAgentsAllowed = config.numAgentsAllowed,
@@ -254,7 +205,7 @@ def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
 
 
 @external
-def setAssetConfig(_asset: address, _config: AssetConfig):
+def setAssetConfig(_asset: address, _config: cs.AssetConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     self.assetConfig[_asset] = _config
 
@@ -265,13 +216,13 @@ def setAssetConfig(_asset: address, _config: AssetConfig):
 @view
 @external
 def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
-    assetConfig: AssetConfig = self.assetConfig[_asset]
+    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
 
     staleBlocks: uint256 = assetConfig.staleBlocks
     maxYieldIncrease: uint256 = assetConfig.yieldConfig.maxYieldIncrease
     performanceFee: uint256 = assetConfig.yieldConfig.performanceFee
     if assetConfig.decimals == 0:
-        walletConfig: UserWalletConfig = self.userWalletConfig
+        walletConfig: cs.UserWalletConfig = self.userWalletConfig
         staleBlocks = walletConfig.defaultStaleBlocks
         maxYieldIncrease = walletConfig.defaultYieldMaxIncrease
         performanceFee = walletConfig.defaultYieldPerformanceFee
@@ -292,7 +243,7 @@ def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
 @view
 @external
 def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    assetConfig: AssetConfig = self.assetConfig[_asset]
+    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
 
     staleBlocks: uint256 = assetConfig.staleBlocks
     if assetConfig.decimals == 0:
@@ -312,8 +263,8 @@ def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
 @external
 def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256:
     # NOTE: passing in `_user` in case we ever have different fees for different users in future
-    inConfig: AssetConfig = self.assetConfig[_tokenIn]
-    outConfig: AssetConfig = self.assetConfig[_tokenOut]
+    inConfig: cs.AssetConfig = self.assetConfig[_tokenIn]
+    outConfig: cs.AssetConfig = self.assetConfig[_tokenOut]
 
     # stable swap fee
     if inConfig.isStablecoin and outConfig.isStablecoin:
@@ -330,7 +281,7 @@ def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256
 @external
 def getRewardsFee(_user: address, _asset: address) -> uint256:
     # NOTE: passing in `_user` in case we ever have different fees for different users in future
-    config: AssetConfig = self.assetConfig[_asset]
+    config: cs.AssetConfig = self.assetConfig[_asset]
     if config.decimals != 0:
         return config.txFees.rewardsFee
     return self.userWalletConfig.txFees.rewardsFee

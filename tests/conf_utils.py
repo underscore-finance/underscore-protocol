@@ -149,16 +149,20 @@ def createAssetYieldConfig():
 
 
 @pytest.fixture(scope="session")
-def setAgentConfig(mission_control, switchboard_alpha, agent_template):
+def setAgentConfig(mission_control, switchboard_alpha, agent_template, agent_eoa):
     def setAgentConfig(
         _agentTemplate = agent_template,
         _numAgentsAllowed = 100,
         _enforceCreatorWhitelist = False,
+        _startingAgent = agent_eoa,
+        _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
         config = (
             _agentTemplate,
             _numAgentsAllowed,
             _enforceCreatorWhitelist,
+            _startingAgent,
+            _startingAgentActivationLength,
         )
         mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
     yield setAgentConfig
@@ -172,14 +176,10 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template):
 @pytest.fixture(scope="session")
 def setManagerConfig(mission_control, switchboard_alpha, agent_eoa):
     def setManagerConfig(
-        _startingAgent = agent_eoa,
-        _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
         _managerPeriod = ONE_DAY_IN_BLOCKS,
         _defaultActivationLength = ONE_MONTH_IN_BLOCKS,
     ):
         config = (
-            _startingAgent,
-            _startingAgentActivationLength,
             _managerPeriod,
             _defaultActivationLength,
         )

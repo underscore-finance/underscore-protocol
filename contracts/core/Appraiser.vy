@@ -217,40 +217,6 @@ def _handleNormalYieldAsset(
     return _currentPricePerShare, profitInVaultTokens, _config.performanceFee
 
 
-# utils
-
-
-@view
-@internal
-def _getProfitCalcConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> ProfitCalcConfig:
-    config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
-
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
-            config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.isRebasing = vaultToken.isRebasing
-            config.underlyingAsset = vaultToken.underlyingAsset
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if needed
-    if config.isYieldAsset and config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
 ######################
 # Prices - USD Value #
 ######################
@@ -588,8 +554,7 @@ def _getPricePerShareAndDidUpdate(
 
     # first, check with Lego
     if _legoAddr != empty(address):
-        decimals: uint256 = self._getDecimals(_asset)
-        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset, decimals)
+        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset, _decimals)
     
     # back up plan, check with Ripe
     if data.pricePerShare == 0:
@@ -669,6 +634,47 @@ def _getRipePrice(_asset: address) -> uint256:
 #########
 # Utils #
 #########
+
+
+# get profit calc config
+
+
+@view
+@external
+def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
+    a: addys.Addys = addys._getAddys()
+    return self._getProfitCalcConfig(_asset, a.missionControl, a.legoBook, a.ledger)
+
+
+@view
+@internal
+def _getProfitCalcConfig(
+    _asset: address,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> ProfitCalcConfig:
+    config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.legoId = vaultToken.legoId
+            config.decimals = vaultToken.decimals
+            config.isYieldAsset = True
+            config.isRebasing = vaultToken.isRebasing
+            config.underlyingAsset = vaultToken.underlyingAsset
+
+    # get lego addr if needed
+    if config.legoId != 0 and config.legoAddr == empty(address):
+        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
+
+    # get decimals if needed
+    if config.isYieldAsset and config.decimals == 0:
+        config.decimals = self._getDecimals(_asset)
+
+    return config
 
 
 # get asset usd value config
