@@ -8,7 +8,7 @@ from constants import ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
-def setup_wallets(setUserWalletConfig, setManagerConfig, setPayeeConfig, hatchery, bob, alice, sally):
+def setup_wallets(setUserWalletConfig, setManagerConfig, setPayeeConfig, createAmbassadorRevShare, hatchery, bob, alice, sally):
     """Setup user wallets for testing"""
     # Configure without starting agent for clean wallets
     setManagerConfig(_startingAgent=ZERO_ADDRESS)
@@ -61,7 +61,7 @@ def setup_wallets(setUserWalletConfig, setManagerConfig, setPayeeConfig, hatcher
 
 
 @pytest.fixture(scope="module")
-def setup_contracts(setup_wallets, mission_control, loot_distributor, setUserWalletConfig, setAssetConfig, alpha_token, bravo_token, charlie_token, governance, bob, alice, sally, hatchery, yearn_vault_v3, lego_book, mock_lego):
+def setup_contracts(setup_wallets, mission_control, loot_distributor, setUserWalletConfig, setAssetConfig, createTxFees, createAssetYieldConfig, createAmbassadorRevShare, alpha_token, bravo_token, charlie_token, governance, bob, alice, sally, hatchery, yearn_vault_v3, lego_book, mock_lego):
     """Setup contracts and configurations"""
     wallets = setup_wallets
     
@@ -69,25 +69,33 @@ def setup_contracts(setup_wallets, mission_control, loot_distributor, setUserWal
     # This also sets default ambassador fee ratios
     setUserWalletConfig(
         _depositRewardsAsset=alpha_token.address,
-        _ambassadorFeesSwap=100_00,  # 100% of swap fees go to ambassador
-        _ambassadorFeesRewards=100_00,  # 100% of rewards fees go to ambassador  
-        _ambassadorFeesYieldProfit=100_00  # 100% of yield profit fees go to ambassador
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=100_00,  # 100% of swap fees go to ambassador
+            _rewardsRatio=100_00,  # 100% of rewards fees go to ambassador  
+            _yieldRatio=100_00  # 100% of yield profit fees go to ambassador
+        )
     )
     
     # Set up asset configs with specific fees
     # Alpha token: 10% swap fee, 5% rewards fee
     setAssetConfig(
         _asset=alpha_token,
-        _swapFee=10_00,  # 10%
-        _rewardsFee=5_00  # 5%
+        _txFees=createTxFees(
+            _swapFee=10_00,  # 10%
+            _rewardsFee=5_00  # 5%
+        )
     )
     
     # Bravo token: 15% swap fee, 20% rewards fee, 25% yield profit fee
     setAssetConfig(
         _asset=bravo_token,
-        _swapFee=15_00,  # 15%
-        _rewardsFee=20_00,  # 20%
-        _yieldProfitFee=25_00  # 25%
+        _txFees=createTxFees(
+            _swapFee=15_00,  # 15%
+            _rewardsFee=20_00  # 20%
+        ),
+        _yieldConfig=createAssetYieldConfig(
+            _performanceFee=25_00  # 25%
+        )
     )
     
     # Charlie token: Uses defaults from setAssetConfig

@@ -37,12 +37,6 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
     ...
 
 
-@pure
-@external
-def apiVersion() -> String[28]:
-    ...
-
-
 ##################
 # Transfer Funds #
 ##################

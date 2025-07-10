@@ -129,7 +129,7 @@ def createAssetYieldConfig():
         _isRebasing = False,
         _underlyingAsset = ZERO_ADDRESS,
         _maxYieldIncrease = 5_00,
-        _yieldProfitFee = 20_00,
+        _performanceFee = 20_00,
         _ambassadorBonusRatio = 50_00,
     ):
         return (
@@ -137,7 +137,7 @@ def createAssetYieldConfig():
             _isRebasing,
             _underlyingAsset,
             _maxYieldIncrease,
-            _yieldProfitFee,
+            _performanceFee,
             _ambassadorBonusRatio,
         )
     yield createAssetYieldConfig

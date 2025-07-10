@@ -10,6 +10,7 @@ SIX_DECIMALS = 10 ** 6
 def setup_appraiser_test(
     appraiser,
     setAssetConfig,
+    createAssetYieldConfig,
     mock_yield_lego,
     yield_underlying_token,
     yield_vault_token,
@@ -25,27 +26,31 @@ def setup_appraiser_test(
     setAssetConfig(
         yield_vault_token,
         _legoId=2,  # Mock Yield Lego ID
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
-        _maxYieldIncrease=10_00,  # 10%
-        _yieldProfitFee=20_00,  # 20%
-        _staleBlocks=10
+        _staleBlocks=10,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=yield_underlying_token,
+            _maxYieldIncrease=10_00,  # 10%
+            _performanceFee=20_00,  # 20%
+        )
     )
     
     # Configure underlying asset for yield vault
     setAssetConfig(
         yield_underlying_token,
         _legoId=0,
-        _isYieldAsset=False,
-        _staleBlocks=10
+        _staleBlocks=10,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=False
+        )
     )
     
     # Configure normal assets with different decimals
-    setAssetConfig(alpha_token, _legoId=2, _isYieldAsset=False, _staleBlocks=5)  # Use MockYieldLego
-    setAssetConfig(bravo_token, _legoId=2, _isYieldAsset=False, _staleBlocks=5)  # Use MockYieldLego
-    setAssetConfig(charlie_token, _legoId=0, _isYieldAsset=False, _staleBlocks=5)  # Will use Ripe
-    setAssetConfig(delta_token, _legoId=0, _isYieldAsset=False, _staleBlocks=5)  # Will use Ripe
+    setAssetConfig(alpha_token, _legoId=2, _staleBlocks=5, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))  # Use MockYieldLego
+    setAssetConfig(bravo_token, _legoId=2, _staleBlocks=5, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))  # Use MockYieldLego
+    setAssetConfig(charlie_token, _legoId=0, _staleBlocks=5, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))  # Will use Ripe
+    setAssetConfig(delta_token, _legoId=0, _staleBlocks=5, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))  # Will use Ripe
     
     # Set up mock prices in Ripe for assets without lego (18 decimals)
     mock_ripe.setPrice(charlie_token, 2 * EIGHTEEN_DECIMALS)  # $2 with 18 decimals
@@ -497,7 +502,7 @@ def test_calculate_yield_profits_with_max_yield_cap(setup_appraiser_test, user_w
     assert profit <= expected_max_profit_vault_tokens * 101 // 100  # Within 1% tolerance
 
 
-def test_calculate_yield_profits_rebasing_asset(setup_appraiser_test, user_wallet_for_appraiser, alpha_token, mission_control, lego_book, setAssetConfig):
+def test_calculate_yield_profits_rebasing_asset(setup_appraiser_test, user_wallet_for_appraiser, alpha_token, mission_control, lego_book, setAssetConfig, createAssetYieldConfig):
     """Test yield profit calculation for rebasing assets"""
     test_data = setup_appraiser_test
     appraiser = test_data['appraiser']
@@ -505,10 +510,12 @@ def test_calculate_yield_profits_rebasing_asset(setup_appraiser_test, user_walle
     # Configure alpha token as rebasing yield asset
     setAssetConfig(
         alpha_token,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _maxYieldIncrease=5_00,  # 5%
-        _yieldProfitFee=15_00  # 15%
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _maxYieldIncrease=5_00,  # 5%
+            _performanceFee=15_00  # 15%
+        )
     )
     
     # Calculate profits with balance increase
@@ -531,7 +538,7 @@ def test_calculate_yield_profits_rebasing_asset(setup_appraiser_test, user_walle
     assert fee == 15_00  # 15% fee
 
 
-def test_calculate_yield_profits_rebasing_with_cap_exceeded(setup_appraiser_test, user_wallet_for_appraiser, bravo_token, mission_control, lego_book, setAssetConfig):
+def test_calculate_yield_profits_rebasing_with_cap_exceeded(setup_appraiser_test, user_wallet_for_appraiser, bravo_token, mission_control, lego_book, setAssetConfig, createAssetYieldConfig):
     """Test rebasing yield profit calculation when increase exceeds cap"""
     test_data = setup_appraiser_test
     appraiser = test_data['appraiser']
@@ -539,10 +546,12 @@ def test_calculate_yield_profits_rebasing_with_cap_exceeded(setup_appraiser_test
     # Configure bravo token as rebasing yield asset with 3% cap
     setAssetConfig(
         bravo_token,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _maxYieldIncrease=3_00,  # 3%
-        _yieldProfitFee=10_00  # 10%
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _maxYieldIncrease=3_00,  # 3%
+            _performanceFee=10_00  # 10%
+        )
     )
     
     # Calculate profits with 10% balance increase (exceeds 3% cap)
@@ -874,18 +883,20 @@ def test_weth_eth_decimal_handling(appraiser, env):
     assert eth_config[2] == 18  # decimals
 
 
-def test_yield_asset_without_underlying_path(appraiser, setAssetConfig, user_wallet_for_appraiser, bravo_token, mock_ripe):
+def test_yield_asset_without_underlying_path(appraiser, setAssetConfig, createAssetYieldConfig, user_wallet_for_appraiser, bravo_token, mock_ripe):
     """Test USD value calculation for yield asset with no underlying"""
     # Configure bravo_token as yield asset WITHOUT underlying
     setAssetConfig(
         bravo_token,
         _legoId=0,  # Will use Ripe
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=ZERO_ADDRESS,  # No underlying
-        _maxYieldIncrease=10_00,
-        _yieldProfitFee=20_00,
-        _staleBlocks=5
+        _staleBlocks=5,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=ZERO_ADDRESS,  # No underlying
+            _maxYieldIncrease=10_00,
+            _performanceFee=20_00
+        )
     )
     
     # Set a price in Ripe for this yield asset
@@ -903,17 +914,19 @@ def test_yield_asset_without_underlying_path(appraiser, setAssetConfig, user_wal
     assert usd_value == 200 * EIGHTEEN_DECIMALS
 
 
-def test_yield_profit_with_different_balances(appraiser, setAssetConfig, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
+def test_yield_profit_with_different_balances(appraiser, setAssetConfig, createAssetYieldConfig, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
     """Test normal yield profit when current/last balances differ"""
     # Configure as normal yield
     setAssetConfig(
         alpha_token,
         _legoId=0,  # Use Ripe for simplicity
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=ZERO_ADDRESS,
-        _maxYieldIncrease=10_00,
-        _yieldProfitFee=20_00
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=ZERO_ADDRESS,
+            _maxYieldIncrease=10_00,
+            _performanceFee=20_00
+        )
     )
     
     # Simulate price per share increase
@@ -940,15 +953,17 @@ def test_yield_profit_with_different_balances(appraiser, setAssetConfig, user_wa
     assert fee >= 0
 
 
-def test_rebasing_yield_with_zero_max_increase(setAssetConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
+def test_rebasing_yield_with_zero_max_increase(setAssetConfig, createAssetYieldConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
     """Test rebasing yield asset with maxYieldIncrease = 0 (no cap)"""
     # Configure as rebasing with no cap
     setAssetConfig(
         alpha_token,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _maxYieldIncrease=0,  # No cap
-        _yieldProfitFee=15_00
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _maxYieldIncrease=0,  # No cap
+            _performanceFee=15_00
+        )
     )
     
     # Calculate profits with large balance increase
@@ -970,16 +985,18 @@ def test_rebasing_yield_with_zero_max_increase(setAssetConfig, appraiser, user_w
     assert fee == 15_00
 
 
-def test_normal_yield_price_decrease(setAssetConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
+def test_normal_yield_price_decrease(setAssetConfig, createAssetYieldConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
     """Test normal yield asset when price decreases"""
     # Configure as normal yield
     setAssetConfig(
         alpha_token,
         _legoId=0,  # Use Ripe
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _maxYieldIncrease=10_00,
-        _yieldProfitFee=20_00
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _maxYieldIncrease=10_00,
+            _performanceFee=20_00
+        )
     )
     
     # Use the view function to test price decrease scenario
@@ -997,15 +1014,17 @@ def test_normal_yield_price_decrease(setAssetConfig, appraiser, user_wallet_for_
     assert fee == 0
 
 
-def test_rebasing_yield_balance_decreased(setAssetConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
+def test_rebasing_yield_balance_decreased(setAssetConfig, createAssetYieldConfig, appraiser, user_wallet_for_appraiser, alpha_token, mission_control, lego_book):
     """Test rebasing yield when balance decreased"""
     # Configure as rebasing
     setAssetConfig(
         alpha_token,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _maxYieldIncrease=5_00,
-        _yieldProfitFee=10_00
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _maxYieldIncrease=5_00,
+            _performanceFee=10_00
+        )
     )
     
     # Test when current balance < last balance

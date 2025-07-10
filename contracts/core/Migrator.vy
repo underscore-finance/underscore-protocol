@@ -130,7 +130,6 @@ struct ActionData:
     ledger: address
     missionControl: address
     legoBook: address
-    switchboard: address
     hatchery: address
     lootDistributor: address
     appraiser: address

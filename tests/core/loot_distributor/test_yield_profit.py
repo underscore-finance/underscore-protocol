@@ -32,7 +32,7 @@ def test_add_loot_from_yield_profit_with_fee(setup_contracts):
     assert loot.claimableLoot(sally_wallet.address, bravo_token.address) == 100 * EIGHTEEN_DECIMALS
 
 
-def test_add_loot_from_yield_profit_with_bonus(setup_contracts, setAssetConfig):
+def test_add_loot_from_yield_profit_with_bonus(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test adding loot from yield profit with ambassador bonus"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -46,10 +46,12 @@ def test_add_loot_from_yield_profit_with_bonus(setup_contracts, setAssetConfig):
     # Configure yield asset with lego adapter and underlying asset
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _ambassadorBonusRatio=10_00  # 10% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token.address,
+            _ambassadorBonusRatio=10_00  # 10% bonus
+        )
     )
     
     # Set price per share for the vault (1.5x)
@@ -96,7 +98,7 @@ def test_add_loot_from_yield_no_ambassador(setup_contracts):
     assert bravo_token.balanceOf(loot.address) == 0
 
 
-def test_yield_profit_zero_fee_with_bonus(setup_contracts, setAssetConfig):
+def test_yield_profit_zero_fee_with_bonus(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test yield profit with zero fee but with bonus"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -110,11 +112,13 @@ def test_yield_profit_zero_fee_with_bonus(setup_contracts, setAssetConfig):
     # Configure yield asset with bonus but no fee
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _yieldProfitFee=0,  # No fee
-        _ambassadorBonusRatio=20_00  # 20% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token.address,
+            _performanceFee=0,  # No fee
+            _ambassadorBonusRatio=20_00  # 20% bonus
+        )
     )
     
     # Set price per share
@@ -136,7 +140,7 @@ def test_yield_profit_zero_fee_with_bonus(setup_contracts, setAssetConfig):
     assert loot.claimableLoot(sally_wallet.address, alpha_token.address) == 200 * EIGHTEEN_DECIMALS
 
 
-def test_yield_bonus_insufficient_underlying(setup_contracts, setAssetConfig):
+def test_yield_bonus_insufficient_underlying(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test yield bonus when insufficient underlying available"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -150,10 +154,12 @@ def test_yield_bonus_insufficient_underlying(setup_contracts, setAssetConfig):
     # Configure with high bonus
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _ambassadorBonusRatio=50_00  # 50% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token.address,
+            _ambassadorBonusRatio=50_00  # 50% bonus
+        )
     )
     
     # Set price per share
@@ -174,7 +180,7 @@ def test_yield_bonus_insufficient_underlying(setup_contracts, setAssetConfig):
     assert loot.claimableLoot(sally_wallet.address, alpha_token.address) == 100 * EIGHTEEN_DECIMALS
 
 
-def test_yield_bonus_with_existing_claimable(setup_contracts, setAssetConfig):
+def test_yield_bonus_with_existing_claimable(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test yield bonus considers existing claimable amounts"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -196,10 +202,12 @@ def test_yield_bonus_with_existing_claimable(setup_contracts, setAssetConfig):
     # Configure yield asset with bonus
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _ambassadorBonusRatio=30_00  # 30% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token.address,
+            _ambassadorBonusRatio=30_00  # 30% bonus
+        )
     )
     
     # Set price per share
@@ -221,7 +229,7 @@ def test_yield_bonus_with_existing_claimable(setup_contracts, setAssetConfig):
     assert loot.claimableLoot(sally_wallet.address, alpha_token.address) == 330 * EIGHTEEN_DECIMALS  # 30 + 300
 
 
-def test_yield_bonus_zero_price_per_share(setup_contracts, setAssetConfig):
+def test_yield_bonus_zero_price_per_share(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test yield bonus when price per share is zero"""
     # This test passes because when price per share is 0, no bonus is given
     ctx = setup_contracts
@@ -236,9 +244,11 @@ def test_yield_bonus_zero_price_per_share(setup_contracts, setAssetConfig):
     # Configure yield asset with bonus
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token,
-        _ambassadorBonusRatio=10_00
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token,
+            _ambassadorBonusRatio=10_00
+        )
     )
     
     # Fund with underlying
@@ -274,7 +284,7 @@ def test_yield_profit_not_user_wallet(setup_contracts):
         )
 
 
-def test_yield_bonus_calculation_precision(setup_contracts, setAssetConfig, mock_lego):
+def test_yield_bonus_calculation_precision(setup_contracts, setAssetConfig, createAssetYieldConfig, mock_lego):
     """Test yield bonus calculation with different decimals"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -290,10 +300,12 @@ def test_yield_bonus_calculation_precision(setup_contracts, setAssetConfig, mock
     # Configure with charlie as underlying (6 decimals)
     setAssetConfig(
         _asset=charlie_vault,
-        _isYieldAsset=True,
-        _underlyingAsset=charlie_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _ambassadorBonusRatio=25_00  # 25%
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=charlie_token.address,
+            _ambassadorBonusRatio=25_00  # 25%
+        )
     )
     
     # Set price per share (2x with 6 decimals)
@@ -315,7 +327,7 @@ def test_yield_bonus_calculation_precision(setup_contracts, setAssetConfig, mock
     assert loot.claimableLoot(sally_wallet.address, charlie_token.address) == 200 * 10**6
 
 
-def test_yield_both_fee_and_bonus(setup_contracts, setAssetConfig):
+def test_yield_both_fee_and_bonus(setup_contracts, setAssetConfig, createAssetYieldConfig):
     """Test yield profit with both fee and bonus"""
     ctx = setup_contracts
     loot = ctx['loot_distributor']
@@ -329,11 +341,13 @@ def test_yield_both_fee_and_bonus(setup_contracts, setAssetConfig):
     # Configure with both fee and bonus
     setAssetConfig(
         _asset=yearn_vault_v3,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token.address,
         _legoId=1,  # lego ID for the mock adapter
-        _yieldProfitFee=30_00,  # 30% fee
-        _ambassadorBonusRatio=15_00  # 15% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token.address,
+            _performanceFee=30_00,  # 30% fee
+            _ambassadorBonusRatio=15_00  # 15% bonus
+        )
     )
     
     # Set price per share

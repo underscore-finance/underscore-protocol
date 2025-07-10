@@ -403,22 +403,28 @@ def test_hatchery_clawback_trial_funds_no_trial_funds(setUserWalletConfig, setMa
     assert amount_recovered == 0
 
 
-def test_hatchery_clawback_trial_funds_partial_spent():
+def test_hatchery_clawback_trial_funds_partial_spent(setAssetConfig, createAssetYieldConfig, createTxFees, createAmbassadorRevShare, setManagerConfig, yield_underlying_token, yield_vault_token, mock_yield_lego, mock_ripe, yield_underlying_token_whale, hatchery, bob, sally, alice):
     """Test clawback when some trial funds have been spent"""
     pytest.skip("Clawback with partial spending requires complex wallet setup")
     setManagerConfig()
     
     # Configure assets
-    setAssetConfig(yield_underlying_token, _legoId=2, _isYieldAsset=False, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(
+        yield_underlying_token, 
+        _legoId=2, 
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(_isYieldAsset=False)
+    )
     setAssetConfig(
         yield_vault_token,
         _legoId=2,
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token.address,
-        _yieldProfitFee=0,
-        _swapFee=0,
-        _rewardsFee=0
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=yield_underlying_token.address,
+            _performanceFee=0
+        )
     )
     
     # Set prices
@@ -450,22 +456,28 @@ def test_hatchery_clawback_trial_funds_partial_spent():
     assert yield_vault_token.balanceOf(wallet_addr) == 0
 
 
-def test_hatchery_clawback_trial_funds_from_vault():
+def test_hatchery_clawback_trial_funds_from_vault(setAssetConfig, createAssetYieldConfig, createTxFees, createAmbassadorRevShare, setManagerConfig, yield_underlying_token, yield_vault_token, mock_yield_lego, mock_ripe, yield_underlying_token_whale, hatchery, bob, sally):
     """Test clawback when trial funds are deposited in a yield vault"""
     pytest.skip("Clawback from vault requires complex wallet setup")
     setManagerConfig()
     
     # Configure assets
-    setAssetConfig(yield_underlying_token, _legoId=2, _isYieldAsset=False, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(
+        yield_underlying_token, 
+        _legoId=2, 
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(_isYieldAsset=False)
+    )
     setAssetConfig(
         yield_vault_token,
         _legoId=2,
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token.address,
-        _yieldProfitFee=0,
-        _swapFee=0,
-        _rewardsFee=0
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=yield_underlying_token.address,
+            _performanceFee=0
+        )
     )
     
     # Set prices
@@ -564,22 +576,28 @@ def test_hatchery_does_wallet_still_have_trial_funds_no_trial(setUserWalletConfi
     assert hatchery.doesWalletStillHaveTrialFunds(wallet_addr) == True
 
 
-def test_hatchery_does_wallet_still_have_trial_funds_in_vault():
+def test_hatchery_does_wallet_still_have_trial_funds_in_vault(setAssetConfig, createAssetYieldConfig, createTxFees, createAmbassadorRevShare, setManagerConfig, yield_underlying_token, yield_vault_token, mock_yield_lego, mock_ripe, yield_underlying_token_whale, hatchery, bob, sally):
     """Test that trial funds are recognized when in yield vault"""
     pytest.skip("Vault detection requires complex wallet setup")
     setManagerConfig()
     
     # Configure assets
-    setAssetConfig(yield_underlying_token, _legoId=2, _isYieldAsset=False, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(
+        yield_underlying_token, 
+        _legoId=2, 
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(_isYieldAsset=False)
+    )
     setAssetConfig(
         yield_vault_token,
         _legoId=2,
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token.address,
-        _yieldProfitFee=0,
-        _swapFee=0,
-        _rewardsFee=0
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=yield_underlying_token.address,
+            _performanceFee=0
+        )
     )
     
     # Set prices
@@ -611,22 +629,28 @@ def test_hatchery_does_wallet_still_have_trial_funds_with_addys(hatchery, bob, a
     pytest.skip("Requires real UserWallet instance")
 
 
-def test_hatchery_clawback_with_buffer_calculation():
+def test_hatchery_clawback_with_buffer_calculation(setAssetConfig, createAssetYieldConfig, createTxFees, createAmbassadorRevShare, setManagerConfig, yield_underlying_token, yield_vault_token, mock_yield_lego, mock_ripe, yield_underlying_token_whale, hatchery, bob, sally):
     """Test that clawback adds 1% buffer to target recovery amount"""
     pytest.skip("Buffer calculation test requires complex wallet setup")
     setManagerConfig()
     
     # Configure assets
-    setAssetConfig(yield_underlying_token, _legoId=2, _isYieldAsset=False, _swapFee=0, _rewardsFee=0)
+    setAssetConfig(
+        yield_underlying_token, 
+        _legoId=2, 
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(_isYieldAsset=False)
+    )
     setAssetConfig(
         yield_vault_token,
         _legoId=2,
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token.address,
-        _yieldProfitFee=0,
-        _swapFee=0,
-        _rewardsFee=0
+        _txFees=createTxFees(_swapFee=0, _rewardsFee=0),
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=False,
+            _underlyingAsset=yield_underlying_token.address,
+            _performanceFee=0
+        )
     )
     
     # Set prices

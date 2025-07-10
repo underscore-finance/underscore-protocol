@@ -316,18 +316,20 @@ def test_set_asset_config_yield_asset(mission_control, switchboard_alpha, alpha_
     assert stored_config[6][4] == 3000  # ambassadorBonusRatio
 
 
-def test_get_profit_calc_config(mission_control, setAssetConfig, alpha_token, bravo_token):
+def test_get_profit_calc_config(mission_control, setAssetConfig, createAssetYieldConfig, alpha_token, bravo_token):
     """Test getting profit calculation config"""
     # Set up yield asset
     setAssetConfig(
         alpha_token,
         _legoId=2,
         _staleBlocks=200,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=bravo_token,
-        _maxYieldIncrease=1000,
-        _yieldProfitFee=1500,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _underlyingAsset=bravo_token,
+            _maxYieldIncrease=1000,
+            _performanceFee=1500
+        )
     )
     
     config = mission_control.getProfitCalcConfig(alpha_token.address)
@@ -356,15 +358,17 @@ def test_get_profit_calc_config_default_stale_blocks(mission_control, setAssetCo
     profit_config = mission_control.getProfitCalcConfig(alpha_token.address)
     assert profit_config[3] == 500  # Should use default stale blocks
     
-def test_get_asset_usd_value_config(mission_control, setAssetConfig, alpha_token, bravo_token):
+def test_get_asset_usd_value_config(mission_control, setAssetConfig, createAssetYieldConfig, alpha_token, bravo_token):
     """Test getting asset USD value config"""
     # Set up asset
     setAssetConfig(
         alpha_token,
         _legoId=3,
         _staleBlocks=150,
-        _isYieldAsset=True,
-        _underlyingAsset=bravo_token,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=bravo_token
+        )
     )
     
     config = mission_control.getAssetUsdValueConfig(alpha_token.address)
@@ -470,13 +474,15 @@ def test_get_rewards_fee_zero_decimals(mission_control, setUserWalletConfig, swi
     assert fee == 2500  # Should use global fee
 
 
-def test_get_ambassador_config_non_yield(mission_control, setUserWalletConfig, alice, alpha_token):
+def test_get_ambassador_config_non_yield(mission_control, setUserWalletConfig, createAmbassadorRevShare, alice, alpha_token):
     """Test getting ambassador config for non-yield profit"""
     # Set ambassador fee ratios
     setUserWalletConfig(
-        _ambassadorFeesSwap=4000,  # 40%
-        _ambassadorFeesRewards=3000,  # 30%
-        _ambassadorFeesYieldProfit=5000,  # 50%
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=4000,  # 40%
+            _rewardsRatio=3000,  # 30%
+            _yieldRatio=5000  # 50%
+        )
     )
     
     config = mission_control.getAmbassadorConfig(alice, alpha_token.address, False)
@@ -489,21 +495,25 @@ def test_get_ambassador_config_non_yield(mission_control, setUserWalletConfig, a
     assert config[3] == ZERO_ADDRESS  # underlyingAsset (empty for non-yield)
     assert config[4] == 0  # decimals (0 for non-yield)
     
-def test_get_ambassador_config_yield_profit(mission_control, setUserWalletConfig, setAssetConfig, alice, alpha_token, bravo_token):
+def test_get_ambassador_config_yield_profit(mission_control, setUserWalletConfig, setAssetConfig, createAssetYieldConfig, createAmbassadorRevShare, alice, alpha_token, bravo_token):
     """Test getting ambassador config for yield profit"""
     # Set ambassador fee ratios
     setUserWalletConfig(
-        _ambassadorFeesSwap=4000,
-        _ambassadorFeesRewards=3000,
-        _ambassadorFeesYieldProfit=5000,
+        _ambassadorRevShare=createAmbassadorRevShare(
+            _swapRatio=4000,
+            _rewardsRatio=3000,
+            _yieldRatio=5000
+        )
     )
     
     # Set up yield asset
     setAssetConfig(
         alpha_token,
-        _isYieldAsset=True,
-        _underlyingAsset=bravo_token,
-        _ambassadorBonusRatio=2000,  # 20% bonus
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=bravo_token,
+            _ambassadorBonusRatio=2000  # 20% bonus
+        )
     )
     
     config = mission_control.getAmbassadorConfig(alice, alpha_token.address, True)
@@ -634,19 +644,21 @@ def test_complex_fee_scenario(mission_control, setUserWalletConfig, setAssetConf
     assert mission_control.getRewardsFee(alice, bravo_token.address) == 1000  # custom
     assert mission_control.getRewardsFee(alice, charlie_token.address) == 2000  # default from fixture
     
-def test_yield_asset_configuration(mission_control, setAssetConfig, alice, alpha_token, bravo_token):
+def test_yield_asset_configuration(mission_control, setAssetConfig, createAssetYieldConfig, alice, alpha_token, bravo_token):
     """Test complete yield asset configuration"""
     # Configure a rebasing yield asset
     setAssetConfig(
         alpha_token,
         _legoId=5,
         _staleBlocks=250,
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=bravo_token,
-        _maxYieldIncrease=2000,  # 20%
-        _yieldProfitFee=1000,  # 10%
-        _ambassadorBonusRatio=3000,  # 30%
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _isRebasing=True,
+            _underlyingAsset=bravo_token,
+            _maxYieldIncrease=2000,  # 20%
+            _performanceFee=1000,  # 10%
+            _ambassadorBonusRatio=3000  # 30%
+        )
     )
     
     # Get profit calc config

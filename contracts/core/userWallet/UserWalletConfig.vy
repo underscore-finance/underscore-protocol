@@ -54,7 +54,6 @@ struct ActionData:
     ledger: address
     missionControl: address
     legoBook: address
-    switchboard: address
     hatchery: address
     lootDistributor: address
     appraiser: address
@@ -1057,7 +1056,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     ledger: address = empty(address)
     missionControl: address = empty(address)
     legoBook: address = empty(address)
-    switchboard: address = empty(address)
     hatchery: address = empty(address)
     lootDistributor: address = empty(address)
     appraiser: address = empty(address)
@@ -1067,7 +1065,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         ledger = staticcall Registry(hq).getAddr(LEDGER_ID)
         missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
         legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
-        switchboard = staticcall Registry(hq).getAddr(SWITCHBOARD_ID)
         hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
         lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
@@ -1082,7 +1079,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
         ledger = ledger,
         missionControl = missionControl,
         legoBook = legoBook,
-        switchboard = switchboard,
         hatchery = hatchery,
         lootDistributor = lootDistributor,
         appraiser = appraiser,

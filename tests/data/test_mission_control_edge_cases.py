@@ -263,7 +263,7 @@ def test_config_reuse_pattern(mission_control, setUserWalletConfig, setManagerCo
         assert config[7] == ONE_MONTH_IN_BLOCKS  # managerActivationLength
 
 
-def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, setAssetConfig, alice, alpha_token, bravo_token):
+def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, setAssetConfig, createAssetYieldConfig, alice, alpha_token, bravo_token):
     """Test ambassador config with various parameter combinations"""
     # Set base config
     setUserWalletConfig(
@@ -273,7 +273,7 @@ def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, 
     )
     
     # Non-yield asset
-    setAssetConfig(alpha_token, _isYieldAsset=False)
+    setAssetConfig(alpha_token, _yieldConfig=createAssetYieldConfig(_isYieldAsset=False))
     config = mission_control.getAmbassadorConfig(alice, alpha_token.address, False)
     assert config[2] == 0  # No bonus for non-yield when called with False
     
@@ -283,9 +283,11 @@ def test_get_ambassador_config_variations(mission_control, setUserWalletConfig, 
     # Yield asset
     setAssetConfig(
         bravo_token,
-        _isYieldAsset=True,
-        _underlyingAsset=alpha_token,
-        _ambassadorBonusRatio=2500,
+        _yieldConfig=createAssetYieldConfig(
+            _isYieldAsset=True,
+            _underlyingAsset=alpha_token,
+            _ambassadorBonusRatio=2500
+        )
     )
     
     config = mission_control.getAmbassadorConfig(alice, bravo_token.address, False)
