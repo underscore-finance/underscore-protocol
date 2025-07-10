@@ -107,8 +107,8 @@ def __init__(
 def calculateYieldProfits(
     _asset: address,
     _currentBalance: uint256,
-    _assetBalance: uint256,
-    _lastYieldPrice: uint256,
+    _lastBalance: uint256,
+    _lastPricePerShare: uint256,
     _missionControl: address,
     _legoBook: address,
 ) -> (uint256, uint256, uint256):
@@ -120,10 +120,10 @@ def calculateYieldProfits(
         return 0, 0, 0
 
     if config.isRebasing:
-        return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
+        return self._handleRebaseYieldAsset(_currentBalance, _lastBalance, config.maxYieldIncrease, config.performanceFee)
     else:
         currentPricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
-        return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
+        return self._handleNormalYieldAsset(_currentBalance, _lastBalance, _lastPricePerShare, currentPricePerShare, config)
 
 
 @view
@@ -133,18 +133,18 @@ def calculateYieldProfitsNoUpdate(
     _asset: address,
     _underlyingAsset: address,
     _currentBalance: uint256,
-    _assetBalance: uint256,
-    _lastYieldPrice: uint256,
+    _lastBalance: uint256,
+    _lastPricePerShare: uint256,
 ) -> (uint256, uint256, uint256):
     config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), addys._getLedgerAddr())
     if not config.isYieldAsset:
         return 0, 0, 0
 
     if config.isRebasing:
-        return self._handleRebaseYieldAsset(_currentBalance, _assetBalance, config.maxYieldIncrease, config.performanceFee)
+        return self._handleRebaseYieldAsset(_currentBalance, _lastBalance, config.maxYieldIncrease, config.performanceFee)
     else:
         currentPricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
-        return self._handleNormalYieldAsset(_currentBalance, _assetBalance, _lastYieldPrice, currentPricePerShare, config)
+        return self._handleNormalYieldAsset(_currentBalance, _lastBalance, _lastPricePerShare, currentPricePerShare, config)
     
 
 # rebasing assets
@@ -160,7 +160,7 @@ def _handleRebaseYieldAsset(
 ) -> (uint256, uint256, uint256):
 
     # no profits if balance decreased or stayed the same
-    if _currentBalance <= _lastBalance:
+    if _lastBalance == 0 or _currentBalance <= _lastBalance:
         return 0, 0, 0
     
     # calculate the actual profit
@@ -171,10 +171,6 @@ def _handleRebaseYieldAsset(
     if _maxYieldIncrease != 0:
         maxAllowedProfit: uint256 = _lastBalance * _maxYieldIncrease // HUNDRED_PERCENT
         actualProfit = min(uncappedProfit, maxAllowedProfit)
-    
-    # no profits after applying cap
-    if actualProfit == 0:
-        return 0, 0, 0
     
     return 0, actualProfit, _performanceFee
 
@@ -187,33 +183,34 @@ def _handleRebaseYieldAsset(
 def _handleNormalYieldAsset(
     _currentBalance: uint256,
     _lastBalance: uint256,
-    _lastYieldPrice: uint256,
+    _lastPricePerShare: uint256,
     _currentPricePerShare: uint256,
     _config: ProfitCalcConfig,
 ) -> (uint256, uint256, uint256):
 
     # first time saving it, no profits
-    if _lastYieldPrice == 0:
+    if _lastPricePerShare == 0:
         return _currentPricePerShare, 0, 0
 
-    # nothing to do if price hasn't changed or increased
-    if _currentPricePerShare == 0 or _currentPricePerShare <= _lastYieldPrice:
+    # nothing to do if price decreased or stayed the same
+    if _currentPricePerShare == 0 or _currentPricePerShare <= _lastPricePerShare:
         return 0, 0, 0
     
-    # calculate underlying amounts
     trackedBalance: uint256 = min(_currentBalance, _lastBalance)
-    prevUnderlyingAmount: uint256 = trackedBalance * _lastYieldPrice // (10 ** _config.decimals)
+
+    # calculate underlying amounts
+    prevUnderlyingAmount: uint256 = trackedBalance * _lastPricePerShare // (10 ** _config.decimals)
     currentUnderlyingAmount: uint256 = trackedBalance * _currentPricePerShare // (10 ** _config.decimals)
     
-    # apply max yield increase cap if configured (in underlying terms)
-    if _config.maxYieldIncrease != 0:
-        maxAllowedUnderlying: uint256 = prevUnderlyingAmount + (prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT)
-        currentUnderlyingAmount = min(currentUnderlyingAmount, maxAllowedUnderlying)
-
     # calculate profit in underlying tokens
     profitInUnderlying: uint256 = currentUnderlyingAmount - prevUnderlyingAmount
-    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // _currentPricePerShare
     
+    # apply max yield increase cap if configured
+    if _config.maxYieldIncrease != 0:
+        maxProfit: uint256 = prevUnderlyingAmount * _config.maxYieldIncrease // HUNDRED_PERCENT
+        profitInUnderlying = min(profitInUnderlying, maxProfit)
+
+    profitInVaultTokens: uint256 = profitInUnderlying * (10 ** _config.decimals) // _currentPricePerShare   
     return _currentPricePerShare, profitInVaultTokens, _config.performanceFee
 
 

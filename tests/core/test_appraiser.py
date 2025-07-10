@@ -864,3 +864,460 @@ def test_appraiser_usd_value_with_six_decimal_tokens(appraiser, charlie_token, c
     last_price = appraiser.lastPrice(charlie_token)
     assert last_price.price == underlying_price
 
+
+##################
+# Yield Handling #
+##################
+
+
+# rebasing assets
+
+
+def test_calculate_yield_profits_no_update_rebasing_profit(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
+    """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with profit """
+    
+    # Configure as rebasing yield asset with 25% performance fee
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=0,  # no cap
+        _performanceFee=25_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Current balance increased to 1100 (10% increase)
+    current_balance = 1100 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    
+    # Calculate profits
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # For rebasing: lastYieldPrice should be 0
+    assert last_yield_price == 0
+
+    # Profit = current_balance - last_balance = 100
+    assert actual_profit == 100 * EIGHTEEN_DECIMALS
+
+    # Performance fee from config
+    assert performance_fee == 25_00
+
+
+def test_calculate_yield_profits_no_update_rebasing_balance_decreased(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ Test calculateYieldProfitsNoUpdate for rebasing yield asset when balance decreased or stayed same """
+    
+    # Configure as rebasing yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Test 1: Current balance less than last balance
+    current_balance = 900 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # All outputs should be zero when balance decreased
+    assert last_yield_price == 0
+    assert actual_profit == 0
+    assert performance_fee == 0
+    
+    # Test 2: Current balance equals last balance
+    current_balance = last_balance
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # All outputs should be zero when balance unchanged
+    assert last_yield_price == 0
+    assert actual_profit == 0
+    assert performance_fee == 0
+
+
+def test_calculate_yield_profits_no_update_rebasing_with_cap(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with max yield cap """
+    
+    # Configure as rebasing yield asset with 3% max yield increase
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=3_00,  # 3%
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Current balance increased by 10% (exceeds 3% cap)
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    current_balance = 1100 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # Profit should be capped at 3% of last balance
+    expected_capped_profit = last_balance * 3_00 // 100_00  # 30
+    assert last_yield_price == 0
+    assert actual_profit == expected_capped_profit
+    assert performance_fee == 20_00
+    
+    # Test with huge increase (500%) to verify cap still applies
+    current_balance = 6000 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # Still capped at 3%
+    assert actual_profit == expected_capped_profit
+
+
+def test_calculate_yield_profits_no_update_rebasing_no_cap_huge_increase(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with no cap and huge increase """
+    
+    # Configure as rebasing yield asset with no cap
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=0,  # No cap
+        _performanceFee=15_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Current balance increased by 500%
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    current_balance = 6000 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # Full profit with no cap
+    assert last_yield_price == 0
+    assert actual_profit == 5000 * EIGHTEEN_DECIMALS  # Full 500% increase
+    assert performance_fee == 15_00
+
+
+def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ Test calculateYieldProfitsNoUpdate for rebasing yield asset when lastBalance is zero """
+    
+    # Configure as rebasing yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,
+        _underlyingAsset=yield_underlying_token,
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Last balance is zero
+    last_balance = 0
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        ZERO_ADDRESS,
+        current_balance,
+        last_balance,
+        0,
+    )
+    
+    # All outputs should be zero when lastBalance is zero
+    assert last_yield_price == 0
+    assert actual_profit == 0
+    assert performance_fee == 0
+
+
+# normal yield assets
+
+
+def test_calculate_yield_profits_no_update_normal_first_time(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):
+    """ Test calculateYieldProfitsNoUpdate for normal yield asset when lastPricePerShare is zero """
+    
+    # Configure as normal (non-rebasing) yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Get current price per share (should be 1.0)
+    current_price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert current_price_per_share == 1 * EIGHTEEN_DECIMALS
+    
+    # First time - lastPricePerShare is zero
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 0
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # First time should return current price per share but no profit
+    assert last_yield_price == current_price_per_share
+    assert actual_profit == 0
+    assert performance_fee == 0
+
+
+def test_calculate_yield_profits_no_update_normal_price_decreased(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):
+    """ Test calculateYieldProfitsNoUpdate for normal yield asset when price per share decreased """
+    
+    # Configure as normal yield asset
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Current price per share is 1.0
+    current_price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert current_price_per_share == 1 * EIGHTEEN_DECIMALS
+    
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 2 * EIGHTEEN_DECIMALS  # Last was higher than current
+    
+    # Test when current price per share (1.0) is less than last (2.0)
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # All outputs should be zero when price decreased
+    assert last_yield_price == 0
+    assert actual_profit == 0
+    assert performance_fee == 0
+
+
+def test_calculate_yield_profits_no_update_normal_with_cap(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):
+    """ Test calculateYieldProfitsNoUpdate for normal yield asset with max yield cap """
+    
+    # Configure as normal yield asset with 5% max yield increase
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=5_00,  # 5%
+        _performanceFee=20_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Initial price per share is 1.0
+    initial_price = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert initial_price == 1 * EIGHTEEN_DECIMALS
+    
+    # Increase vault value by 100% (double it) - this exceeds the 5% cap
+    yield_underlying_token.transfer(yield_vault_token, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Time travel to ensure we're not in the same block
+    boa.env.time_travel(blocks=1)
+    
+    # Price should now be 2.0
+    current_price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert current_price_per_share == 2 * EIGHTEEN_DECIMALS
+    
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 1 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # Profit should be capped at 5%
+    # prevUnderlyingAmount = 1000 * 1.0 = 1000
+    # maxAllowedUnderlying = 1000 + (1000 * 5%) = 1050
+    # actualUnderlyingAmount would be 1000 * 2.0 = 2000, but capped at 1050
+    # profitInUnderlying = 1050 - 1000 = 50 underlying tokens
+    # profitInVaultTokens = 50 / 2.0 = 25 vault tokens
+    expected_profit = 25 * EIGHTEEN_DECIMALS
+    
+    # When there's profit, last_yield_price returns the current price per share
+    assert last_yield_price == current_price_per_share
+    assert actual_profit == expected_profit
+    assert performance_fee == 20_00
+
+
+def test_calculate_yield_profits_no_update_normal_no_cap(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):
+    """ Test calculateYieldProfitsNoUpdate for normal yield asset with no cap """
+    
+    # Configure as normal yield asset with no cap
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=False,
+        _underlyingAsset=yield_underlying_token,
+        _maxYieldIncrease=0,  # No cap
+        _performanceFee=15_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _yieldConfig=yield_config,
+    )
+    
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Increase vault value by 100% (double it)
+    yield_underlying_token.transfer(yield_vault_token, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Time travel to ensure we're not in the same block
+    boa.env.time_travel(blocks=1)
+    
+    # Price should now be 2.0
+    current_price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert current_price_per_share == 2 * EIGHTEEN_DECIMALS
+    
+    current_balance = 1000 * EIGHTEEN_DECIMALS
+    last_balance = 1000 * EIGHTEEN_DECIMALS
+    last_price_per_share = 1 * EIGHTEEN_DECIMALS
+    
+    last_yield_price, actual_profit, performance_fee = appraiser.calculateYieldProfitsNoUpdate(
+        1,
+        yield_vault_token,
+        yield_underlying_token,
+        current_balance,
+        last_balance,
+        last_price_per_share,
+    )
+    
+    # Full profit with no cap
+    # prevUnderlyingAmount = 1000 * 1.0 = 1000
+    # currentUnderlyingAmount = 1000 * 2.0 = 2000
+    # profitInUnderlying = 2000 - 1000 = 1000 underlying tokens
+    # profitInVaultTokens = 1000 / 2.0 = 500 vault tokens
+    expected_profit = 500 * EIGHTEEN_DECIMALS
+    
+    # When there's profit, last_yield_price returns the current price per share
+    assert last_yield_price == current_price_per_share
+    assert actual_profit == expected_profit
+    assert performance_fee == 15_00

@@ -15,7 +15,7 @@ interface WalletConfig:
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
 
 interface Appraiser:
-    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _assetBalance: uint256, _lastYieldPrice: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
@@ -42,7 +42,7 @@ struct WalletAssetData:
     assetBalance: uint256
     usdValue: uint256
     isYieldAsset: bool
-    lastYieldPrice: uint256
+    lastPricePerShare: uint256
 
 struct ActionData:
     ledger: address
@@ -1256,10 +1256,10 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
     # calculate yield profits
     yieldProfit: uint256 = 0
     feeRatio: uint256 = 0
-    data.lastYieldPrice, yieldProfit, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastYieldPrice, _ad.missionControl, _ad.legoBook)
+    data.lastPricePerShare, yieldProfit, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
 
-    # only save if appraiser returns a price
-    if data.lastYieldPrice != 0:
+    # only save if appraiser returns a price (non-rebasing assets)
+    if data.lastPricePerShare != 0:
         self.assetData[_asset] = data
 
     # pay yield fee
