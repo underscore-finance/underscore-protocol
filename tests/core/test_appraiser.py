@@ -3,162 +3,6 @@ import boa
 from constants import ONE_DAY_IN_BLOCKS, EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 
-#########
-# Utils #
-#########
-
-
-# get profit calc config
-
-
-def test_appraiser_get_profit_calc_config_no_config(appraiser, yield_vault_token):
-    """ no mission control asset config, no ledger vault token registration, will use global defaults """
-
-    config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 0
-
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
-    assert config.maxYieldIncrease == 5_00
-    assert config.performanceFee == 20_00
-
-    # because not a yield asset, will not get decimals
-    assert config.decimals == 0
-
-
-def test_appraiser_get_profit_calc_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
-    """ mission control asset config is set, no ledger vault token registration, will use mission control config """
-
-    # set mission control asset config
-    yield_config = createAssetYieldConfig(
-        _isYieldAsset = True,
-        _isRebasing = True,
-        _underlyingAsset = yield_underlying_token,
-        _maxYieldIncrease = 9_00,
-        _performanceFee = 26_00,
-    )
-    setAssetConfig(
-        yield_vault_token,
-        _legoId = 1,
-        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
-        _yieldConfig = yield_config,
-    )
-
-    config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 1
-    assert config.legoAddr == mock_yield_lego.address
-
-    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
-    assert config.maxYieldIncrease == 9_00
-    assert config.performanceFee == 26_00
-
-    # because yield asset, will get decimals
-    assert config.decimals == yield_vault_token.decimals()
-
-
-def test_appraiser_get_profit_calc_config_with_vault_registration(appraiser, yield_underlying_token_whale, yield_vault_token, yield_underlying_token, mock_yield_lego, ledger):
-    """ no mission control asset config, ledger vault token registration, will use ledger config """
-
-    # need to deposit to register vault token
-    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    mock_yield_lego.depositForYield(
-        yield_underlying_token,
-        1_000 * EIGHTEEN_DECIMALS,
-        yield_vault_token,
-        sender=yield_underlying_token_whale,
-    )
-
-    # verify vault token registration
-    vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
-    assert vault_token.underlyingAsset == yield_underlying_token.address
-    assert vault_token.decimals == yield_vault_token.decimals()
-    assert vault_token.isRebasing == False
-
-    # get profit calc config
-    config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 1
-    assert config.legoAddr == mock_yield_lego.address
-    assert config.decimals == yield_vault_token.decimals()
-    assert config.isYieldAsset == True
-    assert config.isRebasing == False
-    assert config.underlyingAsset == yield_underlying_token.address
-
-    # will use global defaults
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
-    assert config.maxYieldIncrease == 5_00
-    assert config.performanceFee == 20_00
-
-
-# get asset usd value config
-
-
-def test_appraiser_get_asset_usd_value_config_no_config(appraiser, yield_vault_token):
-    """ no mission control asset config, no ledger vault token registration, will use global defaults """
-
-    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 0
-    assert config.legoAddr == ZERO_ADDRESS
-    assert config.decimals == yield_vault_token.decimals()
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
-    assert config.isYieldAsset == False
-    assert config.underlyingAsset == ZERO_ADDRESS
-
-
-def test_appraiser_get_asset_usd_value_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
-    """ mission control asset config is set, no ledger vault token registration, will use mission control config """
-
-    # set mission control asset config
-    yield_config = createAssetYieldConfig(
-        _isYieldAsset = True,
-        _underlyingAsset = yield_underlying_token,
-    )
-    setAssetConfig(
-        yield_vault_token,
-        _legoId = 1,
-        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
-        _yieldConfig = yield_config,
-    )
-
-    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 1
-    assert config.legoAddr == mock_yield_lego.address
-    assert config.decimals == yield_vault_token.decimals()
-    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
-    assert config.isYieldAsset == True
-    assert config.underlyingAsset == yield_underlying_token.address
-
-
-def test_appraiser_get_asset_usd_value_config_with_vault_registration(appraiser, yield_underlying_token_whale, yield_vault_token, yield_underlying_token, mock_yield_lego, ledger):
-    """ no mission control asset config, ledger vault token registration, will use ledger config """
-
-    # need to deposit to register vault token
-    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    mock_yield_lego.depositForYield(
-        yield_underlying_token,
-        1_000 * EIGHTEEN_DECIMALS,
-        yield_vault_token,
-        sender=yield_underlying_token_whale,
-    )
-
-    # verify vault token registration
-    vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
-    assert vault_token.underlyingAsset == yield_underlying_token.address
-    assert vault_token.decimals == yield_vault_token.decimals()
-    assert vault_token.isRebasing == False
-
-    # get asset usd value config
-    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 1
-    assert config.legoAddr == mock_yield_lego.address
-    assert config.decimals == yield_vault_token.decimals()
-    assert config.isYieldAsset == True
-    assert config.underlyingAsset == yield_underlying_token.address
-
-    # will use global defaults
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
-
-
 ########################
 # Normal Asset - Price #
 ########################
@@ -1321,3 +1165,160 @@ def test_calculate_yield_profits_no_update_normal_no_cap(appraiser, yield_vault_
     assert last_yield_price == current_price_per_share
     assert actual_profit == expected_profit
     assert performance_fee == 15_00
+
+
+#########
+# Utils #
+#########
+
+
+# get profit calc config
+
+
+def test_appraiser_get_profit_calc_config_no_config(appraiser, yield_vault_token):
+    """ no mission control asset config, no ledger vault token registration, will use global defaults """
+
+    config = appraiser.getProfitCalcConfig(yield_vault_token)
+    assert config.legoId == 0
+
+    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    assert config.maxYieldIncrease == 5_00
+    assert config.performanceFee == 20_00
+
+    # because not a yield asset, will not get decimals
+    assert config.decimals == 0
+
+
+def test_appraiser_get_profit_calc_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ mission control asset config is set, no ledger vault token registration, will use mission control config """
+
+    # set mission control asset config
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset = True,
+        _isRebasing = True,
+        _underlyingAsset = yield_underlying_token,
+        _maxYieldIncrease = 9_00,
+        _performanceFee = 26_00,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId = 1,
+        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
+        _yieldConfig = yield_config,
+    )
+
+    config = appraiser.getProfitCalcConfig(yield_vault_token)
+    assert config.legoId == 1
+    assert config.legoAddr == mock_yield_lego.address
+
+    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
+    assert config.maxYieldIncrease == 9_00
+    assert config.performanceFee == 26_00
+
+    # because yield asset, will get decimals
+    assert config.decimals == yield_vault_token.decimals()
+
+
+def test_appraiser_get_profit_calc_config_with_vault_registration(appraiser, yield_underlying_token_whale, yield_vault_token, yield_underlying_token, mock_yield_lego, ledger):
+    """ no mission control asset config, ledger vault token registration, will use ledger config """
+
+    # need to deposit to register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+
+    # verify vault token registration
+    vault_token = ledger.vaultTokens(yield_vault_token)
+    assert vault_token.legoId == 1
+    assert vault_token.underlyingAsset == yield_underlying_token.address
+    assert vault_token.decimals == yield_vault_token.decimals()
+    assert vault_token.isRebasing == False
+
+    # get profit calc config
+    config = appraiser.getProfitCalcConfig(yield_vault_token)
+    assert config.legoId == 1
+    assert config.legoAddr == mock_yield_lego.address
+    assert config.decimals == yield_vault_token.decimals()
+    assert config.isYieldAsset == True
+    assert config.isRebasing == False
+    assert config.underlyingAsset == yield_underlying_token.address
+
+    # will use global defaults
+    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    assert config.maxYieldIncrease == 5_00
+    assert config.performanceFee == 20_00
+
+
+# get asset usd value config
+
+
+def test_appraiser_get_asset_usd_value_config_no_config(appraiser, yield_vault_token):
+    """ no mission control asset config, no ledger vault token registration, will use global defaults """
+
+    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
+    assert config.legoId == 0
+    assert config.legoAddr == ZERO_ADDRESS
+    assert config.decimals == yield_vault_token.decimals()
+    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    assert config.isYieldAsset == False
+    assert config.underlyingAsset == ZERO_ADDRESS
+
+
+def test_appraiser_get_asset_usd_value_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+    """ mission control asset config is set, no ledger vault token registration, will use mission control config """
+
+    # set mission control asset config
+    yield_config = createAssetYieldConfig(
+        _isYieldAsset = True,
+        _underlyingAsset = yield_underlying_token,
+    )
+    setAssetConfig(
+        yield_vault_token,
+        _legoId = 1,
+        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
+        _yieldConfig = yield_config,
+    )
+
+    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
+    assert config.legoId == 1
+    assert config.legoAddr == mock_yield_lego.address
+    assert config.decimals == yield_vault_token.decimals()
+    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
+    assert config.isYieldAsset == True
+    assert config.underlyingAsset == yield_underlying_token.address
+
+
+def test_appraiser_get_asset_usd_value_config_with_vault_registration(appraiser, yield_underlying_token_whale, yield_vault_token, yield_underlying_token, mock_yield_lego, ledger):
+    """ no mission control asset config, ledger vault token registration, will use ledger config """
+
+    # need to deposit to register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+
+    # verify vault token registration
+    vault_token = ledger.vaultTokens(yield_vault_token)
+    assert vault_token.legoId == 1
+    assert vault_token.underlyingAsset == yield_underlying_token.address
+    assert vault_token.decimals == yield_vault_token.decimals()
+    assert vault_token.isRebasing == False
+
+    # get asset usd value config
+    config = appraiser.getAssetUsdValueConfig(yield_vault_token)
+    assert config.legoId == 1
+    assert config.legoAddr == mock_yield_lego.address
+    assert config.decimals == yield_vault_token.decimals()
+    assert config.isYieldAsset == True
+    assert config.underlyingAsset == yield_underlying_token.address
+
+    # will use global defaults
+    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+
