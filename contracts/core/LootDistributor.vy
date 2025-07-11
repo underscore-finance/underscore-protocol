@@ -51,6 +51,10 @@ struct AmbassadorConfig:
     underlyingAsset: address
     decimals: uint256
 
+struct DepositRewards:
+    asset: address
+    amount: uint256
+
 struct VaultToken:
     legoId: uint256
     underlyingAsset: address
@@ -64,12 +68,19 @@ event LootClaimed:
 
 event DepositRewardsAdded:
     asset: indexed(address)
-    amount: uint256
+    addedAmount: uint256
+    newTotalAmount: uint256
     adder: indexed(address)
 
 event DepositRewardsClaimed:
     user: indexed(address)
     asset: indexed(address)
+    userRewards: uint256
+    remainingRewards: uint256
+
+event DepositRewardsRecovered:
+    asset: indexed(address)
+    recipient: indexed(address)
     amount: uint256
 
 # claimable loot
@@ -82,7 +93,7 @@ indexOfClaimableAsset: public(HashMap[address, HashMap[address, uint256]]) # amb
 numClaimableAssets: public(HashMap[address, uint256]) # ambassador -> num assets
 
 # deposit rewards
-depositRewards: public(uint256) # amount
+depositRewards: public(DepositRewards)
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
@@ -502,27 +513,7 @@ def _isValidWalletConfig(_wallet: address, _caller: address, _ledger: address) -
 ###################
 
 
-# add rewards
-
-
-@external
-def addDepositRewards(_amount: uint256):
-    a: addys.Addys = addys._getAddys()
-    asset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset()
-    if asset == empty(address):
-        return
-
-    # finalize amount
-    amount: uint256 = min(_amount, staticcall IERC20(asset).balanceOf(msg.sender))
-    if amount == 0:
-        return
-    assert extcall IERC20(asset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
-
-    self.depositRewards += amount
-    log DepositRewardsAdded(asset = asset, amount = amount, adder = msg.sender)
-
-
-# claim rewards
+# claim deposit rewards
 
 
 @external
@@ -530,55 +521,89 @@ def claimDepositRewards(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
+    # cannot claim if this is not current loot distributor, likely migrated to new loot distributor
+    assert a.lootDistributor == self # dev: not current loot distributor
+
     # permission check - same as claimLoot
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     owner: address = staticcall UserWalletConfig(walletConfig).owner()
     if msg.sender != owner:
         assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
-    # get rewards asset
-    asset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset()
-    if asset == empty(address):
-        return 0
-
-    # check if there is anything available for rewards
-    available: uint256 = min(self.depositRewards, staticcall IERC20(asset).balanceOf(self))
-    if available == 0:
-        return 0
-
     # update deposit points first
     self._updateDepositPoints(_user, 0, False, a.ledger)
-
-    # get updated points
     userPoints: PointsData = empty(PointsData)
     globalPoints: PointsData = empty(PointsData)
     userPoints, globalPoints = staticcall Ledger(a.ledger).getUserAndGlobalPoints(_user)
+    assert globalPoints.depositPoints != 0 # dev: no points
 
-    # check if user has any points
-    if userPoints.depositPoints == 0 or globalPoints.depositPoints == 0:
-        return 0
+    # check if there is anything available for rewards
+    data: DepositRewards = self.depositRewards
+    assert data.asset != empty(address) # dev: nothing to claim
+    availableRewards: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
 
-    # calculate user's share
-    userRewards: uint256 = min(available * userPoints.depositPoints // globalPoints.depositPoints, staticcall IERC20(asset).balanceOf(self))
-    if userRewards == 0:
-        return 0
-    
-    # transfer rewards to user
-    assert extcall IERC20(asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
+    # calculate user's share, transfer to user
+    userRewards: uint256 = availableRewards * userPoints.depositPoints // globalPoints.depositPoints
+    assert userRewards != 0 # dev: nothing to claim
+    assert extcall IERC20(data.asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
 
-    # update deposit rewards tracking
-    self.depositRewards -= userRewards
+    # save rewards data
+    data.amount -= userRewards
+    self.depositRewards = data
 
-    # zero out user's points and update global points
+    # save / update points
     globalPoints.depositPoints -= userPoints.depositPoints
     userPoints.depositPoints = 0
-
-    # save updated points
     extcall Ledger(a.ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
 
     log DepositRewardsClaimed(
         user = _user,
-        asset = asset,
-        amount = userRewards,
+        asset = data.asset,
+        userRewards = userRewards,
+        remainingRewards = data.amount,
     )
     return userRewards
+
+
+# add rewards
+
+
+@external
+def addDepositRewards(_asset: address, _amount: uint256):
+    a: addys.Addys = addys._getAddys()
+    depositRewardsAsset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset() # dev: invalid asset
+    assert depositRewardsAsset == _asset # dev: invalid asset
+
+    data: DepositRewards = self.depositRewards
+    if data.asset != empty(address) and data.amount != 0:
+        # NOTE: if changing the rewards asset, need to recover the previous asset first (zero out the amount)
+        assert data.asset == depositRewardsAsset # dev: invalid asset
+
+    # finalize amount
+    amount: uint256 = min(_amount, staticcall IERC20(depositRewardsAsset).balanceOf(msg.sender))
+    assert amount != 0 # dev: nothing to add
+    assert extcall IERC20(depositRewardsAsset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
+
+    # update data
+    data.asset = depositRewardsAsset
+    data.amount += amount
+    self.depositRewards = data
+
+    log DepositRewardsAdded(asset = depositRewardsAsset, addedAmount = amount, newTotalAmount = data.amount, adder = msg.sender)
+
+
+# recover deposit rewards
+
+
+@external
+def recoverDepositRewards(_recipient: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+
+    data: DepositRewards = self.depositRewards
+    assert data.asset != empty(address) # dev: nothing to claim
+    amount: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
+    assert amount != 0 # dev: nothing to recover
+    assert extcall IERC20(data.asset).transfer(_recipient, amount, default_return_value=True) # dev: recovery failed
+
+    self.depositRewards = empty(DepositRewards)
+    log DepositRewardsRecovered(asset=data.asset, recipient=_recipient, amount=amount)
