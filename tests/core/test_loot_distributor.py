@@ -1031,16 +1031,20 @@ def test_get_total_claimable_assets_after_claiming(loot_distributor, ambassador_
     # Claim loot
     loot_distributor.claimLoot(ambassador_wallet, sender=alice)
     
-    # Check remaining balances
-    alpha_balance_in_distributor = alpha_token.balanceOf(loot_distributor)
+    # After claim, bravo should have no balance left in distributor
+    # because we only kept 30% of claimable amount, which was transferred during claim
     bravo_balance_in_distributor = bravo_token.balanceOf(loot_distributor)
-    bravo_claimable_remaining = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    assert bravo_balance_in_distributor == 0
     
-    # If bravo has no balance left in the distributor, getTotalClaimableAssets returns 0
-    # even if there's still claimable amount tracked
-    if bravo_balance_in_distributor == 0:
-        assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 0
-    else:
-        assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 1
+    # But bravo still has claimable amount tracked
+    bravo_claimable_remaining = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    assert bravo_claimable_remaining == bravo_claimable * 70 // 100  # 70% remains claimable
+    
+    # getTotalClaimableAssets returns 0 because there's no balance available
+    # even though there's still claimable amount tracked
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 0
 
 
+##################
+# Deposit Points #
+##################
