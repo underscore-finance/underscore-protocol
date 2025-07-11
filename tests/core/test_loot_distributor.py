@@ -1388,6 +1388,107 @@ def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_w
     assert yield_underlying_token.balanceOf(loot_distributor) == underlying_seed_amount
 
 
+def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test TxFeePaid and YieldBonusPaid event emissions """
+    
+    # Register the vault token first
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Seed tokens for bonuses
+    yield_underlying_token.transfer(loot_distributor, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    yield_vault_token.transfer(loot_distributor, 100 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Set up config with yield bonuses
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=50_00,      # 50% swap fee
+        _yieldRatio=40_00,     # 40% yield fee
+    )
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=15_00,  # 15% ambassador bonus
+        _bonusRatio=25_00,            # 25% user bonus
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Test 1: TxFeePaid event from swap fee
+    swap_fee = 10 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(user_wallet, swap_fee, sender=yield_underlying_token_whale)
+    yield_vault_token.approve(loot_distributor, swap_fee, sender=user_wallet.address)
+    
+    loot_distributor.addLootFromSwapOrRewards(
+        yield_vault_token,
+        swap_fee,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Check TxFeePaid event
+    tx_fee_event = filter_logs(loot_distributor, 'TxFeePaid')[0]
+    assert tx_fee_event.asset == yield_vault_token.address
+    assert tx_fee_event.totalFee == swap_fee
+    assert tx_fee_event.ambassadorFeeRatio == 50_00  # 50%
+    assert tx_fee_event.ambassadorFee == swap_fee * 50_00 // 100_00  # 5 tokens
+    assert tx_fee_event.ambassador == ambassador_wallet.address
+    assert tx_fee_event.action == ACTION_TYPE.SWAP
+    
+    # Test 2: YieldBonusPaid events from yield profit
+    performance_fee = 2 * EIGHTEEN_DECIMALS
+    total_yield = 10 * EIGHTEEN_DECIMALS
+    
+    # Transfer performance fee to loot distributor (simulating it already being there)
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield,
+        sender=user_wallet.address
+    )
+    
+    # Check TxFeePaid event for yield fee (performance fee)
+    tx_fee_event = filter_logs(loot_distributor, 'TxFeePaid')[0]
+    assert tx_fee_event.asset == yield_vault_token.address
+    assert tx_fee_event.totalFee == performance_fee
+    assert tx_fee_event.ambassadorFeeRatio == 40_00  # 40% yield fee
+    assert tx_fee_event.ambassadorFee == performance_fee * 40_00 // 100_00  # 0.8 tokens
+    assert tx_fee_event.ambassador == ambassador_wallet.address
+    assert tx_fee_event.action == 0  # empty(wi.ActionType) for yield
+    
+    # Check YieldBonusPaid events (should be 2: one for user, one for ambassador)
+    yield_events = filter_logs(loot_distributor, 'YieldBonusPaid')
+    assert len(yield_events) == 2
+    
+    # User bonus event
+    user_event = yield_events[0]
+    assert user_event.bonusAsset == yield_underlying_token.address  # bonuses paid in underlying
+    assert user_event.bonusAmount == total_yield * 25_00 // 100_00  # 2.5 tokens
+    assert user_event.bonusRatio == 25_00  # 25%
+    assert user_event.yieldRealized == total_yield  # 10 underlying tokens worth
+    assert user_event.recipient == user_wallet.address
+    assert user_event.isAmbassador == False
+    
+    # Ambassador bonus event
+    ambassador_event = yield_events[1]
+    assert ambassador_event.bonusAsset == yield_underlying_token.address  # bonuses paid in underlying
+    assert ambassador_event.bonusAmount == total_yield * 15_00 // 100_00  # 1.5 tokens
+    assert ambassador_event.bonusRatio == 15_00  # 15%
+    assert ambassador_event.yieldRealized == total_yield  # 10 underlying tokens worth
+    assert ambassador_event.recipient == ambassador_wallet.address
+    assert ambassador_event.isAmbassador == True
+
+
 def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor, user_wallet, ambassador_wallet, charlie_token, charlie_token_vault, charlie_token_whale, delta_token, delta_token_vault, delta_token_whale, mock_yield_lego, mock_ripe, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
     """ Test yield bonus with assets of different decimal precision (6, 8, 18 decimals) """
     
