@@ -9,16 +9,17 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
+interface Appraiser:
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
+    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+    def lastPricePerShare(_asset: address) -> uint256: view
+
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
-
-interface Appraiser:
-    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
-    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
@@ -1047,6 +1048,46 @@ def _performPostActionTasks(
             assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
 
 
+##################
+# Yield Handling #
+##################
+
+
+@internal
+def _checkForYieldProfits(_asset: address, _ad: ws.ActionData):
+    if _asset in [empty(address), _ad.eth, _ad.weth]:
+        return
+
+    # skip if already checked
+    if self.checkedYield[_asset]:
+        return
+
+    # nothing to do here (nothing saved, not a yield asset)
+    data: WalletAssetData = self.assetData[_asset]
+    if data.assetBalance == 0 or not data.isYieldAsset:
+        return
+
+    # no balance, nothing to do here
+    currentBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+    if currentBalance == 0:
+        return
+
+    # calculate yield profits
+    yieldRealized: uint256 = 0
+    feeRatio: uint256 = 0
+    data.lastPricePerShare, yieldRealized, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
+
+    # only save if appraiser returns a price per share (non-rebasing assets)
+    if data.lastPricePerShare != 0:
+        self.assetData[_asset] = data
+
+    # pay yield fee
+    self._payYieldFee(_asset, yieldRealized, feeRatio, _ad)
+
+    # mark as checked
+    self.checkedYield[_asset] = True
+
+
 ##############
 # Asset Data #
 ##############
@@ -1111,6 +1152,10 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.Action
         data.usdValue, data.isYieldAsset = extcall Appraiser(_ad.appraiser).updatePriceAndGetUsdValueAndIsYieldAsset(_asset, currentBalance, _ad.missionControl, _ad.legoBook)
         newTotalUsdValue += data.usdValue
 
+    # when receiving vault token for the first time, need to get price per share
+    if data.isYieldAsset and data.lastPricePerShare == 0:
+        data.lastPricePerShare = staticcall Appraiser(_ad.appraiser).lastPricePerShare(_asset)
+
     # save data
     data.assetBalance = currentBalance
     self.assetData[_asset] = data
@@ -1160,46 +1205,6 @@ def _deregisterAsset(_asset: address) -> bool:
     return True
 
 
-##################
-# Yield Handling #
-##################
-
-
-@internal
-def _checkForYieldProfits(_asset: address, _ad: ws.ActionData):
-    if _asset in [empty(address), _ad.eth, _ad.weth]:
-        return
-
-    # skip if already checked
-    if self.checkedYield[_asset]:
-        return
-
-    # nothing to do here (nothing saved, not a yield asset)
-    data: WalletAssetData = self.assetData[_asset]
-    if data.assetBalance == 0 or not data.isYieldAsset:
-        return
-
-    # no balance, nothing to do here
-    currentBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
-    if currentBalance == 0:
-        return
-
-    # calculate yield profits
-    yieldRealized: uint256 = 0
-    feeRatio: uint256 = 0
-    data.lastPricePerShare, yieldRealized, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
-
-    # only save if appraiser returns a price (non-rebasing assets)
-    if data.lastPricePerShare != 0:
-        self.assetData[_asset] = data
-
-    # pay yield fee
-    self._payYieldFee(_asset, yieldRealized, min(feeRatio, 25_00), _ad)
-
-    # mark as checked
-    self.checkedYield[_asset] = True
-
-
 #############
 # Utilities #
 #############
@@ -1218,7 +1223,7 @@ def _payYieldFee(
     if _ad.lootDistributor == empty(address):
         return
 
-    feeAmount: uint256 = _yieldRealized * _feeRatio // HUNDRED_PERCENT
+    feeAmount: uint256 = _yieldRealized * min(_feeRatio, 25_00) // HUNDRED_PERCENT
     if feeAmount != 0:
         assert extcall IERC20(_asset).transfer(_ad.lootDistributor, feeAmount, default_return_value = True) # dev: xfer
 
