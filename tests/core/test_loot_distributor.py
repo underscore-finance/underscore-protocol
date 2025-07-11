@@ -735,3 +735,312 @@ def test_add_loot_from_yield_profit_with_price_per_share_change(loot_distributor
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == expected_bonus
 
 
+##############
+# Claim Loot #
+##############
+
+
+@pytest.fixture(scope="module")
+def setupClaimableLoot(setAssetConfig, createAmbassadorRevShare, loot_distributor, user_wallet, alpha_token, alpha_token_whale):
+    def setupClaimableLoot(
+            amount,
+            token = alpha_token,
+            token_whale = alpha_token_whale,
+            rev_share_ratio=50_00,
+        ):
+        
+        # Set up ambassador config
+        ambassadorRevShare = createAmbassadorRevShare(
+            _swapRatio=rev_share_ratio,
+            _rewardsRatio=rev_share_ratio,
+            _yieldRatio=rev_share_ratio,
+        )
+        
+        setAssetConfig(
+            token,
+            _ambassadorRevShare=ambassadorRevShare,
+        )
+        
+        # Transfer tokens to user wallet and approve
+        token.transfer(user_wallet, amount, sender=token_whale)
+        token.approve(loot_distributor.address, amount, sender=user_wallet.address)
+        
+        # Add loot from swap
+        loot_distributor.addLootFromSwapOrRewards(
+            token,
+            amount,
+            ACTION_TYPE.SWAP,
+            sender=user_wallet.address
+        )
+        
+        # Return the expected claimable amount
+        return amount * rev_share_ratio // 100_00
+    
+    return setupClaimableLoot
+
+
+def test_claim_loot_single_asset_full_balance(loot_distributor, ambassador_wallet, alpha_token, setupClaimableLoot, alice):
+    """ Test claiming loot for single asset when full balance is available """
+    
+    # Setup claimable loot - 100 tokens with 50% rev share = 50 claimable
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    expected_claimable = setupClaimableLoot(fee_amount)
+    
+    # Verify setup
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_claimable
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # Starts at 1
+    
+    # Record balances before claim
+    distributor_balance_before = alpha_token.balanceOf(loot_distributor)
+    ambassador_balance_before = alpha_token.balanceOf(ambassador_wallet)
+    
+    # Claim loot (ambassador claiming their own loot)
+    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Verify claim results
+    assert assets_claimed == 1  # 1 asset was claimed
+    assert alpha_token.balanceOf(ambassador_wallet) == ambassador_balance_before + expected_claimable
+    assert alpha_token.balanceOf(loot_distributor) == distributor_balance_before - expected_claimable
+    
+    # Verify loot was cleared
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.totalClaimableLoot(alpha_token) == 0
+    
+    # Verify asset was deregistered
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 1  # Back to 1 (not using 0 index)
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 0
+
+
+def test_claim_loot_multiple_assets(loot_distributor, ambassador_wallet, alpha_token, bravo_token, bravo_token_whale, setupClaimableLoot, alice):
+    """ Test claiming loot for multiple assets """
+    
+    # Setup claimable loot for two assets
+    expected_alpha = setupClaimableLoot(200 * EIGHTEEN_DECIMALS, rev_share_ratio=40_00)  # 40% = 80 tokens
+    expected_bravo = setupClaimableLoot(150 * EIGHTEEN_DECIMALS, token=bravo_token, token_whale=bravo_token_whale, rev_share_ratio=60_00)  # 60% = 90 tokens
+    
+    # Verify setup
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_alpha
+    assert loot_distributor.claimableLoot(ambassador_wallet, bravo_token) == expected_bravo
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 3  # 1 + 2 assets
+    
+    # Claim all loot
+    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Verify both assets were claimed
+    assert assets_claimed == 2
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.claimableLoot(ambassador_wallet, bravo_token) == 0
+    
+    # Verify both assets were deregistered
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, bravo_token) == 0
+
+
+def test_claim_loot_partial_balance_available(loot_distributor, ambassador_wallet, alpha_token, alpha_token_whale, setupClaimableLoot, alice):
+    """ Test claiming loot when only partial balance is available in contract """
+    
+    # Setup claimable loot
+    expected_claimable = setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # 50% = 50 tokens
+    
+    # Remove some tokens from loot distributor to simulate partial balance
+    current_balance = alpha_token.balanceOf(loot_distributor)
+    partial_amount = expected_claimable * 60 // 100  # Only 60% available
+    alpha_token.transfer(alpha_token_whale, current_balance - partial_amount, sender=loot_distributor.address)
+    
+    # Verify reduced balance
+    assert alpha_token.balanceOf(loot_distributor) == partial_amount
+    
+    # Claim loot
+    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Verify partial claim
+    assert assets_claimed == 1
+    assert alpha_token.balanceOf(ambassador_wallet) == partial_amount
+    
+    # Verify remaining claimable amount
+    remaining_claimable = expected_claimable - partial_amount
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == remaining_claimable
+    assert loot_distributor.totalClaimableLoot(alpha_token) == remaining_claimable
+    
+    # Asset should NOT be deregistered (still has claimable balance)
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
+
+
+def test_claim_loot_zero_balance_available(loot_distributor, ambassador_wallet, alpha_token, alpha_token_whale, setupClaimableLoot, alice):
+    """ Test claiming loot when no balance is available in contract """
+    
+    # Setup claimable loot
+    expected_claimable = setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # 50% = 50 tokens
+    
+    # Remove all tokens from loot distributor
+    current_balance = alpha_token.balanceOf(loot_distributor)
+    alpha_token.transfer(alpha_token_whale, current_balance, sender=loot_distributor.address)
+    
+    # Verify zero balance
+    assert alpha_token.balanceOf(loot_distributor) == 0
+    
+    # Claim loot - should fail because no assets can be claimed
+    with boa.reverts("no assets claimed"):
+        loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Claimable amount remains unchanged
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_claimable
+    
+    # Asset remains registered
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
+
+
+def test_claim_loot_permission_check(loot_distributor, ambassador_wallet, setupClaimableLoot, alice, charlie):
+    """ Test permission checks for claiming loot """
+    
+    # Setup claimable loot for ambassador_wallet (alice is owner)
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)
+    
+    # Charlie (not owner) cannot claim
+    with boa.reverts("no perms"):
+        loot_distributor.claimLoot(ambassador_wallet, sender=charlie)
+    
+    # Alice (owner) can claim
+    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assert assets_claimed == 1
+
+
+def test_claim_loot_deregistration_with_multiple_assets(loot_distributor, ambassador_wallet, alpha_token, bravo_token, charlie_token, bravo_token_whale, charlie_token_whale, setupClaimableLoot, alice):
+    """ Test asset deregistration logic when claiming multiple assets with different balances """
+    
+    # Setup three assets
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # Alpha with default 50%
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=bravo_token, token_whale=bravo_token_whale)  # Bravo with 50%
+    setupClaimableLoot(100 * (10**6), token=charlie_token, token_whale=charlie_token_whale)  # Charlie 6 decimals with 50%
+    
+    # Verify the claimable amounts before removing tokens
+    alpha_claimable = loot_distributor.claimableLoot(ambassador_wallet, alpha_token)
+    bravo_claimable = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    charlie_claimable = loot_distributor.claimableLoot(ambassador_wallet, charlie_token)
+    
+    # Remove some bravo tokens to create partial balance (keep only 40% of what's claimable)
+    bravo_balance = bravo_token.balanceOf(loot_distributor)
+    bravo_to_keep = bravo_claimable * 40 // 100
+    bravo_token.transfer(bravo_token_whale, bravo_balance - bravo_to_keep, sender=loot_distributor.address)
+    
+    # Verify bravo has partial balance
+    assert bravo_token.balanceOf(loot_distributor) == bravo_to_keep
+    assert bravo_to_keep < bravo_claimable  # Ensure it's actually partial
+    
+    # Verify initial state - 3 assets registered
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 4  # 1 + 3 assets
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, bravo_token) == 2
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, charlie_token) == 3
+    
+    # Claim loot
+    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Verify claims
+    assert assets_claimed == 3  # All 3 assets had transfers
+    
+    # Check remaining claimable amounts
+    alpha_remaining = loot_distributor.claimableLoot(ambassador_wallet, alpha_token)
+    bravo_remaining = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    charlie_remaining = loot_distributor.claimableLoot(ambassador_wallet, charlie_token)
+    
+    # Alpha and Charlie should have 0 remaining (fully claimed)
+    assert alpha_remaining == 0
+    assert charlie_remaining == 0
+    
+    # Bravo should have remaining balance (partial claim)
+    assert bravo_remaining == bravo_claimable - bravo_to_keep
+    assert bravo_remaining > 0
+    
+    # Alpha and Charlie should be deregistered (fully claimed)
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, charlie_token) == 0
+    
+    # Bravo should remain registered (partial claim)
+    # After deregistration of alpha and charlie, bravo should be at index 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, bravo_token) == 1
+    
+    # Verify final state - should have 2 (1 base + 1 remaining asset)
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2
+
+
+def test_claim_loot_no_claimable_assets(loot_distributor, ambassador_wallet, alice):
+    """ Test claiming when there are no claimable assets """
+    
+    # Verify no assets registered
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 0
+    
+    # Claim should fail because there are no claimable assets
+    with boa.reverts("no claimable assets"):
+        loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+
+
+# get claimable assets
+
+
+def test_get_total_claimable_assets_no_assets(loot_distributor, ambassador_wallet):
+    """ Test getTotalClaimableAssets when user has no claimable assets """
+    
+    # Should return 0 when no assets are registered
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 0
+
+
+def test_get_total_claimable_assets_single_asset(loot_distributor, ambassador_wallet, setupClaimableLoot):
+    """ Test getTotalClaimableAssets with a single claimable asset """
+    
+    # Setup one claimable asset
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)
+    
+    # Should return 1 asset
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 1
+
+
+def test_get_total_claimable_assets_multiple_assets(loot_distributor, ambassador_wallet, bravo_token, charlie_token, bravo_token_whale, charlie_token_whale, setupClaimableLoot):
+    """ Test getTotalClaimableAssets with multiple claimable assets """
+    
+    # Setup three different assets
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # Alpha token
+    setupClaimableLoot(200 * EIGHTEEN_DECIMALS, token=bravo_token, token_whale=bravo_token_whale)
+    setupClaimableLoot(50 * (10**6), token=charlie_token, token_whale=charlie_token_whale)  # 6 decimals
+    
+    # Should return 3 assets
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 3
+
+
+def test_get_total_claimable_assets_after_claiming(loot_distributor, ambassador_wallet, alpha_token, bravo_token, bravo_token_whale, setupClaimableLoot, alice):
+    """ Test getTotalClaimableAssets after claiming and deregistering some assets """
+    
+    # Setup two assets
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # Alpha - will be fully claimed
+    setupClaimableLoot(200 * EIGHTEEN_DECIMALS, token=bravo_token, token_whale=bravo_token_whale)  # Bravo
+    
+    # Verify initial state
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 2
+    
+    # Remove bravo tokens to create partial balance (keep only 30%)
+    bravo_claimable = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    bravo_balance = bravo_token.balanceOf(loot_distributor)
+    bravo_to_keep = bravo_claimable * 30 // 100
+    bravo_token.transfer(bravo_token_whale, bravo_balance - bravo_to_keep, sender=loot_distributor.address)
+    
+    # Verify getTotalClaimableAssets before claiming
+    # Since bravo still has some balance, it should still count
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 2
+    
+    # Claim loot
+    loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    
+    # Check remaining balances
+    alpha_balance_in_distributor = alpha_token.balanceOf(loot_distributor)
+    bravo_balance_in_distributor = bravo_token.balanceOf(loot_distributor)
+    bravo_claimable_remaining = loot_distributor.claimableLoot(ambassador_wallet, bravo_token)
+    
+    # If bravo has no balance left in the distributor, getTotalClaimableAssets returns 0
+    # even if there's still claimable amount tracked
+    if bravo_balance_in_distributor == 0:
+        assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 0
+    else:
+        assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 1
+
+
