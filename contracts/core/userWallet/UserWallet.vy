@@ -150,7 +150,7 @@ def transferFunds(
     if asset == empty(address):
         asset = ETH
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.TRANSFER, False, [asset], [], _recipient)
-    return self._transferFunds(_recipient, asset, _amount, True, True, ad)
+    return self._transferFunds(_recipient, asset, _amount, True, False, ad)
 
 
 @internal
@@ -159,7 +159,7 @@ def _transferFunds(
     _asset: address,
     _amount: uint256,
     _shouldCheckRecipientLimits: bool,
-    _shouldCheckManagerLimits: bool,
+    _isTrustedTx: bool,
     _ad: ActionData,
 ) -> (uint256, uint256):
     amount: uint256 = 0
@@ -184,7 +184,7 @@ def _transferFunds(
     else:
         assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
     
-    self._performPostActionTasks([_asset], txUsdValue, _ad, _shouldCheckManagerLimits)
+    self._performPostActionTasks([_asset], txUsdValue, _ad, _isTrustedTx)
     log WalletAction(
         op = 1,
         asset1 = _asset,
@@ -219,7 +219,7 @@ def transferFundsTrusted(
     if asset == empty(address):
         asset = ETH
     self._checkForYieldProfits(asset, ad)
-    return self._transferFunds(_recipient, asset, _amount, False, False, ad)
+    return self._transferFunds(_recipient, asset, _amount, False, True, ad)
 
 
 #########
@@ -297,7 +297,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: ActionData = self._performPreActionTasks(msg.sender, wi.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
-    return self._withdrawFromYield(_vaultToken, _amount, _extraAddr, _extraVal, _extraData, True, True, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraAddr, _extraVal, _extraData, True, False, ad)
 
 
 @internal
@@ -308,7 +308,7 @@ def _withdrawFromYield(
     _extraVal: uint256,
     _extraData: bytes32,
     _shouldPerformPostActionTasks: bool,
-    _shouldCheckManagerLimits: bool,
+    _isTrustedTx: bool,
     _ad: ActionData,
 ) -> (uint256, address, uint256, uint256):
 
@@ -331,7 +331,7 @@ def _withdrawFromYield(
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
-        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _shouldCheckManagerLimits)
+        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _isTrustedTx)
 
     log WalletAction(
         op = 11,
@@ -364,7 +364,7 @@ def preparePayment(
         ad = staticcall WalletConfig(walletConfig).getActionDataBundle(_legoId, walletConfig)
 
     self._checkForYieldProfits(_vaultToken, ad)
-    return self._withdrawFromYield(_vaultToken, _vaultAmount, empty(address), 0, empty(bytes32), True, False, ad)
+    return self._withdrawFromYield(_vaultToken, _vaultAmount, empty(address), 0, empty(bytes32), True, True, ad)
 
 
 # rebalance position
@@ -1098,10 +1098,10 @@ def _performPostActionTasks(
     _assets: DynArray[address, MAX_ASSETS],
     _txUsdValue: uint256,
     _ad: ActionData,
-    _shouldCheckManagerLimits: bool = True,
+    _isTrustedTx: bool = False,
 ):
     # first, check and update manager caps
-    if _shouldCheckManagerLimits:
+    if not _isTrustedTx:
         assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
 
     # update each asset that was touched
@@ -1110,8 +1110,11 @@ def _performPostActionTasks(
         newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _ad)
 
     if not _ad.inEjectMode:
-        assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
+        
+        # check if wallet still has trial funds
+        if not _isTrustedTx:
+            assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
 
 
 ##############

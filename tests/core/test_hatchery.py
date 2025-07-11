@@ -800,3 +800,284 @@ def test_does_wallet_still_have_trial_funds_vault_loses_value(
     assert hatchery.doesWalletStillHaveTrialFunds(wallet) == False
 
 
+# clawback trial funds
+
+
+def test_claw_back_trial_funds_all_in_wallet(hatchery, alice, alpha_token, setupTrialFundsWallet):
+    """Test clawing back trial funds when all funds are in the wallet"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(wallet.address) == 10 * EIGHTEEN_DECIMALS
+    assert wallet_config.trialFundsAsset() == alpha_token.address
+    assert wallet_config.trialFundsAmount() == 10 * EIGHTEEN_DECIMALS
+    
+    # Record hatchery balance before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    
+    # Claw back trial funds (alice is the owner)
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify funds were transferred to hatchery
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 10 * EIGHTEEN_DECIMALS
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_all_in_single_vault(
+    hatchery, alice, alpha_token, setupTrialFundsWallet, alpha_token_vault
+):
+    """Test clawing back trial funds when all funds are in a single vault"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Deposit all funds into vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        sender=alice,
+    )
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) > 0
+    
+    # Record hatchery balance before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    
+    # Claw back trial funds
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify funds were transferred to hatchery
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 10 * EIGHTEEN_DECIMALS
+    
+    # Verify vault shares were withdrawn
+    assert alpha_token_vault.balanceOf(wallet.address) == 0
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_split_across_vaults(
+    hatchery, alice, alpha_token, setupTrialFundsWallet,
+    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3
+):
+    """Test clawing back trial funds when funds are split across multiple vaults"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Split funds across vaults (3, 3, 3 units each, keep 1 in wallet)
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_2.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_3.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(wallet.address) == 1 * EIGHTEEN_DECIMALS
+    assert alpha_token_vault.balanceOf(wallet.address) > 0
+    assert alpha_token_vault_2.balanceOf(wallet.address) > 0
+    assert alpha_token_vault_3.balanceOf(wallet.address) > 0
+    
+    # Record hatchery balance before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    
+    # Claw back trial funds
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify funds were transferred to hatchery
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 10 * EIGHTEEN_DECIMALS
+    
+    # Verify all funds were withdrawn (wallet should be empty)
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) == 0
+    assert alpha_token_vault_2.balanceOf(wallet.address) == 0
+    assert alpha_token_vault_3.balanceOf(wallet.address) == 0
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_partial_spent(
+    hatchery, alice, alpha_token, setupTrialFundsWallet
+):
+    """Test clawing back trial funds when some have been spent"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Spend 2 units
+    alpha_token.transfer(alice, 2 * EIGHTEEN_DECIMALS, sender=wallet.address)
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(wallet.address) == 8 * EIGHTEEN_DECIMALS
+    
+    # Record hatchery balance before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    
+    # Claw back trial funds (only 8 units available)
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify only available funds were transferred
+    assert amount_recovered == 8 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 8 * EIGHTEEN_DECIMALS
+    
+    # Verify trial funds config was updated (not fully cleared since not all recovered)
+    assert wallet_config.trialFundsAsset() == alpha_token.address
+    assert wallet_config.trialFundsAmount() == 2 * EIGHTEEN_DECIMALS  # 10 - 8 = 2 remaining
+
+
+def test_claw_back_trial_funds_with_vault_yield(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet,
+    alpha_token_vault
+):
+    """Test clawing back trial funds when vault has generated yield"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Deposit all funds into vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        sender=alice,
+    )
+    
+    # Simulate yield generation: add 2 units to vault (20% yield)
+    boa.env.time_travel(seconds=3600)
+    alpha_token.transfer(alpha_token_vault.address, 2 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Record balances before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    vault_shares_before = alpha_token_vault.balanceOf(wallet.address)
+    
+    # Claw back trial funds
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify only the trial amount was recovered (not the yield)
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 10 * EIGHTEEN_DECIMALS
+    
+    # Verify some vault shares remain (the yield portion)
+    assert alpha_token_vault.balanceOf(wallet.address) > 0
+    assert alpha_token_vault.balanceOf(wallet.address) < vault_shares_before
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_permissions(
+    hatchery, alice, bob, alpha_token, setupTrialFundsWallet, switchboard_alpha
+):
+    """Test permission requirements for clawing back trial funds"""
+    
+    wallet = setupTrialFundsWallet()
+    
+    # Bob (non-owner) should not be able to claw back
+    with boa.reverts("no perms"):
+        hatchery.clawBackTrialFunds(wallet.address, sender=bob)
+    
+    # Alice (owner) should be able to claw back
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    
+    # Create another wallet for switchboard test
+    wallet2 = setupTrialFundsWallet()
+    
+    # Switchboard should be able to claw back without being owner
+    amount_recovered2 = hatchery.clawBackTrialFunds(wallet2.address, sender=switchboard_alpha.address)
+    assert amount_recovered2 == 10 * EIGHTEEN_DECIMALS
+
+
+def test_claw_back_trial_funds_already_clawed_back(
+    hatchery, alice, setupTrialFundsWallet
+):
+    """Test that clawing back already clawed back funds returns 0"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # First clawback
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+    
+    # Second clawback should return 0
+    amount_recovered2 = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered2 == 0
+
+
+def test_claw_back_trial_funds_vault_loses_value(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet,
+    alpha_token_vault
+):
+    """Test clawing back when vault has lost value"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Deposit all funds into vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        sender=alice,
+    )
+    
+    # Simulate loss: remove 3 units from vault (30% loss)
+    boa.env.time_travel(seconds=3600)
+    alpha_token.transfer(alpha_token_whale, 3 * EIGHTEEN_DECIMALS, sender=alpha_token_vault.address)
+    
+    # Record hatchery balance before clawback
+    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
+    
+    # Claw back trial funds (only 7 units available due to loss)
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    
+    # Verify only available funds were recovered
+    assert amount_recovered == 7 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) == 0
+    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + 7 * EIGHTEEN_DECIMALS
+    
+    # Verify trial funds config shows remaining unrecovered amount
+    assert wallet_config.trialFundsAsset() == alpha_token.address
+    assert wallet_config.trialFundsAmount() == 3 * EIGHTEEN_DECIMALS  # 10 - 7 = 3 remaining
+
