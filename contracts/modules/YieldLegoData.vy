@@ -2,8 +2,9 @@
 
 uses: addys
 
-from interfaces import LegoPartner as Lego
 import contracts.modules.Addys as addys
+
+from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
 event AssetOpportunityAdded:
@@ -245,10 +246,10 @@ def _getNumLegoAssets() -> uint256:
 
 @view
 @internal
-def _getMiniAddys(_miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys)) -> Lego.MiniAddys:
+def _getMiniAddys(_miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> ws.MiniAddys:
     if _miniAddys.ledger != empty(address):
         return _miniAddys
-    return Lego.MiniAddys(
+    return ws.MiniAddys(
         ledger = addys._getLedgerAddr(),
         missionControl = addys._getMissionControlAddr(),
         legoBook = addys._getLegoBookAddr(),

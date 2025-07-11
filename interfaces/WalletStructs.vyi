@@ -1,0 +1,47 @@
+# @version 0.4.3
+
+flag ActionType:
+    TRANSFER
+    EARN_DEPOSIT
+    EARN_WITHDRAW
+    EARN_REBALANCE
+    SWAP
+    MINT_REDEEM
+    CONFIRM_MINT_REDEEM
+    ADD_COLLATERAL
+    REMOVE_COLLATERAL
+    BORROW
+    REPAY_DEBT
+    REWARDS
+    ETH_TO_WETH
+    WETH_TO_ETH
+    ADD_LIQ
+    REMOVE_LIQ
+    ADD_LIQ_CONC
+    REMOVE_LIQ_CONC
+
+struct ActionData:
+    ledger: address
+    missionControl: address
+    legoBook: address
+    hatchery: address
+    lootDistributor: address
+    appraiser: address
+    wallet: address
+    walletConfig: address
+    walletOwner: address
+    inEjectMode: bool
+    isFrozen: bool
+    lastTotalUsdValue: uint256
+    signer: address
+    isManager: bool
+    legoId: uint256
+    legoAddr: address
+    eth: address
+    weth: address
+
+struct MiniAddys:
+    ledger: address
+    missionControl: address
+    legoBook: address
+    appraiser: address

@@ -12,7 +12,7 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import LegoPartner as Lego
-from interfaces import Wallet as wi
+from interfaces import WalletStructs as ws
 import interfaces.ConfigStructs as cs
 
 from ethereum.ercs import IERC20
@@ -73,7 +73,7 @@ event TxFeePaid:
     ambassadorFeeRatio: uint256
     ambassadorFee: uint256
     ambassador: indexed(address)
-    action: wi.ActionType
+    action: ws.ActionType
 
 event YieldBonusPaid:
     bonusAsset: indexed(address)
@@ -146,7 +146,7 @@ def __init__(_undyHq: address):
 def addLootFromSwapOrRewards(
     _asset: address,
     _feeAmount: uint256,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _missionControl: address = empty(address),
 ):
     ledger: address = addys._getLedgerAddr()
@@ -187,7 +187,7 @@ def addLootFromYieldProfit(
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     if _feeAmount != 0 and ambassador != empty(address):
-        self._handleAmbassadorTxFee(_asset, _feeAmount, empty(wi.ActionType), config)
+        self._handleAmbassadorTxFee(_asset, _feeAmount, empty(ws.ActionType), config)
 
     # yield bonus -- not doing this for rebasing assets
     if not config.isRebasing:
@@ -201,13 +201,13 @@ def addLootFromYieldProfit(
 def _handleAmbassadorTxFee(
     _asset: address,
     _feeAmount: uint256,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _config: LootDistroConfig,
 ):
     feeRatio: uint256 = _config.ambassadorRevShare.yieldRatio
-    if _action == wi.ActionType.SWAP:
+    if _action == ws.ActionType.SWAP:
         feeRatio = _config.ambassadorRevShare.swapRatio
-    elif _action == wi.ActionType.REWARDS:
+    elif _action == ws.ActionType.REWARDS:
         feeRatio = _config.ambassadorRevShare.rewardsRatio
 
     # finalize fee

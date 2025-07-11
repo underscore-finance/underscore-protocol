@@ -1,25 +1,5 @@
 # @version 0.4.3
 
-flag ActionType:
-    TRANSFER
-    EARN_DEPOSIT
-    EARN_WITHDRAW
-    EARN_REBALANCE
-    SWAP
-    MINT_REDEEM
-    CONFIRM_MINT_REDEEM
-    ADD_COLLATERAL
-    REMOVE_COLLATERAL
-    BORROW
-    REPAY_DEBT
-    REWARDS
-    ETH_TO_WETH
-    WETH_TO_ETH
-    ADD_LIQ
-    REMOVE_LIQ
-    ADD_LIQ_CONC
-    REMOVE_LIQ_CONC
-
 struct SwapInstruction:
     legoId: uint256
     amountIn: uint256
@@ -37,6 +17,11 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
     ...
 
 
+@pure
+@external
+def apiVersion() -> String[28]:
+    ...
+
 ##################
 # Transfer Funds #
 ##################
@@ -47,6 +32,7 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
+    _isTrustedTx: bool = False,
 ) -> (uint256, uint256):
     ...
 
@@ -65,8 +51,6 @@ def depositForYield(
     _asset: address,
     _vaultAddr: address = empty(address),
     _amount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ...
@@ -80,9 +64,8 @@ def withdrawFromYield(
     _legoId: uint256,
     _vaultToken: address,
     _amount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
+    _isTrustedTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
     ...
 
@@ -97,8 +80,6 @@ def rebalanceYieldPosition(
     _toLegoId: uint256,
     _toVaultAddr: address = empty(address),
     _fromVaultAmount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ...
@@ -124,8 +105,6 @@ def mintOrRedeemAsset(
     _tokenOut: address,
     _amountIn: uint256 = max_value(uint256),
     _minAmountOut: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, bool, uint256):
     ...
@@ -136,8 +115,6 @@ def confirmMintOrRedeemAsset(
     _legoId: uint256,
     _tokenIn: address,
     _tokenOut: address,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -156,8 +133,6 @@ def addCollateral(
     _legoId: uint256,
     _asset: address,
     _amount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -171,8 +146,6 @@ def removeCollateral(
     _legoId: uint256,
     _asset: address,
     _amount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -186,8 +159,6 @@ def borrow(
     _legoId: uint256,
     _borrowAsset: address,
     _amount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -201,8 +172,6 @@ def repayDebt(
     _legoId: uint256,
     _paymentAsset: address,
     _paymentAmount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -218,8 +187,6 @@ def claimRewards(
     _legoId: uint256,
     _rewardToken: address = empty(address),
     _rewardAmount: uint256 = max_value(uint256),
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ...
@@ -266,8 +233,6 @@ def addLiquidity(
     _minAmountA: uint256 = 0,
     _minAmountB: uint256 = 0,
     _minLpAmount: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     ...
@@ -283,8 +248,6 @@ def removeLiquidity(
     _lpAmount: uint256 = max_value(uint256),
     _minAmountA: uint256 = 0,
     _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     ...
@@ -307,8 +270,6 @@ def addLiquidityConcentrated(
     _tickUpper: int24 = max_value(int24),
     _minAmountA: uint256 = 0,
     _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     ...
@@ -325,8 +286,6 @@ def removeLiquidityConcentrated(
     _liqToRemove: uint256 = max_value(uint256),
     _minAmountA: uint256 = 0,
     _minAmountB: uint256 = 0,
-    _extraAddr: address = empty(address),
-    _extraVal: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     ...

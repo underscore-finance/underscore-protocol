@@ -11,7 +11,7 @@ initializes: yld[addys := addys]
 
 from interfaces import LegoPartner as Lego
 from interfaces import YieldLego as YieldLego
-from interfaces import Wallet as wi
+from interfaces import WalletStructs as ws
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
@@ -78,10 +78,10 @@ def __init__(
 
 @view
 @external
-def hasCapability(_action: wi.ActionType) -> bool:
+def hasCapability(_action: ws.ActionType) -> bool:
     return _action in (
-        wi.ActionType.EARN_DEPOSIT | 
-        wi.ActionType.EARN_WITHDRAW
+        ws.ActionType.EARN_DEPOSIT | 
+        ws.ActionType.EARN_WITHDRAW
     )
 
 
@@ -122,14 +122,12 @@ def depositForYield(
     _asset: address,
     _amount: uint256,
     _vaultAddr: address,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
     assert not yld.isPaused # dev: paused
-    miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify vault token (register if necessary)
     vaultToken: address = self._getVaultTokenOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -202,14 +200,12 @@ def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: addre
 def withdrawFromYield(
     _vaultToken: address,
     _amount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
     assert not yld.isPaused # dev: paused
-    miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify asset (register if necessary)
     asset: address = self._getAssetOnWithdraw(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -508,7 +504,7 @@ def swapTokens(
     _tokenPath: DynArray[address, MAX_TOKEN_PATH],
     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256):
     return 0, 0, 0
 
@@ -519,11 +515,9 @@ def mintOrRedeemAsset(
     _tokenOut: address,
     _tokenInAmount: uint256,
     _minAmountOut: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, bool, uint256):
     return 0, 0, False, 0
     
@@ -532,11 +526,9 @@ def mintOrRedeemAsset(
 def confirmMintOrRedeemAsset(
     _tokenIn: address,
     _tokenOut: address,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -545,11 +537,9 @@ def confirmMintOrRedeemAsset(
 def addCollateral(
     _asset: address,
     _amount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -558,11 +548,9 @@ def addCollateral(
 def removeCollateral(
     _asset: address,
     _amount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -571,11 +559,9 @@ def removeCollateral(
 def borrow(
     _borrowAsset: address,
     _amount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -584,11 +570,9 @@ def borrow(
 def repayDebt(
     _paymentAsset: address,
     _paymentAmount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -598,10 +582,8 @@ def claimRewards(
     _user: address,
     _rewardToken: address,
     _rewardAmount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
 
@@ -616,11 +598,9 @@ def addLiquidity(
     _minAmountA: uint256,
     _minAmountB: uint256,
     _minLpAmount: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (address, uint256, uint256, uint256, uint256):
     return empty(address), 0, 0, 0, 0
 
@@ -634,11 +614,9 @@ def removeLiquidity(
     _lpAmount: uint256,
     _minAmountA: uint256,
     _minAmountB: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256):
     return 0, 0, 0, 0
 
@@ -655,11 +633,9 @@ def addLiquidityConcentrated(
     _amountB: uint256,
     _minAmountA: uint256,
     _minAmountB: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     return 0, 0, 0, 0, 0
 
@@ -673,18 +649,16 @@ def removeLiquidityConcentrated(
     _liqToRemove: uint256,
     _minAmountA: uint256,
     _minAmountB: uint256,
-    _extraAddr: address,
-    _extraVal: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: Lego.MiniAddys = empty(Lego.MiniAddys),
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
 
 
 @view
 @external
-def getAccessForLego(_user: address, _action: wi.ActionType) -> (address, String[64], uint256):
+def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
     return empty(address), empty(String[64]), 0
 
 

@@ -1,39 +1,28 @@
 # @version 0.4.3
 # pragma optimize codesize
 
-from interfaces import Wallet as wi
+from interfaces import WalletStructs as ws
+from interfaces import WalletConfigStructs as wcs
 from ethereum.ercs import IERC721
 
-interface UserWalletConfig:
-    def managerSettings(_manager: address) -> ManagerSettings: view
-    def globalManagerSettings() -> GlobalManagerSettings: view
-    def payeeSettings(_payee: address) -> PayeeSettings: view
-    def globalPayeeSettings() -> GlobalPayeeSettings: view
-    def whitelistAddr(i: uint256) -> address: view
-    def managers(i: uint256) -> address: view
-    def payees(i: uint256) -> address: view
-    def numWhitelisted() -> uint256: view
-    def numManagers() -> uint256: view
-    def numPayees() -> uint256: view
-    def owner() -> address: view
-
 interface UserWallet:
-    def preparePayment(_legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, address, uint256, uint256): nonpayable
-    def transferFundsTrusted(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _ad: ActionData = empty(ActionData)) -> (uint256, uint256): nonpayable
-    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ActionData = empty(ActionData)) -> uint256: nonpayable
+    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isTrustedTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
+    def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isTrustedTx: bool = False) -> (uint256, uint256): nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
+    def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
 interface BossValidator:
-    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: ManagerData, _config: ManagerSettings, _globalConfig: GlobalManagerSettings, _userWalletConfig: address, _action: wi.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
-    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: ManagerLimits, _globalLimits: ManagerLimits, _managerPeriod: uint256, _data: ManagerData) -> ManagerData: view
-    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> GlobalManagerSettings: view
-    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> ManagerSettings: view
+    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _userWalletConfig: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
+    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> wcs.ManagerData: view
+    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Paymaster:
-    def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
-    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
+    def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
 interface Migrator:
     def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
@@ -49,197 +38,6 @@ interface Switchboard:
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
-
-struct ActionData:
-    ledger: address
-    missionControl: address
-    legoBook: address
-    hatchery: address
-    lootDistributor: address
-    appraiser: address
-    wallet: address
-    walletConfig: address
-    walletOwner: address
-    inEjectMode: bool
-    isFrozen: bool
-    lastTotalUsdValue: uint256
-    signer: address
-    isManager: bool
-    legoId: uint256
-    legoAddr: address
-    eth: address
-    weth: address
-
-struct RecipientConfigBundle:
-    isWhitelisted: bool
-    isOwner: bool
-    isPayee: bool
-    config: PayeeSettings
-    globalConfig: GlobalPayeeSettings
-    data: PayeeData
-
-struct ManagerConfigBundle:
-    isOwner: bool
-    isManager: bool
-    config: ManagerSettings
-    globalConfig: GlobalManagerSettings
-    data: ManagerData
-
-struct ManagerSettingsBundle:
-    owner: address
-    isManager: bool
-    bossValidator: address
-    timeLock: uint256
-    inEjectMode: bool
-    walletConfig: address
-    legoBook: address
-
-struct WhitelistConfigBundle:
-    owner: address
-    wallet: address
-    isWhitelisted: bool
-    pendingWhitelist: PendingWhitelist
-    timeLock: uint256
-    walletConfig: address
-    inEjectMode: bool
-    isManager: bool
-    isOwner: bool
-    whitelistPerms: WhitelistPerms
-    globalWhitelistPerms: WhitelistPerms
-
-struct MigrationConfigBundle:
-    owner: address
-    trialFundsAmount: uint256
-    isFrozen: bool
-    numPayees: uint256
-    numWhitelisted: uint256
-    numManagers: uint256
-    startingAgent: address
-    startingAgentIndex: uint256
-    hasPendingOwnerChange: bool
-    groupId: uint256
-    didMigrateSettings: bool
-    didMigrateFunds: bool
-
-struct PayeeManagementBundle:
-    owner: address
-    wallet: address
-    isRegisteredPayee: bool
-    isWhitelisted: bool
-    isManager: bool
-    payeeSettings: PayeeSettings
-    globalPayeeSettings: GlobalPayeeSettings
-    timeLock: uint256
-    walletConfig: address
-    inEjectMode: bool
-
-struct ManagerData:
-    numTxsInPeriod: uint256
-    totalUsdValueInPeriod: uint256
-    totalNumTxs: uint256
-    totalUsdValue: uint256
-    lastTxBlock: uint256
-    periodStartBlock: uint256
-
-struct ManagerSettings:
-    startBlock: uint256
-    expiryBlock: uint256
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct GlobalManagerSettings:
-    managerPeriod: uint256
-    startDelay: uint256
-    activationLength: uint256
-    canOwnerManage: bool
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct ManagerLimits:
-    maxUsdValuePerTx: uint256
-    maxUsdValuePerPeriod: uint256
-    maxUsdValueLifetime: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-
-struct LegoPerms:
-    canManageYield: bool
-    canBuyAndSell: bool
-    canManageDebt: bool
-    canManageLiq: bool
-    canClaimRewards: bool
-    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]
-
-struct WhitelistPerms:
-    canAddPending: bool
-    canConfirm: bool
-    canCancel: bool
-    canRemove: bool
-
-struct TransferPerms:
-    canTransfer: bool
-    canCreateCheque: bool
-    canAddPendingPayee: bool
-    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
-
-struct PayeeData:
-    numTxsInPeriod: uint256
-    totalUnitsInPeriod: uint256
-    totalUsdValueInPeriod: uint256
-    totalNumTxs: uint256
-    totalUnits: uint256
-    totalUsdValue: uint256
-    lastTxBlock: uint256
-    periodStartBlock: uint256
-
-struct PayeeSettings:
-    startBlock: uint256
-    expiryBlock: uint256
-    canPull: bool
-    periodLength: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-    primaryAsset: address
-    onlyPrimaryAsset: bool
-    unitLimits: PayeeLimits
-    usdLimits: PayeeLimits
-
-struct GlobalPayeeSettings:
-    defaultPeriodLength: uint256
-    startDelay: uint256
-    activationLength: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-    usdLimits: PayeeLimits
-    canPayOwner: bool
-
-struct PayeeLimits:
-    perTxCap: uint256
-    perPeriodCap: uint256
-    lifetimeCap: uint256
-
-struct PendingPayee:
-    settings: PayeeSettings
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-struct PendingWhitelist:
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-struct PendingOwnerChange:
-    newOwner: address
-    initiatedBlock: uint256
-    confirmBlock: uint256
 
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
@@ -277,7 +75,7 @@ event NftRecovered:
 wallet: public(address)
 groupId: public(uint256)
 owner: public(address)
-pendingOwner: public(PendingOwnerChange)
+pendingOwner: public(wcs.PendingOwnerChange)
 
 # helper contracts
 bossValidator: public(address)
@@ -289,29 +87,29 @@ trialFundsAsset: public(address)
 trialFundsAmount: public(uint256)
 
 # managers
-managerSettings: public(HashMap[address, ManagerSettings])
-managerPeriodData: public(HashMap[address, ManagerData])
+managerSettings: public(HashMap[address, wcs.ManagerSettings])
+managerPeriodData: public(HashMap[address, wcs.ManagerData])
 managers: public(HashMap[uint256, address]) # index -> manager
 indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
 
 # payees
-payeeSettings: public(HashMap[address, PayeeSettings])
-payeePeriodData: public(HashMap[address, PayeeData])
+payeeSettings: public(HashMap[address, wcs.PayeeSettings])
+payeePeriodData: public(HashMap[address, wcs.PayeeData])
 payees: public(HashMap[uint256, address]) # index -> payee
 indexOfPayee: public(HashMap[address, uint256]) # payee -> index
 numPayees: public(uint256) # num payees
-pendingPayees: public(HashMap[address, PendingPayee])
+pendingPayees: public(HashMap[address, wcs.PendingPayee])
 
 # whitelist
 whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
 indexOfWhitelist: public(HashMap[address, uint256]) # whitelist -> index
 numWhitelisted: public(uint256) # num whitelisted
-pendingWhitelist: public(HashMap[address, PendingWhitelist]) # addr -> pending whitelist
+pendingWhitelist: public(HashMap[address, wcs.PendingWhitelist]) # addr -> pending whitelist
 
 # global config
-globalManagerSettings: public(GlobalManagerSettings)
-globalPayeeSettings: public(GlobalPayeeSettings)
+globalManagerSettings: public(wcs.GlobalManagerSettings)
+globalPayeeSettings: public(wcs.GlobalPayeeSettings)
 
 # config
 timeLock: public(uint256)
@@ -324,10 +122,6 @@ didMigrateFunds: public(bool)
 didMigrateSettings: public(bool)
 
 API_VERSION: constant(String[28]) = "0.1.0"
-
-MAX_CONFIG_ASSETS: constant(uint256) = 40
-MAX_CONFIG_LEGOS: constant(uint256) = 25
-MAX_ALLOWED_PAYEES: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
@@ -447,20 +241,20 @@ def apiVersion() -> String[28]:
 @external
 def checkSignerPermissionsAndGetBundle(
     _signer: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
-) -> ActionData:
+) -> ws.ActionData:
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
     # main data for this transaction
-    ad: ActionData = self._getActionDataBundle(legoId, _signer)
+    ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
 
     # main validation
-    c: ManagerConfigBundle = self._getManagerConfigs(_signer, ad.walletOwner)
+    c: wcs.ManagerConfigBundle = self._getManagerConfigs(_signer, ad.walletOwner)
     assert staticcall BossValidator(self.bossValidator).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, ad.walletConfig, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
 
     # signer is not owner
@@ -477,11 +271,49 @@ def checkSignerPermissionsAndGetBundle(
 def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
-    config: ManagerSettings = self.managerSettings[_manager]
-    globalConfig: GlobalManagerSettings = self.globalManagerSettings
-    data: ManagerData = staticcall BossValidator(self.bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
+    config: wcs.ManagerSettings = self.managerSettings[_manager]
+    globalConfig: wcs.GlobalManagerSettings = self.globalManagerSettings
+    data: wcs.ManagerData = staticcall BossValidator(self.bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
     self.managerPeriodData[_manager] = data
     return True
+
+
+# manager config bundle
+
+
+@view
+@external
+def getManagerConfigs(_signer: address) -> wcs.ManagerConfigBundle:
+    return self._getManagerConfigs(_signer, self.owner)
+
+
+@view
+@internal
+def _getManagerConfigs(_signer: address, _walletOwner: address) -> wcs.ManagerConfigBundle:
+    return wcs.ManagerConfigBundle(
+        isOwner = _signer == _walletOwner,
+        isManager = self.indexOfManager[_signer] != 0,
+        config = self.managerSettings[_signer],
+        globalConfig = self.globalManagerSettings,
+        data = self.managerPeriodData[_signer],
+    )
+
+
+# manager settings bundle
+
+
+@view
+@external
+def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle:
+    return wcs.ManagerSettingsBundle(
+        owner = self.owner,
+        isManager = self._isManager(_manager),
+        bossValidator = self.bossValidator,
+        timeLock = self.timeLock,
+        inEjectMode = self.inEjectMode,
+        walletConfig = self,
+        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
+    )
 
 
 ####################
@@ -498,11 +330,11 @@ def checkRecipientLimitsAndUpdateData(
 ) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
-    c: RecipientConfigBundle = self._getRecipientConfigs(_recipient)
+    c: wcs.RecipientConfigBundle = self._getRecipientConfigs(_recipient)
 
     # check if payee is valid
     canPayRecipient: bool = False
-    data: PayeeData = empty(PayeeData)
+    data: wcs.PayeeData = empty(wcs.PayeeData)
     canPayRecipient, data = staticcall Paymaster(self.paymaster).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
 
     # !!!!
@@ -520,20 +352,20 @@ def checkRecipientLimitsAndUpdateData(
 
 @view
 @external
-def getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
+def getRecipientConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
     return self._getRecipientConfigs(_recipient)
 
 
 @view
 @internal
-def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
+def _getRecipientConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
     isWhitelisted: bool = self._isWhitelisted(_recipient)
 
     isOwner: bool = False
     isPayee: bool = False
-    config: PayeeSettings = empty(PayeeSettings)
-    globalConfig: GlobalPayeeSettings = empty(GlobalPayeeSettings)
-    data: PayeeData = empty(PayeeData)
+    config: wcs.PayeeSettings = empty(wcs.PayeeSettings)
+    globalConfig: wcs.GlobalPayeeSettings = empty(wcs.GlobalPayeeSettings)
+    data: wcs.PayeeData = empty(wcs.PayeeData)
     if not isWhitelisted:
         isOwner = _recipient == self.owner
         isPayee = self._isRegisteredPayee(_recipient)
@@ -541,13 +373,34 @@ def _getRecipientConfigs(_recipient: address) -> RecipientConfigBundle:
         globalConfig = self.globalPayeeSettings
         data = self.payeePeriodData[_recipient]
 
-    return RecipientConfigBundle(
+    return wcs.RecipientConfigBundle(
         isWhitelisted = isWhitelisted,
         isOwner = isOwner,
         isPayee = isPayee,
         config = config,
         globalConfig = globalConfig,
         data = data,
+    )
+
+
+# payee management bundle
+
+
+@view
+@external
+def getPayeeManagementBundle(_payee: address) -> wcs.PayeeManagementBundle:
+    owner: address = self.owner
+    return wcs.PayeeManagementBundle(
+        owner = owner,
+        wallet = self.wallet,
+        isRegisteredPayee = self._isRegisteredPayee(_payee),
+        isWhitelisted = self._isWhitelisted(_payee),
+        isManager = self._isManager(_payee),
+        payeeSettings = self.payeeSettings[_payee],
+        globalPayeeSettings = self.globalPayeeSettings,
+        timeLock = self.timeLock,
+        walletConfig = self,
+        inEjectMode = self.inEjectMode,
     )
 
 
@@ -566,7 +419,7 @@ def changeOwnership(_newOwner: address):
     assert _newOwner not in [empty(address), currentOwner] # dev: invalid new owner
 
     confirmBlock: uint256 = block.number + self.timeLock
-    self.pendingOwner = PendingOwnerChange(
+    self.pendingOwner = wcs.PendingOwnerChange(
         newOwner = _newOwner,
         initiatedBlock = block.number,
         confirmBlock = confirmBlock,
@@ -579,14 +432,14 @@ def changeOwnership(_newOwner: address):
 
 @external
 def confirmOwnershipChange():
-    data: PendingOwnerChange = self.pendingOwner
+    data: wcs.PendingOwnerChange = self.pendingOwner
     assert data.newOwner != empty(address) # dev: no pending owner
     assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
     assert msg.sender == data.newOwner # dev: only new owner can confirm
 
     prevOwner: address = self.owner
     self.owner = data.newOwner
-    self.pendingOwner = empty(PendingOwnerChange)
+    self.pendingOwner = empty(wcs.PendingOwnerChange)
     log OwnershipChangeConfirmed(prevOwner = prevOwner, newOwner = data.newOwner, initiatedBlock = data.initiatedBlock, confirmBlock = data.confirmBlock)
 
 
@@ -598,9 +451,9 @@ def cancelOwnershipChange():
     if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
         assert msg.sender == self.owner # dev: no perms
 
-    data: PendingOwnerChange = self.pendingOwner
+    data: wcs.PendingOwnerChange = self.pendingOwner
     assert data.confirmBlock != 0 # dev: no pending change
-    self.pendingOwner = empty(PendingOwnerChange)
+    self.pendingOwner = empty(wcs.PendingOwnerChange)
     log OwnershipChangeCancelled(cancelledOwner = data.newOwner, cancelledBy = msg.sender, initiatedBlock = data.initiatedBlock, confirmBlock = data.confirmBlock)
 
 
@@ -651,7 +504,7 @@ def _isManager(_manager: address) -> bool:
 
 
 @external
-def setGlobalManagerSettings(_config: GlobalManagerSettings):
+def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
     assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
     self.globalManagerSettings = _config
 
@@ -660,7 +513,7 @@ def setGlobalManagerSettings(_config: GlobalManagerSettings):
 
 
 @external
-def addManager(_manager: address, _config: ManagerSettings):
+def addManager(_manager: address, _config: wcs.ManagerSettings):
     assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
     self.managerSettings[_manager] = _config
     self._registerManager(_manager)
@@ -683,7 +536,7 @@ def _registerManager(_manager: address):
 
 
 @external
-def updateManager(_manager: address, _config: ManagerSettings):
+def updateManager(_manager: address, _config: wcs.ManagerSettings):
     assert msg.sender == self.bossValidator # dev: no perms
     self.managerSettings[_manager] = _config
 
@@ -703,8 +556,8 @@ def removeManager(_manager: address):
     if targetIndex == 0:
         return
 
-    self.managerSettings[_manager] = empty(ManagerSettings)
-    self.managerPeriodData[_manager] = empty(ManagerData)
+    self.managerSettings[_manager] = empty(wcs.ManagerSettings)
+    self.managerPeriodData[_manager] = empty(wcs.ManagerData)
 
     # update data
     lastIndex: uint256 = numManagers - 1
@@ -716,44 +569,6 @@ def removeManager(_manager: address):
         lastItem: address = self.managers[lastIndex]
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
-
-
-# manager config bundle
-
-
-@view
-@external
-def getManagerConfigs(_signer: address) -> ManagerConfigBundle:
-    return self._getManagerConfigs(_signer, self.owner)
-
-
-@view
-@internal
-def _getManagerConfigs(_signer: address, _walletOwner: address) -> ManagerConfigBundle:
-    return ManagerConfigBundle(
-        isOwner = _signer == _walletOwner,
-        isManager = self.indexOfManager[_signer] != 0,
-        config = self.managerSettings[_signer],
-        globalConfig = self.globalManagerSettings,
-        data = self.managerPeriodData[_signer],
-    )
-
-
-# manager settings bundle
-
-
-@view
-@external
-def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle:
-    return ManagerSettingsBundle(
-        owner = self.owner,
-        isManager = self._isManager(_manager),
-        bossValidator = self.bossValidator,
-        timeLock = self.timeLock,
-        inEjectMode = self.inEjectMode,
-        walletConfig = self,
-        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
-    )
 
 
 ##################
@@ -777,7 +592,7 @@ def _isRegisteredPayee(_addr: address) -> bool:
 
 
 @external
-def setGlobalPayeeSettings(_config: GlobalPayeeSettings):
+def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings):
     assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.globalPayeeSettings = _config
 
@@ -786,7 +601,7 @@ def setGlobalPayeeSettings(_config: GlobalPayeeSettings):
 
 
 @external
-def addPayee(_payee: address, _config: PayeeSettings):
+def addPayee(_payee: address, _config: wcs.PayeeSettings):
     assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.payeeSettings[_payee] = _config
     self._registerPayee(_payee)
@@ -809,7 +624,7 @@ def _registerPayee(_payee: address):
 
 
 @external
-def updatePayee(_payee: address, _config: PayeeSettings):
+def updatePayee(_payee: address, _config: wcs.PayeeSettings):
     assert msg.sender == self.paymaster # dev: no perms
     self.payeeSettings[_payee] = _config
 
@@ -829,8 +644,8 @@ def removePayee(_payee: address):
     if targetIndex == 0:
         return
 
-    self.payeeSettings[_payee] = empty(PayeeSettings)
-    self.payeePeriodData[_payee] = empty(PayeeData)
+    self.payeeSettings[_payee] = empty(wcs.PayeeSettings)
+    self.payeePeriodData[_payee] = empty(wcs.PayeeData)
 
     # update data
     lastIndex: uint256 = numPayees - 1
@@ -848,7 +663,7 @@ def removePayee(_payee: address):
 
 
 @external
-def addPendingPayee(_payee: address, _pending: PendingPayee):
+def addPendingPayee(_payee: address, _pending: wcs.PendingPayee):
     assert msg.sender == self.paymaster # dev: no perms
     self.pendingPayees[_payee] = _pending
 
@@ -856,7 +671,7 @@ def addPendingPayee(_payee: address, _pending: PendingPayee):
 @external
 def cancelPendingPayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
-    self.pendingPayees[_payee] = empty(PendingPayee)
+    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
 
 
 @external
@@ -867,29 +682,8 @@ def confirmPendingPayee(_payee: address):
         return
 
     self.payeeSettings[_payee] = self.pendingPayees[_payee].settings
-    self.pendingPayees[_payee] = empty(PendingPayee)
+    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
     self._registerPayee(_payee)
-
-
-# payee management bundle
-
-
-@view
-@external
-def getPayeeManagementBundle(_payee: address) -> PayeeManagementBundle:
-    owner: address = self.owner
-    return PayeeManagementBundle(
-        owner = owner,
-        wallet = self.wallet,
-        isRegisteredPayee = self._isRegisteredPayee(_payee),
-        isWhitelisted = self._isWhitelisted(_payee),
-        isManager = self._isManager(_payee),
-        payeeSettings = self.payeeSettings[_payee],
-        globalPayeeSettings = self.globalPayeeSettings,
-        timeLock = self.timeLock,
-        walletConfig = self,
-        inEjectMode = self.inEjectMode,
-    )
 
 
 # check if caller can add pending payee
@@ -907,14 +701,14 @@ def canAddPendingPayee(_caller: address) -> bool:
         return False
     
     # get manager settings
-    managerSettings: ManagerSettings = self.managerSettings[_caller]
+    managerSettings: wcs.ManagerSettings = self.managerSettings[_caller]
     
     # check if manager is active
     if managerSettings.startBlock > block.number or managerSettings.expiryBlock <= block.number:
         return False
     
     # check if manager has permission
-    globalSettings: GlobalManagerSettings = self.globalManagerSettings
+    globalSettings: wcs.GlobalManagerSettings = self.globalManagerSettings
     return managerSettings.transferPerms.canAddPendingPayee and globalSettings.transferPerms.canAddPendingPayee
 
 
@@ -939,7 +733,7 @@ def _isWhitelisted(_addr: address) -> bool:
 
 
 @external
-def addPendingWhitelistAddr(_addr: address, _pending: PendingWhitelist):
+def addPendingWhitelistAddr(_addr: address, _pending: wcs.PendingWhitelist):
     assert msg.sender == self.paymaster # dev: no perms
     self.pendingWhitelist[_addr] = _pending
 
@@ -950,7 +744,7 @@ def addPendingWhitelistAddr(_addr: address, _pending: PendingWhitelist):
 @external
 def cancelPendingWhitelistAddr(_addr: address):
     assert msg.sender == self.paymaster # dev: no perms
-    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+    self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
 
 
 # confirm whitelist
@@ -959,7 +753,7 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.paymaster # dev: no perms
-    self.pendingWhitelist[_addr] = empty(PendingWhitelist)
+    self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._addWhitelistAddr(_addr)
 
 
@@ -1017,9 +811,9 @@ def removeWhitelistAddr(_addr: address):
 
 @view
 @external
-def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfigBundle:
+def getWhitelistConfigBundle(_addr: address, _signer: address) -> wcs.WhitelistConfigBundle:
     owner: address = self.owner
-    return WhitelistConfigBundle(
+    return wcs.WhitelistConfigBundle(
         owner = owner,
         wallet = self.wallet,
         isWhitelisted = self._isWhitelisted(_addr),
@@ -1041,13 +835,13 @@ def getWhitelistConfigBundle(_addr: address, _signer: address) -> WhitelistConfi
 
 @view
 @external
-def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
+def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
     return self._getActionDataBundle(_legoId, _signer)
 
 
 @view
 @internal
-def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
+def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
     wallet: address = self.wallet
     inEjectMode: bool = self.inEjectMode
 
@@ -1075,7 +869,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
     if _legoId != 0 and legoBook != empty(address):
         legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
 
-    return ActionData(
+    return ws.ActionData(
         ledger = ledger,
         missionControl = missionControl,
         legoBook = legoBook,
@@ -1107,7 +901,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData:
 
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
-    ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
+    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
     newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
     extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
@@ -1116,7 +910,7 @@ def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) 
 
 @external
 def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
     assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
 
     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
@@ -1144,7 +938,7 @@ def getTrialFundsInfo() -> (address, uint256):
 
 @external
 def removeTrialFunds() -> uint256:
-    ad: ActionData = self._getActionDataBundle(0, msg.sender)
+    ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
     assert ad.hatchery == msg.sender and ad.hatchery != empty(address) # dev: no perms
 
     # trial funds info
@@ -1155,7 +949,7 @@ def removeTrialFunds() -> uint256:
     # transfer assets
     amount: uint256 = 0
     na: uint256 = 0
-    amount, na = extcall UserWallet(ad.wallet).transferFundsTrusted(ad.hatchery, trialFundsAsset, trialFundsAmount, ad)
+    amount, na = extcall UserWallet(ad.wallet).transferFunds(ad.hatchery, trialFundsAsset, trialFundsAmount, True)
 
     # update trial funds info
     remainingAmount: uint256 = trialFundsAmount - amount
@@ -1170,13 +964,13 @@ def removeTrialFunds() -> uint256:
 
 
 @external
-def preparePayment(
+def withdrawFromYield(
     _targetAsset: address,
     _legoId: uint256,
     _vaultToken: address,
     _vaultAmount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
-    ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
+    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     if msg.sender != ad.hatchery:
         assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
 
@@ -1185,7 +979,7 @@ def preparePayment(
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).preparePayment(_legoId, _vaultToken, _vaultAmount, ad)
+    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
     assert underlyingAsset == _targetAsset # dev: invalid target asset
 
     return underlyingAmount, txUsdValue
@@ -1201,7 +995,7 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     assert _recipient != empty(address) # dev: invalid recipient
     wallet: address = self.wallet
     assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
-    extcall wi(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+    extcall UserWallet(wallet).recoverNft(_collection, _nftTokenId, _recipient)
     log NftRecovered(collection = _collection, nftTokenId = _nftTokenId, recipient = _recipient)
 
 
@@ -1265,17 +1059,16 @@ def transferFundsDuringMigration(
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _ad: ActionData,
 ) -> (uint256, uint256):
     assert msg.sender == self.migrator # dev: no perms
-    return extcall UserWallet(self.wallet).transferFundsTrusted(_recipient, _asset, _amount, _ad)
+    return extcall UserWallet(self.wallet).transferFunds(_recipient, _asset, _amount, True)
 
 
 @view
 @external
-def getMigrationConfigBundle() -> MigrationConfigBundle:
+def getMigrationConfigBundle() -> wcs.MigrationConfigBundle:
     startingAgent: address = self.startingAgent
-    return MigrationConfigBundle(
+    return wcs.MigrationConfigBundle(
         owner = self.owner,
         trialFundsAmount = self.trialFundsAmount,
         isFrozen = self.isFrozen,

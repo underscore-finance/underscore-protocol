@@ -1464,7 +1464,7 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
     assert tx_fee_event.ambassadorFeeRatio == 40_00  # 40% yield fee
     assert tx_fee_event.ambassadorFee == performance_fee * 40_00 // 100_00  # 0.8 tokens
     assert tx_fee_event.ambassador == ambassador_wallet.address
-    assert tx_fee_event.action == 0  # empty(wi.ActionType) for yield
+    assert tx_fee_event.action == 0  # empty(ActionType) for yield
     
     # Check YieldBonusPaid events (should be 2: one for user, one for ambassador)
     yield_events = filter_logs(loot_distributor, 'YieldBonusPaid')

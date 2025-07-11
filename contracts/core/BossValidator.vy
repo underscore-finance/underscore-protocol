@@ -1,16 +1,17 @@
 # @version 0.4.3
 # pragma optimize codesize
 
-from interfaces import Wallet as wi
+from interfaces import WalletStructs as ws
+from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
-    def getManagerSettingsBundle(_manager: address) -> ManagerSettingsBundle: view
-    def updateManager(_manager: address, _config: ManagerSettings): nonpayable
-    def setGlobalManagerSettings(_config: GlobalManagerSettings): nonpayable
-    def addManager(_manager: address, _config: ManagerSettings): nonpayable
-    def getManagerConfigs(_signer: address) -> ManagerConfigBundle: view
-    def managerSettings(_manager: address) -> ManagerSettings: view
-    def globalManagerSettings() -> GlobalManagerSettings: view
+    def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle: view
+    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
+    def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def getManagerConfigs(_signer: address) -> wcs.ManagerConfigBundle: view
+    def managerSettings(_manager: address) -> wcs.ManagerSettings: view
+    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def isRegisteredPayee(_addr: address) -> bool: view
     def removeManager(_manager: address): nonpayable
     def isWhitelisted(_addr: address) -> bool: view
@@ -27,78 +28,6 @@ interface Ledger:
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-struct ManagerConfigBundle:
-    isOwner: bool
-    isManager: bool
-    config: ManagerSettings
-    globalConfig: GlobalManagerSettings
-    data: ManagerData
-
-struct ManagerSettingsBundle:
-    owner: address
-    isManager: bool
-    bossValidator: address
-    timeLock: uint256
-    inEjectMode: bool
-    walletConfig: address
-    legoBook: address
-
-struct ManagerData:
-    numTxsInPeriod: uint256
-    totalUsdValueInPeriod: uint256
-    totalNumTxs: uint256
-    totalUsdValue: uint256
-    lastTxBlock: uint256
-    periodStartBlock: uint256
-
-struct ManagerSettings:
-    startBlock: uint256
-    expiryBlock: uint256
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct GlobalManagerSettings:
-    managerPeriod: uint256
-    startDelay: uint256
-    activationLength: uint256
-    canOwnerManage: bool
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct ManagerLimits:
-    maxUsdValuePerTx: uint256
-    maxUsdValuePerPeriod: uint256
-    maxUsdValueLifetime: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-
-struct LegoPerms:
-    canManageYield: bool
-    canBuyAndSell: bool
-    canManageDebt: bool
-    canManageLiq: bool
-    canClaimRewards: bool
-    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]
-
-struct WhitelistPerms:
-    canAddPending: bool
-    canConfirm: bool
-    canCancel: bool
-    canRemove: bool
-
-struct TransferPerms:
-    canTransfer: bool
-    canCreateCheque: bool
-    canAddPendingPayee: bool
-    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
 
 event GlobalManagerSettingsModified:
     user: indexed(address)
@@ -219,13 +148,13 @@ def __init__(
 def canSignerPerformAction(
     _user: address,
     _signer: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> bool:
     userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_signer)
+    c: wcs.ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_signer)
     return self._canSignerPerformAction(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, userWalletConfig, _action, _assets, _legoIds, _transferRecipient)
 
 
@@ -237,11 +166,11 @@ def canSignerPerformAction(
 def canSignerPerformActionWithConfig(
     _isOwner: bool,
     _isManager: bool,
-    _data: ManagerData,
-    _config: ManagerSettings,
-    _globalConfig: GlobalManagerSettings,
+    _data: wcs.ManagerData,
+    _config: wcs.ManagerSettings,
+    _globalConfig: wcs.GlobalManagerSettings,
     _userWalletConfig: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
@@ -257,11 +186,11 @@ def canSignerPerformActionWithConfig(
 def _canSignerPerformAction(
     _isOwner: bool,
     _isManager: bool,
-    _data: ManagerData,
-    _config: ManagerSettings,
-    _globalConfig: GlobalManagerSettings,
+    _data: wcs.ManagerData,
+    _config: wcs.ManagerSettings,
+    _globalConfig: wcs.GlobalManagerSettings,
     _userWalletConfig: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
     _transferRecipient: address,
@@ -275,7 +204,7 @@ def _canSignerPerformAction(
         return False
 
     # get latest manager data
-    data: ManagerData = self._getLatestManagerData(_data, _globalConfig.managerPeriod)
+    data: wcs.ManagerData = self._getLatestManagerData(_data, _globalConfig.managerPeriod)
 
     # check specific manager permissions
     if not self._checkSpecificManagerPermissions(_userWalletConfig, _action, _assets, _legoIds, _transferRecipient, data, _config):
@@ -295,12 +224,12 @@ def _canSignerPerformAction(
 @internal
 def _checkSpecificManagerPermissions(
     _userWalletConfig: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
     _transferRecipient: address,
-    _data: ManagerData,
-    _config: ManagerSettings,
+    _data: wcs.ManagerData,
+    _config: wcs.ManagerSettings,
 ) -> bool:
 
     # manager is not active
@@ -322,12 +251,12 @@ def _checkSpecificManagerPermissions(
 @internal
 def _checkGlobalManagerPermissions(
     _userWalletConfig: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
     _transferRecipient: address,
-    _data: ManagerData,
-    _config: GlobalManagerSettings,
+    _data: wcs.ManagerData,
+    _config: wcs.GlobalManagerSettings,
 ) -> bool:
 
     # check manager permissions
@@ -345,13 +274,13 @@ def _checkGlobalManagerPermissions(
 @internal
 def _checkManagerPermissions(
     _userWalletConfig: address,
-    _action: wi.ActionType,
+    _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
     _transferRecipient: address,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-    _legoPerms: LegoPerms,
-    _transferPerms: TransferPerms,
+    _legoPerms: wcs.LegoPerms,
+    _transferPerms: wcs.TransferPerms,
 ) -> bool:
 
     # check allowed assets
@@ -367,23 +296,23 @@ def _checkManagerPermissions(
                 return False
 
     # check allowed recipients
-    if _action == wi.ActionType.TRANSFER and _transferRecipient != empty(address):
+    if _action == ws.ActionType.TRANSFER and _transferRecipient != empty(address):
         if len(_transferPerms.allowedPayees) != 0 and not staticcall UserWalletConfig(_userWalletConfig).isWhitelisted(_transferRecipient):
             if  _transferRecipient not in _transferPerms.allowedPayees:
                 return False
 
     # check action permissions
-    if _action == wi.ActionType.TRANSFER:
+    if _action == ws.ActionType.TRANSFER:
         return _transferPerms.canTransfer
-    elif _action in (wi.ActionType.EARN_DEPOSIT | wi.ActionType.EARN_WITHDRAW | wi.ActionType.EARN_REBALANCE):
+    elif _action in (ws.ActionType.EARN_DEPOSIT | ws.ActionType.EARN_WITHDRAW | ws.ActionType.EARN_REBALANCE):
         return _legoPerms.canManageYield
-    elif _action in (wi.ActionType.SWAP | wi.ActionType.MINT_REDEEM | wi.ActionType.CONFIRM_MINT_REDEEM):
+    elif _action in (ws.ActionType.SWAP | ws.ActionType.MINT_REDEEM | ws.ActionType.CONFIRM_MINT_REDEEM):
         return _legoPerms.canBuyAndSell
-    elif _action in (wi.ActionType.ADD_COLLATERAL | wi.ActionType.REMOVE_COLLATERAL | wi.ActionType.BORROW | wi.ActionType.REPAY_DEBT):
+    elif _action in (ws.ActionType.ADD_COLLATERAL | ws.ActionType.REMOVE_COLLATERAL | ws.ActionType.BORROW | ws.ActionType.REPAY_DEBT):
         return _legoPerms.canManageDebt
-    elif _action in (wi.ActionType.ADD_LIQ | wi.ActionType.REMOVE_LIQ | wi.ActionType.ADD_LIQ_CONC | wi.ActionType.REMOVE_LIQ_CONC):
+    elif _action in (ws.ActionType.ADD_LIQ | ws.ActionType.REMOVE_LIQ | ws.ActionType.ADD_LIQ_CONC | ws.ActionType.REMOVE_LIQ_CONC):
         return _legoPerms.canManageLiq
-    elif _action == wi.ActionType.REWARDS:
+    elif _action == ws.ActionType.REWARDS:
         return _legoPerms.canClaimRewards
     else:
         return True
@@ -395,8 +324,8 @@ def _checkManagerPermissions(
 @view
 @internal
 def _checkManagerLimits(
-    _config: ManagerLimits,
-    _data: ManagerData,
+    _config: wcs.ManagerLimits,
+    _data: wcs.ManagerData,
     _shouldCheckTxLimits: bool,
     _txUsdValue: uint256,
     _shouldCheckUsdValueParams: bool,
@@ -438,7 +367,7 @@ def _checkTransactionLimits(
 
 @pure
 @internal
-def _checkManagerUsdLimits(_txUsdValue: uint256, _config: ManagerLimits, _data: ManagerData) -> bool:
+def _checkManagerUsdLimits(_txUsdValue: uint256, _config: wcs.ManagerLimits, _data: wcs.ManagerData) -> bool:
 
     # check zero price
     if _txUsdValue == 0 and _config.failOnZeroPrice:
@@ -464,8 +393,8 @@ def _checkManagerUsdLimits(_txUsdValue: uint256, _config: ManagerLimits, _data: 
 
 @view
 @internal
-def _getLatestManagerData(_data: ManagerData, _managerPeriod: uint256) -> ManagerData:
-    data: ManagerData = _data
+def _getLatestManagerData(_data: wcs.ManagerData, _managerPeriod: uint256) -> wcs.ManagerData:
+    data: wcs.ManagerData = _data
 
     # initialize period if first transaction
     if data.periodStartBlock == 0:
@@ -487,11 +416,11 @@ def _getLatestManagerData(_data: ManagerData, _managerPeriod: uint256) -> Manage
 @external
 def checkManagerUsdLimitsAndUpdateData(
     _txUsdValue: uint256,
-    _specificLimits: ManagerLimits,
-    _globalLimits: ManagerLimits,
+    _specificLimits: wcs.ManagerLimits,
+    _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
-    _data: ManagerData,
-) -> ManagerData:
+    _data: wcs.ManagerData,
+) -> wcs.ManagerData:
     return self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _data)
 
 
@@ -499,12 +428,12 @@ def checkManagerUsdLimitsAndUpdateData(
 @internal
 def _checkManagerUsdLimitsAndUpdateData(
     _txUsdValue: uint256,
-    _specificLimits: ManagerLimits,
-    _globalLimits: ManagerLimits,
+    _specificLimits: wcs.ManagerLimits,
+    _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
-    _data: ManagerData,
-) -> ManagerData:
-    data: ManagerData = self._getLatestManagerData(_data, _managerPeriod)
+    _data: wcs.ManagerData,
+) -> wcs.ManagerData:
+    data: wcs.ManagerData = self._getLatestManagerData(_data, _managerPeriod)
 
     # check usd value limits
     assert self._checkManagerLimits(_specificLimits, data, False, _txUsdValue, True) # dev: usd value limit exceeded
@@ -528,7 +457,7 @@ def _checkManagerUsdLimitsAndUpdateData(
 @view
 @external
 def validateGlobalManagerSettings(
-    _settings: GlobalManagerSettings,
+    _settings: wcs.GlobalManagerSettings,
     _inEjectMode: bool,
     _currentTimeLock: uint256,
     _legoBookAddr: address,
@@ -540,7 +469,7 @@ def validateGlobalManagerSettings(
 @view
 @internal
 def _validateGlobalManagerSettings(
-    _settings: GlobalManagerSettings,
+    _settings: wcs.GlobalManagerSettings,
     _inEjectMode: bool,
     _currentTimeLock: uint256,
     _legoBookAddr: address,
@@ -566,8 +495,8 @@ def createDefaultGlobalManagerSettings(
     _managerPeriod: uint256,
     _minTimeLock: uint256,
     _defaultActivationLength: uint256,
-) -> GlobalManagerSettings:
-    config: GlobalManagerSettings = empty(GlobalManagerSettings)
+) -> wcs.GlobalManagerSettings:
+    config: wcs.GlobalManagerSettings = empty(wcs.GlobalManagerSettings)
     config.managerPeriod = _managerPeriod
     config.startDelay = _minTimeLock
     config.activationLength = _defaultActivationLength
@@ -589,17 +518,17 @@ def createDefaultGlobalManagerSettings(
 def validateAndCreateManagerSettings(
     _startDelay: uint256,
     _activationLength: uint256,
-    _limits: ManagerLimits,
-    _legoPerms: LegoPerms,
-    _whitelistPerms: WhitelistPerms,
-    _transferPerms: TransferPerms,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
     _currentTimeLock: uint256,
-    _config: GlobalManagerSettings,
+    _config: wcs.GlobalManagerSettings,
     _inEjectMode: bool,
     _legoBookAddr: address,
     _walletConfig: address,
-) -> ManagerSettings:
+) -> wcs.ManagerSettings:
     return self._validateAndCreateManagerSettings(_startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _currentTimeLock, _config, _inEjectMode, _legoBookAddr, _walletConfig)
 
 
@@ -608,17 +537,17 @@ def validateAndCreateManagerSettings(
 def _validateAndCreateManagerSettings(
     _startDelay: uint256,
     _activationLength: uint256,
-    _limits: ManagerLimits,
-    _legoPerms: LegoPerms,
-    _whitelistPerms: WhitelistPerms,
-    _transferPerms: TransferPerms,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
     _currentTimeLock: uint256,
-    _config: GlobalManagerSettings,
+    _config: wcs.GlobalManagerSettings,
     _inEjectMode: bool,
     _legoBookAddr: address,
     _walletConfig: address,
-) -> ManagerSettings:
+) -> wcs.ManagerSettings:
 
     # start delay
     startDelay: uint256 = max(_config.startDelay, _currentTimeLock)
@@ -643,7 +572,7 @@ def _validateAndCreateManagerSettings(
     startBlock: uint256 = block.number + startDelay
     expiryBlock: uint256 = startBlock + activationLength
 
-    return ManagerSettings(
+    return wcs.ManagerSettings(
         startBlock = startBlock,
         expiryBlock = expiryBlock,
         limits = _limits,
@@ -660,7 +589,7 @@ def _validateAndCreateManagerSettings(
 @view
 @external
 def validateSpecificManagerSettings(
-    _settings: ManagerSettings,
+    _settings: wcs.ManagerSettings,
     _managerPeriod: uint256,
     _inEjectMode: bool,
     _legoBookAddr: address,
@@ -672,7 +601,7 @@ def validateSpecificManagerSettings(
 @view
 @internal
 def _validateSpecificManagerSettings(
-    _settings: ManagerSettings,
+    _settings: wcs.ManagerSettings,
     _managerPeriod: uint256,
     _inEjectMode: bool,
     _legoBookAddr: address,
@@ -691,14 +620,14 @@ def _validateSpecificManagerSettings(
 
 @view
 @external
-def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> ManagerSettings:
-    config: ManagerSettings = ManagerSettings(
+def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings:
+    config: wcs.ManagerSettings = wcs.ManagerSettings(
         startBlock = block.number,
         expiryBlock = block.number + _startingAgentActivationLength,
-        limits = empty(ManagerLimits),
-        legoPerms = empty(LegoPerms),
-        whitelistPerms = empty(WhitelistPerms),
-        transferPerms = empty(TransferPerms),
+        limits = empty(wcs.ManagerLimits),
+        legoPerms = empty(wcs.LegoPerms),
+        whitelistPerms = empty(wcs.WhitelistPerms),
+        transferPerms = empty(wcs.TransferPerms),
         allowedAssets = [],
     )
     config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
@@ -730,7 +659,7 @@ def _validateActivationLength(_activationLength: uint256) -> bool:
 
 @pure
 @internal
-def _validateManagerLimits(_limits: ManagerLimits, _managerPeriod: uint256) -> bool:
+def _validateManagerLimits(_limits: wcs.ManagerLimits, _managerPeriod: uint256) -> bool:
     # NOTE: 0 values are treated as "unlimited" throughout this validation
     
     # validate if both values are non-zero (not unlimited)
@@ -752,7 +681,7 @@ def _validateManagerLimits(_limits: ManagerLimits, _managerPeriod: uint256) -> b
 
 @view
 @internal
-def _validateLegoPerms(_legoPerms: LegoPerms, _inEjectMode: bool, _legoBookAddr: address) -> bool:
+def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _inEjectMode: bool, _legoBookAddr: address) -> bool:
     if len(_legoPerms.allowedLegos) == 0:
         return True
 
@@ -788,7 +717,7 @@ def _validateLegoPerms(_legoPerms: LegoPerms, _inEjectMode: bool, _legoBookAddr:
 
 @view
 @internal
-def _validateTransferPerms(_transferPerms: TransferPerms, _walletConfig: address) -> bool:
+def _validateTransferPerms(_transferPerms: wcs.TransferPerms, _walletConfig: address) -> bool:
     if len(_transferPerms.allowedPayees) == 0:
         return True
 
@@ -836,20 +765,20 @@ def _validateAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS])
 
 @pure
 @internal
-def _createHappyManagerDefaults() -> (LegoPerms, WhitelistPerms, TransferPerms):
-    return LegoPerms(
+def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.WhitelistPerms, wcs.TransferPerms):
+    return wcs.LegoPerms(
         canManageYield = True,
         canBuyAndSell = True,
         canManageDebt = True,
         canManageLiq = True,
         canClaimRewards = True,
         allowedLegos = [],
-    ), WhitelistPerms(
+    ), wcs.WhitelistPerms(
         canAddPending = False,
         canConfirm = True,
         canCancel = True,
         canRemove = False,
-    ), TransferPerms(
+    ), wcs.TransferPerms(
         canTransfer = True,
         canCreateCheque = True,
         canAddPendingPayee = True,
@@ -869,16 +798,16 @@ def setGlobalManagerSettings(
     _startDelay: uint256,
     _activationLength: uint256,
     _canOwnerManage: bool,
-    _limits: ManagerLimits,
-    _legoPerms: LegoPerms,
-    _whitelistPerms: WhitelistPerms,
-    _transferPerms: TransferPerms,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
 ) -> bool:
-    kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, empty(address))
+    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, empty(address))
     assert msg.sender == kconfig.owner # dev: no perms
 
-    config: GlobalManagerSettings = GlobalManagerSettings(
+    config: wcs.GlobalManagerSettings = wcs.GlobalManagerSettings(
         managerPeriod = _managerPeriod,
         startDelay = _startDelay,
         activationLength = _activationLength,
@@ -943,21 +872,21 @@ def setGlobalManagerSettings(
 def addManager(
     _user: address,
     _manager: address,
-    _limits: ManagerLimits,
-    _legoPerms: LegoPerms,
-    _whitelistPerms: WhitelistPerms,
-    _transferPerms: TransferPerms,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
     _startDelay: uint256 = 0,
     _activationLength: uint256 = 0,
 ) -> bool:
-    kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
+    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
     assert msg.sender == kconfig.owner # dev: no perms
 
     assert _manager not in [empty(address), kconfig.owner] # dev: invalid manager
     assert not kconfig.isManager # dev: manager already exists
     
-    config: ManagerSettings = self._validateAndCreateManagerSettings(
+    config: wcs.ManagerSettings = self._validateAndCreateManagerSettings(
         _startDelay,
         _activationLength,
         _limits,
@@ -1010,18 +939,18 @@ def addManager(
 def updateManager(
     _user: address,
     _manager: address,
-    _limits: ManagerLimits,
-    _legoPerms: LegoPerms,
-    _whitelistPerms: WhitelistPerms,
-    _transferPerms: TransferPerms,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
 ) -> bool:
-    kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
+    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
     assert msg.sender == kconfig.owner # dev: no perms
     assert kconfig.isManager # dev: manager not found
 
     # update config
-    config: ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
+    config: wcs.ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
     config.limits = _limits
     config.legoPerms = _legoPerms
     config.whitelistPerms = _whitelistPerms
@@ -1029,7 +958,7 @@ def updateManager(
     config.allowedAssets = _allowedAssets
 
     # validation
-    globalConfig: GlobalManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).globalManagerSettings()
+    globalConfig: wcs.GlobalManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).globalManagerSettings()
     assert self._validateSpecificManagerSettings(
         config,
         globalConfig.managerPeriod,
@@ -1074,7 +1003,7 @@ def updateManager(
 
 @external
 def removeManager(_user: address, _manager: address) -> bool:
-    kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
+    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
     if msg.sender not in [kconfig.owner, _manager]:
         assert self._isSwitchboardAddr(msg.sender, kconfig.inEjectMode) # dev: no perms
     assert kconfig.isManager # dev: manager not found
@@ -1093,12 +1022,12 @@ def adjustManagerActivationLength(
     _activationLength: uint256,
     _shouldResetStartBlock: bool = False,
 ) -> bool:
-    kconfig: ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
+    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
     assert msg.sender == kconfig.owner # dev: no perms
     assert kconfig.isManager # dev: manager not found
 
     # validation
-    config: ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
+    config: wcs.ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
     assert config.startBlock < block.number # dev: manager not active yet
     assert self._validateActivationLength(_activationLength) # dev: invalid activation length
 
@@ -1126,7 +1055,7 @@ def adjustManagerActivationLength(
 
 @view
 @internal
-def _validateAndGetConfig(_user: address, _manager: address) -> ManagerSettingsBundle:
+def _validateAndGetConfig(_user: address, _manager: address) -> wcs.ManagerSettingsBundle:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
     assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
 

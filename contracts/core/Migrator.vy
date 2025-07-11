@@ -1,20 +1,23 @@
 # @version 0.4.3
 
+from interfaces import WalletStructs as ws
+from interfaces import WalletConfigStructs as wcs
+
 from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
-    def transferFundsDuringMigration(_recipient: address, _asset: address, _amount: uint256, _ad: ActionData) -> (uint256, uint256): nonpayable
-    def getActionDataBundle(_legoId: uint256, _signer: address) -> ActionData: view
-    def setGlobalManagerSettings(_config: GlobalManagerSettings): nonpayable
-    def addManager(_manager: address, _config: ManagerSettings): nonpayable
-    def setGlobalPayeeSettings(_config: GlobalPayeeSettings): nonpayable
-    def addPayee(_payee: address, _config: PayeeSettings): nonpayable
-    def managerSettings(_manager: address) -> ManagerSettings: view
-    def getMigrationConfigBundle() -> MigrationConfigBundle: view
+    def transferFundsDuringMigration(_recipient: address, _asset: address, _amount: uint256, _ad: ws.ActionData) -> (uint256, uint256): nonpayable
+    def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
+    def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
+    def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
+    def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
+    def managerSettings(_manager: address) -> wcs.ManagerSettings: view
+    def getMigrationConfigBundle() -> wcs.MigrationConfigBundle: view
     def addWhitelistAddrViaMigrator(_addr: address): nonpayable
-    def globalManagerSettings() -> GlobalManagerSettings: view
-    def payeeSettings(_payee: address) -> PayeeSettings: view
-    def globalPayeeSettings() -> GlobalPayeeSettings: view
+    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
+    def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
+    def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
     def setDidMigrateSettings(): nonpayable
@@ -36,116 +39,6 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-struct MigrationConfigBundle:
-    owner: address
-    trialFundsAmount: uint256
-    isFrozen: bool
-    numPayees: uint256
-    numWhitelisted: uint256
-    numManagers: uint256
-    startingAgent: address
-    startingAgentIndex: uint256
-    hasPendingOwnerChange: bool
-    groupId: uint256
-    didMigrateSettings: bool
-    didMigrateFunds: bool
-
-struct PayeeSettings:
-    startBlock: uint256
-    expiryBlock: uint256
-    canPull: bool
-    periodLength: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-    primaryAsset: address
-    onlyPrimaryAsset: bool
-    unitLimits: PayeeLimits
-    usdLimits: PayeeLimits
-
-struct GlobalPayeeSettings:
-    defaultPeriodLength: uint256
-    startDelay: uint256
-    activationLength: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-    usdLimits: PayeeLimits
-    canPayOwner: bool
-
-struct PayeeLimits:
-    perTxCap: uint256
-    perPeriodCap: uint256
-    lifetimeCap: uint256
-
-struct WhitelistPerms:
-    canAddPending: bool
-    canConfirm: bool
-    canCancel: bool
-    canRemove: bool
-
-struct GlobalManagerSettings:
-    managerPeriod: uint256
-    startDelay: uint256
-    activationLength: uint256
-    canOwnerManage: bool
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct ManagerSettings:
-    startBlock: uint256
-    expiryBlock: uint256
-    limits: ManagerLimits
-    legoPerms: LegoPerms
-    whitelistPerms: WhitelistPerms
-    transferPerms: TransferPerms
-    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
-
-struct ManagerLimits:
-    maxUsdValuePerTx: uint256
-    maxUsdValuePerPeriod: uint256
-    maxUsdValueLifetime: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-
-struct LegoPerms:
-    canManageYield: bool
-    canBuyAndSell: bool
-    canManageDebt: bool
-    canManageLiq: bool
-    canClaimRewards: bool
-    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]
-
-struct TransferPerms:
-    canTransfer: bool
-    canCreateCheque: bool
-    canAddPendingPayee: bool
-    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
-
-struct ActionData:
-    ledger: address
-    missionControl: address
-    legoBook: address
-    hatchery: address
-    lootDistributor: address
-    appraiser: address
-    wallet: address
-    walletConfig: address
-    walletOwner: address
-    inEjectMode: bool
-    isFrozen: bool
-    lastTotalUsdValue: uint256
-    signer: address
-    isManager: bool
-    legoId: uint256
-    legoAddr: address
-    eth: address
-    weth: address
-
 event ConfigCloned:
     fromWallet: indexed(address)
     toWallet: indexed(address)
@@ -157,10 +50,6 @@ event FundsMigrated:
     fromWallet: indexed(address)
     toWallet: indexed(address)
     numAssetsMigrated: uint256
-
-MAX_CONFIG_ASSETS: constant(uint256) = 40
-MAX_CONFIG_LEGOS: constant(uint256) = 25
-MAX_ALLOWED_PAYEES: constant(uint256) = 40
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
@@ -183,7 +72,7 @@ def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
     assert self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, fromConfig) # dev: cannot migrate to new wallet
 
     # extra validation, though shouldn't be necessary
-    ad: ActionData = staticcall UserWalletConfig(fromConfig).getActionDataBundle(0, msg.sender)
+    ad: ws.ActionData = staticcall UserWalletConfig(fromConfig).getActionDataBundle(0, msg.sender)
     assert ad.signer == ad.walletOwner # dev: no perms
     assert _fromWallet == ad.wallet # dev: wallet mismatch
 
@@ -256,7 +145,7 @@ def _canMigrateFundsToNewWallet(
         return False
 
     # get fromWallet data
-    fromBundle: MigrationConfigBundle = staticcall UserWalletConfig(_fromConfig).getMigrationConfigBundle()
+    fromBundle: wcs.MigrationConfigBundle = staticcall UserWalletConfig(_fromConfig).getMigrationConfigBundle()
 
     # validate caller is owner of fromWallet
     if _caller != fromBundle.owner:
@@ -280,7 +169,7 @@ def _canMigrateFundsToNewWallet(
 
     # toWallet bundle
     toWalletConfig: address = staticcall UserWallet(_toWallet).walletConfig()
-    toWalletBundle: MigrationConfigBundle = staticcall UserWalletConfig(toWalletConfig).getMigrationConfigBundle()
+    toWalletBundle: wcs.MigrationConfigBundle = staticcall UserWalletConfig(toWalletConfig).getMigrationConfigBundle()
 
     # owners must be the same
     if fromBundle.owner != toWalletBundle.owner:
@@ -336,7 +225,7 @@ def cloneConfig(_fromWallet: address, _toWallet: address):
     whitelistCopied: uint256 = 0
 
     # 1. copy global manager settings
-    globalManagerSettings: GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
+    globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
     extcall UserWalletConfig(toConfig).setGlobalManagerSettings(globalManagerSettings)
 
     # get starting agent from source wallet to skip it during copy
@@ -354,13 +243,13 @@ def cloneConfig(_fromWallet: address, _toWallet: address):
             if manager == fromStartingAgent:
                 continue
 
-            settings: ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
+            settings: wcs.ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
             if settings.startBlock != 0:
                 extcall UserWalletConfig(toConfig).addManager(manager, settings)
                 managersCopied += 1
 
     # 3. copy global payee settings
-    globalPayeeSettings: GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
+    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
     extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
     
     # 4. copy all payees
@@ -371,7 +260,7 @@ def cloneConfig(_fromWallet: address, _toWallet: address):
             if payee == empty(address):
                 continue
 
-            settings: PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
+            settings: wcs.PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
             if settings.startBlock != 0:
                 extcall UserWalletConfig(toConfig).addPayee(payee, settings)
                 payeesCopied += 1
@@ -442,7 +331,7 @@ def _canCopyWalletConfig(
         return False
 
     # get toWallet data
-    toBundle: MigrationConfigBundle = staticcall UserWalletConfig(_toConfig).getMigrationConfigBundle()
+    toBundle: wcs.MigrationConfigBundle = staticcall UserWalletConfig(_toConfig).getMigrationConfigBundle()
 
     # validate caller is owner of toWallet
     if _caller != toBundle.owner:
@@ -476,7 +365,7 @@ def _canCopyWalletConfig(
             return False
 
     # fromWallet bundle
-    fromBundle: MigrationConfigBundle = staticcall UserWalletConfig(_fromConfig).getMigrationConfigBundle()
+    fromBundle: wcs.MigrationConfigBundle = staticcall UserWalletConfig(_fromConfig).getMigrationConfigBundle()
 
     # cannot copy if fromWallet has already migrated settings
     if fromBundle.didMigrateSettings:
