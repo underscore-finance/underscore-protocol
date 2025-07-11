@@ -3084,3 +3084,45 @@ def test_adjust_loot_zero_and_deregistration(loot_distributor, ambassador_wallet
     assert result == False
     result = loot_distributor.adjustLoot(ambassador_wallet, ZERO_ADDRESS, 0, sender=switchboard_alpha.address)
     assert result == False
+
+
+#################################
+# Security & Permission Checks #
+#################################
+
+
+def test_only_user_wallets_can_add_loot(loot_distributor, alice, bob, alpha_token, alpha_token_whale, switchboard_alpha):
+    """ Test that only user wallets can call addLootFromSwapOrRewards and addLootFromYieldProfit """
+    
+    # Fund non-wallet addresses
+    alpha_token.transfer(alice, 100 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    alpha_token.transfer(switchboard_alpha.address, 100 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Non-wallet cannot add loot from swap/rewards
+    alpha_token.approve(loot_distributor, 10 * EIGHTEEN_DECIMALS, sender=alice)
+    with boa.reverts("not a user wallet"):
+        loot_distributor.addLootFromSwapOrRewards(
+            alpha_token,
+            10 * EIGHTEEN_DECIMALS,
+            ACTION_TYPE.SWAP,
+            sender=alice
+        )
+    
+    # Non-wallet cannot add loot from yield profit
+    with boa.reverts("not a user wallet"):
+        loot_distributor.addLootFromYieldProfit(
+            alpha_token,
+            5 * EIGHTEEN_DECIMALS,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+    
+    # Even switchboard cannot add loot (not a user wallet)
+    alpha_token.approve(loot_distributor, 10 * EIGHTEEN_DECIMALS, sender=switchboard_alpha.address)
+    with boa.reverts("not a user wallet"):
+        loot_distributor.addLootFromSwapOrRewards(
+            alpha_token,
+            10 * EIGHTEEN_DECIMALS,
+            ACTION_TYPE.REWARDS,
+            sender=switchboard_alpha.address
+        )
