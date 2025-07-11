@@ -65,6 +65,8 @@ event NonceIncremented:
 
 # core
 owner: public(address)
+groupId: public(uint256)
+
 timeLock: public(uint256)
 pendingOwner: public(PendingOwnerChange)
 currentNonce: public(uint256)
@@ -87,12 +89,14 @@ MAX_TIMELOCK: public(immutable(uint256))
 def __init__(
     _undyHq: address,
     _owner: address,
+    _groupId: uint256,
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
 ):
     assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
     UNDY_HQ = _undyHq
     self.owner = _owner
+    self.groupId = _groupId
 
     # time lock
     assert _minTimeLock < _maxTimeLock # dev: invalid delay
