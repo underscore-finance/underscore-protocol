@@ -11,6 +11,7 @@ initializes: deptBasics[addys := addys]
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
+from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -390,6 +391,10 @@ def _doesWalletStillHaveTrialFunds(
         # get current balance of vault token
         assetBalance: uint256 = staticcall IERC20(asset).balanceOf(_user)
         if assetBalance == 0:
+            continue
+
+        # check if the asset can be used as trial funds
+        if not staticcall YieldLego(config.legoAddr).canBeTrialFundsAsset(asset, trialFundsAsset):
             continue
 
         # get price per share for this vault token

@@ -31,6 +31,9 @@ interface Ledger:
 interface FluidLendingResolver:
     def getAllFTokens() -> DynArray[address, MAX_FTOKENS]: view
 
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+
 event FluidDeposit:
     sender: indexed(address)
     asset: indexed(address)
@@ -95,6 +98,12 @@ def isDexLego() -> bool:
     return False
 
 
+@view
+@external
+def canBeTrialFundsAsset(_vaultToken: address, _underlyingAsset: address) -> bool:
+    return yld.vaultToAsset[_vaultToken] == _underlyingAsset
+
+
 #########
 # Yield #
 #########
@@ -118,7 +127,7 @@ def depositForYield(
     miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify vault token (register if necessary)
-    vaultToken: address = self._getVaultTokenOnDeposit(_asset, _vaultAddr, miniAddys.ledger)
+    vaultToken: address = self._getVaultTokenOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
     preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
@@ -157,7 +166,7 @@ def depositForYield(
 
 
 @internal
-def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address) -> address:
+def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> address:
     asset: address = yld.vaultToAsset[_vaultAddr]
     isRegistered: bool = True
 
@@ -172,7 +181,7 @@ def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: addre
     # register if necessary
     if not isRegistered:
         self._registerAsset(asset, _vaultAddr)
-        self._updateLedgerVaultToken(asset, _vaultAddr, _ledger)
+        self._updateLedgerVaultToken(asset, _vaultAddr, _ledger, _legoBook)
 
     return _vaultAddr
 
@@ -194,7 +203,7 @@ def withdrawFromYield(
     miniAddys: Lego.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify asset (register if necessary)
-    asset: address = self._getAssetOnWithdraw(_vaultToken, miniAddys.ledger)
+    asset: address = self._getAssetOnWithdraw(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
     preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -233,7 +242,7 @@ def withdrawFromYield(
 
 
 @internal
-def _getAssetOnWithdraw(_vaultToken: address, _ledger: address) -> address:
+def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
     asset: address = yld.vaultToAsset[_vaultToken]
     isRegistered: bool = True
 
@@ -247,7 +256,7 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address) -> address:
     # register if necessary
     if not isRegistered:
         self._registerAsset(asset, _vaultToken)
-        self._updateLedgerVaultToken(asset, _vaultToken, _ledger)
+        self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 
     return asset
 
@@ -456,16 +465,17 @@ def _isValidAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
 
 
 @internal
-def _updateLedgerVaultToken(_underlyingAsset: address, _vaultToken: address, _ledger: address):
+def _updateLedgerVaultToken(
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _ledger: address,
+    _legoBook: address,
+):
     if empty(address) in [_underlyingAsset, _vaultToken]:
         return
 
-    # must have lego id
-    legoId: uint256 = yld.legoId
-    if legoId == 0:
-        return
-
     if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
+        legoId: uint256 = staticcall Registry(_legoBook).getRegId(self)
         decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
         extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
 

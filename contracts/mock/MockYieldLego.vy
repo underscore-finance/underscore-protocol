@@ -71,6 +71,12 @@ def isDexLego() -> bool:
     return False
 
 
+@view
+@external
+def canBeTrialFundsAsset(_vaultToken: address, _underlyingAsset: address) -> bool:
+    return yld.vaultToAsset[_vaultToken] == _underlyingAsset
+
+
 #########
 # Yield #
 #########

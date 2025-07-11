@@ -8,6 +8,12 @@ def isRebasing() -> bool:
 
 @view
 @external
+def canBeTrialFundsAsset(_vaultToken: address, _underlyingAsset: address) -> bool:
+    ...
+
+
+@view
+@external
 def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     ...
 
