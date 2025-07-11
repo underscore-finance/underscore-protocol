@@ -49,6 +49,8 @@ def __init__(_undyHq: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
 
+    self.numUserWallets = 1
+
 
 ################
 # User Wallets #
@@ -61,8 +63,6 @@ def createUserWallet(_user: address, _ambassador: address):
     assert not deptBasics.isPaused # dev: not activated
 
     wid: uint256 = self.numUserWallets
-    if wid == 0:
-        wid = 1 # not using 0 index
     self.userWallets[wid] = _user
     self.indexOfUserWallet[_user] = wid
     self.numUserWallets = wid + 1

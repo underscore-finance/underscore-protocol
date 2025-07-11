@@ -100,6 +100,7 @@ event UserWalletCreated:
     creator: address
     trialFundsAsset: address
     trialFundsAmount: uint256
+    groupId: uint256
 
 event AgentCreated:
     agent: indexed(address)
@@ -137,6 +138,7 @@ def createUserWallet(
     a: addys.Addys = addys._getAddys()
 
     config: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
+    assert config.startingAgent != _owner # dev: starting agent cannot be the owner
 
     # validation
     assert config.isCreatorAllowed # dev: creator not allowed
@@ -197,6 +199,7 @@ def createUserWallet(
         creator=msg.sender,
         trialFundsAsset=trialFundsAsset,
         trialFundsAmount=trialFundsAmount,
+        groupId=_groupId,
     )
     return mainWalletAddr
 
