@@ -3,7 +3,7 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from config.BluePrint import TOKENS
-from contracts.core.userWallet import UserWallet
+from contracts.core.userWallet import UserWallet, UserWalletConfig
 
 
 # generic user wallets
@@ -19,6 +19,11 @@ def ambassador_wallet(hatchery, alice):
 def user_wallet(hatchery, bob, ambassador_wallet):
     wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, False, 1, sender=bob)
     return UserWallet.at(wallet_addr)
+
+
+@pytest.fixture(scope="session")
+def user_wallet_config(user_wallet):
+    return UserWalletConfig.at(user_wallet.walletConfig())
 
 
 ############

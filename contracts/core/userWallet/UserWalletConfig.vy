@@ -35,11 +35,11 @@ interface Paymaster:
     def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: PayeeSettings, _globalConfig: GlobalPayeeSettings, _data: PayeeData) -> (bool, PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> GlobalPayeeSettings: view
 
-interface LootDistributor:
-    def updateDepositPointsWithData(_user: address, _newUserValue: uint256, _didChange: bool): nonpayable
-
 interface Migrator:
     def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
+
+interface LootDistributor:
+    def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
 interface Ledger:
     def getLastTotalUsdValue(_user: address) -> uint256: view
@@ -1110,7 +1110,7 @@ def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) 
     ad: ActionData = self._getActionDataBundle(_legoId, msg.sender)
     assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
     newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
-    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithData(ad.wallet, newTotalUsdValue, True)
+    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue
 
 
@@ -1129,7 +1129,7 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
         if asset != empty(address):
             newTotalUsdValue = extcall UserWallet(ad.wallet).updateAssetData(0, asset, _shouldCheckYield, newTotalUsdValue, ad)
 
-    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithData(ad.wallet, newTotalUsdValue, True)
+    extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue
 
 

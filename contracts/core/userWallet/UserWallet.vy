@@ -22,7 +22,7 @@ interface Appraiser:
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address)): nonpayable
     def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType, _missionControl: address = empty(address)): nonpayable
-    def updateDepositPointsWithData(_user: address, _newUserValue: uint256, _didChange: bool): nonpayable
+    def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
 interface MissionControl:
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
@@ -1111,7 +1111,7 @@ def _performPostActionTasks(
 
     if not _ad.inEjectMode:
         assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
-        extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithData(self, newTotalUsdValue, True)
+        extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
 
 
 ##############

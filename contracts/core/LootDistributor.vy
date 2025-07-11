@@ -424,22 +424,17 @@ def updateDepositPoints(_user: address):
 
 
 @external
-def updateDepositPointsWithData(
-    _user: address,
-    _newUserValue: uint256,
-    _didUsdValueChange: bool,
-):
+def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256):
     ledger: address = addys._getLedgerAddr()
-    if not staticcall Ledger(ledger).isUserWallet(msg.sender) and not addys._isSwitchboardAddr(msg.sender):
-        assert self._validateWalletConfig(_user, msg.sender, ledger) # dev: invalid config
-
-    self._updateDepositPoints(_user, _newUserValue, _didUsdValueChange, ledger)
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        assert self._isValidWalletConfig(_user, msg.sender, ledger) # dev: invalid config
+    self._updateDepositPoints(_user, _newUsdValue, True, ledger)
 
 
 @internal
 def _updateDepositPoints(
     _user: address,
-    _newUserValue: uint256,
+    _newUsdValue: uint256,
     _didUsdValueChange: bool,
     _ledger: address,
 ):
@@ -447,25 +442,32 @@ def _updateDepositPoints(
     globalPoints: PointsData = empty(PointsData)
     userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
 
-    # update user data
     prevUserValue: uint256 = userPoints.usdValue
+
+    # update user data
     userPoints.depositPoints += self._getLatestDepositPoints(prevUserValue, userPoints.lastUpdate)
     userPoints.lastUpdate = block.number
     if _didUsdValueChange:
-        userPoints.usdValue = _newUserValue
+        userPoints.usdValue = _newUsdValue
     
     # update global data
     globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
     globalPoints.lastUpdate = block.number
     if _didUsdValueChange:
         globalPoints.usdValue -= prevUserValue
-        globalPoints.usdValue += _newUserValue
+        globalPoints.usdValue += _newUsdValue
 
     # save data
     extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
 
 
 # latest points
+
+
+@view
+@external
+def getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256:
+    return self._getLatestDepositPoints(_usdValue, _lastUpdate)
 
 
 @view
@@ -481,17 +483,18 @@ def _getLatestDepositPoints(_usdValue: uint256, _lastUpdate: uint256) -> uint256
 
 
 @view
+@external
+def isValidWalletConfig(_wallet: address, _caller: address) -> bool:
+    return self._isValidWalletConfig(_wallet, _caller, addys._getLedgerAddr())
+
+
+@view
 @internal
-def _validateWalletConfig(_wallet: address, _caller: address, _ledger: address) -> bool:
-    actualWallet: address = staticcall UserWalletConfig(_caller).wallet()
-    if not staticcall Ledger(_ledger).isUserWallet(actualWallet):
+def _isValidWalletConfig(_wallet: address, _caller: address, _ledger: address) -> bool:
+    if not staticcall Ledger(_ledger).isUserWallet(_wallet):
         return False
-    if actualWallet != _wallet:
-        return False
-    actualConfig: address = staticcall UserWallet(actualWallet).walletConfig()
-    if actualConfig != _caller:
-        return False
-    return True
+    walletConfig: address = staticcall UserWallet(_wallet).walletConfig()
+    return walletConfig == _caller
 
 
 ###################

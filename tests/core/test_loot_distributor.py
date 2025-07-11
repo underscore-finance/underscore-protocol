@@ -1048,3 +1048,234 @@ def test_get_total_claimable_assets_after_claiming(loot_distributor, ambassador_
 ##################
 # Deposit Points #
 ##################
+
+
+def test_update_deposit_points_basic(loot_distributor, user_wallet, ledger, switchboard_alpha):
+    """ Test basic updateDepositPoints without value changes """
+    
+    # Set initial USD value with no points
+    initial_block = boa.env.evm.patch.block_number
+    user_points = (
+        1000 * EIGHTEEN_DECIMALS,  # usdValue
+        0,  # depositPoints
+        initial_block  # lastUpdate
+    )
+    global_points = (
+        5000 * EIGHTEEN_DECIMALS,  # usdValue (total across all users)
+        0,  # depositPoints
+        initial_block  # lastUpdate
+    )
+    ledger.setUserAndGlobalPoints(user_wallet.address, user_points, global_points, sender=loot_distributor.address)
+    
+    # Advance 100 blocks
+    boa.env.time_travel(blocks=100)
+    
+    # Update points without value change
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Verify points accumulated and ledger storage updated
+    updated_user, updated_global = ledger.getUserAndGlobalPoints(user_wallet.address)
+    
+    # User should have: (1000 * 10^18 * 100 blocks) / 10^18 = 100000 points
+    assert updated_user.depositPoints == 100000
+    assert updated_user.usdValue == 1000 * EIGHTEEN_DECIMALS  # Unchanged
+    assert updated_user.lastUpdate == initial_block + 100
+    
+    # Global should have: (5000 * 10^18 * 100 blocks) / 10^18 = 500000 points
+    assert updated_global.depositPoints == 500000
+    assert updated_global.usdValue == 5000 * EIGHTEEN_DECIMALS  # Unchanged
+    assert updated_global.lastUpdate == initial_block + 100
+
+
+def test_update_deposit_points_with_new_value(loot_distributor, user_wallet, ledger):
+    """ Test updateDepositPointsWithNewValue with USD value changes """
+    
+    # Set initial state
+    initial_block = boa.env.evm.patch.block_number
+    user_points = (
+        500 * EIGHTEEN_DECIMALS,  # usdValue
+        0,  # depositPoints
+        initial_block
+    )
+    global_points = (
+        2000 * EIGHTEEN_DECIMALS,  # usdValue
+        0,  # depositPoints
+        initial_block
+    )
+    ledger.setUserAndGlobalPoints(user_wallet.address, user_points, global_points, sender=loot_distributor.address)
+    
+    # Advance blocks using time_travel
+    boa.env.time_travel(blocks=50)
+    
+    # Update with new value (user wallet calling directly)
+    new_value = 800 * EIGHTEEN_DECIMALS
+    loot_distributor.updateDepositPointsWithNewValue(
+        user_wallet.address, 
+        new_value,
+        sender=user_wallet.address
+    )
+    
+    # Check updated values - verify ledger storage
+    updated_user, updated_global = ledger.getUserAndGlobalPoints(user_wallet.address)
+    
+    # User points: (500 * 10^18 * 50) / 10^18 = 25000
+    assert updated_user.depositPoints == 25000
+    assert updated_user.usdValue == new_value
+    assert updated_user.lastUpdate == initial_block + 50
+    
+    # Global points: (2000 * 10^18 * 50) / 10^18 = 100000
+    assert updated_global.depositPoints == 100000
+    # Global value: 2000 - 500 + 800 = 2300
+    assert updated_global.usdValue == 2300 * EIGHTEEN_DECIMALS
+    assert updated_global.lastUpdate == initial_block + 50
+
+
+def test_update_deposit_points_with_wallet_config(loot_distributor, user_wallet, user_wallet_config, ledger):
+    """ Test updateDepositPointsWithNewValue called by wallet config """
+    
+    # Set initial state
+    initial_block = boa.env.evm.patch.block_number
+    user_points = (100 * EIGHTEEN_DECIMALS, 0, initial_block)
+    global_points = (1000 * EIGHTEEN_DECIMALS, 0, initial_block)
+    ledger.setUserAndGlobalPoints(user_wallet.address, user_points, global_points, sender=loot_distributor.address)
+    
+    # Advance blocks
+    boa.env.time_travel(blocks=10)
+    
+    # Update via wallet config (valid caller due to isValidWalletConfig check)
+    new_value = 200 * EIGHTEEN_DECIMALS
+    loot_distributor.updateDepositPointsWithNewValue(
+        user_wallet.address,
+        new_value,
+        sender=user_wallet_config.address
+    )
+    
+    # Verify update succeeded
+    updated_user, _ = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert updated_user.depositPoints == 1000  # (100 * 10)
+    assert updated_user.usdValue == new_value
+
+
+def test_update_deposit_points_invalid_caller(loot_distributor, user_wallet, charlie):
+    """ Test updateDepositPointsWithNewValue rejects invalid callers """
+    
+    # Charlie (not wallet owner or config) tries to update
+    with boa.reverts("invalid config"):
+        loot_distributor.updateDepositPointsWithNewValue(
+            user_wallet.address,
+            100 * EIGHTEEN_DECIMALS,
+            sender=charlie
+        )
+
+
+def test_get_latest_deposit_points_view(loot_distributor):
+    """ Test getLatestDepositPoints view function """
+
+    boa.env.time_travel(blocks=60)
+    current_block = boa.env.evm.patch.block_number
+    
+    # Test with valid values
+    usd_value = 1000 * EIGHTEEN_DECIMALS
+    last_update = current_block - 50
+    
+    # Calculate expected points: (1000 * 10^18 * 50) / 10^18 = 50000
+    points = loot_distributor.getLatestDepositPoints(usd_value, last_update)
+    assert points == 50000
+    
+    # Test with zero USD value
+    points = loot_distributor.getLatestDepositPoints(0, last_update)
+    assert points == 0
+    
+    # Test with zero last update
+    points = loot_distributor.getLatestDepositPoints(usd_value, 0)
+    assert points == 0
+    
+    # Test when last update is current block (no time elapsed)
+    points = loot_distributor.getLatestDepositPoints(usd_value, current_block)
+    assert points == 0
+    
+    # Test when last update is in future (should return 0)
+    points = loot_distributor.getLatestDepositPoints(usd_value, current_block + 100)
+    assert points == 0
+
+
+def test_get_latest_deposit_points_precision(loot_distributor):
+    """ Test getLatestDepositPoints maintains precision with small values """
+    
+    # Ensure we have enough blocks to work with
+    boa.env.time_travel(blocks=EIGHTEEN_DECIMALS + 100)
+    current_block = boa.env.evm.patch.block_number
+    
+    # Test with 1 wei value over many blocks
+    points = loot_distributor.getLatestDepositPoints(1, current_block - EIGHTEEN_DECIMALS)
+    assert points == 1  # (1 * 10^18) / 10^18 = 1
+    
+    # Test with value just below 1 full point
+    blocks_elapsed = EIGHTEEN_DECIMALS - 1
+    points = loot_distributor.getLatestDepositPoints(1, current_block - blocks_elapsed)
+    assert points == 0  # Should truncate to 0
+
+
+def test_is_valid_wallet_config_view(loot_distributor, user_wallet, user_wallet_config, mock_rando_contract):
+    """ Test isValidWalletConfig view function """
+    
+    # Valid case: wallet config calling for its wallet
+    assert loot_distributor.isValidWalletConfig(user_wallet, user_wallet_config) == True
+    
+    # Invalid case: random contract claiming to be config
+    assert loot_distributor.isValidWalletConfig(user_wallet, mock_rando_contract) == False
+    
+    # Invalid case: config for different wallet
+    assert loot_distributor.isValidWalletConfig(mock_rando_contract, user_wallet_config) == False
+    
+    # Invalid case: zero addresses
+    assert loot_distributor.isValidWalletConfig(ZERO_ADDRESS, user_wallet_config) == False
+    assert loot_distributor.isValidWalletConfig(user_wallet, ZERO_ADDRESS) == False
+
+
+def test_deposit_points_accumulation_over_multiple_periods(loot_distributor, user_wallet, ledger, switchboard_alpha):
+    """ Test deposit points accumulation over multiple time periods """
+    
+    # Set initial state
+    initial_block = boa.env.evm.patch.block_number
+    user_points = (1000 * EIGHTEEN_DECIMALS, 0, initial_block)
+    global_points = (2000 * EIGHTEEN_DECIMALS, 0, initial_block)
+    ledger.setUserAndGlobalPoints(user_wallet.address, user_points, global_points, sender=loot_distributor.address)
+    
+    # First update after 10 blocks
+    boa.env.time_travel(blocks=10)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    user1, global1 = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert user1.depositPoints == 10000  # (1000 * 10)
+    assert global1.depositPoints == 20000  # (2000 * 10)
+    
+    # Second update after another 20 blocks
+    boa.env.time_travel(blocks=20)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    user2, global2 = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert user2.depositPoints == 30000  # 10000 + (1000 * 20)
+    assert global2.depositPoints == 60000  # 20000 + (2000 * 20)
+
+
+def test_deposit_points_idempotency_same_block(loot_distributor, user_wallet, ledger, switchboard_alpha):
+    """ Test multiple updates in same block don't accumulate extra points """
+    
+    # Set initial state with existing points
+    initial_block = boa.env.evm.patch.block_number
+    user_points = (1000 * EIGHTEEN_DECIMALS, 10000, initial_block)
+    global_points = (2000 * EIGHTEEN_DECIMALS, 20000, initial_block)
+    ledger.setUserAndGlobalPoints(user_wallet.address, user_points, global_points, sender=loot_distributor.address)
+    
+    # First update
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Second update in same block
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Points should not change on second update
+    updated_user, updated_global = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert updated_user.depositPoints == 10000  # No change
+    assert updated_global.depositPoints == 20000  # No change
+    assert updated_user.lastUpdate == initial_block  # Same block
