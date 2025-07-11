@@ -66,6 +66,22 @@ struct VaultToken:
     decimals: uint256
     isRebasing: bool
 
+event TxFeePaid:
+    asset: indexed(address)
+    totalFee: uint256
+    ambassadorFeeRatio: uint256
+    ambassadorFee: uint256
+    ambassador: indexed(address)
+    action: wi.ActionType
+
+event YieldBonusPaid:
+    bonusAsset: indexed(address)
+    bonusAmount: uint256
+    bonusRatio: uint256
+    yieldRealized: uint256
+    recipient: indexed(address)
+    isAmbassador: bool
+
 event LootClaimed:
     user: indexed(address)
     asset: indexed(address)
@@ -135,10 +151,13 @@ def addLootFromSwapOrRewards(
         return
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, feeAmount, default_return_value=True) # dev: transfer failed
 
+    ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
+    if ambassador == empty(address):
+        return
+
     # ambassador rev share
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, _asset, _missionControl, ledger)
-    if config.ambassador != empty(address):
-        self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, ledger)
+    self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
 
 # yield profit flow
@@ -156,10 +175,11 @@ def addLootFromYieldProfit(
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, _asset, _missionControl, ledger)
+    ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, ledger)
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
-    if _feeAmount != 0 and config.ambassador != empty(address):
+    if _feeAmount != 0 and ambassador != empty(address):
         self._handleAmbassadorTxFee(_asset, _feeAmount, empty(wi.ActionType), config)
 
     # yield bonus -- not doing this for rebasing assets
@@ -188,6 +208,7 @@ def _handleAmbassadorTxFee(
     fee: uint256 = min(_feeAmount * ambassadorRatio // HUNDRED_PERCENT, staticcall IERC20(_asset).balanceOf(self))
     if fee != 0:
         self._addClaimableLootToUser(_config.ambassador, _asset, fee)
+        log TxFeePaid(asset = _asset, totalFee = _feeAmount, ambassadorFeeRatio = feeRatio, ambassadorFee = fee, ambassador = _config.ambassador, action = _action)
 
 
 ###############
@@ -236,24 +257,24 @@ def _handleYieldBonus(
         bonusAsset = _config.underlyingAsset
         bonusAssetYieldRealized = _yieldRealized * pricePerShare // (10 ** _config.decimals)
 
+    # no bonus to distribute
+    currentBalance: uint256 = staticcall IERC20(bonusAsset).balanceOf(self)
+    if bonusAssetYieldRealized == 0 or currentBalance == 0:
+        return
+
     # check deposit rewards asset
     reservedForDepositRewards: uint256 = 0
     depositRewards: DepositRewards = self.depositRewards
     if bonusAsset == depositRewards.asset:
         reservedForDepositRewards = depositRewards.amount
 
-    currentBalance: uint256 = staticcall IERC20(bonusAsset).balanceOf(self)
-
     # user bonus
-    userBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.bonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
-    if userBonusAmount != 0:
-        userBonusAmount = self._handleSpecificYieldBonus(bonusAsset, userBonusAmount, _user, currentBalance, reservedForDepositRewards)
+    if _config.bonusRatio != 0:
+        self._handleSpecificYieldBonus(False, bonusAsset, bonusAssetYieldRealized, _config.bonusRatio, _user, currentBalance, reservedForDepositRewards)
 
     # ambassador bonus
-    if _config.ambassador != empty(address):
-        ambassadorBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.ambassadorBonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
-        if ambassadorBonusAmount != 0:
-            self._handleSpecificYieldBonus(bonusAsset, ambassadorBonusAmount, _config.ambassador, currentBalance, reservedForDepositRewards)
+    if _config.ambassador != empty(address) and _config.ambassadorBonusRatio != 0:
+        self._handleSpecificYieldBonus(True, bonusAsset, bonusAssetYieldRealized, _config.ambassadorBonusRatio, _config.ambassador, currentBalance, reservedForDepositRewards)
 
 
 # alt bonus asset
@@ -295,22 +316,27 @@ def _getAltBonusAssetAmount(
 
 @internal
 def _handleSpecificYieldBonus(
+    _isAmbassador: bool,
     _bonusAsset: address,
-    _bonusAmount: uint256,
+    _bonusAssetYieldRealized: uint256,
+    _bonusRatio: uint256,
     _recipient: address,
     _currentBalance: uint256,
     _reservedForDepositRewards: uint256,
 ) -> uint256:
-    unavailableAmount: uint256 = self.totalClaimableLoot[_bonusAsset] + _reservedForDepositRewards
+    bonusAmount: uint256 = min(_bonusAssetYieldRealized * _bonusRatio // HUNDRED_PERCENT, _bonusAssetYieldRealized)
 
+    # check what's available for bonus
     availableForBonus: uint256 = 0
+    unavailableAmount: uint256 = self.totalClaimableLoot[_bonusAsset] + _reservedForDepositRewards
     if _currentBalance > unavailableAmount:
         availableForBonus = _currentBalance - unavailableAmount
 
-    bonusAmount: uint256 = min(_bonusAmount, availableForBonus)
+    bonusAmount = min(bonusAmount, availableForBonus)
     if bonusAmount != 0:
         self._addClaimableLootToUser(_recipient, _bonusAsset, bonusAmount)
-    
+        log YieldBonusPaid(bonusAsset = _bonusAsset, bonusAmount = bonusAmount, bonusRatio = _bonusRatio, yieldRealized = _bonusAssetYieldRealized, recipient = _recipient, isAmbassador = _isAmbassador)
+
     return bonusAmount
 
 
@@ -322,13 +348,16 @@ def _handleSpecificYieldBonus(
 @view
 @external
 def getLootDistroConfig(_wallet: address, _asset: address) -> LootDistroConfig:
-    return self._getLootDistroConfig(_wallet, _asset, addys._getMissionControlAddr(), addys._getLedgerAddr())
+    ledger: address = addys._getLedgerAddr()
+    ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
+    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), ledger)
 
 
 @view
 @internal
 def _getLootDistroConfig(
     _wallet: address,
+    _ambassador: address,
     _asset: address,
     _missionControl: address,
     _ledger: address,
@@ -339,7 +368,7 @@ def _getLootDistroConfig(
 
     # config
     config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
-    config.ambassador = staticcall Ledger(_ledger).ambassadors(_wallet)
+    config.ambassador = _ambassador
 
     # if no specific config, fallback to vault token registration
     if config.decimals == 0:
