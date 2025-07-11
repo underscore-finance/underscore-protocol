@@ -18,6 +18,7 @@ struct UserWalletConfig:
     defaultYieldAmbassadorBonusRatio: uint256
     defaultYieldBonusRatio: uint256
     defaultYieldAltBonusAsset: address
+    lootClaimCoolOffPeriod: uint256
 
 struct AssetConfig:
     legoId: uint256

@@ -64,6 +64,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
         defaultYieldAmbassadorBonusRatio = 0,
         defaultYieldBonusRatio = 0,
         defaultYieldAltBonusAsset = empty(address),
+        lootClaimCoolOffPeriod = 0,
     )
 
 

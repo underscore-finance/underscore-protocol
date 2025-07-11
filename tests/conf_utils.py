@@ -43,6 +43,7 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _defaultYieldAmbassadorBonusRatio = 0,
         _defaultYieldBonusRatio = 0,
         _defaultYieldAltBonusAsset = ZERO_ADDRESS,
+        _lootClaimCoolOffPeriod = 0,
     ):
         config = (
             _walletTemplate,
@@ -62,6 +63,7 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _defaultYieldAmbassadorBonusRatio,
             _defaultYieldBonusRatio,
             _defaultYieldAltBonusAsset,
+            _lootClaimCoolOffPeriod,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig

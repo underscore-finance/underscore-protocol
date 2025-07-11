@@ -1653,7 +1653,7 @@ def test_claim_loot_single_asset_full_balance(loot_distributor, ambassador_walle
     ambassador_balance_before = alpha_token.balanceOf(ambassador_wallet)
     
     # Claim loot (ambassador claiming their own loot)
-    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # Verify claim results
     assert assets_claimed == 1  # 1 asset was claimed
@@ -1682,7 +1682,7 @@ def test_claim_loot_multiple_assets(loot_distributor, ambassador_wallet, alpha_t
     assert loot_distributor.numClaimableAssets(ambassador_wallet) == 3  # 1 + 2 assets
     
     # Claim all loot
-    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # Verify both assets were claimed
     assert assets_claimed == 2
@@ -1710,7 +1710,7 @@ def test_claim_loot_partial_balance_available(loot_distributor, ambassador_walle
     assert alpha_token.balanceOf(loot_distributor) == partial_amount
     
     # Claim loot
-    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # Verify partial claim
     assert assets_claimed == 1
@@ -1740,7 +1740,7 @@ def test_claim_loot_zero_balance_available(loot_distributor, ambassador_wallet, 
     
     # Claim loot - should fail because no assets can be claimed
     with boa.reverts("no assets claimed"):
-        loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+        loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # Claimable amount remains unchanged
     assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_claimable
@@ -1757,10 +1757,10 @@ def test_claim_loot_permission_check(loot_distributor, ambassador_wallet, setupC
     
     # Charlie (not owner) cannot claim
     with boa.reverts("no perms"):
-        loot_distributor.claimLoot(ambassador_wallet, sender=charlie)
+        loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=charlie)
     
     # Alice (owner) can claim
-    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     assert assets_claimed == 1
 
 
@@ -1793,7 +1793,7 @@ def test_claim_loot_deregistration_with_multiple_assets(loot_distributor, ambass
     assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, charlie_token) == 3
     
     # Claim loot
-    assets_claimed = loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # Verify claims
     assert assets_claimed == 3  # All 3 assets had transfers
@@ -1829,9 +1829,9 @@ def test_claim_loot_no_claimable_assets(loot_distributor, ambassador_wallet, ali
     # Verify no assets registered
     assert loot_distributor.numClaimableAssets(ambassador_wallet) == 0
     
-    # Claim should fail because there are no claimable assets
-    with boa.reverts("no claimable assets"):
-        loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    # Claim should fail because there are no claimable assets - reverts at external level
+    with boa.reverts("no assets claimed"):
+        loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
 
 
 # get claimable assets
@@ -1887,7 +1887,7 @@ def test_get_total_claimable_assets_after_claiming(loot_distributor, ambassador_
     assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) == 2
     
     # Claim loot
-    loot_distributor.claimLoot(ambassador_wallet, sender=alice)
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
     
     # After claim, bravo should have no balance left in distributor
     # because we only kept 30% of claimable amount, which was transferred during claim
@@ -2670,7 +2670,7 @@ def test_claim_deposit_rewards_no_rewards(loot_distributor, user_wallet, bob):
     loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
     boa.env.time_travel(blocks=1000)
     
-    # Try to claim without rewards configured
+    # Try to claim without rewards configured - should now revert at external level
     with boa.reverts("nothing to claim"):
         loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
 
@@ -2685,8 +2685,8 @@ def test_claim_deposit_rewards_no_points(loot_distributor, user_wallet, bob, alp
     alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
     loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
     
-    # Try to claim without any points
-    with boa.reverts("no points"):
+    # Try to claim without any points - should now revert at external level
+    with boa.reverts("nothing to claim"):
         loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
 
 
@@ -2725,7 +2725,7 @@ def test_claim_deposit_rewards_zero_user_share(loot_distributor, user_wallet, am
     
     # Fresh wallet's share will be so small it rounds to 0
     # With other wallets having points, global points will remain > 0
-    # Try to claim - should fail because calculated reward is 0
+    # Try to claim - should now revert at external level because calculated reward is 0
     with boa.reverts("nothing to claim"):
         loot_distributor.claimDepositRewards(fresh_wallet.address, sender=charlie)
 
@@ -2808,6 +2808,166 @@ def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wa
     # Try to claim from old distributor - should fail
     with boa.reverts("not current loot distributor"):
         loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+
+
+def test_claim_all_loot(loot_distributor, user_wallet, ambassador_wallet, alice, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha, setupClaimableLoot):
+    """ Test claimAllLoot function that claims both rev share and deposit rewards """
+    
+    # Setup claimable loot for ambassador
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS)  # 50% = 50 tokens to ambassador
+    
+    # Setup deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build up deposit points for ambassador wallet
+    loot_distributor.updateDepositPointsWithNewValue(ambassador_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=ambassador_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(ambassador_wallet.address, sender=switchboard_alpha.address)
+    
+    # Check initial balances
+    initial_balance = alpha_token.balanceOf(ambassador_wallet)
+    
+    # Claim all loot (alice is the owner of ambassador wallet)
+    result = loot_distributor.claimAllLoot(ambassador_wallet, sender=alice)
+    assert result == True  # Should return True when something was claimed
+    
+    # Verify both rev share and deposit rewards were claimed
+    final_balance = alpha_token.balanceOf(ambassador_wallet)
+    assert final_balance > initial_balance + 50 * EIGHTEEN_DECIMALS  # Got both rev share and deposit rewards
+    
+    # Verify loot is cleared
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
+    
+    # Verify last claim was updated
+    assert loot_distributor.lastClaim(ambassador_wallet) == boa.env.evm.patch.block_number
+
+
+def test_claim_all_loot_nothing_available(loot_distributor, user_wallet, bob):
+    """ Test claimAllLoot when no loot or rewards are available """
+    
+    # No loot setup, no deposit rewards setup
+    # Should return False
+    result = loot_distributor.claimAllLoot(user_wallet, sender=bob)
+    assert result == False  # Nothing was claimed
+    
+    # Verify last claim was NOT updated
+    assert loot_distributor.lastClaim(user_wallet) == 0
+
+
+def test_loot_claim_cool_off_period(loot_distributor, ambassador_wallet, alice, alpha_token, alpha_token_whale, setUserWalletConfig, setupClaimableLoot):
+    """ Test that cool-off period prevents immediate re-claiming """
+    
+    # Setup claimable loot for ambassador
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    
+    # Set cool-off period to 100 blocks
+    setUserWalletConfig(_lootClaimCoolOffPeriod=100)
+    
+    # Verify ambassador can claim initially
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == True
+    
+    # First claim should succeed
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # Immediately after claim, validation should fail due to cool-off
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
+    
+    # Trying to claim again should fail
+    with boa.reverts("no perms"):
+        loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # Travel 50 blocks (still within cool-off period)
+    boa.env.time_travel(blocks=50)
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
+    
+    # Travel to one block before cool-off period ends
+    boa.env.time_travel(blocks=49)  # Total 99 blocks
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False  # Still can't claim
+    
+    # Travel to exactly the cool-off period boundary
+    boa.env.time_travel(blocks=1)  # Total 100 blocks
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == True  # Can claim at boundary
+    
+    # Add more loot and claim again
+    setupClaimableLoot(50 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # Cool-off period should apply again
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
+
+
+def test_loot_claim_cool_off_period_zero(loot_distributor, ambassador_wallet, alice, alpha_token, alpha_token_whale, setUserWalletConfig, setupClaimableLoot):
+    """ Test that zero cool-off period allows immediate re-claiming """
+    
+    # Setup claimable loot for ambassador
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    
+    # Set cool-off period to 0 (no cool-off)
+    setUserWalletConfig(_lootClaimCoolOffPeriod=0)
+    
+    # First claim
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # With zero cool-off, validation should still pass
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == True
+    
+    # Add more loot
+    setupClaimableLoot(50 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    
+    # Should be able to claim again immediately
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # And validation should still pass
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == True
+
+
+def test_loot_claim_cool_off_applies_to_all_claim_functions(loot_distributor, user_wallet, ambassador_wallet, alice, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha, setupClaimableLoot):
+    """ Test that cool-off period applies to all claim functions (claimRevShareAndBonusLoot, claimDepositRewards, claimAllLoot) """
+    
+    # Setup both rev share loot for ambassador and deposit rewards for user
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address, _lootClaimCoolOffPeriod=50)
+    alpha_token.approve(loot_distributor.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Build deposit points for user wallet
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Test cool-off for ambassador (has rev share)
+    assert loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice) > 0
+    
+    # Ambassador should be blocked by cool-off
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
+    with boa.reverts("no perms"):
+        loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # Test cool-off for user wallet (has deposit rewards)
+    assert loot_distributor.claimDepositRewards(user_wallet, sender=bob) > 0
+    
+    # User should be blocked by cool-off
+    assert loot_distributor.validateCanClaimLoot(user_wallet, bob) == False
+    with boa.reverts("no perms"):
+        loot_distributor.claimDepositRewards(user_wallet, sender=bob)
+    
+    # Travel past cool-off period
+    boa.env.time_travel(blocks=51)
+    
+    # Both should be able to claim again
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == True
+    assert loot_distributor.validateCanClaimLoot(user_wallet, bob) == True
+    
+    # Test claimAllLoot with ambassador
+    setupClaimableLoot(50 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    assert loot_distributor.claimAllLoot(ambassador_wallet, sender=alice) == True
+    
+    # Cool-off should apply again
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
 
 
 def test_claim_deposit_rewards_twice(loot_distributor, user_wallet, ambassador_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha, hatchery, charlie, ledger):

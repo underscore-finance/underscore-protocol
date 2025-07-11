@@ -181,6 +181,12 @@ def getDepositRewardsAsset() -> address:
     return self.userWalletConfig.depositRewardsAsset
 
 
+@view
+@external
+def getLootClaimCoolOffPeriod() -> uint256:
+    return self.userWalletConfig.lootClaimCoolOffPeriod
+
+
 ################
 # Agent Config #
 ################

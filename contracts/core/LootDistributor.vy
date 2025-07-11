@@ -32,6 +32,7 @@ interface Appraiser:
 
 interface MissionControl:
     def getLootDistroConfig(_asset: address) -> LootDistroConfig: view
+    def getLootClaimCoolOffPeriod() -> uint256: view
     def getDepositRewardsAsset() -> address: view
 
 interface UserWalletConfig:
@@ -82,6 +83,11 @@ event YieldBonusPaid:
     recipient: indexed(address)
     isAmbassador: bool
 
+event LootAdjusted:
+    user: indexed(address)
+    asset: indexed(address)
+    newClaimable: uint256
+
 event LootClaimed:
     user: indexed(address)
     asset: indexed(address)
@@ -105,6 +111,7 @@ event DepositRewardsRecovered:
     amount: uint256
 
 # claimable loot
+lastClaim: public(HashMap[address, uint256]) # user -> last claim block
 totalClaimableLoot: public(HashMap[address, uint256]) # asset -> amount
 claimableLoot: public(HashMap[address, HashMap[address, uint256]]) # ambassador -> asset -> amount
 
@@ -127,9 +134,9 @@ def __init__(_undyHq: address):
     deptBasics.__init__(False, False) # no minting
 
 
-####################
-# Protocol Revenue #
-####################
+#################
+# Revenue Flows #
+#################
 
 
 # normal fee flow (swaps, rewards)
@@ -340,70 +347,31 @@ def _handleSpecificYieldBonus(
     return bonusAmount
 
 
-######################
-# Loot Distro Config #
-######################
-
-
-@view
-@external
-def getLootDistroConfig(_wallet: address, _asset: address) -> LootDistroConfig:
-    ledger: address = addys._getLedgerAddr()
-    ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
-    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), ledger)
-
-
-@view
-@internal
-def _getLootDistroConfig(
-    _wallet: address,
-    _ambassador: address,
-    _asset: address,
-    _missionControl: address,
-    _ledger: address,
-) -> LootDistroConfig:
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
-
-    # config
-    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
-    config.ambassador = _ambassador
-
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.decimals = vaultToken.decimals
-            config.underlyingAsset = vaultToken.underlyingAsset
-            config.isRebasing = vaultToken.isRebasing
-
-    # get decimals if needed
-    if config.decimals == 0:
-        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-
-    return config
-
-
-##############
-# Claim Loot #
-##############
+################################
+# Claim Rev Share / Bonus Loot #
+################################
 
 
 @external
-def claimLoot(_user: address) -> uint256:
+def claimRevShareAndBonusLoot(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
-    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
     # permission check
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    owner: address = staticcall UserWalletConfig(walletConfig).owner()
-    if msg.sender != owner:
-        assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
 
-    # nothing to do here
+    # claim rev share and bonus loot
+    assetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user)
+    assert assetsClaimed != 0 # dev: no assets claimed
+
+    self.lastClaim[_user] = block.number
+    return assetsClaimed
+
+
+@internal
+def _claimRevShareAndBonusLoot(_user: address) -> uint256:
     numAssets: uint256 = self.numClaimableAssets[_user]
-    assert numAssets != 0 # dev: no claimable assets
+    if numAssets == 0:
+        return 0
 
     assetsClaimed: uint256 = 0
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
@@ -414,40 +382,51 @@ def claimLoot(_user: address) -> uint256:
         if asset == empty(address):
             continue
 
-        claimableAmount: uint256 = self.claimableLoot[_user][asset]
-        if claimableAmount == 0:
-            continue
-
-        # check contract has enough balance
-        transferAmount: uint256 = min(claimableAmount, staticcall IERC20(asset).balanceOf(self))
-        if transferAmount == 0:
-            continue
-
-        # transfer to user
-        assert extcall IERC20(asset).transfer(_user, transferAmount, default_return_value=True) # dev: xfer fail
-
-        # update tracking
-        self.totalClaimableLoot[asset] -= transferAmount
-        self.claimableLoot[_user][asset] -= transferAmount
-        assetsClaimed += 1
+        didClaim: bool = False
+        shouldDeregister: bool = False
+        didClaim, shouldDeregister = self._claimLootForAsset(_user, asset)
+        if didClaim:
+            assetsClaimed += 1
 
         # add to deregister list
-        if claimableAmount == transferAmount and len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+        if shouldDeregister and len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
             assetsToDeregister.append(asset)
-
-        log LootClaimed(
-            user = _user,
-            asset = asset,
-            amount = transferAmount
-        )
 
     # deregister assets
     if len(assetsToDeregister) != 0:
         for asset: address in assetsToDeregister:
             self._deregisterClaimableAssetForUser(_user, asset)
 
-    assert assetsClaimed != 0 # dev: no assets claimed
     return assetsClaimed
+
+
+# specific asset claim
+
+
+@internal
+def _claimLootForAsset(_user: address, _asset: address) -> (bool, bool):
+    claimableAmount: uint256 = self.claimableLoot[_user][_asset]
+    if claimableAmount == 0:
+        return False, True
+
+    # check contract has enough balance
+    transferAmount: uint256 = min(claimableAmount, staticcall IERC20(_asset).balanceOf(self))
+    if transferAmount == 0:
+        return False, False
+
+    # transfer to user
+    assert extcall IERC20(_asset).transfer(_user, transferAmount, default_return_value=True) # dev: xfer fail
+
+    # update tracking
+    self.totalClaimableLoot[_asset] -= transferAmount
+    self.claimableLoot[_user][_asset] -= transferAmount
+
+    log LootClaimed(
+        user = _user,
+        asset = _asset,
+        amount = transferAmount,
+    )
+    return True, claimableAmount == transferAmount
 
 
 # claimable assets
@@ -471,6 +450,40 @@ def getTotalClaimableAssets(_user: address) -> uint256:
             totalAssets += 1
     
     return totalAssets
+
+
+# adjust loot (cheaters!)
+
+
+@external
+def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool:
+    a: addys.Addys = addys._getAddys()
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+
+    # invalid inputs
+    if empty(address) in [_user, _asset]:
+        return False
+
+    # can only adjust down (not up)
+    claimableAmount: uint256 = self.claimableLoot[_user][_asset]
+    if claimableAmount == 0 or _newClaimable >= claimableAmount:
+        return False
+    
+    # update claimable loot for user
+    self.claimableLoot[_user][_asset] = _newClaimable
+
+    # update total claimable loot
+    totalClaimableLoot: uint256 = self.totalClaimableLoot[_asset]
+    totalClaimableLoot -= claimableAmount
+    totalClaimableLoot += _newClaimable
+    self.totalClaimableLoot[_asset] = totalClaimableLoot
+
+    # deregister asset if necessary
+    if _newClaimable == 0:
+        self._deregisterClaimableAssetForUser(_user, _asset)
+
+    log LootAdjusted(user = _user, asset = _asset, newClaimable = _newClaimable)
+    return True
 
 
 #####################
@@ -631,32 +644,43 @@ def _isValidWalletConfig(_wallet: address, _caller: address, _ledger: address) -
 @external
 def claimDepositRewards(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
-    assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
 
     # cannot claim if this is not current loot distributor, likely migrated to new loot distributor
     assert a.lootDistributor == self # dev: not current loot distributor
 
-    # permission check - same as claimLoot
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    owner: address = staticcall UserWalletConfig(walletConfig).owner()
-    if msg.sender != owner:
-        assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # permission check
+    assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
 
-    # update deposit points first
-    self._updateDepositPoints(_user, 0, False, a.ledger)
+    # claim rewards
+    userRewards: uint256 = self._claimDepositRewards(_user, a.ledger)
+    assert userRewards != 0 # dev: nothing to claim
+
+    self.lastClaim[_user] = block.number
+    return userRewards
+
+
+@internal
+def _claimDepositRewards(_user: address, _ledger: address) -> uint256:
+    self._updateDepositPoints(_user, 0, False, _ledger)
+
+    # get user and global points
     userPoints: PointsData = empty(PointsData)
     globalPoints: PointsData = empty(PointsData)
-    userPoints, globalPoints = staticcall Ledger(a.ledger).getUserAndGlobalPoints(_user)
-    assert globalPoints.depositPoints != 0 # dev: no points
+    userPoints, globalPoints = staticcall Ledger(_ledger).getUserAndGlobalPoints(_user)
+    if userPoints.depositPoints == 0 or globalPoints.depositPoints == 0:
+        return 0
 
     # check if there is anything available for rewards
     data: DepositRewards = self.depositRewards
-    assert data.asset != empty(address) # dev: nothing to claim
-    availableRewards: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
+    if data.asset == empty(address) or data.amount == 0:
+        return 0
 
     # calculate user's share, transfer to user
+    availableRewards: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
     userRewards: uint256 = availableRewards * userPoints.depositPoints // globalPoints.depositPoints
-    assert userRewards != 0 # dev: nothing to claim
+    if userRewards == 0:
+        return 0
+
     assert extcall IERC20(data.asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
 
     # save rewards data
@@ -666,7 +690,7 @@ def claimDepositRewards(_user: address) -> uint256:
     # save / update points
     globalPoints.depositPoints -= userPoints.depositPoints
     userPoints.depositPoints = 0
-    extcall Ledger(a.ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
+    extcall Ledger(_ledger).setUserAndGlobalPoints(_user, userPoints, globalPoints)
 
     log DepositRewardsClaimed(
         user = _user,
@@ -719,3 +743,109 @@ def recoverDepositRewards(_recipient: address):
 
     self.depositRewards = empty(DepositRewards)
     log DepositRewardsRecovered(asset=data.asset, recipient=_recipient, amount=amount)
+
+
+#############
+# Utilities #
+#############
+
+
+# claim ALL loot (both rev share and deposit rewards)
+
+
+@external
+def claimAllLoot(_user: address) -> bool:
+    a: addys.Addys = addys._getAddys()
+
+    # permission check
+    assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
+
+    # claim rev share and bonus loot
+    numAssetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user)
+
+    # can only claim rewards if this is current loot distributor
+    if a.lootDistributor == self:
+        userRewards: uint256 = self._claimDepositRewards(_user, a.ledger)
+        if userRewards != 0:
+            numAssetsClaimed += 1
+
+    # only save last claim block if there was something claimed
+    if numAssetsClaimed != 0:
+        self.lastClaim[_user] = block.number
+
+    return numAssetsClaimed != 0
+
+
+# validation
+
+
+@view
+@external
+def validateCanClaimLoot(_user: address, _caller: address) -> bool:
+    a: addys.Addys = addys._getAddys()
+    return self._validateCanClaimLoot(_user, _caller, a.ledger, a.missionControl)
+
+
+@view
+@internal
+def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _missionControl: address) -> bool:
+    if not staticcall Ledger(_ledger).isUserWallet(_user):
+        return False
+
+    # permission check
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    if _caller != owner and not addys._isSwitchboardAddr(_caller):
+        return False
+
+    # cool off period
+    lastClaimBlock: uint256 = self.lastClaim[_user]
+    coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
+    if lastClaimBlock != 0 and coolOffPeriod != 0:
+        if lastClaimBlock + coolOffPeriod > block.number:
+            return False
+
+    return True
+
+
+# loot config
+
+
+@view
+@external
+def getLootDistroConfig(_wallet: address, _asset: address) -> LootDistroConfig:
+    ledger: address = addys._getLedgerAddr()
+    ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
+    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), ledger)
+
+
+@view
+@internal
+def _getLootDistroConfig(
+    _wallet: address,
+    _ambassador: address,
+    _asset: address,
+    _missionControl: address,
+    _ledger: address,
+) -> LootDistroConfig:
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
+    # config
+    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+    config.ambassador = _ambassador
+
+    # if no specific config, fallback to vault token registration
+    if config.decimals == 0:
+        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+        if vaultToken.underlyingAsset != empty(address):
+            config.decimals = vaultToken.decimals
+            config.underlyingAsset = vaultToken.underlyingAsset
+            config.isRebasing = vaultToken.isRebasing
+
+    # get decimals if needed
+    if config.decimals == 0:
+        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    return config
