@@ -393,8 +393,12 @@ def _doesWalletStillHaveTrialFunds(
         if assetBalance == 0:
             continue
 
+        # need lego addr!
+        if config.legoAddr == empty(address):
+            continue
+
         # check if the asset can be used as trial funds
-        if not staticcall YieldLego(config.legoAddr).canBeTrialFundsAsset(asset, trialFundsAsset):
+        if not staticcall YieldLego(config.legoAddr).isEligibleVaultForTrialFunds(asset, trialFundsAsset):
             continue
 
         # get price per share for this vault token

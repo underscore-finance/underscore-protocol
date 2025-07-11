@@ -108,7 +108,7 @@ def isDexLego() -> bool:
 
 @view
 @external
-def canBeTrialFundsAsset(_vaultToken: address, _underlyingAsset: address) -> bool:
+def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
     asset: address = yld.vaultToAsset[_vaultToken]
     if asset != _underlyingAsset:
         return False

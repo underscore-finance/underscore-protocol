@@ -36,6 +36,7 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 # mock config
 price: public(HashMap[address, uint256])
 mockIsRebasing: public(bool)
+minTotalAssets: public(uint256)
 
 
 @deploy
@@ -73,8 +74,17 @@ def isDexLego() -> bool:
 
 @view
 @external
-def canBeTrialFundsAsset(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] == _underlyingAsset
+def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
+    asset: address = yld.vaultToAsset[_vaultToken]
+    if asset != _underlyingAsset:
+        return False
+
+    return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
+
+
+@external
+def setMinTotalAssets(_minTotalAssets: uint256):
+    self.minTotalAssets = _minTotalAssets
 
 
 #########

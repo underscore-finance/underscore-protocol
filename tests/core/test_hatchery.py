@@ -1246,3 +1246,38 @@ def test_claw_back_trial_funds_partial_vault_withdrawal(
     assert wallet_config.trialFundsAsset() == alpha_token.address
     assert wallet_config.trialFundsAmount() == 2 * EIGHTEEN_DECIMALS
 
+
+# doesWalletStillHaveTrialFunds with vault eligibility tests
+
+
+def test_does_wallet_still_have_trial_funds_with_eligible_vault(
+    hatchery, alice, alpha_token, mock_yield_lego, setupTrialFundsWallet, alpha_token_vault
+):
+    """Test doesWalletStillHaveTrialFunds when funds are in an eligible vault (sufficient liquidity)"""
+    
+    wallet = setupTrialFundsWallet()
+       
+    # Deposit all trial funds into the eligible vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        10 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Verify wallet has no direct alpha tokens but has vault shares
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) > 0
+
+    # Set vault as eligible (has sufficient liquidity)
+    # after deposit, vault has 10 tokens
+    mock_yield_lego.setMinTotalAssets(9 * EIGHTEEN_DECIMALS)
+
+    # Should return True because vault is eligible (has sufficient liquidity)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet.address) == True
+
+    # Set vault as ineligible (has insufficient liquidity)
+    # after deposit, vault has 10 tokens
+    mock_yield_lego.setMinTotalAssets(11 * EIGHTEEN_DECIMALS)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet.address) == False
