@@ -98,6 +98,7 @@ def __init__(
 ):
     assert empty(address) not in [_wethAddr, _ethAddr, _walletConfig] # dev: inv addr
     self.walletConfig = _walletConfig
+    self.numAssets = 1
 
     WETH = _wethAddr
     ETH = _ethAddr
@@ -182,7 +183,7 @@ def transferFunds(
         asset2 = _recipient,
         amount1 = amount,
         amount2 = 0,
-        usdValue = 0,
+        usdValue = txUsdValue,
         legoId = 0,
         signer = ad.signer,
     )
@@ -1127,8 +1128,6 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.Action
 @internal
 def _registerAsset(_asset: address):
     aid: uint256 = self.numAssets
-    if aid == 0:
-        aid = 1 # not using 0 index
     self.assets[aid] = _asset
     self.indexOfAsset[_asset] = aid
     self.numAssets = aid + 1
@@ -1140,7 +1139,7 @@ def _registerAsset(_asset: address):
 @internal
 def _deregisterAsset(_asset: address) -> bool:
     numAssets: uint256 = self.numAssets
-    if numAssets == 0:
+    if numAssets == 1:
         return False
 
     targetIndex: uint256 = self.indexOfAsset[_asset]
