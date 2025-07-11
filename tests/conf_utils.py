@@ -41,6 +41,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _defaultYieldMaxIncrease = 5_00,
         _defaultYieldPerformanceFee = 20_00,
         _defaultYieldAmbassadorBonusRatio = 0,
+        _defaultYieldBonusRatio = 0,
+        _defaultYieldAltBonusAsset = ZERO_ADDRESS,
     ):
         config = (
             _walletTemplate,
@@ -58,6 +60,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _defaultYieldMaxIncrease,
             _defaultYieldPerformanceFee,
             _defaultYieldAmbassadorBonusRatio,
+            _defaultYieldBonusRatio,
+            _defaultYieldAltBonusAsset,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
@@ -131,6 +135,8 @@ def createAssetYieldConfig():
         _maxYieldIncrease = 5_00,
         _performanceFee = 20_00,
         _ambassadorBonusRatio = 0,
+        _bonusRatio = 0,
+        _altBonusAsset = ZERO_ADDRESS,
     ):
         return (
             _isYieldAsset,
@@ -139,6 +145,8 @@ def createAssetYieldConfig():
             _maxYieldIncrease,
             _performanceFee,
             _ambassadorBonusRatio,
+            _bonusRatio,
+            _altBonusAsset,
         )
     yield createAssetYieldConfig
 

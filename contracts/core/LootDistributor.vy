@@ -25,6 +25,11 @@ interface Ledger:
     def ambassadors(_user: address) -> address: view
     def isUserWallet(_user: address) -> bool: view
 
+interface Appraiser:
+    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def getPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+
 interface MissionControl:
     def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig: view
     def getDepositRewardsAsset() -> address: view
@@ -32,9 +37,6 @@ interface MissionControl:
 interface UserWalletConfig:
     def wallet() -> address: view
     def owner() -> address: view
-
-interface Appraiser:
-    def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -48,7 +50,10 @@ struct AmbassadorConfig:
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    altBonusAsset: address
     underlyingAsset: address
+    isRebasing: bool
     decimals: uint256
 
 struct DepositRewards:
@@ -143,32 +148,26 @@ def addLootFromSwapOrRewards(
 def addLootFromYieldProfit(
     _asset: address,
     _feeAmount: uint256,
-    _totalYieldAmount: uint256,
+    _yieldRealized: uint256,
     _missionControl: address = empty(address),
     _appraiser: address = empty(address),
+    _legoBook: address = empty(address),
 ):
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
     config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, _missionControl, ledger)
-    if config.ambassador == empty(address):
-        return
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
-    if _feeAmount != 0:
+    if _feeAmount != 0 and config.ambassador != empty(address):
         self._handleAmbassadorTxFee(_asset, _feeAmount, empty(wi.ActionType), config)
 
-    # ambassador yield bonus
-    if config.ambassadorBonusRatio != 0 and config.underlyingAsset != empty(address):
-        self._handleAmbassadorYieldBonus(_asset, _totalYieldAmount, config, _missionControl, _appraiser, ledger)
+    # yield bonus -- not doing this for rebasing assets
+    if not config.isRebasing:
+        self._handleYieldBonus(msg.sender, _asset, _yieldRealized, config, _missionControl, _appraiser, _legoBook, ledger)
 
 
-#######################
-# Ambassadors Rewards #
-#######################
-
-
-# rev share (transaction fees)
+# ambassador rev share (transaction fees)
 
 
 @internal
@@ -191,21 +190,25 @@ def _handleAmbassadorTxFee(
         self._addClaimableLootToAmbassador(_config.ambassador, _asset, fee)
 
 
+###############
+# Yield Bonus #
+###############
+
+
 # yield bonus
 
 
 @internal
-def _handleAmbassadorYieldBonus(
+def _handleYieldBonus(
+    _user: address,
     _asset: address,
-    _totalYieldAmount: uint256,
+    _yieldRealized: uint256,
     _config: AmbassadorConfig,
     _missionControl: address,
     _appraiser: address,
+    _legoBook: address,
     _ledger: address,
 ):
-    bonusRatio: uint256 = min(_config.ambassadorBonusRatio, HUNDRED_PERCENT)
-    bonusAmount: uint256 = _totalYieldAmount * bonusRatio // HUNDRED_PERCENT
-
     # get addys (if necessary)
     missionControl: address = _missionControl
     if _missionControl == empty(address):
@@ -213,24 +216,97 @@ def _handleAmbassadorYieldBonus(
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
 
-    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, missionControl, empty(address), _ledger)
+    # get price info of `_asset`
+    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, missionControl, legoBook, _ledger)
     if pricePerShare == 0:
         return
 
-    # how much is available for bonus
+    # finalize the bonus asset and amount
+    bonusAsset: address = empty(address)
+    bonusAssetYieldRealized: uint256 = 0
+
+    # alt bonus asset -- (i.e. UNDY or RIPE tokens)
+    if _config.altBonusAsset != empty(address):
+        bonusAsset = _config.altBonusAsset
+        bonusAssetYieldRealized = self._getAltBonusAssetAmount(pricePerShare, _yieldRealized, _config, missionControl, appraiser, legoBook, _ledger)
+
+    # if an underlying asset exists
+    elif _config.underlyingAsset != empty(address):
+        bonusAsset = _config.underlyingAsset
+        bonusAssetYieldRealized = _yieldRealized * pricePerShare // (10 ** _config.decimals)
+
+    # in-kind bonus -- same as the `_asset`
+    else:
+        bonusAsset = _asset
+        bonusAssetYieldRealized = _yieldRealized
+
+    # check deposit rewards asset
+    spokenFor: uint256 = 0
+    depositRewards: DepositRewards = self.depositRewards
+    if bonusAsset == depositRewards.asset:
+        spokenFor = depositRewards.amount
+
+    # user bonus
+    userBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.bonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
+    if userBonusAmount != 0:
+        self._handleSpecificYieldBonus(bonusAsset, userBonusAmount, _user, spokenFor)
+
+    # ambassador bonus
+    if _config.ambassador != empty(address):
+        ambassadorBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.ambassadorBonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
+        if ambassadorBonusAmount != 0:
+            self._handleSpecificYieldBonus(bonusAsset, ambassadorBonusAmount, _config.ambassador, spokenFor)
+
+
+@view
+@internal
+def _getAltBonusAssetAmount(
+    _pricePerShare: uint256,
+    _yieldRealized: uint256,
+    _config: AmbassadorConfig,
+    _missionControl: address,
+    _appraiser: address,
+    _legoBook: address,
+    _ledger: address,
+) -> uint256:
+    price: uint256 = _pricePerShare
+    if _config.underlyingAsset != empty(address):
+        underlyingPrice: uint256 = staticcall Appraiser(_appraiser).getNormalAssetPrice(_config.underlyingAsset, _missionControl, _legoBook, _ledger)
+        underlyingDecimals: uint256 = convert(staticcall IERC20Detailed(_config.underlyingAsset).decimals(), uint256)
+        price = underlyingPrice * _pricePerShare // (10 ** underlyingDecimals)
+
+    # get total usd value of yield amount
+    usdValue: uint256 = price * _yieldRealized // (10 ** _config.decimals)
+    if usdValue == 0:
+        return 0
+
+    # make sure we can get price info for alt bonus asset
+    altBonusAssetPrice: uint256 = staticcall Appraiser(_appraiser).getPrice(_config.altBonusAsset, _missionControl, _legoBook, _ledger)
+    altDecimals: uint256 = convert(staticcall IERC20Detailed(_config.altBonusAsset).decimals(), uint256)
+    return usdValue * (10 ** altDecimals) // altBonusAssetPrice
+
+
+@internal
+def _handleSpecificYieldBonus(_bonusAsset: address, _bonusAmount: uint256, _recipient: address, _spokenFor: uint256):
+    currentBalance: uint256 = staticcall IERC20(_bonusAsset).balanceOf(self)
+    spokenFor: uint256 = self.totalClaimableLoot[_bonusAsset] + _spokenFor
+
     availableForBonus: uint256 = 0
-    currentBalance: uint256 = staticcall IERC20(_config.underlyingAsset).balanceOf(self)
-    totalClaimable: uint256 = self.totalClaimableLoot[_config.underlyingAsset]
-    if currentBalance > totalClaimable:
-        availableForBonus = currentBalance - totalClaimable
+    if currentBalance > spokenFor:
+        availableForBonus = currentBalance - spokenFor
 
-    underlyingAmount: uint256 = min(bonusAmount * pricePerShare // (10 ** _config.decimals), availableForBonus)
-    if underlyingAmount != 0:
-        self._addClaimableLootToAmbassador(_config.ambassador, _config.underlyingAsset, underlyingAmount)
+    bonusAmount: uint256 = min(_bonusAmount, availableForBonus)
+    if bonusAmount != 0:
+        self._addClaimableLootToAmbassador(_recipient, _bonusAsset, bonusAmount)
 
 
-# get ambassador config
+######################
+# Ambassadors Config #
+######################
 
 
 @view
@@ -265,6 +341,7 @@ def _getAmbassadorConfig(
         if vaultToken.underlyingAsset != empty(address):
             config.decimals = vaultToken.decimals
             config.underlyingAsset = vaultToken.underlyingAsset
+            config.isRebasing = vaultToken.isRebasing
 
     # get decimals if needed
     if config.decimals == 0:

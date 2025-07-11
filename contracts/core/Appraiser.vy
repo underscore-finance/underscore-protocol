@@ -222,9 +222,9 @@ def _handleNormalYieldAsset(
     return _currentPricePerShare, profitInVaultTokens, _config.performanceFee
 
 
-######################
-# Prices - USD Value #
-######################
+#######################
+# Prices - High Level #
+#######################
 
 
 # get usd value
@@ -239,6 +239,37 @@ def getUsdValue(
     _legoBook: address = empty(address),
     _ledger: address = empty(address),
 ) -> uint256:
+    price: uint256 = 0
+    decimals: uint256 = 0
+    price, decimals = self._getPrice(_asset, _missionControl, _legoBook, _ledger)
+    return price * _amount // (10 ** decimals)
+
+
+# get price
+
+
+@view
+@external
+def getPrice(
+    _asset: address,
+    _missionControl: address = empty(address),
+    _legoBook: address = empty(address),
+    _ledger: address = empty(address),
+) -> uint256:
+    price: uint256 = 0
+    na: uint256 = 0
+    price, na = self._getPrice(_asset, _missionControl, _legoBook, _ledger)
+    return price
+
+
+@view
+@internal
+def _getPrice(
+    _asset: address,
+    _missionControl: address,
+    _legoBook: address,
+    _ledger: address,
+) -> (uint256, uint256):
 
     # get addresses if not provided
     missionControl: address = _missionControl
@@ -264,15 +295,13 @@ def getUsdValue(
         pricePerShare: uint256 = self._getPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
         # for yield assets, need to check if it has underlying asset
+        price = pricePerShare
         if config.underlyingAsset != empty(address):
             underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
             underlyingPrice: uint256 = self._getNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks, underlyingConfig.decimals)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
-        else:
-            price = pricePerShare
 
-    usdValue: uint256 = price * _amount // (10 ** config.decimals)
-    return usdValue
+    return price, config.decimals
 
 
 # update prices (and get usd value)
@@ -341,12 +370,11 @@ def _updatePriceAndGetUsdValue(
         pricePerShare: uint256 = self._updateAndGetPricePerShare(_asset, config.legoAddr, config.staleBlocks, config.decimals)
 
         # for yield assets, need to check if it has underlying asset
+        price = pricePerShare
         if config.underlyingAsset != empty(address):
             underlyingConfig: AssetUsdValueConfig = self._getAssetUsdValueConfig(config.underlyingAsset, missionControl, legoBook, ledger)
             underlyingPrice: uint256 = self._updateAndGetNormalAssetPrice(config.underlyingAsset, underlyingConfig.legoAddr, underlyingConfig.staleBlocks, underlyingConfig.decimals)
             price = underlyingPrice * pricePerShare // (10 ** underlyingConfig.decimals)
-        else:
-            price = pricePerShare
 
     usdValue: uint256 = price * _amount // (10 ** config.decimals)
     return usdValue, config.isYieldAsset

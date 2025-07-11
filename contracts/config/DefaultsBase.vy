@@ -74,6 +74,8 @@ def userWalletConfig() -> cs.UserWalletConfig:
         defaultYieldMaxIncrease = 5_00,
         defaultYieldPerformanceFee = 20_00,
         defaultYieldAmbassadorBonusRatio = 0,
+        defaultYieldBonusRatio = 0,
+        defaultYieldAltBonusAsset = empty(address),
     )
 
 

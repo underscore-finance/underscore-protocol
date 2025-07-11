@@ -448,6 +448,51 @@ def test_price_per_share_both_sources_return_zero(appraiser, yield_vault_token, 
     assert price_per_share == 0
 
 
+# get price (higher level)
+
+
+def test_appraiser_get_price_normal_asset(appraiser, alpha_token, mock_ripe):
+    """ Test getPrice for normal assets returns the price directly """
+    
+    # Set price at $25
+    price = 25 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, price)
+    
+    # getPrice should return the price directly
+    result_price = appraiser.getPrice(alpha_token)
+    assert result_price == price
+
+
+def test_appraiser_get_price_yield_asset_with_underlying(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, mock_ripe):
+    """ Test getPrice for yield assets with underlying returns calculated price """
+    
+    # Register vault token via deposit
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Set underlying price at $10
+    underlying_price = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(yield_underlying_token, underlying_price)
+    
+    # Increase vault value by 50% to make price per share = 1.5
+    yield_underlying_token.transfer(yield_vault_token, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Verify price per share is now 1.5
+    price_per_share = mock_yield_lego.getPricePerShare(yield_vault_token, yield_vault_token.decimals())
+    assert price_per_share == 15 * EIGHTEEN_DECIMALS // 10  # 1.5
+    
+    # getPrice should return: underlying_price * price_per_share / 10^decimals
+    # = $10 * 1.5 = $15
+    result_price = appraiser.getPrice(yield_vault_token)
+    expected_price = 15 * EIGHTEEN_DECIMALS
+    assert result_price == expected_price
+
+
 ######################
 # Prices - USD Value #
 ######################

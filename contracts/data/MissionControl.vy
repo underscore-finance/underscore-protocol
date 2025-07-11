@@ -63,7 +63,10 @@ struct AmbassadorConfig:
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    altBonusAsset: address
     underlyingAsset: address
+    isRebasing: bool
     decimals: uint256
 
 # global configs
@@ -151,16 +154,23 @@ def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConf
 
     ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
     ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
+    bonusRatio: uint256 = assetConfig.yieldConfig.bonusRatio
+    altBonusAsset: address = assetConfig.yieldConfig.altBonusAsset
     if assetConfig.decimals == 0:
         walletConfig: cs.UserWalletConfig = self.userWalletConfig
         ambassadorRevShare = walletConfig.ambassadorRevShare
         ambassadorBonusRatio = walletConfig.defaultYieldAmbassadorBonusRatio
+        bonusRatio = walletConfig.defaultYieldBonusRatio
+        altBonusAsset = walletConfig.defaultYieldAltBonusAsset
 
     return AmbassadorConfig(
         ambassador = _ambassador,
         ambassadorRevShare = ambassadorRevShare,
         ambassadorBonusRatio = ambassadorBonusRatio,
+        bonusRatio = bonusRatio,
+        altBonusAsset = altBonusAsset,
         underlyingAsset = assetConfig.yieldConfig.underlyingAsset,
+        isRebasing = assetConfig.yieldConfig.isRebasing,
         decimals = assetConfig.decimals,
     )
 

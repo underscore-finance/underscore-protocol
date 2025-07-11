@@ -736,6 +736,84 @@ def test_add_loot_from_yield_profit_with_price_per_share_change(loot_distributor
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == expected_bonus
 
 
+def test_add_loot_from_yield_profit_rebasing_asset_no_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test that rebasing assets do not receive yield bonuses """
+    
+    # Set up ambassador config with yield fee share and bonus ratio
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,
+        _rewardsRatio=30_00,
+        _yieldRatio=40_00,     # 40% of performance fees go to ambassador
+    )
+    
+    # Create yield config with isRebasing=True
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _isRebasing=True,      # This is the key - marking as rebasing asset
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=10_00,  # 10% bonus ratio (should be ignored)
+        _bonusRatio=20_00,            # 20% user bonus ratio (should be ignored)
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Seed loot distributor with underlying tokens for bonus payments
+    seed_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(loot_distributor, seed_amount, sender=yield_underlying_token_whale)
+
+    # Register vault token by making a deposit (creates price per share)
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate yield profit
+    performance_fee = 20 * EIGHTEEN_DECIMALS  # 20 vault tokens as performance fee
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS  # 100 vault tokens total yield
+    
+    # Transfer the performance fee to loot distributor (simulating it was already collected)
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Record initial balances
+    initial_underlying_balance = yield_underlying_token.balanceOf(loot_distributor)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Verify ambassador gets 40% of the performance fee (fees still work)
+    expected_fee_share = performance_fee * 40_00 // 100_00  # 8 vault tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
+    
+    # Verify NO bonus was given in underlying tokens (this is the key test)
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == 0
+    assert loot_distributor.claimableLoot(user_wallet, yield_underlying_token) == 0
+    
+    # Verify underlying balance didn't change (no bonuses distributed)
+    assert yield_underlying_token.balanceOf(loot_distributor) == initial_underlying_balance
+    
+    # Verify total claimable
+    assert loot_distributor.totalClaimableLoot(yield_vault_token) == expected_fee_share
+    assert loot_distributor.totalClaimableLoot(yield_underlying_token) == 0  # No bonuses
+    
+    # Verify only vault token is registered (no underlying token registration)
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # 1 base + vault token only
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_vault_token) == 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_underlying_token) == 0  # Not registered
+
+
 ##############
 # Claim Loot #
 ##############

@@ -20,7 +20,7 @@ interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface LootDistributor:
-    def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _totalYieldAmount: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address)): nonpayable
+    def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
     def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: wi.ActionType, _missionControl: address = empty(address)): nonpayable
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
@@ -1257,16 +1257,16 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
         return
 
     # calculate yield profits
-    yieldProfit: uint256 = 0
+    yieldRealized: uint256 = 0
     feeRatio: uint256 = 0
-    data.lastPricePerShare, yieldProfit, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
+    data.lastPricePerShare, yieldRealized, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
 
     # only save if appraiser returns a price (non-rebasing assets)
     if data.lastPricePerShare != 0:
         self.assetData[_asset] = data
 
     # pay yield fee
-    self._payYieldFee(_asset, yieldProfit, min(feeRatio, 25_00), _ad)
+    self._payYieldFee(_asset, yieldRealized, min(feeRatio, 25_00), _ad)
 
     # mark as checked
     self.checkedYield[_asset] = True
@@ -1275,6 +1275,28 @@ def _checkForYieldProfits(_asset: address, _ad: ActionData):
 #############
 # Utilities #
 #############
+
+
+# pay fees
+
+
+@internal
+def _payYieldFee(
+    _asset: address,
+    _yieldRealized: uint256,
+    _feeRatio: uint256,
+    _ad: ActionData,
+):
+    if _ad.lootDistributor == empty(address):
+        return
+
+    feeAmount: uint256 = _yieldRealized * _feeRatio // HUNDRED_PERCENT
+    if feeAmount != 0:
+        assert extcall IERC20(_asset).transfer(_ad.lootDistributor, feeAmount, default_return_value = True) # dev: xfer
+
+    # notify loot distributor
+    if feeAmount != 0 or _yieldRealized != 0:
+        extcall LootDistributor(_ad.lootDistributor).addLootFromYieldProfit(_asset, feeAmount, _yieldRealized, _ad.missionControl, _ad.appraiser, _ad.legoBook)
 
 
 # pay transaction fees (swap / rewards)
@@ -1295,28 +1317,6 @@ def _payTransactionFee(
         extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action, _missionControl)
         self._resetApproval(_asset, _lootDistributor)
     return feeAmount
-
-
-# pay fees
-
-
-@internal
-def _payYieldFee(
-    _asset: address,
-    _totalYieldAmount: uint256,
-    _feeRatio: uint256,
-    _ad: ActionData,
-):
-    if _ad.lootDistributor == empty(address):
-        return
-
-    feeAmount: uint256 = _totalYieldAmount * _feeRatio // HUNDRED_PERCENT
-    if feeAmount != 0:
-        assert extcall IERC20(_asset).transfer(_ad.lootDistributor, feeAmount, default_return_value = True) # dev: xfer
-
-    # notify loot distributor
-    if feeAmount != 0 or _totalYieldAmount != 0:
-        extcall LootDistributor(_ad.lootDistributor).addLootFromYieldProfit(_asset, feeAmount, _totalYieldAmount, _ad.missionControl, _ad.appraiser)
 
 
 # update price and get usd value

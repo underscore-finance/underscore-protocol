@@ -16,6 +16,8 @@ struct UserWalletConfig:
     defaultYieldMaxIncrease: uint256
     defaultYieldPerformanceFee: uint256
     defaultYieldAmbassadorBonusRatio: uint256
+    defaultYieldBonusRatio: uint256
+    defaultYieldAltBonusAsset: address
 
 struct AssetConfig:
     legoId: uint256
@@ -43,6 +45,8 @@ struct YieldConfig:
     maxYieldIncrease: uint256
     performanceFee: uint256
     ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    altBonusAsset: address
 
 struct AgentConfig:
     agentTemplate: address
