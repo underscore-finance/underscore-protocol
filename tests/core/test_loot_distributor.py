@@ -3002,3 +3002,85 @@ def test_claim_deposit_rewards_twice(loot_distributor, user_wallet, ambassador_w
     # Second claim should fail because user has no points
     with boa.reverts("nothing to claim"):
         loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+
+
+########################
+# Adjust Loot (Admin) #
+########################
+
+
+def test_adjust_loot_basic(loot_distributor, ambassador_wallet, alice, alpha_token, alpha_token_whale, switchboard_alpha, setupClaimableLoot):
+    """ Test basic adjustLoot functionality for reducing cheater's claimable loot """
+    
+    # Setup claimable loot
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    
+    # Verify initial state
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 50 * EIGHTEEN_DECIMALS  # 50% rev share
+    assert loot_distributor.totalClaimableLoot(alpha_token) == 50 * EIGHTEEN_DECIMALS
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # Starting from 1
+    
+    # Non-admin cannot adjust (will revert)
+    with boa.reverts("no perms"):
+        loot_distributor.adjustLoot(ambassador_wallet, alpha_token, 10 * EIGHTEEN_DECIMALS, sender=alice)
+    
+    # Admin reduces claimable amount (cheater caught!)
+    new_amount = 10 * EIGHTEEN_DECIMALS
+    result = loot_distributor.adjustLoot(ambassador_wallet, alpha_token, new_amount, sender=switchboard_alpha.address)
+    assert result == True
+    
+    # Verify updated state
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == new_amount
+    assert loot_distributor.totalClaimableLoot(alpha_token) == new_amount
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # Still registered
+    
+    # User can still claim the reduced amount
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    assert alpha_token.balanceOf(ambassador_wallet) == new_amount
+
+
+def test_adjust_loot_zero_and_deregistration(loot_distributor, ambassador_wallet, alice, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, switchboard_alpha, setupClaimableLoot):
+    """ Test adjustLoot to zero removes asset registration and edge cases """
+    
+    # Setup claimable loot for two tokens
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    setupClaimableLoot(200 * EIGHTEEN_DECIMALS, token=bravo_token, token_whale=bravo_token_whale)
+    
+    # Verify initial state
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 50 * EIGHTEEN_DECIMALS
+    assert loot_distributor.claimableLoot(ambassador_wallet, bravo_token) == 100 * EIGHTEEN_DECIMALS
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 3  # Starting from 1, so 1 + 2 assets
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, bravo_token) == 2
+    
+    # Cannot adjust up (only down)
+    result = loot_distributor.adjustLoot(ambassador_wallet, alpha_token, 60 * EIGHTEEN_DECIMALS, sender=switchboard_alpha.address)
+    assert result == False
+    
+    # Cannot adjust if no claimable amount
+    result = loot_distributor.adjustLoot(alice, alpha_token, 0, sender=switchboard_alpha.address)  # alice has no loot
+    assert result == False
+    
+    # Adjust alpha to zero (complete removal)
+    result = loot_distributor.adjustLoot(ambassador_wallet, alpha_token, 0, sender=switchboard_alpha.address)
+    assert result == True
+    
+    # Verify alpha was deregistered
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.totalClaimableLoot(alpha_token) == 0
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # One less asset
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 0  # Deregistered
+    
+    # Bravo should have moved to index 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, bravo_token) == 1
+    assert loot_distributor.claimableAssets(ambassador_wallet, 1) == bravo_token.address
+    
+    # Cannot adjust already zero amount
+    result = loot_distributor.adjustLoot(ambassador_wallet, alpha_token, 0, sender=switchboard_alpha.address)
+    assert result == False
+    
+    # Test with empty addresses
+    result = loot_distributor.adjustLoot(ZERO_ADDRESS, alpha_token, 0, sender=switchboard_alpha.address)
+    assert result == False
+    result = loot_distributor.adjustLoot(ambassador_wallet, ZERO_ADDRESS, 0, sender=switchboard_alpha.address)
+    assert result == False

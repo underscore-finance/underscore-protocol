@@ -457,7 +457,6 @@ def getTotalClaimableAssets(_user: address) -> uint256:
 
 @external
 def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool:
-    a: addys.Addys = addys._getAddys()
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
     # invalid inputs
