@@ -50,6 +50,7 @@ def __init__(_undyHq: address):
     deptBasics.__init__(False, False) # no minting
 
     self.numUserWallets = 1
+    self.numAgents = 1
 
 
 ################
@@ -84,10 +85,7 @@ def getNumUserWallets() -> uint256:
 @view
 @internal
 def _getNumUserWallets() -> uint256:
-    numUserWallets: uint256 = self.numUserWallets
-    if numUserWallets == 0:
-        return 0
-    return numUserWallets - 1
+    return self.numUserWallets - 1
 
 
 @view
@@ -177,8 +175,6 @@ def createAgent(_agent: address):
     assert not deptBasics.isPaused # dev: not activated
 
     aid: uint256 = self.numAgents
-    if aid == 0:
-        aid = 1 # not using 0 index
     self.agents[aid] = _agent
     self.indexOfAgent[_agent] = aid
     self.numAgents = aid + 1
@@ -196,10 +192,7 @@ def getNumAgents() -> uint256:
 @view
 @internal
 def _getNumAgents() -> uint256:
-    numAgents: uint256 = self.numAgents
-    if numAgents == 0:
-        return 0
-    return numAgents - 1
+    return self.numAgents - 1
 
 
 @view

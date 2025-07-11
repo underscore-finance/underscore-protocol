@@ -106,6 +106,7 @@ event AgentCreated:
     agent: indexed(address)
     owner: indexed(address)
     creator: indexed(address)
+    groupId: uint256
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
@@ -210,7 +211,7 @@ def createUserWallet(
 
 
 @external
-def createAgent(_owner: address = msg.sender) -> address:
+def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
     assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
 
@@ -231,6 +232,7 @@ def createAgent(_owner: address = msg.sender) -> address:
         agent=agentAddr,
         owner=_owner,
         creator=msg.sender,
+        groupId=_groupId,
     )
     return agentAddr
 

@@ -351,3 +351,8 @@ def test_create_user_wallet_trial_funds_partial_config(hatchery, alice, alpha_to
     # Should create wallet without trial funds
     assert wallet2_config.trialFundsAsset() == ZERO_ADDRESS
     assert wallet2_config.trialFundsAmount() == 0
+
+
+################
+# Create Agent #
+################
