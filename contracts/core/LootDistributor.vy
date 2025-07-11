@@ -577,7 +577,7 @@ def addDepositRewards(_asset: address, _amount: uint256):
     data: DepositRewards = self.depositRewards
     if data.asset != empty(address) and data.amount != 0:
         # NOTE: if changing the rewards asset, need to recover the previous asset first (zero out the amount)
-        assert data.asset == depositRewardsAsset # dev: invalid asset
+        assert data.asset == depositRewardsAsset # dev: asset mismatch
 
     # finalize amount
     amount: uint256 = min(_amount, staticcall IERC20(depositRewardsAsset).balanceOf(msg.sender))
@@ -600,10 +600,10 @@ def recoverDepositRewards(_recipient: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
     data: DepositRewards = self.depositRewards
-    assert data.asset != empty(address) # dev: nothing to claim
+    assert data.asset != empty(address) # dev: nothing to recover
     amount: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
-    assert amount != 0 # dev: nothing to recover
-    assert extcall IERC20(data.asset).transfer(_recipient, amount, default_return_value=True) # dev: recovery failed
+    if amount != 0:
+        assert extcall IERC20(data.asset).transfer(_recipient, amount, default_return_value=True) # dev: recovery failed
 
     self.depositRewards = empty(DepositRewards)
     log DepositRewardsRecovered(asset=data.asset, recipient=_recipient, amount=amount)

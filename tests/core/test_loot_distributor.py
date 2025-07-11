@@ -2,6 +2,7 @@ import pytest
 import boa
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS, ACTION_TYPE
 from contracts.core.userWallet import UserWallet
+from conf_utils import filter_logs
 
 
 #####################
@@ -1279,3 +1280,708 @@ def test_deposit_points_idempotency_same_block(loot_distributor, user_wallet, le
     assert updated_user.depositPoints == 10000  # No change
     assert updated_global.depositPoints == 20000  # No change
     assert updated_user.lastUpdate == initial_block  # Same block
+
+
+###################
+# Deposit Rewards #
+###################
+
+
+# add deposit rewards
+
+
+def test_add_deposit_rewards_basic(loot_distributor, alpha_token, alpha_token_whale, setUserWalletConfig):
+    """ Test basic addDepositRewards functionality """
+    
+    # Configure alpha_token as the deposit rewards asset in MissionControl
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Check initial state
+    initial_rewards = loot_distributor.depositRewards()
+    assert initial_rewards.asset == ZERO_ADDRESS
+    assert initial_rewards.amount == 0
+    
+    # Approve and add rewards
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Add deposit rewards
+    loot_distributor.addDepositRewards(
+        alpha_token.address,
+        rewards_amount,
+        sender=alpha_token_whale
+    )
+    
+    # Verify storage updated
+    updated_rewards = loot_distributor.depositRewards()
+    assert updated_rewards.asset == alpha_token.address
+    assert updated_rewards.amount == rewards_amount
+    
+    # Verify tokens transferred
+    assert alpha_token.balanceOf(loot_distributor) == rewards_amount
+
+
+def test_add_deposit_rewards_accumulates(loot_distributor, alpha_token, alpha_token_whale, setUserWalletConfig):
+    """ Test that multiple addDepositRewards calls accumulate """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # First addition
+    first_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, first_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, first_amount, sender=alpha_token_whale)
+    
+    # Verify first addition
+    rewards = loot_distributor.depositRewards()
+    assert rewards.amount == first_amount
+    
+    # Second addition
+    second_amount = 300 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, second_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, second_amount, sender=alpha_token_whale)
+    
+    # Verify accumulation
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == alpha_token.address
+    assert rewards.amount == first_amount + second_amount
+    assert alpha_token.balanceOf(loot_distributor) == first_amount + second_amount
+
+
+def test_add_deposit_rewards_invalid_asset(loot_distributor, alpha_token, bravo_token, alpha_token_whale, setUserWalletConfig):
+    """ Test addDepositRewards rejects invalid asset """
+    
+    # Configure alpha_token as the deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Try to add rewards with wrong asset (bravo_token)
+    rewards_amount = 100 * EIGHTEEN_DECIMALS
+    bravo_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Should fail with invalid asset
+    with boa.reverts("invalid asset"):
+        loot_distributor.addDepositRewards(
+            bravo_token.address,  # Wrong asset
+            rewards_amount,
+            sender=alpha_token_whale
+        )
+
+
+def test_add_deposit_rewards_no_configured_asset(loot_distributor, alpha_token, alpha_token_whale):
+    """ Test addDepositRewards fails when no deposit rewards asset is configured """
+    
+    # Don't configure any deposit rewards asset
+    # Try to add rewards
+    rewards_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Should fail because no asset is configured
+    with boa.reverts("invalid asset"):
+        loot_distributor.addDepositRewards(
+            alpha_token.address,
+            rewards_amount,
+            sender=alpha_token_whale
+        )
+
+
+def test_add_deposit_rewards_zero_amount(loot_distributor, alpha_token, charlie, setUserWalletConfig):
+    """ Test addDepositRewards fails with zero amount """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Charlie has no tokens, try to add rewards
+    with boa.reverts("nothing to add"):
+        loot_distributor.addDepositRewards(
+            alpha_token.address,
+            100 * EIGHTEEN_DECIMALS,  # Amount they don't have
+            sender=charlie
+        )
+
+
+def test_add_deposit_rewards_partial_balance(loot_distributor, alpha_token, alpha_token_whale, charlie, setUserWalletConfig):
+    """ Test addDepositRewards uses actual balance if less than requested """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Give charlie some tokens but less than what they'll try to add
+    actual_balance = 50 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(charlie, actual_balance, sender=alpha_token_whale)
+    
+    # Approve more than balance
+    alpha_token.approve(loot_distributor.address, 1000 * EIGHTEEN_DECIMALS, sender=charlie)
+    
+    # Try to add more than balance
+    loot_distributor.addDepositRewards(
+        alpha_token.address,
+        1000 * EIGHTEEN_DECIMALS,  # More than charlie has
+        sender=charlie
+    )
+    
+    # Should only add actual balance
+    rewards = loot_distributor.depositRewards()
+    assert rewards.amount == actual_balance
+    assert alpha_token.balanceOf(loot_distributor) == actual_balance
+    assert alpha_token.balanceOf(charlie) == 0
+
+
+def test_add_deposit_rewards_changing_asset_requires_recovery(loot_distributor, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, setUserWalletConfig, switchboard_alpha):
+    """ Test changing reward asset requires recovering previous rewards first """
+    
+    # Configure alpha_token as initial deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add some alpha rewards
+    alpha_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, alpha_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, alpha_amount, sender=alpha_token_whale)
+    
+    # Change config to bravo_token
+    setUserWalletConfig(_depositRewardsAsset=bravo_token.address)
+    
+    # Try to add bravo rewards - should fail because alpha rewards still exist
+    bravo_amount = 300 * EIGHTEEN_DECIMALS
+    bravo_token.approve(loot_distributor.address, bravo_amount, sender=bravo_token_whale)
+    
+    with boa.reverts("asset mismatch"):
+        loot_distributor.addDepositRewards(bravo_token.address, bravo_amount, sender=bravo_token_whale)
+    
+    # Recover alpha rewards first
+    loot_distributor.recoverDepositRewards(alpha_token_whale, sender=switchboard_alpha.address)
+    
+    # Now adding bravo should work
+    loot_distributor.addDepositRewards(bravo_token.address, bravo_amount, sender=bravo_token_whale)
+    
+    # Verify bravo is now the reward asset
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == bravo_token.address
+    assert rewards.amount == bravo_amount
+
+
+def test_add_deposit_rewards_event_emission(loot_distributor, alpha_token, alpha_token_whale, setUserWalletConfig):
+    """ Test DepositRewardsAdded event is emitted correctly """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add rewards
+    rewards_amount = 750 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Check event using filter_logs
+    event = filter_logs(loot_distributor, 'DepositRewardsAdded')[0]
+    assert event.asset == alpha_token.address
+    assert event.addedAmount == rewards_amount
+    assert event.newTotalAmount == rewards_amount
+    assert event.adder == alpha_token_whale
+    
+    # Add more rewards to test accumulation in event
+    second_amount = 250 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, second_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, second_amount, sender=alpha_token_whale)
+    
+    # Check second event
+    event = filter_logs(loot_distributor, 'DepositRewardsAdded')[0]
+    assert event.asset == alpha_token.address
+    assert event.addedAmount == second_amount
+    assert event.newTotalAmount == rewards_amount + second_amount
+    assert event.adder == alpha_token_whale
+
+
+def test_add_deposit_rewards_multiple_contributors(loot_distributor, alpha_token, alpha_token_whale, env, setUserWalletConfig):
+    """ Test multiple addresses can contribute deposit rewards """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Create additional contributors
+    contributor1 = env.generate_address("contributor1")
+    contributor2 = env.generate_address("contributor2")
+    
+    # Fund contributors
+    alpha_token.transfer(contributor1, 200 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    alpha_token.transfer(contributor2, 300 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Contributor 1 adds rewards
+    alpha_token.approve(loot_distributor.address, 200 * EIGHTEEN_DECIMALS, sender=contributor1)
+    loot_distributor.addDepositRewards(alpha_token.address, 200 * EIGHTEEN_DECIMALS, sender=contributor1)
+    
+    # Contributor 2 adds rewards
+    alpha_token.approve(loot_distributor.address, 300 * EIGHTEEN_DECIMALS, sender=contributor2)
+    loot_distributor.addDepositRewards(alpha_token.address, 300 * EIGHTEEN_DECIMALS, sender=contributor2)
+    
+    # Alpha whale also adds
+    alpha_token.approve(loot_distributor.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Verify total
+    rewards = loot_distributor.depositRewards()
+    assert rewards.amount == 1000 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(loot_distributor) == 1000 * EIGHTEEN_DECIMALS
+
+
+# recover deposit rewards
+
+
+def test_recover_deposit_rewards_basic(loot_distributor, alpha_token, alpha_token_whale, charlie, switchboard_alpha, setUserWalletConfig):
+    """ Test basic recoverDepositRewards functionality """
+    
+    # Configure and add deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Verify rewards exist
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == alpha_token.address
+    assert rewards.amount == rewards_amount
+    
+    initial_recipient_balance = alpha_token.balanceOf(charlie)
+    
+    # Recover rewards
+    loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+    
+    # Verify rewards were recovered
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == ZERO_ADDRESS
+    assert rewards.amount == 0
+    
+    # Verify recipient received the tokens
+    assert alpha_token.balanceOf(charlie) == initial_recipient_balance + rewards_amount
+    assert alpha_token.balanceOf(loot_distributor) == 0
+
+
+def test_recover_deposit_rewards_permission(loot_distributor, alpha_token, alpha_token_whale, charlie, bob, setUserWalletConfig):
+    """ Test only switchboard can recover deposit rewards """
+    
+    # Configure and add deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Try to recover without permission
+    with boa.reverts("no perms"):
+        loot_distributor.recoverDepositRewards(charlie, sender=bob)
+    
+    # Try from alpha_token_whale (not switchboard)
+    with boa.reverts("no perms"):
+        loot_distributor.recoverDepositRewards(charlie, sender=alpha_token_whale)
+
+
+def test_recover_deposit_rewards_no_rewards(loot_distributor, charlie, switchboard_alpha):
+    """ Test recovery when no rewards exist """
+    
+    # Verify no rewards exist
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == ZERO_ADDRESS
+    assert rewards.amount == 0
+    
+    # Try to recover - should fail
+    with boa.reverts("nothing to recover"):
+        loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+
+
+def test_recover_deposit_rewards_partial_balance(loot_distributor, alpha_token, alpha_token_whale, charlie, switchboard_alpha, setUserWalletConfig):
+    """ Test recovery when contract has less balance than recorded rewards """
+    
+    # Configure and add deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Remove some tokens from the contract
+    alpha_token.transfer(alpha_token_whale, 400 * EIGHTEEN_DECIMALS, sender=loot_distributor.address)
+    
+    # Verify partial balance
+    assert alpha_token.balanceOf(loot_distributor) == 600 * EIGHTEEN_DECIMALS
+    
+    initial_recipient_balance = alpha_token.balanceOf(charlie)
+    
+    # Recover should only transfer available balance
+    loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+    
+    # Verify only available balance was transferred
+    assert alpha_token.balanceOf(charlie) == initial_recipient_balance + 600 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(loot_distributor) == 0
+    
+    # Verify rewards storage was cleared
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == ZERO_ADDRESS
+    assert rewards.amount == 0
+
+
+def test_recover_deposit_rewards_event_emission(loot_distributor, alpha_token, alpha_token_whale, charlie, switchboard_alpha, setUserWalletConfig):
+    """ Test DepositRewardsRecovered event is emitted correctly """
+    
+    # Configure and add deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 750 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Recover rewards
+    loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+    
+    # Check event using filter_logs
+    events = filter_logs(loot_distributor, 'DepositRewardsRecovered')[0]
+    assert events.asset == alpha_token.address
+    assert events.recipient == charlie
+    assert events.amount == rewards_amount
+
+
+def test_recover_deposit_rewards_zero_balance(loot_distributor, alpha_token, alpha_token_whale, charlie, switchboard_alpha, setUserWalletConfig):
+    """ Test recovery when rewards exist but contract has zero balance """
+    
+    # Configure and add deposit rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Remove all tokens from the contract
+    alpha_token.transfer(alpha_token_whale, rewards_amount, sender=loot_distributor.address)
+    assert alpha_token.balanceOf(loot_distributor) == 0
+    
+    initial_recipient_balance = alpha_token.balanceOf(charlie)
+    
+    # Recover should work but transfer 0
+    loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+
+    # Check event shows 0 amount
+    event = filter_logs(loot_distributor, 'DepositRewardsRecovered')[0]
+    assert event.amount == 0
+
+    # Verify no tokens were transferred
+    assert alpha_token.balanceOf(charlie) == initial_recipient_balance
+    
+    # Verify rewards storage was still cleared
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == ZERO_ADDRESS
+    assert rewards.amount == 0
+    
+
+def test_recover_deposit_rewards_allows_new_asset(loot_distributor, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, charlie, switchboard_alpha, setUserWalletConfig):
+    """ Test recovery clears state allowing a new reward asset """
+    
+    # Configure alpha as initial rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add alpha rewards
+    alpha_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, alpha_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, alpha_amount, sender=alpha_token_whale)
+    
+    # Recover alpha rewards
+    loot_distributor.recoverDepositRewards(charlie, sender=switchboard_alpha.address)
+    
+    # Configure bravo as new rewards asset
+    setUserWalletConfig(_depositRewardsAsset=bravo_token.address)
+    
+    # Should be able to add bravo rewards now
+    bravo_amount = 300 * EIGHTEEN_DECIMALS
+    bravo_token.approve(loot_distributor.address, bravo_amount, sender=bravo_token_whale)
+    loot_distributor.addDepositRewards(bravo_token.address, bravo_amount, sender=bravo_token_whale)
+    
+    # Verify bravo is now the reward asset
+    rewards = loot_distributor.depositRewards()
+    assert rewards.asset == bravo_token.address
+    assert rewards.amount == bravo_amount
+
+
+# claim deposit rewards
+
+
+def test_claim_deposit_rewards_basic(loot_distributor, user_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, ledger, switchboard_alpha):
+    """ Test basic claimDepositRewards functionality """
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add deposit rewards
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build up deposit points for user by updating with USD value
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    
+    # Travel more blocks to accumulate points
+    boa.env.time_travel(blocks=1000)
+    
+    # Update points to finalize accumulation
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    initial_balance = alpha_token.balanceOf(user_wallet.address)
+    
+    # Claim rewards
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # Verify user received rewards
+    assert user_rewards != 0
+    assert alpha_token.balanceOf(user_wallet.address) == initial_balance + user_rewards
+    
+    # Verify user points were cleared
+    user_points, _ = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert user_points.depositPoints == 0
+    
+    # Verify rewards reduced
+    rewards = loot_distributor.depositRewards()
+    assert rewards.amount == rewards_amount - user_rewards
+
+
+def test_claim_deposit_rewards_multiple_users(loot_distributor, user_wallet, ambassador_wallet, alice, bob, alpha_token, alpha_token_whale, setUserWalletConfig, hatchery, charlie, switchboard_alpha):
+    """ Test multiple users claiming deposit rewards """
+    
+    # Create another user wallet
+    wallet2_addr = hatchery.createUserWallet(charlie, ambassador_wallet, False, 1, sender=charlie)
+    wallet2 = UserWallet.at(wallet2_addr)
+    
+    # Configure deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add deposit rewards - 1000 tokens to distribute
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build up deposit points for user1 (100 USD value)
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    
+    # Build up deposit points for user2 (300 USD value - exactly 3x more)
+    loot_distributor.updateDepositPointsWithNewValue(wallet2.address, 300 * EIGHTEEN_DECIMALS, sender=wallet2.address)
+    
+    # Travel exactly 1000 blocks to accumulate points
+    # User1: 100 USD * 1000 blocks = 100,000 points (divided by 1e18)
+    # User2: 300 USD * 1000 blocks = 300,000 points (divided by 1e18)
+    # Total: 400,000 points
+    boa.env.time_travel(blocks=1000)
+    
+    # Update points to finalize
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    loot_distributor.updateDepositPoints(wallet2.address, sender=switchboard_alpha.address)
+    
+    # User1 claims first
+    user1_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # User2 claims second
+    user2_rewards = loot_distributor.claimDepositRewards(wallet2.address, sender=charlie)
+    
+    # Verify exact proportional distribution
+    # User1 should get 1/4 (25%) of rewards = 250 tokens
+    assert user1_rewards == 250 * EIGHTEEN_DECIMALS
+    
+    # User2 should get 3/4 (75%) of rewards = 750 tokens
+    assert user2_rewards == 750 * EIGHTEEN_DECIMALS
+    
+    # Verify total claimed equals the rewards amount
+    assert user1_rewards + user2_rewards == rewards_amount
+
+
+def test_claim_deposit_rewards_permission(loot_distributor, user_wallet, alice, alpha_token, alpha_token_whale, setUserWalletConfig):
+    """ Test permission checks for claimDepositRewards """
+    
+    # Setup rewards and points
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    
+    # Try to claim with wrong owner (alice owns ambassador_wallet, not user_wallet)
+    with boa.reverts("no perms"):
+        loot_distributor.claimDepositRewards(user_wallet.address, sender=alice)
+
+
+def test_claim_deposit_rewards_no_rewards(loot_distributor, user_wallet, bob):
+    """ Test claiming when no rewards are available """
+    
+    # Build up deposit points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    
+    # Try to claim without rewards configured
+    with boa.reverts("nothing to claim"):
+        loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+
+
+def test_claim_deposit_rewards_no_points(loot_distributor, user_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig):
+    """ Test claiming when user has no deposit points """
+    
+    # Configure and add rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Try to claim without any points
+    with boa.reverts("no points"):
+        loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+
+
+def test_claim_deposit_rewards_zero_user_share(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setUserWalletConfig, hatchery, charlie, sally, switchboard_alpha):
+    """ Test claiming when user's share rounds down to zero """
+    
+    # Create two fresh wallets
+    fresh_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, False, 1, sender=charlie)
+    fresh_wallet = UserWallet.at(fresh_wallet_addr)
+    
+    another_wallet_addr = hatchery.createUserWallet(sally, ambassador_wallet, False, 1, sender=sally)
+    another_wallet = UserWallet.at(another_wallet_addr)
+    
+    # Configure and add rewards
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add very small rewards amount
+    rewards_amount = 10  # Only 10 wei
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build up massive global points with user_wallet
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000000 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=10000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Give another wallet significant points to ensure global points remain
+    loot_distributor.updateDepositPointsWithNewValue(another_wallet.address, 100000 * EIGHTEEN_DECIMALS, sender=another_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(another_wallet.address, sender=switchboard_alpha.address)
+    
+    # Give fresh wallet minimal points
+    loot_distributor.updateDepositPointsWithNewValue(fresh_wallet.address, 1, sender=fresh_wallet.address)
+    boa.env.time_travel(blocks=1)
+    loot_distributor.updateDepositPoints(fresh_wallet.address, sender=switchboard_alpha.address)
+    
+    # Fresh wallet's share will be so small it rounds to 0
+    # With other wallets having points, global points will remain > 0
+    # Try to claim - should fail because calculated reward is 0
+    with boa.reverts("nothing to claim"):
+        loot_distributor.claimDepositRewards(fresh_wallet.address, sender=charlie)
+
+
+def test_claim_deposit_rewards_event_emission(loot_distributor, user_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha):
+    """ Test DepositRewardsClaimed event is emitted correctly """
+    
+    # Setup rewards and points
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 200 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Claim rewards
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # Check event
+    event = filter_logs(loot_distributor, 'DepositRewardsClaimed')[0]
+    assert event.user == user_wallet.address
+    assert event.asset == alpha_token.address
+    assert event.userRewards == user_rewards
+    assert event.remainingRewards == rewards_amount - user_rewards
+
+
+def test_claim_deposit_rewards_partial_balance(loot_distributor, user_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha):
+    """ Test claiming when contract has less balance than recorded rewards """
+    
+    # Setup rewards and points
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Remove some balance
+    alpha_token.transfer(alpha_token_whale, 600 * EIGHTEEN_DECIMALS, sender=loot_distributor.address)
+    
+    # Build points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # User claims - should get their proportional share of available balance
+    initial_balance = alpha_token.balanceOf(user_wallet.address)
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # Verify user got rewards based on available balance (400e18)
+    assert user_rewards <= 400 * EIGHTEEN_DECIMALS
+    assert alpha_token.balanceOf(user_wallet.address) == initial_balance + user_rewards
+
+
+def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wallet, governance, bob, alpha_token, alpha_token_whale, setUserWalletConfig, undy_hq):
+    """ Test claiming fails if not the current loot distributor """
+    
+    # Setup rewards and points
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    
+    # Deploy a new loot distributor
+    new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq)
+
+    # Update undy hq with new loot distributor
+    assert undy_hq.startAddressUpdateToRegistry(7, new_loot_distributor, sender=governance.address)
+    boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+    assert undy_hq.confirmAddressUpdateToRegistry(7, sender=governance.address)
+    
+    # Try to claim from old distributor - should fail
+    with boa.reverts("not current loot distributor"):
+        loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+
+
+def test_claim_deposit_rewards_twice(loot_distributor, user_wallet, ambassador_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha, hatchery, charlie, ledger):
+    """ Test user cannot claim rewards twice """
+    
+    # Create another wallet to ensure global points remain
+    another_wallet_addr = hatchery.createUserWallet(charlie, ambassador_wallet, False, 1, sender=charlie)
+    another_wallet = UserWallet.at(another_wallet_addr)
+    
+    # Setup rewards and points
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor.address, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token.address, rewards_amount, sender=alpha_token_whale)
+    
+    # Build points for both wallets
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    loot_distributor.updateDepositPointsWithNewValue(another_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=another_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    loot_distributor.updateDepositPoints(another_wallet.address, sender=switchboard_alpha.address)
+    
+    # First claim succeeds
+    loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # Verify user's points are now 0
+    user_points, global_points = ledger.getUserAndGlobalPoints(user_wallet.address)
+    assert user_points.depositPoints == 0
+    assert global_points.depositPoints > 0  # Global points remain due to another_wallet
+    
+    # Second claim should fail because user has no points
+    with boa.reverts("nothing to claim"):
+        loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
