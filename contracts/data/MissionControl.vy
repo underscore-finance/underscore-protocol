@@ -59,7 +59,7 @@ struct ProfitCalcConfig:
     maxYieldIncrease: uint256
     performanceFee: uint256
 
-struct AmbassadorConfig:
+struct LootDistroConfig:
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
@@ -149,7 +149,7 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
 
 @view
 @external
-def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig:
+def getLootDistroConfig(_asset: address) -> LootDistroConfig:
     assetConfig: cs.AssetConfig = self.assetConfig[_asset]
 
     ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
@@ -163,8 +163,8 @@ def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConf
         bonusRatio = walletConfig.defaultYieldBonusRatio
         altBonusAsset = walletConfig.defaultYieldAltBonusAsset
 
-    return AmbassadorConfig(
-        ambassador = _ambassador,
+    return LootDistroConfig(
+        ambassador = empty(address),
         ambassadorRevShare = ambassadorRevShare,
         ambassadorBonusRatio = ambassadorBonusRatio,
         bonusRatio = bonusRatio,

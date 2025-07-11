@@ -31,7 +31,7 @@ interface Appraiser:
     def getPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
 
 interface MissionControl:
-    def getAmbassadorConfig(_ambassador: address, _asset: address) -> AmbassadorConfig: view
+    def getLootDistroConfig(_asset: address) -> LootDistroConfig: view
     def getDepositRewardsAsset() -> address: view
 
 interface UserWalletConfig:
@@ -46,7 +46,7 @@ struct PointsData:
     depositPoints: uint256
     lastUpdate: uint256
 
-struct AmbassadorConfig:
+struct LootDistroConfig:
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
@@ -136,7 +136,7 @@ def addLootFromSwapOrRewards(
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, feeAmount, default_return_value=True) # dev: transfer failed
 
     # ambassador rev share
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, _missionControl, ledger)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, _asset, _missionControl, ledger)
     if config.ambassador != empty(address):
         self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
@@ -156,7 +156,7 @@ def addLootFromYieldProfit(
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
-    config: AmbassadorConfig = self._getAmbassadorConfig(msg.sender, _asset, _missionControl, ledger)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, _asset, _missionControl, ledger)
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     if _feeAmount != 0 and config.ambassador != empty(address):
@@ -175,7 +175,7 @@ def _handleAmbassadorTxFee(
     _asset: address,
     _feeAmount: uint256,
     _action: wi.ActionType,
-    _config: AmbassadorConfig,
+    _config: LootDistroConfig,
 ):
     feeRatio: uint256 = _config.ambassadorRevShare.yieldRatio
     if _action == wi.ActionType.SWAP:
@@ -187,7 +187,7 @@ def _handleAmbassadorTxFee(
     ambassadorRatio: uint256 = min(feeRatio, HUNDRED_PERCENT)
     fee: uint256 = min(_feeAmount * ambassadorRatio // HUNDRED_PERCENT, staticcall IERC20(_asset).balanceOf(self))
     if fee != 0:
-        self._addClaimableLootToAmbassador(_config.ambassador, _asset, fee)
+        self._addClaimableLootToUser(_config.ambassador, _asset, fee)
 
 
 ###############
@@ -195,15 +195,12 @@ def _handleAmbassadorTxFee(
 ###############
 
 
-# yield bonus
-
-
 @internal
 def _handleYieldBonus(
     _user: address,
     _asset: address,
     _yieldRealized: uint256,
-    _config: AmbassadorConfig,
+    _config: LootDistroConfig,
     _missionControl: address,
     _appraiser: address,
     _legoBook: address,
@@ -225,9 +222,9 @@ def _handleYieldBonus(
     if pricePerShare == 0:
         return
 
-    # finalize the bonus asset and amount
-    bonusAsset: address = empty(address)
-    bonusAssetYieldRealized: uint256 = 0
+    # default will be in-kind bonus -- same as the `_asset`
+    bonusAsset: address = _asset
+    bonusAssetYieldRealized: uint256 = _yieldRealized
 
     # alt bonus asset -- (i.e. UNDY or RIPE tokens)
     if _config.altBonusAsset != empty(address):
@@ -239,27 +236,27 @@ def _handleYieldBonus(
         bonusAsset = _config.underlyingAsset
         bonusAssetYieldRealized = _yieldRealized * pricePerShare // (10 ** _config.decimals)
 
-    # in-kind bonus -- same as the `_asset`
-    else:
-        bonusAsset = _asset
-        bonusAssetYieldRealized = _yieldRealized
-
     # check deposit rewards asset
-    spokenFor: uint256 = 0
+    reservedForDepositRewards: uint256 = 0
     depositRewards: DepositRewards = self.depositRewards
     if bonusAsset == depositRewards.asset:
-        spokenFor = depositRewards.amount
+        reservedForDepositRewards = depositRewards.amount
+
+    currentBalance: uint256 = staticcall IERC20(bonusAsset).balanceOf(self)
 
     # user bonus
     userBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.bonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
     if userBonusAmount != 0:
-        self._handleSpecificYieldBonus(bonusAsset, userBonusAmount, _user, spokenFor)
+        userBonusAmount = self._handleSpecificYieldBonus(bonusAsset, userBonusAmount, _user, currentBalance, reservedForDepositRewards)
 
     # ambassador bonus
     if _config.ambassador != empty(address):
         ambassadorBonusAmount: uint256 = min(bonusAssetYieldRealized * _config.ambassadorBonusRatio // HUNDRED_PERCENT, bonusAssetYieldRealized)
         if ambassadorBonusAmount != 0:
-            self._handleSpecificYieldBonus(bonusAsset, ambassadorBonusAmount, _config.ambassador, spokenFor)
+            self._handleSpecificYieldBonus(bonusAsset, ambassadorBonusAmount, _config.ambassador, currentBalance, reservedForDepositRewards)
+
+
+# alt bonus asset
 
 
 @view
@@ -267,7 +264,7 @@ def _handleYieldBonus(
 def _getAltBonusAssetAmount(
     _pricePerShare: uint256,
     _yieldRealized: uint256,
-    _config: AmbassadorConfig,
+    _config: LootDistroConfig,
     _missionControl: address,
     _appraiser: address,
     _legoBook: address,
@@ -286,54 +283,63 @@ def _getAltBonusAssetAmount(
 
     # make sure we can get price info for alt bonus asset
     altBonusAssetPrice: uint256 = staticcall Appraiser(_appraiser).getPrice(_config.altBonusAsset, _missionControl, _legoBook, _ledger)
+    if altBonusAssetPrice == 0:
+        return 0
+
     altDecimals: uint256 = convert(staticcall IERC20Detailed(_config.altBonusAsset).decimals(), uint256)
     return usdValue * (10 ** altDecimals) // altBonusAssetPrice
 
 
+# handle specific yield bonus
+
+
 @internal
-def _handleSpecificYieldBonus(_bonusAsset: address, _bonusAmount: uint256, _recipient: address, _spokenFor: uint256):
-    currentBalance: uint256 = staticcall IERC20(_bonusAsset).balanceOf(self)
-    spokenFor: uint256 = self.totalClaimableLoot[_bonusAsset] + _spokenFor
+def _handleSpecificYieldBonus(
+    _bonusAsset: address,
+    _bonusAmount: uint256,
+    _recipient: address,
+    _currentBalance: uint256,
+    _reservedForDepositRewards: uint256,
+) -> uint256:
+    unavailableAmount: uint256 = self.totalClaimableLoot[_bonusAsset] + _reservedForDepositRewards
 
     availableForBonus: uint256 = 0
-    if currentBalance > spokenFor:
-        availableForBonus = currentBalance - spokenFor
+    if _currentBalance > unavailableAmount:
+        availableForBonus = _currentBalance - unavailableAmount
 
     bonusAmount: uint256 = min(_bonusAmount, availableForBonus)
     if bonusAmount != 0:
-        self._addClaimableLootToAmbassador(_recipient, _bonusAsset, bonusAmount)
+        self._addClaimableLootToUser(_recipient, _bonusAsset, bonusAmount)
+    
+    return bonusAmount
 
 
 ######################
-# Ambassadors Config #
+# Loot Distro Config #
 ######################
 
 
 @view
 @external
-def getAmbassadorConfig(_wallet: address, _asset: address) -> AmbassadorConfig:
-    return self._getAmbassadorConfig(_wallet, _asset, addys._getMissionControlAddr(), addys._getLedgerAddr())
+def getLootDistroConfig(_wallet: address, _asset: address) -> LootDistroConfig:
+    return self._getLootDistroConfig(_wallet, _asset, addys._getMissionControlAddr(), addys._getLedgerAddr())
 
 
 @view
 @internal
-def _getAmbassadorConfig(
+def _getLootDistroConfig(
     _wallet: address,
     _asset: address,
     _missionControl: address,
     _ledger: address,
-) -> AmbassadorConfig:
-    ambassador: address = staticcall Ledger(_ledger).ambassadors(_wallet)
-    if ambassador == empty(address):
-        return empty(AmbassadorConfig)
-
-    # get mission control (if necessary)
+) -> LootDistroConfig:
     missionControl: address = _missionControl
     if _missionControl == empty(address):
         missionControl = addys._getMissionControlAddr()
 
     # config
-    config: AmbassadorConfig = staticcall MissionControl(missionControl).getAmbassadorConfig(ambassador, _asset)
+    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+    config.ambassador = staticcall Ledger(_ledger).ambassadors(_wallet)
 
     # if no specific config, fallback to vault token registration
     if config.decimals == 0:
@@ -409,7 +415,7 @@ def claimLoot(_user: address) -> uint256:
     # deregister assets
     if len(assetsToDeregister) != 0:
         for asset: address in assetsToDeregister:
-            self._deregisterClaimableAssetForAmbassador(_user, asset)
+            self._deregisterClaimableAssetForUser(_user, asset)
 
     assert assetsClaimed != 0 # dev: no assets claimed
     return assetsClaimed
@@ -443,55 +449,55 @@ def getTotalClaimableAssets(_user: address) -> uint256:
 #####################
 
 
-# add loot to ambassador
+# add loot to user
 
 
 @internal
-def _addClaimableLootToAmbassador(_ambassador: address, _asset: address, _amount: uint256):
+def _addClaimableLootToUser(_user: address, _asset: address, _amount: uint256):
     self.totalClaimableLoot[_asset] += _amount
-    self.claimableLoot[_ambassador][_asset] += _amount
-    self._registerClaimableAssetForAmbassador(_ambassador, _asset)
+    self.claimableLoot[_user][_asset] += _amount
+    self._registerClaimableAssetForUser(_user, _asset)
 
 
 # register claimable asset
 
 
 @internal
-def _registerClaimableAssetForAmbassador(_ambassador: address, _asset: address):
-    if self.indexOfClaimableAsset[_ambassador][_asset] != 0:
+def _registerClaimableAssetForUser(_user: address, _asset: address):
+    if self.indexOfClaimableAsset[_user][_asset] != 0:
         return
 
-    aid: uint256 = self.numClaimableAssets[_ambassador]
+    aid: uint256 = self.numClaimableAssets[_user]
     if aid == 0:
         aid = 1 # not using 0 index
-    self.claimableAssets[_ambassador][aid] = _asset
-    self.indexOfClaimableAsset[_ambassador][_asset] = aid
-    self.numClaimableAssets[_ambassador] = aid + 1
+    self.claimableAssets[_user][aid] = _asset
+    self.indexOfClaimableAsset[_user][_asset] = aid
+    self.numClaimableAssets[_user] = aid + 1
 
 
 # deregister asset
 
 
 @internal
-def _deregisterClaimableAssetForAmbassador(_ambassador: address, _asset: address) -> bool:
-    numAssets: uint256 = self.numClaimableAssets[_ambassador]
+def _deregisterClaimableAssetForUser(_user: address, _asset: address) -> bool:
+    numAssets: uint256 = self.numClaimableAssets[_user]
     if numAssets == 0:
         return False
 
-    targetIndex: uint256 = self.indexOfClaimableAsset[_ambassador][_asset]
+    targetIndex: uint256 = self.indexOfClaimableAsset[_user][_asset]
     if targetIndex == 0:
         return False
 
     # update data
     lastIndex: uint256 = numAssets - 1
-    self.numClaimableAssets[_ambassador] = lastIndex
-    self.indexOfClaimableAsset[_ambassador][_asset] = 0
+    self.numClaimableAssets[_user] = lastIndex
+    self.indexOfClaimableAsset[_user][_asset] = 0
 
     # get last item, replace the removed item
     if targetIndex != lastIndex:
-        lastItem: address = self.claimableAssets[_ambassador][lastIndex]
-        self.claimableAssets[_ambassador][targetIndex] = lastItem
-        self.indexOfClaimableAsset[_ambassador][lastItem] = targetIndex
+        lastItem: address = self.claimableAssets[_user][lastIndex]
+        self.claimableAssets[_user][targetIndex] = lastItem
+        self.indexOfClaimableAsset[_user][lastItem] = targetIndex
 
     return True
 

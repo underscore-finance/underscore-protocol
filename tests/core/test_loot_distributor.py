@@ -5,13 +5,13 @@ from contracts.core.userWallet import UserWallet
 from conf_utils import filter_logs
 
 
-#####################
-# Ambassador Config #
-#####################
+######################
+# Loot Distro Config #
+######################
 
 
-def test_get_ambassador_config_with_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
-    """ Test getAmbassadorConfig when asset config is set in mission control """
+def test_get_loot_distro_config_with_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test getLootDistroConfig when asset config is set in mission control """
     
     # Create ambassador rev share config
     ambassadorRevShare = createAmbassadorRevShare(
@@ -35,7 +35,7 @@ def test_get_ambassador_config_with_asset_config(loot_distributor, ambassador_wa
     )
     
     # Get ambassador config
-    config = loot_distributor.getAmbassadorConfig(user_wallet.address, alpha_token.address)
+    config = loot_distributor.getLootDistroConfig(user_wallet.address, alpha_token.address)
     
     # Verify the config
     assert config.ambassador == ambassador_wallet.address
@@ -47,8 +47,8 @@ def test_get_ambassador_config_with_asset_config(loot_distributor, ambassador_wa
     assert config.decimals == alpha_token.decimals()  # Should get decimals from the token
 
 
-def test_get_ambassador_config_no_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setUserWalletConfig, createAmbassadorRevShare):
-    """ Test getAmbassadorConfig when no asset config is set (defaults to global config) """
+def test_get_loot_distro_config_no_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setUserWalletConfig, createAmbassadorRevShare):
+    """ Test getLootDistroConfig when no asset config is set (defaults to global config) """
     
     # Create global ambassador rev share settings
     ambassadorRevShare = createAmbassadorRevShare(
@@ -64,7 +64,7 @@ def test_get_ambassador_config_no_asset_config(loot_distributor, ambassador_wall
     )
     
     # Get ambassador config (no specific asset config set)
-    config = loot_distributor.getAmbassadorConfig(user_wallet.address, alpha_token.address)
+    config = loot_distributor.getLootDistroConfig(user_wallet.address, alpha_token.address)
     
     # Verify the config uses global defaults
     assert config.ambassador == ambassador_wallet.address
@@ -76,8 +76,8 @@ def test_get_ambassador_config_no_asset_config(loot_distributor, ambassador_wall
     assert config.decimals == alpha_token.decimals()  # Should get decimals from the token
 
 
-def test_get_ambassador_config_with_vault_registration(loot_distributor, ambassador_wallet, user_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, ledger, setUserWalletConfig, createAmbassadorRevShare):
-    """ Test getAmbassadorConfig when there is a registered vault token (with underlying asset, decimals info) """
+def test_get_loot_distro_config_with_vault_registration(loot_distributor, ambassador_wallet, user_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, ledger, setUserWalletConfig, createAmbassadorRevShare):
+    """ Test getLootDistroConfig when there is a registered vault token (with underlying asset, decimals info) """
     
     # Set up global defaults first
     ambassadorRevShare = createAmbassadorRevShare(
@@ -107,7 +107,7 @@ def test_get_ambassador_config_with_vault_registration(loot_distributor, ambassa
     assert vault_token.decimals == yield_vault_token.decimals()
     
     # Get ambassador config for vault token (no specific config set)
-    config = loot_distributor.getAmbassadorConfig(user_wallet.address, yield_vault_token.address)
+    config = loot_distributor.getLootDistroConfig(user_wallet.address, yield_vault_token.address)
     
     # Verify the config uses global defaults for rev share but vault registration for underlying/decimals
     assert config.ambassador == ambassador_wallet.address
@@ -812,6 +812,449 @@ def test_add_loot_from_yield_profit_rebasing_asset_no_bonus(loot_distributor, us
     assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # 1 base + vault token only
     assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_vault_token) == 1
     assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_underlying_token) == 0  # Not registered
+
+
+def test_add_loot_from_yield_profit_alt_bonus_asset_config(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, undy_token, whale, mock_yield_lego, mock_ripe, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test yield bonus with alternative bonus asset (UNDY token) configured at asset level """
+    
+    # Seed loot distributor with UNDY tokens for bonus payments
+    undy_seed_amount = 5000 * EIGHTEEN_DECIMALS
+    undy_token.transfer(loot_distributor, undy_seed_amount, sender=whale)
+    
+    # Set up prices
+    undy_price = 5 * EIGHTEEN_DECIMALS  # $5 per UNDY
+    underlying_price = 10 * EIGHTEEN_DECIMALS  # $10 per underlying token
+    mock_ripe.setPrice(undy_token, undy_price)
+    mock_ripe.setPrice(yield_underlying_token, underlying_price)
+    
+    # Set up ambassador config with yield fee share and bonus ratios
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,
+        _rewardsRatio=30_00,
+        _yieldRatio=50_00,     # 50% of performance fees go to ambassador
+    )
+    
+    # Create yield config with UNDY as alt bonus asset
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=10_00,  # 10% ambassador bonus
+        _bonusRatio=20_00,            # 20% user bonus
+        _altBonusAsset=undy_token.address,  # Use UNDY as bonus asset
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Register vault token by making a deposit (creates price per share)
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate yield profit
+    performance_fee = 20 * EIGHTEEN_DECIMALS  # 20 vault tokens as performance fee
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS  # 100 vault tokens total yield
+    
+    # Transfer the performance fee to loot distributor
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Verify ambassador gets 50% of the performance fee in vault tokens
+    expected_fee_share = performance_fee * 50_00 // 100_00  # 10 vault tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
+    
+    # Calculate expected UNDY bonuses
+    # Total yield value = 100 vault tokens * 1.0 price per share * $10 underlying = $1000
+    # User bonus: 20% of $1000 = $200 worth of UNDY = $200 / $5 = 40 UNDY
+    # Ambassador bonus: 10% of $1000 = $100 worth of UNDY = $100 / $5 = 20 UNDY
+    expected_user_bonus_undy = 40 * EIGHTEEN_DECIMALS
+    expected_ambassador_bonus_undy = 20 * EIGHTEEN_DECIMALS
+    
+    assert loot_distributor.claimableLoot(user_wallet, undy_token) == expected_user_bonus_undy
+    assert loot_distributor.claimableLoot(ambassador_wallet, undy_token) == expected_ambassador_bonus_undy
+    
+    # Verify total claimable
+    assert loot_distributor.totalClaimableLoot(yield_vault_token) == expected_fee_share
+    assert loot_distributor.totalClaimableLoot(undy_token) == expected_user_bonus_undy + expected_ambassador_bonus_undy
+    
+    # Verify UNDY balance hasn't changed yet (only allocated, not transferred)
+    assert undy_token.balanceOf(loot_distributor) == undy_seed_amount
+
+
+def test_add_loot_from_yield_profit_alt_bonus_asset_global_config(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, undy_token, whale, mock_yield_lego, mock_ripe, setUserWalletConfig, createAmbassadorRevShare):
+    """ Test yield bonus with alternative bonus asset configured at global level """
+    
+    # Seed loot distributor with UNDY tokens
+    undy_seed_amount = 3000 * EIGHTEEN_DECIMALS
+    undy_token.transfer(loot_distributor, undy_seed_amount, sender=whale)
+    
+    # Set up prices
+    undy_price = 2 * EIGHTEEN_DECIMALS  # $2 per UNDY
+    underlying_price = 20 * EIGHTEEN_DECIMALS  # $20 per underlying token
+    mock_ripe.setPrice(undy_token, undy_price)
+    mock_ripe.setPrice(yield_underlying_token, underlying_price)
+    
+    # Create global ambassador rev share settings
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,
+        _rewardsRatio=30_00,
+        _yieldRatio=40_00,
+    )
+    
+    # Set global config with UNDY as default alt bonus asset
+    setUserWalletConfig(
+        _ambassadorRevShare=ambassadorRevShare,
+        _defaultYieldAmbassadorBonusRatio=5_00,  # 5% global ambassador bonus
+        _defaultYieldBonusRatio=15_00,           # 15% global user bonus
+        _defaultYieldAltBonusAsset=undy_token.address,  # UNDY as default bonus asset
+    )
+    
+    # Don't set any asset config - will use global config entirely
+    
+    # Register vault token
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate yield profit
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    total_yield_amount = 50 * EIGHTEEN_DECIMALS
+    
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Verify fees
+    expected_fee_share = performance_fee * 40_00 // 100_00  # 4 vault tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
+    
+    # Calculate expected UNDY bonuses using global ratios
+    # Total yield value = 50 vault tokens * 1.0 price per share * $20 underlying = $1000
+    # User bonus: 15% of $1000 = $150 worth of UNDY = $150 / $2 = 75 UNDY
+    # Ambassador bonus: 5% of $1000 = $50 worth of UNDY = $50 / $2 = 25 UNDY
+    expected_user_bonus_undy = 75 * EIGHTEEN_DECIMALS
+    expected_ambassador_bonus_undy = 25 * EIGHTEEN_DECIMALS
+    
+    assert loot_distributor.claimableLoot(user_wallet, undy_token) == expected_user_bonus_undy
+    assert loot_distributor.claimableLoot(ambassador_wallet, undy_token) == expected_ambassador_bonus_undy
+
+
+def test_add_loot_from_yield_profit_alt_bonus_asset_no_ambassador(loot_distributor, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, undy_token, whale, mock_yield_lego, mock_ripe, setAssetConfig, createAssetYieldConfig, ledger, hatchery, charlie):
+    """ Test yield bonus with alt bonus asset when there's no ambassador - user still gets bonus """
+    
+    # Create a new user wallet without ambassador (explicitly pass ZERO_ADDRESS as ambassador)
+    wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, True, 1, sender=charlie)
+    user_wallet_no_ambassador = UserWallet.at(wallet_addr)
+   
+    # Verify no ambassador is set
+    assert ledger.ambassadors(user_wallet_no_ambassador) == ZERO_ADDRESS
+    
+    # Seed loot distributor with UNDY tokens
+    undy_seed_amount = 2000 * EIGHTEEN_DECIMALS
+    undy_token.transfer(loot_distributor, undy_seed_amount, sender=whale)
+    
+    # Set up prices
+    mock_ripe.setPrice(undy_token, 4 * EIGHTEEN_DECIMALS)  # $4 per UNDY
+    mock_ripe.setPrice(yield_underlying_token, 10 * EIGHTEEN_DECIMALS)  # $10
+    
+    # Create yield config with UNDY as alt bonus asset
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=10_00,  # Will be ignored since no ambassador
+        _bonusRatio=25_00,            # 25% user bonus
+        _altBonusAsset=undy_token.address,
+    )
+    
+    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    
+    # Register vault token
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate yield profit (no performance fee since no ambassador)
+    total_yield_amount = 80 * EIGHTEEN_DECIMALS
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        0,  # No performance fee
+        total_yield_amount,
+        sender=user_wallet_no_ambassador.address
+    )
+    
+    # Calculate expected bonus
+    # 80 vault tokens * $10 = $800 worth of yield
+    # User bonus: 25% of $800 = $200 worth of UNDY
+    # At $4 per UNDY = 50 UNDY tokens
+    expected_user_bonus_undy = 50 * EIGHTEEN_DECIMALS
+    
+    # Verify user gets bonus even without ambassador
+    assert loot_distributor.claimableLoot(user_wallet_no_ambassador.address, undy_token) == expected_user_bonus_undy
+    assert loot_distributor.totalClaimableLoot(undy_token) == expected_user_bonus_undy
+    
+    # No vault tokens should be claimable (no fees)
+    assert loot_distributor.totalClaimableLoot(yield_vault_token) == 0
+    
+    # Verify UNDY balance is still in the contract (claimable but not yet claimed)
+    assert undy_token.balanceOf(loot_distributor) == undy_seed_amount
+
+
+def test_add_loot_from_yield_profit_alt_bonus_asset_insufficient_balance(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, undy_token, whale, mock_yield_lego, mock_ripe, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test yield bonus with alt bonus asset when there's insufficient UNDY balance - user gets priority """
+    
+    # Seed loot distributor with LIMITED UNDY tokens
+    undy_seed_amount = 30 * EIGHTEEN_DECIMALS  # Only 30 UNDY
+    undy_token.transfer(loot_distributor, undy_seed_amount, sender=whale)
+    
+    # Set up prices
+    mock_ripe.setPrice(undy_token, 1 * EIGHTEEN_DECIMALS)  # $1 per UNDY
+    mock_ripe.setPrice(yield_underlying_token, 10 * EIGHTEEN_DECIMALS)  # $10
+    
+    # Set up config
+    ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=40_00)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
+        _bonusRatio=30_00,            # 30% user bonus
+        _altBonusAsset=undy_token.address,
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate large yield profit
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS  # Large yield
+    
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Calculate what bonuses WOULD be without balance constraints
+    # Total yield value = 100 * 1.0 * $10 = $1000
+    # User bonus: 30% of $1000 = $300 = 300 UNDY
+    # Ambassador bonus: 20% of $1000 = $200 = 200 UNDY
+    
+    # With only 30 UNDY available and the new priority logic:
+    # User gets their bonus first: min(300, 30) = 30 UNDY
+    # Ambassador gets what's left: min(200, 0) = 0 UNDY
+    
+    user_bonus = loot_distributor.claimableLoot(user_wallet, undy_token)
+    ambassador_bonus = loot_distributor.claimableLoot(ambassador_wallet, undy_token)
+    
+    # User gets all available UNDY
+    assert user_bonus == undy_seed_amount
+    assert ambassador_bonus == 0
+    
+    # Total distributed should equal available balance
+    assert user_bonus + ambassador_bonus == undy_seed_amount
+    
+    # Verify UNDY balance is fully allocated (not transferred yet)
+    assert undy_token.balanceOf(loot_distributor) == undy_seed_amount
+    
+    # Also verify ambassador gets their fee share in vault tokens
+    expected_fee_share = performance_fee * 40_00 // 100_00  # 4 vault tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
+
+
+def test_add_loot_from_yield_profit_deposit_rewards_reservation(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig, setUserWalletConfig):
+    """ Test yield bonus respects deposit rewards reservation when bonus asset is same as deposit rewards asset """
+    
+    # Set up deposit rewards to use underlying token
+    setUserWalletConfig(_depositRewardsAsset=yield_underlying_token.address)
+    
+    # Add deposit rewards
+    deposit_rewards_amount = 50 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(loot_distributor, deposit_rewards_amount, sender=yield_underlying_token_whale)
+    loot_distributor.addDepositRewards(yield_underlying_token, deposit_rewards_amount, sender=yield_underlying_token_whale)
+    
+    # Seed additional underlying tokens for bonuses
+    bonus_seed_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(loot_distributor, bonus_seed_amount, sender=yield_underlying_token_whale)
+    
+    # Set up config for underlying asset bonuses
+    ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=40_00)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
+        _bonusRatio=30_00,            # 30% user bonus
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Verify initial state
+    assert yield_underlying_token.balanceOf(loot_distributor) == deposit_rewards_amount + bonus_seed_amount
+    assert loot_distributor.depositRewards().amount == deposit_rewards_amount
+    
+    # Simulate yield profit
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS
+    
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Calculate expected bonuses
+    # Total yield in underlying: 100 underlying tokens
+    # User bonus: 30% = 30 underlying tokens
+    # Ambassador bonus: 20% = 20 underlying tokens
+    # Total bonuses: 50 underlying tokens
+    
+    # Available for bonuses = 150 total - 50 reserved = 100 underlying
+    # So all bonuses should be paid
+    
+    assert loot_distributor.claimableLoot(user_wallet, yield_underlying_token) == 30 * EIGHTEEN_DECIMALS
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == 20 * EIGHTEEN_DECIMALS
+    
+    # Verify deposit rewards are still protected
+    assert loot_distributor.depositRewards().amount == deposit_rewards_amount
+    
+    # Verify total balance is correct (allocated bonuses are still in contract)
+    assert yield_underlying_token.balanceOf(loot_distributor) == deposit_rewards_amount + bonus_seed_amount
+
+
+def test_add_loot_from_yield_profit_deposit_rewards_limits_bonuses(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig, setUserWalletConfig):
+    """ Test yield bonus is limited when deposit rewards take up most of the balance """
+    
+    # Set up deposit rewards to use underlying token
+    setUserWalletConfig(_depositRewardsAsset=yield_underlying_token.address)
+    
+    # Add deposit rewards
+    deposit_rewards_amount = 80 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(loot_distributor, deposit_rewards_amount, sender=yield_underlying_token_whale)
+    loot_distributor.addDepositRewards(yield_underlying_token, deposit_rewards_amount, sender=yield_underlying_token_whale)
+    
+    # Seed only a small amount for bonuses
+    bonus_seed_amount = 20 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(loot_distributor, bonus_seed_amount, sender=yield_underlying_token_whale)
+    
+    # Set up config
+    ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=40_00)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
+        _bonusRatio=30_00,            # 30% user bonus
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Register vault token
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Verify initial state
+    assert yield_underlying_token.balanceOf(loot_distributor) == deposit_rewards_amount + bonus_seed_amount
+    
+    # Simulate yield profit
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS
+    
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Calculate expected bonuses
+    # Total yield in underlying: 100 underlying tokens
+    # User wants: 30% = 30 underlying tokens
+    # Ambassador wants: 20% = 20 underlying tokens
+    
+    # But only 20 available (100 total - 80 reserved)
+    # User gets priority: min(30, 20) = 20
+    # Ambassador gets: min(20, 0) = 0
+    
+    assert loot_distributor.claimableLoot(user_wallet, yield_underlying_token) == 20 * EIGHTEEN_DECIMALS
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == 0
+    
+    # Verify deposit rewards are still protected
+    assert loot_distributor.depositRewards().amount == deposit_rewards_amount
 
 
 ##############
