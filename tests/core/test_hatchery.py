@@ -555,3 +555,248 @@ def test_create_agent_time_lock_config(hatchery, alice, setUserWalletConfig):
     assert AgentWrapper.at(agent_address).MIN_TIMELOCK() == min_lock
     assert AgentWrapper.at(agent_address).MAX_TIMELOCK() == max_lock
 
+
+###############
+# Trial Funds #
+###############
+
+
+@pytest.fixture(scope="module")
+def setupTrialFundsWallet(setUserWalletConfig, hatchery, alice, alpha_token, alpha_token_whale):
+    def setupTrialFundsWallet():
+        trial_amount = 10 * EIGHTEEN_DECIMALS
+        setUserWalletConfig(
+            _trialAsset=alpha_token.address,
+            _trialAmount=trial_amount
+        )
+        
+        # Transfer trial funds to hatchery
+        alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
+        
+        # Create wallet with trial funds
+        wallet_address = hatchery.createUserWallet(sender=alice)
+        return UserWallet.at(wallet_address)
+
+    yield setupTrialFundsWallet
+
+
+# does wallet have trial funds
+
+
+def test_does_wallet_still_have_trial_funds_all_in_wallet(hatchery, alpha_token, setupTrialFundsWallet):
+    """Test doesWalletStillHaveTrialFunds when all funds are in the wallet"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Verify wallet has trial funds
+    assert alpha_token.balanceOf(wallet) == 10 * EIGHTEEN_DECIMALS
+    
+    # Check that wallet still has trial funds
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == True
+
+
+def test_does_wallet_still_have_trial_funds_all_in_single_vault(
+    hatchery, alice, alpha_token, setupTrialFundsWallet, alpha_token_vault
+):
+    """Test doesWalletStillHaveTrialFunds when all funds are in a single vault"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Owner deposits all trial funds into vault
+    wallet.depositForYield(
+        1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        sender=alice,
+    )
+    
+    # Verify wallet has no direct alpha tokens but has vault shares
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) != 0
+    
+    # Check that wallet still has trial funds (in the vault)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet.address) == True
+
+
+def test_does_wallet_still_have_trial_funds_split_across_vaults(
+    hatchery, alice, alpha_token, setupTrialFundsWallet,
+    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3
+):
+    """Test doesWalletStillHaveTrialFunds when funds are split across multiple vaults"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Split funds across vaults (3, 3, 3 units each, keep 1 in wallet)
+    # Total deposited: 9 units, remaining in wallet: 1 unit
+    
+    # Deposit 3 units into vault 1
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Deposit 3 units into vault 2
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_2.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Deposit 3 units into vault 3
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_3.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Verify balances
+    assert alpha_token.balanceOf(wallet) == EIGHTEEN_DECIMALS  # 1 unit left
+    assert alpha_token_vault.balanceOf(wallet) > 0
+    assert alpha_token_vault_2.balanceOf(wallet) > 0
+    assert alpha_token_vault_3.balanceOf(wallet) > 0
+    
+    # Check that wallet still has trial funds (split across vaults + wallet)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == True
+
+
+def test_does_wallet_still_have_trial_funds_below_threshold(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet,
+):
+    """Test doesWalletStillHaveTrialFunds when funds fall below 99% threshold"""
+
+    wallet = setupTrialFundsWallet()
+    trial_amount = 10 * EIGHTEEN_DECIMALS
+    
+    # Transfer out more than 1% to fall below threshold (transfer out 2%)
+    amount_to_transfer = trial_amount * 2 // 100  # 2% of trial amount
+    alpha_token.transfer(alice, amount_to_transfer, sender=wallet.address)
+    
+    # Verify wallet has less than 99% of trial funds
+    remaining = alpha_token.balanceOf(wallet)
+    assert remaining < (trial_amount * 99 // 100)
+    
+    # Check that wallet no longer has sufficient trial funds
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == False
+    
+    # Test edge case: exactly at 99% threshold
+    # First, send back some funds to get exactly to 99%
+    target_balance = trial_amount * 99 // 100
+    current_balance = alpha_token.balanceOf(wallet)
+    needed = target_balance - current_balance
+    
+    alpha_token.transfer(wallet.address, needed, sender=alpha_token_whale)
+    assert alpha_token.balanceOf(wallet) == target_balance
+    
+    # Should return True at exactly 99%
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == True
+
+
+def test_does_wallet_still_have_trial_funds_mixed_scenario(
+    hatchery, alice, alpha_token, setupTrialFundsWallet,
+    alpha_token_vault, alpha_token_vault_2
+):
+    """Test complex scenario with funds in wallet, vaults, and some spent"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Scenario: 4 units in wallet, 3 units in vault1, 2 units in vault2, 1 unit spent
+    # Total remaining: 9 units (90% of original)
+    
+    # Deposit 3 units into vault 1
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        3 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Deposit 2 units into vault 2
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_2.address,
+        2 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+
+    # Spend 1 unit
+    alpha_token.transfer(alice, EIGHTEEN_DECIMALS, sender=wallet.address)
+    
+    # Should have 4 units left in wallet
+    assert alpha_token.balanceOf(wallet) == 4 * EIGHTEEN_DECIMALS
+    
+    # Total is 90%, which is below 99% threshold
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == False
+
+
+def test_does_wallet_still_have_trial_funds_vault_gains_yield(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet,
+    alpha_token_vault
+):
+    """Test when vault gains yield, increasing share price"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Deposit 8 units into vault, keep 2 in wallet
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        8 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Spend 2 units from wallet (now have 8 units in vault only = 80%)
+    alpha_token.transfer(alice, 2 * EIGHTEEN_DECIMALS, sender=wallet.address)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == False
+    
+    # Simulate yield generation: add 2 units to vault
+    # This increases vault value by 25% (8 units -> 10 units)
+    # Share price goes from 1:1 to 1.25:1
+    boa.env.time_travel(seconds=3600)  # Move forward 1 hour
+    alpha_token.transfer(alpha_token_vault.address, 2 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+    
+    # Now wallet has 0 direct + 10 in vault = 100% of trial funds
+    # Should return True again
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == True
+
+
+def test_does_wallet_still_have_trial_funds_vault_loses_value(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet,
+    alpha_token_vault
+):
+    """Test when vault loses value, decreasing share price"""
+
+    wallet = setupTrialFundsWallet()
+    
+    # Deposit all 10 units into vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        10 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Initially should have 100% of trial funds
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == True
+    
+    # Simulate loss: remove 1 unit from vault
+    # This reduces vault from 10 units to 9 units (10% loss)
+    # Share price goes from 1:1 to 0.9:1
+    boa.env.time_travel(seconds=3600)  # Move forward 1 hour
+    alpha_token.transfer(alpha_token_whale, 1 * EIGHTEEN_DECIMALS, sender=alpha_token_vault.address)
+    
+    # Now wallet has shares worth only 90% of trial funds (9 units)
+    # Should return False (below 99% threshold)
+    assert hatchery.doesWalletStillHaveTrialFunds(wallet) == False
+
+

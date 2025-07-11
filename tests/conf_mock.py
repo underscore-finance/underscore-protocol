@@ -108,6 +108,16 @@ def alpha_token_vault(alpha_token):
 
 
 @pytest.fixture(scope="session")
+def alpha_token_vault_2(alpha_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", alpha_token, name="alpha_erc4626_vault_2")
+
+
+@pytest.fixture(scope="session")
+def alpha_token_vault_3(alpha_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", alpha_token, name="alpha_erc4626_vault_3")
+
+
+@pytest.fixture(scope="session")
 def alpha_token_whale(env, alpha_token, governance):
     whale = env.generate_address("alpha_token_whale")
     alpha_token.mint(whale, 100_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)

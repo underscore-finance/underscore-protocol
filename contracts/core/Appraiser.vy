@@ -688,7 +688,8 @@ def _getProfitCalcConfig(
 @view
 @external
 def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    return self._getAssetUsdValueConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), addys._getLedgerAddr())
+    a: addys.Addys = addys._getAddys()
+    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
 
 
 @view

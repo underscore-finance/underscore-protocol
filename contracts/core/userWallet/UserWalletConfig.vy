@@ -1136,6 +1136,12 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 # remove trial funds
 
 
+@view
+@external
+def getTrialFundsInfo() -> (address, uint256):
+    return self.trialFundsAsset, self.trialFundsAmount
+
+
 @external
 def removeTrialFunds() -> uint256:
     ad: ActionData = self._getActionDataBundle(0, msg.sender)

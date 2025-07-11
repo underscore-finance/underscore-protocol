@@ -18,9 +18,8 @@ from ethereum.ercs import IERC20Detailed
 interface UserWalletConfig:
     def preparePayment(asset: address, legoId: uint256, underlyingAsset: address, amount: uint256) -> (uint256, uint256): nonpayable
     def setWallet(_wallet: address) -> bool: nonpayable
+    def getTrialFundsInfo() -> (address, uint256): view
     def removeTrialFunds() -> uint256: nonpayable
-    def trialFundsAmount() -> uint256: view
-    def trialFundsAsset() -> address: view
     def owner() -> address: view
 
 interface Ledger:
@@ -43,7 +42,7 @@ interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
 interface Appraiser:
-    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256) -> uint256: view
+    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -250,7 +249,8 @@ def clawBackTrialFunds(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    assert addys._isSwitchboardAddr(msg.sender) or staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
+    if not addys._isSwitchboardAddr(msg.sender):
+        assert staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
     return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
 
 
@@ -263,8 +263,9 @@ def _clawBackTrialFunds(
     _appraiser: address,
     _ledger: address,
 ) -> uint256:
-    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
-    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
+    trialFundsAsset: address = empty(address)
+    trialFundsAmount: uint256 = 0
+    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(_walletConfig).getTrialFundsInfo()
     if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return 0
 
@@ -293,11 +294,11 @@ def _clawBackTrialFunds(
 
             # get underlying details
             config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook, _ledger)
-            if config.underlyingAsset != trialFundsAsset:
+            if config.underlyingAsset != trialFundsAsset or config.legoId == 0:
                 continue
 
             # get price per share for this vault token
-            pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks)
+            pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks, config.decimals)
             if pricePerShare == 0:
                 continue
 
@@ -351,13 +352,18 @@ def _doesWalletStillHaveTrialFunds(
     _appraiser: address,
     _ledger: address,
 ) -> bool:
-    trialFundsAmount: uint256 = staticcall UserWalletConfig(_walletConfig).trialFundsAmount()
-    trialFundsAsset: address = staticcall UserWalletConfig(_walletConfig).trialFundsAsset()
+    trialFundsAsset: address = empty(address)
+    trialFundsAmount: uint256 = 0
+    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(_walletConfig).getTrialFundsInfo()
     if trialFundsAmount == 0 or trialFundsAsset == empty(address):
         return True
 
+    # allow minor buffer to account for rounding errors in lending protocols
+    acceptableAmount: uint256 = trialFundsAmount * 99_00 // HUNDRED_PERCENT
+
+    # check the wallet directly
     amount: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
-    if amount >= trialFundsAmount:
+    if amount >= acceptableAmount:
         return True
 
     numAssets: uint256 = staticcall UserWallet(_user).numAssets()
@@ -365,7 +371,7 @@ def _doesWalletStillHaveTrialFunds(
         return False
 
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
-        if amount >= trialFundsAmount:
+        if amount >= acceptableAmount:
             return True
 
         asset: address = staticcall UserWallet(_user).assets(i)
@@ -373,7 +379,7 @@ def _doesWalletStillHaveTrialFunds(
             continue
 
         data: WalletAssetData = staticcall UserWallet(_user).assetData(asset)
-        if not data.isYieldAsset:
+        if not data.isYieldAsset or data.assetBalance == 0:
             continue
 
         # get underlying details
@@ -382,19 +388,19 @@ def _doesWalletStillHaveTrialFunds(
             continue
 
         # get current balance of vault token
-        vaultBalance: uint256 = staticcall IERC20(asset).balanceOf(_user)
-        if vaultBalance == 0:
+        assetBalance: uint256 = staticcall IERC20(asset).balanceOf(_user)
+        if assetBalance == 0:
             continue
 
         # get price per share for this vault token
-        pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks)
+        pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks, config.decimals)
         if pricePerShare == 0:
             continue
 
         # calculate underlying amount
-        amount += vaultBalance * pricePerShare // (10 ** config.decimals)
+        amount += assetBalance * pricePerShare // (10 ** config.decimals)
 
-    return amount >= trialFundsAmount
+    return amount >= acceptableAmount
 
 
 # get asset usd value config
