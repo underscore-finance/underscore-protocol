@@ -201,6 +201,8 @@ def mintOrRedeemAsset(
     assert extcall IERC20(_tokenIn).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
     extcall MockToken(_tokenIn).burn(amount)
 
+    amountOut: uint256 = amount
+
     # immediate mint (default)
     usdValue: uint256 = 0
     if self.immediateMintOrRedeem:
@@ -214,9 +216,9 @@ def mintOrRedeemAsset(
             tokenOut = _tokenOut,
             amount = amount,
         )
-        amount = 0
+        amountOut = 0
 
-    return amount, amount, not self.immediateMintOrRedeem, usdValue
+    return amount, amountOut, not self.immediateMintOrRedeem, usdValue
     
 
 @external

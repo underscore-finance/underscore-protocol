@@ -391,7 +391,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     mint_amount = 150 * EIGHTEEN_DECIMALS
     
     # Initiate mint - should go to pending state
-    token_out_received, output_amount, is_pending, usd_value = starter_agent.mintOrRedeemAsset(
+    amount_in, output_amount, is_pending, usd_value = starter_agent.mintOrRedeemAsset(
         user_wallet.address,
         lego_id,
         mock_dex_asset.address,
@@ -403,7 +403,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     )
     
     # Verify return values for pending mint
-    assert token_out_received == 0  # Nothing received yet
+    assert amount_in == mint_amount
     assert output_amount == 0
     assert is_pending == True  # Pending mode
     assert usd_value == 0  # No value yet
@@ -927,7 +927,6 @@ def test_agent_convert_eth_to_weth_basic(
     user_wallet,
     charlie,
     weth,
-    whale,
     fork,
     mock_ripe
 ):

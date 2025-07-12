@@ -211,7 +211,7 @@ def test_mint_redeem_asset_immediate(setupSwapTest, user_wallet, bob, mock_dex_l
     
     # Mint alt tokens using asset tokens
     mint_amount = 150 * EIGHTEEN_DECIMALS
-    tokenOutReceived, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
+    amount_in, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
         lego_id,
         mock_dex_asset.address,     # tokenIn
         mock_dex_asset_alt.address,  # tokenOut
@@ -222,7 +222,7 @@ def test_mint_redeem_asset_immediate(setupSwapTest, user_wallet, bob, mock_dex_l
     )
     
     # Verify return values for immediate mint
-    assert tokenOutReceived == mint_amount  # 1:1 exchange
+    assert amount_in == mint_amount  # 1:1 exchange
     assert outputAmount == mint_amount
     assert isPending == False  # Immediate mode
     assert usdValue == 450 * EIGHTEEN_DECIMALS  # 150 tokens * $3
@@ -263,7 +263,7 @@ def test_mint_redeem_asset_pending(setupSwapTest, user_wallet, bob, mock_dex_leg
     
     # Initiate mint - should go to pending state
     mint_amount = 200 * EIGHTEEN_DECIMALS
-    tokenOutReceived, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
+    amount_in, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
         lego_id,
         mock_dex_asset.address,     # tokenIn
         mock_dex_asset_alt.address,  # tokenOut
@@ -274,7 +274,7 @@ def test_mint_redeem_asset_pending(setupSwapTest, user_wallet, bob, mock_dex_leg
     )
     
     # Verify return values for pending mint
-    assert tokenOutReceived == 0  # Nothing received yet
+    assert amount_in == mint_amount
     assert outputAmount == 0
     assert isPending == True  # Pending mode
     assert usdValue == 0  # No value yet
@@ -288,8 +288,9 @@ def test_mint_redeem_asset_pending(setupSwapTest, user_wallet, bob, mock_dex_leg
     assert log.op == 21  # MINT_REDEEM operation
     assert log.asset1 == mock_dex_asset.address
     assert log.asset2 == mock_dex_asset_alt.address
+
     # For pending, the event might show 0 for both amounts since nothing is finalized
-    assert log.amount1 == 0
+    assert log.amount1 == amount_in
     assert log.amount2 == 0
     assert log.usdValue == 0
     
@@ -334,7 +335,7 @@ def test_mint_redeem_with_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
     current_balance = mock_dex_asset.balanceOf(user_wallet)
     
     # Mint using max value
-    tokenOutReceived, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
+    amount_in, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
         lego_id,
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
@@ -345,7 +346,7 @@ def test_mint_redeem_with_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
     )
     
     # Verify entire balance was used
-    assert tokenOutReceived == current_balance
+    assert amount_in == current_balance
     assert outputAmount == current_balance
     assert mock_dex_asset.balanceOf(user_wallet) == 0
     assert mock_dex_asset_alt.balanceOf(user_wallet) == 2 * current_balance  # Had initial + minted
@@ -374,7 +375,7 @@ def test_redeem_asset_back_to_original(setupSwapTest, user_wallet, bob, mock_dex
     initial_asset = mock_dex_asset.balanceOf(user_wallet)
     initial_alt = mock_dex_asset_alt.balanceOf(user_wallet)
     
-    tokenOutReceived, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
+    amount_in, outputAmount, isPending, usdValue = user_wallet.mintOrRedeemAsset(
         lego_id,
         mock_dex_asset_alt.address,  # tokenIn (redeeming alt)
         mock_dex_asset.address,      # tokenOut (getting asset back)
@@ -385,7 +386,7 @@ def test_redeem_asset_back_to_original(setupSwapTest, user_wallet, bob, mock_dex
     )
     
     # Verify redemption
-    assert tokenOutReceived == redeem_amount  # 1:1 exchange
+    assert amount_in == redeem_amount  # 1:1 exchange
     assert outputAmount == redeem_amount
     assert isPending == False
     assert usdValue == 100 * EIGHTEEN_DECIMALS  # 50 tokens * $2

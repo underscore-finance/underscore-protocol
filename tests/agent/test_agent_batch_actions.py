@@ -80,6 +80,11 @@ def createActionInstruction():
     yield createActionInstruction
 
 
+########################
+# Batch Actions Tests #
+########################
+
+
 def test_batch_deposit_and_withdraw_yield(
     setupAgentTestAsset,
     createActionInstruction,
@@ -594,3 +599,615 @@ def test_batch_yield_rebalance(
     assert alpha_token_vault.balanceOf(user_wallet) > 0
     assert alpha_token_vault_2.balanceOf(user_wallet) > 0
     assert alpha_token.balanceOf(user_wallet) == 100 * EIGHTEEN_DECIMALS  # Remaining balance
+
+
+def test_batch_debt_management(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    mock_dex_debt_token,
+    mock_dex_lego,
+    whale,
+    mock_ripe
+):
+    """Test batch actions: add collateral, borrow, repay, remove collateral"""
+    
+    # Setup asset for collateral
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=1000 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    # Set debt token price
+    mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Create batch: add collateral, borrow, repay half, remove some collateral
+    instructions = [
+        createActionInstruction(
+            action=7,  # addCollateral
+            legoId=2,
+            asset=mock_dex_asset.address,
+            amount=500 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=9,  # borrow
+            legoId=2,
+            asset=mock_dex_debt_token.address,
+            amount=200 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=10,  # repayDebt
+            legoId=2,
+            asset=mock_dex_debt_token.address,
+            amount=100 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=8,  # removeCollateral
+            legoId=2,
+            asset=mock_dex_asset.address,
+            amount=50 * EIGHTEEN_DECIMALS,
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 4
+    
+    # Verify each operation
+    assert logs[0].op == 40  # add collateral
+    assert logs[0].amount1 == 500 * EIGHTEEN_DECIMALS
+    
+    assert logs[1].op == 42  # borrow
+    assert logs[1].amount1 == 200 * EIGHTEEN_DECIMALS
+    
+    assert logs[2].op == 43  # repay debt
+    assert logs[2].amount1 == 100 * EIGHTEEN_DECIMALS
+    
+    assert logs[3].op == 41  # remove collateral
+    assert logs[3].amount1 == 50 * EIGHTEEN_DECIMALS
+    
+    # Check final balances
+    assert mock_dex_asset.balanceOf(user_wallet) == 550 * EIGHTEEN_DECIMALS  # 1000 - 500 + 50
+    assert mock_dex_debt_token.balanceOf(user_wallet) == 100 * EIGHTEEN_DECIMALS  # 200 - 100
+
+
+def test_batch_weth_eth_conversions(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    weth,
+    whale,
+    fork,
+    mock_ripe,
+    switchboard_alpha
+):
+    """Test batch actions: convert ETH to WETH, swap WETH, convert back to ETH"""
+    
+    # Set ETH and WETH prices
+    from config.BluePrint import TOKENS
+    ETH = TOKENS[fork]["ETH"]
+    eth_price = 2000 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(ETH, eth_price)
+    mock_ripe.setPrice(weth, eth_price)
+    
+    # Give wallet ETH
+    boa.env.set_balance(user_wallet.address, 5 * EIGHTEEN_DECIMALS)
+    
+    # Register WETH
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(0, weth.address, False, sender=switchboard_alpha.address)
+    
+    # Create batch: convert 2 ETH to WETH, then convert 1 WETH back to ETH
+    instructions = [
+        createActionInstruction(
+            action=12,  # convertEthToWeth
+            amount=2 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=13,  # convertWethToEth
+            amount=1 * EIGHTEEN_DECIMALS,
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 2
+    
+    # First conversion: ETH to WETH
+    assert logs[0].op == 2  # ETH_TO_WETH
+    assert logs[0].asset2 == weth.address
+    assert logs[0].amount2 == 2 * EIGHTEEN_DECIMALS
+    
+    # Second conversion: WETH to ETH
+    assert logs[1].op == 3  # WETH_TO_ETH
+    assert logs[1].asset1 == weth.address
+    assert logs[1].amount1 == 1 * EIGHTEEN_DECIMALS
+    
+    # Check final balances
+    assert weth.balanceOf(user_wallet) == 1 * EIGHTEEN_DECIMALS  # 2 - 1
+    assert boa.env.get_balance(user_wallet.address) == 4 * EIGHTEEN_DECIMALS  # 5 - 2 + 1
+
+
+def test_batch_liquidity_operations(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    mock_dex_asset_alt,
+    mock_dex_lp_token,
+    mock_dex_lego,
+    whale,
+    mock_ripe
+):
+    """Test batch actions: add liquidity then remove half"""
+    
+    # Setup assets
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=500 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    setupAgentTestAsset(
+        _asset=mock_dex_asset_alt,
+        _amount=600 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=3 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)
+    
+    # Create batch: add liquidity, then remove half
+    instructions = [
+        createActionInstruction(
+            action=14,  # addLiquidity
+            legoId=2,
+            asset=mock_dex_asset.address,
+            asset2=mock_dex_asset_alt.address,
+            target=mock_dex_lego.address,  # pool
+            amount=200 * EIGHTEEN_DECIMALS,
+            amount2=300 * EIGHTEEN_DECIMALS,
+            auxData=b"\x00" * 32,  # minLpAmount packed in auxData
+        ),
+        createActionInstruction(
+            action=15,  # removeLiquidity
+            legoId=2,
+            asset=mock_dex_asset.address,
+            asset2=mock_dex_asset_alt.address,
+            target=mock_dex_lego.address,  # pool
+            amount=250 * EIGHTEEN_DECIMALS,  # LP tokens to remove (half of 500)
+            auxData=bytes.fromhex(str(mock_dex_lp_token.address)[2:]).rjust(32, b'\x00'),  # lpToken address in auxData
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 2
+    
+    # Add liquidity event
+    assert logs[0].op == 30  # ADD_LIQ
+    assert logs[0].amount1 == 200 * EIGHTEEN_DECIMALS
+    assert logs[0].amount2 == 300 * EIGHTEEN_DECIMALS
+    
+    # Remove liquidity event
+    assert logs[1].op == 31  # REMOVE_LIQ
+    
+    # Check final LP token balance
+    assert mock_dex_lp_token.balanceOf(user_wallet) == 250 * EIGHTEEN_DECIMALS  # 500 - 250
+
+
+def test_batch_claim_rewards(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    whale,
+    mock_dex_asset,
+    mock_dex_lego,
+    charlie,
+):
+    """Test batch actions: claim rewards then swap them"""
+    
+    # Setup initial balance
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=5 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Create batch: claim rewards
+    instructions = [
+        createActionInstruction(
+            action=11,  # claimRewards
+            legoId=2,
+            asset=mock_dex_asset.address,
+            amount=50 * EIGHTEEN_DECIMALS,
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 1
+    
+    assert logs[0].op == 50  # rewards
+    assert logs[0].amount1 == 50 * EIGHTEEN_DECIMALS
+    
+    # Check balance
+    assert mock_dex_asset.balanceOf(user_wallet) == 150 * EIGHTEEN_DECIMALS  # 100 + 50
+
+
+def test_batch_complex_prev_amount_chain(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    mock_dex_asset_alt,
+    mock_dex_lp_token,
+    mock_dex_debt_token,
+    whale,
+    mock_ripe,
+    bob,
+):
+    """Test complex chain using usePrevAmountOut across multiple operations"""
+    
+    # Setup initial asset
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=1000 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    # Set prices
+    mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)
+    
+    # Create complex chain: swap -> use output for another swap -> use that for transfer
+    instructions = [
+        createActionInstruction(
+            action=4,  # swapTokens
+            legoId=2,
+            asset=mock_dex_asset.address,
+            target=mock_dex_asset_alt.address,
+            amount=400 * EIGHTEEN_DECIMALS,
+            swapInstructions=[(
+                2,
+                400 * EIGHTEEN_DECIMALS,
+                0,
+                [mock_dex_asset.address, mock_dex_asset_alt.address],
+                []
+            )]
+        ),
+        createActionInstruction(
+            action=4,  # swapTokens
+            usePrevAmountOut=True,
+            legoId=2,
+            asset=mock_dex_asset_alt.address,
+            target=mock_dex_lp_token.address,
+            amount=0,  # Will use previous output
+            swapInstructions=[(
+                2,
+                0,  # Will be replaced
+                0,
+                [mock_dex_asset_alt.address, mock_dex_lp_token.address],
+                []
+            )]
+        ),
+        createActionInstruction(
+            action=0,  # transferFunds
+            usePrevAmountOut=True,
+            asset=mock_dex_lp_token.address,
+            target=bob,
+            amount=0,  # Will use all of previous output
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 3
+    
+    # All amounts should chain properly
+    assert logs[0].amount2 == logs[1].amount1  # First swap output = second swap input
+    assert logs[1].amount2 == logs[2].amount1  # Second swap output = transfer amount
+    
+    # Final balance checks
+    assert mock_dex_asset.balanceOf(user_wallet) == 600 * EIGHTEEN_DECIMALS  # 1000 - 400
+    assert mock_dex_lp_token.balanceOf(bob) == 400 * EIGHTEEN_DECIMALS  # All transferred
+
+
+def test_batch_pending_mint_redeem(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    mock_dex_asset_alt,
+    mock_dex_lego,
+    whale,
+    mock_ripe
+):
+    """Test batch actions with pending mint/redeem operations"""
+    
+    # Setup assets
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=500 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)
+    
+    # Set pending mode
+    mock_dex_lego.setImmediateMintOrRedeem(False)
+    
+    # Create batch: mint (pending), then confirm
+    instructions = [
+        createActionInstruction(
+            action=5,  # mintOrRedeemAsset
+            legoId=2,
+            asset=mock_dex_asset.address,
+            target=mock_dex_asset_alt.address,
+            amount=300 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=6,  # confirmMintOrRedeemAsset
+            legoId=2,
+            asset=mock_dex_asset.address,
+            target=mock_dex_asset_alt.address,
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 2
+    
+    # First: pending mint
+    assert logs[0].op == 21  # MINT_REDEEM
+    assert logs[0].amount1 == 300 * EIGHTEEN_DECIMALS
+    
+    # Second: confirm
+    assert logs[1].op == 22  # CONFIRM_MINT_REDEEM
+    assert logs[1].amount2 == 300 * EIGHTEEN_DECIMALS  # Now received
+    
+    # Check final balances
+    assert mock_dex_asset.balanceOf(user_wallet) == 200 * EIGHTEEN_DECIMALS  # 500 - 300
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == 300 * EIGHTEEN_DECIMALS
+
+
+def test_batch_weth_conversion_with_prev_amount(
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    weth,
+    fork,
+    mock_ripe,
+    switchboard_alpha
+):
+    """Test WETH conversion using previous amount"""
+    
+    # Setup
+    from config.BluePrint import TOKENS
+    ETH = TOKENS[fork]["ETH"]
+    eth_price = 2000 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(ETH, eth_price)
+    mock_ripe.setPrice(weth, eth_price)
+    
+    # Give wallet ETH
+    boa.env.set_balance(user_wallet.address, 5 * EIGHTEEN_DECIMALS)
+    
+    # Register WETH
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(0, weth.address, False, sender=switchboard_alpha.address)
+    
+    # Create batch: convert ETH to WETH, then use prev amount to convert back
+    instructions = [
+        createActionInstruction(
+            action=12,  # convertEthToWeth
+            amount=3 * EIGHTEEN_DECIMALS,
+        ),
+        createActionInstruction(
+            action=13,  # convertWethToEth
+            usePrevAmountOut=True,  # Use the WETH amount from previous conversion
+            amount=0,  # Will be overridden
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 2
+    
+    # Verify operations
+    assert logs[0].op == 2  # ETH_TO_WETH
+    assert logs[0].amount2 == 3 * EIGHTEEN_DECIMALS
+    assert logs[1].op == 3  # WETH_TO_ETH
+    assert logs[1].amount1 == logs[0].amount2  # Used prev amount
+    
+    # Final balances - should be back to original ETH
+    assert weth.balanceOf(user_wallet) == 0  # All converted back
+    assert boa.env.get_balance(user_wallet.address) == 5 * EIGHTEEN_DECIMALS  # Back to original
+
+
+def test_batch_borrow_with_prev_collateral(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    mock_dex_asset_alt,
+    mock_dex_debt_token,
+    mock_dex_lego,
+    whale,
+    mock_ripe
+):
+    """Test borrowing based on collateral from previous swap"""
+    
+    # Setup initial asset
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=1000 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=2,
+        _shouldCheckYield=False
+    )
+    
+    # Set prices
+    mock_ripe.setPrice(mock_dex_asset_alt, 4 * EIGHTEEN_DECIMALS)  # Higher value for collateral
+    mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Create batch: swap to get higher value asset, use as collateral, borrow
+    instructions = [
+        createActionInstruction(
+            action=4,  # swapTokens
+            legoId=2,
+            asset=mock_dex_asset.address,
+            target=mock_dex_asset_alt.address,
+            amount=500 * EIGHTEEN_DECIMALS,
+            swapInstructions=[(
+                2,
+                500 * EIGHTEEN_DECIMALS,
+                0,
+                [mock_dex_asset.address, mock_dex_asset_alt.address],
+                []
+            )]
+        ),
+        createActionInstruction(
+            action=7,  # addCollateral
+            usePrevAmountOut=True,
+            legoId=2,
+            asset=mock_dex_asset_alt.address,
+            amount=0,  # Use all from swap
+        ),
+        createActionInstruction(
+            action=9,  # borrow
+            legoId=2,
+            asset=mock_dex_debt_token.address,
+            amount=200 * EIGHTEEN_DECIMALS,
+        )
+    ]
+    
+    # Execute batch
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        sender=charlie
+    )
+    
+    assert result == True
+    
+    # Check events
+    logs = filter_logs(starter_agent, "WalletAction")
+    assert len(logs) == 3
+    
+    # Verify chain
+    assert logs[0].op == 20  # swap
+    assert logs[1].op == 40  # add collateral
+    assert logs[1].amount1 == logs[0].amount2  # Used swap output as collateral
+    assert logs[2].op == 42  # borrow
+    
+    # Final balances
+    assert mock_dex_asset.balanceOf(user_wallet) == 500 * EIGHTEEN_DECIMALS  # 1000 - 500
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == 0  # All used as collateral
+    assert mock_dex_debt_token.balanceOf(user_wallet) == 200 * EIGHTEEN_DECIMALS  # Borrowed
