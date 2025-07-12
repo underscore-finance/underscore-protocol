@@ -964,7 +964,7 @@ def removeTrialFunds() -> uint256:
 
 
 @external
-def withdrawFromYield(
+def preparePayment(
     _targetAsset: address,
     _legoId: uint256,
     _vaultToken: address,

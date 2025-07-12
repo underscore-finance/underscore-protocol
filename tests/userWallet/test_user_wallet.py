@@ -250,6 +250,61 @@ def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob
     assert data.assetBalance == 25 * EIGHTEEN_DECIMALS  # 100 - 30 - 20 - 25 = 25
 
 
+def test_transfer_funds_trusted_tx_only_wallet_config(prepareAssetForWalletTx, user_wallet, bob, alice, alpha_token):
+    """Test that only UserWalletConfig can call transferFunds with _isTrustedTx=True"""
+    
+    # prepare tokens
+    original_amount = prepareAssetForWalletTx()
+    
+    # attempt to call transferFunds with _isTrustedTx=True from non-config address
+    with boa.reverts("perms"):
+        user_wallet.transferFunds(
+            alice,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            True,  # _isTrustedTx = True
+            sender=bob  # owner trying to call with trusted tx
+        )
+    
+    # also test with non-owner
+    with boa.reverts("perms"):
+        user_wallet.transferFunds(
+            alice,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            True,  # _isTrustedTx = True
+            sender=alice  # non-owner trying to call with trusted tx
+        )
+    
+    # verify no transfer happened
+    assert alpha_token.balanceOf(user_wallet) == original_amount
+    assert alpha_token.balanceOf(alice) == 0
+
+
+def test_transfer_funds_trusted_tx_from_config_via_migration(prepareAssetForWalletTx, user_wallet, alice, alpha_token, migrator):
+    """Test that UserWalletConfig can successfully call transferFunds with _isTrustedTx=True via transferFundsDuringMigration"""
+    
+    # prepare tokens
+    original_amount = prepareAssetForWalletTx()
+    transfer_amount = 60 * EIGHTEEN_DECIMALS
+    
+    # get wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    
+    # wallet config should be able to call transferFunds via transferFundsDuringMigration
+    amount_transferred, usd_value = wallet_config.transferFundsDuringMigration(
+        alice,
+        alpha_token.address,
+        transfer_amount,
+        sender=migrator.address  # migrator calling
+    )
+    
+    # verify transfer happened
+    assert amount_transferred == transfer_amount
+    assert alpha_token.balanceOf(user_wallet) == original_amount - transfer_amount
+    assert alpha_token.balanceOf(alice) == transfer_amount
+
+
 #####################
 # Deposit for Yield #
 #####################
@@ -978,4 +1033,54 @@ def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob
     assert user_wallet.indexOfAsset(yield_vault_token.address) == 0
 
 
+def test_withdraw_from_yield_trusted_tx_only_wallet_config(setupYieldPosition, user_wallet, bob, alice, yield_vault_token):
+    """Test that only UserWalletConfig can call withdrawFromYield with _isTrustedTx=True"""
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # attempt to call withdrawFromYield with _isTrustedTx=True from non-config address
+    with boa.reverts("perms"):
+        user_wallet.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            vault_tokens // 2,
+            b"",
+            True,  # _isTrustedTx = True
+            sender=bob  # owner trying to call with trusted tx
+        )
+    
+    # also test with non-owner
+    with boa.reverts("perms"):
+        user_wallet.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            vault_tokens // 2,
+            b"",
+            True,  # _isTrustedTx = True
+            sender=alice  # non-owner trying to call with trusted tx
+        )
 
+
+def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wallet, yield_underlying_token, yield_vault_token, switchboard_alpha):
+    """Test that UserWalletConfig can successfully call withdrawFromYield with _isTrustedTx=True via switchboard"""
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # get wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    
+    # wallet config should be able to call withdrawFromYield via switchboard
+    underlying_amount, usd_value = wallet_config.preparePayment(
+        yield_underlying_token.address,
+        1,
+        yield_vault_token.address,
+        vault_tokens // 2,
+        sender=switchboard_alpha.address  # switchboard calling
+    )
+    
+    # verify withdrawal happened
+    assert underlying_amount == vault_tokens // 2  # 1:1 price
+    assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - (vault_tokens // 2)
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying_amount

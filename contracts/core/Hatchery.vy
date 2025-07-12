@@ -17,7 +17,7 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface UserWalletConfig:
-    def preparePayment(asset: address, legoId: uint256, underlyingAsset: address, amount: uint256) -> (uint256, uint256): nonpayable
+    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
     def setWallet(_wallet: address) -> bool: nonpayable
     def getTrialFundsInfo() -> (address, uint256): view
     def removeTrialFunds() -> uint256: nonpayable

@@ -139,6 +139,7 @@ def transferFunds(
 ) -> (uint256, uint256):
     ad: ws.ActionData = empty(ws.ActionData)
     shouldCheckRecipientLimits: bool = True
+    assert _recipient != empty(address) # dev: inv recipient
 
     # finalize asset
     asset: address = _asset
@@ -268,7 +269,7 @@ def withdrawFromYield(
         walletConfig: address = self.walletConfig
         assert msg.sender == walletConfig # dev: perms
 
-        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(0, msg.sender)
+        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(_legoId, msg.sender)
         self._checkForYieldProfits(_vaultToken, ad)
         shouldPerformPostActionTasks = False
 
