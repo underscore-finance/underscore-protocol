@@ -766,7 +766,18 @@ def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underl
         withdraw_amount,
         sender=bob
     )
-    
+
+    # verify event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 11  # EARN_WITHDRAW operation
+    assert log.asset1 == yield_vault_token.address
+    assert log.asset2 == yield_underlying_token.address
+    assert log.amount1 == withdraw_amount == vault_burned
+    assert log.amount2 == underlying_received
+    assert log.usdValue == usd_value
+    assert log.legoId == 1
+    assert log.signer == bob
+
     # verify return values
     assert vault_burned == withdraw_amount
     assert underlying_asset == yield_underlying_token.address
