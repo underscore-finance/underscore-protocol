@@ -1612,3 +1612,213 @@ def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_de
     # Verify fee percentage
     fee_percentage = (expected_fee * 10000) // reward_amount
     assert fee_percentage == 2500  # 25%
+
+
+###############
+# Wrapped ETH #
+###############
+
+
+def test_convert_eth_to_weth_basic(user_wallet, bob, weth, fork, mock_ripe):
+    """Test basic ETH to WETH conversion"""
+    # Get ETH address
+    ETH = TOKENS[fork]["ETH"]
+    
+    # Set prices
+    mock_ripe.setPrice(ETH, 2000 * EIGHTEEN_DECIMALS)  # $2000/ETH
+    mock_ripe.setPrice(weth, 2000 * EIGHTEEN_DECIMALS)  # $2000/WETH (same as ETH)
+    
+    # Send ETH to wallet
+    eth_amount = 1 * EIGHTEEN_DECIMALS  # 1 ETH
+    boa.env.set_balance(user_wallet.address, eth_amount)
+    
+    # Check initial balances
+    assert boa.env.get_balance(user_wallet.address) == eth_amount
+    assert weth.balanceOf(user_wallet) == 0
+    
+    # Convert half ETH to WETH
+    convert_amount = int(0.5 * EIGHTEEN_DECIMALS)
+    amount_converted, usd_value = user_wallet.convertEthToWeth(convert_amount, sender=bob)
+    
+    # Verify return values
+    assert amount_converted == convert_amount
+    assert usd_value == 1000 * EIGHTEEN_DECIMALS  # 0.5 ETH * $2000
+    
+    # Check balances after conversion
+    assert boa.env.get_balance(user_wallet.address) == eth_amount - convert_amount
+    assert weth.balanceOf(user_wallet) == convert_amount
+    
+    # Check event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 2  # ETH_TO_WETH operation
+    assert log.asset1 == ETH
+    assert log.asset2 == weth.address
+    assert log.amount1 == 0  # msg.value (0 for non-payable)
+    assert log.amount2 == convert_amount
+    assert log.usdValue == usd_value
+    assert log.legoId == 0
+    assert log.signer == bob
+    
+    # Check storage updated for WETH
+    weth_data = user_wallet.assetData(weth.address)
+    assert weth_data.assetBalance == convert_amount
+    assert weth_data.usdValue == usd_value
+    assert weth_data.isYieldAsset == False
+
+
+def test_convert_weth_to_eth_basic(user_wallet, bob, weth, fork, mock_ripe, whale, switchboard_alpha):
+    """Test basic WETH to ETH conversion"""
+    # Get ETH address
+    ETH = TOKENS[fork]["ETH"]
+    
+    # Set prices
+    mock_ripe.setPrice(ETH, 2000 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(weth, 2000 * EIGHTEEN_DECIMALS)
+    
+    # Give whale ETH and have them deposit to WETH
+    weth_amount = 3 * EIGHTEEN_DECIMALS  # 3 WETH
+    boa.env.set_balance(whale, weth_amount)
+    weth.deposit(value=weth_amount, sender=whale)
+    
+    # Transfer WETH to wallet
+    weth.transfer(user_wallet, weth_amount, sender=whale)
+    
+    # Register WETH in wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(0, weth.address, False, sender=switchboard_alpha.address)
+    
+    # Check initial balances
+    initial_eth_balance = boa.env.get_balance(user_wallet.address)
+    assert weth.balanceOf(user_wallet) == weth_amount
+    
+    # Convert 1 WETH to ETH
+    convert_amount = 1 * EIGHTEEN_DECIMALS
+    amount_converted, usd_value = user_wallet.convertWethToEth(convert_amount, sender=bob)
+    
+    # Verify return values
+    assert amount_converted == convert_amount
+    assert usd_value == 2000 * EIGHTEEN_DECIMALS  # 1 WETH * $2000
+    
+    # Check balances after conversion
+    assert boa.env.get_balance(user_wallet.address) == initial_eth_balance + convert_amount
+    assert weth.balanceOf(user_wallet) == weth_amount - convert_amount
+    
+    # Check event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 3  # WETH_TO_ETH operation
+    assert log.asset1 == weth.address
+    assert log.asset2 == ETH
+    assert log.amount1 == convert_amount
+    assert log.amount2 == convert_amount
+    assert log.usdValue == usd_value
+    assert log.legoId == 0
+    assert log.signer == bob
+    
+    # Check storage updated for WETH
+    weth_data = user_wallet.assetData(weth.address)
+    assert weth_data.assetBalance == weth_amount - convert_amount
+
+
+def test_convert_eth_to_weth_zero_balance_fails(user_wallet, bob):
+    """Test converting ETH when wallet has no ETH balance fails"""
+    # Ensure wallet has no ETH
+    assert boa.env.get_balance(user_wallet.address) == 0
+    
+    # Attempt to convert should fail
+    with boa.reverts("no amt"):
+        user_wallet.convertEthToWeth(1 * EIGHTEEN_DECIMALS, sender=bob)
+
+
+def test_convert_weth_to_eth_zero_balance_fails(user_wallet, bob, weth):
+    """Test converting WETH when wallet has no WETH balance fails"""
+    # Ensure wallet has no WETH
+    assert weth.balanceOf(user_wallet) == 0
+    
+    # Attempt to convert should fail
+    with boa.reverts("no balance for _token"):
+        user_wallet.convertWethToEth(1 * EIGHTEEN_DECIMALS, sender=bob)
+
+
+def test_eth_weth_conversions_cycle(user_wallet, bob, weth, fork, mock_ripe, switchboard_alpha):
+    """Test multiple ETH<->WETH conversions in a cycle"""
+    # Get ETH address
+    ETH = TOKENS[fork]["ETH"]
+    
+    # Set prices
+    mock_ripe.setPrice(ETH, 2000 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(weth, 2000 * EIGHTEEN_DECIMALS)
+    
+    # Start with ETH
+    initial_eth = 2 * EIGHTEEN_DECIMALS
+    boa.env.set_balance(user_wallet.address, initial_eth)
+    
+    # Register WETH for later use
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(0, weth.address, False, sender=switchboard_alpha.address)
+    
+    # Step 1: Convert 1 ETH to WETH
+    amount1, _ = user_wallet.convertEthToWeth(1 * EIGHTEEN_DECIMALS, sender=bob)
+    assert boa.env.get_balance(user_wallet.address) == 1 * EIGHTEEN_DECIMALS
+    assert weth.balanceOf(user_wallet) == 1 * EIGHTEEN_DECIMALS
+    
+    # Step 2: Convert 0.5 ETH to WETH
+    amount2, _ = user_wallet.convertEthToWeth(int(0.5 * EIGHTEEN_DECIMALS), sender=bob)
+    assert boa.env.get_balance(user_wallet.address) == int(0.5 * EIGHTEEN_DECIMALS)
+    assert weth.balanceOf(user_wallet) == int(1.5 * EIGHTEEN_DECIMALS)
+    
+    # Step 3: Convert 0.75 WETH back to ETH
+    amount3, _ = user_wallet.convertWethToEth(int(0.75 * EIGHTEEN_DECIMALS), sender=bob)
+    assert boa.env.get_balance(user_wallet.address) == int(1.25 * EIGHTEEN_DECIMALS)
+    assert weth.balanceOf(user_wallet) == int(0.75 * EIGHTEEN_DECIMALS)
+    
+    # Step 4: Convert remaining WETH to ETH
+    amount4, _ = user_wallet.convertWethToEth(MAX_UINT256, sender=bob)
+    assert boa.env.get_balance(user_wallet.address) == initial_eth  # Back to original
+    assert weth.balanceOf(user_wallet) == 0
+
+
+def test_convert_eth_to_weth_updates_asset_tracking(user_wallet, bob, weth, fork, mock_ripe):
+    """Test that converting ETH to WETH properly registers WETH as an asset"""
+    # Get ETH address
+    ETH = TOKENS[fork]["ETH"]
+    
+    # Set prices
+    mock_ripe.setPrice(ETH, 2000 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(weth, 2000 * EIGHTEEN_DECIMALS)
+    
+    # Send ETH to wallet
+    boa.env.set_balance(user_wallet.address, 1 * EIGHTEEN_DECIMALS)
+    
+    # Check if WETH is already tracked (from previous tests)
+    initial_weth_index = user_wallet.indexOfAsset(weth.address)
+    initial_num_assets = user_wallet.numAssets()
+    
+    # Convert ETH to WETH
+    user_wallet.convertEthToWeth(int(0.5 * EIGHTEEN_DECIMALS), sender=bob)
+    
+    # Verify WETH is tracked (either was already or newly added)
+    weth_index = user_wallet.indexOfAsset(weth.address)
+    assert weth_index > 0
+    assert user_wallet.assets(weth_index) == weth.address
+    
+    # The conversion might add both ETH and WETH as tracked assets
+    # So we check that WETH is tracked, and the number of assets increased appropriately
+    final_num_assets = user_wallet.numAssets()
+    
+    # Check ETH tracking
+    eth_index = user_wallet.indexOfAsset(ETH)
+    
+    # The number of assets should have increased by the number of newly tracked assets
+    newly_tracked = 0
+    if initial_weth_index == 0:
+        newly_tracked += 1  # WETH was newly tracked
+    
+    # Note: ETH might also be newly tracked by the conversion
+    # So we just verify the final count makes sense
+    assert final_num_assets >= initial_num_assets
+    assert final_num_assets <= initial_num_assets + 2  # At most ETH and WETH added
+    
+    # Verify storage
+    weth_data = user_wallet.assetData(weth.address)
+    assert weth_data.assetBalance == int(0.5 * EIGHTEEN_DECIMALS)
+    assert weth_data.usdValue == 1000 * EIGHTEEN_DECIMALS  # 0.5 * $2000

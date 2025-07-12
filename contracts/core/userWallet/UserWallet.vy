@@ -799,8 +799,12 @@ def addLiquidity(
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ADD_LIQ, False, [_tokenA, _tokenB], [_legoId])
 
     # token approvals
-    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, ad.legoAddr)
-    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, ad.legoAddr)
+    amountA: uint256 = 0
+    if _amountA != 0:
+        amountA = self._getAmountAndApprove(_tokenA, _amountA, ad.legoAddr)
+    amountB: uint256 = 0
+    if _amountB != 0:
+        amountB = self._getAmountAndApprove(_tokenB, _amountB, ad.legoAddr)
 
     # add liquidity via lego partner
     lpToken: address = empty(address)
@@ -891,8 +895,12 @@ def addLiquidityConcentrated(
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ADD_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
 
     # token approvals
-    amountA: uint256 = self._getAmountAndApprove(_tokenA, _amountA, ad.legoAddr)
-    amountB: uint256 = self._getAmountAndApprove(_tokenB, _amountB, ad.legoAddr)
+    amountA: uint256 = 0
+    if _amountA != 0:
+        amountA = self._getAmountAndApprove(_tokenA, _amountA, ad.legoAddr)
+    amountB: uint256 = 0
+    if _amountB != 0:
+        amountB = self._getAmountAndApprove(_tokenB, _amountB, ad.legoAddr)
 
     # transfer nft to lego (if applicable)
     hasNftLiqPosition: bool = _nftAddr != empty(address) and _nftTokenId != 0
@@ -1268,8 +1276,6 @@ def _updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _ad: ws.Action
 
 @internal
 def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) -> uint256:
-    if _amount == 0:
-        return 0
     amount: uint256 = min(_amount, staticcall IERC20(_token).balanceOf(self))
     assert amount != 0 # dev: no balance for _token
     if _legoAddr != empty(address):
