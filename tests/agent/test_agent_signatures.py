@@ -641,3 +641,231 @@ def test_getNonce_public_function(starter_agent, charlie):
     starter_agent.incrementNonce(sender=charlie)
     new_nonce = starter_agent.currentNonce()
     assert new_nonce == nonce + 1
+
+
+def test_signature_malleability_s_value_check(
+    starter_agent,
+    user_wallet,
+    alice,
+    create_signature_struct
+):
+    """Test that s values above secp256k1n/2 are rejected"""
+    
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    current_nonce = starter_agent.currentNonce()
+    
+    # secp256k1n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+    # Create signature with s > secp256k1n/2
+    r = b'\x01' * 32
+    # High s value (above secp256k1n/2)
+    s = b'\x7F\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x5D\x57\x6E\x73\x57\xA4\x50\x1D\xDF\xE9\x2F\x46\x68\x1B\x20\xA1'
+    v = b'\x1b'  # 27
+    
+    high_s_sig = create_signature_struct(r + s + v, current_nonce, valid_time)
+    
+    # Should reject high s value
+    with boa.reverts("invalid s value"):
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            0,
+            b"",
+            high_s_sig,
+            sender=alice
+        )
+
+
+def test_signature_reuse_prevented(
+    setupAgentTestAsset,
+    starter_agent,
+    user_wallet,
+    charlie,
+    alice,
+    yield_underlying_token,
+    yield_vault_token,
+    yield_underlying_token_whale,
+    create_signature_struct,
+):
+    """Test that the same signature cannot be used twice"""
+    
+    # Setup tokens
+    setupAgentTestAsset(
+        _asset=yield_underlying_token,
+        _amount=200 * EIGHTEEN_DECIMALS,
+        _whale=yield_underlying_token_whale,
+        _lego_id=1
+    )
+    
+    # First, manually increment the nonce as owner to simulate a used nonce
+    initial_nonce = starter_agent.currentNonce()
+    starter_agent.incrementNonce(sender=charlie)
+    
+    # Now the current nonce is initial_nonce + 1
+    # Try to use a signature with the old nonce (which has been "used")
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    old_nonce_sig = create_signature_struct(
+        b'\x01' * 64 + b'\x1b',  # Valid format but wrong signer
+        initial_nonce,  # Old nonce that's already been passed
+        valid_time
+    )
+    
+    # Should fail due to invalid nonce (nonce too low)
+    with boa.reverts("invalid nonce"):
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            b"",
+            old_nonce_sig,
+            sender=alice  # Non-owner
+        )
+
+
+def test_batch_max_instructions(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    user_wallet,
+    charlie,
+    mock_dex_asset,
+    whale,
+    bob,
+    create_signature_struct
+):
+    """Test batch actions with exactly 15 instructions (MAX_INSTRUCTIONS)"""
+    
+    # Setup tokens with enough balance
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=1000 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _lego_id=2
+    )
+    
+    # Create exactly 15 instructions (MAX_INSTRUCTIONS)
+    instructions = []
+    for i in range(15):
+        instruction = createActionInstruction(
+            action=0,  # TRANSFER
+            asset=mock_dex_asset.address,
+            target=bob,
+            amount=1 * EIGHTEEN_DECIMALS  # Small amount per transfer
+        )
+        instructions.append(instruction)
+    
+    # Test with owner - should succeed with 15 instructions
+    empty_sig = create_signature_struct(b'', 0, 0)
+    result = starter_agent.performBatchActions(
+        user_wallet.address,
+        instructions,
+        empty_sig,
+        sender=charlie  # Owner
+    )
+    assert result == True
+    
+    # Test with 16 instructions - should fail
+    extra_instruction = createActionInstruction(
+        action=0,  # TRANSFER
+        asset=mock_dex_asset.address,
+        target=bob,
+        amount=1 * EIGHTEEN_DECIMALS
+    )
+    instructions.append(extra_instruction)
+    
+    # The DynArray[ActionInstruction, MAX_INSTRUCTIONS] validation happens at ABI encoding
+    with boa.reverts():  # Will fail during ABI encoding with array too long
+        starter_agent.performBatchActions(
+            user_wallet.address,
+            instructions,
+            empty_sig,
+            sender=charlie  # Owner
+        )
+
+
+def test_ecrecover_edge_cases(
+    starter_agent,
+    user_wallet,
+    alice,
+    create_signature_struct
+):
+    """Test edge cases that might cause ecrecover to fail"""
+    
+    valid_time = boa.env.evm.patch.timestamp + 3600
+    current_nonce = starter_agent.currentNonce()
+    
+    # Test 1: r = 0 (should fail ecrecover)
+    r_zero = b'\x00' * 32
+    s_valid = b'\x01' * 32
+    v_valid = b'\x1b'  # 27
+    
+    zero_r_sig = create_signature_struct(r_zero + s_valid + v_valid, current_nonce, valid_time)
+    
+    with boa.reverts():  # ecrecover returns zero address
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            0,
+            b"",
+            zero_r_sig,
+            sender=alice
+        )
+    
+    # Test 2: s = 0 (should fail s != 0 check)
+    r_valid = b'\x01' * 32
+    s_zero = b'\x00' * 32
+    
+    zero_s_sig = create_signature_struct(r_valid + s_zero + v_valid, current_nonce, valid_time)
+    
+    with boa.reverts("invalid s value (zero)"):
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            0,
+            b"",
+            zero_s_sig,
+            sender=alice
+        )
+    
+    # Test 3: r > secp256k1n (invalid point)
+    r_invalid = b'\xFF' * 32  # Much larger than curve order
+    
+    invalid_r_sig = create_signature_struct(r_invalid + s_valid + v_valid, current_nonce, valid_time)
+    
+    with boa.reverts():  # ecrecover will fail
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            0,
+            b"",
+            invalid_r_sig,
+            sender=alice
+        )
+    
+    # Test 4: v = 26 (invalid, should be 27 or 28)
+    v_invalid = b'\x1a'  # 26
+    
+    invalid_v_sig = create_signature_struct(r_valid + s_valid + v_invalid, current_nonce, valid_time)
+    
+    with boa.reverts("invalid v parameter"):
+        starter_agent.depositForYield(
+            user_wallet.address,
+            1,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            0,
+            b"",
+            invalid_v_sig,
+            sender=alice
+        )
+
+
