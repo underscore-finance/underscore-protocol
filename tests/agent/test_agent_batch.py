@@ -52,8 +52,6 @@ def create_action_instruction(
     minOut2=0,
     tickLower=0,
     tickUpper=0,
-    extraAddr=ZERO_ADDRESS,
-    extraVal=0,
     extraData=b'\x00' * 32,
     auxData=b'\x00' * 32,
     swapInstructions=None
@@ -75,8 +73,6 @@ def create_action_instruction(
         minOut2,
         tickLower,
         tickUpper,
-        extraAddr,
-        extraVal,
         extraData,
         auxData,
         swapInstructions
@@ -395,7 +391,7 @@ def test_batch_mint_pending_and_confirm(user_wallet, bob, agent, mock_lego, mock
             target=mock_lego_asset_alt.address,
             amount=mint_amount,
             minOut1=mint_amount,
-            extraVal=1  # Pending state
+            extraData=b'\x00' * 32,  # or whatever if needed
         ),
         # 2. Confirm the mint
         create_action_instruction(
@@ -406,8 +402,12 @@ def test_batch_mint_pending_and_confirm(user_wallet, bob, agent, mock_lego, mock
         )
     ]
     
+    mock_lego.setImmediateMintOrRedeem(False)
+
     # Execute batch
     agent.performBatchActions(user_wallet, instructions, sender=agent_owner)
+
+    mock_lego.setImmediateMintOrRedeem(True)
     
     # Verify: asset decreased, asset_alt increased after confirmation
     assert mock_lego_asset.balanceOf(user_wallet.address) == initial_asset_balance - mint_amount
