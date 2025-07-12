@@ -260,11 +260,11 @@ def lego_book(lego_book_deploy, deploy3r, mock_dex_lego, mock_yield_lego):
 
 
 @pytest.fixture(scope="session")
-def hatchery(undy_hq_deploy, fork):
+def hatchery(undy_hq_deploy, fork, weth):
     return boa.load(
         "contracts/core/Hatchery.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
+        weth,
         TOKENS[fork]["ETH"],
         name="hatchery",
     )

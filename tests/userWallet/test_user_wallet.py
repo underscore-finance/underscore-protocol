@@ -1382,3 +1382,233 @@ def test_rebalance_yield_position_updates_asset_tracking(prepareAssetForWalletTx
     
     # verify assets array is properly maintained
     assert user_wallet.assets(vault2_index) == alpha_token_vault_2.address
+
+
+#################
+# Claim Rewards #
+#################
+
+
+def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees):
+    """Test basic rewards claiming functionality"""
+    lego_id = 2  # mock_dex_lego is always id 2
+    
+    # Setup: no rewards fee initially
+    setUserWalletConfig(_txFees=createTxFees(_rewardsFee=0))
+    
+    # Set price for reward token
+    mock_ripe.setPrice(mock_dex_asset, 5 * EIGHTEEN_DECIMALS)  # $5
+    
+    # Register asset in wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
+    
+    # Set lego access (required for rewards operations)
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Check initial balance
+    initial_balance = mock_dex_asset.balanceOf(user_wallet)
+    assert initial_balance == 0
+    
+    # Claim rewards
+    reward_amount = 100 * EIGHTEEN_DECIMALS
+    amount_claimed, usd_value = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        reward_amount,
+        b"",  # extraData
+        sender=bob
+    )
+    
+    # Verify return values (no fee)
+    assert amount_claimed == reward_amount
+    assert usd_value == 500 * EIGHTEEN_DECIMALS  # 100 tokens * $5
+    
+    # Check balance increased
+    assert mock_dex_asset.balanceOf(user_wallet) == reward_amount
+    
+    # Check event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 50  # REWARDS operation
+    assert log.asset1 == mock_dex_asset.address
+    assert log.asset2 == mock_dex_lego.address
+    assert log.amount1 == reward_amount
+    assert log.amount2 == 0
+    assert log.usdValue == usd_value
+    assert log.legoId == lego_id
+    assert log.signer == bob
+    
+    # Check storage updated
+    asset_data = user_wallet.assetData(mock_dex_asset.address)
+    assert asset_data.assetBalance == reward_amount
+    assert asset_data.usdValue == usd_value
+    assert asset_data.isYieldAsset == False
+
+
+def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor):
+    """Test rewards claiming with fee deduction"""
+    lego_id = 2  # mock_dex_lego is always id 2
+    
+    # Setup: 10% rewards fee
+    setUserWalletConfig(_txFees=createTxFees(_rewardsFee=10_00))  # 10%
+    
+    # Set price for reward token
+    mock_ripe.setPrice(mock_dex_asset, 5 * EIGHTEEN_DECIMALS)  # $5
+    
+    # Register asset in wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Get initial loot distributor balance
+    initial_loot_balance = mock_dex_asset.balanceOf(loot_distributor)
+    
+    # Claim rewards
+    reward_amount = 200 * EIGHTEEN_DECIMALS
+    amount_claimed, usd_value = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        reward_amount,
+        sender=bob
+    )
+    
+    # Calculate expected values with 10% fee
+    expected_fee = 20 * EIGHTEEN_DECIMALS  # 10% of 200
+    expected_net_amount = reward_amount - expected_fee  # 180
+    
+    # Verify return values (after fee deduction)
+    assert amount_claimed == expected_net_amount
+    assert usd_value == 1000 * EIGHTEEN_DECIMALS  # 200 tokens * $5 (before fee)
+    
+    # Check wallet balance (should have net amount after fee)
+    assert mock_dex_asset.balanceOf(user_wallet) == expected_net_amount
+    
+    # Check fee was sent to loot distributor
+    loot_balance_increase = mock_dex_asset.balanceOf(loot_distributor) - initial_loot_balance
+    assert loot_balance_increase == expected_fee
+    
+    # Check event shows net amount after fee
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 50  # REWARDS operation
+    assert log.asset1 == mock_dex_asset.address
+    assert log.asset2 == mock_dex_lego.address
+    assert log.amount1 == expected_net_amount  # Net amount after fee
+    assert log.amount2 == 0
+    assert log.usdValue == usd_value  # USD value before fee
+    
+    # Check storage reflects net amount
+    asset_data = user_wallet.assetData(mock_dex_asset.address)
+    assert asset_data.assetBalance == expected_net_amount
+
+
+def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees):
+    """Test multiple sequential reward claims accumulate correctly"""
+    lego_id = 2  # mock_dex_lego is always id 2
+    
+    # Setup: no rewards fee for simplicity
+    setUserWalletConfig(_txFees=createTxFees(_rewardsFee=0))
+    
+    # Set price for reward token
+    mock_ripe.setPrice(mock_dex_asset, 3 * EIGHTEEN_DECIMALS)  # $3
+    
+    # Register asset in wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # First claim
+    claim1_amount = 50 * EIGHTEEN_DECIMALS
+    amount1, usd1 = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        claim1_amount,
+        sender=bob
+    )
+    
+    assert amount1 == claim1_amount
+    assert mock_dex_asset.balanceOf(user_wallet) == claim1_amount
+    
+    # Second claim
+    claim2_amount = 75 * EIGHTEEN_DECIMALS
+    amount2, usd2 = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        claim2_amount,
+        sender=bob
+    )
+    
+    assert amount2 == claim2_amount
+    assert mock_dex_asset.balanceOf(user_wallet) == claim1_amount + claim2_amount
+    
+    # Third claim
+    claim3_amount = 25 * EIGHTEEN_DECIMALS
+    amount3, usd3 = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        claim3_amount,
+        sender=bob
+    )
+    
+    assert amount3 == claim3_amount
+    
+    # Verify total accumulated rewards
+    total_claimed = claim1_amount + claim2_amount + claim3_amount
+    assert mock_dex_asset.balanceOf(user_wallet) == total_claimed
+    
+    # Check storage
+    asset_data = user_wallet.assetData(mock_dex_asset.address)
+    assert asset_data.assetBalance == total_claimed
+    assert asset_data.usdValue == total_claimed * 3  # $3 per token
+
+
+def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor):
+    """Test that rewards fee is capped at 25% maximum"""
+    lego_id = 2  # mock_dex_lego is always id 2
+    
+    # Setup: 50% rewards fee (should be capped to 25%)
+    setUserWalletConfig(_txFees=createTxFees(_rewardsFee=50_00))  # 50%
+    
+    # Set price for reward token
+    mock_ripe.setPrice(mock_dex_asset, 4 * EIGHTEEN_DECIMALS)  # $4
+    
+    # Register asset in wallet config
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
+    
+    # Set lego access
+    mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
+    
+    # Get initial loot distributor balance
+    initial_loot_balance = mock_dex_asset.balanceOf(loot_distributor)
+    
+    # Claim rewards
+    reward_amount = 400 * EIGHTEEN_DECIMALS
+    amount_claimed, usd_value = user_wallet.claimRewards(
+        lego_id,
+        mock_dex_asset.address,
+        reward_amount,
+        sender=bob
+    )
+    
+    # Fee should be capped at 25% (not 50%)
+    expected_fee = 100 * EIGHTEEN_DECIMALS  # 25% of 400
+    expected_net_amount = reward_amount - expected_fee  # 300
+    
+    # Verify return values
+    assert amount_claimed == expected_net_amount
+    assert usd_value == 1600 * EIGHTEEN_DECIMALS  # 400 tokens * $4
+    
+    # Check wallet balance
+    assert mock_dex_asset.balanceOf(user_wallet) == expected_net_amount
+    
+    # Check fee was capped at 25%
+    loot_balance_increase = mock_dex_asset.balanceOf(loot_distributor) - initial_loot_balance
+    assert loot_balance_increase == expected_fee
+    
+    # Verify fee percentage
+    fee_percentage = (expected_fee * 10000) // reward_amount
+    assert fee_percentage == 2500  # 25%
