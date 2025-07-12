@@ -2,8 +2,7 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS
-from contracts.core.userWallet import UserWallet, UserWalletConfig
-from contracts.core.agent import AgentWrapper
+from contracts.core.userWallet import UserWalletConfig
 from conf_utils import filter_logs
 from config.BluePrint import TOKENS
 
