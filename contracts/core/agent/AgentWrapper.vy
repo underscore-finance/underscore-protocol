@@ -385,11 +385,9 @@ def performBatchActions(
     _instructions: DynArray[ActionInstruction, MAX_INSTRUCTIONS],
     _sig: Signature = empty(Signature),
 ) -> bool:
-    if msg.sender != self.owner:
-        messageHash: bytes32 = keccak256(abi_encode(_userWallet, _instructions, _sig.nonce, _sig.expiration))
-        self._authenticateAccess(messageHash, _sig)
-    
     assert len(_instructions) > 0 # dev: no instructions
+    messageHash: bytes32 = keccak256(abi_encode(_userWallet, _instructions, _sig.nonce, _sig.expiration))
+    self._authenticateAccess(messageHash, _sig)   
 
     prevAmountReceived: uint256 = 0
     for instruction: ActionInstruction in _instructions:
@@ -541,7 +539,8 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
 
 @internal
 def _authenticateAccess(_messageHash: bytes32, _sig: Signature):
-    if msg.sender != self.owner:
+    owner: address = self.owner
+    if msg.sender != owner:
         # check expiration first to prevent DoS
         assert _sig.expiration >= block.timestamp # dev: signature expired
 
@@ -550,7 +549,7 @@ def _authenticateAccess(_messageHash: bytes32, _sig: Signature):
 
         # verify signature and check it's from owner
         signer: address = self._verify(_messageHash, _sig)
-        assert signer == self.owner # dev: invalid signer
+        assert signer == owner # dev: invalid signer
 
         # increment nonce for next use
         self.currentNonce += 1
