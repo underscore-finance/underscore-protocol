@@ -287,7 +287,7 @@ def _checkSpecificPayeeSettings(
         return False
 
     # is payee active
-    if _config.startBlock > block.number or _config.expiryBlock < block.number:
+    if _config.startBlock > block.number or _config.expiryBlock <= block.number:
         return False
     
     # check if asset is allowed

@@ -685,3 +685,287 @@ def test_empty_primary_asset_with_only_primary_false(createPayeeSettings, alpha_
     # should allow any asset
     assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 100, 100)
     assert paymaster.isValidPayee(user_wallet, alice, bravo_token, 100, 100)
+
+
+# additional scenarios
+
+
+def test_exact_limit_boundaries(createPayeeSettings, createPayeeLimits, alpha_token, alice, paymaster, user_wallet, user_wallet_config):
+    # test exact boundary values (at limit, not over/under)
+    unit_limits = createPayeeLimits(_perTxCap=100)
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _unitLimits=unit_limits)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # exactly at limit should pass
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 100, 1)
+    
+    # test USD limits at exact boundary
+    usd_limits = createPayeeLimits(_perTxCap=500)
+    new_payee_settings_usd = createPayeeSettings(_primaryAsset=alpha_token, _usdLimits=usd_limits)
+    user_wallet_config.addPayee(alice, new_payee_settings_usd, sender=paymaster.address)
+    
+    # exactly at USD limit should pass
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 1, 500)
+
+
+def test_transaction_at_exact_period_end(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, paymaster, user_wallet_config):
+    # test transaction right at the period boundary
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=100)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # set up data with period about to end
+    boa.env.time_travel(blocks=100)
+    payee_data = createPayeeData(_periodStartBlock=boa.env.evm.patch.block_number - 99)
+    
+    new_global_payee_settings = createGlobalPayeeSettings()
+    
+    # transaction at block 99 of 100-block period (last block of period)
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 100, 50,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert is_valid
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number - 99  # still in same period
+    
+    # next block should trigger period reset
+    boa.env.time_travel(blocks=1)
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 100, 50,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert is_valid
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number  # new period
+
+
+def test_zero_amount_transaction(createPayeeSettings, alpha_token, alice, paymaster, user_wallet, user_wallet_config):
+    # test that zero amount transactions are handled correctly
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # zero amount should still be valid (unless other restrictions apply)
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 0, 0)
+    
+    # zero amount with non-zero USD value should work
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 0, 100)
+
+
+def test_cooldown_equals_period_length(createGlobalPayeeSettings, user_wallet, createPayeeSettings, createPayeeData, alpha_token, alice, paymaster, user_wallet_config):
+    # edge case where cooldown equals period length
+    period_length = 100
+    new_payee_settings = createPayeeSettings(
+        _primaryAsset=alpha_token, 
+        _periodLength=period_length,
+        _txCooldownBlocks=period_length
+    )
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # first transaction should work
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
+    
+    # simulate a transaction just happened
+    boa.env.time_travel(blocks=10)
+    payee_data = createPayeeData(
+        _lastTxBlock=boa.env.evm.patch.block_number,
+        _periodStartBlock=boa.env.evm.patch.block_number,
+        _numTxsInPeriod=1
+    )
+    
+    new_global_payee_settings = createGlobalPayeeSettings()
+    
+    # should not be valid during cooldown (which lasts the entire period)
+    is_valid, _ = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 1, 1,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert not is_valid
+    
+    # after period ends, cooldown should be over AND period should reset
+    boa.env.time_travel(blocks=period_length)
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 1, 1,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert is_valid
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+
+
+def test_multiple_period_resets(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, paymaster, user_wallet_config):
+    # test behavior when multiple periods have passed
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=50)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # simulate data from 3 periods ago
+    boa.env.time_travel(blocks=200)
+    old_period_start = boa.env.evm.patch.block_number - 150
+    payee_data = createPayeeData(
+        _periodStartBlock=old_period_start,
+        _numTxsInPeriod=5,
+        _totalUnitsInPeriod=1000,
+        _totalUsdValueInPeriod=2000
+    )
+    
+    new_global_payee_settings = createGlobalPayeeSettings()
+    
+    # should reset to current period
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 100, 50,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert is_valid
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+
+    # period data should be reset
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUnitsInPeriod == 100
+    assert updated_data.totalUsdValueInPeriod == 50
+
+
+def test_payee_expires_at_current_block(createPayeeSettings, alpha_token, alice, paymaster, user_wallet, user_wallet_config):
+    # edge case: payee expires at exactly the current block
+    current_block = boa.env.evm.patch.block_number
+    new_payee_settings = createPayeeSettings(
+        _startBlock=current_block,
+        _expiryBlock=current_block,  # expires at current block
+        _primaryAsset=alpha_token
+    )
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # should not be valid at current block (expiry <= current block)
+    assert not paymaster.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
+    
+    # test with expiry = current block + 1 (should be valid for exactly current block)
+    new_payee_settings_2 = createPayeeSettings(
+        _startBlock=current_block,
+        _expiryBlock=current_block + 1,  # valid only for current block
+        _primaryAsset=alpha_token
+    )
+    user_wallet_config.addPayee(alice, new_payee_settings_2, sender=paymaster.address)
+    
+    # should be valid at current block
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
+    
+    # advance one block - should now be invalid (current block >= expiry)
+    boa.env.time_travel(blocks=1)
+    assert not paymaster.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
+
+
+def test_global_and_payee_cooldowns_both_apply(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, paymaster, user_wallet_config):
+    # test when both global and payee cooldowns are set
+    new_global_payee_settings = createGlobalPayeeSettings(_txCooldownBlocks=10)
+    user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
+    
+    # payee has shorter cooldown - global should still apply
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _txCooldownBlocks=5)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # simulate recent transaction
+    boa.env.time_travel(blocks=20)
+    current_block = boa.env.evm.patch.block_number
+    payee_data = createPayeeData(_lastTxBlock=current_block - 7)
+    
+    # 7 blocks ago - payee cooldown (5) passed but global (10) not passed
+    is_valid, _ = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 1, 1,
+        new_payee_settings, new_global_payee_settings, payee_data
+    )
+    assert not is_valid
+    
+    # after global cooldown passes
+    payee_data_after = createPayeeData(_lastTxBlock=current_block - 11)
+    is_valid, _ = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 1, 1,
+        new_payee_settings, new_global_payee_settings, payee_data_after
+    )
+    assert is_valid
+
+
+def test_very_long_inactive_period(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, paymaster, user_wallet_config):
+    # test payee that hasn't been used for many periods
+    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=100)
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # simulate very old data (1000 blocks ago)
+    boa.env.time_travel(blocks=1100)
+    very_old_data = createPayeeData(
+        _periodStartBlock=boa.env.evm.patch.block_number - 1000,
+        _lastTxBlock=boa.env.evm.patch.block_number - 1000,
+        _totalUnits=50000,
+        _totalUsdValue=100000,
+        _totalNumTxs=100
+    )
+    
+    new_global_payee_settings = createGlobalPayeeSettings()
+    
+    # should still work and reset period
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 100, 50,
+        new_payee_settings, new_global_payee_settings, very_old_data
+    )
+    assert is_valid
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+
+    # lifetime data should persist
+    assert updated_data.totalUnits == 50100  # 50000 + 100
+    assert updated_data.totalUsdValue == 100050  # 100000 + 50
+    assert updated_data.totalNumTxs == 101  # 100 + 1
+
+
+def test_all_limits_zero_means_unlimited(createGlobalPayeeSettings, user_wallet, createPayeeSettings, createPayeeLimits, alpha_token, alice, paymaster, user_wallet_config):
+    # comprehensive test of zero = unlimited behavior
+    zero_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
+    new_global_payee_settings = createGlobalPayeeSettings(
+        _maxNumTxsPerPeriod=0,
+        _txCooldownBlocks=0,
+        _usdLimits=zero_limits
+    )
+    user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
+    
+    new_payee_settings = createPayeeSettings(
+        _primaryAsset=alpha_token,
+        _maxNumTxsPerPeriod=0,
+        _txCooldownBlocks=0,
+        _unitLimits=zero_limits,
+        _usdLimits=zero_limits
+    )
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # should allow massive amounts and many transactions
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 10**18, 10**18)
+    assert paymaster.isValidPayee(user_wallet, alice, alpha_token, 10**24, 10**24)
+
+
+def test_lifetime_limits_persist_across_period_resets(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, createPayeeLimits, alpha_token, alice, paymaster, user_wallet_config):
+    # ensure lifetime limits aren't reset with period
+    unit_limits = createPayeeLimits(_lifetimeCap=1000)
+    new_payee_settings = createPayeeSettings(
+        _primaryAsset=alpha_token,
+        _periodLength=50,
+        _unitLimits=unit_limits
+    )
+    user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
+    
+    # simulate old period with 900 lifetime units used
+    boa.env.time_travel(blocks=100)
+    old_data = createPayeeData(
+        _totalUnits=900,
+        _periodStartBlock=boa.env.evm.patch.block_number - 60,
+        _totalUnitsInPeriod=100  # this should reset
+    )
+    
+    new_global_payee_settings = createGlobalPayeeSettings()
+    
+    # even after period reset, lifetime limit should apply
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 200, 1,
+        new_payee_settings, new_global_payee_settings, old_data
+    )
+    assert not is_valid  # would exceed lifetime cap (900 + 200 > 1000)
+    
+    # but smaller amount should work
+    is_valid, updated_data = paymaster.isValidPayeeAndGetData(
+        False, False, True, alpha_token, 99, 1,
+        new_payee_settings, new_global_payee_settings, old_data
+    )
+    assert is_valid
+    assert updated_data.totalUnits == 999  # 900 + 99
+    assert updated_data.totalUnitsInPeriod == 99  # period was reset
