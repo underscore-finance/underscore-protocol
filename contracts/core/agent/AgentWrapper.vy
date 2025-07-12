@@ -21,8 +21,8 @@ struct Signature:
     expiration: uint256
 
 struct ActionInstruction:
-    usePrevAmountOut: bool      # Use output from previous instruction as amount
-    action: uint8               # Action type (0-17, see ActionType enum)
+    usePrevAmountOut: bool     # Use output from previous instruction as amount
+    action: uint8              # Action type: 1=transfer, 2=eth2weth, 3=weth2eth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
     legoId: uint16             # Protocol/Lego ID (use amount2 for toLegoId in rebalance)
     asset: address             # Primary asset/token (or vaultToken for withdrawals)
     target: address            # Varies: recipient/vaultAddr/tokenOut/pool based on action
@@ -405,26 +405,26 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
     txUsdValue: uint256 = 0
 
     # transfer funds
-    if instruction.action == 0:
+    if instruction.action == 1:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).transferFunds(instruction.target, instruction.asset, nextAmount)
         return nextAmount
 
     # deposit for yield
-    elif instruction.action == 1:
+    elif instruction.action == 10:
         assetAmount: uint256 = 0
         vaultToken: address = empty(address)
         assetAmount, vaultToken, nextAmount, txUsdValue = extcall Wallet(_userWallet).depositForYield(convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.extraData)
         return nextAmount
 
     # withdraw from yield
-    elif instruction.action == 2:
+    elif instruction.action == 11:
         underlyingAmount: uint256 = 0
         underlyingToken: address = empty(address)
         underlyingAmount, underlyingToken, nextAmount, txUsdValue = extcall Wallet(_userWallet).withdrawFromYield(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
-    # rebalance yield position
-    elif instruction.action == 3:
+    # rebalance yield position (not a UserWallet op code, but valid AgentWrapper action)
+    elif instruction.action == 12:
         underlyingAmount: uint256 = 0
         underlyingToken: address = empty(address)
         # NOTE: amount2 is used as toLegoId (not an amount!)
@@ -433,7 +433,7 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         return nextAmount
 
     # swap tokens
-    elif instruction.action == 4:
+    elif instruction.action == 20:
         if instruction.usePrevAmountOut and _prevAmount != 0:
             instruction.swapInstructions[0].amountIn = _prevAmount
         tokenIn: address = empty(address)
@@ -443,61 +443,61 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         return nextAmount
 
     # mint or redeem asset
-    elif instruction.action == 5:
+    elif instruction.action == 21:
         assetTokenAmount: uint256 = 0
         isPending: bool = False
         assetTokenAmount, nextAmount, isPending, txUsdValue = extcall Wallet(_userWallet).mintOrRedeemAsset(convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.minOut1, instruction.extraData)
         return nextAmount
 
     # confirm mint or redeem asset
-    elif instruction.action == 6:
+    elif instruction.action == 22:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).confirmMintOrRedeemAsset(convert(instruction.legoId, uint256), instruction.asset, instruction.target, instruction.extraData)
         return nextAmount
 
     # add collateral
-    elif instruction.action == 7:
+    elif instruction.action == 40:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).addCollateral(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # remove collateral
-    elif instruction.action == 8:
+    elif instruction.action == 41:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).removeCollateral(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # borrow
-    elif instruction.action == 9:
+    elif instruction.action == 42:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).borrow(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # repay debt
-    elif instruction.action == 10:
+    elif instruction.action == 43:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).repayDebt(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # claim rewards
-    elif instruction.action == 11:
+    elif instruction.action == 50:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).claimRewards(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # convert eth to weth
-    elif instruction.action == 12:
+    elif instruction.action == 2:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).convertEthToWeth(nextAmount)
         return nextAmount
 
     # convert weth to eth
-    elif instruction.action == 13:
+    elif instruction.action == 3:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).convertWethToEth(nextAmount)
         return nextAmount
 
     # add liquidity
-    elif instruction.action == 14:
+    elif instruction.action == 30:
         amountA: uint256 = 0
         amountB: uint256 = 0
         nextAmount, amountA, amountB, txUsdValue = extcall Wallet(_userWallet).addLiquidity(convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, nextAmount, instruction.amount2, instruction.minOut1, instruction.minOut2, convert(instruction.auxData, uint256), instruction.extraData)
         return nextAmount
 
     # remove liquidity
-    elif instruction.action == 15:
+    elif instruction.action == 31:
         # Extract lpToken address from auxData (lower 160 bits)
         lpToken: address = convert(convert(instruction.auxData, uint256) & convert(max_value(uint160), uint256), address)
         amountB: uint256 = 0
@@ -508,7 +508,7 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         return nextAmount
 
     # add liquidity concentrated
-    elif instruction.action == 16:
+    elif instruction.action == 32:
         # Extract pool address (upper 160 bits) and nftId (lower 96 bits) from auxData
         pool: address = convert(convert(instruction.auxData, uint256) >> 96, address)
         nftId: uint256 = convert(instruction.auxData, uint256) & convert(max_value(uint96), uint256)
@@ -517,7 +517,7 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         return 0
 
     # remove liquidity concentrated
-    elif instruction.action == 17:
+    elif instruction.action == 33:
         # Extract pool address (upper 160 bits) and nftId (lower 96 bits) from auxData
         pool: address = convert(convert(instruction.auxData, uint256) >> 96, address)
         nftId: uint256 = convert(instruction.auxData, uint256) & convert(max_value(uint96), uint256)

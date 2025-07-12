@@ -441,7 +441,7 @@ def test_batch_actions_signature_validation(
     
     # Create transfer instruction - transfers go to wallet owner (bob), not agent owner
     instruction = createActionInstruction(
-        action=0,  # TRANSFER
+        action=1,  # TRANSFER
         asset=mock_dex_asset.address,
         target=bob,
         amount=10 * EIGHTEEN_DECIMALS
@@ -492,7 +492,7 @@ def test_different_action_message_hashes(
     # Each action will fail at signature verification
     # The signature will either fail ecrecover or return wrong signer
     
-    # Test depositForYield (action 0)
+    # Test depositForYield (action 10)
     with boa.reverts():  # Will fail signature verification
         starter_agent.depositForYield(
             user_wallet.address,
@@ -505,7 +505,7 @@ def test_different_action_message_hashes(
             sender=alice  # Non-owner to trigger signature check
         )
     
-    # Test withdrawFromYield (action 1)
+    # Test withdrawFromYield (action 11)
     with boa.reverts():  # Will fail signature verification
         starter_agent.withdrawFromYield(
             user_wallet.address,
@@ -517,7 +517,7 @@ def test_different_action_message_hashes(
             sender=alice  # Non-owner
         )
     
-    # Test swapTokens (action 3)
+    # Test swapTokens (action 20)
     swap_instruction = (
         1,  # legoId
         100,  # amountIn
@@ -750,7 +750,7 @@ def test_batch_max_instructions(
     instructions = []
     for i in range(15):
         instruction = createActionInstruction(
-            action=0,  # TRANSFER
+            action=1,  # TRANSFER
             asset=mock_dex_asset.address,
             target=bob,
             amount=1 * EIGHTEEN_DECIMALS  # Small amount per transfer
@@ -769,7 +769,7 @@ def test_batch_max_instructions(
     
     # Test with 16 instructions - should fail
     extra_instruction = createActionInstruction(
-        action=0,  # TRANSFER
+        action=1,  # TRANSFER
         asset=mock_dex_asset.address,
         target=bob,
         amount=1 * EIGHTEEN_DECIMALS

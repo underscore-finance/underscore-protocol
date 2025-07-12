@@ -210,7 +210,7 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.EARN_DEPOSIT, False, [_asset], [_legoId])
-    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, ad)
+    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, True, ad)
 
 
 @internal
@@ -220,6 +220,7 @@ def _depositForYield(
     _amount: uint256,
     _extraData: bytes32,
     _shouldPerformPostActionTasks: bool,
+    _shouldGenerateEvent: bool,
     _ad: ws.ActionData,
 ) -> (uint256, address, uint256, uint256):
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
@@ -236,16 +237,17 @@ def _depositForYield(
     if _shouldPerformPostActionTasks:
         self._performPostActionTasks([_asset, vaultToken], txUsdValue, _ad)
 
-    log WalletAction(
-        op = 10,
-        asset1 = _asset,
-        asset2 = vaultToken,
-        amount1 = assetAmount,
-        amount2 = vaultTokenAmountReceived,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    if _shouldGenerateEvent:
+        log WalletAction(
+            op = 10,
+            asset1 = _asset,
+            asset2 = vaultToken,
+            amount1 = assetAmount,
+            amount2 = vaultTokenAmountReceived,
+            usdValue = txUsdValue,
+            legoId = _ad.legoId,
+            signer = _ad.signer,
+        )
     return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
 
 
@@ -277,7 +279,7 @@ def withdrawFromYield(
     else:
         ad = self._performPreActionTasks(msg.sender, ws.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
 
-    return self._withdrawFromYield(_vaultToken, _amount, _extraData, shouldPerformPostActionTasks, _isTrustedTx, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraData, shouldPerformPostActionTasks, True, _isTrustedTx, ad)
 
 
 @internal
@@ -286,6 +288,7 @@ def _withdrawFromYield(
     _amount: uint256,
     _extraData: bytes32,
     _shouldPerformPostActionTasks: bool,
+    _shouldGenerateEvent: bool,
     _isTrustedTx: bool,
     _ad: ws.ActionData,
 ) -> (uint256, address, uint256, uint256):
@@ -310,16 +313,17 @@ def _withdrawFromYield(
     if _shouldPerformPostActionTasks:
         self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _isTrustedTx)
 
-    log WalletAction(
-        op = 11,
-        asset1 = _vaultToken,
-        asset2 = underlyingAsset,
-        amount1 = vaultTokenAmountBurned,
-        amount2 = underlyingAmount,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    if _shouldGenerateEvent:
+        log WalletAction(
+            op = 11,
+            asset1 = _vaultToken,
+            asset2 = underlyingAsset,
+            amount1 = vaultTokenAmountBurned,
+            amount2 = underlyingAmount,
+            usdValue = txUsdValue,
+            legoId = _ad.legoId,
+            signer = _ad.signer,
+        )
     return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue
 
 
@@ -343,7 +347,7 @@ def rebalanceYieldPosition(
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     withdrawTxUsdValue: uint256 = 0
-    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraData, False, True, ad)
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraData, False, False, False, ad)
 
     # deposit
     toVaultToken: address = empty(address)
@@ -351,10 +355,20 @@ def rebalanceYieldPosition(
     depositTxUsdValue: uint256 = 0
     ad.legoId = _toLegoId
     ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(_toLegoId)
-    underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, ad)
+    underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, False, ad)
 
     maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
     self._performPostActionTasks([underlyingAsset, _fromVaultToken, toVaultToken], maxUsdValue, ad)
+    log WalletAction(
+        op = 12,
+        asset1 = _fromVaultToken,
+        asset2 = toVaultToken,
+        amount1 = vaultTokenAmountBurned,
+        amount2 = toVaultTokenAmountReceived,
+        usdValue = maxUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
     return underlyingAmount, toVaultToken, toVaultTokenAmountReceived, maxUsdValue
 
 

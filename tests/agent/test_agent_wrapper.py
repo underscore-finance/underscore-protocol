@@ -210,7 +210,16 @@ def test_agent_rebalance_yield_position_basic(
         sender=charlie
     )
     logs = filter_logs(starter_agent, "WalletAction")
-    assert len(logs) == 2 # deposit and withdraw
+    assert len(logs) == 1 # single rebalance event
+    
+    # Verify rebalance event
+    rebalance_log = logs[0]
+    assert rebalance_log.op == 12  # REBALANCE
+    assert rebalance_log.asset1 == alpha_token_vault.address  # from vault
+    assert rebalance_log.asset2 == alpha_token_vault_2.address  # to vault
+    assert rebalance_log.amount1 == rebalance_amount  # vault tokens rebalanced
+    assert rebalance_log.amount2 == to_vault_tokens_received  # new vault tokens received
+    assert rebalance_log.legoId == 1  # from lego id
     
     # Verify results
     assert underlying_amount > 0

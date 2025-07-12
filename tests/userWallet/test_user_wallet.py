@@ -1135,31 +1135,21 @@ def test_rebalance_yield_position_basic(prepareAssetForWalletTx, user_wallet, bo
         sender=bob
     )
     
-    # verify events - rebalance emits withdraw and deposit events
+    # verify events - rebalance emits a single rebalance event
     logs = filter_logs(user_wallet, "WalletAction")
     
-    # Should have withdraw event (op=11) and deposit event (op=10)
-    assert len(logs) == 2
+    # Should have single rebalance event (op=12)
+    assert len(logs) == 1
     
-    # First event should be withdraw
-    withdraw_log = logs[0]
-    assert withdraw_log.op == 11  # EARN_WITHDRAW
-    assert withdraw_log.asset1 == alpha_token_vault.address
-    assert withdraw_log.asset2 == alpha_token.address  # underlying asset
-    assert withdraw_log.amount1 == vault_tokens_received_1
-    assert withdraw_log.amount2 == deposit_amount  # underlying received
-    assert withdraw_log.legoId == lego_id_1
-    assert withdraw_log.signer == bob
-    
-    # Second event should be deposit
-    deposit_log = logs[1]
-    assert deposit_log.op == 10  # EARN_DEPOSIT
-    assert deposit_log.asset1 == alpha_token.address  # underlying asset
-    assert deposit_log.asset2 == alpha_token_vault_2.address
-    assert deposit_log.amount1 == deposit_amount  # underlying deposited
-    assert deposit_log.amount2 == to_vault_tokens_received
-    assert deposit_log.legoId == lego_id_2
-    assert deposit_log.signer == bob
+    # Event should be rebalance
+    rebalance_log = logs[0]
+    assert rebalance_log.op == 12  # REBALANCE
+    assert rebalance_log.asset1 == alpha_token_vault.address  # from vault
+    assert rebalance_log.asset2 == alpha_token_vault_2.address  # to vault
+    assert rebalance_log.amount1 == vault_tokens_received_1  # vault tokens rebalanced
+    assert rebalance_log.amount2 == to_vault_tokens_received  # new vault tokens received
+    assert rebalance_log.legoId == lego_id_1  # from lego id
+    assert rebalance_log.signer == bob
     
     # verify return values
     assert underlying_amount == deposit_amount  # 1:1 exchange rate
