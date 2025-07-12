@@ -40,6 +40,7 @@ def undy_hq(
     paymaster,
     migrator,
     loot_distributor,
+    sentinel,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -89,6 +90,10 @@ def undy_hq(
     # 11
     assert undy_hq_deploy.startAddNewAddressToRegistry(migrator, "Migrator", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(migrator, sender=deploy3r) == 11
+
+    # 12
+    assert undy_hq_deploy.startAddNewAddressToRegistry(sentinel, "Sentinel", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(sentinel, sender=deploy3r) == 12
 
     # special permission setup
 
@@ -337,11 +342,23 @@ def paymaster(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def migrator(undy_hq_deploy, fork):
+def migrator(undy_hq_deploy):
     return boa.load(
         "contracts/core/Migrator.vy",
         undy_hq_deploy,
         name="migrator",
+    )
+
+
+# sentinel
+
+
+@pytest.fixture(scope="session")
+def sentinel(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/Sentinel.vy",
+        undy_hq_deploy,
+        name="sentinel",
     )
 
 

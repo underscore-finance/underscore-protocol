@@ -14,15 +14,13 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface HighCommand:
+interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
+    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
-    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
-
-interface Paymaster:
-    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Migrator:
     def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
@@ -78,6 +76,7 @@ owner: public(address)
 pendingOwner: public(wcs.PendingOwnerChange)
 
 # helper contracts
+sentinel: public(address)
 highCommand: public(address)
 paymaster: public(address)
 migrator: public(address)
@@ -148,6 +147,7 @@ def __init__(
     _owner: address,
     _groupId: uint256,
     # key contracts
+    _sentinel: address,
     _highCommand: address,
     _paymaster: address,
     _migrator: address,
@@ -170,7 +170,7 @@ def __init__(
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
 ):
-    assert empty(address) not in [_undyHq, _owner, _highCommand, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
+    assert empty(address) not in [_undyHq, _owner, _sentinel, _highCommand, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
     UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
@@ -180,6 +180,7 @@ def __init__(
     self.groupId = _groupId
 
     # set key addrs
+    self.sentinel = _sentinel
     self.highCommand = _highCommand
     self.paymaster = _paymaster
     self.migrator = _migrator
@@ -196,11 +197,11 @@ def __init__(
     self.timeLock = _minTimeLock
 
     # set global manager settings
-    self.globalManagerSettings = staticcall HighCommand(_highCommand).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
+    self.globalManagerSettings = staticcall Sentinel(_sentinel).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
 
     # initial agent
     if _startingAgent != empty(address):
-        self.managerSettings[_startingAgent] = staticcall HighCommand(_highCommand).createStarterAgentSettings(_startingAgentActivationLength)
+        self.managerSettings[_startingAgent] = staticcall Sentinel(_sentinel).createStarterAgentSettings(_startingAgentActivationLength)
         self.startingAgent = _startingAgent
         self._registerManager(_startingAgent)
 
@@ -210,7 +211,7 @@ def __init__(
     if _payeePeriod == 0 or _payeeActivationLength == 0:
         payeePeriod = _managerPeriod
         payeeActivationLength = _managerActivationLength
-    self.globalPayeeSettings = staticcall Paymaster(_paymaster).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
+    self.globalPayeeSettings = staticcall Sentinel(_sentinel).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
 
 
 @external
@@ -255,7 +256,7 @@ def checkSignerPermissionsAndGetBundle(
 
     # main validation
     c: wcs.ManagerConfigBundle = self._getManagerConfigs(_signer, _transferRecipient, ad.walletOwner)
-    assert staticcall HighCommand(self.highCommand).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee) # dev: no permission
+    assert staticcall Sentinel(self.sentinel).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee) # dev: no permission
 
     # signer is not owner
     if not c.isOwner:
@@ -278,7 +279,7 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
     # check usd value limits
     canFinishTx: bool = False
-    canFinishTx, managerData = staticcall HighCommand(self.highCommand).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, managerData)
+    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, managerData)
 
     # IMPORTANT -- this checks manager limits (usd values)
     assert canFinishTx # dev: usd value limit exceeded
@@ -351,7 +352,7 @@ def checkRecipientLimitsAndUpdateData(
     # check if payee is valid
     canPayRecipient: bool = False
     data: wcs.PayeeData = empty(wcs.PayeeData)
-    canPayRecipient, data = staticcall Paymaster(self.paymaster).isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    canPayRecipient, data = staticcall Sentinel(self.sentinel).isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
 
     # !!!!
     assert canPayRecipient # dev: invalid payee

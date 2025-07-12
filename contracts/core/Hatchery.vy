@@ -165,6 +165,7 @@ def createUserWallet(
         a.hq,
         _owner,
         _groupId,
+        a.sentinel,
         a.highCommand,
         a.paymaster,
         a.migrator,

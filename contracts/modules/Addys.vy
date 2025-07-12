@@ -23,6 +23,7 @@ struct Addys:
     highCommand: address
     paymaster: address
     migrator: address
+    sentinel: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -39,6 +40,7 @@ APPRAISER_ID: constant(uint256) = 8
 HIGH_COMMAND_ID: constant(uint256) = 9
 PAYMASTER_ID: constant(uint256) = 10
 MIGRATOR_ID: constant(uint256) = 11
+SENTINEL_ID: constant(uint256) = 12
 
 
 @deploy
@@ -83,6 +85,7 @@ def _generateAddys() -> Addys:
         highCommand = staticcall UndyHq(hq).getAddr(HIGH_COMMAND_ID),
         paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
         migrator = staticcall UndyHq(hq).getAddr(MIGRATOR_ID),
+        sentinel = staticcall UndyHq(hq).getAddr(SENTINEL_ID),
     )
 
 
@@ -316,3 +319,17 @@ def _getMigratorId() -> uint256:
 def _getMigratorAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MIGRATOR_ID)
 
+
+# sentinel
+
+
+@view
+@internal
+def _getSentinelId() -> uint256:
+    return SENTINEL_ID
+
+
+@view
+@internal
+def _getSentinelAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SENTINEL_ID)
