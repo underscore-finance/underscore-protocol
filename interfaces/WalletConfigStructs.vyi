@@ -22,39 +22,6 @@ struct PayeeData:
     lastTxBlock: uint256
     periodStartBlock: uint256
 
-struct PayeeManagementBundle:
-    owner: address
-    wallet: address
-    isRegisteredPayee: bool
-    isWhitelisted: bool
-    isManager: bool
-    payeeSettings: PayeeSettings
-    globalPayeeSettings: GlobalPayeeSettings
-    timeLock: uint256
-    walletConfig: address
-    inEjectMode: bool
-
-struct RecipientConfigBundle:
-    isWhitelisted: bool
-    isOwner: bool
-    isPayee: bool
-    config: PayeeSettings
-    globalConfig: GlobalPayeeSettings
-    data: PayeeData
-
-struct WhitelistConfigBundle:
-    owner: address
-    wallet: address
-    isWhitelisted: bool
-    pendingWhitelist: PendingWhitelist
-    timeLock: uint256
-    walletConfig: address
-    inEjectMode: bool
-    isManager: bool
-    isOwner: bool
-    whitelistPerms: WhitelistPerms
-    globalWhitelistPerms: WhitelistPerms
-
 struct PayeeSettings:
     startBlock: uint256
     expiryBlock: uint256
@@ -88,12 +55,40 @@ struct PendingPayee:
     initiatedBlock: uint256
     confirmBlock: uint256
 
-struct PendingWhitelist:
-    initiatedBlock: uint256
-    confirmBlock: uint256
+struct PayeeManagementBundle:
+    owner: address
+    wallet: address
+    isRegisteredPayee: bool
+    isWhitelisted: bool
+    isManager: bool
+    payeeSettings: PayeeSettings
+    globalPayeeSettings: GlobalPayeeSettings
+    timeLock: uint256
+    walletConfig: address
+    inEjectMode: bool
 
-struct PendingOwnerChange:
-    newOwner: address
+struct RecipientConfigBundle:
+    isWhitelisted: bool
+    isOwner: bool
+    isPayee: bool
+    config: PayeeSettings
+    globalConfig: GlobalPayeeSettings
+    data: PayeeData
+
+struct WhitelistConfigBundle:
+    owner: address
+    wallet: address
+    isWhitelisted: bool
+    pendingWhitelist: PendingWhitelist
+    timeLock: uint256
+    walletConfig: address
+    inEjectMode: bool
+    isManager: bool
+    isOwner: bool
+    whitelistPerms: WhitelistPerms
+    globalWhitelistPerms: WhitelistPerms
+
+struct PendingWhitelist:
     initiatedBlock: uint256
     confirmBlock: uint256
 
@@ -186,3 +181,8 @@ struct MigrationConfigBundle:
     groupId: uint256
     didMigrateSettings: bool
     didMigrateFunds: bool
+
+struct PendingOwnerChange:
+    newOwner: address
+    initiatedBlock: uint256
+    confirmBlock: uint256
