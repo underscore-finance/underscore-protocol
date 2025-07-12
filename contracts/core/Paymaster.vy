@@ -197,10 +197,13 @@ def isValidPayee(
     _asset: address,
     _amount: uint256,
     _txUsdValue: uint256,
-) -> (bool, wcs.PayeeData):
+) -> bool:
     userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
     c: wcs.RecipientConfigBundle = staticcall UserWalletConfig(userWalletConfig).getRecipientConfigs(_recipient)
-    return self._isValidPayee(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    canPay: bool = False
+    na: wcs.PayeeData = empty(wcs.PayeeData)
+    canPay, na = self._isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    return canPay
 
 
 # is valid payee (with config)
@@ -208,7 +211,7 @@ def isValidPayee(
 
 @view
 @external
-def isValidPayeeWithConfig(
+def isValidPayeeAndGetData(
     _isWhitelisted: bool,
     _isOwner: bool,
     _isPayee: bool,
@@ -219,7 +222,7 @@ def isValidPayeeWithConfig(
     _globalConfig: wcs.GlobalPayeeSettings,
     _data: wcs.PayeeData,
 ) -> (bool, wcs.PayeeData):
-    return self._isValidPayee(_isWhitelisted, _isOwner, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _data)
+    return self._isValidPayeeAndGetData(_isWhitelisted, _isOwner, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _data)
 
 
 # core logic -- is valid payee
@@ -227,7 +230,7 @@ def isValidPayeeWithConfig(
 
 @view
 @internal
-def _isValidPayee(
+def _isValidPayeeAndGetData(
     _isWhitelisted: bool,
     _isOwner: bool,
     _isPayee: bool,
@@ -264,34 +267,6 @@ def _isValidPayee(
 
     updatedData: wcs.PayeeData = self._updatePayeeData(_amount, _txUsdValue, data, _config.primaryAsset == _asset)
     return True, updatedData
-
-
-# update payee data
-
-
-@view
-@internal
-def _updatePayeeData(
-    _amount: uint256,
-    _txUsdValue: uint256,
-    _data: wcs.PayeeData,
-    _isPrimaryAsset: bool,
-) -> wcs.PayeeData:
-    data: wcs.PayeeData = _data
-
-    # update transaction details
-    data.numTxsInPeriod += 1
-    data.totalUsdValueInPeriod += _txUsdValue
-    data.totalNumTxs += 1
-    data.totalUsdValue += _txUsdValue
-    data.lastTxBlock = block.number
-    
-    # update unit amounts if this is the primary asset
-    if _isPrimaryAsset:
-        data.totalUnitsInPeriod += _amount
-        data.totalUnits += _amount
-
-    return data
 
 
 # specific payee settings
@@ -362,6 +337,34 @@ def _checkGlobalPayeeSettings(
     return True
 
 
+# update payee data
+
+
+@view
+@internal
+def _updatePayeeData(
+    _amount: uint256,
+    _txUsdValue: uint256,
+    _data: wcs.PayeeData,
+    _isPrimaryAsset: bool,
+) -> wcs.PayeeData:
+    data: wcs.PayeeData = _data
+
+    # update transaction details
+    data.numTxsInPeriod += 1
+    data.totalUsdValueInPeriod += _txUsdValue
+    data.totalNumTxs += 1
+    data.totalUsdValue += _txUsdValue
+    data.lastTxBlock = block.number
+    
+    # update unit amounts if this is the primary asset
+    if _isPrimaryAsset:
+        data.totalUnitsInPeriod += _amount
+        data.totalUnits += _amount
+
+    return data
+
+
 # get latest payee data (period reset)
 
 
@@ -390,14 +393,17 @@ def _getLatestPayeeData(_data: wcs.PayeeData, _periodLength: uint256) -> wcs.Pay
 @view
 @internal
 def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _data: wcs.PayeeData) -> bool:
-    if _limits.perTxCap != 0 and _txUsdValue > _limits.perTxCap:
-        return False
+    if _limits.perTxCap != 0:
+        if _txUsdValue > _limits.perTxCap:
+            return False
     
-    if _limits.perPeriodCap != 0 and _data.totalUsdValueInPeriod + _txUsdValue > _limits.perPeriodCap:
-        return False
+    if _limits.perPeriodCap != 0:
+        if _data.totalUsdValueInPeriod + _txUsdValue > _limits.perPeriodCap:
+            return False
     
-    if _limits.lifetimeCap != 0 and _data.totalUsdValue + _txUsdValue > _limits.lifetimeCap:
-        return False
+    if _limits.lifetimeCap != 0:
+        if _data.totalUsdValue + _txUsdValue > _limits.lifetimeCap:
+            return False
     
     return True
 
@@ -408,14 +414,17 @@ def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _data: wcs.P
 @view
 @internal
 def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _data: wcs.PayeeData) -> bool:
-    if _limits.perTxCap != 0 and _amount > _limits.perTxCap:
-        return False
+    if _limits.perTxCap != 0:
+        if _amount > _limits.perTxCap:
+            return False
     
-    if _limits.perPeriodCap != 0 and _data.totalUnitsInPeriod + _amount > _limits.perPeriodCap:
-        return False
+    if _limits.perPeriodCap != 0:
+        if _data.totalUnitsInPeriod + _amount > _limits.perPeriodCap:
+            return False
     
-    if _limits.lifetimeCap != 0 and _data.totalUnits + _amount > _limits.lifetimeCap:
-        return False
+    if _limits.lifetimeCap != 0:
+        if _data.totalUnits + _amount > _limits.lifetimeCap:
+            return False
     
     return True
 
@@ -434,8 +443,9 @@ def _checkTransactionLimits(
     if _maxNumTxsPerPeriod != 0 and _numTxsInPeriod >= _maxNumTxsPerPeriod:
         return False
     
-    if _txCooldownBlocks != 0 and _lastTxBlock != 0 and _lastTxBlock + _txCooldownBlocks > block.number:
-        return False
+    if _lastTxBlock != 0 and _txCooldownBlocks != 0:
+        if _lastTxBlock + _txCooldownBlocks > block.number:
+            return False
     
     return True
 

@@ -1,4 +1,5 @@
 import pytest
+import boa
 from constants import HUNDRED_PERCENT, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
 
 
@@ -311,8 +312,6 @@ def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistP
         _transferPerms = None,
         _allowedAssets = [],
     ):
-        import boa
-        
         # If startBlock is 0, use current block
         if _startBlock == 0:
             _startBlock = boa.env.evm.patch.block_number
@@ -453,27 +452,63 @@ def setManagerSettings(createManagerSettings, boss_validator):
 ##########
 
 
+# global payee settings (mission control)
+
+
 @pytest.fixture(scope="session")
-def setPayeeConfig(mission_control, switchboard_alpha):
-    def setPayeeConfig(
-        _payeePeriod = ONE_DAY_IN_BLOCKS,
-        _payeeActivationLength = ONE_MONTH_IN_BLOCKS,
+def setMissionControlPayeeConfig(mission_control, switchboard_alpha):
+    def setMissionControlPayeeConfig(
+        _payeePeriod = ONE_MONTH_IN_BLOCKS,
+        _payeeActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
         config = (
             _payeePeriod,
             _payeeActivationLength,
         )
-        mission_control.setPayeeConfig(config, sender=switchboard_alpha.address)
-    yield setPayeeConfig
+        mission_control.setMissionControlPayeeConfig(config, sender=switchboard_alpha.address)
+    yield setMissionControlPayeeConfig
 
 
-# Payee Limits
+# user wallet global payee settings
+
+
+@pytest.fixture(scope="session")
+def createGlobalPayeeSettings(createPayeeLimits):
+    def createGlobalPayeeSettings(
+        _defaultPeriodLength = ONE_MONTH_IN_BLOCKS,
+        _startDelay = ONE_DAY_IN_BLOCKS // 2,
+        _activationLength = ONE_YEAR_IN_BLOCKS,
+        _maxNumTxsPerPeriod = 0, # unlimited by default
+        _txCooldownBlocks = 0, # no cooldown by default
+        _failOnZeroPrice = False, # accept zero-priced transactions by default
+        _usdLimits = None,
+        _canPayOwner = True, # allow payments to owner by default
+    ):
+        if _usdLimits is None:
+            _usdLimits = createPayeeLimits()
+
+        return (
+            _defaultPeriodLength,
+            _startDelay,
+            _activationLength,
+            _maxNumTxsPerPeriod,
+            _txCooldownBlocks,
+            _failOnZeroPrice,
+            _usdLimits,
+            _canPayOwner,
+        )
+    yield createGlobalPayeeSettings
+
+
+# payee limits
+
+
 @pytest.fixture(scope="session")
 def createPayeeLimits():
     def createPayeeLimits(
-        _perTxCap = 0,  # 0 = unlimited
-        _perPeriodCap = 0,  # 0 = unlimited
-        _lifetimeCap = 0,  # 0 = unlimited
+        _perTxCap = 0, # 0 = unlimited
+        _perPeriodCap = 0, # 0 = unlimited
+        _lifetimeCap = 0, # 0 = unlimited
     ):
         return (
             _perTxCap,
@@ -483,7 +518,53 @@ def createPayeeLimits():
     yield createPayeeLimits
 
 
-# Payee Data
+# payee settings (user wallet)
+
+
+@pytest.fixture(scope="session")
+def createPayeeSettings(createPayeeLimits):
+    def createPayeeSettings(
+        _startBlock = 0,  # 0 = current block
+        _expiryBlock = 0,  # 0 = 1 year from start
+        _canPull = False,
+        _periodLength = ONE_MONTH_IN_BLOCKS,
+        _maxNumTxsPerPeriod = 0,  # 0 = unlimited
+        _txCooldownBlocks = 0,  # 0 = no cooldown
+        _failOnZeroPrice = False,
+        _primaryAsset = ZERO_ADDRESS,  # zero address
+        _onlyPrimaryAsset = False,
+        _unitLimits = None,
+        _usdLimits = None,
+    ):
+        if _startBlock == 0:
+            _startBlock = boa.env.evm.patch.block_number
+        if _expiryBlock == 0:
+            _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
+        
+        if _unitLimits is None:
+            _unitLimits = createPayeeLimits()
+        if _usdLimits is None:
+            _usdLimits = createPayeeLimits()
+            
+        return (
+            _startBlock,
+            _expiryBlock,
+            _canPull,
+            _periodLength,
+            _maxNumTxsPerPeriod,
+            _txCooldownBlocks,
+            _failOnZeroPrice,
+            _primaryAsset,
+            _onlyPrimaryAsset,
+            _unitLimits,
+            _usdLimits,
+        )
+    yield createPayeeSettings
+
+
+# payee data
+
+
 @pytest.fixture(scope="session")
 def createPayeeData():
     def createPayeeData(
@@ -507,154 +588,3 @@ def createPayeeData():
             _periodStartBlock,
         )
     yield createPayeeData
-
-
-# Payee Settings
-@pytest.fixture(scope="session")
-def createPayeeSettings(createPayeeLimits):
-    def createPayeeSettings(
-        _startBlock = 0,  # 0 = current block
-        _expiryBlock = 0,  # 0 = 1 year from start
-        _canPull = False,
-        _periodLength = ONE_DAY_IN_BLOCKS,
-        _maxNumTxsPerPeriod = 0,  # 0 = unlimited
-        _txCooldownBlocks = 0,  # 0 = no cooldown
-        _failOnZeroPrice = False,
-        _primaryAsset = ZERO_ADDRESS,  # zero address
-        _onlyPrimaryAsset = False,
-        _unitLimits = None,
-        _usdLimits = None,
-    ):
-        import boa
-        
-        # If startBlock is 0, use current block
-        if _startBlock == 0:
-            _startBlock = boa.env.evm.patch.block_number
-        
-        # If expiryBlock is 0, set to 1 year after startBlock
-        if _expiryBlock == 0:
-            _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
-        
-        # Use defaults if not provided
-        if _unitLimits is None:
-            _unitLimits = createPayeeLimits()
-        if _usdLimits is None:
-            _usdLimits = createPayeeLimits()
-            
-        return (
-            _startBlock,
-            _expiryBlock,
-            _canPull,
-            _periodLength,
-            _maxNumTxsPerPeriod,
-            _txCooldownBlocks,
-            _failOnZeroPrice,
-            _primaryAsset,
-            _onlyPrimaryAsset,
-            _unitLimits,
-            _usdLimits,
-        )
-    yield createPayeeSettings
-
-
-# Global Payee Settings
-@pytest.fixture(scope="session")
-def createGlobalPayeeSettings(createPayeeLimits):
-    def createGlobalPayeeSettings(
-        _defaultPeriodLength = ONE_DAY_IN_BLOCKS,
-        _startDelay = ONE_DAY_IN_BLOCKS,
-        _activationLength = ONE_YEAR_IN_BLOCKS,
-        _maxNumTxsPerPeriod = 0,  # 0 = unlimited
-        _txCooldownBlocks = 0,  # 0 = no cooldown
-        _failOnZeroPrice = False,
-        _usdLimits = None,
-        _canPayOwner = True,
-    ):
-        # Use defaults if not provided
-        if _usdLimits is None:
-            _usdLimits = createPayeeLimits()
-            
-        return (
-            _defaultPeriodLength,
-            _startDelay,
-            _activationLength,
-            _maxNumTxsPerPeriod,
-            _txCooldownBlocks,
-            _failOnZeroPrice,
-            _usdLimits,
-            _canPayOwner,
-        )
-    yield createGlobalPayeeSettings
-
-
-# Set Global Payee Settings (creates and sets in contract)
-@pytest.fixture(scope="session")
-def setGlobalPayeeSettings(createGlobalPayeeSettings, paymaster):
-    def setGlobalPayeeSettings(
-        _userWalletConfig,  # UserWalletConfig instance
-        _defaultPeriodLength = ONE_DAY_IN_BLOCKS,
-        _startDelay = ONE_DAY_IN_BLOCKS,
-        _activationLength = ONE_YEAR_IN_BLOCKS,
-        _maxNumTxsPerPeriod = 0,
-        _txCooldownBlocks = 0,
-        _failOnZeroPrice = False,
-        _usdLimits = None,
-        _canPayOwner = True,
-    ):
-        # Create the settings
-        settings = createGlobalPayeeSettings(
-            _defaultPeriodLength,
-            _startDelay,
-            _activationLength,
-            _maxNumTxsPerPeriod,
-            _txCooldownBlocks,
-            _failOnZeroPrice,
-            _usdLimits,
-            _canPayOwner,
-        )
-        
-        # Set in contract
-        _userWalletConfig.setGlobalPayeeSettings(settings, sender=paymaster)
-        
-        return settings
-    yield setGlobalPayeeSettings
-
-
-# Set Payee Settings (creates and sets in contract)
-@pytest.fixture(scope="session")
-def setPayeeSettings(createPayeeSettings, paymaster):
-    def setPayeeSettings(
-        _userWalletConfig,  # UserWalletConfig instance
-        _payee,  # Payee address
-        _startBlock = 0,
-        _expiryBlock = 0,
-        _canPull = False,
-        _periodLength = ONE_DAY_IN_BLOCKS,
-        _maxNumTxsPerPeriod = 0,
-        _txCooldownBlocks = 0,
-        _failOnZeroPrice = False,
-        _primaryAsset = ZERO_ADDRESS,
-        _onlyPrimaryAsset = False,
-        _unitLimits = None,
-        _usdLimits = None,
-    ):
-        # Create the settings
-        settings = createPayeeSettings(
-            _startBlock,
-            _expiryBlock,
-            _canPull,
-            _periodLength,
-            _maxNumTxsPerPeriod,
-            _txCooldownBlocks,
-            _failOnZeroPrice,
-            _primaryAsset,
-            _onlyPrimaryAsset,
-            _unitLimits,
-            _usdLimits,
-        )
-        
-        # Add payee with settings
-        _userWalletConfig.addPayee(_payee, settings, sender=paymaster)
-        
-        return settings
-    yield setPayeeSettings

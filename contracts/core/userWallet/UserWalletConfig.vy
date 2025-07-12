@@ -21,7 +21,7 @@ interface BossValidator:
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Paymaster:
-    def isValidPayeeWithConfig(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
+    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
 interface Migrator:
@@ -335,7 +335,7 @@ def checkRecipientLimitsAndUpdateData(
     # check if payee is valid
     canPayRecipient: bool = False
     data: wcs.PayeeData = empty(wcs.PayeeData)
-    canPayRecipient, data = staticcall Paymaster(self.paymaster).isValidPayeeWithConfig(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    canPayRecipient, data = staticcall Paymaster(self.paymaster).isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
 
     # !!!!
     assert canPayRecipient # dev: invalid payee
