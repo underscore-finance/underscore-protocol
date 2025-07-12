@@ -102,22 +102,6 @@ struct ManagerData:
     lastTxBlock: uint256
     periodStartBlock: uint256
 
-struct ManagerConfigBundle:
-    isOwner: bool
-    isManager: bool
-    config: ManagerSettings
-    globalConfig: GlobalManagerSettings
-    data: ManagerData
-
-struct ManagerSettingsBundle:
-    owner: address
-    isManager: bool
-    bossValidator: address
-    timeLock: uint256
-    inEjectMode: bool
-    walletConfig: address
-    legoBook: address
-
 struct ManagerSettings:
     startBlock: uint256
     expiryBlock: uint256
@@ -165,6 +149,23 @@ struct TransferPerms:
     canCreateCheque: bool
     canAddPendingPayee: bool
     allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
+
+struct ManagerConfigBundle:
+    isOwner: bool
+    isManager: bool
+    config: ManagerSettings
+    globalConfig: GlobalManagerSettings
+    data: ManagerData
+    payee: address
+
+struct ManagerSettingsBundle:
+    owner: address
+    isManager: bool
+    highCommand: address
+    timeLock: uint256
+    inEjectMode: bool
+    walletConfig: address
+    legoBook: address
 
 # migration
 

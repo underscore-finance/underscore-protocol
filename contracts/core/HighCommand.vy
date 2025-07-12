@@ -9,12 +9,11 @@ interface UserWalletConfig:
     def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def getManagerConfigs(_signer: address) -> wcs.ManagerConfigBundle: view
+    def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle: view
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def isRegisteredPayee(_addr: address) -> bool: view
     def removeManager(_manager: address): nonpayable
-    def isWhitelisted(_addr: address) -> bool: view
 
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
@@ -135,9 +134,9 @@ def __init__(
     MAX_START_DELAY = _maxStartDelay
 
 
-######################
-# Manager Validation #
-######################
+###################################
+# Manager Validation - Pre Action #
+###################################
 
 
 # manager access control
@@ -154,11 +153,11 @@ def canSignerPerformAction(
     _transferRecipient: address = empty(address),
 ) -> bool:
     userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: wcs.ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_signer)
-    return self._canSignerPerformAction(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, userWalletConfig, _action, _assets, _legoIds, _transferRecipient)
+    c: wcs.ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_signer, _transferRecipient)
+    return self._canSignerPerformAction(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee)
 
 
-# manager access control (with config)
+# manager access control (with config / data)
 
 
 @view
@@ -166,16 +165,15 @@ def canSignerPerformAction(
 def canSignerPerformActionWithConfig(
     _isOwner: bool,
     _isManager: bool,
-    _data: wcs.ManagerData,
+    _managerData: wcs.ManagerData,
     _config: wcs.ManagerSettings,
     _globalConfig: wcs.GlobalManagerSettings,
-    _userWalletConfig: address,
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
-    _transferRecipient: address = empty(address),
+    _payee: address = empty(address),
 ) -> bool:
-    return self._canSignerPerformAction(_isOwner, _isManager, _data, _config, _globalConfig, _userWalletConfig, _action, _assets, _legoIds, _transferRecipient)
+    return self._canSignerPerformAction(_isOwner, _isManager, _managerData, _config, _globalConfig, _action, _assets, _legoIds, _payee)
 
 
 # core logic -- manager access control
@@ -186,14 +184,13 @@ def canSignerPerformActionWithConfig(
 def _canSignerPerformAction(
     _isOwner: bool,
     _isManager: bool,
-    _data: wcs.ManagerData,
-    _config: wcs.ManagerSettings,
+    _managerData: wcs.ManagerData,
+    _managerConfig: wcs.ManagerSettings,
     _globalConfig: wcs.GlobalManagerSettings,
-    _userWalletConfig: address,
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
-    _transferRecipient: address,
+    _payee: address,
 ) -> bool:
     # check if signer is the owner, and if owner can manage
     if _isOwner and _globalConfig.canOwnerManage:
@@ -204,115 +201,94 @@ def _canSignerPerformAction(
         return False
 
     # get latest manager data
-    data: wcs.ManagerData = self._getLatestManagerData(_data, _globalConfig.managerPeriod)
+    managerData: wcs.ManagerData = self._getLatestManagerData(_managerData, _globalConfig.managerPeriod)
 
-    # check specific manager permissions
-    if not self._checkSpecificManagerPermissions(_userWalletConfig, _action, _assets, _legoIds, _transferRecipient, data, _config):
+    # manager is not active
+    if _managerConfig.startBlock > block.number or _managerConfig.expiryBlock <= block.number:
         return False
 
-    # check global manager permissions
-    if not self._checkGlobalManagerPermissions(_userWalletConfig, _action, _assets, _legoIds, _transferRecipient, data, _globalConfig):
+    # specific manager
+    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _payee, _managerConfig.limits, _managerConfig.legoPerms, _managerConfig.transferPerms, _managerConfig.allowedAssets):
+        return False
+
+    # global manager settings
+    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _payee, _globalConfig.limits, _globalConfig.legoPerms, _globalConfig.transferPerms, _globalConfig.allowedAssets):
         return False
 
     return True
 
 
-# specific manager permissions
+# latest manager data
 
 
 @view
 @internal
-def _checkSpecificManagerPermissions(
-    _userWalletConfig: address,
-    _action: ws.ActionType,
-    _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS],
-    _transferRecipient: address,
-    _data: wcs.ManagerData,
-    _config: wcs.ManagerSettings,
-) -> bool:
+def _getLatestManagerData(_managerData: wcs.ManagerData, _managerPeriod: uint256) -> wcs.ManagerData:
+    managerData: wcs.ManagerData = _managerData
 
-    # manager is not active
-    if _config.startBlock > block.number or _config.expiryBlock < block.number:
-        return False
+    # initialize period if first transaction
+    if managerData.periodStartBlock == 0:
+        managerData.periodStartBlock = block.number
+    
+    # check if current period has ended
+    elif block.number >= managerData.periodStartBlock + _managerPeriod:
+        managerData.numTxsInPeriod = 0
+        managerData.totalUsdValueInPeriod = 0
+        managerData.periodStartBlock = block.number
 
-    # check manager permissions
-    if not self._checkManagerPermissions(_userWalletConfig, _action, _assets, _legoIds, _transferRecipient, _config.allowedAssets, _config.legoPerms, _config.transferPerms):
-        return False
-
-    # check manager limits
-    return self._checkManagerLimits(_config.limits, _data, True, 0, False)
+    return managerData
 
 
-# global manager permissions
+# manager permissions and limits
 
 
 @view
 @internal
-def _checkGlobalManagerPermissions(
-    _userWalletConfig: address,
-    _action: ws.ActionType,
-    _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS],
-    _transferRecipient: address,
-    _data: wcs.ManagerData,
-    _config: wcs.GlobalManagerSettings,
-) -> bool:
-
-    # check manager permissions
-    if not self._checkManagerPermissions(_userWalletConfig, _action, _assets, _legoIds, _transferRecipient, _config.allowedAssets, _config.legoPerms, _config.transferPerms):
-        return False
-
-    # check manager limits
-    return self._checkManagerLimits(_config.limits, _data, True, 0, False)
-
-
-# manager permissions
-
-
-@view
-@internal
-def _checkManagerPermissions(
-    _userWalletConfig: address,
-    _action: ws.ActionType,
-    _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS],
-    _transferRecipient: address,
-    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+def _checkManagerPermsAndLimitsPreAction(
+    _managerData: wcs.ManagerData,
+    _txAction: ws.ActionType,
+    _txAssets: DynArray[address, MAX_ASSETS],
+    _txLegoIds: DynArray[uint256, MAX_LEGOS],
+    _txPayee: address,
+    _limits: wcs.ManagerLimits,
     _legoPerms: wcs.LegoPerms,
     _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
 ) -> bool:
+
+    # only checking tx limits right now (pre transaction)
+    if not self._checkManagerLimits(_limits, _managerData, True, False, 0):
+        return False
 
     # check allowed assets
     if len(_allowedAssets) != 0:
-        for a: address in _assets:
+        for a: address in _txAssets:
             if a != empty(address) and a not in _allowedAssets:
                 return False
 
     # check allowed lego ids
     if len(_legoPerms.allowedLegos) != 0:
-        for lid: uint256 in _legoIds:
+        for lid: uint256 in _txLegoIds:
             if lid != 0 and lid not in _legoPerms.allowedLegos:
                 return False
 
-    # check allowed recipients
-    if _action == ws.ActionType.TRANSFER and _transferRecipient != empty(address):
-        if len(_transferPerms.allowedPayees) != 0 and not staticcall UserWalletConfig(_userWalletConfig).isWhitelisted(_transferRecipient):
-            if  _transferRecipient not in _transferPerms.allowedPayees:
-                return False
+    # check allowed payees
+    if _txPayee != empty(address) and len(_transferPerms.allowedPayees) != 0:
+        if _txPayee not in _transferPerms.allowedPayees:
+            return False
 
     # check action permissions
-    if _action == ws.ActionType.TRANSFER:
+    if _txAction == ws.ActionType.TRANSFER:
         return _transferPerms.canTransfer
-    elif _action in (ws.ActionType.EARN_DEPOSIT | ws.ActionType.EARN_WITHDRAW | ws.ActionType.EARN_REBALANCE):
+    elif _txAction in (ws.ActionType.EARN_DEPOSIT | ws.ActionType.EARN_WITHDRAW | ws.ActionType.EARN_REBALANCE):
         return _legoPerms.canManageYield
-    elif _action in (ws.ActionType.SWAP | ws.ActionType.MINT_REDEEM | ws.ActionType.CONFIRM_MINT_REDEEM):
+    elif _txAction in (ws.ActionType.SWAP | ws.ActionType.MINT_REDEEM | ws.ActionType.CONFIRM_MINT_REDEEM):
         return _legoPerms.canBuyAndSell
-    elif _action in (ws.ActionType.ADD_COLLATERAL | ws.ActionType.REMOVE_COLLATERAL | ws.ActionType.BORROW | ws.ActionType.REPAY_DEBT):
+    elif _txAction in (ws.ActionType.ADD_COLLATERAL | ws.ActionType.REMOVE_COLLATERAL | ws.ActionType.BORROW | ws.ActionType.REPAY_DEBT):
         return _legoPerms.canManageDebt
-    elif _action in (ws.ActionType.ADD_LIQ | ws.ActionType.REMOVE_LIQ | ws.ActionType.ADD_LIQ_CONC | ws.ActionType.REMOVE_LIQ_CONC):
+    elif _txAction in (ws.ActionType.ADD_LIQ | ws.ActionType.REMOVE_LIQ | ws.ActionType.ADD_LIQ_CONC | ws.ActionType.REMOVE_LIQ_CONC):
         return _legoPerms.canManageLiq
-    elif _action == ws.ActionType.REWARDS:
+    elif _txAction == ws.ActionType.REWARDS:
         return _legoPerms.canClaimRewards
     else:
         return True
@@ -324,20 +300,22 @@ def _checkManagerPermissions(
 @view
 @internal
 def _checkManagerLimits(
-    _config: wcs.ManagerLimits,
-    _data: wcs.ManagerData,
+    _limits: wcs.ManagerLimits,
+    _managerData: wcs.ManagerData,
     _shouldCheckTxLimits: bool,
-    _txUsdValue: uint256,
     _shouldCheckUsdValueParams: bool,
+    _txUsdValue: uint256,
 ) -> bool:
 
     # check transaction limits
-    if _shouldCheckTxLimits and not self._checkTransactionLimits(_config.maxNumTxsPerPeriod, _config.txCooldownBlocks, _data.numTxsInPeriod, _data.lastTxBlock):
-        return False
+    if _shouldCheckTxLimits:
+        if not self._checkTransactionLimits(_limits.maxNumTxsPerPeriod, _limits.txCooldownBlocks, _managerData.numTxsInPeriod, _managerData.lastTxBlock):
+            return False
 
     # check usd value params
-    if _shouldCheckUsdValueParams and not self._checkManagerUsdLimits(_txUsdValue, _config, _data):
-        return False
+    if _shouldCheckUsdValueParams:
+        if not self._checkManagerUsdLimits(_txUsdValue, _limits, _managerData):
+            return False
 
     return True
 
@@ -353,63 +331,20 @@ def _checkTransactionLimits(
     _numTxsInPeriod: uint256,
     _lastTxBlock: uint256,
 ) -> bool:
-    if _maxNumTxsPerPeriod != 0 and _numTxsInPeriod >= _maxNumTxsPerPeriod:
-        return False
+    if _maxNumTxsPerPeriod != 0:
+        if _numTxsInPeriod >= _maxNumTxsPerPeriod:
+            return False
     
-    if _txCooldownBlocks != 0 and _lastTxBlock + _txCooldownBlocks > block.number:
-        return False
-    
-    return True
-
-
-# check manager usd limits
-
-
-@pure
-@internal
-def _checkManagerUsdLimits(_txUsdValue: uint256, _config: wcs.ManagerLimits, _data: wcs.ManagerData) -> bool:
-
-    # check zero price
-    if _txUsdValue == 0 and _config.failOnZeroPrice:
-        return False
-
-    # check max usd value per tx
-    if _config.maxUsdValuePerTx != 0 and _txUsdValue > _config.maxUsdValuePerTx:
-        return False
-    
-    # check max usd value per period
-    if _config.maxUsdValuePerPeriod != 0 and _data.totalUsdValueInPeriod + _txUsdValue > _config.maxUsdValuePerPeriod:
-        return False
-    
-    # check max usd value lifetime
-    if _config.maxUsdValueLifetime != 0 and _data.totalUsdValue + _txUsdValue > _config.maxUsdValueLifetime:
-        return False
+    if _txCooldownBlocks != 0 and _lastTxBlock != 0:
+        if _lastTxBlock + _txCooldownBlocks > block.number:
+            return False
     
     return True
 
 
-# latest manager data
-
-
-@view
-@internal
-def _getLatestManagerData(_data: wcs.ManagerData, _managerPeriod: uint256) -> wcs.ManagerData:
-    data: wcs.ManagerData = _data
-
-    # initialize period if first transaction
-    if data.periodStartBlock == 0:
-        data.periodStartBlock = block.number
-    
-    # check if current period has ended
-    elif block.number >= data.periodStartBlock + _managerPeriod:
-        data.numTxsInPeriod = 0
-        data.totalUsdValueInPeriod = 0
-        data.periodStartBlock = block.number
-
-    return data
-
-
-# validate manager post tx
+####################################
+# Manager Validation - Post Action #
+####################################
 
 
 @view
@@ -419,9 +354,9 @@ def checkManagerUsdLimitsAndUpdateData(
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
-    _data: wcs.ManagerData,
+    _managerData: wcs.ManagerData,
 ) -> wcs.ManagerData:
-    return self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _data)
+    return self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData)
 
 
 @view
@@ -431,22 +366,51 @@ def _checkManagerUsdLimitsAndUpdateData(
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
-    _data: wcs.ManagerData,
+    _managerData: wcs.ManagerData,
 ) -> wcs.ManagerData:
-    data: wcs.ManagerData = self._getLatestManagerData(_data, _managerPeriod)
+    managerData: wcs.ManagerData = self._getLatestManagerData(_managerData, _managerPeriod)
 
     # check usd value limits
-    assert self._checkManagerLimits(_specificLimits, data, False, _txUsdValue, True) # dev: usd value limit exceeded
-    assert self._checkManagerLimits(_globalLimits, data, False, _txUsdValue, True) # dev: usd value limit exceeded
+    assert self._checkManagerLimits(_specificLimits, managerData, False, True, _txUsdValue) # dev: usd value limit exceeded
+    assert self._checkManagerLimits(_globalLimits, managerData, False, True, _txUsdValue) # dev: usd value limit exceeded
 
-    # update data
-    data.numTxsInPeriod += 1
-    data.totalUsdValueInPeriod += _txUsdValue
-    data.totalNumTxs += 1
-    data.totalUsdValue += _txUsdValue
-    data.lastTxBlock = block.number
+    # update manager data
+    managerData.numTxsInPeriod += 1
+    managerData.totalUsdValueInPeriod += _txUsdValue
+    managerData.totalNumTxs += 1
+    managerData.totalUsdValue += _txUsdValue
+    managerData.lastTxBlock = block.number
 
-    return data
+    return managerData
+
+
+# check manager usd limits
+
+
+@pure
+@internal
+def _checkManagerUsdLimits(_txUsdValue: uint256, _limits: wcs.ManagerLimits, _managerData: wcs.ManagerData) -> bool:
+
+    # check zero price
+    if _txUsdValue == 0 and _limits.failOnZeroPrice:
+        return False
+
+    # check max usd value per tx
+    if _limits.maxUsdValuePerTx != 0:
+        if _txUsdValue > _limits.maxUsdValuePerTx:
+            return False
+    
+    # check max usd value per period
+    if _limits.maxUsdValuePerPeriod != 0:
+        if _managerData.totalUsdValueInPeriod + _txUsdValue > _limits.maxUsdValuePerPeriod:
+            return False
+    
+    # check max usd value lifetime
+    if _limits.maxUsdValueLifetime != 0:
+        if _managerData.totalUsdValue + _txUsdValue > _limits.maxUsdValueLifetime:
+            return False
+    
+    return True
 
 
 #########################

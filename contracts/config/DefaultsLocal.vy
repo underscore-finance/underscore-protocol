@@ -84,8 +84,8 @@ def agentConfig() -> cs.AgentConfig:
 @external
 def managerConfig() -> cs.ManagerConfig:
     return cs.ManagerConfig(
-        managerPeriod = DAY_IN_BLOCKS,
-        managerActivationLength = MONTH_IN_BLOCKS,
+        managerPeriod = MONTH_IN_BLOCKS,
+        managerActivationLength = YEAR_IN_BLOCKS,
     )
 
 

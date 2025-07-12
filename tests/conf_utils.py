@@ -19,9 +19,12 @@ def _test():
     yield _test
 
 
-##########
-# Config #
-##########
+#################
+# Global Config #
+#################
+
+
+# general wallet config (mission control)
 
 
 @pytest.fixture(scope="session")
@@ -100,9 +103,7 @@ def createAmbassadorRevShare():
     yield createAmbassadorRevShare
 
 
-################
-# Asset Config #
-################
+# asset config (mission control)
 
 
 @pytest.fixture(scope="session")
@@ -154,9 +155,7 @@ def createAssetYieldConfig():
     yield createAssetYieldConfig
 
 
-#########
-# Agent #
-#########
+# agent config (mission control)
 
 
 @pytest.fixture(scope="session")
@@ -179,16 +178,14 @@ def setAgentConfig(mission_control, switchboard_alpha, agent_template, agent_eoa
     yield setAgentConfig
 
 
-###########
-# Manager #
-###########
+# manager config (mission control)
 
 
 @pytest.fixture(scope="session")
-def setManagerConfig(mission_control, switchboard_alpha, agent_eoa):
+def setManagerConfig(mission_control, switchboard_alpha):
     def setManagerConfig(
-        _managerPeriod = ONE_DAY_IN_BLOCKS,
-        _defaultActivationLength = ONE_MONTH_IN_BLOCKS,
+        _managerPeriod = ONE_MONTH_IN_BLOCKS,
+        _defaultActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
         config = (
             _managerPeriod,
@@ -198,157 +195,37 @@ def setManagerConfig(mission_control, switchboard_alpha, agent_eoa):
     yield setManagerConfig
 
 
-# Manager Limits
+# payee settings (mission control)
+
+
 @pytest.fixture(scope="session")
-def createManagerLimits():
-    def createManagerLimits(
-        _maxUsdValuePerTx = 0,  # 0 = unlimited
-        _maxUsdValuePerPeriod = 0,  # 0 = unlimited
-        _maxUsdValueLifetime = 0,  # 0 = unlimited
-        _maxNumTxsPerPeriod = 0,  # 0 = unlimited
-        _txCooldownBlocks = 0,  # 0 = no cooldown
-        _failOnZeroPrice = False,
+def setMissionControlPayeeConfig(mission_control, switchboard_alpha):
+    def setMissionControlPayeeConfig(
+        _payeePeriod = ONE_MONTH_IN_BLOCKS,
+        _payeeActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
-        return (
-            _maxUsdValuePerTx,
-            _maxUsdValuePerPeriod,
-            _maxUsdValueLifetime,
-            _maxNumTxsPerPeriod,
-            _txCooldownBlocks,
-            _failOnZeroPrice,
+        config = (
+            _payeePeriod,
+            _payeeActivationLength,
         )
-    yield createManagerLimits
+        mission_control.setMissionControlPayeeConfig(config, sender=switchboard_alpha.address)
+    yield setMissionControlPayeeConfig
 
 
-# Lego Permissions
-@pytest.fixture(scope="session")
-def createLegoPerms():
-    def createLegoPerms(
-        _canManageYield = True,
-        _canBuyAndSell = True,
-        _canManageDebt = True,
-        _canManageLiq = True,
-        _canClaimRewards = True,
-        _allowedLegos = [],  # empty = all legos allowed
-    ):
-        return (
-            _canManageYield,
-            _canBuyAndSell,
-            _canManageDebt,
-            _canManageLiq,
-            _canClaimRewards,
-            _allowedLegos,
-        )
-    yield createLegoPerms
+##########################
+# User Wallet - Managers #
+##########################
 
 
-# Whitelist Permissions
-@pytest.fixture(scope="session")
-def createWhitelistPerms():
-    def createWhitelistPerms(
-        _canAddPending = False,
-        _canConfirm = True,
-        _canCancel = True,
-        _canRemove = False,
-    ):
-        return (
-            _canAddPending,
-            _canConfirm,
-            _canCancel,
-            _canRemove,
-        )
-    yield createWhitelistPerms
+# global manager settings (user wallet)
 
 
-# Transfer Permissions
-@pytest.fixture(scope="session")
-def createTransferPerms():
-    def createTransferPerms(
-        _canTransfer = True,
-        _canCreateCheque = True,
-        _canAddPendingPayee = True,
-        _allowedPayees = [],  # empty = all payees allowed
-    ):
-        return (
-            _canTransfer,
-            _canCreateCheque,
-            _canAddPendingPayee,
-            _allowedPayees,
-        )
-    yield createTransferPerms
-
-
-# Manager Data
-@pytest.fixture(scope="session")
-def createManagerData():
-    def createManagerData(
-        _numTxsInPeriod = 0,
-        _totalUsdValueInPeriod = 0,
-        _totalNumTxs = 0,
-        _totalUsdValue = 0,
-        _lastTxBlock = 0,
-        _periodStartBlock = 0,
-    ):
-        return (
-            _numTxsInPeriod,
-            _totalUsdValueInPeriod,
-            _totalNumTxs,
-            _totalUsdValue,
-            _lastTxBlock,
-            _periodStartBlock,
-        )
-    yield createManagerData
-
-
-# Manager Settings
-@pytest.fixture(scope="session")
-def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
-    def createManagerSettings(
-        _startBlock = 0,
-        _expiryBlock = 0,  # 0 = will default to 1 year from start
-        _limits = None,
-        _legoPerms = None,
-        _whitelistPerms = None,
-        _transferPerms = None,
-        _allowedAssets = [],
-    ):
-        # If startBlock is 0, use current block
-        if _startBlock == 0:
-            _startBlock = boa.env.evm.patch.block_number
-        
-        # If expiryBlock is 0, set to 1 year after startBlock
-        if _expiryBlock == 0:
-            _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
-        
-        # Use defaults if not provided
-        if _limits is None:
-            _limits = createManagerLimits()
-        if _legoPerms is None:
-            _legoPerms = createLegoPerms()
-        if _whitelistPerms is None:
-            _whitelistPerms = createWhitelistPerms()
-        if _transferPerms is None:
-            _transferPerms = createTransferPerms()
-            
-        return (
-            _startBlock,
-            _expiryBlock,
-            _limits,
-            _legoPerms,
-            _whitelistPerms,
-            _transferPerms,
-            _allowedAssets,
-        )
-    yield createManagerSettings
-
-
-# Global Manager Settings
 @pytest.fixture(scope="session")
 def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
     def createGlobalManagerSettings(
-        _managerPeriod = ONE_DAY_IN_BLOCKS,
-        _startDelay = ONE_DAY_IN_BLOCKS,
-        _activationLength = ONE_MONTH_IN_BLOCKS,
+        _managerPeriod = ONE_MONTH_IN_BLOCKS,
+        _startDelay = ONE_DAY_IN_BLOCKS // 2,
+        _activationLength = ONE_YEAR_IN_BLOCKS,
         _canOwnerManage = True,
         _limits = None,
         _legoPerms = None,
@@ -356,7 +233,6 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
         _transferPerms = None,
         _allowedAssets = [],
     ):
-        # Use defaults if not provided
         if _limits is None:
             _limits = createManagerLimits()
         if _legoPerms is None:
@@ -380,47 +256,36 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
     yield createGlobalManagerSettings
 
 
-# Set Global Manager Settings (creates and sets in contract)
+# manager data (user wallet)
+
+
 @pytest.fixture(scope="session")
-def setGlobalManagerSettings(createGlobalManagerSettings, boss_validator):
-    def setGlobalManagerSettings(
-        _userWalletConfig,  # UserWalletConfig instance
-        _managerPeriod = ONE_DAY_IN_BLOCKS,
-        _startDelay = ONE_DAY_IN_BLOCKS,
-        _activationLength = ONE_MONTH_IN_BLOCKS,
-        _canOwnerManage = True,
-        _limits = None,
-        _legoPerms = None,
-        _whitelistPerms = None,
-        _transferPerms = None,
-        _allowedAssets = [],
+def createManagerData():
+    def createManagerData(
+        _numTxsInPeriod = 0,
+        _totalUsdValueInPeriod = 0,
+        _totalNumTxs = 0,
+        _totalUsdValue = 0,
+        _lastTxBlock = 0,
+        _periodStartBlock = 0,
     ):
-        # Create the settings
-        settings = createGlobalManagerSettings(
-            _managerPeriod,
-            _startDelay,
-            _activationLength,
-            _canOwnerManage,
-            _limits,
-            _legoPerms,
-            _whitelistPerms,
-            _transferPerms,
-            _allowedAssets,
+        return (
+            _numTxsInPeriod,
+            _totalUsdValueInPeriod,
+            _totalNumTxs,
+            _totalUsdValue,
+            _lastTxBlock,
+            _periodStartBlock,
         )
-        
-        # Set in contract
-        _userWalletConfig.setGlobalManagerSettings(settings, sender=boss_validator)
-        
-        return settings
-    yield setGlobalManagerSettings
+    yield createManagerData
 
 
-# Set Manager Settings (creates and sets in contract)
+# manager settings (user wallet)
+
+
 @pytest.fixture(scope="session")
-def setManagerSettings(createManagerSettings, boss_validator):
-    def setManagerSettings(
-        _userWalletConfig,  # UserWalletConfig instance
-        _manager,  # Manager address
+def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+    def createManagerSettings(
         _startBlock = 0,
         _expiryBlock = 0,
         _limits = None,
@@ -429,8 +294,21 @@ def setManagerSettings(createManagerSettings, boss_validator):
         _transferPerms = None,
         _allowedAssets = [],
     ):
-        # Create the settings
-        settings = createManagerSettings(
+        if _startBlock == 0:
+            _startBlock = boa.env.evm.patch.block_number
+        if _expiryBlock == 0:
+            _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
+        
+        if _limits is None:
+            _limits = createManagerLimits()
+        if _legoPerms is None:
+            _legoPerms = createLegoPerms()
+        if _whitelistPerms is None:
+            _whitelistPerms = createWhitelistPerms()
+        if _transferPerms is None:
+            _transferPerms = createTransferPerms()
+            
+        return (
             _startBlock,
             _expiryBlock,
             _limits,
@@ -439,37 +317,91 @@ def setManagerSettings(createManagerSettings, boss_validator):
             _transferPerms,
             _allowedAssets,
         )
-        
-        # Add manager with settings
-        _userWalletConfig.addManager(_manager, settings, sender=boss_validator)
-        
-        return settings
-    yield setManagerSettings
-
-
-##########
-# Payees #
-##########
-
-
-# global payee settings (mission control)
+    yield createManagerSettings
 
 
 @pytest.fixture(scope="session")
-def setMissionControlPayeeConfig(mission_control, switchboard_alpha):
-    def setMissionControlPayeeConfig(
-        _payeePeriod = ONE_MONTH_IN_BLOCKS,
-        _payeeActivationLength = ONE_YEAR_IN_BLOCKS,
+def createManagerLimits():
+    def createManagerLimits(
+        _maxUsdValuePerTx = 0, # 0 = unlimited
+        _maxUsdValuePerPeriod = 0, # 0 = unlimited
+        _maxUsdValueLifetime = 0, # 0 = unlimited
+        _maxNumTxsPerPeriod = 0, # 0 = unlimited
+        _txCooldownBlocks = 0, # 0 = no cooldown
+        _failOnZeroPrice = False,
     ):
-        config = (
-            _payeePeriod,
-            _payeeActivationLength,
+        return (
+            _maxUsdValuePerTx,
+            _maxUsdValuePerPeriod,
+            _maxUsdValueLifetime,
+            _maxNumTxsPerPeriod,
+            _txCooldownBlocks,
+            _failOnZeroPrice,
         )
-        mission_control.setMissionControlPayeeConfig(config, sender=switchboard_alpha.address)
-    yield setMissionControlPayeeConfig
+    yield createManagerLimits
 
 
-# user wallet global payee settings
+@pytest.fixture(scope="session")
+def createLegoPerms():
+    def createLegoPerms(
+        _canManageYield = True,
+        _canBuyAndSell = True,
+        _canManageDebt = True,
+        _canManageLiq = True,
+        _canClaimRewards = True,
+        _allowedLegos = [],
+    ):
+        return (
+            _canManageYield,
+            _canBuyAndSell,
+            _canManageDebt,
+            _canManageLiq,
+            _canClaimRewards,
+            _allowedLegos,
+        )
+    yield createLegoPerms
+
+
+@pytest.fixture(scope="session")
+def createWhitelistPerms():
+    def createWhitelistPerms(
+        _canAddPending = False,
+        _canConfirm = True,
+        _canCancel = True,
+        _canRemove = False,
+    ):
+        return (
+            _canAddPending,
+            _canConfirm,
+            _canCancel,
+            _canRemove,
+        )
+    yield createWhitelistPerms
+
+
+@pytest.fixture(scope="session")
+def createTransferPerms():
+    def createTransferPerms(
+        _canTransfer = True,
+        _canCreateCheque = True,
+        _canAddPendingPayee = True,
+        _allowedPayees = [],
+    ):
+        return (
+            _canTransfer,
+            _canCreateCheque,
+            _canAddPendingPayee,
+            _allowedPayees,
+        )
+    yield createTransferPerms
+
+
+########################
+# User Wallet - Payees #
+########################
+
+
+# global payee settings (user wallet)
 
 
 @pytest.fixture(scope="session")

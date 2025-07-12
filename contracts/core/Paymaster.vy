@@ -220,9 +220,9 @@ def isValidPayeeAndGetData(
     _txUsdValue: uint256,
     _config: wcs.PayeeSettings,
     _globalConfig: wcs.GlobalPayeeSettings,
-    _data: wcs.PayeeData,
+    _payeeData: wcs.PayeeData,
 ) -> (bool, wcs.PayeeData):
-    return self._isValidPayeeAndGetData(_isWhitelisted, _isOwner, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _data)
+    return self._isValidPayeeAndGetData(_isWhitelisted, _isOwner, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _payeeData)
 
 
 # core logic -- is valid payee
@@ -237,9 +237,9 @@ def _isValidPayeeAndGetData(
     _asset: address,
     _amount: uint256,
     _txUsdValue: uint256,
-    _config: wcs.PayeeSettings,
+    _payeeConfig: wcs.PayeeSettings,
     _globalConfig: wcs.GlobalPayeeSettings,
-    _data: wcs.PayeeData,
+    _payeeData: wcs.PayeeData,
 ) -> (bool, wcs.PayeeData):
 
     # whitelisted
@@ -255,18 +255,29 @@ def _isValidPayeeAndGetData(
         return False, empty(wcs.PayeeData)
 
     # get payee data
-    data: wcs.PayeeData = self._getLatestPayeeData(_data, _config.periodLength)
+    payeeData: wcs.PayeeData = self._getLatestPayeeData(_payeeData, _payeeConfig.periodLength)
 
     # check specific payee settings
-    if not self._checkSpecificPayeeSettings(_asset, _amount, _txUsdValue, data, _config):
+    if not self._checkSpecificPayeeSettings(_asset, _amount, _txUsdValue, payeeData, _payeeConfig):
         return False, empty(wcs.PayeeData)
 
     # check global payee settings
-    if not self._checkGlobalPayeeSettings(_txUsdValue, data, _globalConfig):
+    if not self._checkGlobalPayeeSettings(_txUsdValue, payeeData, _globalConfig):
         return False, empty(wcs.PayeeData)
 
-    updatedData: wcs.PayeeData = self._updatePayeeData(_amount, _txUsdValue, data, _config.primaryAsset == _asset)
-    return True, updatedData
+    # update payee data
+    payeeData.numTxsInPeriod += 1
+    payeeData.totalUsdValueInPeriod += _txUsdValue
+    payeeData.totalNumTxs += 1
+    payeeData.totalUsdValue += _txUsdValue
+    payeeData.lastTxBlock = block.number
+    
+    # update unit amounts if this is the primary asset
+    if _payeeConfig.primaryAsset == _asset:
+        payeeData.totalUnitsInPeriod += _amount
+        payeeData.totalUnits += _amount
+
+    return True, payeeData
 
 
 # specific payee settings
@@ -278,34 +289,34 @@ def _checkSpecificPayeeSettings(
     _asset: address,
     _amount: uint256,
     _txUsdValue: uint256,
-    _data: wcs.PayeeData,
-    _config: wcs.PayeeSettings,
+    _payeeData: wcs.PayeeData,
+    _payeeConfig: wcs.PayeeSettings,
 ) -> bool:
 
     # check zero price
-    if _txUsdValue == 0 and _config.failOnZeroPrice:
+    if _txUsdValue == 0 and _payeeConfig.failOnZeroPrice:
         return False
 
     # is payee active
-    if _config.startBlock > block.number or _config.expiryBlock <= block.number:
+    if _payeeConfig.startBlock > block.number or _payeeConfig.expiryBlock <= block.number:
         return False
     
     # check if asset is allowed
-    if _config.onlyPrimaryAsset and _config.primaryAsset != empty(address):
-        if _config.primaryAsset != _asset:
+    if _payeeConfig.onlyPrimaryAsset and _payeeConfig.primaryAsset != empty(address):
+        if _payeeConfig.primaryAsset != _asset:
             return False
 
     # check transaction limits
-    if not self._checkTransactionLimits(_config.maxNumTxsPerPeriod, _config.txCooldownBlocks, _data.numTxsInPeriod, _data.lastTxBlock):
+    if not self._checkTransactionLimits(_payeeConfig.maxNumTxsPerPeriod, _payeeConfig.txCooldownBlocks, _payeeData.numTxsInPeriod, _payeeData.lastTxBlock):
         return False
 
     # check USD limits 
-    if not self._checkUsdLimits(_txUsdValue, _config.usdLimits, _data):
+    if not self._checkUsdLimits(_txUsdValue, _payeeConfig.usdLimits, _payeeData):
         return False
 
     # check unit limits if this is the primary asset
-    if _config.primaryAsset == _asset:
-        if not self._checkUnitLimits(_amount, _config.unitLimits, _data):
+    if _payeeConfig.primaryAsset == _asset:
+        if not self._checkUnitLimits(_amount, _payeeConfig.unitLimits, _payeeData):
             return False
 
     return True
@@ -318,51 +329,23 @@ def _checkSpecificPayeeSettings(
 @internal
 def _checkGlobalPayeeSettings(
     _txUsdValue: uint256,
-    _data: wcs.PayeeData,
-    _config: wcs.GlobalPayeeSettings,
+    _payeeData: wcs.PayeeData,
+    _globalConfig: wcs.GlobalPayeeSettings,
 ) -> bool:
 
     # check zero price
-    if _txUsdValue == 0 and _config.failOnZeroPrice:
+    if _txUsdValue == 0 and _globalConfig.failOnZeroPrice:
         return False
 
     # check transaction limits
-    if not self._checkTransactionLimits(_config.maxNumTxsPerPeriod, _config.txCooldownBlocks, _data.numTxsInPeriod, _data.lastTxBlock):
+    if not self._checkTransactionLimits(_globalConfig.maxNumTxsPerPeriod, _globalConfig.txCooldownBlocks, _payeeData.numTxsInPeriod, _payeeData.lastTxBlock):
         return False
 
     # check USD limits
-    if not self._checkUsdLimits(_txUsdValue, _config.usdLimits, _data):
+    if not self._checkUsdLimits(_txUsdValue, _globalConfig.usdLimits, _payeeData):
         return False
 
     return True
-
-
-# update payee data
-
-
-@view
-@internal
-def _updatePayeeData(
-    _amount: uint256,
-    _txUsdValue: uint256,
-    _data: wcs.PayeeData,
-    _isPrimaryAsset: bool,
-) -> wcs.PayeeData:
-    data: wcs.PayeeData = _data
-
-    # update transaction details
-    data.numTxsInPeriod += 1
-    data.totalUsdValueInPeriod += _txUsdValue
-    data.totalNumTxs += 1
-    data.totalUsdValue += _txUsdValue
-    data.lastTxBlock = block.number
-    
-    # update unit amounts if this is the primary asset
-    if _isPrimaryAsset:
-        data.totalUnitsInPeriod += _amount
-        data.totalUnits += _amount
-
-    return data
 
 
 # get latest payee data (period reset)
@@ -370,21 +353,21 @@ def _updatePayeeData(
 
 @view
 @internal
-def _getLatestPayeeData(_data: wcs.PayeeData, _periodLength: uint256) -> wcs.PayeeData:
-    data: wcs.PayeeData = _data
+def _getLatestPayeeData(_payeeData: wcs.PayeeData, _periodLength: uint256) -> wcs.PayeeData:
+    payeeData: wcs.PayeeData = _payeeData
     
     # initialize period if first transaction
-    if data.periodStartBlock == 0:
-        data.periodStartBlock = block.number
+    if payeeData.periodStartBlock == 0:
+        payeeData.periodStartBlock = block.number
     
     # check if current period has ended
-    elif block.number >= data.periodStartBlock + _periodLength:
-        data.numTxsInPeriod = 0
-        data.totalUnitsInPeriod = 0
-        data.totalUsdValueInPeriod = 0
-        data.periodStartBlock = block.number
+    elif block.number >= payeeData.periodStartBlock + _periodLength:
+        payeeData.numTxsInPeriod = 0
+        payeeData.totalUnitsInPeriod = 0
+        payeeData.totalUsdValueInPeriod = 0
+        payeeData.periodStartBlock = block.number
     
-    return data
+    return payeeData
 
 
 # check USD limits
@@ -392,17 +375,17 @@ def _getLatestPayeeData(_data: wcs.PayeeData, _periodLength: uint256) -> wcs.Pay
 
 @view
 @internal
-def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _data: wcs.PayeeData) -> bool:
+def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:
         if _txUsdValue > _limits.perTxCap:
             return False
     
     if _limits.perPeriodCap != 0:
-        if _data.totalUsdValueInPeriod + _txUsdValue > _limits.perPeriodCap:
+        if _payeeData.totalUsdValueInPeriod + _txUsdValue > _limits.perPeriodCap:
             return False
     
     if _limits.lifetimeCap != 0:
-        if _data.totalUsdValue + _txUsdValue > _limits.lifetimeCap:
+        if _payeeData.totalUsdValue + _txUsdValue > _limits.lifetimeCap:
             return False
     
     return True
@@ -413,17 +396,17 @@ def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _data: wcs.P
 
 @view
 @internal
-def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _data: wcs.PayeeData) -> bool:
+def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:
         if _amount > _limits.perTxCap:
             return False
     
     if _limits.perPeriodCap != 0:
-        if _data.totalUnitsInPeriod + _amount > _limits.perPeriodCap:
+        if _payeeData.totalUnitsInPeriod + _amount > _limits.perPeriodCap:
             return False
     
     if _limits.lifetimeCap != 0:
-        if _data.totalUnits + _amount > _limits.lifetimeCap:
+        if _payeeData.totalUnits + _amount > _limits.lifetimeCap:
             return False
     
     return True
@@ -440,10 +423,11 @@ def _checkTransactionLimits(
     _numTxsInPeriod: uint256,
     _lastTxBlock: uint256,
 ) -> bool:
-    if _maxNumTxsPerPeriod != 0 and _numTxsInPeriod >= _maxNumTxsPerPeriod:
-        return False
+    if _maxNumTxsPerPeriod != 0:
+        if _numTxsInPeriod >= _maxNumTxsPerPeriod:
+            return False
     
-    if _lastTxBlock != 0 and _txCooldownBlocks != 0:
+    if _txCooldownBlocks != 0 and _lastTxBlock != 0:
         if _lastTxBlock + _txCooldownBlocks > block.number:
             return False
     

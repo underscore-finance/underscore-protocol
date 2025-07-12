@@ -36,7 +36,7 @@ def undy_hq(
     mission_control,
     hatchery,
     appraiser,
-    boss_validator,
+    high_command,
     paymaster,
     migrator,
     loot_distributor,
@@ -79,8 +79,8 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
 
     # 9
-    assert undy_hq_deploy.startAddNewAddressToRegistry(boss_validator, "Boss Validator", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(boss_validator, sender=deploy3r) == 9
+    assert undy_hq_deploy.startAddNewAddressToRegistry(high_command, "High Command", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(high_command, sender=deploy3r) == 9
 
     # 10
     assert undy_hq_deploy.startAddNewAddressToRegistry(paymaster, "Paymaster", sender=deploy3r)
@@ -299,20 +299,20 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
     )
 
 
-# boss validator
+# high command
 
 
 @pytest.fixture(scope="session")
-def boss_validator(undy_hq_deploy, fork):
+def high_command(undy_hq_deploy, fork):
     return boa.load(
-        "contracts/core/BossValidator.vy",
+        "contracts/core/HighCommand.vy",
         undy_hq_deploy,
         PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
         PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
         PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_START_DELAY"],
-        name="boss_validator",
+        name="high_command",
     )
 
 

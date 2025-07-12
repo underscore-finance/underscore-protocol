@@ -14,8 +14,8 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface BossValidator:
-    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _userWalletConfig: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> bool: view
+interface HighCommand:
+    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> wcs.ManagerData: view
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
@@ -78,7 +78,7 @@ owner: public(address)
 pendingOwner: public(wcs.PendingOwnerChange)
 
 # helper contracts
-bossValidator: public(address)
+highCommand: public(address)
 paymaster: public(address)
 migrator: public(address)
 
@@ -148,7 +148,7 @@ def __init__(
     _owner: address,
     _groupId: uint256,
     # key contracts
-    _bossValidator: address,
+    _highCommand: address,
     _paymaster: address,
     _migrator: address,
     # initial agent
@@ -170,7 +170,7 @@ def __init__(
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
 ):
-    assert empty(address) not in [_undyHq, _owner, _bossValidator, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
+    assert empty(address) not in [_undyHq, _owner, _highCommand, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
     UNDY_HQ = _undyHq
     WETH = _wethAddr
     ETH = _ethAddr
@@ -180,7 +180,7 @@ def __init__(
     self.groupId = _groupId
 
     # set key addrs
-    self.bossValidator = _bossValidator
+    self.highCommand = _highCommand
     self.paymaster = _paymaster
     self.migrator = _migrator
 
@@ -196,11 +196,11 @@ def __init__(
     self.timeLock = _minTimeLock
 
     # set global manager settings
-    self.globalManagerSettings = staticcall BossValidator(_bossValidator).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
+    self.globalManagerSettings = staticcall HighCommand(_highCommand).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
 
     # initial agent
     if _startingAgent != empty(address):
-        self.managerSettings[_startingAgent] = staticcall BossValidator(_bossValidator).createStarterAgentSettings(_startingAgentActivationLength)
+        self.managerSettings[_startingAgent] = staticcall HighCommand(_highCommand).createStarterAgentSettings(_startingAgentActivationLength)
         self.startingAgent = _startingAgent
         self._registerManager(_startingAgent)
 
@@ -254,8 +254,8 @@ def checkSignerPermissionsAndGetBundle(
     ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
 
     # main validation
-    c: wcs.ManagerConfigBundle = self._getManagerConfigs(_signer, ad.walletOwner)
-    assert staticcall BossValidator(self.bossValidator).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, ad.walletConfig, _action, _assets, _legoIds, _transferRecipient) # dev: no permission
+    c: wcs.ManagerConfigBundle = self._getManagerConfigs(_signer, _transferRecipient, ad.walletOwner)
+    assert staticcall HighCommand(self.highCommand).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee) # dev: no permission
 
     # signer is not owner
     if not c.isOwner:
@@ -273,7 +273,7 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
     config: wcs.ManagerSettings = self.managerSettings[_manager]
     globalConfig: wcs.GlobalManagerSettings = self.globalManagerSettings
-    data: wcs.ManagerData = staticcall BossValidator(self.bossValidator).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
+    data: wcs.ManagerData = staticcall HighCommand(self.highCommand).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
     self.managerPeriodData[_manager] = data
     return True
 
@@ -283,19 +283,26 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
 @view
 @external
-def getManagerConfigs(_signer: address) -> wcs.ManagerConfigBundle:
-    return self._getManagerConfigs(_signer, self.owner)
+def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle:
+    return self._getManagerConfigs(_signer, _transferRecipient, self.owner)
 
 
 @view
 @internal
-def _getManagerConfigs(_signer: address, _walletOwner: address) -> wcs.ManagerConfigBundle:
+def _getManagerConfigs(_signer: address, _transferRecipient: address, _walletOwner: address) -> wcs.ManagerConfigBundle:
+
+    # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
+    payee: address = _transferRecipient
+    if _transferRecipient != empty(address) and self._isWhitelisted(_transferRecipient):
+        payee = empty(address)
+
     return wcs.ManagerConfigBundle(
         isOwner = _signer == _walletOwner,
         isManager = self.indexOfManager[_signer] != 0,
         config = self.managerSettings[_signer],
         globalConfig = self.globalManagerSettings,
         data = self.managerPeriodData[_signer],
+        payee = payee,
     )
 
 
@@ -308,7 +315,7 @@ def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle:
     return wcs.ManagerSettingsBundle(
         owner = self.owner,
         isManager = self._isManager(_manager),
-        bossValidator = self.bossValidator,
+        highCommand = self.highCommand,
         timeLock = self.timeLock,
         inEjectMode = self.inEjectMode,
         walletConfig = self,
@@ -505,7 +512,7 @@ def _isManager(_manager: address) -> bool:
 
 @external
 def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
-    assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
+    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
     self.globalManagerSettings = _config
 
 
@@ -514,7 +521,7 @@ def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
 
 @external
 def addManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender in [self.bossValidator, self.migrator] # dev: no perms
+    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
     self.managerSettings[_manager] = _config
     self._registerManager(_manager)
 
@@ -537,7 +544,7 @@ def _registerManager(_manager: address):
 
 @external
 def updateManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender == self.bossValidator # dev: no perms
+    assert msg.sender == self.highCommand # dev: no perms
     self.managerSettings[_manager] = _config
 
 
@@ -546,7 +553,7 @@ def updateManager(_manager: address, _config: wcs.ManagerSettings):
 
 @external
 def removeManager(_manager: address):
-    assert msg.sender == self.bossValidator # dev: no perms
+    assert msg.sender == self.highCommand # dev: no perms
 
     numManagers: uint256 = self.numManagers
     if numManagers == 0:

@@ -165,7 +165,7 @@ def createUserWallet(
         a.hq,
         _owner,
         _groupId,
-        a.bossValidator,
+        a.highCommand,
         a.paymaster,
         a.migrator,
         config.startingAgent,

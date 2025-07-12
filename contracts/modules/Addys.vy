@@ -20,7 +20,7 @@ struct Addys:
     hatchery: address
     lootDistributor: address
     appraiser: address
-    bossValidator: address
+    highCommand: address
     paymaster: address
     migrator: address
 
@@ -36,7 +36,7 @@ SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
-BOSS_VALIDATOR_ID: constant(uint256) = 9
+HIGH_COMMAND_ID: constant(uint256) = 9
 PAYMASTER_ID: constant(uint256) = 10
 MIGRATOR_ID: constant(uint256) = 11
 
@@ -80,7 +80,7 @@ def _generateAddys() -> Addys:
         hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),
         lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
-        bossValidator = staticcall UndyHq(hq).getAddr(BOSS_VALIDATOR_ID),
+        highCommand = staticcall UndyHq(hq).getAddr(HIGH_COMMAND_ID),
         paymaster = staticcall UndyHq(hq).getAddr(PAYMASTER_ID),
         migrator = staticcall UndyHq(hq).getAddr(MIGRATOR_ID),
     )
@@ -272,19 +272,19 @@ def _getAppraiserAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)
 
 
-# boss validator
+# high command
 
 
 @view
 @internal
-def _getBossValidatorId() -> uint256:
-    return BOSS_VALIDATOR_ID
+def _getHighCommandId() -> uint256:
+    return HIGH_COMMAND_ID
 
 
 @view
 @internal
-def _getBossValidatorAddr() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BOSS_VALIDATOR_ID)
+def _getHighCommandAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HIGH_COMMAND_ID)
 
 
 # paymaster
