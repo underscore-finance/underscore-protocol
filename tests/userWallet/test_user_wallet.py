@@ -708,3 +708,263 @@ def test_yield_no_update_within_stale_blocks(prepareAssetForWalletTx, user_walle
     # verify price per share was finally updated
     final_vault_data = user_wallet.assetData(yield_vault_token.address)
     assert final_vault_data.lastPricePerShare == new_actual_price_per_share
+
+
+#######################
+# Withdraw from Yield #
+#######################
+
+
+@pytest.fixture(scope="module")
+def setupYieldPosition(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
+    """Setup fixture that deposits yield tokens and returns relevant data"""
+    def setupYieldPosition(
+        _deposit_amount=100 * EIGHTEEN_DECIMALS,
+        _underlying_price=10 * EIGHTEEN_DECIMALS,
+    ):
+        # prepare underlying tokens
+        deposit_amount = prepareAssetForWalletTx(
+            _asset=yield_underlying_token,
+            _amount=_deposit_amount,
+            _whale=yield_underlying_token_whale,
+            _price=_underlying_price,
+            _shouldCheckYield=False
+        )
+        
+        # deposit to get vault tokens
+        _, _, vault_tokens_received, _ = user_wallet.depositForYield(
+            1,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            deposit_amount,
+            sender=bob
+        )
+        
+        return vault_tokens_received
+    
+    yield setupYieldPosition
+
+
+def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
+    """Test basic withdrawal from yield position"""
+    
+    # disable yield fees for simplicity
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # verify initial state
+    assert yield_vault_token.balanceOf(user_wallet) == vault_tokens
+    assert yield_underlying_token.balanceOf(user_wallet) == 0
+    
+    # withdraw half
+    withdraw_amount = vault_tokens // 2
+    vault_burned, underlying_asset, underlying_received, usd_value = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=bob
+    )
+    
+    # verify return values
+    assert vault_burned == withdraw_amount
+    assert underlying_asset == yield_underlying_token.address
+    assert underlying_received == withdraw_amount  # 1:1 price
+    assert usd_value > 0
+    
+    # verify balances
+    assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - withdraw_amount
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying_received
+    
+    # verify storage updated
+    vault_data = user_wallet.assetData(yield_vault_token.address)
+    assert vault_data.assetBalance == vault_tokens - withdraw_amount
+    
+    underlying_data = user_wallet.assetData(yield_underlying_token.address)
+    assert underlying_data.assetBalance == underlying_received
+    assert underlying_data.isYieldAsset == False  # underlying is not a yield asset
+    
+    # verify underlying asset is registered
+    assert user_wallet.indexOfAsset(yield_underlying_token.address) > 0
+
+
+def test_withdraw_yield_entire_balance(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
+    """Test withdrawing entire yield position deregisters vault token"""
+    
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # verify vault token is registered
+    vault_index_before = user_wallet.indexOfAsset(yield_vault_token.address)
+    assert vault_index_before > 0
+    
+    # withdraw entire balance
+    vault_burned, underlying_asset, underlying_received, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=bob
+    )
+    
+    # verify all vault tokens burned
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(user_wallet) == 0
+    assert underlying_received == vault_tokens  # 1:1 price
+    
+    # verify vault token deregistered
+    assert user_wallet.indexOfAsset(yield_vault_token.address) == 0
+    vault_data = user_wallet.assetData(yield_vault_token.address)
+    assert vault_data.assetBalance == 0
+    assert vault_data.usdValue == 0
+    
+    # verify underlying registered and has balance
+    assert user_wallet.indexOfAsset(yield_underlying_token.address) > 0
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying_received
+
+
+def test_withdraw_yield_with_max_value(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
+    """Test withdrawing with max_value withdraws entire balance"""
+    
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # withdraw with max_value
+    vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        MAX_UINT256,  # max value
+        sender=bob
+    )
+    
+    # verify entire balance withdrawn
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(user_wallet) == 0
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying_received
+
+
+def test_withdraw_yield_with_accrued_yield(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
+    """Test withdrawal after yield has accrued updates price per share"""
+    
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # time travel and simulate yield accrual
+    boa.env.time_travel(blocks=15)
+    
+    # double the vault's assets to double price per share
+    current_vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.transfer(yield_vault_token.address, current_vault_balance, sender=yield_underlying_token_whale)
+    
+    # withdraw half - this should detect yield and update price per share
+    withdraw_amount = vault_tokens // 2
+    vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=bob
+    )
+    
+    # with 2x price, should receive 2x underlying
+    assert vault_burned == withdraw_amount
+    assert underlying_received == withdraw_amount * 2  # 2:1 price
+    
+    # verify price per share was updated
+    vault_data = user_wallet.assetData(yield_vault_token.address)
+    assert vault_data.lastPricePerShare == 2 * EIGHTEEN_DECIMALS
+
+
+def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, loot_distributor):
+    """Test withdrawal with yield accrued deducts performance fee"""
+    
+    # 20% performance fee, no yield cap
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=20_00, _defaultYieldMaxIncrease=0)
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+    
+    # time travel and double price per share
+    boa.env.time_travel(blocks=15)
+    current_vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.transfer(yield_vault_token.address, current_vault_balance, sender=yield_underlying_token_whale)
+    
+    # get initial loot balance
+    initial_loot_balance = yield_vault_token.balanceOf(loot_distributor)
+    
+    # withdraw triggers yield check and fee deduction
+    # With 2x price: profit = 50 vault tokens, fee = 10 vault tokens
+    expected_fee = 10 * EIGHTEEN_DECIMALS
+    expected_vault_balance_after_fee = vault_tokens - expected_fee
+    
+    # withdraw remaining balance after fee
+    vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        expected_vault_balance_after_fee,
+        sender=bob
+    )
+    
+    # verify fee was paid
+    loot_balance_increase = yield_vault_token.balanceOf(loot_distributor) - initial_loot_balance
+    assert loot_balance_increase == expected_fee
+    
+    # verify correct amount withdrawn
+    assert vault_burned == expected_vault_balance_after_fee
+    assert underlying_received == expected_vault_balance_after_fee * 2  # 2:1 price
+
+
+def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
+    """Test multiple sequential withdrawals"""
+    
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup position with 90 tokens (divisible by 3)
+    vault_tokens = setupYieldPosition(_deposit_amount=90 * EIGHTEEN_DECIMALS)
+    
+    # first withdrawal - 1/3
+    withdraw1 = vault_tokens // 3
+    _, _, underlying1, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw1,
+        sender=bob
+    )
+    
+    assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - withdraw1
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying1
+    
+    # second withdrawal - another 1/3
+    withdraw2 = vault_tokens // 3
+    _, _, underlying2, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw2,
+        sender=bob
+    )
+    
+    assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - withdraw1 - withdraw2
+    assert yield_underlying_token.balanceOf(user_wallet) == underlying1 + underlying2
+    
+    # final withdrawal - remaining balance
+    _, _, underlying3, _ = user_wallet.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        MAX_UINT256,  # withdraw all remaining
+        sender=bob
+    )
+    
+    # verify all withdrawn
+    assert yield_vault_token.balanceOf(user_wallet) == 0
+    assert yield_underlying_token.balanceOf(user_wallet) == vault_tokens  # total 1:1
+    
+    # verify vault token deregistered
+    assert user_wallet.indexOfAsset(yield_vault_token.address) == 0
+
+
+
