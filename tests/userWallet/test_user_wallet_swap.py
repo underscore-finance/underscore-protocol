@@ -399,3 +399,340 @@ def test_redeem_asset_back_to_original(setupSwapTest, user_wallet, bob, mock_dex
     alt_data = user_wallet.assetData(mock_dex_asset_alt.address)
     assert asset_data.assetBalance == initial_asset + redeem_amount
     assert alt_data.assetBalance == initial_alt - redeem_amount
+
+
+##############################
+# Add/Remove Liquidity Tests #
+##############################
+
+
+def test_add_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
+    """Test basic add liquidity functionality"""
+    setupSwapTest()
+    lego_id = 2  # mock_dex_lego is always id 2
+    
+    # Set LP token price
+    mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)  # $5 per LP token
+    
+    # Check initial balances
+    initial_asset_balance = mock_dex_asset.balanceOf(user_wallet)
+    initial_alt_balance = mock_dex_asset_alt.balanceOf(user_wallet)
+    initial_lp_balance = mock_dex_lp_token.balanceOf(user_wallet)
+    
+    # Add liquidity with both tokens
+    amount_a = 100 * EIGHTEEN_DECIMALS
+    amount_b = 150 * EIGHTEEN_DECIMALS
+    lp_received, added_a, added_b, usd_value = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,  # pool address
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        amount_a,
+        amount_b,
+        0,  # minAmountA
+        0,  # minAmountB
+        0,  # minLpAmount
+        b"",  # extraData
+        sender=bob
+    )
+    
+    # Verify return values
+    assert added_a == amount_a
+    assert added_b == amount_b
+    assert lp_received == amount_a + amount_b  # MockDexLego mints LP tokens as sum of inputs
+    assert usd_value == amount_a * 2 + amount_b * 3  # $2 per asset, $3 per alt
+    
+    # Check balances
+    assert mock_dex_asset.balanceOf(user_wallet) == initial_asset_balance - amount_a
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == initial_alt_balance - amount_b
+    assert mock_dex_lp_token.balanceOf(user_wallet) == initial_lp_balance + lp_received
+    
+    # Check event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 30  # ADD_LIQ operation
+    assert log.asset1 == mock_dex_asset.address
+    assert log.asset2 == mock_dex_asset_alt.address
+    assert log.amount1 == added_a
+    assert log.amount2 == added_b
+    assert log.usdValue == usd_value
+    assert log.legoId == lego_id
+    assert log.signer == bob
+    
+    # Check storage updated
+    lp_data = user_wallet.assetData(mock_dex_lp_token.address)
+    assert lp_data.assetBalance == lp_received
+    assert lp_data.isYieldAsset == False
+
+
+def test_add_liquidity_single_sided(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
+    """Test adding liquidity with only one token"""
+    setupSwapTest()
+    lego_id = 2
+    
+    # Set LP token price
+    mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)
+    
+    # Add liquidity with only token A
+    amount_a = 200 * EIGHTEEN_DECIMALS
+    lp_received, added_a, added_b, usd_value = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        amount_a,
+        0,  # No token B
+        sender=bob
+    )
+    
+    # Verify only token A was used
+    assert added_a == amount_a
+    assert added_b == 0
+    assert lp_received == amount_a  # Only token A contributes to LP
+    assert usd_value == amount_a * 2  # Only token A value
+    
+    # Check balances
+    assert mock_dex_asset.balanceOf(user_wallet) == 1000 * EIGHTEEN_DECIMALS - amount_a
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == 1000 * EIGHTEEN_DECIMALS  # Unchanged
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received
+
+
+def test_add_liquidity_max_values(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
+    """Test adding liquidity with MAX_UINT256 to use entire balances"""
+    setupSwapTest()
+    lego_id = 2
+    
+    # Get current balances
+    asset_balance = mock_dex_asset.balanceOf(user_wallet)
+    alt_balance = mock_dex_asset_alt.balanceOf(user_wallet)
+    
+    # Add liquidity with max values
+    lp_received, added_a, added_b, usd_value = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        MAX_UINT256,  # Use all of token A
+        MAX_UINT256,  # Use all of token B
+        sender=bob
+    )
+    
+    # Verify entire balances were used
+    assert added_a == asset_balance
+    assert added_b == alt_balance
+    assert lp_received == asset_balance + alt_balance
+    
+    # Check balances are now zero
+    assert mock_dex_asset.balanceOf(user_wallet) == 0
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == 0
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received
+
+
+def test_remove_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
+    """Test basic remove liquidity functionality"""
+    setupSwapTest()
+    lego_id = 2
+    
+    # First add liquidity to get LP tokens
+    amount_a = 100 * EIGHTEEN_DECIMALS
+    amount_b = 100 * EIGHTEEN_DECIMALS
+    lp_received, _, _, _ = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        amount_a,
+        amount_b,
+        sender=bob
+    )
+    
+    # Check LP balance
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received
+    
+    # Remove half of the liquidity
+    lp_to_remove = lp_received // 2
+    received_a, received_b, lp_burned, usd_value = user_wallet.removeLiquidity(
+        lego_id,
+        mock_dex_lego.address,  # pool
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        mock_dex_lp_token.address,
+        lp_to_remove,
+        0,  # minAmountA
+        0,  # minAmountB
+        b"",  # extraData
+        sender=bob
+    )
+    
+    # MockDexLego returns half of LP amount for each token
+    expected_per_token = lp_to_remove // 2
+    assert received_a == expected_per_token
+    assert received_b == expected_per_token
+    assert lp_burned == lp_to_remove
+    assert usd_value == expected_per_token * 2 + expected_per_token * 3  # $2 + $3 per token
+    
+    # Check balances
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received - lp_to_remove
+    # Tokens should be returned
+    assert mock_dex_asset.balanceOf(user_wallet) == 900 * EIGHTEEN_DECIMALS + expected_per_token
+    assert mock_dex_asset_alt.balanceOf(user_wallet) == 900 * EIGHTEEN_DECIMALS + expected_per_token
+    
+    # Check event
+    log = filter_logs(user_wallet, "WalletAction")[0]
+    assert log.op == 31  # REMOVE_LIQ operation
+    assert log.asset1 == mock_dex_asset.address
+    assert log.asset2 == mock_dex_asset_alt.address
+    assert log.amount1 == received_a
+    assert log.amount2 == received_b
+    assert log.usdValue == usd_value
+    assert log.legoId == lego_id
+    assert log.signer == bob
+
+
+def test_remove_liquidity_max_value(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
+    """Test removing all liquidity with MAX_UINT256"""
+    setupSwapTest()
+    lego_id = 2
+    
+    # First add liquidity
+    lp_received, _, _, _ = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        200 * EIGHTEEN_DECIMALS,
+        300 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    # Remove all liquidity using max value
+    received_a, received_b, lp_burned, _ = user_wallet.removeLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        mock_dex_lp_token.address,
+        MAX_UINT256,  # Remove all
+        sender=bob
+    )
+    
+    # Verify all LP tokens were burned
+    assert lp_burned == lp_received
+    assert mock_dex_lp_token.balanceOf(user_wallet) == 0
+    
+    # MockDexLego returns half of LP amount for each token
+    expected_per_token = lp_received // 2
+    assert received_a == expected_per_token
+    assert received_b == expected_per_token
+
+
+def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
+    """Test multiple add/remove liquidity cycles"""
+    setupSwapTest()
+    lego_id = 2
+    
+    initial_asset = mock_dex_asset.balanceOf(user_wallet)
+    initial_alt = mock_dex_asset_alt.balanceOf(user_wallet)
+    
+    # Cycle 1: Add liquidity
+    lp1, _, _, _ = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        100 * EIGHTEEN_DECIMALS,
+        100 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp1
+    
+    # Cycle 2: Remove half
+    user_wallet.removeLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        mock_dex_lp_token.address,
+        lp1 // 2,
+        sender=bob
+    )
+    
+    assert mock_dex_lp_token.balanceOf(user_wallet) == lp1 // 2
+    
+    # Cycle 3: Add more liquidity
+    lp2, _, _, _ = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        50 * EIGHTEEN_DECIMALS,
+        50 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    total_lp = lp1 // 2 + lp2
+    assert mock_dex_lp_token.balanceOf(user_wallet) == total_lp
+    
+    # Cycle 4: Remove all remaining
+    user_wallet.removeLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        mock_dex_lp_token.address,
+        MAX_UINT256,
+        sender=bob
+    )
+    
+    assert mock_dex_lp_token.balanceOf(user_wallet) == 0
+
+
+def test_liquidity_operations_update_storage(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
+    """Test that liquidity operations properly update asset storage"""
+    setupSwapTest()
+    lego_id = 2
+    
+    # Set LP token price
+    mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)
+    
+    # Check LP token not tracked initially
+    assert user_wallet.indexOfAsset(mock_dex_lp_token.address) == 0
+    
+    # Add liquidity
+    lp_received, _, _, _ = user_wallet.addLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        100 * EIGHTEEN_DECIMALS,
+        100 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    # Check LP token is now tracked
+    lp_index = user_wallet.indexOfAsset(mock_dex_lp_token.address)
+    assert lp_index > 0
+    assert user_wallet.assets(lp_index) == mock_dex_lp_token.address
+    
+    # Check LP token storage
+    lp_data = user_wallet.assetData(mock_dex_lp_token.address)
+    assert lp_data.assetBalance == lp_received
+    assert lp_data.usdValue == lp_received * 5  # $5 per LP token
+    assert lp_data.isYieldAsset == False
+    
+    # Remove all liquidity
+    user_wallet.removeLiquidity(
+        lego_id,
+        mock_dex_lego.address,
+        mock_dex_asset.address,
+        mock_dex_asset_alt.address,
+        mock_dex_lp_token.address,
+        MAX_UINT256,
+        sender=bob
+    )
+    
+    # LP token should be deregistered
+    assert user_wallet.indexOfAsset(mock_dex_lp_token.address) == 0
+    lp_data_after = user_wallet.assetData(mock_dex_lp_token.address)
+    assert lp_data_after.assetBalance == 0
+    assert lp_data_after.usdValue == 0
