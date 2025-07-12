@@ -16,7 +16,7 @@ interface UserWallet:
 
 interface HighCommand:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
-    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> wcs.ManagerData: view
+    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
@@ -271,10 +271,19 @@ def checkSignerPermissionsAndGetBundle(
 def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
+    # required data / config
     config: wcs.ManagerSettings = self.managerSettings[_manager]
     globalConfig: wcs.GlobalManagerSettings = self.globalManagerSettings
-    data: wcs.ManagerData = staticcall HighCommand(self.highCommand).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, self.managerPeriodData[_manager])
-    self.managerPeriodData[_manager] = data
+    managerData: wcs.ManagerData = self.managerPeriodData[_manager]
+
+    # check usd value limits
+    canFinishTx: bool = False
+    canFinishTx, managerData = staticcall HighCommand(self.highCommand).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, managerData)
+
+    # IMPORTANT -- this checks manager limits (usd values)
+    assert canFinishTx # dev: usd value limit exceeded
+
+    self.managerPeriodData[_manager] = managerData
     return True
 
 

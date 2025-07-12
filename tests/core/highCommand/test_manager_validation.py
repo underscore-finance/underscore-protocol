@@ -4,6 +4,11 @@ import boa
 from constants import ZERO_ADDRESS, ACTION_TYPE
 
 
+###################################
+# Manager Validation - Pre Action #
+###################################
+
+
 def test_manager_example_test(createGlobalManagerSettings, charlie, alpha_token, bravo_token, bob, createManagerSettings, high_command, user_wallet, user_wallet_config, alice):
 
     # set global manager settings
@@ -796,3 +801,682 @@ def test_manager_large_allowed_assets_list(createManagerSettings, alice, high_co
     assert high_command.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [alpha_token])
     assert high_command.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [mock_dex_asset_alt])
     assert high_command.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [alpha_token, delta_token, mock_dex_asset])
+
+
+####################################
+# Manager Validation - Post Action #
+####################################
+
+
+# basic USD limit tests using checkManagerUsdLimits
+
+
+def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, alice, high_command, user_wallet, user_wallet_config):
+    # add manager with $1000 per tx limit
+    limits = createManagerLimits(_maxUsdValuePerTx=1000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # tx within limit should pass
+    assert high_command.checkManagerUsdLimits(user_wallet, alice, 999)
+    assert high_command.checkManagerUsdLimits(user_wallet, alice, 1000)
+    
+    # tx over limit should fail
+    assert not high_command.checkManagerUsdLimits(user_wallet, alice, 1001)
+    assert not high_command.checkManagerUsdLimits(user_wallet, alice, 5000)
+
+
+def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with $5000 per period limit
+    limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # first tx should pass
+    manager_data = createManagerData()
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        3000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 3000
+    
+    # second tx within remaining limit should pass
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        1999,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data  # use updated data from previous tx
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 4999
+    
+    # third tx exceeding period limit should fail
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        2,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data  # use updated data
+    )
+    assert not success
+
+
+def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with $10000 lifetime limit
+    limits = createManagerLimits(_maxUsdValueLifetime=10000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # first tx
+    manager_data = createManagerData()
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        4000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValue == 4000
+    
+    # second tx
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        4000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data
+    )
+    assert success
+    assert updated_data.totalUsdValue == 8000
+    
+    # third tx within limit
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        1999,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data
+    )
+    assert success
+    assert updated_data.totalUsdValue == 9999
+    
+    # tx exceeding lifetime limit should fail
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        2,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data
+    )
+    assert not success
+
+
+def test_manager_zero_price_fails_when_configured(createManagerSettings, createManagerLimits, alice, high_command, user_wallet, user_wallet_config):
+    # add manager with failOnZeroPrice=True
+    limits = createManagerLimits(_failOnZeroPrice=True)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # zero price should fail
+    assert not high_command.checkManagerUsdLimits(user_wallet, alice, 0)
+    
+    # non-zero price should pass
+    assert high_command.checkManagerUsdLimits(user_wallet, alice, 1)
+
+
+def test_manager_zero_price_allowed_when_not_configured(createManagerSettings, createManagerLimits, alice, high_command, user_wallet, user_wallet_config):
+    # add manager with failOnZeroPrice=False (default)
+    limits = createManagerLimits(_failOnZeroPrice=False)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # zero price should pass
+    assert high_command.checkManagerUsdLimits(user_wallet, alice, 0)
+
+
+# global USD limit tests
+
+
+def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, high_command, user_wallet, user_wallet_config):
+    # set global limit of $500 per tx
+    global_limits = createManagerLimits(_maxUsdValuePerTx=500)
+    new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager with higher limit ($1000)
+    manager_limits = createManagerLimits(_maxUsdValuePerTx=1000)
+    new_manager_settings = createManagerSettings(_limits=manager_limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # should be limited by global limit (500)
+    assert high_command.checkManagerUsdLimits(user_wallet, alice, 500)
+    assert not high_command.checkManagerUsdLimits(user_wallet, alice, 501)
+
+
+def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # set global limit of $2000 per period
+    global_limits = createManagerLimits(_maxUsdValuePerPeriod=2000)
+    new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager with higher limit ($5000)
+    manager_limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
+    new_manager_settings = createManagerSettings(_limits=manager_limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # first tx within global limit
+    manager_data = createManagerData()
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        1500,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 1500
+    
+    # second tx within remaining global limit
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        499,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 1999
+    
+    # third tx exceeding global limit (even though manager limit would allow)
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        2,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        updated_data
+    )
+    assert not success
+
+
+def test_global_zero_price_fails(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, high_command, user_wallet, user_wallet_config):
+    # set global failOnZeroPrice=True
+    global_limits = createManagerLimits(_failOnZeroPrice=True)
+    new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager with failOnZeroPrice=False
+    manager_limits = createManagerLimits(_failOnZeroPrice=False)
+    new_manager_settings = createManagerSettings(_limits=manager_limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # should fail due to global setting
+    assert not high_command.checkManagerUsdLimits(user_wallet, alice, 0)
+
+
+# advanced tests using checkManagerUsdLimitsAndUpdateData
+
+
+def test_manager_data_updates_on_successful_tx(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with various limits
+    limits = createManagerLimits(
+        _maxUsdValuePerTx=1000,
+        _maxUsdValuePerPeriod=5000,
+        _maxUsdValueLifetime=20000
+    )
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # fresh manager data
+    manager_data = createManagerData()
+    
+    # perform tx and check data updates
+    tx_value = 750
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        tx_value,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    
+    assert success
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUsdValueInPeriod == tx_value
+    assert updated_data.totalNumTxs == 1
+    assert updated_data.totalUsdValue == tx_value
+    assert updated_data.lastTxBlock == boa.env.evm.patch.block_number
+
+
+def test_manager_period_reset_clears_period_data(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # set short period for testing
+    new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager
+    limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # time travel to avoid negative blocks
+    boa.env.time_travel(blocks=200)
+    
+    # simulate existing data from previous period
+    current_block = boa.env.evm.patch.block_number
+    manager_data = createManagerData(
+        _numTxsInPeriod=5,
+        _totalUsdValueInPeriod=4000,
+        _totalNumTxs=10,  # lifetime
+        _totalUsdValue=8000,  # lifetime
+        _periodStartBlock=current_block - 150  # past period end
+    )
+    
+    # perform tx after period reset
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        500,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+
+    # period data should reset
+    assert updated_data.numTxsInPeriod == 1  # reset to 1
+    assert updated_data.totalUsdValueInPeriod == 500  # reset to current tx
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+
+    # lifetime data should persist and increment
+    assert updated_data.totalNumTxs == 11
+    assert updated_data.totalUsdValue == 8500
+
+
+def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with $5000 per period limit
+    limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # simulate data near limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=4500,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    
+    # tx within remaining limit should pass
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        499,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 4999
+    
+    # tx exceeding limit should fail
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=4500,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        501,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+
+
+def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # set short period
+    new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager with lifetime limit
+    limits = createManagerLimits(_maxUsdValueLifetime=10000)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # time travel to avoid negative blocks
+    boa.env.time_travel(blocks=200)
+    
+    # simulate data at lifetime limit after period reset
+    current_block = boa.env.evm.patch.block_number
+    manager_data = createManagerData(
+        _totalUsdValue=9999,  # lifetime
+        _totalUsdValueInPeriod=0,  # new period
+        _periodStartBlock=current_block - 150  # trigger reset
+    )
+    
+    # tx within lifetime limit should pass even after period reset
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        1,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValue == 10000
+    
+    # tx exceeding lifetime limit should fail
+    manager_data = createManagerData(
+        _totalUsdValue=9999,
+        _periodStartBlock=current_block
+    )
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        2,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+
+
+def test_manager_multiple_limits_all_must_pass(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with multiple limits
+    limits = createManagerLimits(
+        _maxUsdValuePerTx=1000,
+        _maxUsdValuePerPeriod=5000,
+        _maxUsdValueLifetime=20000
+    )
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # simulate data with some usage
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=4500,
+        _totalUsdValue=19500,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    
+    # tx passing all limits
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        400,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    
+    # tx failing per-tx limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=1000,
+        _totalUsdValue=5000,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        1001,  # exceeds per-tx limit
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+    
+    # tx failing period limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=4600,
+        _totalUsdValue=5000,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        500,  # exceeds period limit
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+    
+    # tx failing lifetime limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=1000,
+        _totalUsdValue=19700,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        400,  # exceeds lifetime limit
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+
+
+def test_manager_zero_limits_mean_unlimited(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with zero limits (unlimited)
+    limits = createManagerLimits(
+        _maxUsdValuePerTx=0,
+        _maxUsdValuePerPeriod=0,
+        _maxUsdValueLifetime=0
+    )
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # simulate high usage
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=1000000,
+        _totalUsdValue=10000000,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    
+    # large tx should pass with unlimited
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        500000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    assert updated_data.totalUsdValueInPeriod == 1500000
+    assert updated_data.totalUsdValue == 10500000
+
+
+def test_manager_first_tx_initializes_period_start(createManagerSettings, createManagerData, alice, high_command, user_wallet_config):
+    # add manager
+    new_manager_settings = createManagerSettings()
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # fresh manager data with no period initialized
+    manager_data = createManagerData(_periodStartBlock=0)
+    
+    # first tx should initialize period
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        100,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    
+    assert success
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUsdValueInPeriod == 100
+
+
+def test_manager_data_not_updated_on_failed_tx(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with low limit
+    limits = createManagerLimits(_maxUsdValuePerTx=100)
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # existing manager data
+    manager_data = createManagerData(
+        _numTxsInPeriod=5,
+        _totalUsdValueInPeriod=400,
+        _totalNumTxs=10,
+        _totalUsdValue=800,
+        _lastTxBlock=1000,
+        _periodStartBlock=900
+    )
+    
+    # tx exceeding limit
+    success, updated_data = high_command.checkManagerUsdLimitsAndUpdateData(
+        101,  # exceeds per-tx limit
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    
+    assert not success
+    # data should not be updated on failure
+    # (contract returns empty data on failure)
+
+
+def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # add manager with specific limits
+    limits = createManagerLimits(
+        _maxUsdValuePerTx=1000,
+        _maxUsdValuePerPeriod=5000,
+        _maxUsdValueLifetime=10000
+    )
+    new_manager_settings = createManagerSettings(_limits=limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # test per-tx at exact limit
+    manager_data = createManagerData()
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        1000,  # exactly at limit
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    
+    # test period at exact limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=4000,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        1000,  # brings total to exactly 5000
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+    
+    # test lifetime at exact limit
+    manager_data = createManagerData(
+        _totalUsdValue=9000,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        1000,  # brings total to exactly 10000
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert success
+
+
+def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, high_command, user_wallet_config):
+    # set global limits
+    global_limits = createManagerLimits(
+        _maxUsdValuePerTx=500,
+        _maxUsdValuePerPeriod=2000
+    )
+    new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    # add manager with different limits
+    manager_limits = createManagerLimits(
+        _maxUsdValuePerTx=1000,
+        _maxUsdValuePerPeriod=3000
+    )
+    new_manager_settings = createManagerSettings(_limits=manager_limits)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # get settings
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    
+    # test tx blocked by global per-tx limit
+    manager_data = createManagerData()
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        600,  # passes manager limit (1000) but fails global (500)
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
+    
+    # test tx blocked by global period limit
+    manager_data = createManagerData(
+        _totalUsdValueInPeriod=1800,
+        _periodStartBlock=boa.env.evm.patch.block_number
+    )
+    success, _ = high_command.checkManagerUsdLimitsAndUpdateData(
+        300,  # would exceed global period limit (2000)
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data
+    )
+    assert not success
