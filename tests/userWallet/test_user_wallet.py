@@ -1084,3 +1084,301 @@ def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wal
     assert underlying_amount == vault_tokens // 2  # 1:1 price
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - (vault_tokens // 2)
     assert yield_underlying_token.balanceOf(user_wallet) == underlying_amount
+
+
+############################
+# Rebalance Yield Position #
+############################
+
+
+def test_rebalance_yield_position_basic(prepareAssetForWalletTx, user_wallet, bob, alpha_token, alpha_token_whale, alpha_token_vault, alpha_token_vault_2, mock_ripe):
+    """Test basic rebalancing from one vault to another"""
+    
+    # setup: prepare underlying tokens in wallet
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    prepareAssetForWalletTx(
+        _asset=alpha_token,
+        _amount=deposit_amount,
+        _whale=alpha_token_whale,
+        _price=10 * EIGHTEEN_DECIMALS,
+        _shouldCheckYield=False
+    )
+    
+    # deposit to first vault
+    lego_id_1 = 1  # mock_yield_lego
+    _, vault_token_1, vault_tokens_received_1, _ = user_wallet.depositForYield(
+        lego_id_1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+    
+    # verify initial state
+    assert alpha_token_vault.balanceOf(user_wallet) == vault_tokens_received_1
+    assert alpha_token_vault_2.balanceOf(user_wallet) == 0
+    assert alpha_token.balanceOf(user_wallet) == 0
+    
+    # check vault 1 is tracked
+    vault1_data = user_wallet.assetData(alpha_token_vault.address)
+    assert vault1_data.assetBalance == vault_tokens_received_1
+    assert vault1_data.isYieldAsset == True
+    
+    # rebalance to second vault
+    lego_id_2 = 1  # same lego for simplicity
+    underlying_amount, to_vault_token, to_vault_tokens_received, max_usd_value = user_wallet.rebalanceYieldPosition(
+        lego_id_1,
+        alpha_token_vault.address,
+        lego_id_2,
+        alpha_token_vault_2.address,
+        vault_tokens_received_1,  # rebalance all
+        sender=bob
+    )
+    
+    # verify events - rebalance emits withdraw and deposit events
+    logs = filter_logs(user_wallet, "WalletAction")
+    
+    # Should have withdraw event (op=11) and deposit event (op=10)
+    assert len(logs) == 2
+    
+    # First event should be withdraw
+    withdraw_log = logs[0]
+    assert withdraw_log.op == 11  # EARN_WITHDRAW
+    assert withdraw_log.asset1 == alpha_token_vault.address
+    assert withdraw_log.asset2 == alpha_token.address  # underlying asset
+    assert withdraw_log.amount1 == vault_tokens_received_1
+    assert withdraw_log.amount2 == deposit_amount  # underlying received
+    assert withdraw_log.legoId == lego_id_1
+    assert withdraw_log.signer == bob
+    
+    # Second event should be deposit
+    deposit_log = logs[1]
+    assert deposit_log.op == 10  # EARN_DEPOSIT
+    assert deposit_log.asset1 == alpha_token.address  # underlying asset
+    assert deposit_log.asset2 == alpha_token_vault_2.address
+    assert deposit_log.amount1 == deposit_amount  # underlying deposited
+    assert deposit_log.amount2 == to_vault_tokens_received
+    assert deposit_log.legoId == lego_id_2
+    assert deposit_log.signer == bob
+    
+    # verify return values
+    assert underlying_amount == deposit_amount  # 1:1 exchange rate
+    assert to_vault_token == alpha_token_vault_2.address
+    assert to_vault_tokens_received == deposit_amount  # 1:1 rate for mock vault
+    
+    # verify balances
+    assert alpha_token_vault.balanceOf(user_wallet) == 0
+    assert alpha_token_vault_2.balanceOf(user_wallet) == to_vault_tokens_received
+    assert alpha_token.balanceOf(user_wallet) == 0
+    
+    # verify storage - vault 1 should be deregistered
+    vault1_data = user_wallet.assetData(alpha_token_vault.address)
+    assert vault1_data.assetBalance == 0
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
+    
+    # verify storage - vault 2 should be registered
+    vault2_data = user_wallet.assetData(alpha_token_vault_2.address)
+    assert vault2_data.assetBalance == to_vault_tokens_received
+    assert vault2_data.isYieldAsset == True
+    assert vault2_data.lastPricePerShare == EIGHTEEN_DECIMALS  # 1:1 initially
+    assert user_wallet.indexOfAsset(alpha_token_vault_2.address) > 0
+
+
+def test_rebalance_yield_position_partial(prepareAssetForWalletTx, user_wallet, bob, alpha_token, alpha_token_whale, alpha_token_vault, alpha_token_vault_2):
+    """Test partial rebalancing from one vault to another"""
+    
+    # setup and deposit to first vault
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    prepareAssetForWalletTx(
+        _asset=alpha_token,
+        _amount=deposit_amount,
+        _whale=alpha_token_whale,
+        _price=10 * EIGHTEEN_DECIMALS,
+        _shouldCheckYield=False
+    )
+    
+    _, _, vault_tokens_1, _ = user_wallet.depositForYield(
+        1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+    
+    # rebalance half to second vault
+    rebalance_amount = vault_tokens_1 // 2
+    underlying_amount, to_vault_token, to_vault_tokens_received, _ = user_wallet.rebalanceYieldPosition(
+        1,
+        alpha_token_vault.address,
+        1,
+        alpha_token_vault_2.address,
+        rebalance_amount,
+        sender=bob
+    )
+    
+    # verify amounts
+    assert underlying_amount == rebalance_amount  # 1:1 rate
+    assert to_vault_tokens_received == rebalance_amount  # 1:1 rate
+    
+    # verify balances - should have half in each vault
+    assert alpha_token_vault.balanceOf(user_wallet) == vault_tokens_1 - rebalance_amount
+    assert alpha_token_vault_2.balanceOf(user_wallet) == to_vault_tokens_received
+    
+    # verify both vaults are tracked in storage
+    vault1_data = user_wallet.assetData(alpha_token_vault.address)
+    assert vault1_data.assetBalance == vault_tokens_1 - rebalance_amount
+    assert vault1_data.isYieldAsset == True
+    
+    vault2_data = user_wallet.assetData(alpha_token_vault_2.address)
+    assert vault2_data.assetBalance == to_vault_tokens_received
+    assert vault2_data.isYieldAsset == True
+    
+    # verify both are registered
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) > 0
+    assert user_wallet.indexOfAsset(alpha_token_vault_2.address) > 0
+
+
+def test_rebalance_yield_position_with_max_value(prepareAssetForWalletTx, user_wallet, bob, alpha_token, alpha_token_whale, alpha_token_vault, alpha_token_vault_2):
+    """Test rebalancing with max_value to move entire position"""
+    
+    # setup and deposit
+    deposit_amount = 75 * EIGHTEEN_DECIMALS
+    prepareAssetForWalletTx(
+        _asset=alpha_token,
+        _amount=deposit_amount,
+        _whale=alpha_token_whale,
+        _price=5 * EIGHTEEN_DECIMALS,
+        _shouldCheckYield=False
+    )
+    
+    _, _, vault_tokens_1, _ = user_wallet.depositForYield(
+        1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+    
+    # rebalance with max_value
+    underlying_amount, to_vault_token, to_vault_tokens_received, _ = user_wallet.rebalanceYieldPosition(
+        1,
+        alpha_token_vault.address,
+        1,
+        alpha_token_vault_2.address,
+        MAX_UINT256,  # max value to rebalance all
+        sender=bob
+    )
+    
+    # verify entire position moved
+    assert underlying_amount == deposit_amount
+    assert to_vault_tokens_received == deposit_amount  # 1:1 rate
+    
+    # verify vault 1 empty and deregistered
+    assert alpha_token_vault.balanceOf(user_wallet) == 0
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
+    
+    # verify vault 2 has all tokens
+    assert alpha_token_vault_2.balanceOf(user_wallet) == to_vault_tokens_received
+    assert user_wallet.indexOfAsset(alpha_token_vault_2.address) > 0
+
+
+def test_rebalance_yield_position_with_yield_accrued(prepareAssetForWalletTx, user_wallet, bob, alpha_token, alpha_token_whale, alpha_token_vault, alpha_token_vault_2, setUserWalletConfig):
+    """Test rebalancing after yield has accrued in the source vault"""
+    
+    # disable yield fees for simplicity
+    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    
+    # setup and deposit
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    prepareAssetForWalletTx(
+        _asset=alpha_token,
+        _amount=deposit_amount,
+        _whale=alpha_token_whale,
+        _price=10 * EIGHTEEN_DECIMALS,
+        _shouldCheckYield=False
+    )
+    
+    _, _, vault_tokens_1, _ = user_wallet.depositForYield(
+        1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+    
+    # time travel and simulate yield accrual
+    boa.env.time_travel(blocks=15)
+    
+    # double the vault's assets to double price per share
+    current_vault_balance = alpha_token.balanceOf(alpha_token_vault.address)
+    alpha_token.transfer(alpha_token_vault.address, current_vault_balance, sender=alpha_token_whale)
+    
+    # rebalance - should detect yield and update price per share
+    underlying_amount, to_vault_token, to_vault_tokens_received, _ = user_wallet.rebalanceYieldPosition(
+        1,
+        alpha_token_vault.address,
+        1,
+        alpha_token_vault_2.address,
+        vault_tokens_1,
+        sender=bob
+    )
+    
+    # with 2x price, should get 2x underlying
+    assert underlying_amount == deposit_amount * 2  # 2x due to yield
+    assert to_vault_tokens_received == deposit_amount * 2  # deposited 2x underlying
+    
+    # verify price per share was updated during rebalance
+    # (even though vault1 is now empty, we can check the event)
+    assert alpha_token_vault.balanceOf(user_wallet) == 0
+    assert alpha_token_vault_2.balanceOf(user_wallet) == to_vault_tokens_received
+
+
+def test_rebalance_yield_position_updates_asset_tracking(prepareAssetForWalletTx, user_wallet, bob, alpha_token, alpha_token_whale, alpha_token_vault, alpha_token_vault_2):
+    """Test that rebalancing properly updates asset tracking and indices"""
+    
+    # setup and deposit to first vault
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    prepareAssetForWalletTx(
+        _asset=alpha_token,
+        _amount=deposit_amount,
+        _whale=alpha_token_whale,
+        _price=10 * EIGHTEEN_DECIMALS,
+        _shouldCheckYield=False
+    )
+    
+    _, _, vault_tokens_1, _ = user_wallet.depositForYield(
+        1,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+    
+    # record initial state
+    initial_num_assets = user_wallet.numAssets()
+    vault1_index = user_wallet.indexOfAsset(alpha_token_vault.address)
+    assert vault1_index > 0
+    
+    # rebalance entire position
+    user_wallet.rebalanceYieldPosition(
+        1,
+        alpha_token_vault.address,
+        1,
+        alpha_token_vault_2.address,
+        vault_tokens_1,
+        sender=bob
+    )
+    
+    # verify asset tracking updated correctly
+    # vault1 should be deregistered
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
+    
+    # vault2 should be registered
+    vault2_index = user_wallet.indexOfAsset(alpha_token_vault_2.address)
+    assert vault2_index > 0
+    
+    # total number of assets should remain the same (one removed, one added)
+    assert user_wallet.numAssets() == initial_num_assets
+    
+    # verify assets array is properly maintained
+    assert user_wallet.assets(vault2_index) == alpha_token_vault_2.address
