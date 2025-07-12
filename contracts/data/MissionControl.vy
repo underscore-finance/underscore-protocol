@@ -198,6 +198,12 @@ def setAgentConfig(_config: cs.AgentConfig):
     self.agentConfig = _config
 
 
+@external
+def setStarterAgent(_agent: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.agentConfig.startingAgent = _agent
+
+
 # helper
 
 
