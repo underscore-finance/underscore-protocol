@@ -1,6 +1,5 @@
 # @version 0.4.3
 
-from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
