@@ -54,18 +54,17 @@ struct PendingPayee:
     settings: PayeeSettings
     initiatedBlock: uint256
     confirmBlock: uint256
+    currentOwner: address
 
 struct PayeeManagementBundle:
     owner: address
     wallet: address
     isRegisteredPayee: bool
     isWhitelisted: bool
-    isManager: bool
     payeeSettings: PayeeSettings
     globalPayeeSettings: GlobalPayeeSettings
     timeLock: uint256
     walletConfig: address
-    inEjectMode: bool
 
 struct RecipientConfigBundle:
     isWhitelisted: bool
@@ -82,7 +81,6 @@ struct WhitelistConfigBundle:
     pendingWhitelist: PendingWhitelist
     timeLock: uint256
     walletConfig: address
-    inEjectMode: bool
     isManager: bool
     isOwner: bool
     whitelistPerms: WhitelistPerms
