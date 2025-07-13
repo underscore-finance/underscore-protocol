@@ -4,34 +4,29 @@
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
-    def getWhitelistConfigBundle(_addr: address, _signer: address) -> wcs.WhitelistConfigBundle: view
     def addPendingWhitelistAddr(_addr: address, _pending: wcs.PendingWhitelist): nonpayable
-    def getPayeeManagementBundle(_payee: address) -> wcs.PayeeManagementBundle: view
-    def getRecipientConfigs(_recipient: address) -> wcs.RecipientConfigBundle: view
     def addPendingPayee(_payee: address, _pending: wcs.PendingPayee): nonpayable
-    def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def updatePayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
+    def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
-    def cancelPendingWhitelistAddr(_addr: address): nonpayable
+    def pendingWhitelist(_addr: address) -> wcs.PendingWhitelist: view
+    def managerSettings(_addr: address) -> wcs.ManagerSettings: view
+    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
+    def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def pendingPayees(_payee: address) -> wcs.PendingPayee: view
-    def canAddPendingPayee(_caller: address) -> bool: view
+    def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def cancelPendingWhitelistAddr(_addr: address): nonpayable
+    def indexOfWhitelist(_addr: address) -> uint256: view
     def confirmWhitelistAddr(_addr: address): nonpayable
     def confirmPendingPayee(_payee: address): nonpayable
     def removeWhitelistAddr(_addr: address): nonpayable
     def cancelPendingPayee(_payee: address): nonpayable
-    def removePayee(_payee: address): nonpayable
-    def owner() -> address: view
-    def wallet() -> address: view
-    def timeLock() -> uint256: view
-    def inEjectMode() -> bool: view
-    def pendingWhitelist(_addr: address) -> wcs.PendingWhitelist: view
-    def indexOfWhitelist(_addr: address) -> uint256: view
     def indexOfManager(_addr: address) -> uint256: view
-    def managerSettings(_addr: address) -> wcs.ManagerSettings: view
-    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfPayee(_payee: address) -> uint256: view
-    def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
-    def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def removePayee(_payee: address): nonpayable
+    def timeLock() -> uint256: view
+    def wallet() -> address: view
+    def owner() -> address: view
 
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
@@ -161,7 +156,6 @@ event PayeePendingCancelled:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
-SWITCHBOARD_ID: constant(uint256) = 5
 MISSION_CONTROL_ID: constant(uint256) = 3
 
 # payee validation bounds
