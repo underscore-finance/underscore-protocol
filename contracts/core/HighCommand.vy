@@ -1,26 +1,26 @@
 # @version 0.4.3
-# pragma optimize codesize
 
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
-    def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle: view
     def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle: view
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
-    def isRegisteredPayee(_addr: address) -> bool: view
+    def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_payee: address) -> uint256: view
     def removeManager(_manager: address): nonpayable
+    def timeLock() -> uint256: view
+    def owner() -> address: view
 
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
-interface Switchboard:
-    def isSwitchboardAddr(_addr: address) -> bool: view
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
@@ -95,13 +95,12 @@ event ManagerActivationLengthAdjusted:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
-SWITCHBOARD_ID: constant(uint256) = 5
+MISSION_CONTROL_ID: constant(uint256) = 3
+LEGO_BOOK_ID: constant(uint256) = 4
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
 MAX_ALLOWED_PAYEES: constant(uint256) = 40
-MAX_ASSETS: constant(uint256) = 10
-MAX_LEGOS: constant(uint256) = 10
 
 # manager validation bounds
 MIN_MANAGER_PERIOD: public(immutable(uint256))
@@ -131,159 +130,482 @@ def __init__(
     MIN_ACTIVATION_LENGTH = _minActivationLength
     MAX_ACTIVATION_LENGTH = _maxActivationLength
 
+    assert _maxStartDelay != 0 # dev: invalid start delay
     MAX_START_DELAY = _maxStartDelay
 
 
-#########################
-# Global Manager Config #
-#########################
+####################
+# Manager Settings #
+####################
 
 
-@view
+# add manager
+
+
 @external
-def validateGlobalManagerSettings(
-    _settings: wcs.GlobalManagerSettings,
-    _inEjectMode: bool,
-    _currentTimeLock: uint256,
-    _legoBookAddr: address,
-    _walletConfig: address,
+def addManager(
+    _userWallet: address,
+    _manager: address,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _startDelay: uint256 = 0,
+    _activationLength: uint256 = 0,
 ) -> bool:
-    return self._validateGlobalManagerSettings(_settings, _inEjectMode, _currentTimeLock, _legoBookAddr, _walletConfig)
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
 
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    assert msg.sender == config.owner # dev: no perms
+    assert _manager not in [empty(address), config.owner, config.walletConfig, _userWallet] # dev: invalid manager
 
-@view
-@internal
-def _validateGlobalManagerSettings(
-    _settings: wcs.GlobalManagerSettings,
-    _inEjectMode: bool,
-    _currentTimeLock: uint256,
-    _legoBookAddr: address,
-    _walletConfig: address,
-) -> bool:
-    return (
-        self._validateManagerPeriod(_settings.managerPeriod) and
-        self._validateStartDelay(_settings.startDelay, _currentTimeLock) and
-        self._validateActivationLength(_settings.activationLength) and
-        self._validateManagerLimits(_settings.limits, _settings.managerPeriod) and
-        self._validateLegoPerms(_settings.legoPerms, _inEjectMode, _legoBookAddr) and
-        self._validateTransferPerms(_settings.transferPerms, _walletConfig) and
-        self._validateAllowedAssets(_settings.allowedAssets)
+    isValid: bool = False
+    settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
+    isValid, settings = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    assert isValid # dev: invalid manager
+    
+    extcall UserWalletConfig(config.walletConfig).addManager(_manager, settings)
+    log ManagerSettingsModified(
+        user = _userWallet,
+        manager = _manager,
+        startBlock = settings.startBlock,
+        expiryBlock = settings.expiryBlock,
+        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
+        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
+        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
+        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = _limits.txCooldownBlocks,
+        failOnZeroPrice = _limits.failOnZeroPrice,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canManageDebt = _legoPerms.canManageDebt,
+        canManageLiq = _legoPerms.canManageLiq,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        canAddPendingWhitelist = _whitelistPerms.canAddPending,
+        canConfirmWhitelist = _whitelistPerms.canConfirm,
+        canCancelWhitelist = _whitelistPerms.canCancel,
+        canRemoveWhitelist = _whitelistPerms.canRemove,
+        canTransfer = _transferPerms.canTransfer,
+        canCreateCheque = _transferPerms.canCreateCheque,
+        canAddPendingPayee = _transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        numAllowedAssets = len(_allowedAssets),
     )
+    return True
 
 
-##################
-# Manager Config #
-##################
+# update existing manager
 
 
-# create manager settings
-
-
-@view
 @external
-def validateAndCreateManagerSettings(
-    _startDelay: uint256,
-    _activationLength: uint256,
+def updateManager(
+    _userWallet: address,
+    _manager: address,
     _limits: wcs.ManagerLimits,
     _legoPerms: wcs.LegoPerms,
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-    _currentTimeLock: uint256,
-    _config: wcs.GlobalManagerSettings,
-    _inEjectMode: bool,
-    _legoBookAddr: address,
-    _walletConfig: address,
-) -> wcs.ManagerSettings:
-    return self._validateAndCreateManagerSettings(_startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _currentTimeLock, _config, _inEjectMode, _legoBookAddr, _walletConfig)
+) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    assert msg.sender == config.owner # dev: no perms
+
+    # validate inputs
+    assert self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig) # dev: invalid settings
+
+    # update config
+    settings: wcs.ManagerSettings = staticcall UserWalletConfig(config.walletConfig).managerSettings(_manager)
+    settings.limits = _limits
+    settings.legoPerms = _legoPerms
+    settings.whitelistPerms = _whitelistPerms
+    settings.transferPerms = _transferPerms
+    settings.allowedAssets = _allowedAssets
+    extcall UserWalletConfig(config.walletConfig).updateManager(_manager, settings)
+
+    log ManagerSettingsModified(
+        user = _userWallet,
+        manager = _manager,
+        startBlock = settings.startBlock,
+        expiryBlock = settings.expiryBlock,
+        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
+        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
+        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
+        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = _limits.txCooldownBlocks,
+        failOnZeroPrice = _limits.failOnZeroPrice,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canManageDebt = _legoPerms.canManageDebt,
+        canManageLiq = _legoPerms.canManageLiq,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        canAddPendingWhitelist = _whitelistPerms.canAddPending,
+        canConfirmWhitelist = _whitelistPerms.canConfirm,
+        canCancelWhitelist = _whitelistPerms.canCancel,
+        canRemoveWhitelist = _whitelistPerms.canRemove,
+        canTransfer = _transferPerms.canTransfer,
+        canCreateCheque = _transferPerms.canCreateCheque,
+        canAddPendingPayee = _transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        numAllowedAssets = len(_allowedAssets),
+    )
+    return True
 
 
-@view
-@internal
-def _validateAndCreateManagerSettings(
+# remove manager
+
+
+@external
+def removeManager(_userWallet: address, _manager: address) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    if msg.sender not in [config.owner, _manager]:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+    assert config.isManager # dev: manager not found
+
+    extcall UserWalletConfig(config.walletConfig).removeManager(_manager)
+    log ManagerRemoved(user = _userWallet, manager = _manager)
+    return True
+
+
+# adjust activation length
+
+
+@external
+def adjustManagerActivationLength(
+    _userWallet: address,
+    _manager: address,
+    _activationLength: uint256,
+    _shouldResetStartBlock: bool = False,
+) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    assert msg.sender == config.owner # dev: no perms
+    assert config.isManager # dev: no manager found
+
+    # validation
+    settings: wcs.ManagerSettings = staticcall UserWalletConfig(config.walletConfig).managerSettings(_manager)
+    assert settings.startBlock < block.number # dev: manager not active yet
+    assert self._validateActivationLength(_activationLength) # dev: invalid activation length
+
+    # update config
+    didRestart: bool = False
+    if _shouldResetStartBlock or settings.expiryBlock < block.number:
+        settings.startBlock = block.number
+        didRestart = True
+
+    settings.expiryBlock = settings.startBlock + _activationLength
+    assert settings.expiryBlock > block.number # dev: invalid expiry block
+    extcall UserWalletConfig(config.walletConfig).updateManager(_manager, settings)
+
+    log ManagerActivationLengthAdjusted(
+        user = _userWallet,
+        manager = _manager,
+        activationLength = _activationLength,
+        didRestart = didRestart,
+    )
+    return True
+
+
+###########################
+# Global Manager Settings #
+###########################
+
+
+@external
+def setGlobalManagerSettings(
+    _userWallet: address,
+    _managerPeriod: uint256,
     _startDelay: uint256,
     _activationLength: uint256,
+    _canOwnerManage: bool,
     _limits: wcs.ManagerLimits,
     _legoPerms: wcs.LegoPerms,
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-    _currentTimeLock: uint256,
-    _config: wcs.GlobalManagerSettings,
-    _inEjectMode: bool,
-    _legoBookAddr: address,
-    _walletConfig: address,
-) -> wcs.ManagerSettings:
+) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
 
-    # start delay
-    startDelay: uint256 = max(_config.startDelay, _currentTimeLock)
-    if _startDelay != 0:
-        startDelay = max(startDelay, _startDelay) # using max here as extra protection
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, empty(address))
+    assert msg.sender == config.owner # dev: no perms
 
-    # activation length
-    activationLength: uint256 = _config.activationLength
-    if _activationLength != 0:
-        activationLength = min(activationLength, _activationLength)
+    # validate inputs
+    assert self._validateGlobalManagerSettings(_managerPeriod, _startDelay, _activationLength, _canOwnerManage, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.timeLock, config.legoBook, config.walletConfig) # dev: invalid settings
 
-    # validate settings
-    assert (
-        self._validateStartDelay(startDelay, _currentTimeLock) and
-        self._validateActivationLength(activationLength) and
-        self._validateManagerLimits(_limits, _config.managerPeriod) and
-        self._validateLegoPerms(_legoPerms, _inEjectMode, _legoBookAddr) and
-        self._validateTransferPerms(_transferPerms, _walletConfig) and
-        self._validateAllowedAssets(_allowedAssets)
-    ) # dev: invalid settings
-
-    startBlock: uint256 = block.number + startDelay
-    expiryBlock: uint256 = startBlock + activationLength
-
-    return wcs.ManagerSettings(
-        startBlock = startBlock,
-        expiryBlock = expiryBlock,
+    # update config
+    settings: wcs.GlobalManagerSettings = wcs.GlobalManagerSettings(
+        managerPeriod = _managerPeriod,
+        startDelay = _startDelay,
+        activationLength = _activationLength,
+        canOwnerManage = _canOwnerManage,
         limits = _limits,
         legoPerms = _legoPerms,
         whitelistPerms = _whitelistPerms,
         transferPerms = _transferPerms,
         allowedAssets = _allowedAssets,
     )
+    extcall UserWalletConfig(config.walletConfig).setGlobalManagerSettings(settings)
+
+    log GlobalManagerSettingsModified(
+        user = _userWallet,
+        managerPeriod = _managerPeriod,
+        startDelay = _startDelay,
+        activationLength = _activationLength,
+        canOwnerManage = _canOwnerManage,
+        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
+        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
+        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
+        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
+        txCooldownBlocks = _limits.txCooldownBlocks,
+        failOnZeroPrice = _limits.failOnZeroPrice,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canManageDebt = _legoPerms.canManageDebt,
+        canManageLiq = _legoPerms.canManageLiq,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        canAddPendingWhitelist = _whitelistPerms.canAddPending,
+        canConfirmWhitelist = _whitelistPerms.canConfirm,
+        canCancelWhitelist = _whitelistPerms.canCancel,
+        canRemoveWhitelist = _whitelistPerms.canRemove,
+        canTransfer = _transferPerms.canTransfer,
+        canCreateCheque = _transferPerms.canCreateCheque,
+        canAddPendingPayee = _transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        numAllowedAssets = len(_allowedAssets),
+    )
+    return True
 
 
-# validate specific manager settings
+######################
+# Manager Validation #
+######################
+
+
+# validate on add new
 
 
 @view
 @external
-def validateSpecificManagerSettings(
-    _settings: wcs.ManagerSettings,
-    _managerPeriod: uint256,
-    _inEjectMode: bool,
-    _legoBookAddr: address,
-    _walletConfig: address,
+def isValidNewManager(
+    _userWallet: address,
+    _manager: address,
+    _startDelay: uint256,
+    _activationLength: uint256,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
 ) -> bool:
-    return self._validateSpecificManagerSettings(_settings, _managerPeriod, _inEjectMode, _legoBookAddr, _walletConfig)
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    isValid: bool = False
+    na: wcs.ManagerSettings = empty(wcs.ManagerSettings)
+    isValid, na = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    return isValid
 
 
 @view
 @internal
-def _validateSpecificManagerSettings(
-    _settings: wcs.ManagerSettings,
+def _isValidNewManager(
+    _isManager: bool,
+    _startDelay: uint256,
+    _activationLength: uint256,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _globalConfig: wcs.GlobalManagerSettings,
+    _currentTimeLock: uint256,
+    _legoBookAddr: address,
+    _walletConfig: address,
+) -> (bool, wcs.ManagerSettings):
+
+    # already a manager
+    if _isManager:
+        return False, empty(wcs.ManagerSettings)
+
+    # start delay
+    startDelay: uint256 = max(_globalConfig.startDelay, _currentTimeLock)
+    if _startDelay != 0:
+        startDelay = max(startDelay, _startDelay) # using max here as extra protection
+
+    # activation length
+    activationLength: uint256 = _globalConfig.activationLength
+    if _activationLength != 0:
+        activationLength = min(activationLength, _activationLength)
+
+    # start delay
+    if not self._validateStartDelay(startDelay, _currentTimeLock):
+        return False, empty(wcs.ManagerSettings)
+
+    # activation length
+    if not self._validateActivationLength(activationLength):
+        return False, empty(wcs.ManagerSettings)
+
+    # validate limits
+    if not self._validateManagerLimits(_limits, _globalConfig.managerPeriod):
+        return False, empty(wcs.ManagerSettings)
+    
+    # validate lego perms
+    if not self._validateLegoPerms(_legoPerms, _legoBookAddr):
+        return False, empty(wcs.ManagerSettings)
+
+    # validate transfer perms
+    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+        return False, empty(wcs.ManagerSettings)
+
+    # validate allowed assets
+    if not self._validateAllowedAssets(_allowedAssets):
+        return False, empty(wcs.ManagerSettings)
+
+    # create settings
+    settings: wcs.ManagerSettings = wcs.ManagerSettings(
+        startBlock = block.number + startDelay,
+        expiryBlock = block.number + startDelay + activationLength,
+        limits = _limits,
+        legoPerms = _legoPerms,
+        whitelistPerms = _whitelistPerms,
+        transferPerms = _transferPerms,
+        allowedAssets = _allowedAssets,
+    )
+    return True, settings
+
+
+# validate on update
+
+
+@view
+@external
+def validateManagerOnUpdate(
+    _userWallet: address,
+    _manager: address,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+) -> bool:
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    return self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig)
+
+
+@view
+@internal
+def _validateManagerOnUpdate(
+    _isManager: bool,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
     _managerPeriod: uint256,
-    _inEjectMode: bool,
     _legoBookAddr: address,
     _walletConfig: address,
 ) -> bool:
-    return (
-        self._validateManagerLimits(_settings.limits, _managerPeriod) and
-        self._validateLegoPerms(_settings.legoPerms, _inEjectMode, _legoBookAddr) and
-        self._validateTransferPerms(_settings.transferPerms, _walletConfig) and
-        self._validateAllowedAssets(_settings.allowedAssets)
-    )
+    # must already be a manager
+    if not _isManager:
+        return False
+
+    # validate limits
+    if not self._validateManagerLimits(_limits, _managerPeriod):
+        return False
+    
+    # validate lego perms
+    if not self._validateLegoPerms(_legoPerms, _legoBookAddr):
+        return False
+
+    # validate transfer perms
+    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+        return False
+
+    # validate allowed assets
+    if not self._validateAllowedAssets(_allowedAssets):
+        return False
+
+    return True
 
 
-########################
-# Manager Config Utils #
-########################
+# validate global manager settings
+
+
+@view
+@external
+def validateGlobalManagerSettings(
+    _userWallet: address,
+    _managerPeriod: uint256,
+    _startDelay: uint256,
+    _activationLength: uint256,
+    _canOwnerManage: bool,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+) -> bool:
+    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, empty(address))
+    return self._validateGlobalManagerSettings(_managerPeriod, _startDelay, _activationLength, _canOwnerManage, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.timeLock, config.legoBook, config.walletConfig)
+
+
+@view
+@internal
+def _validateGlobalManagerSettings(
+    _managerPeriod: uint256,
+    _startDelay: uint256,
+    _activationLength: uint256,
+    _canOwnerManage: bool,
+    _limits: wcs.ManagerLimits,
+    _legoPerms: wcs.LegoPerms,
+    _whitelistPerms: wcs.WhitelistPerms,
+    _transferPerms: wcs.TransferPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _currentTimeLock: uint256,
+    _legoBookAddr: address,
+    _walletConfig: address,
+) -> bool:
+
+    # manager period
+    if not self._validateManagerPeriod(_managerPeriod):
+        return False
+
+    # default start delay
+    if not self._validateStartDelay(_startDelay, _currentTimeLock):
+        return False
+
+    # default activation length
+    if not self._validateActivationLength(_activationLength):
+        return False
+
+    # validate limits
+    if not self._validateManagerLimits(_limits, _managerPeriod):
+        return False
+    
+    # validate lego perms
+    if not self._validateLegoPerms(_legoPerms, _legoBookAddr):
+        return False
+
+    # validate transfer perms
+    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+        return False
+
+    # validate allowed assets
+    if not self._validateAllowedAssets(_allowedAssets):
+        return False
+
+    return True
+
+
+############################
+# Manager Validation Utils #
+############################
 
 
 @view
@@ -328,7 +650,7 @@ def _validateManagerLimits(_limits: wcs.ManagerLimits, _managerPeriod: uint256) 
 
 @view
 @internal
-def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _inEjectMode: bool, _legoBookAddr: address) -> bool:
+def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _legoBookAddr: address) -> bool:
     if len(_legoPerms.allowedLegos) == 0:
         return True
 
@@ -340,10 +662,6 @@ def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _inEjectMode: bool, _legoBookA
 
     # allowedLegos should be empty if there are no permissions
     if not canDoAnything:
-        return False
-
-    # if in eject mode, can't add legos as permissions
-    if _inEjectMode:
         return False
 
     # validate lego book address
@@ -379,7 +697,7 @@ def _validateTransferPerms(_transferPerms: wcs.TransferPerms, _walletConfig: add
             return False
 
         # check if payee is valid
-        if not staticcall UserWalletConfig(_walletConfig).isRegisteredPayee(payee):
+        if staticcall UserWalletConfig(_walletConfig).indexOfPayee(payee) == 0:
             return False
 
         # check for duplicates
@@ -410,290 +728,51 @@ def _validateAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS])
     return True
 
 
-###########################
-# Global Manager Settings #
-###########################
+#############
+# Utilities #
+#############
 
 
-@external
-def setGlobalManagerSettings(
-    _user: address,
-    _managerPeriod: uint256,
-    _startDelay: uint256,
-    _activationLength: uint256,
-    _canOwnerManage: bool,
-    _limits: wcs.ManagerLimits,
-    _legoPerms: wcs.LegoPerms,
-    _whitelistPerms: wcs.WhitelistPerms,
-    _transferPerms: wcs.TransferPerms,
-    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-) -> bool:
-    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, empty(address))
-    assert msg.sender == kconfig.owner # dev: no perms
-
-    config: wcs.GlobalManagerSettings = wcs.GlobalManagerSettings(
-        managerPeriod = _managerPeriod,
-        startDelay = _startDelay,
-        activationLength = _activationLength,
-        canOwnerManage = _canOwnerManage,
-        limits = _limits,
-        legoPerms = _legoPerms,
-        whitelistPerms = _whitelistPerms,
-        transferPerms = _transferPerms,
-        allowedAssets = _allowedAssets,
-    )
-
-    # validation
-    assert self._validateGlobalManagerSettings(
-        config,
-        kconfig.inEjectMode,
-        kconfig.timeLock,
-        kconfig.legoBook,
-        kconfig.walletConfig,
-    ) # dev: invalid settings
-    extcall UserWalletConfig(kconfig.walletConfig).setGlobalManagerSettings(config)
-
-    log GlobalManagerSettingsModified(
-        user = _user,
-        managerPeriod = _managerPeriod,
-        startDelay = _startDelay,
-        activationLength = _activationLength,
-        canOwnerManage = _canOwnerManage,
-        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
-        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
-        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
-        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
-        txCooldownBlocks = _limits.txCooldownBlocks,
-        failOnZeroPrice = _limits.failOnZeroPrice,
-        canManageYield = _legoPerms.canManageYield,
-        canBuyAndSell = _legoPerms.canBuyAndSell,
-        canManageDebt = _legoPerms.canManageDebt,
-        canManageLiq = _legoPerms.canManageLiq,
-        canClaimRewards = _legoPerms.canClaimRewards,
-        numAllowedLegos = len(_legoPerms.allowedLegos),
-        canAddPendingWhitelist = _whitelistPerms.canAddPending,
-        canConfirmWhitelist = _whitelistPerms.canConfirm,
-        canCancelWhitelist = _whitelistPerms.canCancel,
-        canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
-        numAllowedAssets = len(_allowedAssets),
-    )
-    return True
-
-
-####################
-# Manager Settings #
-####################
-
-
-# add manager
-
-
-@external
-def addManager(
-    _user: address,
-    _manager: address,
-    _limits: wcs.ManagerLimits,
-    _legoPerms: wcs.LegoPerms,
-    _whitelistPerms: wcs.WhitelistPerms,
-    _transferPerms: wcs.TransferPerms,
-    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-    _startDelay: uint256 = 0,
-    _activationLength: uint256 = 0,
-) -> bool:
-    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
-    assert msg.sender == kconfig.owner # dev: no perms
-
-    assert _manager not in [empty(address), kconfig.owner] # dev: invalid manager
-    assert not kconfig.isManager # dev: manager already exists
-    
-    config: wcs.ManagerSettings = self._validateAndCreateManagerSettings(
-        _startDelay,
-        _activationLength,
-        _limits,
-        _legoPerms,
-        _whitelistPerms,
-        _transferPerms,
-        _allowedAssets,
-        kconfig.timeLock,
-        staticcall UserWalletConfig(kconfig.walletConfig).globalManagerSettings(),
-        kconfig.inEjectMode,
-        kconfig.legoBook,
-        kconfig.walletConfig,
-    )
-    extcall UserWalletConfig(kconfig.walletConfig).addManager(_manager, config)
-
-    log ManagerSettingsModified(
-        user = _user,
-        manager = _manager,
-        startBlock = config.startBlock,
-        expiryBlock = config.expiryBlock,
-        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
-        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
-        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
-        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
-        txCooldownBlocks = _limits.txCooldownBlocks,
-        failOnZeroPrice = _limits.failOnZeroPrice,
-        canManageYield = _legoPerms.canManageYield,
-        canBuyAndSell = _legoPerms.canBuyAndSell,
-        canManageDebt = _legoPerms.canManageDebt,
-        canManageLiq = _legoPerms.canManageLiq,
-        canClaimRewards = _legoPerms.canClaimRewards,
-        numAllowedLegos = len(_legoPerms.allowedLegos),
-        canAddPendingWhitelist = _whitelistPerms.canAddPending,
-        canConfirmWhitelist = _whitelistPerms.canConfirm,
-        canCancelWhitelist = _whitelistPerms.canCancel,
-        canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
-        numAllowedAssets = len(config.allowedAssets),
-    )
-    return True
-
-
-# update existing manager
-
-
-@external
-def updateManager(
-    _user: address,
-    _manager: address,
-    _limits: wcs.ManagerLimits,
-    _legoPerms: wcs.LegoPerms,
-    _whitelistPerms: wcs.WhitelistPerms,
-    _transferPerms: wcs.TransferPerms,
-    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
-) -> bool:
-    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
-    assert msg.sender == kconfig.owner # dev: no perms
-    assert kconfig.isManager # dev: manager not found
-
-    # update config
-    config: wcs.ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
-    config.limits = _limits
-    config.legoPerms = _legoPerms
-    config.whitelistPerms = _whitelistPerms
-    config.transferPerms = _transferPerms
-    config.allowedAssets = _allowedAssets
-
-    # validation
-    globalConfig: wcs.GlobalManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).globalManagerSettings()
-    assert self._validateSpecificManagerSettings(
-        config,
-        globalConfig.managerPeriod,
-        kconfig.inEjectMode,
-        kconfig.legoBook,
-        kconfig.walletConfig,
-    ) # dev: invalid settings
-    extcall UserWalletConfig(kconfig.walletConfig).updateManager(_manager, config)
-
-    log ManagerSettingsModified(
-        user = _user,
-        manager = _manager,
-        startBlock = config.startBlock,
-        expiryBlock = config.expiryBlock,
-        maxUsdValuePerTx = _limits.maxUsdValuePerTx,
-        maxUsdValuePerPeriod = _limits.maxUsdValuePerPeriod,
-        maxUsdValueLifetime = _limits.maxUsdValueLifetime,
-        maxNumTxsPerPeriod = _limits.maxNumTxsPerPeriod,
-        txCooldownBlocks = _limits.txCooldownBlocks,
-        failOnZeroPrice = _limits.failOnZeroPrice,
-        canManageYield = _legoPerms.canManageYield,
-        canBuyAndSell = _legoPerms.canBuyAndSell,
-        canManageDebt = _legoPerms.canManageDebt,
-        canManageLiq = _legoPerms.canManageLiq,
-        canClaimRewards = _legoPerms.canClaimRewards,
-        numAllowedLegos = len(_legoPerms.allowedLegos),
-        canAddPendingWhitelist = _whitelistPerms.canAddPending,
-        canConfirmWhitelist = _whitelistPerms.canConfirm,
-        canCancelWhitelist = _whitelistPerms.canCancel,
-        canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
-        numAllowedAssets = len(config.allowedAssets),
-    )
-    return True
-
-
-# remove manager
-
-
-@external
-def removeManager(_user: address, _manager: address) -> bool:
-    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
-    if msg.sender not in [kconfig.owner, _manager]:
-        assert self._isSwitchboardAddr(msg.sender, kconfig.inEjectMode) # dev: no perms
-    assert kconfig.isManager # dev: manager not found
-    extcall UserWalletConfig(kconfig.walletConfig).removeManager(_manager)
-    log ManagerRemoved(user = _user, manager = _manager)
-    return True
-
-
-# adjust activation length
-
-
-@external
-def adjustManagerActivationLength(
-    _user: address,
-    _manager: address,
-    _activationLength: uint256,
-    _shouldResetStartBlock: bool = False,
-) -> bool:
-    kconfig: wcs.ManagerSettingsBundle = self._validateAndGetConfig(_user, _manager)
-    assert msg.sender == kconfig.owner # dev: no perms
-    assert kconfig.isManager # dev: manager not found
-
-    # validation
-    config: wcs.ManagerSettings = staticcall UserWalletConfig(kconfig.walletConfig).managerSettings(_manager)
-    assert config.startBlock < block.number # dev: manager not active yet
-    assert self._validateActivationLength(_activationLength) # dev: invalid activation length
-
-    # update config
-    didRestart: bool = False
-    if _shouldResetStartBlock or config.expiryBlock < block.number:
-        config.startBlock = block.number
-        didRestart = True
-
-    config.expiryBlock = config.startBlock + _activationLength
-    assert config.expiryBlock > block.number # dev: invalid expiry block
-    extcall UserWalletConfig(kconfig.walletConfig).updateManager(_manager, config)
-
-    log ManagerActivationLengthAdjusted(
-        user = _user,
-        manager = _manager,
-        activationLength = _activationLength,
-        didRestart = didRestart,
-    )
-    return True
-
-
-# validate user, get config
+# is valid user wallet
 
 
 @view
 @internal
-def _validateAndGetConfig(_user: address, _manager: address) -> wcs.ManagerSettingsBundle:
+def _isValidUserWallet(_userWallet: address) -> bool:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-    assert staticcall Ledger(ledger).isUserWallet(_user) # dev: not a user wallet
-
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    return staticcall UserWalletConfig(walletConfig).getManagerSettingsBundle(_manager)
+    return staticcall Ledger(ledger).isUserWallet(_userWallet)
 
 
-# is signer switchboard
+# can perform security action
 
 
 @view
 @internal
-def _isSwitchboardAddr(_signer: address, _inEjectMode: bool) -> bool:
-    if _inEjectMode:
+def _canPerformSecurityAction(_addr: address) -> bool:
+    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
+    if missionControl == empty(address):
         return False
-    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
-    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
+    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+# manager settings bundle
+
+
+@view
+@external
+def getManagerSettingsBundle(_userWallet: address, _manager: address) -> wcs.ManagerSettingsBundle:
+    return self._getManagerSettingsBundle(_userWallet, _manager)
+
+
+@view
+@internal
+def _getManagerSettingsBundle(_userWallet: address, _manager: address) -> wcs.ManagerSettingsBundle:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    return wcs.ManagerSettingsBundle(
+        owner = staticcall UserWalletConfig(walletConfig).owner(),
+        isManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_manager) != 0,
+        timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
+        walletConfig = walletConfig,
+        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
+        globalManagerSettings = staticcall UserWalletConfig(walletConfig).globalManagerSettings(),
+    )

@@ -890,19 +890,3 @@ def getMigrationConfigBundle() -> wcs.MigrationConfigBundle:
         didMigrateFunds = self.didMigrateFunds,
     )
 
-
-# manager settings bundle
-
-
-@view
-@external
-def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle:
-    return wcs.ManagerSettingsBundle(
-        owner = ownership.owner,
-        isManager = self.indexOfManager[_manager] != 0,
-        highCommand = self.highCommand,
-        timeLock = self.timeLock,
-        inEjectMode = self.inEjectMode,
-        walletConfig = self,
-        legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
-    )

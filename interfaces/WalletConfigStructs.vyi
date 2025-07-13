@@ -160,11 +160,10 @@ struct ManagerConfigBundle:
 struct ManagerSettingsBundle:
     owner: address
     isManager: bool
-    highCommand: address
     timeLock: uint256
-    inEjectMode: bool
     walletConfig: address
     legoBook: address
+    globalManagerSettings: GlobalManagerSettings
 
 # migration
 

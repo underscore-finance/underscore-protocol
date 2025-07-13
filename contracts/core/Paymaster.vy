@@ -1,5 +1,4 @@
 # @version 0.4.3
-# pragma optimize codesize
 
 from interfaces import WalletConfigStructs as wcs
 
@@ -186,6 +185,7 @@ def __init__(
     MIN_ACTIVATION_LENGTH = _minActivationLength
     MAX_ACTIVATION_LENGTH = _maxActivationLength
 
+    assert _maxStartDelay != 0 # dev: invalid start delay
     MAX_START_DELAY = _maxStartDelay
 
 
