@@ -248,16 +248,26 @@ def checkSignerPermissionsAndGetBundle(
     # main data for this transaction
     ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
 
+    # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
+    payee: address = _transferRecipient
+    if _transferRecipient != empty(address) and self.indexOfWhitelist[_transferRecipient] != 0:
+        payee = empty(address)
+
     # main validation
-    c: wcs.ManagerConfigBundle = self._getManagerConfigs(_signer, _transferRecipient, ad.walletOwner)
-    hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerPerformActionWithConfig(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee)
+    hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerPerformActionWithConfig(
+        _signer == ad.walletOwner,
+        self.indexOfManager[_signer] != 0,
+        self.managerPeriodData[_signer],
+        self.managerSettings[_signer],
+        self.globalManagerSettings,
+        _action,
+        _assets,
+        _legoIds,
+        payee,
+    )
 
     # IMPORTANT -- checks if the signer is allowed to perform the action
     assert hasPermission # dev: no permission
-
-    # signer is not owner
-    if not c.isOwner:
-        ad.isManager = True
 
     return ad
 
@@ -276,41 +286,19 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
     # check usd value limits
     canFinishTx: bool = False
-    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerUsdLimitsAndUpdateData(_txUsdValue, config.limits, globalConfig.limits, globalConfig.managerPeriod, managerData)
+    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerUsdLimitsAndUpdateData(
+        _txUsdValue,
+        config.limits,
+        globalConfig.limits,
+        globalConfig.managerPeriod,
+        managerData,
+    )
 
     # IMPORTANT -- this checks manager limits (usd values)
     assert canFinishTx # dev: usd value limit exceeded
 
     self.managerPeriodData[_manager] = managerData
     return True
-
-
-# manager permissions bundle
-
-
-@view
-@external
-def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle:
-    return self._getManagerConfigs(_signer, _transferRecipient, ownership.owner)
-
-
-@view
-@internal
-def _getManagerConfigs(_signer: address, _transferRecipient: address, _walletOwner: address) -> wcs.ManagerConfigBundle:
-
-    # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
-    payee: address = _transferRecipient
-    if _transferRecipient != empty(address) and self.indexOfWhitelist[_transferRecipient] != 0:
-        payee = empty(address)
-
-    return wcs.ManagerConfigBundle(
-        isOwner = _signer == _walletOwner,
-        isManager = self.indexOfManager[_signer] != 0,
-        config = self.managerSettings[_signer],
-        globalConfig = self.globalManagerSettings,
-        data = self.managerPeriodData[_signer],
-        payee = payee,
-    )
 
 
 ####################
@@ -327,37 +315,10 @@ def checkRecipientLimitsAndUpdateData(
 ) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
-    c: wcs.RecipientConfigBundle = self._getPayeeConfigs(_recipient)
-
-    # check if payee is valid
-    canPayRecipient: bool = False
-    data: wcs.PayeeData = empty(wcs.PayeeData)
-    canPayRecipient, data = staticcall Sentinel(self.sentinel).isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
-
-    # !!!!
-    assert canPayRecipient # dev: invalid payee
-
-    # only save if data was updated  
-    if data.lastTxBlock != 0:
-        self.payeePeriodData[_recipient] = data
-    
-    return True
-
-
-# payee config bundle
-
-
-@view
-@external
-def getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
-    return self._getPayeeConfigs(_recipient)
-
-
-@view
-@internal
-def _getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
+    # whitelisted
     isWhitelisted: bool = self.indexOfWhitelist[_recipient] != 0
 
+    # only get the extra data if the recipient is not whitelisted
     isOwner: bool = False
     isPayee: bool = False
     config: wcs.PayeeSettings = empty(wcs.PayeeSettings)
@@ -370,14 +331,28 @@ def _getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
         globalConfig = self.globalPayeeSettings
         data = self.payeePeriodData[_recipient]
 
-    return wcs.RecipientConfigBundle(
-        isWhitelisted = isWhitelisted,
-        isOwner = isOwner,
-        isPayee = isPayee,
-        config = config,
-        globalConfig = globalConfig,
-        data = data,
+    # check if payee is valid
+    canPayRecipient: bool = False
+    canPayRecipient, data = staticcall Sentinel(self.sentinel).isValidPayeeAndGetData(
+        isWhitelisted,
+        isOwner,
+        isPayee,
+        _asset,
+        _amount,
+        _txUsdValue,
+        config,
+        globalConfig,
+        data,
     )
+
+    # IMPORTANT -- make sure this recipient can receive funds
+    assert canPayRecipient # dev: invalid payee
+
+    # only save if data was updated  
+    if data.lastTxBlock != 0:
+        self.payeePeriodData[_recipient] = data
+    
+    return True
 
 
 #############
@@ -656,6 +631,7 @@ def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
 def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
     wallet: address = self.wallet
     inEjectMode: bool = self.inEjectMode
+    owner: address = ownership.owner
 
     # addys
     hq: address = empty(address)
@@ -690,12 +666,12 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
         appraiser = appraiser,
         wallet = wallet,
         walletConfig = self,
-        walletOwner = ownership.owner,
+        walletOwner = owner,
         inEjectMode = inEjectMode,
         isFrozen = self.isFrozen,
         lastTotalUsdValue = lastTotalUsdValue,
         signer = _signer,
-        isManager = False,
+        isManager = _signer != owner,
         legoId = _legoId,
         legoAddr = legoAddr,
         eth = ETH,

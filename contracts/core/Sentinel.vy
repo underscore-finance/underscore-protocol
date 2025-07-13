@@ -4,8 +4,16 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
-    def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle: view
-    def getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle: view
+    def managerSettings(_addr: address) -> wcs.ManagerSettings: view
+    def managerPeriodData(_addr: address) -> wcs.ManagerData: view
+    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
+    def payeeSettings(_addr: address) -> wcs.PayeeSettings: view
+    def payeePeriodData(_addr: address) -> wcs.PayeeData: view
+    def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def indexOfWhitelist(_addr: address) -> uint256: view
+    def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_addr: address) -> uint256: view
+    def owner() -> address: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -35,8 +43,7 @@ def canSignerPerformAction(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> bool:
-    userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: wcs.ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_signer, _transferRecipient)
+    c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _signer, _transferRecipient)
     return self._canSignerPerformAction(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee)
 
 
@@ -208,8 +215,7 @@ def checkManagerUsdLimits(
     _manager: address,
     _txUsdValue: uint256,
 ) -> bool:
-    userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: wcs.ManagerConfigBundle = staticcall UserWalletConfig(userWalletConfig).getManagerConfigs(_manager)
+    c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _manager)
     canFinishTx: bool = False
     na: wcs.ManagerData = empty(wcs.ManagerData)
     canFinishTx, na = self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data)
@@ -303,8 +309,7 @@ def isValidPayee(
     _amount: uint256,
     _txUsdValue: uint256,
 ) -> bool:
-    userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: wcs.RecipientConfigBundle = staticcall UserWalletConfig(userWalletConfig).getPayeeConfigs(_recipient)
+    c: wcs.RecipientConfigBundle = self._getPayeeConfigs(_user, _recipient)
     canPay: bool = False
     na: wcs.PayeeData = empty(wcs.PayeeData)
     canPay, na = self._isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
@@ -605,4 +610,56 @@ def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.WhitelistPerms, wcs.Tra
         canCreateCheque = True,
         canAddPendingPayee = True,
         allowedPayees = [],
+    )
+
+
+#############
+# Utilities #
+#############
+
+
+@view
+@internal
+def _getManagerConfigBundle(_userWallet: address, _signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle:
+    userWalletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+
+    payee: address = _transferRecipient
+    if _transferRecipient != empty(address) and staticcall UserWalletConfig(userWalletConfig).indexOfWhitelist(_transferRecipient) != 0:
+        payee = empty(address)
+
+    return wcs.ManagerConfigBundle(
+        isOwner = _signer == staticcall UserWalletConfig(userWalletConfig).owner(),
+        isManager = staticcall UserWalletConfig(userWalletConfig).indexOfManager(_signer) != 0,
+        config = staticcall UserWalletConfig(userWalletConfig).managerSettings(_signer),
+        globalConfig = staticcall UserWalletConfig(userWalletConfig).globalManagerSettings(),
+        data = staticcall UserWalletConfig(userWalletConfig).managerPeriodData(_signer),
+        payee = payee,
+    )
+
+
+@view
+@internal
+def _getPayeeConfigs(_userWallet: address, _recipient: address) -> wcs.RecipientConfigBundle:
+    userWalletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    isWhitelisted: bool = staticcall UserWalletConfig(userWalletConfig).indexOfWhitelist(_recipient) != 0
+
+    isOwner: bool = False
+    isPayee: bool = False
+    config: wcs.PayeeSettings = empty(wcs.PayeeSettings)
+    globalConfig: wcs.GlobalPayeeSettings = empty(wcs.GlobalPayeeSettings)
+    data: wcs.PayeeData = empty(wcs.PayeeData)
+    if not isWhitelisted:
+        isOwner = _recipient == staticcall UserWalletConfig(userWalletConfig).owner()
+        isPayee = staticcall UserWalletConfig(userWalletConfig).indexOfPayee(_recipient) != 0
+        config = staticcall UserWalletConfig(userWalletConfig).payeeSettings(_recipient)
+        globalConfig = staticcall UserWalletConfig(userWalletConfig).globalPayeeSettings()
+        data = staticcall UserWalletConfig(userWalletConfig).payeePeriodData(_recipient)
+
+    return wcs.RecipientConfigBundle(
+        isWhitelisted = isWhitelisted,
+        isOwner = isOwner,
+        isPayee = isPayee,
+        config = config,
+        globalConfig = globalConfig,
+        data = data,
     )
