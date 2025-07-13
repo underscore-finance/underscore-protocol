@@ -592,28 +592,6 @@ def setGlobalPayeeSettings(
     return True
 
 
-# create default global payee settings
-
-
-@view
-@external
-def createDefaultGlobalPayeeSettings(
-    _defaultPeriodLength: uint256,
-    _startDelay: uint256,
-    _activationLength: uint256,
-) -> wcs.GlobalPayeeSettings:
-    return wcs.GlobalPayeeSettings(
-        defaultPeriodLength = _defaultPeriodLength,
-        startDelay = _startDelay,
-        activationLength = _activationLength,
-        maxNumTxsPerPeriod = 0, # unlimited by default
-        txCooldownBlocks = 0, # no cooldown by default
-        failOnZeroPrice = False, # accept zero-priced transactions by default
-        usdLimits = empty(wcs.PayeeLimits),
-        canPayOwner = True, # allow payments to owner by default
-    )
-
-
 ######################
 # Payee Config Utils #
 ######################

@@ -9,7 +9,7 @@ from constants import ZERO_ADDRESS, ACTION_TYPE
 ###################################
 
 
-def test_manager_example_test(createGlobalManagerSettings, charlie, alpha_token, bravo_token, bob, createManagerSettings, sentinel, user_wallet, user_wallet_config, alice):
+def test_manager_example_test(createGlobalManagerSettings, charlie, alpha_token, bravo_token, bob, createManagerSettings, sentinel, user_wallet, user_wallet_config, alice, high_command):
 
     # set global manager settings
     new_global_manager_settings = createGlobalManagerSettings(_canOwnerManage=False)
@@ -35,7 +35,7 @@ def test_manager_example_test(createGlobalManagerSettings, charlie, alpha_token,
 # manager role tests
 
 
-def test_owner_can_manage_when_enabled(createGlobalManagerSettings, bob, sentinel, user_wallet, user_wallet_config):
+def test_owner_can_manage_when_enabled(createGlobalManagerSettings, bob, sentinel, user_wallet, user_wallet_config, high_command):
     # set global manager settings with canOwnerManage=True
     new_global_manager_settings = createGlobalManagerSettings(_canOwnerManage=True)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -46,7 +46,7 @@ def test_owner_can_manage_when_enabled(createGlobalManagerSettings, bob, sentine
     assert sentinel.canSignerPerformAction(user_wallet, bob, ACTION_TYPE.SWAP)
 
 
-def test_owner_cannot_manage_when_disabled(createGlobalManagerSettings, bob, sentinel, user_wallet, user_wallet_config):
+def test_owner_cannot_manage_when_disabled(createGlobalManagerSettings, bob, sentinel, user_wallet, user_wallet_config, high_command):
     # set global manager settings with canOwnerManage=False
     new_global_manager_settings = createGlobalManagerSettings(_canOwnerManage=False)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -67,7 +67,7 @@ def test_non_manager_cannot_perform_actions(sally, sentinel, user_wallet):
 # activation / expiry tests
 
 
-def test_manager_not_yet_active(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_not_yet_active(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with future start block
     future_start = boa.env.evm.patch.block_number + 1000
     new_manager_settings = createManagerSettings(_startBlock=future_start)
@@ -77,7 +77,7 @@ def test_manager_not_yet_active(createManagerSettings, alice, sentinel, user_wal
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_active(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_active(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with current block as start
     current_block = boa.env.evm.patch.block_number
     new_manager_settings = createManagerSettings(_startBlock=current_block)
@@ -87,7 +87,7 @@ def test_manager_active(createManagerSettings, alice, sentinel, user_wallet, use
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_expired(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_expired(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with short expiry
     current_block = boa.env.evm.patch.block_number
     new_manager_settings = createManagerSettings(_startBlock=current_block, _expiryBlock=current_block + 10)
@@ -100,7 +100,7 @@ def test_manager_expired(createManagerSettings, alice, sentinel, user_wallet, us
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_expires_at_current_block(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_expires_at_current_block(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # edge case: manager expires at exactly the current block
     current_block = boa.env.evm.patch.block_number
     new_manager_settings = createManagerSettings(
@@ -116,7 +116,7 @@ def test_manager_expires_at_current_block(createManagerSettings, alice, sentinel
 # action permission tests
 
 
-def test_manager_yield_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_yield_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canManageYield=True
     lego_perms = createLegoPerms(_canManageYield=True)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -128,7 +128,7 @@ def test_manager_yield_permissions(createManagerSettings, createLegoPerms, alice
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_REBALANCE)
 
 
-def test_manager_no_yield_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_no_yield_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canManageYield=False
     lego_perms = createLegoPerms(_canManageYield=False)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -140,7 +140,7 @@ def test_manager_no_yield_permissions(createManagerSettings, createLegoPerms, al
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_REBALANCE)
 
 
-def test_manager_swap_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_swap_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canBuyAndSell=True
     lego_perms = createLegoPerms(_canBuyAndSell=True)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -152,7 +152,7 @@ def test_manager_swap_permissions(createManagerSettings, createLegoPerms, alice,
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.CONFIRM_MINT_REDEEM)
 
 
-def test_manager_debt_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_debt_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canManageDebt=True
     lego_perms = createLegoPerms(_canManageDebt=True)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -165,7 +165,7 @@ def test_manager_debt_permissions(createManagerSettings, createLegoPerms, alice,
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.REPAY_DEBT)
 
 
-def test_manager_liquidity_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_liquidity_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canManageLiq=True
     lego_perms = createLegoPerms(_canManageLiq=True)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -178,7 +178,7 @@ def test_manager_liquidity_permissions(createManagerSettings, createLegoPerms, a
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.REMOVE_LIQ_CONC)
 
 
-def test_manager_rewards_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_rewards_permissions(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canClaimRewards=True
     lego_perms = createLegoPerms(_canClaimRewards=True)
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -188,7 +188,7 @@ def test_manager_rewards_permissions(createManagerSettings, createLegoPerms, ali
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.REWARDS)
 
 
-def test_manager_transfer_permissions(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_transfer_permissions(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canTransfer=True
     transfer_perms = createTransferPerms(_canTransfer=True)
     new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
@@ -198,7 +198,7 @@ def test_manager_transfer_permissions(createManagerSettings, createTransferPerms
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER)
 
 
-def test_manager_no_transfer_permissions(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_no_transfer_permissions(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with canTransfer=False
     transfer_perms = createTransferPerms(_canTransfer=False)
     new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
@@ -211,7 +211,7 @@ def test_manager_no_transfer_permissions(createManagerSettings, createTransferPe
 # asset restrictions
 
 
-def test_manager_allowed_assets_restriction(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_allowed_assets_restriction(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with specific allowed assets
     new_manager_settings = createManagerSettings(_allowedAssets=[alpha_token, bravo_token])
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -226,7 +226,7 @@ def test_manager_allowed_assets_restriction(createManagerSettings, alpha_token, 
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [alpha_token, delta_token])
 
 
-def test_manager_no_asset_restrictions(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_no_asset_restrictions(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with no asset restrictions (empty array)
     new_manager_settings = createManagerSettings(_allowedAssets=[])
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -241,7 +241,7 @@ def test_manager_no_asset_restrictions(createManagerSettings, alpha_token, bravo
 # lego restrictions
 
 
-def test_manager_allowed_legos_restriction(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_allowed_legos_restriction(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with specific allowed legos
     lego_perms = createLegoPerms(_allowedLegos=[1, 2, 3])
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -260,7 +260,7 @@ def test_manager_allowed_legos_restriction(createManagerSettings, createLegoPerm
 # payee restrictions
 
 
-def test_manager_allowed_payees_restriction(createManagerSettings, createTransferPerms, alice, bob, charlie, sally, sentinel, user_wallet, user_wallet_config):
+def test_manager_allowed_payees_restriction(createManagerSettings, createTransferPerms, alice, bob, charlie, sally, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with specific allowed payees for transfers
     transfer_perms = createTransferPerms(_canTransfer=True, _allowedPayees=[bob, charlie])
     new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
@@ -277,7 +277,7 @@ def test_manager_allowed_payees_restriction(createManagerSettings, createTransfe
 # transaction limits
 
 
-def test_manager_max_txs_per_period_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_max_txs_per_period_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with max 3 txs per period
     limits = createManagerLimits(_maxNumTxsPerPeriod=3)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -298,7 +298,7 @@ def test_manager_max_txs_per_period_limit(createManagerSettings, createManagerLi
     assert not sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, user_wallet_config.globalManagerSettings(), ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_tx_cooldown_blocks(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_tx_cooldown_blocks(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with 100 block cooldown between txs
     limits = createManagerLimits(_txCooldownBlocks=100)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -322,7 +322,7 @@ def test_manager_tx_cooldown_blocks(createManagerSettings, createManagerLimits, 
 # global vs specific settings
 
 
-def test_global_manager_settings_restrictions(createGlobalManagerSettings, createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_global_manager_settings_restrictions(createGlobalManagerSettings, createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set restrictive global settings
     global_lego_perms = createLegoPerms(_canManageYield=False, _canBuyAndSell=False)
     new_global_manager_settings = createGlobalManagerSettings(_legoPerms=global_lego_perms)
@@ -338,7 +338,7 @@ def test_global_manager_settings_restrictions(createGlobalManagerSettings, creat
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.SWAP)
 
 
-def test_specific_manager_settings_restrictions(createGlobalManagerSettings, createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_specific_manager_settings_restrictions(createGlobalManagerSettings, createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set permissive global settings
     global_lego_perms = createLegoPerms(_canManageYield=True, _canBuyAndSell=True)
     new_global_manager_settings = createGlobalManagerSettings(_legoPerms=global_lego_perms)
@@ -354,7 +354,7 @@ def test_specific_manager_settings_restrictions(createGlobalManagerSettings, cre
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.SWAP)
 
 
-def test_global_asset_restrictions_apply(createGlobalManagerSettings, createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config):
+def test_global_asset_restrictions_apply(createGlobalManagerSettings, createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set global asset restrictions
     new_global_manager_settings = createGlobalManagerSettings(_allowedAssets=[alpha_token, bravo_token])
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -372,7 +372,7 @@ def test_global_asset_restrictions_apply(createGlobalManagerSettings, createMana
 # period reset logic
 
 
-def test_manager_period_reset(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_period_reset(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set global manager period to 1000 blocks
     new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=1000)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -403,7 +403,7 @@ def test_manager_period_reset(createGlobalManagerSettings, createManagerSettings
     assert sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, new_global_manager_settings, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_first_transaction_initializes_period(createManagerSettings, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_first_transaction_initializes_period(createManagerSettings, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -418,7 +418,7 @@ def test_manager_first_transaction_initializes_period(createManagerSettings, cre
 # complex scenarios
 
 
-def test_manager_multiple_restrictions_all_must_pass(createManagerSettings, createManagerLimits, createLegoPerms, createTransferPerms, alpha_token, bravo_token, alice, bob, sentinel, user_wallet, user_wallet_config):
+def test_manager_multiple_restrictions_all_must_pass(createManagerSettings, createManagerLimits, createLegoPerms, createTransferPerms, alpha_token, bravo_token, alice, bob, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with multiple restrictions
     limits = createManagerLimits(_maxNumTxsPerPeriod=10)
     lego_perms = createLegoPerms(_canManageYield=True, _canBuyAndSell=False)
@@ -447,7 +447,7 @@ def test_manager_multiple_restrictions_all_must_pass(createManagerSettings, crea
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER, [], [], alice)
 
 
-def test_manager_zero_address_assets_ignored(createManagerSettings, alpha_token, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_zero_address_assets_ignored(createManagerSettings, alpha_token, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with allowed assets
     new_manager_settings = createManagerSettings(_allowedAssets=[alpha_token])
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -457,7 +457,7 @@ def test_manager_zero_address_assets_ignored(createManagerSettings, alpha_token,
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [alpha_token, ZERO_ADDRESS])
 
 
-def test_manager_zero_lego_ids_ignored(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_zero_lego_ids_ignored(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with allowed legos
     lego_perms = createLegoPerms(_allowedLegos=[1, 2])
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -468,7 +468,7 @@ def test_manager_zero_lego_ids_ignored(createManagerSettings, createLegoPerms, a
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [], [1, 0])
 
 
-def test_manager_eth_weth_conversion_actions(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_eth_weth_conversion_actions(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add basic manager
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -478,7 +478,7 @@ def test_manager_eth_weth_conversion_actions(createManagerSettings, alice, senti
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.WETH_TO_ETH)
 
 
-def test_manager_boundary_cooldown_exactly_at_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_boundary_cooldown_exactly_at_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with 100 block cooldown
     limits = createManagerLimits(_txCooldownBlocks=100)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -497,7 +497,7 @@ def test_manager_boundary_cooldown_exactly_at_limit(createManagerSettings, creat
     assert not sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, user_wallet_config.globalManagerSettings(), ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_no_cooldown_when_zero(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_no_cooldown_when_zero(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with no cooldown (0)
     limits = createManagerLimits(_txCooldownBlocks=0)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -509,7 +509,7 @@ def test_manager_no_cooldown_when_zero(createManagerSettings, createManagerLimit
     assert sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, user_wallet_config.globalManagerSettings(), ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_first_tx_no_cooldown_check(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_first_tx_no_cooldown_check(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with cooldown
     limits = createManagerLimits(_txCooldownBlocks=100)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -523,7 +523,7 @@ def test_manager_first_tx_no_cooldown_check(createManagerSettings, createManager
 # USD value limit tests
 
 
-def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with $1000 per tx limit
     limits = createManagerLimits(_maxUsdValuePerTx=1000)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -535,7 +535,7 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, cr
     assert sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, user_wallet_config.globalManagerSettings(), ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_lifetime_tracking_persists_across_periods(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_lifetime_tracking_persists_across_periods(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set short period for testing
     new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -567,7 +567,7 @@ def test_manager_lifetime_tracking_persists_across_periods(createGlobalManagerSe
 # fail on zero price tests
 
 
-def test_manager_fail_on_zero_price_global_setting(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_fail_on_zero_price_global_setting(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set global setting with failOnZeroPrice=True
     limits = createManagerLimits(_failOnZeroPrice=True)
     new_global_manager_settings = createGlobalManagerSettings(_limits=limits)
@@ -581,7 +581,7 @@ def test_manager_fail_on_zero_price_global_setting(createGlobalManagerSettings, 
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_fail_on_zero_price_specific_setting(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_fail_on_zero_price_specific_setting(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with failOnZeroPrice=True in specific settings
     limits = createManagerLimits(_failOnZeroPrice=True)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -594,7 +594,7 @@ def test_manager_fail_on_zero_price_specific_setting(createManagerSettings, crea
 # empty arrays / edge cases
 
 
-def test_manager_empty_assets_array_in_call(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_empty_assets_array_in_call(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with allowed assets
     new_manager_settings = createManagerSettings(_allowedAssets=[])
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -603,7 +603,7 @@ def test_manager_empty_assets_array_in_call(createManagerSettings, alice, sentin
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [])
 
 
-def test_manager_empty_legos_array_in_call(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_empty_legos_array_in_call(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -612,7 +612,7 @@ def test_manager_empty_legos_array_in_call(createManagerSettings, alice, sentine
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [], [])
 
 
-def test_manager_empty_payee_address(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_empty_payee_address(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -624,7 +624,7 @@ def test_manager_empty_payee_address(createManagerSettings, alice, sentinel, use
 # complex permission combinations
 
 
-def test_manager_all_permissions_enabled(createManagerSettings, createLegoPerms, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_all_permissions_enabled(createManagerSettings, createLegoPerms, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # create manager with all permissions enabled
     lego_perms = createLegoPerms(
         _canManageYield=True,
@@ -653,7 +653,7 @@ def test_manager_all_permissions_enabled(createManagerSettings, createLegoPerms,
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER)
 
 
-def test_manager_all_permissions_disabled(createManagerSettings, createLegoPerms, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_all_permissions_disabled(createManagerSettings, createLegoPerms, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # create manager with all permissions disabled
     lego_perms = createLegoPerms(
         _canManageYield=False,
@@ -689,7 +689,7 @@ def test_manager_all_permissions_disabled(createManagerSettings, createLegoPerms
 # global limits applying to managers
 
 
-def test_global_tx_limit_applies_to_manager(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_global_tx_limit_applies_to_manager(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set global limit of 5 txs per period
     global_limits = createManagerLimits(_maxNumTxsPerPeriod=5)
     new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
@@ -705,7 +705,7 @@ def test_global_tx_limit_applies_to_manager(createGlobalManagerSettings, createM
     assert not sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, new_global_manager_settings, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_global_cooldown_applies_to_manager(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_global_cooldown_applies_to_manager(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set global cooldown of 200 blocks
     global_limits = createManagerLimits(_txCooldownBlocks=200)
     new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
@@ -728,7 +728,7 @@ def test_global_cooldown_applies_to_manager(createGlobalManagerSettings, createM
 # more edge cases
 
 
-def test_manager_multiple_assets_some_allowed_some_not(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_multiple_assets_some_allowed_some_not(createManagerSettings, alpha_token, bravo_token, delta_token, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with only alpha and bravo allowed
     new_manager_settings = createManagerSettings(_allowedAssets=[alpha_token, bravo_token])
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -739,7 +739,7 @@ def test_manager_multiple_assets_some_allowed_some_not(createManagerSettings, al
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [alpha_token, bravo_token, delta_token])
 
 
-def test_manager_multiple_legos_some_allowed_some_not(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_multiple_legos_some_allowed_some_not(createManagerSettings, createLegoPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with only legos 1 and 2 allowed
     lego_perms = createLegoPerms(_allowedLegos=[1, 2])
     new_manager_settings = createManagerSettings(_legoPerms=lego_perms)
@@ -751,7 +751,7 @@ def test_manager_multiple_legos_some_allowed_some_not(createManagerSettings, cre
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.EARN_DEPOSIT, [], [1, 2, 3])
 
 
-def test_manager_period_exactly_at_boundary(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_period_exactly_at_boundary(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set period to 100 blocks
     new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -775,7 +775,7 @@ def test_manager_period_exactly_at_boundary(createGlobalManagerSettings, createM
     assert sentinel.canSignerPerformActionWithConfig(False, True, manager_data, new_manager_settings, new_global_manager_settings, ACTION_TYPE.EARN_DEPOSIT)
 
 
-def test_manager_start_block_equals_expiry_block(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_start_block_equals_expiry_block(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # edge case: start and expiry at same block
     current_block = boa.env.evm.patch.block_number
     new_manager_settings = createManagerSettings(
@@ -790,7 +790,7 @@ def test_manager_start_block_equals_expiry_block(createManagerSettings, alice, s
 
 def test_manager_large_allowed_assets_list(createManagerSettings, alice, sentinel, user_wallet, user_wallet_config, 
                                           alpha_token, bravo_token, charlie_token, delta_token, 
-                                          yield_underlying_token, mock_dex_asset, mock_dex_asset_alt):
+                                          yield_underlying_token, mock_dex_asset, high_command, mock_dex_asset_alt):
     # add manager with many allowed assets
     allowed_assets = [alpha_token, bravo_token, charlie_token, delta_token, 
                      yield_underlying_token, mock_dex_asset, mock_dex_asset_alt]
@@ -811,7 +811,7 @@ def test_manager_large_allowed_assets_list(createManagerSettings, alice, sentine
 # basic USD limit tests using checkManagerUsdLimits
 
 
-def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with $1000 per tx limit
     limits = createManagerLimits(_maxUsdValuePerTx=1000)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -826,7 +826,7 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, al
     assert not sentinel.checkManagerUsdLimits(user_wallet, alice, 5000)
 
 
-def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with $5000 per period limit
     limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -870,7 +870,7 @@ def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits
     assert not success
 
 
-def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with $10000 lifetime limit
     limits = createManagerLimits(_maxUsdValueLifetime=10000)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -925,7 +925,7 @@ def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, 
     assert not success
 
 
-def test_manager_zero_price_fails_when_configured(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_zero_price_fails_when_configured(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with failOnZeroPrice=True
     limits = createManagerLimits(_failOnZeroPrice=True)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -938,7 +938,7 @@ def test_manager_zero_price_fails_when_configured(createManagerSettings, createM
     assert sentinel.checkManagerUsdLimits(user_wallet, alice, 1)
 
 
-def test_manager_zero_price_allowed_when_not_configured(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_manager_zero_price_allowed_when_not_configured(createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # add manager with failOnZeroPrice=False (default)
     limits = createManagerLimits(_failOnZeroPrice=False)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -951,7 +951,7 @@ def test_manager_zero_price_allowed_when_not_configured(createManagerSettings, c
 # global USD limit tests
 
 
-def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set global limit of $500 per tx
     global_limits = createManagerLimits(_maxUsdValuePerTx=500)
     new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
@@ -967,7 +967,7 @@ def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSetti
     assert not sentinel.checkManagerUsdLimits(user_wallet, alice, 501)
 
 
-def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set global limit of $2000 per period
     global_limits = createManagerLimits(_maxUsdValuePerPeriod=2000)
     new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
@@ -1016,7 +1016,7 @@ def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerS
     assert not success
 
 
-def test_global_zero_price_fails(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config):
+def test_global_zero_price_fails(createGlobalManagerSettings, createManagerSettings, createManagerLimits, alice, sentinel, user_wallet, user_wallet_config, high_command):
     # set global failOnZeroPrice=True
     global_limits = createManagerLimits(_failOnZeroPrice=True)
     new_global_manager_settings = createGlobalManagerSettings(_limits=global_limits)
@@ -1034,7 +1034,7 @@ def test_global_zero_price_fails(createGlobalManagerSettings, createManagerSetti
 # advanced tests using checkManagerUsdLimitsAndUpdateData
 
 
-def test_manager_data_updates_on_successful_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_data_updates_on_successful_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with various limits
     limits = createManagerLimits(
         _maxUsdValuePerTx=1000,
@@ -1069,7 +1069,7 @@ def test_manager_data_updates_on_successful_tx(createManagerSettings, createMana
     assert updated_data.lastTxBlock == boa.env.evm.patch.block_number
 
 
-def test_manager_period_reset_clears_period_data(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_period_reset_clears_period_data(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set short period for testing
     new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -1116,7 +1116,7 @@ def test_manager_period_reset_clears_period_data(createGlobalManagerSettings, cr
     assert updated_data.totalUsdValue == 8500
 
 
-def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with $5000 per period limit
     limits = createManagerLimits(_maxUsdValuePerPeriod=5000)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -1158,7 +1158,7 @@ def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManager
     assert not success
 
 
-def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set short period
     new_global_manager_settings = createGlobalManagerSettings(_managerPeriod=100)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -1209,7 +1209,7 @@ def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSetti
     assert not success
 
 
-def test_manager_multiple_limits_all_must_pass(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_multiple_limits_all_must_pass(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with multiple limits
     limits = createManagerLimits(
         _maxUsdValuePerTx=1000,
@@ -1286,7 +1286,7 @@ def test_manager_multiple_limits_all_must_pass(createManagerSettings, createMana
     assert not success
 
 
-def test_manager_zero_limits_mean_unlimited(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_zero_limits_mean_unlimited(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with zero limits (unlimited)
     limits = createManagerLimits(
         _maxUsdValuePerTx=0,
@@ -1320,7 +1320,7 @@ def test_manager_zero_limits_mean_unlimited(createManagerSettings, createManager
     assert updated_data.totalUsdValue == 10500000
 
 
-def test_manager_first_tx_initializes_period_start(createManagerSettings, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_first_tx_initializes_period_start(createManagerSettings, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
@@ -1347,7 +1347,7 @@ def test_manager_first_tx_initializes_period_start(createManagerSettings, create
     assert updated_data.totalUsdValueInPeriod == 100
 
 
-def test_manager_data_not_updated_on_failed_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_data_not_updated_on_failed_tx(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with low limit
     limits = createManagerLimits(_maxUsdValuePerTx=100)
     new_manager_settings = createManagerSettings(_limits=limits)
@@ -1381,7 +1381,7 @@ def test_manager_data_not_updated_on_failed_tx(createManagerSettings, createMana
     # (contract returns empty data on failure)
 
 
-def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # add manager with specific limits
     limits = createManagerLimits(
         _maxUsdValuePerTx=1000,
@@ -1435,7 +1435,7 @@ def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimi
     assert success
 
 
-def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config):
+def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, alice, sentinel, user_wallet_config, high_command):
     # set global limits
     global_limits = createManagerLimits(
         _maxUsdValuePerTx=500,

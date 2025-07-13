@@ -354,10 +354,9 @@ def migrator(undy_hq_deploy):
 
 
 @pytest.fixture(scope="session")
-def sentinel(undy_hq_deploy):
+def sentinel():
     return boa.load(
         "contracts/core/Sentinel.vy",
-        undy_hq_deploy,
         name="sentinel",
     )
 

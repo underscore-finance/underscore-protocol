@@ -522,7 +522,7 @@ def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs
 ###################
 
 
-# global manager settings
+# manager settings
 
 
 @view
@@ -558,6 +558,28 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
     )
     config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
     return config
+
+
+# payee settings
+
+
+@view
+@external
+def createDefaultGlobalPayeeSettings(
+    _defaultPeriodLength: uint256,
+    _startDelay: uint256,
+    _activationLength: uint256,
+) -> wcs.GlobalPayeeSettings:
+    return wcs.GlobalPayeeSettings(
+        defaultPeriodLength = _defaultPeriodLength,
+        startDelay = _startDelay,
+        activationLength = _activationLength,
+        maxNumTxsPerPeriod = 0,
+        txCooldownBlocks = 0,
+        failOnZeroPrice = False,
+        usdLimits = empty(wcs.PayeeLimits),
+        canPayOwner = True,
+    )
 
 
 # happy defaults
