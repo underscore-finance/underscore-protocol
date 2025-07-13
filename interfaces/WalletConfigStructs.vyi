@@ -5,7 +5,7 @@ MAX_CONFIG_LEGOS: constant(uint256) = 25
 MAX_ALLOWED_PAYEES: constant(uint256) = 40
 
 flag WhitelistAction:
-    ADD_WHITELIST
+    ADD_PENDING
     CONFIRM_WHITELIST
     CANCEL_WHITELIST
     REMOVE_WHITELIST
@@ -91,6 +91,7 @@ struct WhitelistConfigBundle:
 struct PendingWhitelist:
     initiatedBlock: uint256
     confirmBlock: uint256
+    currentOwner: address
 
 # managers
 

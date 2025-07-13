@@ -197,6 +197,11 @@ def __init__(
         payeeActivationLength = _managerActivationLength
     self.globalPayeeSettings = staticcall Sentinel(_sentinel).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
 
+    # not using 0 index
+    self.numManagers = 1
+    self.numPayees = 1
+    self.numWhitelisted = 1
+
 
 @external
 def setWallet(_wallet: address) -> bool:
@@ -290,7 +295,7 @@ def _getManagerConfigs(_signer: address, _transferRecipient: address, _walletOwn
 
     # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
     payee: address = _transferRecipient
-    if _transferRecipient != empty(address) and self._isWhitelisted(_transferRecipient):
+    if _transferRecipient != empty(address) and self.indexOfWhitelist[_transferRecipient] != 0:
         payee = empty(address)
 
     return wcs.ManagerConfigBundle(
@@ -346,7 +351,7 @@ def getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
 @view
 @internal
 def _getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
-    isWhitelisted: bool = self._isWhitelisted(_recipient)
+    isWhitelisted: bool = self.indexOfWhitelist[_recipient] != 0
 
     isOwner: bool = False
     isPayee: bool = False
@@ -355,7 +360,7 @@ def _getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
     data: wcs.PayeeData = empty(wcs.PayeeData)
     if not isWhitelisted:
         isOwner = _recipient == ownership.owner
-        isPayee = self._isRegisteredPayee(_recipient)
+        isPayee = self.indexOfPayee[_recipient] != 0
         config = self.payeeSettings[_recipient]
         globalConfig = self.globalPayeeSettings
         data = self.payeePeriodData[_recipient]
@@ -375,27 +380,6 @@ def _getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle:
 ####################
 
 
-@view
-@external
-def isManager(_manager: address) -> bool:
-    return self._isManager(_manager)
-
-
-@view
-@internal
-def _isManager(_manager: address) -> bool:
-    return self.indexOfManager[_manager] != 0
-
-
-# global manager settings
-
-
-@external
-def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
-    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
-    self.globalManagerSettings = _config
-
-
 # add manager
 
 
@@ -406,19 +390,6 @@ def addManager(_manager: address, _config: wcs.ManagerSettings):
     self._registerManager(_manager)
 
 
-@internal
-def _registerManager(_manager: address):
-    if self._isManager(_manager):
-        return
-
-    mid: uint256 = self.numManagers
-    if mid == 0:
-        mid = 1 # not using 0 index
-    self.managers[mid] = _manager
-    self.indexOfManager[_manager] = mid
-    self.numManagers = mid + 1
-    
-
 # update manager
 
 
@@ -426,6 +397,19 @@ def _registerManager(_manager: address):
 def updateManager(_manager: address, _config: wcs.ManagerSettings):
     assert msg.sender == self.highCommand # dev: no perms
     self.managerSettings[_manager] = _config
+
+
+# register manager
+
+
+@internal
+def _registerManager(_manager: address):
+    if self.indexOfManager[_manager] != 0:
+        return
+    mid: uint256 = self.numManagers
+    self.managers[mid] = _manager
+    self.indexOfManager[_manager] = mid
+    self.numManagers = mid + 1
 
 
 # remove manager
@@ -436,7 +420,7 @@ def removeManager(_manager: address):
     assert msg.sender == self.highCommand # dev: no perms
 
     numManagers: uint256 = self.numManagers
-    if numManagers == 0:
+    if numManagers == 1:
         return
 
     targetIndex: uint256 = self.indexOfManager[_manager]
@@ -458,30 +442,18 @@ def removeManager(_manager: address):
         self.indexOfManager[lastItem] = targetIndex
 
 
+# global manager settings
+
+
+@external
+def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
+    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
+    self.globalManagerSettings = _config
+
+
 ##################
 # Payee Settings #
 ##################
-
-
-@view
-@external
-def isRegisteredPayee(_addr: address) -> bool:
-    return self._isRegisteredPayee(_addr)
-
-
-@view
-@internal
-def _isRegisteredPayee(_addr: address) -> bool:
-    return self.indexOfPayee[_addr] != 0
-
-
-# global payee settings
-
-
-@external
-def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings):
-    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
-    self.globalPayeeSettings = _config
 
 
 # add payee
@@ -492,19 +464,6 @@ def addPayee(_payee: address, _config: wcs.PayeeSettings):
     assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.payeeSettings[_payee] = _config
     self._registerPayee(_payee)
-
-
-@internal
-def _registerPayee(_payee: address):
-    if self._isRegisteredPayee(_payee):
-        return
-
-    pid: uint256 = self.numPayees
-    if pid == 0:
-        pid = 1 # not using 0 index
-    self.payees[pid] = _payee
-    self.indexOfPayee[_payee] = pid
-    self.numPayees = pid + 1
     
 
 # update payee
@@ -516,6 +475,19 @@ def updatePayee(_payee: address, _config: wcs.PayeeSettings):
     self.payeeSettings[_payee] = _config
 
 
+# register payee
+
+
+@internal
+def _registerPayee(_payee: address):
+    if self.indexOfPayee[_payee] != 0:
+        return
+    pid: uint256 = self.numPayees
+    self.payees[pid] = _payee
+    self.indexOfPayee[_payee] = pid
+    self.numPayees = pid + 1
+
+
 # remove payee
 
 
@@ -524,7 +496,7 @@ def removePayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
 
     numPayees: uint256 = self.numPayees
-    if numPayees == 0:
+    if numPayees == 1:
         return
 
     targetIndex: uint256 = self.indexOfPayee[_payee]
@@ -546,57 +518,66 @@ def removePayee(_payee: address):
         self.indexOfPayee[lastItem] = targetIndex
 
 
-# pending payees
+# global payee settings
 
 
 @external
-def addPendingPayee(_payee: address, _pending: wcs.PendingPayee):
-    assert msg.sender == self.paymaster # dev: no perms
-    self.pendingPayees[_payee] = _pending
+def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings):
+    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
+    self.globalPayeeSettings = _config
 
 
-@external
-def cancelPendingPayee(_payee: address):
-    assert msg.sender == self.paymaster # dev: no perms
-    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
+# # pending payees
 
 
-@external
-def confirmPendingPayee(_payee: address):
-    assert msg.sender == self.paymaster # dev: no perms
-
-    if self._isRegisteredPayee(_payee):
-        return
-
-    self.payeeSettings[_payee] = self.pendingPayees[_payee].settings
-    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
-    self._registerPayee(_payee)
+# @external
+# def addPendingPayee(_payee: address, _pending: wcs.PendingPayee):
+#     assert msg.sender == self.paymaster # dev: no perms
+#     self.pendingPayees[_payee] = _pending
 
 
-# check if caller can add pending payee
+# @external
+# def cancelPendingPayee(_payee: address):
+#     assert msg.sender == self.paymaster # dev: no perms
+#     self.pendingPayees[_payee] = empty(wcs.PendingPayee)
 
 
-@view
-@external
-def canAddPendingPayee(_caller: address) -> bool:
-    # owner can always add payees directly (not pending)
-    if _caller == ownership.owner:
-        return False
+# @external
+# def confirmPendingPayee(_payee: address):
+#     assert msg.sender == self.paymaster # dev: no perms
+
+#     if self._isRegisteredPayee(_payee):
+#         return
+
+#     self.payeeSettings[_payee] = self.pendingPayees[_payee].settings
+#     self.pendingPayees[_payee] = empty(wcs.PendingPayee)
+#     self._registerPayee(_payee)
+
+
+# # check if caller can add pending payee
+
+
+# @view
+# @external
+# def canAddPendingPayee(_caller: address) -> bool:
+#     # owner can always add payees directly (not pending)
+#     if _caller == ownership.owner:
+#         return False
     
-    # check if caller is a manager
-    if not self._isManager(_caller):
-        return False
+#     # check if caller is a manager
+#     if not self._isManager(_caller):
+#         return False
     
-    # get manager settings
-    managerSettings: wcs.ManagerSettings = self.managerSettings[_caller]
+#     # get manager settings
+#     managerSettings: wcs.ManagerSettings = self.managerSettings[_caller]
     
-    # check if manager is active
-    if managerSettings.startBlock > block.number or managerSettings.expiryBlock <= block.number:
-        return False
+#     # check if manager is active
+#     if managerSettings.startBlock > block.number or managerSettings.expiryBlock <= block.number:
+#         return False
     
-    # check if manager has permission
-    globalSettings: wcs.GlobalManagerSettings = self.globalManagerSettings
-    return managerSettings.transferPerms.canAddPendingPayee and globalSettings.transferPerms.canAddPendingPayee
+#     # check if manager has permission
+#     globalSettings: wcs.GlobalManagerSettings = self.globalManagerSettings
+#     return managerSettings.transferPerms.canAddPendingPayee and globalSettings.transferPerms.canAddPendingPayee
 
 
 #############
@@ -604,19 +585,7 @@ def canAddPendingPayee(_caller: address) -> bool:
 #############
 
 
-@view
-@external
-def isWhitelisted(_addr: address) -> bool:
-    return self._isWhitelisted(_addr)
-
-
-@view
-@internal
-def _isWhitelisted(_addr: address) -> bool:
-    return self.indexOfWhitelist[_addr] != 0
-
-
-# add whitelist
+# add pending
 
 
 @external
@@ -625,7 +594,7 @@ def addPendingWhitelistAddr(_addr: address, _pending: wcs.PendingWhitelist):
     self.pendingWhitelist[_addr] = _pending
 
 
-# cancel pending whitelist
+# cancel pending
 
 
 @external
@@ -634,36 +603,37 @@ def cancelPendingWhitelistAddr(_addr: address):
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
 
 
-# confirm whitelist
+# confirm pending
 
 
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.paymaster # dev: no perms
+    assert self.pendingWhitelist[_addr].confirmBlock >= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
-    self._addWhitelistAddr(_addr)
+    self._registerWhitelistAddr(_addr)
 
 
-@internal
-def _addWhitelistAddr(_addr: address):
-    if self._isWhitelisted(_addr):
-        return
-
-    wid: uint256 = self.numWhitelisted
-    if wid == 0:
-        wid = 1 # not using 0 index
-    self.whitelistAddr[wid] = _addr
-    self.indexOfWhitelist[_addr] = wid
-    self.numWhitelisted = wid + 1
-
-
-# migration
+# add via migrator
 
 
 @external
 def addWhitelistAddrViaMigrator(_addr: address):
     assert msg.sender == self.migrator # dev: no perms
-    self._addWhitelistAddr(_addr)
+    self._registerWhitelistAddr(_addr)
+
+
+# register whitelist
+
+
+@internal
+def _registerWhitelistAddr(_addr: address):
+    if self.indexOfWhitelist[_addr] != 0:
+        return
+    wid: uint256 = self.numWhitelisted
+    self.whitelistAddr[wid] = _addr
+    self.indexOfWhitelist[_addr] = wid
+    self.numWhitelisted = wid + 1
 
 
 # remove whitelist
@@ -674,7 +644,7 @@ def removeWhitelistAddr(_addr: address):
     assert msg.sender == self.paymaster # dev: no perms
 
     numWhitelisted: uint256 = self.numWhitelisted
-    if numWhitelisted == 0:
+    if numWhitelisted == 1:
         return
 
     targetIndex: uint256 = self.indexOfWhitelist[_addr]
@@ -691,28 +661,6 @@ def removeWhitelistAddr(_addr: address):
         lastItem: address = self.whitelistAddr[lastIndex]
         self.whitelistAddr[targetIndex] = lastItem
         self.indexOfWhitelist[lastItem] = targetIndex
-
-
-# whitelist config bundle
-
-
-@view
-@external
-def getWhitelistConfigBundle(_addr: address, _signer: address) -> wcs.WhitelistConfigBundle:
-    owner: address = ownership.owner
-    return wcs.WhitelistConfigBundle(
-        owner = owner,
-        wallet = self.wallet,
-        isWhitelisted = self._isWhitelisted(_addr),
-        pendingWhitelist = self.pendingWhitelist[_addr],
-        timeLock = self.timeLock,
-        walletConfig = self,
-        inEjectMode = self.inEjectMode,
-        isManager = self._isManager(_signer),
-        isOwner = _signer == owner,
-        whitelistPerms = self.managerSettings[_signer].whitelistPerms,
-        globalWhitelistPerms = self.globalManagerSettings.whitelistPerms,
-    )
 
 
 ######################
@@ -971,14 +919,6 @@ def getMigrationConfigBundle() -> wcs.MigrationConfigBundle:
     )
 
 
-
-
-
-
-
-
-
-
 # manager settings bundle
 
 
@@ -987,7 +927,7 @@ def getMigrationConfigBundle() -> wcs.MigrationConfigBundle:
 def getManagerSettingsBundle(_manager: address) -> wcs.ManagerSettingsBundle:
     return wcs.ManagerSettingsBundle(
         owner = ownership.owner,
-        isManager = self._isManager(_manager),
+        isManager = self.indexOfManager[_manager] != 0,
         highCommand = self.highCommand,
         timeLock = self.timeLock,
         inEjectMode = self.inEjectMode,
@@ -1006,9 +946,9 @@ def getPayeeManagementBundle(_payee: address) -> wcs.PayeeManagementBundle:
     return wcs.PayeeManagementBundle(
         owner = owner,
         wallet = self.wallet,
-        isRegisteredPayee = self._isRegisteredPayee(_payee),
-        isWhitelisted = self._isWhitelisted(_payee),
-        isManager = self._isManager(_payee),
+        isRegisteredPayee = self.indexOfPayee[_payee] != 0,
+        isWhitelisted = self.indexOfWhitelist[_payee] != 0,
+        isManager = self.indexOfPayee[_payee] != 0,
         payeeSettings = self.payeeSettings[_payee],
         globalPayeeSettings = self.globalPayeeSettings,
         timeLock = self.timeLock,

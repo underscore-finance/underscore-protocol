@@ -35,3 +35,12 @@ class ACTION_TYPE(IntFlag):
     REMOVE_LIQ = 32768  # 2^15
     ADD_LIQ_CONC = 65536  # 2^16
     REMOVE_LIQ_CONC = 131072  # 2^17
+
+
+# Action types for UserWallet operations
+# These match the Vyper flag enum (powers of 2)
+class WHITELIST_ACTION(IntFlag):
+    ADD_PENDING = 1  # 2^0
+    CONFIRM_WHITELIST = 2  # 2^1
+    CANCEL_WHITELIST = 4  # 2^2
+    REMOVE_WHITELIST = 8  # 2^3
