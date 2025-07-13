@@ -20,6 +20,7 @@ interface WalletConfig:
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
+    def migrator() -> address: view
 
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
@@ -39,12 +40,6 @@ interface Hatchery:
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
-
-struct WalletAssetData:
-    assetBalance: uint256
-    usdValue: uint256
-    isYieldAsset: bool
-    lastPricePerShare: uint256
 
 event WalletAction:
     op: uint8 
@@ -70,7 +65,7 @@ event WalletActionExt:
 walletConfig: public(address)
 
 # asset data
-assetData: public(HashMap[address, WalletAssetData]) # asset -> data
+assetData: public(HashMap[address, ws.WalletAssetData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
@@ -149,7 +144,7 @@ def transferFunds(
     # only wallet config can do trusted txs
     if _isTrustedTx:
         walletConfig: address = self.walletConfig
-        assert msg.sender == walletConfig # dev: perms
+        assert msg.sender in [walletConfig, staticcall WalletConfig(walletConfig).migrator()] # dev: perms
 
         ad = staticcall WalletConfig(walletConfig).getActionDataBundle(0, msg.sender)
         self._checkForYieldProfits(asset, ad)
@@ -1086,7 +1081,7 @@ def _checkForYieldProfits(_asset: address, _ad: ws.ActionData):
         return
 
     # nothing to do here (nothing saved, not a yield asset)
-    data: WalletAssetData = self.assetData[_asset]
+    data: ws.WalletAssetData = self.assetData[_asset]
     if data.assetBalance == 0 or not data.isYieldAsset:
         return
 
@@ -1150,7 +1145,7 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.Action
     if _asset == empty(address):
         return _newTotalUsdValue
 
-    data: WalletAssetData = self.assetData[_asset]
+    data: ws.WalletAssetData = self.assetData[_asset]
     newTotalUsdValue: uint256 = _newTotalUsdValue - min(data.usdValue, _newTotalUsdValue)
 
     # ETH / ERC20
@@ -1165,7 +1160,6 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.Action
         data.assetBalance = 0
         data.usdValue = 0
         self.assetData[_asset] = data
-        self._deregisterAsset(_asset)
         return newTotalUsdValue
 
     # update usd value
@@ -1202,6 +1196,12 @@ def _registerAsset(_asset: address):
 
 
 # deregister asset
+
+
+@external
+def deregisterAsset(_asset: address) -> bool:
+    assert msg.sender == self.walletConfig # dev: perms
+    return self._deregisterAsset(_asset)
 
 
 @internal

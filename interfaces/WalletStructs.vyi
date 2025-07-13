@@ -20,6 +20,12 @@ flag ActionType:
     ADD_LIQ_CONC
     REMOVE_LIQ_CONC
 
+struct WalletAssetData:
+    assetBalance: uint256
+    usdValue: uint256
+    isYieldAsset: bool
+    lastPricePerShare: uint256
+
 struct ActionData:
     ledger: address
     missionControl: address

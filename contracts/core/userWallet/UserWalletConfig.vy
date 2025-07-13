@@ -7,13 +7,17 @@ import contracts.modules.Ownership as ownership
 
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
+
 from ethereum.ercs import IERC721
+from ethereum.ercs import IERC20
 
 interface UserWallet:
     def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isTrustedTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isTrustedTx: bool = False) -> (uint256, uint256): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
+    def assetData(_asset: address) -> ws.WalletAssetData: view
+    def deregisterAsset(_asset: address) -> bool: nonpayable
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
@@ -31,6 +35,9 @@ interface Migrator:
 
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
+
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
 
 interface Ledger:
     def getLastTotalUsdValue(_user: address) -> uint256: view
@@ -99,8 +106,6 @@ inEjectMode: public(bool)
 
 startingAgent: public(address)
 didSetWallet: public(bool)
-didMigrateFunds: public(bool)
-didMigrateSettings: public(bool)
 
 API_VERSION: constant(String[28]) = "0.1.0"
 MAX_ASSETS: constant(uint256) = 10
@@ -160,6 +165,11 @@ def __init__(
     WETH = _wethAddr
     ETH = _ethAddr
 
+    # not using 0 index
+    self.numManagers = 1
+    self.numPayees = 1
+    self.numWhitelisted = 1
+
     # core
     self.groupId = _groupId
 
@@ -196,11 +206,6 @@ def __init__(
         payeePeriod = _managerPeriod
         payeeActivationLength = _managerActivationLength
     self.globalPayeeSettings = staticcall Sentinel(_sentinel).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
-
-    # not using 0 index
-    self.numManagers = 1
-    self.numPayees = 1
-    self.numWhitelisted = 1
 
 
 @external
@@ -734,6 +739,29 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     return newTotalUsdValue
 
 
+@external
+def deregisterAssets() -> uint256:
+    ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
+    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+
+    numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
+    if numAssets == 0:
+        return 0
+
+    numDeregistered: uint256 = 0
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+        asset: address = staticcall UserWallet(ad.wallet).assets(i)
+        if asset == empty(address):
+            continue
+
+        data: ws.WalletAssetData = staticcall UserWallet(ad.wallet).assetData(asset)
+        if data.assetBalance == 0 and staticcall IERC20(asset).balanceOf(ad.wallet) == 0:
+            extcall UserWallet(ad.wallet).deregisterAsset(asset)
+            numDeregistered += 1
+
+    return numDeregistered
+
+
 # remove trial funds
 
 
@@ -811,9 +839,8 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
 
 @external
 def setFrozen(_isFrozen: bool):
-    if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
-        assert msg.sender == ownership.owner # dev: no perms
-
+    if msg.sender != ownership.owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
     self.isFrozen = _isFrozen
     log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
 
@@ -844,49 +871,13 @@ def _isSwitchboardAddr(_signer: address, _inEjectMode: bool) -> bool:
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
 
 
-####################
-# Wallet Migration #
-####################
-
-
-@external
-def setDidMigrateFunds():
-    assert msg.sender == self.migrator # dev: no perms
-    self.didMigrateFunds = True
-
-
-@external
-def setDidMigrateSettings():
-    assert msg.sender == self.migrator # dev: no perms
-    self.didMigrateSettings = True
-
-
-@external
-def transferFundsDuringMigration(
-    _recipient: address,
-    _asset: address,
-    _amount: uint256,
-) -> (uint256, uint256):
-    assert msg.sender == self.migrator # dev: no perms
-    return extcall UserWallet(self.wallet).transferFunds(_recipient, _asset, _amount, True)
+# can perform security action
 
 
 @view
-@external
-def getMigrationConfigBundle() -> wcs.MigrationConfigBundle:
-    startingAgent: address = self.startingAgent
-    return wcs.MigrationConfigBundle(
-        owner = ownership.owner,
-        trialFundsAmount = self.trialFundsAmount,
-        isFrozen = self.isFrozen,
-        numPayees = self.numPayees,
-        numWhitelisted = self.numWhitelisted,
-        numManagers = self.numManagers,
-        startingAgent = startingAgent,
-        startingAgentIndex = self.indexOfManager[startingAgent],
-        hasPendingOwnerChange = ownership._hasPendingOwnerChange(),
-        groupId = self.groupId,
-        didMigrateSettings = self.didMigrateSettings,
-        didMigrateFunds = self.didMigrateFunds,
-    )
-
+@internal
+def _canPerformSecurityAction(_addr: address) -> bool:
+    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
+    if missionControl == empty(address):
+        return False
+    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
