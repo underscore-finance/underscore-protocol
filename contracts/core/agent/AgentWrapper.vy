@@ -1,19 +1,11 @@
 # @version 0.4.3
 # pragma optimize codesize
 
+initializes: ownership
+exports: ownership.__interface__
+import contracts.modules.Ownership as ownership
+
 from interfaces import Wallet
-from interfaces import LegoPartner as Lego
-
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
-
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
-
-struct PendingOwnerChange:
-    newOwner: address
-    initiatedBlock: uint256
-    confirmBlock: uint256
 
 struct Signature:
     signature: Bytes[65]
@@ -37,50 +29,20 @@ struct ActionInstruction:
     auxData: bytes32           # Packed data: lpToken addr (action 15) or pool+nftId (16-17)
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
 
-event OwnershipChangeInitiated:
-    prevOwner: indexed(address)
-    newOwner: indexed(address)
-    confirmBlock: uint256
-
-event OwnershipChangeConfirmed:
-    prevOwner: indexed(address)
-    newOwner: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-event OwnershipChangeCancelled:
-    cancelledOwner: indexed(address)
-    cancelledBy: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-event TimeLockSet:
-    numBlocks: uint256
-
 event NonceIncremented:
     oldNonce: uint256
     newNonce: uint256
 
-# core
-owner: public(address)
 groupId: public(uint256)
-
-timeLock: public(uint256)
-pendingOwner: public(PendingOwnerChange)
 currentNonce: public(uint256)
 
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
-MISSION_CONTROL_ID: constant(uint256) = 3
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
 SIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000000000000000000000
-
-UNDY_HQ: public(immutable(address))
-MIN_TIMELOCK: public(immutable(uint256))
-MAX_TIMELOCK: public(immutable(uint256))
 
 
 @deploy
@@ -91,16 +53,8 @@ def __init__(
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
 ):
-    assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
-    UNDY_HQ = _undyHq
-    self.owner = _owner
+    ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
     self.groupId = _groupId
-
-    # time lock
-    assert _minTimeLock < _maxTimeLock # dev: invalid delay
-    MIN_TIMELOCK = _minTimeLock
-    MAX_TIMELOCK = _maxTimeLock
-    self.timeLock = _minTimeLock
 
 
 ###########
@@ -539,7 +493,7 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
 
 @internal
 def _authenticateAccess(_messageHash: bytes32, _sig: Signature):
-    owner: address = self.owner
+    owner: address = ownership.owner
     if msg.sender != owner:
         # check expiration first to prevent DoS
         assert _sig.expiration >= block.timestamp # dev: signature expired
@@ -604,14 +558,9 @@ def _domainSeparator() -> bytes32:
     ))
 
 
-####################
-# Nonce Management #
-####################
-
-
 @external
 def incrementNonce():
-    assert msg.sender == self.owner # dev: no perms
+    assert msg.sender == ownership.owner # dev: no perms
     oldNonce: uint256 = self.currentNonce
     self.currentNonce += 1
     log NonceIncremented(oldNonce=oldNonce, newNonce=self.currentNonce)
@@ -621,83 +570,3 @@ def incrementNonce():
 @external
 def getNonce() -> uint256:
     return self.currentNonce
-
-
-#############
-# Ownership #
-#############
-
-
-@external
-def changeOwnership(_newOwner: address):
-    currentOwner: address = self.owner
-    assert msg.sender == currentOwner # dev: no perms
-    assert _newOwner not in [empty(address), currentOwner] # dev: invalid new owner
-
-    confirmBlock: uint256 = block.number + self.timeLock
-    self.pendingOwner = PendingOwnerChange(
-        newOwner = _newOwner,
-        initiatedBlock = block.number,
-        confirmBlock = confirmBlock,
-    )
-    log OwnershipChangeInitiated(prevOwner=currentOwner, newOwner=_newOwner, confirmBlock=confirmBlock)
-
-
-@external
-def confirmOwnershipChange():
-    data: PendingOwnerChange = self.pendingOwner
-    assert data.newOwner != empty(address) # dev: no pending owner
-    assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time delay not reached
-    assert msg.sender == data.newOwner # dev: only new owner can confirm
-
-    prevOwner: address = self.owner
-    self.owner = data.newOwner
-    self.pendingOwner = empty(PendingOwnerChange)
-    
-    # reset nonce on ownership change for security
-    self.currentNonce = 0
-    
-    log OwnershipChangeConfirmed(prevOwner=prevOwner, newOwner=data.newOwner, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
-
-
-@external
-def cancelOwnershipChange():
-    if msg.sender != self.owner:
-        missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
-        assert staticcall MissionControl(missionControl).canPerformSecurityAction(msg.sender) # dev: no perms
-
-    data: PendingOwnerChange = self.pendingOwner
-    assert data.confirmBlock != 0 # dev: no pending change
-    self.pendingOwner = empty(PendingOwnerChange)
-    log OwnershipChangeCancelled(cancelledOwner=data.newOwner, cancelledBy=msg.sender, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
-
-
-# utils
-
-
-@view
-@external
-def hasPendingOwnerChange() -> bool:
-    return self._hasPendingOwnerChange()
-
-
-@view
-@internal
-def _hasPendingOwnerChange() -> bool:
-    return self.pendingOwner.confirmBlock != 0
-
-
-#############
-# Time Lock #
-#############
-
-
-# time lock
-
-
-@external
-def setTimeLock(_numBlocks: uint256):
-    assert msg.sender == self.owner # dev: no perms
-    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid delay
-    self.timeLock = _numBlocks
-    log TimeLockSet(numBlocks=_numBlocks)

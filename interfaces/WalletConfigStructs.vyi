@@ -182,8 +182,3 @@ struct MigrationConfigBundle:
     groupId: uint256
     didMigrateSettings: bool
     didMigrateFunds: bool
-
-struct PendingOwnerChange:
-    newOwner: address
-    initiatedBlock: uint256
-    confirmBlock: uint256

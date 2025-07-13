@@ -5,7 +5,7 @@ from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
     def getManagerConfigs(_signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle: view
-    def getRecipientConfigs(_recipient: address) -> wcs.RecipientConfigBundle: view
+    def getPayeeConfigs(_recipient: address) -> wcs.RecipientConfigBundle: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -304,7 +304,7 @@ def isValidPayee(
     _txUsdValue: uint256,
 ) -> bool:
     userWalletConfig: address = staticcall UserWallet(_user).walletConfig()
-    c: wcs.RecipientConfigBundle = staticcall UserWalletConfig(userWalletConfig).getRecipientConfigs(_recipient)
+    c: wcs.RecipientConfigBundle = staticcall UserWalletConfig(userWalletConfig).getPayeeConfigs(_recipient)
     canPay: bool = False
     na: wcs.PayeeData = empty(wcs.PayeeData)
     canPay, na = self._isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
