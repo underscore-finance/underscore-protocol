@@ -552,8 +552,8 @@ def test_create_agent_time_lock_config(hatchery, alice, setUserWalletConfig):
     # Verify agent was created
     assert agent_address != ZERO_ADDRESS
     
-    assert AgentWrapper.at(agent_address).MIN_TIMELOCK() == min_lock
-    assert AgentWrapper.at(agent_address).MAX_TIMELOCK() == max_lock
+    assert AgentWrapper.at(agent_address).MIN_OWNERSHIP_TIMELOCK() == min_lock
+    assert AgentWrapper.at(agent_address).MAX_OWNERSHIP_TIMELOCK() == max_lock
 
 
 ###############
@@ -1193,15 +1193,17 @@ def test_claw_back_trial_funds_many_vaults_gas_usage(
 
 
 def test_claw_back_trial_funds_wallet_frozen_state(
-    hatchery, alice, alpha_token, setupTrialFundsWallet, switchboard_alpha
+    hatchery, alice, mission_control, charlie, alpha_token, setupTrialFundsWallet, switchboard_alpha
 ):
     """Test clawback when wallet is in frozen state"""
-    
+
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+
     wallet = setupTrialFundsWallet()
     wallet_config = UserWalletConfig.at(wallet.walletConfig())
     
     # Freeze the wallet
-    wallet_config.setFrozen(True, sender=switchboard_alpha.address)
+    wallet_config.setFrozen(True, sender=charlie)
     assert wallet_config.isFrozen() == True
     
     # Clawback should still work when frozen

@@ -34,9 +34,9 @@ def test_payee_example_test(createGlobalPayeeSettings, charlie, alpha_token, bra
 # whitelist tests
 
 
-def test_whitelisted_recipient_always_valid(alpha_token, bravo_token, delta_token, sentinel, user_wallet, user_wallet_config, alice, paymaster):
+def test_whitelisted_recipient_always_valid(alpha_token, bravo_token, delta_token, sentinel, user_wallet, user_wallet_config, alice, migrator):
     # add alice to whitelist
-    user_wallet_config.confirmWhitelistAddr(alice, sender=paymaster.address)
+    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
     
     # whitelisted addresses should always be valid regardless of amounts or assets
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 1_000_000, 1_000_000)

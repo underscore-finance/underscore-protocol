@@ -281,30 +281,6 @@ def test_transfer_funds_trusted_tx_only_wallet_config(prepareAssetForWalletTx, u
     assert alpha_token.balanceOf(alice) == 0
 
 
-def test_transfer_funds_trusted_tx_from_config_via_migration(prepareAssetForWalletTx, user_wallet, alice, alpha_token, migrator):
-    """Test that UserWalletConfig can successfully call transferFunds with _isTrustedTx=True via transferFundsDuringMigration"""
-    
-    # prepare tokens
-    original_amount = prepareAssetForWalletTx()
-    transfer_amount = 60 * EIGHTEEN_DECIMALS
-    
-    # get wallet config
-    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
-    
-    # wallet config should be able to call transferFunds via transferFundsDuringMigration
-    amount_transferred, usd_value = wallet_config.transferFundsDuringMigration(
-        alice,
-        alpha_token.address,
-        transfer_amount,
-        sender=migrator.address  # migrator calling
-    )
-    
-    # verify transfer happened
-    assert amount_transferred == transfer_amount
-    assert alpha_token.balanceOf(user_wallet) == original_amount - transfer_amount
-    assert alpha_token.balanceOf(alice) == transfer_amount
-
-
 #####################
 # Deposit for Yield #
 #####################
