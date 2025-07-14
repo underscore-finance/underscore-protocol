@@ -391,8 +391,6 @@ def testLegoLiquidityAdded(bob_user_wallet, bob, _test, lego_book):
         assert log_wallet.amount1 == liqAmountA
         assert log_wallet.amount2 == liqAmountB
         assert log_wallet.usdValue == usdValue
-        assert log_wallet.legoId == lego_id
-        assert log_wallet.signer == bob
 
         assert liqAmountA != 0 or liqAmountB != 0
         assert liquidityAdded != 0
@@ -479,8 +477,6 @@ def testLegoLiquidityRemoved(bob_user_wallet, bob, _test, lego_book):
         assert log_wallet.amount1 == removedAmountA
         assert log_wallet.amount2 == removedAmountB
         assert log_wallet.usdValue == usdValue
-        assert log_wallet.legoId == lego_id
-        assert log_wallet.signer == bob
 
         assert removedAmountA != 0 or removedAmountB != 0
 

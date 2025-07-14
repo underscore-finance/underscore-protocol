@@ -168,22 +168,26 @@ def test_create_user_wallet_permissions(hatchery, alice, bob, charlie, setUserWa
     assert UserWalletConfig.at(UserWallet.at(wallet3).walletConfig()).owner() == charlie
 
 
-def test_create_user_wallet_limits(hatchery, alice, setUserWalletConfig):
+def test_create_user_wallet_limits(hatchery, alice, setUserWalletConfig, ledger):
     """Test limits on how many wallets can be created"""
-    # Set max wallets limit
-    max_wallets = 5
+    # Get current number of wallets
+    current_wallet_count = ledger.numUserWallets()
+    
+    # Set max wallets limit to current + 5 more
+    max_wallets = current_wallet_count + 5
     setUserWalletConfig(
         _numUserWalletsAllowed=max_wallets
     )
     
-    # Create wallets up to the limit
+    # Create wallets up to the limit (we can create 5 more)
     created_wallets = []
-    for i in range(max_wallets - 1):
+    for i in range(5):
         wallet = hatchery.createUserWallet(sender=alice)
         created_wallets.append(wallet)
     
     # Verify all wallets were created
-    assert len(created_wallets) == max_wallets - 1
+    assert len(created_wallets) == 5
+    assert ledger.numUserWallets() == max_wallets
     
     # Try to create one more - should fail
     with boa.reverts("max user wallets reached"):
