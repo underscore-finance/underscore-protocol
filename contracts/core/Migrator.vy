@@ -15,6 +15,7 @@ interface UserWalletConfig:
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def addWhitelistAddrViaMigrator(_addr: address): nonpayable
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def deregisterAsset(_asset: address) -> bool: nonpayable
     def indexOfManager(_addr: address) -> uint256: view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
@@ -57,6 +58,7 @@ event ConfigCloned:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
+MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
 
 @deploy
@@ -110,6 +112,7 @@ def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
 def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256) -> uint256:
     numMigrated: uint256 = 0
     usdValue: uint256 = 0
+    assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
     for i: uint256 in range(1, _numAssets, bound=max_value(uint256)):
         asset: address = staticcall UserWallet(_fromWallet).assets(i)
         if asset == empty(address):
@@ -130,6 +133,15 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
         if amount != 0:
             numMigrated += 1
             usdValue += data.usdValue
+
+            if len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+                assetsToDeregister.append(asset)
+
+    # deregister assets
+    if len(assetsToDeregister) != 0:
+        walletConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+        for asset: address in assetsToDeregister:
+            extcall UserWalletConfig(walletConfig).deregisterAsset(asset)
 
     log FundsMigrated(fromWallet = _fromWallet, toWallet = _toWallet, numAssetsMigrated = numMigrated, totalUsdValue = usdValue)
     return numMigrated

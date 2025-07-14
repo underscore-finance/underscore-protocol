@@ -690,7 +690,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
     extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue
@@ -699,7 +699,7 @@ def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) 
 @external
 def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
-    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
 
     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
     if numAssets == 0:
@@ -716,35 +716,36 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 
 
 @external
-def deregisterAssets() -> uint256:
-    ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
-    assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+def deregisterAsset(_asset: address) -> bool:
+    if msg.sender not in [self.migrator, staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)]:
+        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    return extcall UserWallet(self.wallet).deregisterAsset(_asset)
 
-    numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
-    if numAssets == 0:
-        return 0
 
-    numDeregistered: uint256 = 0
-    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
-        asset: address = staticcall UserWallet(ad.wallet).assets(i)
-        if asset == empty(address):
-            continue
+# @external
+# def deregisterAssets() -> uint256:
+#     ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
+#     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
 
-        data: ws.WalletAssetData = staticcall UserWallet(ad.wallet).assetData(asset)
-        if data.assetBalance == 0 and staticcall IERC20(asset).balanceOf(ad.wallet) == 0:
-            extcall UserWallet(ad.wallet).deregisterAsset(asset)
-            numDeregistered += 1
+#     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
+#     if numAssets == 0:
+#         return 0
 
-    return numDeregistered
+#     numDeregistered: uint256 = 0
+#     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
+#         asset: address = staticcall UserWallet(ad.wallet).assets(i)
+#         if asset == empty(address):
+#             continue
+
+#         data: ws.WalletAssetData = staticcall UserWallet(ad.wallet).assetData(asset)
+#         if data.assetBalance == 0 and staticcall IERC20(asset).balanceOf(ad.wallet) == 0:
+#             extcall UserWallet(ad.wallet).deregisterAsset(asset)
+#             numDeregistered += 1
+
+#     return numDeregistered
 
 
 # remove trial funds
-
-
-@view
-@external
-def getTrialFundsInfo() -> (address, uint256):
-    return self.trialFundsAsset, self.trialFundsAmount
 
 
 @external
@@ -763,12 +764,18 @@ def removeTrialFunds() -> uint256:
     amount, na = extcall UserWallet(ad.wallet).transferFunds(ad.hatchery, trialFundsAsset, trialFundsAmount, True)
 
     # update trial funds info
-    remainingAmount: uint256 = trialFundsAmount - amount
+    remainingAmount: uint256 = trialFundsAmount - min(trialFundsAmount, amount)
     self.trialFundsAmount = remainingAmount
     if remainingAmount == 0:
         self.trialFundsAsset = empty(address)
 
     return amount
+
+
+@view
+@external
+def getTrialFundsInfo() -> (address, uint256):
+    return self.trialFundsAsset, self.trialFundsAmount
 
 
 # prepare payment
@@ -783,7 +790,7 @@ def preparePayment(
 ) -> (uint256, uint256):
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     if msg.sender != ad.hatchery:
-        assert self._isSwitchboardAddr(msg.sender, ad.inEjectMode) # dev: no perms
+        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
 
     # withdraw from yield position
     na: uint256 = 0
@@ -801,8 +808,9 @@ def preparePayment(
 
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
-    if not self._isSwitchboardAddr(msg.sender, self.inEjectMode):
-        assert msg.sender == ownership.owner # dev: no perms
+    if msg.sender != ownership.owner:
+        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+
     assert _recipient != empty(address) # dev: invalid recipient
     wallet: address = self.wallet
     assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
@@ -817,6 +825,7 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
 def setFrozen(_isFrozen: bool):
     if msg.sender != ownership.owner:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+    assert _isFrozen != self.isFrozen # dev: nothing to change
     self.isFrozen = _isFrozen
     log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
 
@@ -827,7 +836,7 @@ def setFrozen(_isFrozen: bool):
 @external
 def setEjectionMode(_shouldEject: bool):
     # NOTE: this needs to be triggered from Switchboard, as it has other side effects / reactions
-    assert self._isSwitchboardAddr(msg.sender, self.inEjectMode) # dev: no perms
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     assert self.trialFundsAmount == 0 # dev: has trial funds
 
     assert _shouldEject != self.inEjectMode # dev: nothing to change
@@ -840,10 +849,10 @@ def setEjectionMode(_shouldEject: bool):
 
 @view
 @internal
-def _isSwitchboardAddr(_signer: address, _inEjectMode: bool) -> bool:
-    if _inEjectMode:
-        return False
+def _isSwitchboardAddr(_signer: address) -> bool:
     switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
 
 

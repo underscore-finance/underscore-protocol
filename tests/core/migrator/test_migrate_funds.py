@@ -439,3 +439,39 @@ def test_migrate_funds_caller_not_owner(migrator, user_wallet, hatchery, bob, al
     with boa.reverts("invalid migration"):
         migrator.migrateFunds(user_wallet, to_wallet, sender=alice)
 
+
+def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wallet, hatchery, bob, alpha_token, bravo_token, bravo_token_whale, prepareAssetForMigration):
+    """Test that assets are deregistered from source wallet after migration"""
+    # Create target wallet
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    
+    # Prepare multiple assets in source wallet
+    alpha_amount = prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+    bravo_amount = prepareAssetForMigration(user_wallet, bravo_token, 50 * EIGHTEEN_DECIMALS, bravo_token_whale)
+    
+    # Verify initial state - assets are registered in source wallet
+    initial_num_assets = user_wallet.numAssets()
+    assert initial_num_assets == 3
+    assert user_wallet.indexOfAsset(alpha_token) == 1
+    assert user_wallet.indexOfAsset(bravo_token) == 2
+    
+    # Migrate funds
+    num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
+    assert num_migrated == 2
+    
+    # Verify funds were transferred
+    assert alpha_token.balanceOf(user_wallet) == 0
+    assert bravo_token.balanceOf(user_wallet) == 0
+    assert alpha_token.balanceOf(to_wallet) == alpha_amount
+    assert bravo_token.balanceOf(to_wallet) == bravo_amount
+    
+    # With the updated _deregisterAsset that only checks ERC20 balance,
+    # assets should be successfully deregistered since their balances are 0
+    final_num_assets = user_wallet.numAssets()
+    assert final_num_assets == 1  # Only ETH remains
+    assert user_wallet.indexOfAsset(alpha_token) == 0  # Asset is deregistered (index 0 means not found)
+    assert user_wallet.indexOfAsset(bravo_token) == 0  # Asset is deregistered (index 0 means not found)
+    
+    # Verify asset array only contains ETH
+    assert user_wallet.assets(0) == ZERO_ADDRESS  # ETH placeholder
+    

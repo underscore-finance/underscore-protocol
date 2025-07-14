@@ -1283,3 +1283,159 @@ def test_does_wallet_still_have_trial_funds_with_eligible_vault(
     # after deposit, vault has 10 tokens
     mock_yield_lego.setMinTotalAssets(11 * EIGHTEEN_DECIMALS)
     assert hatchery.doesWalletStillHaveTrialFunds(wallet.address) == False
+
+
+def test_claw_back_trial_funds_early_return_with_deregistration(
+    hatchery, alice, alpha_token, setupTrialFundsWallet, switchboard_alpha
+):
+    """Test that clawback now deregisters asset even in early return path"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Register the trial asset
+    wallet_config.updateAssetData(
+        0,  # _op
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Verify initial state - trial asset is registered
+    initial_num_assets = wallet.numAssets()
+    assert initial_num_assets == 2  # ETH + alpha token
+    assert wallet.indexOfAsset(alpha_token) == 1  # Asset is registered at index 1
+    
+    # Verify trial funds are in the wallet
+    assert alpha_token.balanceOf(wallet.address) == 10 * EIGHTEEN_DECIMALS
+    
+    # Claw back trial funds
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    
+    # Verify funds were removed
+    assert alpha_token.balanceOf(wallet.address) == 0
+
+    # The asset should now be successfully deregistered
+    final_num_assets = wallet.numAssets()
+    assert final_num_assets == 1  # Only ETH remains
+    assert wallet.indexOfAsset(alpha_token) == 0  # Asset successfully deregistered
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_deregisters_vault_assets(
+    hatchery, alice, alpha_token, setupTrialFundsWallet, alpha_token_vault, alpha_token_vault_2
+):
+    """Test that vault assets are successfully deregistered after clawing back trial funds"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Split funds across multiple vaults
+    # Deposit 4 units into vault 1
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        4 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Deposit 4 units into vault 2
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault_2.address,
+        4 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Keep 2 units in wallet as alpha tokens
+    
+    # Verify initial state - all assets are registered
+    initial_num_assets = wallet.numAssets()
+    assert initial_num_assets == 4  # ETH + alpha + vault1 + vault2
+    assert wallet.indexOfAsset(alpha_token) == 1  # Alpha is registered at index 1
+    assert wallet.indexOfAsset(alpha_token_vault) == 2  # Vault 1 is registered at index 2
+    assert wallet.indexOfAsset(alpha_token_vault_2) == 3  # Vault 2 is registered at index 3
+    
+    # Verify balances
+    assert alpha_token.balanceOf(wallet.address) == 2 * EIGHTEEN_DECIMALS
+    assert alpha_token_vault.balanceOf(wallet.address) == 4 * EIGHTEEN_DECIMALS
+    assert alpha_token_vault_2.balanceOf(wallet.address) == 4 * EIGHTEEN_DECIMALS
+    
+    # Claw back trial funds
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered == 10 * EIGHTEEN_DECIMALS
+    
+    # Verify no balances remain
+    assert alpha_token.balanceOf(wallet.address) == 0
+    assert alpha_token_vault.balanceOf(wallet.address) == 0
+    assert alpha_token_vault_2.balanceOf(wallet.address) == 0
+
+    vault1_idx = wallet.indexOfAsset(alpha_token_vault)
+    vault2_idx = wallet.indexOfAsset(alpha_token_vault_2) 
+    alpha_idx = wallet.indexOfAsset(alpha_token)
+    
+    # All assets should be successfully deregistered (index 0 means deregistered)
+    assert vault1_idx == 0  # Vault 1 successfully deregistered
+    assert vault2_idx == 0  # Vault 2 successfully deregistered  
+    assert alpha_idx == 0  # Alpha successfully deregistered
+    
+    # Only ETH should remain
+    final_num_assets = wallet.numAssets()
+    assert final_num_assets == 1  # Only ETH remains
+    
+    # Verify trial funds config was cleared
+    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
+    assert wallet_config.trialFundsAmount() == 0
+
+
+def test_claw_back_trial_funds_vault_deregistration_after_loss(
+    hatchery, alice, alpha_token, alpha_token_whale, setupTrialFundsWallet, alpha_token_vault
+):
+    """Test vault asset deregistration when vault loses value during clawback"""
+    
+    wallet = setupTrialFundsWallet()
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+    
+    # Deposit all funds into vault
+    wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        10 * EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    
+    # Simulate vault losing 30% value
+    boa.env.time_travel(seconds=3600)
+    alpha_token.transfer(alpha_token_whale, 3 * EIGHTEEN_DECIMALS, sender=alpha_token_vault.address)
+    
+    # Verify initial state
+    initial_num_assets = wallet.numAssets()
+    assert initial_num_assets == 2  # ETH + vault
+    assert wallet.indexOfAsset(alpha_token_vault) == 1  # Vault is registered at index 1
+    
+    # Claw back trial funds (only 7 units available due to loss)
+    amount_recovered = hatchery.clawBackTrialFunds(wallet.address, sender=alice)
+    assert amount_recovered == 7 * EIGHTEEN_DECIMALS
+    
+    # Verify no vault shares remain (all were withdrawn)
+    assert alpha_token_vault.balanceOf(wallet.address) == 0
+    
+    assert wallet.indexOfAsset(alpha_token_vault) == 0  # Vault successfully deregistered
+    
+    # It's not registered in the assets array (never had direct balance)
+    assert wallet.indexOfAsset(alpha_token) == 0  # Alpha was never registered
+    
+    # Only ETH should remain after successful deregistration
+    final_num_assets = wallet.numAssets()
+    assert final_num_assets == 1  # Only ETH remains
+    
+    # Verify trial funds config shows remaining unrecovered amount
+    assert wallet_config.trialFundsAsset() == alpha_token.address
+    assert wallet_config.trialFundsAmount() == 3 * EIGHTEEN_DECIMALS  # 10 - 7 = 3 remaining

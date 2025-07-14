@@ -18,6 +18,7 @@ from ethereum.ercs import IERC20Detailed
 
 interface UserWalletConfig:
     def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
+    def deregisterAsset(_asset: address) -> bool: nonpayable
     def setWallet(_wallet: address) -> bool: nonpayable
     def getTrialFundsInfo() -> (address, uint256): view
     def removeTrialFunds() -> uint256: nonpayable
@@ -109,6 +110,7 @@ event AgentCreated:
     groupId: uint256
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
+MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
@@ -274,10 +276,13 @@ def _clawBackTrialFunds(
     # if we already have enough, just remove what we have
     amountRecovered: uint256 = staticcall IERC20(trialFundsAsset).balanceOf(_user)
     if amountRecovered >= trialFundsAmount:
-        return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+        amountRemoved: uint256 = extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+        extcall UserWalletConfig(_walletConfig).deregisterAsset(trialFundsAsset)
+        return amountRemoved
 
     # add 1% buffer to ensure we recover enough
     targetRecoveryAmount: uint256 = trialFundsAmount * 101_00 // HUNDRED_PERCENT
+    assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     # find all vault tokens and withdraw from them
     numAssets: uint256 = staticcall UserWallet(_user).numAssets()
@@ -316,8 +321,20 @@ def _clawBackTrialFunds(
             # update recovered amount
             amountRecovered += underlyingAmount
 
+            # add to deregister list
+            if len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+                assetsToDeregister.append(asset)
+
     # now remove trial funds
-    return extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+    amountRemoved: uint256 = extcall UserWalletConfig(_walletConfig).removeTrialFunds()
+
+    # deregister assets -- this will only deregister if it truly has no balance left
+    if len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+        assetsToDeregister.append(trialFundsAsset)
+    for asset: address in assetsToDeregister:
+        extcall UserWalletConfig(_walletConfig).deregisterAsset(asset)
+
+    return amountRemoved
 
 
 # check if it remains

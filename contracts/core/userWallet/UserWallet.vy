@@ -259,7 +259,6 @@ def withdrawFromYield(
     _isTrustedTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
     ad: ws.ActionData = empty(ws.ActionData)
-    shouldPerformPostActionTasks: bool = True
 
     # only wallet config can do trusted txs
     if _isTrustedTx:
@@ -268,13 +267,12 @@ def withdrawFromYield(
 
         ad = staticcall WalletConfig(walletConfig).getActionDataBundle(_legoId, msg.sender)
         self._checkForYieldProfits(_vaultToken, ad)
-        shouldPerformPostActionTasks = False
 
     # normal transaction
     else:
         ad = self._performPreActionTasks(msg.sender, ws.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
 
-    return self._withdrawFromYield(_vaultToken, _amount, _extraData, shouldPerformPostActionTasks, True, _isTrustedTx, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, True, _isTrustedTx, ad)
 
 
 @internal
@@ -1056,7 +1054,7 @@ def _performPostActionTasks(
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
     for a: address in _assets:
-        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, _ad)
+        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, not _isTrustedTx, _ad)
 
     if not _ad.inEjectMode:
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
@@ -1119,7 +1117,7 @@ def updateAssetData(
     _legoId: uint256,
     _asset: address,
     _shouldCheckYield: bool,
-    _totalUsdValue: uint256,
+    _prevTotalUsdValue: uint256,
     _ad: ws.ActionData = empty(ws.ActionData),
 ) -> uint256:
     walletConfig: address = self.walletConfig
@@ -1134,19 +1132,24 @@ def updateAssetData(
         self._checkForYieldProfits(_asset, ad)
 
     # update asset data
-    return self._updateAssetData(_asset, _totalUsdValue, ad)
+    return self._updateAssetData(_asset, _prevTotalUsdValue, False, ad)
 
 
 # update asset data
 
 
 @internal
-def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.ActionData) -> uint256:
+def _updateAssetData(
+    _asset: address,
+    _prevTotalUsdValue: uint256,
+    _canDeregister: bool,
+    _ad: ws.ActionData,
+) -> uint256:
     if _asset == empty(address):
-        return _newTotalUsdValue
+        return _prevTotalUsdValue
 
     data: ws.WalletAssetData = self.assetData[_asset]
-    newTotalUsdValue: uint256 = _newTotalUsdValue - min(data.usdValue, _newTotalUsdValue)
+    newTotalUsdValue: uint256 = _prevTotalUsdValue - min(data.usdValue, _prevTotalUsdValue)
 
     # ETH / ERC20
     currentBalance: uint256 = 0
@@ -1160,6 +1163,12 @@ def _updateAssetData(_asset: address, _newTotalUsdValue: uint256, _ad: ws.Action
         data.assetBalance = 0
         data.usdValue = 0
         self.assetData[_asset] = data
+
+        # in some cases (wallet migration, trial funds clawback, etc), we are iterating thru assets
+        # we cannot deregister here or it'll mess up the indexes/order/iteration
+        if _canDeregister:
+            self._deregisterAsset(_asset)
+
         return newTotalUsdValue
 
     # update usd value
@@ -1206,6 +1215,9 @@ def deregisterAsset(_asset: address) -> bool:
 
 @internal
 def _deregisterAsset(_asset: address) -> bool:
+    if staticcall IERC20(_asset).balanceOf(self) != 0:
+        return False
+
     numAssets: uint256 = self.numAssets
     if numAssets == 1:
         return False
