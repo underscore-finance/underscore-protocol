@@ -24,7 +24,8 @@ def test_reject_existing_manager(high_command, user_wallet, alice, createManager
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -45,7 +46,8 @@ def test_valid_new_manager_basic(high_command, user_wallet, charlie, createGloba
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == True
@@ -71,7 +73,8 @@ def test_invalid_limits_per_tx_greater_than_per_period(high_command, user_wallet
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -98,7 +101,8 @@ def test_valid_limits_per_tx_less_than_lifetime(high_command, user_wallet, charl
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == True  # Actually passes because this isn't validated
@@ -124,7 +128,8 @@ def test_invalid_limits_per_period_greater_than_lifetime(high_command, user_wall
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -151,7 +156,8 @@ def test_valid_limits_unlimited_values(high_command, user_wallet, charlie, creat
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == True
@@ -172,7 +178,8 @@ def test_invalid_allowed_assets_with_zero_address(high_command, user_wallet, cha
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        [alpha_token.address, ZERO_ADDRESS]  # contains zero address - use address
+        [alpha_token.address, ZERO_ADDRESS],  # contains zero address - use address
+        False,
     )
     
     assert result == False
@@ -193,7 +200,8 @@ def test_invalid_allowed_assets_with_duplicates(high_command, user_wallet, charl
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        [alpha_token.address, alpha_token.address]  # duplicate asset - use address
+        [alpha_token.address, alpha_token.address],  # duplicate asset - use address
+        False,
     )
     
     assert result == False
@@ -214,7 +222,8 @@ def test_valid_allowed_assets_multiple(high_command, user_wallet, charlie, creat
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        [alpha_token.address, bravo_token.address]  # multiple valid assets
+        [alpha_token.address, bravo_token.address],  # multiple valid assets
+        False,
     )
     
     assert result == True
@@ -245,7 +254,8 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
         invalid_perms,
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -278,7 +288,8 @@ def test_valid_lego_perms_within_global_restrictions(high_command, user_wallet, 
         valid_perms,
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == True
@@ -304,7 +315,8 @@ def test_invalid_transfer_perms_zero_address_payee(high_command, user_wallet, ch
         createLegoPerms(),
         createWhitelistPerms(),
         invalid_transfer_perms,
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -330,7 +342,8 @@ def test_invalid_transfer_perms_duplicate_payees(high_command, user_wallet, char
         createLegoPerms(),
         createWhitelistPerms(),
         invalid_transfer_perms,
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -356,7 +369,8 @@ def test_valid_transfer_perms_empty_payees(high_command, user_wallet, charlie, c
         createLegoPerms(),
         createWhitelistPerms(),
         valid_transfer_perms,
-        []
+        [],
+        False,
     )
     
     assert result == True
@@ -387,7 +401,8 @@ def test_multiple_validation_failures(high_command, user_wallet, charlie, create
         createLegoPerms(),
         createWhitelistPerms(),
         invalid_transfer_perms,
-        [alpha_token.address, ZERO_ADDRESS]  # invalid allowed assets - use address
+        [alpha_token.address, ZERO_ADDRESS],  # invalid allowed assets - use address
+        False,
     )
     
     assert result == False
@@ -411,7 +426,8 @@ def test_update_manager_reject_non_existing_manager(high_command, user_wallet, c
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -434,7 +450,8 @@ def test_update_manager_valid_existing_manager(high_command, user_wallet, alice,
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == True
@@ -462,7 +479,8 @@ def test_update_manager_invalid_limits(high_command, user_wallet, alice, createG
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -485,7 +503,8 @@ def test_update_manager_invalid_allowed_assets(high_command, user_wallet, alice,
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        [alpha_token.address, alpha_token.address]  # duplicate asset
+        [alpha_token.address, alpha_token.address],  # duplicate asset
+        False,
     )
     
     assert result == False
@@ -518,7 +537,8 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
         invalid_perms,
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
+        False,
     )
     
     assert result == False
@@ -541,7 +561,7 @@ def test_global_settings_valid_basic(high_command, user_wallet, createManagerLim
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == True
@@ -559,7 +579,7 @@ def test_global_settings_invalid_manager_period_too_short(high_command, user_wal
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -577,7 +597,7 @@ def test_global_settings_invalid_manager_period_too_long(high_command, user_wall
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -595,7 +615,7 @@ def test_global_settings_invalid_activation_length_too_short(high_command, user_
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -613,7 +633,7 @@ def test_global_settings_invalid_activation_length_too_long(high_command, user_w
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -631,7 +651,7 @@ def test_global_settings_start_delay_too_short(high_command, user_wallet, create
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -654,7 +674,7 @@ def test_global_settings_invalid_manager_limits(high_command, user_wallet, creat
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -672,7 +692,7 @@ def test_global_settings_invalid_allowed_assets(high_command, user_wallet, creat
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        [alpha_token.address, alpha_token.address]  # duplicates
+        [alpha_token.address, alpha_token.address],  # duplicates
     )
     
     assert result == False
@@ -694,7 +714,7 @@ def test_global_settings_invalid_transfer_perms(high_command, user_wallet, creat
         createLegoPerms(),
         createWhitelistPerms(),
         invalid_transfer_perms,
-        []
+        [],
     )
     
     assert result == False
@@ -716,7 +736,7 @@ def test_global_settings_invalid_cooldown_exceeds_period(high_command, user_wall
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
-        []
+        [],
     )
     
     assert result == False
@@ -743,7 +763,7 @@ def test_global_settings_multiple_validation_failures(high_command, user_wallet,
         createLegoPerms(),
         createWhitelistPerms(),
         invalid_transfer_perms,
-        [alpha_token.address, ZERO_ADDRESS]  # invalid assets
+        [alpha_token.address, ZERO_ADDRESS],  # invalid assets
     )
     
     assert result == False

@@ -14,6 +14,7 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import YieldLego as YieldLego
 from interfaces import WalletStructs as ws
+from interfaces import WalletConfigStructs as wcs
 import interfaces.ConfigStructs as cs
 
 from ethereum.ercs import IERC20
@@ -37,6 +38,7 @@ interface MissionControl:
     def getDepositRewardsAsset() -> address: view
 
 interface UserWalletConfig:
+    def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def wallet() -> address: view
     def owner() -> address: view
 
@@ -796,12 +798,6 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
     if not staticcall Ledger(_ledger).isUserWallet(_user):
         return False
 
-    # permission check
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    owner: address = staticcall UserWalletConfig(walletConfig).owner()
-    if _caller != owner and not addys._isSwitchboardAddr(_caller):
-        return False
-
     # cool off period
     lastClaimBlock: uint256 = self.lastClaim[_user]
     coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
@@ -809,7 +805,17 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         if lastClaimBlock + coolOffPeriod > block.number:
             return False
 
-    return True
+    # permission check
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    if _caller == staticcall UserWalletConfig(walletConfig).owner():
+        return True
+
+    # manager check
+    config: wcs.ManagerSettings = staticcall UserWalletConfig(walletConfig).managerSettings(_caller)
+    if config.canClaimLoot:
+        return True
+
+    return addys._isSwitchboardAddr(_caller)
 
 
 # loot config

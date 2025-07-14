@@ -109,6 +109,7 @@ struct ManagerSettings:
     whitelistPerms: WhitelistPerms
     transferPerms: TransferPerms
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
+    canClaimLoot: bool
 
 struct GlobalManagerSettings:
     managerPeriod: uint256

@@ -27,11 +27,12 @@ interface Sentinel:
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
     
-interface LootDistributor:
-    def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
-
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
+    def isLockedSigner(_signer: address) -> bool: view
+
+interface LootDistributor:
+    def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
 interface Ledger:
     def getLastTotalUsdValue(_user: address) -> uint256: view
@@ -224,6 +225,9 @@ def checkSignerPermissionsAndGetBundle(
 
     # main data for this transaction
     ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
+
+    # make sure signer is not locked
+    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
 
     # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
     payee: address = _transferRecipient
@@ -776,46 +780,29 @@ def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
 @internal
 def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
     wallet: address = self.wallet
-    inEjectMode: bool = self.inEjectMode
     owner: address = ownership.owner
-
-    # addys
-    hq: address = empty(address)
-    ledger: address = empty(address)
-    missionControl: address = empty(address)
-    legoBook: address = empty(address)
-    hatchery: address = empty(address)
-    lootDistributor: address = empty(address)
-    appraiser: address = empty(address)
-    lastTotalUsdValue: uint256 = 0
-    if not inEjectMode:
-        hq = UNDY_HQ
-        ledger = staticcall Registry(hq).getAddr(LEDGER_ID)
-        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
-        legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
-        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
-        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
-        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
-        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)
+    hq: address = UNDY_HQ
 
     # lego details
+    legoBook: address = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
     legoAddr: address = empty(address)
     if _legoId != 0 and legoBook != empty(address):
         legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
 
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
     return ws.ActionData(
         ledger = ledger,
-        missionControl = missionControl,
+        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID),
         legoBook = legoBook,
-        hatchery = hatchery,
-        lootDistributor = lootDistributor,
-        appraiser = appraiser,
+        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID),
+        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
+        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
         wallet = wallet,
         walletConfig = self,
         walletOwner = owner,
-        inEjectMode = inEjectMode,
+        inEjectMode = self.inEjectMode,
         isFrozen = self.isFrozen,
-        lastTotalUsdValue = lastTotalUsdValue,
+        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet),
         signer = _signer,
         isManager = _signer != owner,
         legoId = _legoId,

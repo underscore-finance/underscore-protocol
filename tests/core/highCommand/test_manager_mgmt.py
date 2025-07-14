@@ -23,6 +23,7 @@ def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits
             createWhitelistPerms(),
             createTransferPerms(),
             [],  # allowed assets
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -39,6 +40,7 @@ def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createM
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=alice  # Not the owner
         )
 
@@ -55,6 +57,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
     
@@ -68,6 +71,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
     
@@ -81,6 +85,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
     
@@ -94,6 +99,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -115,6 +121,7 @@ def test_add_manager_validation_failure(high_command, user_wallet, createManager
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -158,6 +165,7 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
         whitelist_perms,
         transfer_perms,
         [alpha_token.address, bravo_token.address],  # allowed assets
+        False,  # canClaimLoot
         ONE_DAY_IN_BLOCKS,  # start delay
         ONE_YEAR_IN_BLOCKS,  # activation length
         sender=bob
@@ -226,6 +234,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -266,8 +275,9 @@ def test_add_manager_uses_global_settings_when_zero(high_command, user_wallet, u
         createWhitelistPerms(),
         createTransferPerms(),
         [],
-        0,  # zero start delay - use global
-        0,  # zero activation length - use global
+        False,  # canClaimLoot
+        0,  # start delay
+        0,  # activation length
         sender=bob
     )
     
@@ -295,6 +305,7 @@ def test_add_manager_increments_index(high_command, user_wallet, user_wallet_con
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -310,6 +321,7 @@ def test_add_manager_increments_index(high_command, user_wallet, user_wallet_con
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -332,6 +344,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -345,6 +358,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -366,6 +380,7 @@ def test_update_manager_verifies_real_user_wallet(high_command, createManagerLim
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -384,6 +399,7 @@ def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -397,6 +413,7 @@ def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=charlie  # Not the owner
         )
 
@@ -413,6 +430,7 @@ def test_update_manager_must_exist(high_command, user_wallet, createManagerLimit
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -431,6 +449,7 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -449,6 +468,7 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
 
@@ -472,6 +492,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         createWhitelistPerms(_canAddPending=False, _canConfirm=True),
         createTransferPerms(_canTransfer=False, _canCreateCheque=True),
         [alpha_token.address],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -521,6 +542,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         new_whitelist_perms,
         new_transfer_perms,
         [bravo_token.address, charlie_token.address],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -580,6 +602,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -601,6 +624,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -635,8 +659,9 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
         createWhitelistPerms(),
         createTransferPerms(),
         [],
-        ONE_DAY_IN_BLOCKS * 3,  # specific start delay
-        ONE_YEAR_IN_BLOCKS * 2,  # specific activation length
+        False,  # canClaimLoot
+        ONE_DAY_IN_BLOCKS * 3,  # start delay
+        ONE_YEAR_IN_BLOCKS * 2,  # activation length
         sender=bob
     )
     
@@ -657,6 +682,7 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -680,6 +706,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -698,6 +725,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -735,6 +763,7 @@ def test_remove_manager_by_owner(high_command, user_wallet, user_wallet_config, 
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -768,6 +797,7 @@ def test_remove_manager_by_self(high_command, user_wallet, user_wallet_config, c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -801,6 +831,7 @@ def test_remove_manager_by_unauthorized(high_command, user_wallet, user_wallet_c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -830,6 +861,7 @@ def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -878,6 +910,7 @@ def test_remove_manager_emits_event(high_command, user_wallet, user_wallet_confi
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -915,6 +948,7 @@ def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wall
         createWhitelistPerms(_canAddPending=True),
         createTransferPerms(_canTransfer=True),
         [alpha_token.address],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -954,6 +988,7 @@ def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -966,6 +1001,7 @@ def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_c
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1007,6 +1043,7 @@ def test_remove_multiple_managers_sequentially(high_command, user_wallet, user_w
             createWhitelistPerms(),
             createTransferPerms(),
             [],
+            False,  # canClaimLoot
             sender=bob
         )
     
@@ -1057,6 +1094,7 @@ def test_adjust_activation_length_verifies_caller_is_owner(high_command, user_wa
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1103,6 +1141,7 @@ def test_adjust_activation_length_manager_not_active_yet(high_command, user_wall
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         ONE_DAY_IN_BLOCKS * 7,  # Start in 7 days
         ONE_YEAR_IN_BLOCKS,
         sender=bob
@@ -1135,6 +1174,7 @@ def test_adjust_activation_length_invalid_length(high_command, user_wallet, user
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         0,  # Start immediately (will use global start delay)
         ONE_MONTH_IN_BLOCKS,
         sender=bob
@@ -1183,8 +1223,9 @@ def test_adjust_activation_length_extends_active_manager(high_command, user_wall
         createWhitelistPerms(),
         createTransferPerms(),
         [],
-        0,  # Start immediately (will use global start delay)
-        ONE_MONTH_IN_BLOCKS,  # Initial activation length
+        False,  # canClaimLoot
+        0,  # start delay
+        ONE_MONTH_IN_BLOCKS,  # activation length
         sender=bob
     )
     
@@ -1232,6 +1273,7 @@ def test_adjust_activation_length_with_reset_start_block(high_command, user_wall
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1279,8 +1321,9 @@ def test_adjust_activation_length_expired_manager_auto_resets(high_command, user
         createWhitelistPerms(),
         createTransferPerms(),
         [],
-        0,  # Start immediately (will use global start delay)
-        ONE_DAY_IN_BLOCKS,  # Very short activation
+        False,  # canClaimLoot
+        0,  # start delay
+        ONE_DAY_IN_BLOCKS,  # activation length
         sender=bob
     )
     
@@ -1329,6 +1372,7 @@ def test_adjust_activation_length_emits_event(high_command, user_wallet, user_wa
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1375,6 +1419,7 @@ def test_adjust_activation_length_emits_event_with_restart(high_command, user_wa
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1422,6 +1467,7 @@ def test_adjust_activation_length_invalid_expiry(high_command, user_wallet, user
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1461,6 +1507,7 @@ def test_adjust_activation_length_shortens_active_manager(high_command, user_wal
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         0,  # Start immediately
         ONE_YEAR_IN_BLOCKS * 2,  # Long initial activation
         sender=bob
@@ -1508,6 +1555,7 @@ def test_adjust_activation_length_boundary_values(high_command, user_wallet, use
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -1563,6 +1611,7 @@ def test_adjust_activation_length_near_expiry_manager(high_command, user_wallet,
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         0,
         ONE_DAY_IN_BLOCKS * 2,  # Short activation
         sender=bob
@@ -1610,6 +1659,7 @@ def test_adjust_activation_length_multiple_adjustments(high_command, user_wallet
         createWhitelistPerms(),
         createTransferPerms(),
         [],
+        False,  # canClaimLoot
         sender=bob
     )
     
@@ -2133,8 +2183,9 @@ def test_set_global_manager_settings_affects_new_managers(high_command, user_wal
         createWhitelistPerms(),
         createTransferPerms(),
         [],
-        0,  # Use global start delay
-        0,  # Use global activation length
+        False,  # canClaimLoot
+        0,  # start delay
+        0,  # activation length
         sender=bob
     )
     

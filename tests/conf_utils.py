@@ -293,6 +293,7 @@ def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistP
         _whitelistPerms = None,
         _transferPerms = None,
         _allowedAssets = [],
+        _canClaimLoot = False,
     ):
         if _startBlock == 0:
             _startBlock = boa.env.evm.patch.block_number
@@ -316,6 +317,7 @@ def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistP
             _whitelistPerms,
             _transferPerms,
             _allowedAssets,
+            _canClaimLoot,
         )
     yield createManagerSettings
 

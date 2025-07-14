@@ -81,6 +81,7 @@ event ManagerSettingsModified:
     canAddPendingPayee: bool
     numAllowedRecipients: uint256
     numAllowedAssets: uint256
+    canClaimLoot: bool
 
 event ManagerRemoved:
     user: indexed(address)
@@ -150,6 +151,7 @@ def addManager(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
     _startDelay: uint256 = 0,
     _activationLength: uint256 = 0,
 ) -> bool:
@@ -161,7 +163,7 @@ def addManager(
 
     isValid: bool = False
     settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    isValid, settings = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    isValid, settings = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
     assert isValid # dev: invalid manager
     
     extcall UserWalletConfig(config.walletConfig).addManager(_manager, settings)
@@ -191,6 +193,7 @@ def addManager(
         canAddPendingPayee = _transferPerms.canAddPendingPayee,
         numAllowedRecipients = len(_transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
+        canClaimLoot = _canClaimLoot,
     )
     return True
 
@@ -207,6 +210,7 @@ def updateManager(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
 
@@ -214,7 +218,7 @@ def updateManager(
     assert msg.sender == config.owner # dev: no perms
 
     # validate inputs
-    assert self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig) # dev: invalid settings
+    assert self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig) # dev: invalid settings
 
     # update config
     settings: wcs.ManagerSettings = staticcall UserWalletConfig(config.walletConfig).managerSettings(_manager)
@@ -223,6 +227,7 @@ def updateManager(
     settings.whitelistPerms = _whitelistPerms
     settings.transferPerms = _transferPerms
     settings.allowedAssets = _allowedAssets
+    settings.canClaimLoot = _canClaimLoot
     extcall UserWalletConfig(config.walletConfig).updateManager(_manager, settings)
 
     log ManagerSettingsModified(
@@ -251,6 +256,7 @@ def updateManager(
         canAddPendingPayee = _transferPerms.canAddPendingPayee,
         numAllowedRecipients = len(_transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
+        canClaimLoot = _canClaimLoot,
     )
     return True
 
@@ -403,11 +409,12 @@ def isValidNewManager(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
 ) -> bool:
     config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
     isValid: bool = False
     na: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    isValid, na = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    isValid, na = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
     return isValid
 
 
@@ -422,6 +429,7 @@ def _isValidNewManager(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
     _globalConfig: wcs.GlobalManagerSettings,
     _currentTimeLock: uint256,
     _legoBookAddr: address,
@@ -475,6 +483,7 @@ def _isValidNewManager(
         whitelistPerms = _whitelistPerms,
         transferPerms = _transferPerms,
         allowedAssets = _allowedAssets,
+        canClaimLoot = _canClaimLoot,
     )
     return True, settings
 
@@ -492,9 +501,10 @@ def validateManagerOnUpdate(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
 ) -> bool:
     config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
-    return self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig)
+    return self._validateManagerOnUpdate(config.isManager, _limits, _legoPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings.managerPeriod, config.legoBook, config.walletConfig)
 
 
 @view
@@ -506,6 +516,7 @@ def _validateManagerOnUpdate(
     _whitelistPerms: wcs.WhitelistPerms,
     _transferPerms: wcs.TransferPerms,
     _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _canClaimLoot: bool,
     _managerPeriod: uint256,
     _legoBookAddr: address,
     _walletConfig: address,
@@ -765,6 +776,7 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
         whitelistPerms = empty(wcs.WhitelistPerms),
         transferPerms = empty(wcs.TransferPerms),
         allowedAssets = [],
+        canClaimLoot = True,
     )
     config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
     return config

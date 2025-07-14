@@ -3182,7 +3182,214 @@ def test_adjust_loot_zero_and_deregistration(loot_distributor, ambassador_wallet
 #################################
 
 
-def test_only_user_wallets_can_add_loot(loot_distributor, alice, bob, alpha_token, alpha_token_whale, switchboard_alpha):
+def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig):
+    """ Test that a manager with canClaimLoot permission can claim loot """
+    
+    # Configure yield asset with bonus
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _bonusRatio=30_00,  # 30% bonus for user
+    )
+    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    
+    # Seed loot distributor with underlying tokens for bonus payments
+    yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Setup yield scenario to generate claimable loot for user_wallet
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(yield_underlying_token, 1000 * EIGHTEEN_DECIMALS, yield_vault_token, sender=yield_underlying_token_whale)
+    
+    # Simulate yield profit that generates loot for user_wallet
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        100 * EIGHTEEN_DECIMALS,  # total yield
+        sender=user_wallet.address
+    )
+    
+    # Add manager with canClaimLoot permission
+    high_command.addManager(
+        user_wallet.address,
+        charlie,  # manager
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],  # allowed assets
+        True,  # canClaimLoot = True
+        sender=bob  # bob is the owner of user_wallet
+    )
+    
+    # Verify manager can claim loot for user_wallet
+    initial_balance = yield_underlying_token.balanceOf(user_wallet)
+    result = loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=charlie)
+    assert result == 1  # 1 asset claimed
+    
+    # Verify tokens were transferred to user_wallet
+    assert yield_underlying_token.balanceOf(user_wallet) > initial_balance
+    
+    # Verify state updated
+    assert loot_distributor.lastClaim(user_wallet) == boa.env.evm.patch.block_number
+
+
+def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig):
+    """ Test that a manager without canClaimLoot permission cannot claim loot """
+    
+    # Configure yield asset with bonus
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _bonusRatio=30_00,  # 30% bonus for user
+    )
+    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    
+    # Seed loot distributor with underlying tokens for bonus payments
+    yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Setup yield scenario to generate claimable loot for user_wallet
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(yield_underlying_token, 1000 * EIGHTEEN_DECIMALS, yield_vault_token, sender=yield_underlying_token_whale)
+    
+    # Simulate yield profit that generates loot for user_wallet
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        100 * EIGHTEEN_DECIMALS,  # total yield
+        sender=user_wallet.address
+    )
+    
+    # Add manager WITHOUT canClaimLoot permission
+    high_command.addManager(
+        user_wallet.address,
+        charlie,  # manager
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],  # allowed assets
+        False,  # canClaimLoot = False
+        sender=bob  # bob is the owner of user_wallet
+    )
+    
+    # Verify manager cannot claim loot
+    with boa.reverts("no perms"):
+        loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=charlie)
+    
+    # Verify no state changes (loot is still there)
+    assert loot_distributor.claimableLoot(user_wallet, yield_underlying_token) > 0
+    assert loot_distributor.lastClaim(user_wallet) == 0
+
+
+def test_manager_can_claim_deposit_rewards_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, alpha_token, alpha_token_whale, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, setUserWalletConfig):
+    """ Test that a manager with canClaimLoot permission can claim deposit rewards """
+    
+    # Set deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address)
+    
+    # Add deposit rewards
+    rewards_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.approve(loot_distributor, rewards_amount, sender=alpha_token_whale)
+    loot_distributor.addDepositRewards(alpha_token, rewards_amount, sender=alpha_token_whale)
+    
+    # Update deposit points for the user_wallet
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet_config.address)
+    boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
+    
+    # Add manager with canClaimLoot permission
+    high_command.addManager(
+        user_wallet.address,
+        charlie,  # manager
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],  # allowed assets
+        True,  # canClaimLoot = True
+        sender=bob  # bob is the owner of user_wallet
+    )
+    
+    # Manager can claim deposit rewards
+    initial_balance = alpha_token.balanceOf(user_wallet)
+    result = loot_distributor.claimDepositRewards(user_wallet.address, sender=charlie)
+    assert result > 0  # Some rewards claimed
+    
+    # Verify tokens were transferred
+    assert alpha_token.balanceOf(user_wallet) > initial_balance
+    assert loot_distributor.lastClaim(user_wallet) == boa.env.evm.patch.block_number
+
+
+def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, bravo_token, bravo_token_whale, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setUserWalletConfig, setAssetConfig, createAssetYieldConfig):
+    """ Test that a manager with canClaimLoot permission can claim all loot types """
+    
+    # Set deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=bravo_token.address)
+    
+    # Configure yield asset with bonus
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _bonusRatio=30_00,  # 30% bonus for user
+    )
+    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    
+    # Seed loot distributor with underlying tokens for bonus payments
+    yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    
+    # Setup yield scenario to generate claimable loot for user_wallet
+    yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(yield_underlying_token, 1000 * EIGHTEEN_DECIMALS, yield_vault_token, sender=yield_underlying_token_whale)
+    
+    # Simulate yield profit that generates loot
+    performance_fee = 10 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        100 * EIGHTEEN_DECIMALS,  # total yield
+        sender=user_wallet.address
+    )
+    
+    # Setup deposit rewards
+    rewards_amount = 50 * EIGHTEEN_DECIMALS
+    bravo_token.approve(loot_distributor, rewards_amount, sender=bravo_token_whale)
+    loot_distributor.addDepositRewards(bravo_token, rewards_amount, sender=bravo_token_whale)
+    
+    # Update deposit points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet_config.address)
+    boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
+    
+    # Add manager with canClaimLoot permission
+    high_command.addManager(
+        user_wallet.address,
+        charlie,  # manager
+        createManagerLimits(),
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],  # allowed assets
+        True,  # canClaimLoot = True
+        sender=bob  # bob is the owner of user_wallet
+    )
+    
+    # Manager can claim all loot
+    initial_underlying_balance = yield_underlying_token.balanceOf(user_wallet)
+    initial_bravo_balance = bravo_token.balanceOf(user_wallet)
+    
+    result = loot_distributor.claimAllLoot(user_wallet.address, sender=charlie)
+    assert result == True
+    
+    # Verify both token types were claimed
+    assert yield_underlying_token.balanceOf(user_wallet) > initial_underlying_balance
+    assert bravo_token.balanceOf(user_wallet) > initial_bravo_balance
+    assert loot_distributor.lastClaim(user_wallet) == boa.env.evm.patch.block_number
+
+
+def test_only_user_wallets_can_add_loot(loot_distributor, alice, alpha_token, alpha_token_whale, switchboard_alpha):
     """ Test that only user wallets can call addLootFromSwapOrRewards and addLootFromYieldProfit """
     
     # Fund non-wallet addresses
