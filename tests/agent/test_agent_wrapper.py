@@ -289,7 +289,7 @@ def test_agent_swap_tokens_basic(
     assert log.amount1 == amount_in
     assert log.amount2 == amount_out
     assert log.usdValue == usd_value
-    assert log.legoId == 1  # Number of unique legos used
+    assert log.legoId == 2
     
     # Verify results
     assert token_in == mock_dex_asset.address

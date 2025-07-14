@@ -57,8 +57,8 @@ def getPool(fork):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_assets(setUserWalletConfig):
-    setUserWalletConfig(_swapFee=0)
+def setup_assets(setUserWalletConfig, createTxFees):
+    setUserWalletConfig(_txFees=createTxFees())
 
 
 #########

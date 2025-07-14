@@ -48,12 +48,13 @@ def testLegoDeposit(bob_user_wallet, bob, lego_book, _test):
         deposit_amount, vault_token, vault_tokens_received, usd_value = bob_user_wallet.depositForYield(_legoId, _asset, _vaultToken, _amount, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "YieldDeposit")[0]
-        assert log_wallet.asset == _asset.address
-        assert log_wallet.assetAmount == deposit_amount
-        assert log_wallet.vaultToken == vault_token
-        assert log_wallet.vaultTokenAmount == vault_tokens_received
-        assert log_wallet.txUsdValue == usd_value
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 10  # yield deposit
+        assert log_wallet.asset1 == _asset.address
+        assert log_wallet.asset2 == vault_token
+        assert log_wallet.amount1 == deposit_amount
+        assert log_wallet.amount2 == vault_tokens_received
+        assert log_wallet.usdValue == usd_value
         assert log_wallet.legoId == _legoId
         assert log_wallet.signer == bob
 
@@ -99,12 +100,13 @@ def testLegoWithdrawal(bob_user_wallet, bob, lego_book, _test):
         vault_token_burned, underlyingAsset, underlyingAmount, usd_value = bob_user_wallet.withdrawFromYield(_legoId, _vaultToken, _amount, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "YieldWithdrawal")[0]
-        assert log_wallet.vaultToken == _vaultToken.address
-        assert log_wallet.vaultTokenAmountBurned == vault_token_burned
-        assert log_wallet.underlyingAsset == underlyingAsset == _asset.address
-        assert log_wallet.underlyingAmountReceived == underlyingAmount
-        assert log_wallet.txUsdValue == usd_value
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 11  # yield withdraw
+        assert log_wallet.asset1 == _vaultToken.address
+        assert log_wallet.asset2 == underlyingAsset
+        assert log_wallet.amount1 == vault_token_burned
+        assert log_wallet.amount2 == underlyingAmount
+        assert log_wallet.usdValue == usd_value
         assert log_wallet.legoId == _legoId
         assert log_wallet.signer == bob
 
@@ -161,14 +163,14 @@ def testLegoSwap(bob_user_wallet, bob, lego_book, _test):
         tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usd_value = bob_user_wallet.swapTokens([instruction], sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "OverallSwapPerformed")[0]
-        assert log_wallet.tokenIn == _tokenIn.address == tokenIn
-        assert log_wallet.tokenInAmount == origAmountIn
-        assert log_wallet.tokenOut == _tokenOut.address == lastTokenOut
-        assert log_wallet.tokenOutAmount == lastTokenOutAmount
-        assert log_wallet.txUsdValue == usd_value
-        assert log_wallet.numLegos == 1
-        assert log_wallet.numInstructions == 1
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 20  # multi-hop swap (or 21 for single swap)
+        assert log_wallet.asset1 == _tokenIn.address
+        assert log_wallet.asset2 == _tokenOut.address
+        assert log_wallet.amount1 == origAmountIn
+        assert log_wallet.amount2 == lastTokenOutAmount
+        assert log_wallet.usdValue == usd_value
+        assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 
         assert origAmountIn != 0
@@ -228,15 +230,13 @@ def testLegoLiquidityAddedBasic(bob_user_wallet, bob, _test, lego_book):
         lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "LiquidityAdded")[0]
-        assert log_wallet.pool == _pool.address
-        assert log_wallet.tokenA == _tokenA.address
-        assert log_wallet.amountA == liqAmountA
-        assert log_wallet.tokenB == _tokenB.address
-        assert log_wallet.amountB == liqAmountB
-        assert log_wallet.txUsdValue == usdValue
-        assert log_wallet.lpToken == lp_token_addr
-        assert log_wallet.lpAmountReceived == lpAmountReceived
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 30  # add liquidity
+        assert log_wallet.asset1 == _tokenA.address
+        assert log_wallet.asset2 == _tokenB.address
+        assert log_wallet.amount1 == liqAmountA
+        assert log_wallet.amount2 == liqAmountB
+        assert log_wallet.usdValue == usdValue
         assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 
@@ -322,15 +322,13 @@ def testLegoLiquidityRemovedBasic(bob_user_wallet, bob, _test, lego_book):
         removedAmountA, removedAmountB, lpAmountBurned, usdValue = bob_user_wallet.removeLiquidity(lego_id, _pool, _tokenA, tokenAddrB, lp_token_addr, _liqToRemove, _minAmountA, _minAmountB, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "LiquidityRemoved")[0]
-        assert log_wallet.pool == _pool.address
-        assert log_wallet.tokenA == _tokenA.address
-        assert log_wallet.amountAReceived == removedAmountA
-        assert log_wallet.tokenB == tokenAddrB
-        assert log_wallet.amountBReceived == removedAmountB
-        assert log_wallet.txUsdValue == usdValue
-        assert log_wallet.lpToken == lp_token_addr
-        assert log_wallet.lpAmountBurned == lpAmountBurned
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 31  # remove liquidity
+        assert log_wallet.asset1 == _tokenA.address
+        assert log_wallet.asset2 == tokenAddrB
+        assert log_wallet.amount1 == removedAmountA
+        assert log_wallet.amount2 == removedAmountB
+        assert log_wallet.usdValue == usdValue
         assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 
@@ -385,15 +383,14 @@ def testLegoLiquidityAdded(bob_user_wallet, bob, _test, lego_book):
         liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "ConcentratedLiquidityAdded")[0]
-        assert log_wallet.nftTokenId == nftTokenId
-        assert log_wallet.pool == _pool.address
-        assert log_wallet.tokenA == _tokenA.address
-        assert log_wallet.amountA == liqAmountA
-        assert log_wallet.tokenB == _tokenB.address
-        assert log_wallet.amountB == liqAmountB
-        assert log_wallet.txUsdValue == usdValue
-        assert log_wallet.liqAdded == liquidityAdded
+        log_wallet = filter_logs(bob_user_wallet, "WalletActionExt")[0]
+        assert log_wallet.op == 32  # add liquidity NFT
+        assert log_wallet.asset1 == _tokenA.address
+        assert log_wallet.asset2 == _tokenB.address
+        assert log_wallet.tokenId == nftTokenId
+        assert log_wallet.amount1 == liqAmountA
+        assert log_wallet.amount2 == liqAmountB
+        assert log_wallet.usdValue == usdValue
         assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 
@@ -474,15 +471,14 @@ def testLegoLiquidityRemoved(bob_user_wallet, bob, _test, lego_book):
         removedAmountA, removedAmountB, liqRemoved, usdValue = bob_user_wallet.removeLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, tokenAddrB, _liqToRemove, _minAmountA, _minAmountB, sender=bob)
 
         # event
-        log_wallet = filter_logs(bob_user_wallet, "ConcentratedLiquidityRemoved")[0]
-        assert log_wallet.nftTokenId == _nftTokenId
-        assert log_wallet.pool == _pool.address
-        assert log_wallet.tokenA == _tokenA.address
-        assert log_wallet.amountAReceived == removedAmountA
-        assert log_wallet.tokenB == tokenAddrB
-        assert log_wallet.amountBReceived == removedAmountB
-        assert log_wallet.txUsdValue == usdValue
-        assert log_wallet.liqRemoved == liqRemoved
+        log_wallet = filter_logs(bob_user_wallet, "WalletActionExt")[0]
+        assert log_wallet.op == 33  # remove liquidity NFT
+        assert log_wallet.asset1 == _tokenA.address
+        assert log_wallet.asset2 == tokenAddrB
+        assert log_wallet.tokenId == _nftTokenId
+        assert log_wallet.amount1 == removedAmountA
+        assert log_wallet.amount2 == removedAmountB
+        assert log_wallet.usdValue == usdValue
         assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 

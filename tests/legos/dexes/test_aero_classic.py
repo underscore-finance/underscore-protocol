@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from config.BluePrint import TOKENS, TEST_AMOUNTS, INTEGRATION_ADDYS
+from config.BluePrint import TOKENS, TEST_AMOUNTS
 from constants import EIGHTEEN_DECIMALS
 
 
@@ -55,8 +55,8 @@ def getPool(fork):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_assets(setUserWalletConfig):
-    setUserWalletConfig(_swapFee=0)
+def setup_assets(setUserWalletConfig, createTxFees):
+    setUserWalletConfig(_txFees=createTxFees())
    
 
 #########
@@ -74,7 +74,6 @@ def test_aerodrome_classic_swap_max_with_pool(
     lego_aero_classic,
     getToToken,
     getPool,
-    lego_book,
 ):
     # setup
     fromAsset, whale = getTokenAndWhale(token_str)

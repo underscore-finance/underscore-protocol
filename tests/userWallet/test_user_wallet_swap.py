@@ -78,7 +78,7 @@ def test_swap_tokens_basic(setupSwapTest, user_wallet, bob, mock_dex_asset, mock
     assert log.amount1 == swap_amount
     assert log.amount2 == swap_amount
     assert log.usdValue == usdValue
-    assert log.legoId == 1  # Number of unique legos used
+    assert log.legoId == 2
     assert log.signer == bob
 
 

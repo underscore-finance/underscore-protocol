@@ -46,8 +46,8 @@ interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
 interface HighCommand:
-    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Paymaster:
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
@@ -173,7 +173,9 @@ def createUserWallet(
     # default manager / payee settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(a.highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(a.paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
-    starterAgentSettings: wcs.ManagerSettings = staticcall HighCommand(a.highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
+    starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
+    if config.startingAgent != empty(address):
+        starterAgentSettings = staticcall HighCommand(a.highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
 
     # create wallet contracts
     walletConfigAddr: address = create_from_blueprint(

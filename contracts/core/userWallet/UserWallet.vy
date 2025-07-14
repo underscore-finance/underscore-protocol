@@ -413,7 +413,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         amount1 = origAmountIn,
         amount2 = lastTokenOutAmount,
         usdValue = maxTxUsdValue,
-        legoId = len(legoIds),
+        legoId = ad.legoId, # using just the first lego used
         signer = ad.signer,
     )
     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue

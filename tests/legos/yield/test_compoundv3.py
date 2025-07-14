@@ -14,7 +14,6 @@ VAULT_TOKENS = {
 
 
 TEST_ASSETS = [
-    "ALPHA",
     "USDC",
     "WETH",
     "AERO",
@@ -22,16 +21,10 @@ TEST_ASSETS = [
 
 
 @pytest.fixture(scope="module")
-def getVaultToken(fork, alpha_token_comp_vault):
+def getVaultToken(fork):
     def getVaultToken(_token_str):
         if fork == "local":
-            if _token_str == "ALPHA":
-                return alpha_token_comp_vault
-            else:
-                pytest.skip("asset not relevant on this fork")
-        elif _token_str == "ALPHA":
             pytest.skip("asset not relevant on this fork")
-  
         vault_token = VAULT_TOKENS[fork][_token_str]
         return boa.from_etherscan(vault_token, name=_token_str + "_vault_token")
 
