@@ -37,12 +37,14 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 price: public(HashMap[address, uint256])
 mockIsRebasing: public(bool)
 minTotalAssets: public(uint256)
+isEligible: public(bool)
 
 
 @deploy
 def __init__(_undyHq: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
+    self.isEligible = True
 
 
 @view
@@ -74,17 +76,39 @@ def isDexLego() -> bool:
 
 @view
 @external
+def isRebasing() -> bool:
+    return self._isRebasing()
+
+
+@view
+@internal
+def _isRebasing() -> bool:
+    return self.mockIsRebasing
+
+
+@view
+@external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
     asset: address = yld.vaultToAsset[_vaultToken]
     if asset != _underlyingAsset:
         return False
-
     return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
 
 
 @external
 def setMinTotalAssets(_minTotalAssets: uint256):
     self.minTotalAssets = _minTotalAssets
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return self.isEligible 
+
+
+@external
+def setIsEligibleForYieldBonus(_isEligible: bool):
+    self.isEligible = _isEligible
 
 
 #########
@@ -184,18 +208,6 @@ def withdrawFromYield(
 #############
 # Utilities #
 #############
-
-
-@view
-@external
-def isRebasing() -> bool:
-    return self._isRebasing()
-
-
-@view
-@internal
-def _isRebasing() -> bool:
-    return self.mockIsRebasing
 
 
 # underlying asset

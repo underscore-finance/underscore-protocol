@@ -123,6 +123,24 @@ def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address
     return yld.vaultToAsset[_vaultToken] == _underlyingAsset
 
 
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False # not allowing rebasing assets to get yield bonus
+
+
+@view
+@external
+def isRebasing() -> bool:
+    return self._isRebasing()
+
+
+@view
+@internal
+def _isRebasing() -> bool:
+    return True
+
+
 #########
 # Yield #
 #########
@@ -296,18 +314,6 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
 #############
 # Utilities #
 #############
-
-
-@view
-@external
-def isRebasing() -> bool:
-    return self._isRebasing()
-
-
-@view
-@internal
-def _isRebasing() -> bool:
-    return True
 
 
 # underlying asset

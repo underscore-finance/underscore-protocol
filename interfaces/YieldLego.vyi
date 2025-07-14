@@ -8,6 +8,12 @@ def isRebasing() -> bool:
 
 @view
 @external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    ...
+
+
+@view
+@external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
     ...
 

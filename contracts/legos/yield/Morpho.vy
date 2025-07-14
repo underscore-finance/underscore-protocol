@@ -102,11 +102,40 @@ def isDexLego() -> bool:
 
 @view
 @external
+def isRebasing() -> bool:
+    return self._isRebasing()
+
+
+@view
+@internal
+def _isRebasing() -> bool:
+    return False
+
+
+@view
+@external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
     asset: address = yld.vaultToAsset[_vaultToken]
     if asset != _underlyingAsset:
         return False
+    return self._hasSufficientAssets(_vaultToken, _underlyingAsset)
 
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    underlyingAsset: address = yld.vaultToAsset[_asset]
+    if underlyingAsset == empty(address):
+        return False
+    return self._hasSufficientAssets(_asset, underlyingAsset)
+
+
+# check if vault has sufficient assets
+
+
+@view
+@internal
+def _hasSufficientAssets(_vaultToken: address, _underlyingAsset: address) -> bool:
     # vault must have at least $100k in assets
     decimals: uint256 = convert(staticcall IERC20Detailed(_underlyingAsset).decimals(), uint256)
     return staticcall IERC4626(_vaultToken).totalAssets() > 100_000 * (10 ** decimals)
@@ -268,18 +297,6 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
 #############
 # Utilities #
 #############
-
-
-@view
-@external
-def isRebasing() -> bool:
-    return self._isRebasing()
-
-
-@view
-@internal
-def _isRebasing() -> bool:
-    return False
 
 
 # underlying asset

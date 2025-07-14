@@ -10,8 +10,9 @@ initializes: deptBasics[addys := addys]
 
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
+
 from interfaces import Department
-from interfaces import LegoPartner as Lego
+from interfaces import YieldLego as YieldLego
 from interfaces import WalletStructs as ws
 import interfaces.ConfigStructs as cs
 
@@ -39,6 +40,9 @@ interface UserWalletConfig:
     def wallet() -> address: view
     def owner() -> address: view
 
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
+
 interface UserWallet:
     def walletConfig() -> address: view
 
@@ -54,8 +58,9 @@ struct LootDistroConfig:
     bonusRatio: uint256
     altBonusAsset: address
     underlyingAsset: address
-    isRebasing: bool
     decimals: uint256
+    legoId: uint256
+    legoAddr: address
 
 struct DepositRewards:
     asset: address
@@ -163,7 +168,7 @@ def addLootFromSwapOrRewards(
         return
 
     # ambassador rev share
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, ledger)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, empty(address), ledger, False)
     self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
 
@@ -183,14 +188,14 @@ def addLootFromYieldProfit(
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, ledger)
+    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, _legoBook, ledger, True)
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     if _feeAmount != 0 and ambassador != empty(address):
         self._handleAmbassadorTxFee(_asset, _feeAmount, empty(ws.ActionType), config)
 
-    # yield bonus -- not doing this for rebasing assets
-    if not config.isRebasing:
+    # yield bonus -- must be eligible
+    if config.legoAddr != empty(address) and staticcall YieldLego(config.legoAddr).isEligibleForYieldBonus(_asset):
         self._handleYieldBonus(msg.sender, _asset, _yieldRealized, config, _missionControl, _appraiser, _legoBook, ledger)
 
 
@@ -812,10 +817,10 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
 
 @view
 @external
-def getLootDistroConfig(_wallet: address, _asset: address) -> LootDistroConfig:
+def getLootDistroConfig(_wallet: address, _asset: address, _shouldGetLegoInfo: bool = False) -> LootDistroConfig:
     ledger: address = addys._getLedgerAddr()
     ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
-    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), ledger)
+    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), ledger, _shouldGetLegoInfo)
 
 
 @view
@@ -825,11 +830,18 @@ def _getLootDistroConfig(
     _ambassador: address,
     _asset: address,
     _missionControl: address,
+    _legoBook: address,
     _ledger: address,
+    _shouldGetLegoInfo: bool,
 ) -> LootDistroConfig:
+
+    # get addys
     missionControl: address = _missionControl
     if _missionControl == empty(address):
         missionControl = addys._getMissionControlAddr()
+    legoBook: address = _legoBook
+    if _legoBook == empty(address):
+        legoBook = addys._getLegoBookAddr()
 
     # config
     config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
@@ -841,7 +853,11 @@ def _getLootDistroConfig(
         if vaultToken.underlyingAsset != empty(address):
             config.decimals = vaultToken.decimals
             config.underlyingAsset = vaultToken.underlyingAsset
-            config.isRebasing = vaultToken.isRebasing
+            config.legoId = vaultToken.legoId
+
+    # get lego addr
+    if _shouldGetLegoInfo and config.legoId != 0 and legoBook != empty(address) and config.legoAddr == empty(address):
+        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
 
     # get decimals if needed
     if config.decimals == 0:

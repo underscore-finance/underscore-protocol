@@ -66,8 +66,9 @@ struct LootDistroConfig:
     bonusRatio: uint256
     altBonusAsset: address
     underlyingAsset: address
-    isRebasing: bool
     decimals: uint256
+    legoId: uint256
+    legoAddr: address
 
 # global configs
 userWalletConfig: public(cs.UserWalletConfig)
@@ -170,8 +171,9 @@ def getLootDistroConfig(_asset: address) -> LootDistroConfig:
         bonusRatio = bonusRatio,
         altBonusAsset = altBonusAsset,
         underlyingAsset = assetConfig.yieldConfig.underlyingAsset,
-        isRebasing = assetConfig.yieldConfig.isRebasing,
         decimals = assetConfig.decimals,
+        legoId = assetConfig.legoId,
+        legoAddr = empty(address),
     )
 
 

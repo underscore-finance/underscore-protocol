@@ -736,8 +736,8 @@ def test_add_loot_from_yield_profit_with_price_per_share_change(loot_distributor
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == expected_bonus
 
 
-def test_add_loot_from_yield_profit_rebasing_asset_no_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
-    """ Test that rebasing assets do not receive yield bonuses """
+def test_add_loot_from_yield_profit_eligible_asset_gets_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test that assets eligible for yield bonus receive bonuses """
     
     # Set up ambassador config with yield fee share and bonus ratio
     ambassadorRevShare = createAmbassadorRevShare(
@@ -746,10 +746,96 @@ def test_add_loot_from_yield_profit_rebasing_asset_no_bonus(loot_distributor, us
         _yieldRatio=40_00,     # 40% of performance fees go to ambassador
     )
     
-    # Create yield config with isRebasing=True
+    # Create yield config with bonus ratios
     yieldConfig = createAssetYieldConfig(
         _isYieldAsset=True,
-        _isRebasing=True,      # This is the key - marking as rebasing asset
+        _underlyingAsset=yield_underlying_token.address,
+        _ambassadorBonusRatio=10_00,  # 10% bonus ratio
+        _bonusRatio=20_00,            # 20% user bonus ratio
+    )
+    
+    setAssetConfig(
+        yield_vault_token,
+        _legoId=1,
+        _ambassadorRevShare=ambassadorRevShare,
+        _yieldConfig=yieldConfig,
+    )
+    
+    # Ensure the asset is eligible for yield bonus (default is True in MockYieldLego)
+    assert mock_yield_lego.isEligibleForYieldBonus(yield_vault_token) == True
+    
+    # Seed loot distributor with underlying tokens for bonus payments
+    seed_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(loot_distributor, seed_amount, sender=yield_underlying_token_whale)
+
+    # Register vault token by making a deposit (creates price per share)
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
+    
+    # Simulate yield profit
+    performance_fee = 20 * EIGHTEEN_DECIMALS  # 20 vault tokens as performance fee
+    total_yield_amount = 100 * EIGHTEEN_DECIMALS  # 100 vault tokens total yield
+    
+    # Transfer the performance fee to loot distributor (simulating it was already collected)
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Record initial balances
+    initial_underlying_balance = yield_underlying_token.balanceOf(loot_distributor)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield_amount,
+        sender=user_wallet.address
+    )
+    
+    # Verify ambassador gets 40% of the performance fee
+    expected_fee_share = performance_fee * 40_00 // 100_00  # 8 vault tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
+    
+    # Verify bonuses WERE given in underlying tokens
+    # User gets 20% of the total yield in underlying tokens
+    expected_user_bonus = total_yield_amount * 20_00 // 100_00  # 20 underlying tokens
+    assert loot_distributor.claimableLoot(user_wallet, yield_underlying_token) == expected_user_bonus
+    
+    # Ambassador gets 10% of the total yield in underlying tokens
+    expected_ambassador_bonus = total_yield_amount * 10_00 // 100_00  # 10 underlying tokens
+    assert loot_distributor.claimableLoot(ambassador_wallet, yield_underlying_token) == expected_ambassador_bonus
+    
+    # Verify underlying balance stays the same (bonuses are allocated but not transferred yet)
+    total_bonuses = expected_user_bonus + expected_ambassador_bonus
+    assert yield_underlying_token.balanceOf(loot_distributor) == initial_underlying_balance
+    
+    # Verify total claimable
+    assert loot_distributor.totalClaimableLoot(yield_vault_token) == expected_fee_share
+    assert loot_distributor.totalClaimableLoot(yield_underlying_token) == total_bonuses
+    
+    # Verify both tokens are registered
+    assert loot_distributor.numClaimableAssets(ambassador_wallet) == 3  # 1 base + vault token + underlying token
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_vault_token) == 1
+    assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, yield_underlying_token) == 2
+
+
+def test_add_loot_from_yield_profit_non_eligible_asset_no_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test that assets not eligible for yield bonus do not receive bonuses """
+    
+    # Set up ambassador config with yield fee share and bonus ratio
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,
+        _rewardsRatio=30_00,
+        _yieldRatio=40_00,     # 40% of performance fees go to ambassador
+    )
+    
+    # Create yield config with bonus ratios
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
         _underlyingAsset=yield_underlying_token.address,
         _ambassadorBonusRatio=10_00,  # 10% bonus ratio (should be ignored)
         _bonusRatio=20_00,            # 20% user bonus ratio (should be ignored)
@@ -757,9 +843,14 @@ def test_add_loot_from_yield_profit_rebasing_asset_no_bonus(loot_distributor, us
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=1,
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
+    
+    # Make the asset NOT eligible for yield bonus
+    mock_yield_lego.setIsEligibleForYieldBonus(False)
+    assert mock_yield_lego.isEligibleForYieldBonus(yield_vault_token) == False
     
     # Seed loot distributor with underlying tokens for bonus payments
     seed_amount = 1000 * EIGHTEEN_DECIMALS
