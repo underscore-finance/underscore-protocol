@@ -10,8 +10,10 @@ initializes: deptBasics[addys := addys]
 
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
+
 from interfaces import Department
 from interfaces import YieldLego as YieldLego
+from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -42,6 +44,13 @@ interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+
+interface HighCommand:
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
+    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
+
+interface Paymaster:
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
 interface Appraiser:
     def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
@@ -161,24 +170,27 @@ def createUserWallet(
         trialFundsAsset = config.trialAsset
         trialFundsAmount = config.trialAmount
 
+    # default manager / payee settings
+    globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(a.highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
+    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(a.paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
+    starterAgentSettings: wcs.ManagerSettings = staticcall HighCommand(a.highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
+
     # create wallet contracts
     walletConfigAddr: address = create_from_blueprint(
         config.configTemplate,
         a.hq,
         _owner,
         _groupId,
+        trialFundsAsset,
+        trialFundsAmount,
+        globalManagerSettings,
+        globalPayeeSettings,
+        config.startingAgent,
+        starterAgentSettings,
         a.sentinel,
         a.highCommand,
         a.paymaster,
         a.migrator,
-        config.startingAgent,
-        config.startingAgentActivationLength,
-        config.managerPeriod,
-        config.managerActivationLength,
-        config.payeePeriod,
-        config.payeeActivationLength,
-        trialFundsAsset,
-        trialFundsAmount,
         WETH,
         ETH,
         config.minKeyActionTimeLock,

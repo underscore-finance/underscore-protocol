@@ -1109,3 +1109,25 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+# default global payee settings
+
+
+@view
+@external
+def createDefaultGlobalPayeeSettings(
+    _defaultPeriodLength: uint256,
+    _startDelay: uint256,
+    _activationLength: uint256,
+) -> wcs.GlobalPayeeSettings:
+    return wcs.GlobalPayeeSettings(
+        defaultPeriodLength = _defaultPeriodLength,
+        startDelay = _startDelay,
+        activationLength = _activationLength,
+        maxNumTxsPerPeriod = 0,
+        txCooldownBlocks = 0,
+        failOnZeroPrice = False,
+        usdLimits = empty(wcs.PayeeLimits),
+        canPayOwner = True,
+    )

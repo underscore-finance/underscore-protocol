@@ -26,13 +26,7 @@ interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
-    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
-    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
-    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
-
-interface Migrator:
-    def canMigrateFundsToNewWallet(_newWallet: address, _thisWallet: address) -> bool: view
-
+    
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
@@ -62,7 +56,6 @@ event NftRecovered:
 
 # core
 wallet: public(address)
-groupId: public(uint256)
 
 # helper contracts
 sentinel: public(address)
@@ -103,7 +96,7 @@ globalPayeeSettings: public(wcs.GlobalPayeeSettings)
 timeLock: public(uint256)
 isFrozen: public(bool)
 inEjectMode: public(bool)
-
+groupId: public(uint256)
 startingAgent: public(address)
 didSetWallet: public(bool)
 
@@ -133,24 +126,19 @@ def __init__(
     _undyHq: address,
     _owner: address,
     _groupId: uint256,
-    # key contracts
+    # trial funds
+    _trialFundsAsset: address,
+    _trialFundsAmount: uint256,
+    # manager / payee settings
+    _globalManagerSettings: wcs.GlobalManagerSettings,
+    _globalPayeeSettings: wcs.GlobalPayeeSettings,
+    _startingAgent: address,
+    _starterAgentSettings: wcs.ManagerSettings,
+    # key contracts / addrs
     _sentinel: address,
     _highCommand: address,
     _paymaster: address,
     _migrator: address,
-    # initial agent
-    _startingAgent: address,
-    _startingAgentActivationLength: uint256,
-    # default manager settings
-    _managerPeriod: uint256,
-    _managerActivationLength: uint256,
-    # default payee settings
-    _payeePeriod: uint256,
-    _payeeActivationLength: uint256,
-    # trial funds
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
-    # key addrs
     _wethAddr: address,
     _ethAddr: address,
     # timelock
@@ -159,9 +147,14 @@ def __init__(
 ):
     # initialize ownership
     ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
-
-    assert empty(address) not in [_undyHq, _sentinel, _highCommand, _paymaster, _wethAddr, _ethAddr] # dev: invalid addrs
     UNDY_HQ = _undyHq
+
+    # set addys
+    assert empty(address) not in [_sentinel, _highCommand, _paymaster, _migrator, _wethAddr, _ethAddr] # dev: invalid addrs
+    self.sentinel = _sentinel
+    self.highCommand = _highCommand
+    self.paymaster = _paymaster
+    self.migrator = _migrator
     WETH = _wethAddr
     ETH = _ethAddr
 
@@ -170,19 +163,10 @@ def __init__(
     self.numPayees = 1
     self.numWhitelisted = 1
 
-    # core
+    # other
     self.groupId = _groupId
-
-    # set key addrs
-    self.sentinel = _sentinel
-    self.highCommand = _highCommand
-    self.paymaster = _paymaster
-    self.migrator = _migrator
-
-    # trial funds info
-    if _trialFundsAsset != empty(address) and _trialFundsAmount != 0:   
-        self.trialFundsAsset = _trialFundsAsset
-        self.trialFundsAmount = _trialFundsAmount
+    self.trialFundsAsset = _trialFundsAsset
+    self.trialFundsAmount = _trialFundsAmount
 
     # timelock
     assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -190,22 +174,15 @@ def __init__(
     MAX_TIMELOCK = _maxTimeLock
     self.timeLock = _minTimeLock
 
-    # set global manager settings
-    self.globalManagerSettings = staticcall Sentinel(_sentinel).createDefaultGlobalManagerSettings(_managerPeriod, _minTimeLock, _managerActivationLength)
+    # manager / payee settings
+    self.globalManagerSettings = _globalManagerSettings
+    self.globalPayeeSettings = _globalPayeeSettings
 
     # initial agent
     if _startingAgent != empty(address):
-        self.managerSettings[_startingAgent] = staticcall Sentinel(_sentinel).createStarterAgentSettings(_startingAgentActivationLength)
+        self.managerSettings[_startingAgent] = _starterAgentSettings
         self.startingAgent = _startingAgent
         self._registerManager(_startingAgent)
-
-    # set global payee settings using defaults from paymaster
-    payeePeriod: uint256 = _payeePeriod
-    payeeActivationLength: uint256 = _payeeActivationLength
-    if _payeePeriod == 0 or _payeeActivationLength == 0:
-        payeePeriod = _managerPeriod
-        payeeActivationLength = _managerActivationLength
-    self.globalPayeeSettings = staticcall Sentinel(_sentinel).createDefaultGlobalPayeeSettings(payeePeriod, _minTimeLock, payeeActivationLength)
 
 
 @external
@@ -615,70 +592,6 @@ def cancelPendingPayee(_payee: address):
     self.pendingPayees[_payee] = empty(wcs.PendingPayee)
 
 
-######################
-# Action Data Bundle #
-######################
-
-
-@view
-@external
-def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
-    return self._getActionDataBundle(_legoId, _signer)
-
-
-@view
-@internal
-def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
-    wallet: address = self.wallet
-    inEjectMode: bool = self.inEjectMode
-    owner: address = ownership.owner
-
-    # addys
-    hq: address = empty(address)
-    ledger: address = empty(address)
-    missionControl: address = empty(address)
-    legoBook: address = empty(address)
-    hatchery: address = empty(address)
-    lootDistributor: address = empty(address)
-    appraiser: address = empty(address)
-    lastTotalUsdValue: uint256 = 0
-    if not inEjectMode:
-        hq = UNDY_HQ
-        ledger = staticcall Registry(hq).getAddr(LEDGER_ID)
-        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
-        legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
-        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
-        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
-        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
-        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)
-
-    # lego details
-    legoAddr: address = empty(address)
-    if _legoId != 0 and legoBook != empty(address):
-        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
-
-    return ws.ActionData(
-        ledger = ledger,
-        missionControl = missionControl,
-        legoBook = legoBook,
-        hatchery = hatchery,
-        lootDistributor = lootDistributor,
-        appraiser = appraiser,
-        wallet = wallet,
-        walletConfig = self,
-        walletOwner = owner,
-        inEjectMode = inEjectMode,
-        isFrozen = self.isFrozen,
-        lastTotalUsdValue = lastTotalUsdValue,
-        signer = _signer,
-        isManager = _signer != owner,
-        legoId = _legoId,
-        legoAddr = legoAddr,
-        eth = ETH,
-        weth = WETH,
-    )
-
-
 ################
 # Wallet Tools #
 ################
@@ -713,36 +626,6 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 
     extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue
-
-
-@external
-def deregisterAsset(_asset: address) -> bool:
-    if msg.sender not in [self.migrator, staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)]:
-        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    return extcall UserWallet(self.wallet).deregisterAsset(_asset)
-
-
-# @external
-# def deregisterAssets() -> uint256:
-#     ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
-#     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-
-#     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
-#     if numAssets == 0:
-#         return 0
-
-#     numDeregistered: uint256 = 0
-#     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
-#         asset: address = staticcall UserWallet(ad.wallet).assets(i)
-#         if asset == empty(address):
-#             continue
-
-#         data: ws.WalletAssetData = staticcall UserWallet(ad.wallet).assetData(asset)
-#         if data.assetBalance == 0 and staticcall IERC20(asset).balanceOf(ad.wallet) == 0:
-#             extcall UserWallet(ad.wallet).deregisterAsset(asset)
-#             numDeregistered += 1
-
-#     return numDeregistered
 
 
 # remove trial funds
@@ -801,6 +684,16 @@ def preparePayment(
     assert underlyingAsset == _targetAsset # dev: invalid target asset
 
     return underlyingAmount, txUsdValue
+
+
+# deregister asset
+
+
+@external
+def deregisterAsset(_asset: address) -> bool:
+    if msg.sender not in [self.migrator, staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)]:
+        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    return extcall UserWallet(self.wallet).deregisterAsset(_asset)
 
 
 # recover nft
@@ -866,3 +759,67 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+######################
+# Action Data Bundle #
+######################
+
+
+@view
+@external
+def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+    return self._getActionDataBundle(_legoId, _signer)
+
+
+@view
+@internal
+def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+    wallet: address = self.wallet
+    inEjectMode: bool = self.inEjectMode
+    owner: address = ownership.owner
+
+    # addys
+    hq: address = empty(address)
+    ledger: address = empty(address)
+    missionControl: address = empty(address)
+    legoBook: address = empty(address)
+    hatchery: address = empty(address)
+    lootDistributor: address = empty(address)
+    appraiser: address = empty(address)
+    lastTotalUsdValue: uint256 = 0
+    if not inEjectMode:
+        hq = UNDY_HQ
+        ledger = staticcall Registry(hq).getAddr(LEDGER_ID)
+        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID)
+        legoBook = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
+        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID)
+        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID)
+        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID)
+        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)
+
+    # lego details
+    legoAddr: address = empty(address)
+    if _legoId != 0 and legoBook != empty(address):
+        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
+
+    return ws.ActionData(
+        ledger = ledger,
+        missionControl = missionControl,
+        legoBook = legoBook,
+        hatchery = hatchery,
+        lootDistributor = lootDistributor,
+        appraiser = appraiser,
+        wallet = wallet,
+        walletConfig = self,
+        walletOwner = owner,
+        inEjectMode = inEjectMode,
+        isFrozen = self.isFrozen,
+        lastTotalUsdValue = lastTotalUsdValue,
+        signer = _signer,
+        isManager = _signer != owner,
+        legoId = _legoId,
+        legoAddr = legoAddr,
+        eth = ETH,
+        weth = WETH,
+    )

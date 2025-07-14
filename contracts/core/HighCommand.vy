@@ -727,6 +727,75 @@ def _validateAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS])
     return True
 
 
+###################
+# Wallet Defaults #
+###################
+
+
+# global manager settings
+
+
+@view
+@external
+def createDefaultGlobalManagerSettings(
+    _managerPeriod: uint256,
+    _minTimeLock: uint256,
+    _defaultActivationLength: uint256,
+) -> wcs.GlobalManagerSettings:
+    config: wcs.GlobalManagerSettings = empty(wcs.GlobalManagerSettings)
+    config.managerPeriod = _managerPeriod
+    config.startDelay = _minTimeLock
+    config.activationLength = _defaultActivationLength
+    config.canOwnerManage = True
+    config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
+    return config
+
+
+# starter agent settings
+
+
+@view
+@external
+def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings:
+    config: wcs.ManagerSettings = wcs.ManagerSettings(
+        startBlock = block.number,
+        expiryBlock = block.number + _startingAgentActivationLength,
+        limits = empty(wcs.ManagerLimits),
+        legoPerms = empty(wcs.LegoPerms),
+        whitelistPerms = empty(wcs.WhitelistPerms),
+        transferPerms = empty(wcs.TransferPerms),
+        allowedAssets = [],
+    )
+    config.legoPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
+    return config
+
+
+# happy defaults
+
+
+@pure
+@internal
+def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.WhitelistPerms, wcs.TransferPerms):
+    return wcs.LegoPerms(
+        canManageYield = True,
+        canBuyAndSell = True,
+        canManageDebt = True,
+        canManageLiq = True,
+        canClaimRewards = True,
+        allowedLegos = [],
+    ), wcs.WhitelistPerms(
+        canAddPending = False,
+        canConfirm = True,
+        canCancel = True,
+        canRemove = False,
+    ), wcs.TransferPerms(
+        canTransfer = True,
+        canCreateCheque = True,
+        canAddPendingPayee = True,
+        allowedPayees = [],
+    )
+
+
 #############
 # Utilities #
 #############
