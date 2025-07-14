@@ -437,7 +437,7 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return 0
+    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
 
 
 ################

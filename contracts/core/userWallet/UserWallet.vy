@@ -1279,11 +1279,12 @@ def _payTransactionFee(
     _lootDistributor: address,
     _missionControl: address,
 ) -> uint256:
-    feeAmount: uint256 = _transactionValue * _feeRatio // HUNDRED_PERCENT
-    if _lootDistributor != empty(address) and feeAmount != 0:
-        assert extcall IERC20(_asset).approve(_lootDistributor, feeAmount, default_return_value = True) # dev: appr
-        extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action, _missionControl)
-        self._resetApproval(_asset, _lootDistributor)
+    feeAmount: uint256 = min(_transactionValue * _feeRatio // HUNDRED_PERCENT, staticcall IERC20(_asset).balanceOf(self))
+    if feeAmount == 0:
+        return 0
+    assert extcall IERC20(_asset).approve(_lootDistributor, feeAmount, default_return_value = True) # dev: appr
+    extcall LootDistributor(_lootDistributor).addLootFromSwapOrRewards(_asset, feeAmount, _action, _missionControl)
+    self._resetApproval(_asset, _lootDistributor)
     return feeAmount
 
 

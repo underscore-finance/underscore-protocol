@@ -454,7 +454,7 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return 0
+    return staticcall CompoundV2(_asset).exchangeRateStored() * (10 ** _decimals) // (10 ** 18)
 
 
 ################
