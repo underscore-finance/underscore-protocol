@@ -20,6 +20,7 @@ interface MissionControl:
 
 flag ActionType:
     USER_WALLET_TEMPLATES
+    TRIAL_FUNDS
 
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
@@ -30,6 +31,16 @@ event PendingUserWalletTemplatesChange:
 event UserWalletTemplatesSet:
     walletTemplate: address
     configTemplate: address
+
+event PendingTrialFundsChange:
+    trialAsset: address
+    trialAmount: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event TrialFundsSet:
+    trialAsset: address
+    trialAmount: uint256
 
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
@@ -72,6 +83,21 @@ def _areValidUserWalletTemplates(_walletTemplate: address, _configTemplate: addr
     if not _walletTemplate.is_contract or not _configTemplate.is_contract:
         return False
     return True
+
+
+# trial funds
+
+
+@external
+def setTrialFunds(_trialAsset: address, _trialAmount: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    return self._setUserWalletConfig(
+        ActionType.TRIAL_FUNDS,
+        empty(address),
+        empty(address),
+        _trialAsset,
+        _trialAmount
+    )
 
 
 # set pending general config
@@ -143,6 +169,14 @@ def _setUserWalletConfig(
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
+
+    elif _actionType == ActionType.TRIAL_FUNDS:
+        log PendingTrialFundsChange(
+            trialAsset=_trialAsset,
+            trialAmount=_trialAmount,
+            confirmationBlock=confirmationBlock,
+            actionId=aid,
+        )
     return aid
 
 
@@ -171,6 +205,14 @@ def executePendingAction(_aid: uint256) -> bool:
         config.configTemplate = p.configTemplate
         extcall MissionControl(mc).setUserWalletConfig(config)
         log UserWalletTemplatesSet(walletTemplate=p.walletTemplate, configTemplate=p.configTemplate)
+
+    elif actionType == ActionType.TRIAL_FUNDS:
+        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+        p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
+        config.trialAsset = p.trialAsset
+        config.trialAmount = p.trialAmount
+        extcall MissionControl(mc).setUserWalletConfig(config)
+        log TrialFundsSet(trialAsset=p.trialAsset, trialAmount=p.trialAmount)
 
     self.actionType[_aid] = empty(ActionType)
     return True

@@ -304,3 +304,166 @@ def test_multiple_pending_wallet_template_updates(switchboard_alpha, governance,
     
     assert pending1.walletTemplate == wallet_template_v2.address
     assert pending2.walletTemplate == wallet_v3.address
+
+
+###############
+# Trial Funds #
+###############
+
+
+def test_set_trial_funds_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful trial funds update through full lifecycle"""
+    # Get initial config from MissionControl
+    initial_config = mission_control.userWalletConfig()
+    initial_trial_asset = initial_config.trialAsset
+    initial_trial_amount = initial_config.trialAmount
+    
+    # New trial funds values
+    new_trial_asset = alpha_token.address
+    new_trial_amount = 100 * 10**18  # 100 ALPHA tokens (assuming 18 decimals)
+    
+    # Step 1: Initiate trial funds change
+    aid = switchboard_alpha.setTrialFunds(
+        new_trial_asset,
+        new_trial_amount,
+        sender=governance.address
+    )
+    
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingTrialFundsChange")
+    assert len(logs) == 1
+    assert logs[0].trialAsset == new_trial_asset
+    assert logs[0].trialAmount == new_trial_amount
+    assert logs[0].actionId == aid
+    # Confirmation block should be current block + timelock
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Step 3: Verify pending state
+    assert switchboard_alpha.actionType(aid) == 2  # TRIAL_FUNDS
+    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
+    assert pending_config.trialAsset == new_trial_asset
+    assert pending_config.trialAmount == new_trial_amount
+    
+    # Verify the action confirmation block matches what we expect
+    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
+    
+    # Step 4: Try to execute before timelock - should fail silently
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change
+    current_config = mission_control.userWalletConfig()
+    assert current_config.trialAsset == initial_trial_asset
+    assert current_config.trialAmount == initial_trial_amount
+    
+    # Step 5: Time travel to one block before timelock - should still fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Travel one more block to reach exact timelock
+    boa.env.time_travel(blocks=1)
+    
+    # Step 6: Now execution should succeed
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "TrialFundsSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].trialAsset == new_trial_asset
+    assert exec_logs[0].trialAmount == new_trial_amount
+    
+    # Step 8: Verify state changes in MissionControl
+    updated_config = mission_control.userWalletConfig()
+    assert updated_config.trialAsset == new_trial_asset
+    assert updated_config.trialAmount == new_trial_amount
+    
+    # Verify other config fields remain unchanged
+    assert updated_config.walletTemplate == initial_config.walletTemplate
+    assert updated_config.configTemplate == initial_config.configTemplate
+    
+    # Step 9: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
+    # Note: pendingUserWalletConfig mapping is not cleared after execution
+
+
+def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, mission_control):
+    """Test that zero address and zero amount are allowed for trial funds"""
+    # Test with zero address and zero amount - should succeed
+    aid = switchboard_alpha.setTrialFunds(
+        ZERO_ADDRESS,
+        0,
+        sender=governance.address
+    )
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == 2  # TRIAL_FUNDS
+    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
+    assert pending_config.trialAsset == ZERO_ADDRESS
+    assert pending_config.trialAmount == 0
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify state changes
+    updated_config = mission_control.userWalletConfig()
+    assert updated_config.trialAsset == ZERO_ADDRESS
+    assert updated_config.trialAmount == 0
+
+
+def test_set_trial_funds_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance cannot set trial funds"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setTrialFunds(
+            alpha_token.address,
+            100 * 10**18,
+            sender=alice
+        )
+
+
+def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2, alpha_token):
+    """Test that trial funds and template updates can coexist as separate pending actions"""
+    # Create pending template update
+    aid1 = switchboard_alpha.setUserWalletTemplates(
+        wallet_template_v2.address,
+        config_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Create pending trial funds update
+    aid2 = switchboard_alpha.setTrialFunds(
+        alpha_token.address,
+        50 * 10**18,  # 50 ALPHA tokens
+        sender=governance.address
+    )
+    
+    # Verify both are pending with different action IDs and types
+    assert aid1 != aid2
+    assert switchboard_alpha.actionType(aid1) == 1  # USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid2) == 2  # TRIAL_FUNDS
+    
+    # Time travel and execute trial funds first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify trial funds updated but templates not yet
+    config = mission_control.userWalletConfig()
+    assert config.trialAsset == alpha_token.address
+    assert config.trialAmount == 50 * 10**18
+    assert config.walletTemplate != wallet_template_v2.address
+    
+    # Execute template update
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify both updates applied
+    final_config = mission_control.userWalletConfig()
+    assert final_config.walletTemplate == wallet_template_v2.address
+    assert final_config.configTemplate == config_template_v2.address
+    assert final_config.trialAsset == alpha_token.address
+    assert final_config.trialAmount == 50 * 10**18
