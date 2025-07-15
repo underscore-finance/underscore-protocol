@@ -34,6 +34,12 @@ interface Ledger:
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
 
+interface MissionControl:
+    def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
+    def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
+    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+    def canPerformSecurityAction(_addr: address) -> bool: view
+
 interface UserWallet:
     def assetData(asset: address) -> WalletAssetData: view
     def assets(i: uint256) -> address: view
@@ -45,11 +51,6 @@ interface WalletBackpack:
     def paymaster() -> address: view
     def migrator() -> address: view
     def sentinel() -> address: view
-
-interface MissionControl:
-    def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
-    def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
-    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
 interface HighCommand:
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
@@ -282,7 +283,7 @@ def clawBackTrialFunds(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    if not addys._isSwitchboardAddr(msg.sender):
+    if not addys._isSwitchboardAddr(msg.sender) and not staticcall MissionControl(a.missionControl).canPerformSecurityAction(msg.sender):
         assert staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
     return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
 

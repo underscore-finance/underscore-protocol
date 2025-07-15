@@ -609,7 +609,8 @@ def cancelPendingPayee(_payee: address):
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
     newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
     extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue
@@ -618,7 +619,8 @@ def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) 
 @external
 def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
 
     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
     if numAssets == 0:
