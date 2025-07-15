@@ -20,10 +20,10 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import LegoPartner as Lego
 from interfaces import Department
 
-event LegoBackpack:
+event LegoToolsSet:
     addr: indexed(address)
 
-legoBackpack: public(address)
+legoTools: public(address)
 
 
 @deploy
@@ -112,30 +112,30 @@ def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
     return registry._cancelAddressDisableInRegistry(_regId)
 
 
-#################
-# Lego Backpack #
-#################
+##############
+# Lego Tools #
+##############
 
 
 @external
-def setLegoBackpack(_addr: address) -> bool:
+def setLegoTools(_addr: address) -> bool:
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    if not self._isValidLegoBackpack(_addr):
+    if not self._isValidLegoTools(_addr):
         return False
-    self.legoBackpack = _addr
-    log LegoBackpack(addr = _addr)
+    self.legoTools = _addr
+    log LegoToolsSet(addr = _addr)
     return True
 
 
 @view
 @external 
-def isValidLegoBackpack(_addr: address) -> bool:
-    return self._isValidLegoBackpack(_addr)
+def isValidLegoTools(_addr: address) -> bool:
+    return self._isValidLegoTools(_addr)
 
 
 @view
 @internal 
-def _isValidLegoBackpack(_addr: address) -> bool:
+def _isValidLegoTools(_addr: address) -> bool:
     if not _addr.is_contract or _addr == empty(address):
         return False
-    return _addr != self.legoBackpack
+    return _addr != self.legoTools

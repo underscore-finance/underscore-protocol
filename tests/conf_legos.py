@@ -4,7 +4,7 @@ import boa
 from config.BluePrint import INTEGRATION_ADDYS, TOKENS
 
 @pytest.fixture(scope="session")
-def lego_helper(
+def lego_tools(
     undy_hq_deploy,
     lego_aave_v3,
     lego_compound_v3,
@@ -28,7 +28,7 @@ def lego_helper(
         usdc = TOKENS[fork]["USDC"]
 
     h = boa.load(
-        "contracts/legos/LegoHelper.vy",
+        "contracts/legos/LegoTools.vy",
         undy_hq_deploy,
         usdc,
         weth,
@@ -43,9 +43,9 @@ def lego_helper(
         lego_book.getRegId(lego_aero_classic),
         lego_book.getRegId(lego_aero_slipstream),
         lego_book.getRegId(lego_curve),
-        name="lego_helper",
+        name="lego_tools",
     )
-    assert lego_book.setLegoBackpack(h, sender=switchboard_alpha)
+    assert lego_book.setLegoTools(h, sender=switchboard_alpha)
     return h
 
 
