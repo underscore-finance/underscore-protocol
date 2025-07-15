@@ -403,8 +403,7 @@ def claimRewards(
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    # only allowing user wallets to do this
-    assert self._isUserWallet(msg.sender) # dev: not a user wallet
+    # NOTE: not checking isUserWallet -- Ripe's Endaoment needs to be able to call this
     assert msg.sender == _user # dev: recipient must be caller
 
     assert _rewardToken == RIPE_TOKEN # dev: invalid reward token
