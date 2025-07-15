@@ -19,12 +19,13 @@ interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
 
+interface RipePriceDesk:
+    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
+    def addPriceSnapshot(_asset: address) -> bool: nonpayable
+
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
-
-interface RipePriceDesk:
-    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -641,6 +642,10 @@ def _updateAndGetPricePerShare(
     data, didPriceChange = self._getPricePerShareAndDidUpdate(_asset, _legoAddr, _staleBlocks, _decimals)
     if didPriceChange:
         self.lastPricePerShare[_asset] = data
+
+        # tell Ripe to update snapshot (for weighted average for borrowers)
+        self._updateRipeSnapshot(_asset)
+
     return data.pricePerShare
 
 
@@ -662,6 +667,14 @@ def _getRipePrice(_asset: address) -> uint256:
     if ripePriceDesk == empty(address):
         return 0
     return staticcall RipePriceDesk(ripePriceDesk).getPrice(_asset, False)
+
+
+@internal
+def _updateRipeSnapshot(_asset: address):
+    ripePriceDesk: address = staticcall Registry(RIPE_HQ).getAddr(RIPE_PRICE_DESK_ID)
+    if ripePriceDesk == empty(address):
+        return
+    extcall RipePriceDesk(ripePriceDesk).addPriceSnapshot(_asset)
 
 
 #########

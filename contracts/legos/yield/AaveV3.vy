@@ -482,7 +482,7 @@ def _getPoolDataProvider() -> address:
 @view
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return 0
+    return 10 ** _decimals # 1:1
 
 
 ################

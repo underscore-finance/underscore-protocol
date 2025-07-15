@@ -33,6 +33,11 @@ def getAddr(_regId: uint256) -> address:
     return self.addr
 
 
+@external
+def addPriceSnapshot(_asset: address) -> bool:
+    return True
+
+
 # MOCK RIPE PRICE DESK
 
 
