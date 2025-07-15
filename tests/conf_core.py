@@ -182,6 +182,7 @@ def switchboard_alpha(undy_hq_deploy, fork):
     return boa.load(
         "contracts/config/SwitchboardAlpha.vy",
         undy_hq_deploy,
+        ZERO_ADDRESS,
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
         PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
         name="switchboard_alpha",
