@@ -21,6 +21,7 @@ interface MissionControl:
 flag ActionType:
     USER_WALLET_TEMPLATES
     TRIAL_FUNDS
+    WALLET_CREATION_LIMITS
 
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
@@ -41,6 +42,16 @@ event PendingTrialFundsChange:
 event TrialFundsSet:
     trialAsset: address
     trialAmount: uint256
+
+event PendingWalletCreationLimitsChange:
+    numUserWalletsAllowed: uint256
+    enforceCreatorWhitelist: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event WalletCreationLimitsSet:
+    numUserWalletsAllowed: uint256
+    enforceCreatorWhitelist: bool
 
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
@@ -98,6 +109,35 @@ def setTrialFunds(_trialAsset: address, _trialAmount: uint256) -> uint256:
         _trialAsset,
         _trialAmount
     )
+
+
+# wallet creation limits
+
+
+@external
+def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhitelist: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert self._isValidNumUserWalletsAllowed(_numUserWalletsAllowed) # dev: invalid num user wallets allowed
+    return self._setUserWalletConfig(
+        ActionType.WALLET_CREATION_LIMITS,
+        empty(address),
+        empty(address),
+        empty(address),
+        0,
+        _numUserWalletsAllowed,
+        _enforceCreatorWhitelist
+    )
+
+
+@view
+@internal
+def _isValidNumUserWalletsAllowed(_numUserWalletsAllowed: uint256) -> bool:
+    if _numUserWalletsAllowed == 0:
+        return False
+    if _numUserWalletsAllowed == max_value(uint256):
+        return False
+    return True
 
 
 # set pending general config
@@ -169,11 +209,17 @@ def _setUserWalletConfig(
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
-
     elif _actionType == ActionType.TRIAL_FUNDS:
         log PendingTrialFundsChange(
             trialAsset=_trialAsset,
             trialAmount=_trialAmount,
+            confirmationBlock=confirmationBlock,
+            actionId=aid,
+        )
+    elif _actionType == ActionType.WALLET_CREATION_LIMITS:
+        log PendingWalletCreationLimitsChange(
+            numUserWalletsAllowed=_numUserWalletsAllowed,
+            enforceCreatorWhitelist=_enforceCreatorWhitelist,
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
@@ -213,6 +259,14 @@ def executePendingAction(_aid: uint256) -> bool:
         config.trialAmount = p.trialAmount
         extcall MissionControl(mc).setUserWalletConfig(config)
         log TrialFundsSet(trialAsset=p.trialAsset, trialAmount=p.trialAmount)
+
+    elif actionType == ActionType.WALLET_CREATION_LIMITS:
+        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+        p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
+        config.numUserWalletsAllowed = p.numUserWalletsAllowed
+        config.enforceCreatorWhitelist = p.enforceCreatorWhitelist
+        extcall MissionControl(mc).setUserWalletConfig(config)
+        log WalletCreationLimitsSet(numUserWalletsAllowed=p.numUserWalletsAllowed, enforceCreatorWhitelist=p.enforceCreatorWhitelist)
 
     self.actionType[_aid] = empty(ActionType)
     return True

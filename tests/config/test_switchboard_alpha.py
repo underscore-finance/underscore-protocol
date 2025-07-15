@@ -1,7 +1,7 @@
 import pytest
 import boa
 from conf_utils import filter_logs
-from constants import ZERO_ADDRESS
+from constants import ZERO_ADDRESS, CONFIG_ACTION_TYPE
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +48,7 @@ def test_set_user_wallet_templates_success(switchboard_alpha, governance, missio
     assert logs[0].confirmationBlock == expected_confirmation_block
     
     # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == 1  # USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
     assert pending_config.walletTemplate == user_wallet_template_v2.address
     assert pending_config.configTemplate == user_wallet_config_template_v2.address
@@ -175,7 +175,7 @@ def test_cancel_pending_wallet_template_update(switchboard_alpha, governance, mi
     )
     
     # Verify pending action exists
-    assert switchboard_alpha.actionType(aid) == 1  # USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     
     # Cancel the action
     result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
@@ -222,7 +222,7 @@ def test_execute_expired_wallet_template_update(switchboard_alpha, governance, m
     )
     
     # Verify pending action exists
-    assert switchboard_alpha.actionType(aid) == 1  # USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     
     # Travel to exactly the last valid block (timelock + expiration - 1)
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + switchboard_alpha.expiration() - 1)
@@ -340,7 +340,7 @@ def test_set_trial_funds_success(switchboard_alpha, governance, mission_control,
     assert logs[0].confirmationBlock == expected_confirmation_block
     
     # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == 2  # TRIAL_FUNDS
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
     assert pending_config.trialAsset == new_trial_asset
     assert pending_config.trialAmount == new_trial_amount
@@ -399,7 +399,7 @@ def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, miss
     )
     
     # Verify pending state
-    assert switchboard_alpha.actionType(aid) == 2  # TRIAL_FUNDS
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
     assert pending_config.trialAsset == ZERO_ADDRESS
     assert pending_config.trialAmount == 0
@@ -443,8 +443,8 @@ def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governan
     
     # Verify both are pending with different action IDs and types
     assert aid1 != aid2
-    assert switchboard_alpha.actionType(aid1) == 1  # USER_WALLET_TEMPLATES
-    assert switchboard_alpha.actionType(aid2) == 2  # TRIAL_FUNDS
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
     
     # Time travel and execute trial funds first
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
@@ -467,3 +467,199 @@ def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governan
     assert final_config.configTemplate == config_template_v2.address
     assert final_config.trialAsset == alpha_token.address
     assert final_config.trialAmount == 50 * 10**18
+
+
+##########################
+# Wallet Creation Limits #
+##########################
+
+
+def test_set_wallet_creation_limits_success(switchboard_alpha, governance, mission_control):
+    """Test successful wallet creation limits update through full lifecycle"""
+    # Get initial config from MissionControl
+    initial_config = mission_control.userWalletConfig()
+    initial_num_wallets_allowed = initial_config.numUserWalletsAllowed
+    initial_enforce_whitelist = initial_config.enforceCreatorWhitelist
+    
+    # New wallet creation limits values
+    new_num_wallets_allowed = 100
+    new_enforce_whitelist = True
+    
+    # Step 1: Initiate wallet creation limits change
+    aid = switchboard_alpha.setWalletCreationLimits(
+        new_num_wallets_allowed,
+        new_enforce_whitelist,
+        sender=governance.address
+    )
+    
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingWalletCreationLimitsChange")
+    assert len(logs) == 1
+    assert logs[0].numUserWalletsAllowed == new_num_wallets_allowed
+    assert logs[0].enforceCreatorWhitelist == new_enforce_whitelist
+    assert logs[0].actionId == aid
+    # Confirmation block should be current block + timelock
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Step 3: Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
+    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
+    assert pending_config.numUserWalletsAllowed == new_num_wallets_allowed
+    assert pending_config.enforceCreatorWhitelist == new_enforce_whitelist
+    
+    # Verify the action confirmation block matches what we expect
+    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
+    
+    # Step 4: Try to execute before timelock - should fail silently
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change
+    current_config = mission_control.userWalletConfig()
+    assert current_config.numUserWalletsAllowed == initial_num_wallets_allowed
+    assert current_config.enforceCreatorWhitelist == initial_enforce_whitelist
+    
+    # Step 5: Time travel to one block before timelock - should still fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Travel one more block to reach exact timelock
+    boa.env.time_travel(blocks=1)
+    
+    # Step 6: Now execution should succeed
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "WalletCreationLimitsSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].numUserWalletsAllowed == new_num_wallets_allowed
+    assert exec_logs[0].enforceCreatorWhitelist == new_enforce_whitelist
+    
+    # Step 8: Verify state changes in MissionControl
+    updated_config = mission_control.userWalletConfig()
+    assert updated_config.numUserWalletsAllowed == new_num_wallets_allowed
+    assert updated_config.enforceCreatorWhitelist == new_enforce_whitelist
+    
+    # Verify other config fields remain unchanged
+    assert updated_config.walletTemplate == initial_config.walletTemplate
+    assert updated_config.configTemplate == initial_config.configTemplate
+    assert updated_config.trialAsset == initial_config.trialAsset
+    assert updated_config.trialAmount == initial_config.trialAmount
+    
+    # Step 9: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
+    # Note: pendingUserWalletConfig mapping is not cleared after execution
+
+
+def test_set_wallet_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
+    """Test that large (but not max) values are allowed for wallet creation limits"""
+    # Test with large value (max uint256 - 1) and false
+    large_value = 2**256 - 2  # max uint256 - 1
+    aid = switchboard_alpha.setWalletCreationLimits(
+        large_value,
+        False,
+        sender=governance.address
+    )
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
+    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
+    assert pending_config.numUserWalletsAllowed == large_value
+    assert pending_config.enforceCreatorWhitelist == False
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify state changes
+    updated_config = mission_control.userWalletConfig()
+    assert updated_config.numUserWalletsAllowed == large_value
+    assert updated_config.enforceCreatorWhitelist == False
+
+
+def test_set_wallet_creation_limits_invalid_values_revert(switchboard_alpha, governance):
+    """Test that invalid values (0 and max_value) revert"""
+    # Test with 0 - should revert
+    with boa.reverts("invalid num user wallets allowed"):
+        switchboard_alpha.setWalletCreationLimits(
+            0,
+            True,
+            sender=governance.address
+        )
+    
+    # Test with max_value(uint256) - should revert
+    with boa.reverts("invalid num user wallets allowed"):
+        switchboard_alpha.setWalletCreationLimits(
+            2**256 - 1,  # max uint256
+            False,
+            sender=governance.address
+        )
+
+
+def test_set_wallet_creation_limits_non_governance_reverts(switchboard_alpha, alice):
+    """Test that non-governance cannot set wallet creation limits"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setWalletCreationLimits(
+            100,
+            True,
+            sender=alice
+        )
+
+
+def test_set_wallet_creation_limits_mixed_with_other_updates(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2, alpha_token):
+    """Test that wallet creation limits can coexist with other pending actions"""
+    # Create pending template update
+    aid1 = switchboard_alpha.setUserWalletTemplates(
+        wallet_template_v2.address,
+        config_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Create pending trial funds update
+    aid2 = switchboard_alpha.setTrialFunds(
+        alpha_token.address,
+        25 * 10**18,
+        sender=governance.address
+    )
+    
+    # Create pending wallet creation limits update
+    aid3 = switchboard_alpha.setWalletCreationLimits(
+        50,
+        True,
+        sender=governance.address
+    )
+    
+    # Verify all are pending with different action IDs and types
+    assert aid1 != aid2 != aid3
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
+    assert switchboard_alpha.actionType(aid3) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
+    
+    # Time travel and execute wallet creation limits first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid3, sender=governance.address)
+    assert result == True
+    
+    # Verify only wallet creation limits updated
+    config = mission_control.userWalletConfig()
+    assert config.numUserWalletsAllowed == 50
+    assert config.enforceCreatorWhitelist == True
+    assert config.walletTemplate != wallet_template_v2.address
+    assert config.trialAsset != alpha_token.address
+    
+    # Execute other updates
+    assert switchboard_alpha.executePendingAction(aid1, sender=governance.address) == True
+    assert switchboard_alpha.executePendingAction(aid2, sender=governance.address) == True
+    
+    # Verify all updates applied
+    final_config = mission_control.userWalletConfig()
+    assert final_config.walletTemplate == wallet_template_v2.address
+    assert final_config.configTemplate == config_template_v2.address
+    assert final_config.trialAsset == alpha_token.address
+    assert final_config.trialAmount == 25 * 10**18
+    assert final_config.numUserWalletsAllowed == 50
+    assert final_config.enforceCreatorWhitelist == True

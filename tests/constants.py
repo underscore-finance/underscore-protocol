@@ -44,3 +44,11 @@ class WHITELIST_ACTION(IntFlag):
     CONFIRM_WHITELIST = 2  # 2^1
     CANCEL_WHITELIST = 4  # 2^2
     REMOVE_WHITELIST = 8  # 2^3
+
+
+# Action types for SwitchboardAlpha configuration operations
+# These match the Vyper flag enum (powers of 2)
+class CONFIG_ACTION_TYPE(IntFlag):
+    USER_WALLET_TEMPLATES = 1  # 2^0
+    TRIAL_FUNDS = 2  # 2^1
+    WALLET_CREATION_LIMITS = 4  # 2^2
