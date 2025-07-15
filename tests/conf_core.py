@@ -341,7 +341,7 @@ def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, m
 @pytest.fixture(scope="session")
 def high_command(undy_hq_deploy, fork):
     return boa.load(
-        "contracts/core/HighCommand.vy",
+        "contracts/core/walletBackpack/HighCommand.vy",
         undy_hq_deploy,
         PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
         PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
@@ -358,7 +358,7 @@ def high_command(undy_hq_deploy, fork):
 @pytest.fixture(scope="session")
 def paymaster(undy_hq_deploy, fork):
     return boa.load(
-        "contracts/core/Paymaster.vy",
+        "contracts/core/walletBackpack/Paymaster.vy",
         undy_hq_deploy,
         PARAMS[fork]["PAYMASTER_MIN_PAYEE_PERIOD"],
         PARAMS[fork]["PAYMASTER_MAX_PAYEE_PERIOD"],
@@ -375,7 +375,7 @@ def paymaster(undy_hq_deploy, fork):
 @pytest.fixture(scope="session")
 def migrator(undy_hq_deploy):
     return boa.load(
-        "contracts/core/Migrator.vy",
+        "contracts/core/walletBackpack/Migrator.vy",
         undy_hq_deploy,
         name="migrator",
     )
@@ -387,7 +387,7 @@ def migrator(undy_hq_deploy):
 @pytest.fixture(scope="session")
 def sentinel():
     return boa.load(
-        "contracts/core/Sentinel.vy",
+        "contracts/core/walletBackpack/Sentinel.vy",
         name="sentinel",
     )
 
