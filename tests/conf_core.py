@@ -36,11 +36,8 @@ def undy_hq(
     mission_control,
     hatchery,
     appraiser,
-    high_command,
-    paymaster,
-    migrator,
+    wallet_backpack_deploy,
     loot_distributor,
-    sentinel,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -80,20 +77,8 @@ def undy_hq(
     assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
 
     # 9
-    assert undy_hq_deploy.startAddNewAddressToRegistry(high_command, "High Command", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(high_command, sender=deploy3r) == 9
-
-    # 10
-    assert undy_hq_deploy.startAddNewAddressToRegistry(paymaster, "Paymaster", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(paymaster, sender=deploy3r) == 10
-
-    # 11
-    assert undy_hq_deploy.startAddNewAddressToRegistry(migrator, "Migrator", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(migrator, sender=deploy3r) == 11
-
-    # 12
-    assert undy_hq_deploy.startAddNewAddressToRegistry(sentinel, "Sentinel", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(sentinel, sender=deploy3r) == 12
+    assert undy_hq_deploy.startAddNewAddressToRegistry(wallet_backpack_deploy, "Wallet Backpack", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(wallet_backpack_deploy, sender=deploy3r) == 9
 
     # special permission setup
 
@@ -302,6 +287,52 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
         TOKENS[fork]["ETH"],
         name="appraiser",
     )
+
+
+###################
+# Wallet Backpack #
+###################
+
+
+@pytest.fixture(scope="session")
+def wallet_backpack_deploy(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/WalletBackpack.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="wallet_backpack",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, migrator, governance):
+
+    # set sentinel
+    wallet_backpack_deploy.addPendingSentinel(sentinel, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingSentinel(sender=governance.address)
+
+    # set high command
+    wallet_backpack_deploy.addPendingHighCommand(high_command, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingHighCommand(sender=governance.address)
+
+    # set paymaster
+    wallet_backpack_deploy.addPendingPaymaster(paymaster, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingPaymaster(sender=governance.address)
+
+    # set migrator
+    wallet_backpack_deploy.addPendingMigrator(migrator, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingMigrator(sender=governance.address)
+
+    # set action time lock
+    wallet_backpack_deploy.setActionTimeLockAfterSetup(sender=governance.address)
+
+    return wallet_backpack_deploy
 
 
 # high command

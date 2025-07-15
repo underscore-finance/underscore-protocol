@@ -43,6 +43,9 @@ numAgents: public(uint256) # num agents
 # vault tokens
 vaultTokens: public(HashMap[address, VaultToken]) # vault token -> data
 
+# backpack items
+isRegisteredBackpackItem: public(HashMap[address, bool]) # asset -> is registered
+
 
 @deploy
 def __init__(_undyHq: address):
@@ -162,6 +165,17 @@ def setVaultToken(
         decimals = _decimals,
         isRebasing = _isRebasing,
     )
+
+
+##################
+# Backpack Items #
+##################
+
+
+@external
+def registerBackpackItem(_addr: address):
+    assert msg.sender == addys._getWalletBackpackAddr() # dev: no perms
+    self.isRegisteredBackpackItem[_addr] = True
 
 
 ##########

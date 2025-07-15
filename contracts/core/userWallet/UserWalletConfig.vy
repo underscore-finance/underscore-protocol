@@ -26,16 +26,17 @@ interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
-    
+
+interface Ledger:
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
+    def getLastTotalUsdValue(_user: address) -> uint256: view
+
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
     def isLockedSigner(_signer: address) -> bool: view
 
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
-
-interface Ledger:
-    def getLastTotalUsdValue(_user: address) -> uint256: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -763,6 +764,49 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+###################
+# Wallet Backpack #
+###################
+
+
+@external
+def setSentinel(_sentinel: address):
+    assert self._canSetBackpackItem(_sentinel, msg.sender) # dev: no perms
+    self.sentinel = _sentinel
+
+
+@external
+def setHighCommand(_highCommand: address):
+    assert self._canSetBackpackItem(_highCommand, msg.sender) # dev: no perms
+    self.highCommand = _highCommand
+
+
+@external
+def setPaymaster(_paymaster: address):
+    assert self._canSetBackpackItem(_paymaster, msg.sender) # dev: no perms
+    self.paymaster = _paymaster
+
+
+@external
+def setMigrator(_migrator: address):
+    assert self._canSetBackpackItem(_migrator, msg.sender) # dev: no perms
+    self.migrator = _migrator
+
+
+# validation
+
+
+@view
+@internal
+def _canSetBackpackItem(_newBackpackAddr: address, _caller: address) -> bool:
+    if _caller != ownership.owner:
+        return False
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_newBackpackAddr)
 
 
 ######################

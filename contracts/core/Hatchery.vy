@@ -34,6 +34,12 @@ interface Ledger:
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
 
+interface WalletBackpack:
+    def highCommand() -> address: view
+    def paymaster() -> address: view
+    def migrator() -> address: view
+    def sentinel() -> address: view
+
 interface UserWallet:
     def assetData(asset: address) -> WalletAssetData: view
     def assets(i: uint256) -> address: view
@@ -170,12 +176,18 @@ def createUserWallet(
         trialFundsAsset = config.trialAsset
         trialFundsAmount = config.trialAmount
 
+    # get wallet backpack addys
+    sentinel: address = staticcall WalletBackpack(a.walletBackpack).sentinel()
+    highCommand: address = staticcall WalletBackpack(a.walletBackpack).highCommand()
+    paymaster: address = staticcall WalletBackpack(a.walletBackpack).paymaster()
+    migrator: address = staticcall WalletBackpack(a.walletBackpack).migrator()
+
     # default manager / payee settings
-    globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(a.highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
-    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(a.paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
+    globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
+    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     if config.startingAgent != empty(address):
-        starterAgentSettings = staticcall HighCommand(a.highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
+        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
 
     # create wallet contracts
     walletConfigAddr: address = create_from_blueprint(
@@ -189,10 +201,10 @@ def createUserWallet(
         globalPayeeSettings,
         config.startingAgent,
         starterAgentSettings,
-        a.sentinel,
-        a.highCommand,
-        a.paymaster,
-        a.migrator,
+        sentinel,
+        highCommand,
+        paymaster,
+        migrator,
         WETH,
         ETH,
         config.minKeyActionTimeLock,

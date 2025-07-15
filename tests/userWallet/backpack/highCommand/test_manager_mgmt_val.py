@@ -230,6 +230,19 @@ def test_valid_allowed_assets_multiple(high_command, user_wallet, charlie, creat
 
 
 def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    # First reset to a known clean state with no permissions
+    clean_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(
+            _canManageYield=False,
+            _canBuyAndSell=False,
+            _canManageDebt=False,
+            _canManageLiq=False,
+            _canClaimRewards=False,
+            _allowedLegos=[]
+        )
+    )
+    user_wallet_config.setGlobalManagerSettings(clean_settings, sender=high_command.address)
+    
     # setup: set global manager settings with restricted legos
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(
@@ -511,6 +524,19 @@ def test_update_manager_invalid_allowed_assets(high_command, user_wallet, alice,
 
 
 def test_update_manager_respects_global_lego_restrictions(high_command, user_wallet, alice, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    # First reset to a known clean state with no permissions
+    clean_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(
+            _canManageYield=False,
+            _canBuyAndSell=False,
+            _canManageDebt=False,
+            _canManageLiq=False,
+            _canClaimRewards=False,
+            _allowedLegos=[]
+        )
+    )
+    user_wallet_config.setGlobalManagerSettings(clean_settings, sender=high_command.address)
+    
     # setup: set global manager settings with lego restrictions
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(

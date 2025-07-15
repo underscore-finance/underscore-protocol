@@ -10,6 +10,12 @@ flag WhitelistAction:
     CANCEL_WHITELIST
     REMOVE_WHITELIST
 
+flag BackpackType:
+    WALLET_SENTINEL
+    WALLET_HIGH_COMMAND
+    WALLET_PAYMASTER
+    WALLET_MIGRATOR
+
 # payees
 
 struct PayeeData:
