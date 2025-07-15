@@ -27,6 +27,11 @@ interface CompoundV2:
     def totalSupply() -> uint256: view
     def underlying() -> address: view
 
+interface MoonwellComptroller:
+    def getAllMarkets() -> DynArray[address, MAX_MARKETS]: view
+    def claimReward(_holder: address): nonpayable
+    def rewardDistributor() -> address: view
+
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
@@ -35,14 +40,24 @@ interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
-interface MoonwellComptroller:
-    def getAllMarkets() -> DynArray[address, MAX_MARKETS]: view
+interface MoonwellRewardDistributor:
+    def getOutstandingRewardsForUser(_user: address) -> DynArray[RewardWithMToken, MAX_MARKETS]: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
 
 interface WethContract:
     def deposit(): payable
+
+struct RewardWithMToken:
+    mToken: address
+    rewards: DynArray[RewardInfo, MAX_ASSETS]
+
+struct RewardInfo:
+    emissionToken: address
+    totalAmount: uint256
+    supplySide: uint256
+    borrowSide: uint256
 
 event MoonwellDeposit:
     sender: indexed(address)
@@ -67,6 +82,7 @@ MOONWELL_COMPTROLLER: public(immutable(address))
 WETH: public(immutable(address))
 
 MAX_MARKETS: constant(uint256) = 50
+MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
 
 
@@ -306,6 +322,47 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
         self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 
     return asset
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+
+    assert msg.sender == _user # dev: recipient must be caller
+    preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
+
+    # claim rewards
+    extcall MoonwellComptroller(MOONWELL_COMPTROLLER).claimReward(_user)
+    rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
+    assert rewardAmount != 0 # dev: no rewards received
+
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    return rewardAmount, usdValue
+
+
+@view
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    rewardDistributor: address = staticcall MoonwellComptroller(MOONWELL_COMPTROLLER).rewardDistributor()
+    rewardsWithMToken: DynArray[RewardWithMToken, MAX_MARKETS] = staticcall MoonwellRewardDistributor(rewardDistributor).getOutstandingRewardsForUser(_user)
+    for i: uint256 in range(len(rewardsWithMToken), bound=MAX_MARKETS):
+        rewardsInfo: DynArray[RewardInfo, MAX_ASSETS] = rewardsWithMToken[i].rewards
+        for j: uint256 in range(len(rewardsInfo), bound=MAX_ASSETS):
+            if rewardsInfo[j].totalAmount > 0:
+                return True
+    return False
 
 
 #############
@@ -597,17 +654,6 @@ def repayDebt(
     _paymentAmount: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    return 0, 0
-
-
-@external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0

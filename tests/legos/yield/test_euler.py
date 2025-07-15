@@ -1,7 +1,8 @@
 import pytest
 import boa
 
-from config.BluePrint import TOKENS, TEST_AMOUNTS
+from config.BluePrint import TOKENS, TEST_AMOUNTS, INTEGRATION_ADDYS
+from constants import ACTION_TYPE
 
 
 VAULT_TOKENS = {
@@ -111,23 +112,27 @@ def test_euler_withdraw_partial(
     testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
 
 
-# @pytest.always
-# def test_euler_operator_access(
-#     lego_euler,
-#     bob,
-#     bob_user_wallet,
-#     governor,
-#     lego_book,
-# ):
-#     # set rewards
-#     euler_rewards = boa.from_etherscan("0x3ef3d8ba38ebe18db133cec108f4d14ce00dd9ae", name="euler_rewards")
-#     assert lego_euler.setEulerRewardsAddr(euler_rewards, sender=governor)
+@pytest.always
+def test_euler_operator_access(
+    lego_euler,
+    bob,
+    user_wallet,
+    user_wallet_config,
+    lego_book,
+    fork,
+):
+    if fork == "local":
+        pytest.skip("no euler rewards on this fork")
 
-#     # no acccess
-#     assert not euler_rewards.operators(bob_user_wallet.address, lego_euler.address)
+    # set rewards
+    euler_rewards = boa.from_etherscan(INTEGRATION_ADDYS[fork]["EULER_REWARDS"], name="euler_rewards")
 
-#     # claim rewards, will only set access (no reward token given)
-#     bob_user_wallet.claimRewards(lego_book.getRegId(lego_euler), sender=bob)
+    # no acccess
+    assert not euler_rewards.operators(user_wallet.address, lego_euler.address)
 
-#     # has access
-#     assert euler_rewards.operators(bob_user_wallet.address, lego_euler.address)
+    # set access
+    lego_id = lego_book.getRegId(lego_euler)
+    user_wallet_config.setLegoAccessForAction(lego_id, ACTION_TYPE.REWARDS, sender=bob)
+
+    # has access
+    assert euler_rewards.operators(user_wallet.address, lego_euler.address)

@@ -2,6 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import INTEGRATION_ADDYS, TOKENS
+from constants import ZERO_ADDRESS
 
 @pytest.fixture(scope="session")
 def lego_tools(
@@ -89,7 +90,8 @@ def lego_moonwell(mock_lego_registry, fork, lego_book, undy_hq_deploy, weth, gov
 @pytest.fixture(scope="session")
 def lego_compound_v3(mock_lego_registry, fork, lego_book, undy_hq_deploy, governance):
     COMPOUND_V3_CONFIGURATOR = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["COMPOUND_V3_CONFIGURATOR"]
-    addr = boa.load("contracts/legos/yield/CompoundV3.vy", undy_hq_deploy, COMPOUND_V3_CONFIGURATOR, name="lego_compound_v3")
+    COMPOUND_V3_REWARDS = ZERO_ADDRESS if fork == "local" else INTEGRATION_ADDYS[fork]["COMPOUND_V3_REWARDS"]
+    addr = boa.load("contracts/legos/yield/CompoundV3.vy", undy_hq_deploy, COMPOUND_V3_CONFIGURATOR, COMPOUND_V3_REWARDS, name="lego_compound_v3")
     lego_book.startAddNewAddressToRegistry(addr, "Compound V3", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -100,7 +102,8 @@ def lego_compound_v3(mock_lego_registry, fork, lego_book, undy_hq_deploy, govern
 def lego_morpho(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     MORPHO_FACTORY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["MORPHO_FACTORY"]
     MORPHO_FACTORY_LEGACY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["MORPHO_FACTORY_LEGACY"]
-    addr = boa.load("contracts/legos/yield/Morpho.vy", undy_hq_deploy, MORPHO_FACTORY, MORPHO_FACTORY_LEGACY, name="lego_morpho")
+    MORPHO_REWARDS = ZERO_ADDRESS if fork == "local" else INTEGRATION_ADDYS[fork]["MORPHO_REWARDS"]
+    addr = boa.load("contracts/legos/yield/Morpho.vy", undy_hq_deploy, MORPHO_FACTORY, MORPHO_FACTORY_LEGACY, MORPHO_REWARDS, name="lego_morpho")
     lego_book.startAddNewAddressToRegistry(addr, "Morpho", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -111,7 +114,8 @@ def lego_morpho(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry)
 def lego_euler(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     EULER_EVAULT_FACTORY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["EULER_EVAULT_FACTORY"]
     EULER_EARN_FACTORY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["EULER_EARN_FACTORY"]
-    addr = boa.load("contracts/legos/yield/Euler.vy", undy_hq_deploy, EULER_EVAULT_FACTORY, EULER_EARN_FACTORY, name="lego_euler")
+    EULER_REWARDS = ZERO_ADDRESS if fork == "local" else INTEGRATION_ADDYS[fork]["EULER_REWARDS"]
+    addr = boa.load("contracts/legos/yield/Euler.vy", undy_hq_deploy, EULER_EVAULT_FACTORY, EULER_EARN_FACTORY, EULER_REWARDS, name="lego_euler")
     lego_book.startAddNewAddressToRegistry(addr, "Euler", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0

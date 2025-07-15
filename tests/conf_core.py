@@ -306,7 +306,7 @@ def wallet_backpack_deploy(undy_hq_deploy, fork):
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, migrator, governance):
 
     # set sentinel

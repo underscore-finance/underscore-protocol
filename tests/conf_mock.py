@@ -13,14 +13,14 @@ from contracts.core.agent import AgentWrapper
 @pytest.fixture(scope="session")
 def ambassador_wallet(hatchery, alice, mission_control, switchboard_alpha, starter_agent):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
-    wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, False, 1, sender=alice)
+    wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, False, 1, sender=switchboard_alpha.address)
     return UserWallet.at(wallet_addr)
 
 
 @pytest.fixture(scope="session")
 def user_wallet(hatchery, bob, ambassador_wallet, mission_control, switchboard_alpha, starter_agent):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
-    wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, False, 1, sender=bob)
+    wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, False, 1, sender=switchboard_alpha.address)
     return UserWallet.at(wallet_addr)
 
 
@@ -30,8 +30,8 @@ def user_wallet_config(user_wallet):
 
 
 @pytest.fixture(scope="session")
-def starter_agent(hatchery, charlie):
-    agent_address = hatchery.createAgent(sender=charlie)
+def starter_agent(hatchery, charlie, switchboard_alpha):
+    agent_address = hatchery.createAgent(charlie, sender=switchboard_alpha.address)
     return AgentWrapper.at(agent_address)
 
 

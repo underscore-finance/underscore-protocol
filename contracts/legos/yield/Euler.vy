@@ -28,6 +28,10 @@ interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
+interface EulerRewardsDistributor:
+    def claim(_users: DynArray[address, 10], _rewardTokens: DynArray[address, 10], _claimAmounts: DynArray[uint256, 10], _proofs: DynArray[bytes32, 10]): nonpayable
+    def operators(_user: address, _operator: address) -> bool: view
+
 interface EulerEarnFactory:
     def isValidDeployment(_vault: address) -> bool: view
 
@@ -58,18 +62,26 @@ event EulerWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+event EulerRewardsAddrSet:
+    addr: address
+
+# rewards contract
+eulerRewards: public(address)
+
 # euler
 EULER_EVAULT_FACTORY: public(immutable(address))
 EULER_EARN_FACTORY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+LEGO_ACCESS_ABI: constant(String[64]) = "toggleOperator(address,address)"
 
 
 @deploy
 def __init__(
     _undyHq: address,
     _evaultFactory: address,
-    _earnFactory: address, 
+    _earnFactory: address,
+    _eulerRewardsAddr: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
@@ -77,6 +89,7 @@ def __init__(
     assert empty(address) not in [_evaultFactory, _earnFactory] # dev: invalid addrs
     EULER_EVAULT_FACTORY = _evaultFactory
     EULER_EARN_FACTORY = _earnFactory
+    self.eulerRewards = _eulerRewardsAddr
 
 
 @view
@@ -92,6 +105,19 @@ def hasCapability(_action: ws.ActionType) -> bool:
 @external
 def getRegistries() -> DynArray[address, 10]:
     return [EULER_EVAULT_FACTORY, EULER_EARN_FACTORY]
+
+
+@view
+@external
+def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
+    if _action != ws.ActionType.REWARDS:
+        return empty(address), empty(String[64]), 0
+
+    eulerRewards: address = self.eulerRewards
+    if staticcall EulerRewardsDistributor(eulerRewards).operators(_user, self):
+        return empty(address), empty(String[64]), 0
+    else:
+        return eulerRewards, LEGO_ACCESS_ABI, 2
 
 
 @view
@@ -298,6 +324,54 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
         self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 
     return asset
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+
+    assert msg.sender == _user # dev: recipient must be caller
+    preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
+
+    eulerRewards: address = self.eulerRewards
+    assert eulerRewards != empty(address) # dev: no eulerRewards rewards addr set
+    extcall EulerRewardsDistributor(eulerRewards).claim([_user], [_rewardToken], [_rewardAmount], [_extraData])
+    rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
+    assert rewardAmount != 0 # dev: no rewards received
+
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    return rewardAmount, usdValue
+
+
+@view
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    # as far as we can tell, this must be done offchain
+    return False
+
+
+# set rewards addr
+
+
+@external
+def setEulerRewardsAddr(_addr: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _addr != empty(address) # dev: invalid addr
+    self.eulerRewards = _addr
+    log EulerRewardsAddrSet(addr=_addr)
+    return True
 
 
 #############
@@ -594,17 +668,6 @@ def repayDebt(
 
 
 @external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    return 0, 0
-
-
-@external
 def addLiquidity(
     _pool: address,
     _tokenA: address,
@@ -670,12 +733,6 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
-
-
-@view
-@external
-def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
-    return empty(address), empty(String[64]), 0
 
 
 @view

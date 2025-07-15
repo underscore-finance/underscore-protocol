@@ -28,6 +28,9 @@ interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
+interface MorphoRewardsDistributor:
+    def claim(_user: address, _rewardToken: address, _claimable: uint256, _proof: bytes32) -> uint256: nonpayable
+
 interface MetaMorphoFactory:
     def isMetaMorpho(_vault: address) -> bool: view
 
@@ -52,6 +55,12 @@ event MorphoWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+event MorphoRewardsAddrSet:
+    addr: address
+
+# rewards contract
+morphoRewards: public(address)
+
 # morpho
 MORPHO_FACTORY: public(immutable(address))
 MORPHO_FACTORY_LEGACY: public(immutable(address))
@@ -64,6 +73,7 @@ def __init__(
     _undyHq: address,
     _morphoFactory: address,
     _morphoFactoryLegacy: address,
+    _morphoRewardsAddr: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
@@ -71,6 +81,7 @@ def __init__(
     assert empty(address) not in [_morphoFactory, _morphoFactoryLegacy] # dev: invalid addrs
     MORPHO_FACTORY = _morphoFactory
     MORPHO_FACTORY_LEGACY = _morphoFactoryLegacy
+    self.morphoRewards = _morphoRewardsAddr
 
 
 @view
@@ -292,6 +303,50 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
         self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 
     return asset
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+
+    assert msg.sender == _user # dev: recipient must be caller
+    morphoRewards: address = self.morphoRewards
+    assert morphoRewards != empty(address) # dev: no morpho rewards addr set
+
+    rewardAmount: uint256 = extcall MorphoRewardsDistributor(morphoRewards).claim(_user, _rewardToken, _rewardAmount, _extraData)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    return rewardAmount, usdValue
+
+
+@view
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    # as far as we can tell, this must be done offchain
+    return False
+
+
+# set rewards addr
+
+
+@external
+def setMorphoRewardsAddr(_addr: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _addr != empty(address) # dev: invalid addr
+    self.morphoRewards = _addr
+    log MorphoRewardsAddrSet(addr=_addr)
+    return True
 
 
 #############
@@ -580,17 +635,6 @@ def repayDebt(
     _paymentAmount: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    return 0, 0
-
-
-@external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0

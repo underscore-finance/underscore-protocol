@@ -159,7 +159,8 @@ def createUserWallet(
     assert config.startingAgent != _owner # dev: starting agent cannot be the owner
 
     # validation
-    assert config.isCreatorAllowed # dev: creator not allowed
+    if not addys._isSwitchboardAddr(msg.sender):
+        assert config.isCreatorAllowed # dev: creator not allowed
     assert empty(address) not in [config.walletTemplate, config.configTemplate, _owner] # dev: invalid setup
     if config.numUserWalletsAllowed != 0:
         assert staticcall Ledger(a.ledger).numUserWallets() < config.numUserWalletsAllowed # dev: max user wallets reached
@@ -246,7 +247,8 @@ def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
 
     # validation
     config: AgentCreationConfig = staticcall MissionControl(a.missionControl).getAgentCreationConfig(msg.sender)
-    assert config.isCreatorAllowed # dev: creator not allowed
+    if not addys._isSwitchboardAddr(msg.sender):
+        assert config.isCreatorAllowed # dev: creator not allowed
     assert empty(address) not in [config.agentTemplate, _owner] # dev: invalid setup
     if config.numAgentsAllowed != 0:
         assert staticcall Ledger(a.ledger).numAgents() < config.numAgentsAllowed # dev: max agents reached

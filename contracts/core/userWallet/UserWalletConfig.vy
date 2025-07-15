@@ -16,6 +16,7 @@ interface UserWallet:
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isTrustedTx: bool = False) -> (uint256, uint256): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
+    def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool: nonpayable
     def assetData(_asset: address) -> ws.WalletAssetData: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def assets(i: uint256) -> address: view
@@ -742,7 +743,19 @@ def setEjectionMode(_shouldEject: bool):
     log EjectionModeSet(inEjectMode = _shouldEject)
 
 
+# lego access
+
+
+@external
+def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType) -> bool:
+    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
+    if msg.sender != ad.walletOwner:
+        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    return extcall UserWallet(ad.wallet).setLegoAccessForAction(ad.legoAddr, _action)
+
+
 # is signer switchboard
+
 
 
 @view

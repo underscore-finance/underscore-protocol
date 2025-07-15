@@ -34,11 +34,19 @@ interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
+interface CompoundV3Rewards:
+    def getRewardOwed(_comet: address, _user: address) -> RewardOwed: nonpayable
+    def claim(_comet: address, _user: address, _shouldAccrue: bool): nonpayable
+
 interface CompoundV3Configurator:
     def factory(_cometAsset: address) -> address: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
+
+struct RewardOwed:
+    token: address
+    owed: uint256
 
 event CompoundV3Deposit:
     sender: indexed(address)
@@ -58,6 +66,12 @@ event CompoundV3Withdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+event CompoundV3RewardsAddrSet:
+    addr: address
+
+# rewards contract
+compoundRewards: public(address)
+
 # compound v3
 COMPOUND_V3_CONFIGURATOR: public(immutable(address))
 
@@ -68,12 +82,14 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 def __init__(
     _undyHq: address,
     _configurator: address,
+    _compRewards: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
     assert _configurator != empty(address) # dev: invalid configurator
     COMPOUND_V3_CONFIGURATOR = _configurator
+    self.compoundRewards = _compRewards
 
 
 @view
@@ -286,6 +302,80 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
         self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 
     return asset
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+
+    assert msg.sender == _user # dev: recipient must be caller
+    preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
+
+    market: address = empty(address)
+    if _extraData != empty(bytes32):
+        market = convert(_extraData, address)
+
+    compRewards: address = self.compoundRewards
+    assert compRewards != empty(address) # dev: no comp rewards addr set
+    if market != empty(address):
+        extcall CompoundV3Rewards(compRewards).claim(market, _user, True)
+    else:
+        self._hasClaimableOrShouldClaim(_user, True, compRewards)
+
+    rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
+    assert rewardAmount != 0 # dev: no rewards received
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    return rewardAmount, usdValue
+
+
+# sadly, this is not a view function because of `getRewardOwed()`
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    return self._hasClaimableOrShouldClaim(_user, False, self.compoundRewards)
+
+
+@internal
+def _hasClaimableOrShouldClaim(_user: address, _shouldClaim: bool, _compRewardsAddr: address) -> bool:
+    numAssets: uint256 = yld.numAssets
+    if numAssets == 0:
+        return False
+
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+        asset: address = yld.assets[i]
+        comet: address = yld.assetOpportunities[asset][1] # only a single "vault token" (comet) per asset
+
+        rewardOwed: RewardOwed = extcall CompoundV3Rewards(_compRewardsAddr).getRewardOwed(comet, _user)
+        if rewardOwed.owed != 0:
+            if _shouldClaim:
+                extcall CompoundV3Rewards(_compRewardsAddr).claim(comet, _user, True)
+            else:
+                return True
+
+    return False
+
+
+# set rewards addr
+
+
+@external
+def setCompRewardsAddr(_addr: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _addr != empty(address) # dev: invalid addr
+    self.compoundRewards = _addr
+    log CompoundV3RewardsAddrSet(addr=_addr)
+    return True
 
 
 #############
@@ -578,17 +668,6 @@ def repayDebt(
     _paymentAmount: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    return 0, 0
-
-
-@external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0

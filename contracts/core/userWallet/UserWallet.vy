@@ -1024,7 +1024,7 @@ def _performPreActionTasks(
 
     # make sure lego can perform the action
     if _shouldCheckAccess:
-        self._checkLegoAccessForAction(ad.legoAddr, _action)
+        self._setLegoAccessForAction(ad.legoAddr, _action)
 
     # check for yield to realize
     checkedAssets: DynArray[address, MAX_ASSETS] = []
@@ -1328,13 +1328,19 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
 
 
-# allow lego to perform action
+# lego access
+
+
+@external
+def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
+    assert msg.sender == self.walletConfig # dev: perms
+    return self._setLegoAccessForAction(_legoAddr, _action)
 
 
 @internal
-def _checkLegoAccessForAction(_legoAddr: address, _action: ws.ActionType):
+def _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
     if _legoAddr == empty(address):
-        return
+        return False
 
     targetAddr: address = empty(address)
     accessAbi: String[64] = empty(String[64])
@@ -1343,7 +1349,7 @@ def _checkLegoAccessForAction(_legoAddr: address, _action: ws.ActionType):
 
     # nothing to do here
     if targetAddr == empty(address):
-        return
+        return False
 
     method_abi: bytes4 = convert(slice(keccak256(accessAbi), 0, 4), bytes4)
     success: bool = False
@@ -1389,6 +1395,7 @@ def _checkLegoAccessForAction(_legoAddr: address, _action: ws.ActionType):
         )
 
     assert success # dev: failed to set operator
+    return True
 
 
 # mini addys
