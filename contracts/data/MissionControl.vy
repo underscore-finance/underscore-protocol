@@ -105,18 +105,21 @@ def __init__(_undyHq: address, _defaults: address):
 @external
 def setUserWalletConfig(_config: cs.UserWalletConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.userWalletConfig = _config
 
 
 @external
 def setManagerConfig(_config: cs.ManagerConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.managerConfig = _config
 
 
 @external
 def setPayeeConfig(_config: cs.PayeeConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.payeeConfig = _config
 
 
@@ -197,12 +200,14 @@ def getLootClaimCoolOffPeriod() -> uint256:
 @external
 def setAgentConfig(_config: cs.AgentConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.agentConfig = _config
 
 
 @external
 def setStarterAgent(_agent: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.agentConfig.startingAgent = _agent
 
 
@@ -231,6 +236,7 @@ def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
 @external
 def setAssetConfig(_asset: address, _config: cs.AssetConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.assetConfig[_asset] = _config
 
 
@@ -322,6 +328,7 @@ def getRewardsFee(_user: address, _asset: address) -> uint256:
 @external
 def setCanPerformSecurityAction(_signer: address, _canPerform: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.canPerformSecurityAction[_signer] = _canPerform
 
 
@@ -331,6 +338,7 @@ def setCanPerformSecurityAction(_signer: address, _canPerform: bool):
 @external
 def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.creatorWhitelist[_creator] = _isWhitelisted
 
 
@@ -340,6 +348,7 @@ def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
 @external
 def setLockedSigner(_signer: address, _isLocked: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.isLockedSigner[_signer] = _isLocked
 
 

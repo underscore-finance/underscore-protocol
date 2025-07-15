@@ -108,18 +108,21 @@ def isUserWallet(_user: address) -> bool:
 @external
 def setUserPoints(_user: address, _data: PointsData):
     assert msg.sender == addys._getLootDistributorAddr() # dev: only loot distributor allowed
+    assert not deptBasics.isPaused # dev: not activated
     self.userPoints[_user] = _data
 
 
 @external
 def setGlobalPoints(_data: PointsData):
     assert msg.sender == addys._getLootDistributorAddr() # dev: only loot distributor allowed
+    assert not deptBasics.isPaused # dev: not activated
     self.globalPoints = _data
 
 
 @external
 def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData):
     assert msg.sender == addys._getLootDistributorAddr() # dev: only loot distributor allowed
+    assert not deptBasics.isPaused # dev: not activated
     self.userPoints[_user] = _userData
     self.globalPoints = _globalData
 
@@ -159,6 +162,7 @@ def setVaultToken(
     _isRebasing: bool,
 ):
     assert addys._isLegoBookAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.vaultTokens[_vaultToken] = VaultToken(
         legoId = _legoId,
         underlyingAsset = _underlyingAsset,
@@ -175,6 +179,7 @@ def setVaultToken(
 @external
 def registerBackpackItem(_addr: address):
     assert msg.sender == addys._getWalletBackpackAddr() # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
     self.isRegisteredBackpackItem[_addr] = True
 
 

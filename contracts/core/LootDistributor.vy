@@ -156,6 +156,10 @@ def addLootFromSwapOrRewards(
     _action: ws.ActionType,
     _missionControl: address = empty(address),
 ):
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return
+
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
@@ -186,6 +190,10 @@ def addLootFromYieldProfit(
     _appraiser: address = empty(address),
     _legoBook: address = empty(address),
 ):
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return
+
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
 
@@ -362,6 +370,7 @@ def _handleSpecificYieldBonus(
 @external
 def claimRevShareAndBonusLoot(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
+    assert not deptBasics.isPaused # dev: contract paused
 
     # permission check
     assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
@@ -465,6 +474,7 @@ def getTotalClaimableAssets(_user: address) -> uint256:
 @external
 def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool:
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: contract paused
 
     # invalid inputs
     if empty(address) in [_user, _asset]:
@@ -562,6 +572,7 @@ def _deregisterClaimableAssetForUser(_user: address, _asset: address) -> bool:
 def updateDepositPoints(_user: address):
     a: addys.Addys = addys._getAddys()
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: contract paused
     self._updateDepositPoints(_user, 0, False, a.ledger)
 
 
@@ -570,6 +581,11 @@ def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256):
     ledger: address = addys._getLedgerAddr()
     if not staticcall Ledger(ledger).isUserWallet(msg.sender):
         assert self._isValidWalletConfig(_user, msg.sender, ledger) # dev: invalid config
+
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return
+
     self._updateDepositPoints(_user, _newUsdValue, True, ledger)
 
 
@@ -649,6 +665,7 @@ def _isValidWalletConfig(_wallet: address, _caller: address, _ledger: address) -
 
 @external
 def claimDepositRewards(_user: address) -> uint256:
+    assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
 
     # cannot claim if this is not current loot distributor, likely migrated to new loot distributor
@@ -712,6 +729,7 @@ def _claimDepositRewards(_user: address, _ledger: address) -> uint256:
 
 @external
 def addDepositRewards(_asset: address, _amount: uint256):
+    assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
     depositRewardsAsset: address = staticcall MissionControl(a.missionControl).getDepositRewardsAsset() # dev: invalid asset
     assert depositRewardsAsset == _asset # dev: invalid asset
@@ -739,6 +757,7 @@ def addDepositRewards(_asset: address, _amount: uint256):
 
 @external
 def recoverDepositRewards(_recipient: address):
+    assert not deptBasics.isPaused # dev: contract paused
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
     data: DepositRewards = self.depositRewards
@@ -761,6 +780,7 @@ def recoverDepositRewards(_recipient: address):
 
 @external
 def claimAllLoot(_user: address) -> bool:
+    assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
 
     # permission check

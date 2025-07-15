@@ -34,17 +34,17 @@ interface Ledger:
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
 
-interface WalletBackpack:
-    def highCommand() -> address: view
-    def paymaster() -> address: view
-    def migrator() -> address: view
-    def sentinel() -> address: view
-
 interface UserWallet:
     def assetData(asset: address) -> WalletAssetData: view
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
+
+interface WalletBackpack:
+    def highCommand() -> address: view
+    def paymaster() -> address: view
+    def migrator() -> address: view
+    def sentinel() -> address: view
 
 interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
@@ -276,6 +276,7 @@ def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
 
 @external
 def clawBackTrialFunds(_user: address) -> uint256:
+    assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()

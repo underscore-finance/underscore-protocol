@@ -116,6 +116,10 @@ def calculateYieldProfits(
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
 
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return 0, 0, 0
+
     # get addresses if not provided
     missionControl: address = _missionControl
     if _missionControl == empty(address):
@@ -319,6 +323,10 @@ def updatePriceAndGetUsdValue(
     if not staticcall Ledger(ledger).isUserWallet(msg.sender):
         assert addys._isValidUndyAddr(msg.sender) # dev: no perms
 
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return 0
+
     usdValue: uint256 = 0
     na: bool = False
     usdValue, na = self._updatePriceAndGetUsdValue(_asset, _amount, _missionControl, _legoBook, ledger)
@@ -335,6 +343,11 @@ def updatePriceAndGetUsdValueAndIsYieldAsset(
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
     if not staticcall Ledger(ledger).isUserWallet(msg.sender):
         assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return 0, False
+
     return self._updatePriceAndGetUsdValue(_asset, _amount, _missionControl, _legoBook, ledger)
 
 
@@ -479,6 +492,10 @@ def updateAndGetNormalAssetPrice(
     if not staticcall Ledger(ledger).isUserWallet(msg.sender):
         assert addys._isValidUndyAddr(msg.sender) # dev: no perms
 
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return 0
+
     # get addresses if not provided
     missionControl: address = _missionControl
     if _missionControl == empty(address):
@@ -615,6 +632,10 @@ def updateAndGetPricePerShare(
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
     if not staticcall Ledger(ledger).isUserWallet(msg.sender):
         assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+
+    # if paused, fail gracefully
+    if deptBasics.isPaused:
+        return 0
 
     # get addresses if not provided
     missionControl: address = _missionControl
