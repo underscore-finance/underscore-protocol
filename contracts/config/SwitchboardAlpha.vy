@@ -959,6 +959,12 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256) -> ui
 def setCanPerformSecurityAction(_signer: address, _canPerform: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    # when removing, allow to do immediately
+    if not _canPerform:
+        extcall MissionControl(addys._getMissionControlAddr()).setCanPerformSecurityAction(_signer, _canPerform)
+        log CanPerformSecurityAction(signer=_signer, canPerform=_canPerform)
+        return 0
+
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.CAN_PERFORM_SECURITY_ACTION
     self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_signer, isAllowed=_canPerform)

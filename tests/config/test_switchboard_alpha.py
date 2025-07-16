@@ -2908,45 +2908,31 @@ def test_set_can_perform_security_action_enable_success(switchboard_alpha, gover
 
 
 def test_set_can_perform_security_action_disable_success(switchboard_alpha, governance, bob, mission_control):
-    """Test successfully disabling security action permissions for an address"""
+    """Test successfully disabling security action permissions for an address - applies immediately"""
     # First enable security action for bob
     aid1 = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     assert switchboard_alpha.executePendingAction(aid1, sender=governance.address) == True
     assert mission_control.canPerformSecurityAction(bob) == True
     
-    # Now disable security action for bob
+    # Now disable security action for bob - this should apply immediately
     aid2 = switchboard_alpha.setCanPerformSecurityAction(
         bob,    # signer
         False,  # canPerform
         sender=governance.address
     )
     
-    # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingCanPerformSecurityAction")
-    # Get the last log (since we have 2 total)
-    assert logs[-1].signer == bob
-    assert logs[-1].canPerform == False
-    assert logs[-1].actionId == aid2
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.CAN_PERFORM_SECURITY_ACTION
-    pending_data = switchboard_alpha.pendingAddrToBool(aid2)
-    assert pending_data.addr == bob
-    assert pending_data.isAllowed == False
-    
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify execution event
+    # When disabling, the change should be applied immediately
+    # Verify execution event was emitted immediately
     exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == bob
     assert exec_logs[-1].canPerform == False
     
-    # Verify the change was saved in MissionControl
+    # Verify the change was immediately saved in MissionControl
     assert mission_control.canPerformSecurityAction(bob) == False
+    
+    # There should be no pending action since it was applied immediately
+    assert switchboard_alpha.actionType(aid2) == 0
 
 
 def test_set_can_perform_security_action_non_governance_reverts(switchboard_alpha, alice, bob):
@@ -2981,83 +2967,86 @@ def test_set_can_perform_security_action_zero_address(switchboard_alpha, governa
     assert exec_logs[0].canPerform == True
 
 
-def test_set_can_perform_security_action_multiple_addresses(switchboard_alpha, governance, alice, bob, charlie):
+def test_set_can_perform_security_action_multiple_addresses(switchboard_alpha, governance, alice, bob, charlie, mission_control):
     """Test setting security action permissions for multiple addresses"""
-    # Create pending actions for multiple addresses
+    # First enable bob so we can test disabling
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+    
+    # Create pending action for alice (enable)
     aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    
+    # Bob's disable action should apply immediately
     aid2 = switchboard_alpha.setCanPerformSecurityAction(bob, False, sender=governance.address)
+    # Check logs immediately after the transaction
+    exec_logs_bob = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(exec_logs_bob) == 1
+    assert exec_logs_bob[0].signer == bob
+    assert exec_logs_bob[0].canPerform == False
+    
+    # Create pending action for charlie (enable)
     aid3 = switchboard_alpha.setCanPerformSecurityAction(charlie, True, sender=governance.address)
     
-    # Verify all are stored separately
+    # Verify bob's change was applied immediately
+    assert mission_control.canPerformSecurityAction(bob) == False
+    
+    # Verify alice and charlie still have pending actions
     pending1 = switchboard_alpha.pendingAddrToBool(aid1)
-    pending2 = switchboard_alpha.pendingAddrToBool(aid2)
     pending3 = switchboard_alpha.pendingAddrToBool(aid3)
     
     assert pending1.addr == alice
     assert pending1.isAllowed == True
-    assert pending2.addr == bob
-    assert pending2.isAllowed == False
     assert pending3.addr == charlie
     assert pending3.isAllowed == True
     
-    # Execute all after timelock and capture logs immediately after each execution
+    # Bob's action should not be pending (applied immediately)
+    assert switchboard_alpha.actionType(aid2) == 0
+    
+    # Execute remaining pending actions after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     
-    # Execute and verify each one
+    # Execute alice's action
     result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result1 == True
-    logs1 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
-    assert len(logs1) == 1
-    assert logs1[0].signer == alice
-    assert logs1[0].canPerform == True
+    assert mission_control.canPerformSecurityAction(alice) == True
     
-    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result2 == True
-    logs2 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
-    assert len(logs2) == 1
-    assert logs2[0].signer == bob
-    assert logs2[0].canPerform == False
-    
+    # Execute charlie's action
     result3 = switchboard_alpha.executePendingAction(aid3, sender=governance.address)
     assert result3 == True
-    logs3 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
-    assert len(logs3) == 1
-    assert logs3[0].signer == charlie
-    assert logs3[0].canPerform == True
+    assert mission_control.canPerformSecurityAction(charlie) == True
 
 
-def test_set_can_perform_security_action_same_address_overwrite(switchboard_alpha, governance, alice):
+def test_set_can_perform_security_action_same_address_overwrite(switchboard_alpha, governance, alice, mission_control):
     """Test that multiple pending actions for same address can be created"""
     # Create first pending action (enable)
     aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
     
-    # Create second pending action (disable) for same address
+    # Create second action (disable) for same address - this applies immediately
     aid2 = switchboard_alpha.setCanPerformSecurityAction(alice, False, sender=governance.address)
     
-    # Verify both are stored separately
-    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
-    pending2 = switchboard_alpha.pendingAddrToBool(aid2)
-    
-    assert pending1.addr == alice
-    assert pending1.isAllowed == True
-    assert pending2.addr == alice
-    assert pending2.isAllowed == False
-    
-    # Execute second action first
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify alice has canPerform = False
+    # Verify the disable was applied immediately
+    assert mission_control.canPerformSecurityAction(alice) == False
     exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == alice
     assert exec_logs[-1].canPerform == False
     
-    # Execute first action (will overwrite)
+    # The first pending action should still exist
+    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
+    assert pending1.addr == alice
+    assert pending1.isAllowed == True
+    
+    # The second action should not be pending (applied immediately)
+    assert switchboard_alpha.actionType(aid2) == 0
+    
+    # Execute first action after timelock (will overwrite the immediate disable)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
     
     # Verify alice now has canPerform = True
+    assert mission_control.canPerformSecurityAction(alice) == True
     exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == alice
     assert exec_logs[-1].canPerform == True

@@ -1083,7 +1083,7 @@ def test_can_clawback_trial_funds_view_switchboard(
 
 
 def test_can_clawback_trial_funds_view_backpack_item(
-    hatchery, alice, bob, setupTrialFundsWallet, ledger, switchboard_alpha, paymaster
+    hatchery, alice, bob, setupTrialFundsWallet, paymaster
 ):
     """Test canClawbackTrialFunds view function for registered backpack items"""
     
