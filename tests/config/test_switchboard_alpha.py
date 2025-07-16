@@ -2187,3 +2187,581 @@ def test_set_payee_config_different_from_manager_config(switchboard_alpha, gover
     assert manager_config.managerActivationLength == 50000
     assert payee_config.payeePeriod == 200000
     assert payee_config.payeeActivationLength == 100000
+
+
+##############################
+# Can Perform Security Action #
+##############################
+
+
+def test_set_can_perform_security_action_enable_success(switchboard_alpha, governance, alice, mission_control):
+    """Test successfully enabling security action permissions for an address"""
+    # Verify alice doesn't have permission initially
+    assert mission_control.canPerformSecurityAction(alice) == False
+    
+    # Enable security action for alice
+    aid = switchboard_alpha.setCanPerformSecurityAction(
+        alice,  # signer
+        True,   # canPerform
+        sender=governance.address
+    )
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingCanPerformSecurityAction")
+    assert len(logs) == 1
+    assert logs[0].signer == alice
+    assert logs[0].canPerform == True
+    assert logs[0].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.CAN_PERFORM_SECURITY_ACTION
+    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    assert pending_data.addr == alice
+    assert pending_data.isAllowed == True
+    
+    # Try to execute before timelock - should fail
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change yet
+    assert mission_control.canPerformSecurityAction(alice) == False
+    
+    # Time travel to reach timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    # Execute the action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].signer == alice
+    assert exec_logs[0].canPerform == True
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.canPerformSecurityAction(alice) == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_can_perform_security_action_disable_success(switchboard_alpha, governance, bob, mission_control):
+    """Test successfully disabling security action permissions for an address"""
+    # First enable security action for bob
+    aid1 = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid1, sender=governance.address) == True
+    assert mission_control.canPerformSecurityAction(bob) == True
+    
+    # Now disable security action for bob
+    aid2 = switchboard_alpha.setCanPerformSecurityAction(
+        bob,    # signer
+        False,  # canPerform
+        sender=governance.address
+    )
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingCanPerformSecurityAction")
+    # Get the last log (since we have 2 total)
+    assert logs[-1].signer == bob
+    assert logs[-1].canPerform == False
+    assert logs[-1].actionId == aid2
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.CAN_PERFORM_SECURITY_ACTION
+    pending_data = switchboard_alpha.pendingAddrToBool(aid2)
+    assert pending_data.addr == bob
+    assert pending_data.isAllowed == False
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert exec_logs[-1].signer == bob
+    assert exec_logs[-1].canPerform == False
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.canPerformSecurityAction(bob) == False
+
+
+def test_set_can_perform_security_action_non_governance_reverts(switchboard_alpha, alice, bob):
+    """Test that non-governance addresses cannot set security action permissions"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=alice)
+
+
+def test_set_can_perform_security_action_zero_address(switchboard_alpha, governance):
+    """Test setting security action permissions for zero address"""
+    # Should allow zero address (useful for disabling all non-specified addresses)
+    aid = switchboard_alpha.setCanPerformSecurityAction(
+        ZERO_ADDRESS,  # signer
+        True,          # canPerform
+        sender=governance.address
+    )
+    
+    # Verify it was accepted
+    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    assert pending_data.addr == ZERO_ADDRESS
+    assert pending_data.isAllowed == True
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].signer == ZERO_ADDRESS
+    assert exec_logs[0].canPerform == True
+
+
+def test_set_can_perform_security_action_multiple_addresses(switchboard_alpha, governance, alice, bob, charlie):
+    """Test setting security action permissions for multiple addresses"""
+    # Create pending actions for multiple addresses
+    aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    aid2 = switchboard_alpha.setCanPerformSecurityAction(bob, False, sender=governance.address)
+    aid3 = switchboard_alpha.setCanPerformSecurityAction(charlie, True, sender=governance.address)
+    
+    # Verify all are stored separately
+    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
+    pending2 = switchboard_alpha.pendingAddrToBool(aid2)
+    pending3 = switchboard_alpha.pendingAddrToBool(aid3)
+    
+    assert pending1.addr == alice
+    assert pending1.isAllowed == True
+    assert pending2.addr == bob
+    assert pending2.isAllowed == False
+    assert pending3.addr == charlie
+    assert pending3.isAllowed == True
+    
+    # Execute all after timelock and capture logs immediately after each execution
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    # Execute and verify each one
+    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result1 == True
+    logs1 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(logs1) == 1
+    assert logs1[0].signer == alice
+    assert logs1[0].canPerform == True
+    
+    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result2 == True
+    logs2 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(logs2) == 1
+    assert logs2[0].signer == bob
+    assert logs2[0].canPerform == False
+    
+    result3 = switchboard_alpha.executePendingAction(aid3, sender=governance.address)
+    assert result3 == True
+    logs3 = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(logs3) == 1
+    assert logs3[0].signer == charlie
+    assert logs3[0].canPerform == True
+
+
+def test_set_can_perform_security_action_same_address_overwrite(switchboard_alpha, governance, alice):
+    """Test that multiple pending actions for same address can be created"""
+    # Create first pending action (enable)
+    aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    
+    # Create second pending action (disable) for same address
+    aid2 = switchboard_alpha.setCanPerformSecurityAction(alice, False, sender=governance.address)
+    
+    # Verify both are stored separately
+    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
+    pending2 = switchboard_alpha.pendingAddrToBool(aid2)
+    
+    assert pending1.addr == alice
+    assert pending1.isAllowed == True
+    assert pending2.addr == alice
+    assert pending2.isAllowed == False
+    
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify alice has canPerform = False
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert exec_logs[-1].signer == alice
+    assert exec_logs[-1].canPerform == False
+    
+    # Execute first action (will overwrite)
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify alice now has canPerform = True
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert exec_logs[-1].signer == alice
+    assert exec_logs[-1].canPerform == True
+
+
+def test_set_can_perform_security_action_cancel_pending(switchboard_alpha, governance, alice):
+    """Test canceling a pending security action permission change"""
+    # Create pending action
+    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    
+    # Cancel the action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+    
+    # Try to execute cancelled action after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no execution event was emitted
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(exec_logs) == 0
+
+
+def test_set_can_perform_security_action_contract_addresses(switchboard_alpha, governance, wallet_template_v2):
+    """Test setting security action permissions for contract addresses"""
+    # Should allow setting permissions for contract addresses
+    aid = switchboard_alpha.setCanPerformSecurityAction(
+        wallet_template_v2.address,  # contract address
+        True,                        # canPerform
+        sender=governance.address
+    )
+    
+    # Verify it was accepted
+    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    assert pending_data.addr == wallet_template_v2.address
+    assert pending_data.isAllowed == True
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].signer == wallet_template_v2.address
+    assert exec_logs[0].canPerform == True
+
+
+#######################
+# Creator Whitelist   #
+#######################
+
+
+def test_set_creator_whitelist_enable_by_governance_success(switchboard_alpha, governance, alice, mission_control):
+    """Test that governance can enable creator whitelist"""
+    # Verify alice is not whitelisted initially
+    assert mission_control.creatorWhitelist(alice) == False
+    
+    # Enable creator whitelist for alice
+    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert len(logs) == 1
+    assert logs[0].creator == alice
+    assert logs[0].isWhitelisted == True
+    assert logs[0].caller == governance.address
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.creatorWhitelist(alice) == True
+
+
+def test_set_creator_whitelist_disable_by_governance_success(switchboard_alpha, governance, bob, mission_control):
+    """Test that governance can disable creator whitelist"""
+    # First enable creator whitelist for bob
+    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
+    assert mission_control.creatorWhitelist(bob) == True
+    
+    # Then disable it
+    switchboard_alpha.setCreatorWhitelist(bob, False, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert len(logs) == 1  # Only the last event
+    assert logs[0].creator == bob
+    assert logs[0].isWhitelisted == False
+    assert logs[0].caller == governance.address
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.creatorWhitelist(bob) == False
+
+
+def test_set_creator_whitelist_disable_by_security_user_success(switchboard_alpha, governance, alice, bob, mission_control):
+    """Test that a user with canPerformSecurityAction can disable creator whitelist"""
+    # First, give alice security action permissions
+    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Verify alice has security permissions
+    assert mission_control.canPerformSecurityAction(alice) == True
+    
+    # Enable creator whitelist for bob (by governance)
+    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
+    assert mission_control.creatorWhitelist(bob) == True
+    
+    # Now alice (with security permissions) can disable it
+    switchboard_alpha.setCreatorWhitelist(bob, False, sender=alice)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert len(logs) == 1
+    assert logs[0].creator == bob
+    assert logs[0].isWhitelisted == False
+    assert logs[0].caller == alice
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.creatorWhitelist(bob) == False
+
+
+def test_set_creator_whitelist_enable_by_security_user_reverts(switchboard_alpha, governance, alice, bob):
+    """Test that a user with canPerformSecurityAction cannot enable creator whitelist"""
+    # First, give alice security action permissions
+    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Alice should not be able to enable creator whitelist
+    with boa.reverts("no perms"):
+        switchboard_alpha.setCreatorWhitelist(bob, True, sender=alice)
+
+
+def test_set_creator_whitelist_no_perms_reverts(switchboard_alpha, alice, bob):
+    """Test that users without permissions cannot set creator whitelist"""
+    # Alice has no special permissions
+    with boa.reverts("no perms"):
+        switchboard_alpha.setCreatorWhitelist(bob, True, sender=alice)
+    
+    with boa.reverts("no perms"):
+        switchboard_alpha.setCreatorWhitelist(bob, False, sender=alice)
+
+
+def test_set_creator_whitelist_zero_address_reverts(switchboard_alpha, governance):
+    """Test that zero address cannot be whitelisted"""
+    with boa.reverts("invalid creator"):
+        switchboard_alpha.setCreatorWhitelist(ZERO_ADDRESS, True, sender=governance.address)
+    
+    with boa.reverts("invalid creator"):
+        switchboard_alpha.setCreatorWhitelist(ZERO_ADDRESS, False, sender=governance.address)
+
+
+def test_set_creator_whitelist_multiple_creators(switchboard_alpha, governance, alice, bob, charlie, mission_control):
+    """Test setting whitelist for multiple creators"""
+    # Enable whitelist for multiple creators
+    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert logs1[0].creator == alice
+    assert logs1[0].isWhitelisted == True
+    assert mission_control.creatorWhitelist(alice) == True
+    
+    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert logs2[0].creator == bob
+    assert logs2[0].isWhitelisted == True
+    assert mission_control.creatorWhitelist(bob) == True
+    
+    switchboard_alpha.setCreatorWhitelist(charlie, False, sender=governance.address)
+    logs3 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert logs3[0].creator == charlie
+    assert logs3[0].isWhitelisted == False
+    assert mission_control.creatorWhitelist(charlie) == False
+
+
+def test_set_creator_whitelist_contract_address(switchboard_alpha, governance, wallet_template_v2):
+    """Test whitelisting a contract address as creator"""
+    # Should allow whitelisting contract addresses
+    switchboard_alpha.setCreatorWhitelist(wallet_template_v2.address, True, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert len(logs) == 1
+    assert logs[0].creator == wallet_template_v2.address
+    assert logs[0].isWhitelisted == True
+    assert logs[0].caller == governance.address
+
+
+###################
+# Locked Signer   #
+###################
+
+
+def test_set_locked_signer_lock_by_governance_success(switchboard_alpha, governance, alice, mission_control):
+    """Test that governance can lock a signer"""
+    # Verify alice is not locked initially
+    assert mission_control.isLockedSigner(alice) == False
+    
+    # Lock alice as a signer
+    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert len(logs) == 1
+    assert logs[0].signer == alice
+    assert logs[0].isLocked == True
+    assert logs[0].caller == governance.address
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.isLockedSigner(alice) == True
+
+
+def test_set_locked_signer_unlock_by_governance_success(switchboard_alpha, governance, bob, mission_control):
+    """Test that governance can unlock a signer"""
+    # First lock bob
+    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
+    assert mission_control.isLockedSigner(bob) == True
+    
+    # Then unlock
+    switchboard_alpha.setLockedSigner(bob, False, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert len(logs) == 1  # Only the last event
+    assert logs[0].signer == bob
+    assert logs[0].isLocked == False
+    assert logs[0].caller == governance.address
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.isLockedSigner(bob) == False
+
+
+def test_set_locked_signer_unlock_by_security_user_success(switchboard_alpha, governance, alice, bob, mission_control):
+    """Test that a user with canPerformSecurityAction can unlock a signer"""
+    # First, give alice security action permissions
+    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Verify alice has security permissions
+    assert mission_control.canPerformSecurityAction(alice) == True
+    
+    # Lock bob (by governance)
+    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
+    assert mission_control.isLockedSigner(bob) == True
+    
+    # Now alice (with security permissions) can unlock
+    switchboard_alpha.setLockedSigner(bob, False, sender=alice)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert len(logs) == 1
+    assert logs[0].signer == bob
+    assert logs[0].isLocked == False
+    assert logs[0].caller == alice
+    
+    # Verify the change was saved in MissionControl
+    assert mission_control.isLockedSigner(bob) == False
+
+
+def test_set_locked_signer_lock_by_security_user_reverts(switchboard_alpha, governance, alice, bob):
+    """Test that a user with canPerformSecurityAction cannot lock a signer"""
+    # First, give alice security action permissions
+    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Alice should not be able to lock a signer
+    with boa.reverts("no perms"):
+        switchboard_alpha.setLockedSigner(bob, True, sender=alice)
+
+
+def test_set_locked_signer_no_perms_reverts(switchboard_alpha, alice, bob):
+    """Test that users without permissions cannot set locked signer"""
+    # Alice has no special permissions
+    with boa.reverts("no perms"):
+        switchboard_alpha.setLockedSigner(bob, True, sender=alice)
+    
+    with boa.reverts("no perms"):
+        switchboard_alpha.setLockedSigner(bob, False, sender=alice)
+
+
+def test_set_locked_signer_zero_address_reverts(switchboard_alpha, governance):
+    """Test that zero address cannot be locked"""
+    with boa.reverts("invalid creator"):
+        switchboard_alpha.setLockedSigner(ZERO_ADDRESS, True, sender=governance.address)
+    
+    with boa.reverts("invalid creator"):
+        switchboard_alpha.setLockedSigner(ZERO_ADDRESS, False, sender=governance.address)
+
+
+def test_set_locked_signer_multiple_signers(switchboard_alpha, governance, alice, bob, charlie, mission_control):
+    """Test locking/unlocking multiple signers"""
+    # Lock alice
+    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert logs1[0].signer == alice
+    assert logs1[0].isLocked == True
+    assert mission_control.isLockedSigner(alice) == True
+    
+    # Lock bob
+    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert logs2[0].signer == bob
+    assert logs2[0].isLocked == True
+    assert mission_control.isLockedSigner(bob) == True
+    
+    # Unlock charlie (who wasn't locked)
+    switchboard_alpha.setLockedSigner(charlie, False, sender=governance.address)
+    logs3 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert logs3[0].signer == charlie
+    assert logs3[0].isLocked == False
+    assert mission_control.isLockedSigner(charlie) == False
+
+
+def test_set_locked_signer_contract_address(switchboard_alpha, governance, wallet_template_v2):
+    """Test locking a contract address as signer"""
+    # Should allow locking contract addresses
+    switchboard_alpha.setLockedSigner(wallet_template_v2.address, True, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert len(logs) == 1
+    assert logs[0].signer == wallet_template_v2.address
+    assert logs[0].isLocked == True
+    assert logs[0].caller == governance.address
+
+
+def test_creator_whitelist_and_locked_signer_interaction(switchboard_alpha, governance, alice, bob, mission_control):
+    """Test that creator whitelist and locked signer can be used together"""
+    # Give bob security permissions
+    aid = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+    
+    # Governance enables creator whitelist and locks signer for alice
+    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert logs1[0].creator == alice
+    assert logs1[0].isWhitelisted == True
+    assert mission_control.creatorWhitelist(alice) == True
+    
+    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert logs2[0].signer == alice
+    assert logs2[0].isLocked == True
+    assert mission_control.isLockedSigner(alice) == True
+    
+    # Bob (with security permissions) can disable both
+    switchboard_alpha.setCreatorWhitelist(alice, False, sender=bob)
+    logs3 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    assert logs3[0].creator == alice
+    assert logs3[0].isWhitelisted == False
+    assert logs3[0].caller == bob
+    assert mission_control.creatorWhitelist(alice) == False
+    
+    switchboard_alpha.setLockedSigner(alice, False, sender=bob)
+    logs4 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    assert logs4[0].signer == alice
+    assert logs4[0].isLocked == False
+    assert logs4[0].caller == bob
+    assert mission_control.isLockedSigner(alice) == False

@@ -15,7 +15,11 @@ import contracts.modules.TimeLock as timeLock
 import interfaces.ConfigStructs as cs
 
 interface MissionControl:
+    def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
+    def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
+    def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
     def setUserWalletConfig(_config: cs.UserWalletConfig): nonpayable
+    def canPerformSecurityAction(_signer: address) -> bool: view
     def setManagerConfig(_config: cs.ManagerConfig): nonpayable
     def setPayeeConfig(_config: cs.PayeeConfig): nonpayable
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
@@ -37,6 +41,11 @@ flag ActionType:
     STARTER_AGENT_PARAMS
     MANAGER_CONFIG
     PAYEE_CONFIG
+    CAN_PERFORM_SECURITY_ACTION
+
+struct IsAddrAllowed:
+    addr: address
+    isAllowed: bool
 
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
@@ -176,6 +185,17 @@ event PendingPayeeConfigChange:
     confirmationBlock: uint256
     actionId: uint256
 
+event PendingCanPerformSecurityAction:
+    signer: address
+    canPerform: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event CreatorWhitelistSet:
+    creator: address
+    isWhitelisted: bool
+    caller: address
+
 event ManagerConfigSet:
     managerPeriod: uint256
     managerActivationLength: uint256
@@ -184,12 +204,22 @@ event PayeeConfigSet:
     payeePeriod: uint256
     payeeActivationLength: uint256
 
+event CanPerformSecurityAction:
+    signer: address
+    canPerform: bool
+
+event LockedSignerSet:
+    signer: address
+    isLocked: bool
+    caller: address
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingUserWalletConfig: public(HashMap[uint256, cs.UserWalletConfig]) # aid -> config
 pendingAgentConfig: public(HashMap[uint256, cs.AgentConfig]) # aid -> config
 pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
 pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
+pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -204,6 +234,19 @@ def __init__(
     addys.__init__(_undyHq)
     gov.__init__(_undyHq, _tempGov, 0, 0, 0)
     timeLock.__init__(_minConfigTimeLock, _maxConfigTimeLock, 0, _maxConfigTimeLock)
+
+
+# access control
+
+
+@view
+@internal
+def _hasPermsToEnable(_caller: address, _shouldEnable: bool) -> bool:
+    if gov._canGovern(_caller):
+        return True
+    if not _shouldEnable:
+        return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
+    return False
 
 
 ######################
@@ -678,6 +721,54 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256) -> ui
     return aid
 
 
+#########
+# Other #
+#########
+
+
+# can perform security action
+
+
+@external
+def setCanPerformSecurityAction(_signer: address, _canPerform: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.CAN_PERFORM_SECURITY_ACTION
+    self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_signer, isAllowed=_canPerform)
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingCanPerformSecurityAction(signer=_signer, canPerform=_canPerform, confirmationBlock=confirmationBlock, actionId=aid)
+    return aid
+
+
+# set creator whitelist
+
+
+@external
+def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
+    assert self._hasPermsToEnable(msg.sender, _isWhitelisted) # dev: no perms
+
+    assert _creator != empty(address) # dev: invalid creator
+    mc: address = addys._getMissionControlAddr()
+    extcall MissionControl(mc).setCreatorWhitelist(_creator, _isWhitelisted)
+
+    log CreatorWhitelistSet(creator=_creator, isWhitelisted=_isWhitelisted, caller=msg.sender)
+
+
+# locked signer
+
+
+@external
+def setLockedSigner(_signer: address, _isLocked: bool):
+    assert self._hasPermsToEnable(msg.sender, _isLocked) # dev: no perms
+
+    assert _signer != empty(address) # dev: invalid creator
+    mc: address = addys._getMissionControlAddr()
+    extcall MissionControl(mc).setLockedSigner(_signer, _isLocked)
+
+    log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
+
+
 ###############
 # Set Pending #
 ###############
@@ -984,6 +1075,11 @@ def executePendingAction(_aid: uint256) -> bool:
         p: cs.PayeeConfig = self.pendingPayeeConfig[_aid]
         extcall MissionControl(mc).setPayeeConfig(p)
         log PayeeConfigSet(payeePeriod=p.payeePeriod, payeeActivationLength=p.payeeActivationLength)
+
+    elif actionType == ActionType.CAN_PERFORM_SECURITY_ACTION:
+        data: IsAddrAllowed = self.pendingAddrToBool[_aid]
+        extcall MissionControl(mc).setCanPerformSecurityAction(data.addr, data.isAllowed)
+        log CanPerformSecurityAction(signer=data.addr, canPerform=data.isAllowed)
 
     self.actionType[_aid] = empty(ActionType)
     return True

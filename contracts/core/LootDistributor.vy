@@ -819,11 +819,13 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         return False
 
     # cool off period
-    lastClaimBlock: uint256 = self.lastClaim[_user]
-    coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
-    if lastClaimBlock != 0 and coolOffPeriod != 0:
-        if lastClaimBlock + coolOffPeriod > block.number:
-            return False
+    isSwitchboard: bool = addys._isSwitchboardAddr(_caller)
+    if not isSwitchboard:
+        lastClaimBlock: uint256 = self.lastClaim[_user]
+        coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
+        if lastClaimBlock != 0 and coolOffPeriod != 0:
+            if lastClaimBlock + coolOffPeriod > block.number:
+                return False
 
     # permission check
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
@@ -835,7 +837,7 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
     if config.canClaimLoot:
         return True
 
-    return addys._isSwitchboardAddr(_caller)
+    return isSwitchboard
 
 
 # loot config
