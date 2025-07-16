@@ -176,7 +176,6 @@ struct ManagerSettingsBundle:
 
 struct MigrationConfigBundle:
     owner: address
-    trialFundsAmount: uint256
     isFrozen: bool
     numPayees: uint256
     numWhitelisted: uint256

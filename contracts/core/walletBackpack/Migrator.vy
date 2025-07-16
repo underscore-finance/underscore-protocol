@@ -17,11 +17,11 @@ interface UserWalletConfig:
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def indexOfManager(_addr: address) -> uint256: view
+    def getTrialFundsInfo() -> (address, uint256): view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
     def hasPendingOwnerChange() -> bool: view
     def payees(i: uint256) -> address: view
-    def trialFundsAmount() -> uint256: view
     def numWhitelisted() -> uint256: view
     def startingAgent() -> address: view
     def numManagers() -> uint256: view
@@ -36,6 +36,9 @@ interface UserWallet:
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
+
+interface Hatchery:
+    def clawBackTrialFunds(_user: address) -> uint256: nonpayable
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
@@ -58,7 +61,9 @@ event ConfigCloned:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 2
+HATCHERY_ID: constant(uint256) = 6
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
 
 @deploy
@@ -81,6 +86,7 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
         numAssets: uint256 = staticcall UserWallet(_fromWallet).numAssets()
         if numAssets > 1:
             numFundsMigrated = self._migrateFunds(_fromWallet, _toWallet, numAssets)
+            assert numFundsMigrated != 0 # dev: trial funds could not be removed
 
     # migrate config
     didMigrateConfig: bool = False
@@ -105,11 +111,20 @@ def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
     assert numAssets > 1 # dev: no assets to migrate
 
     # migrate funds
-    return self._migrateFunds(_fromWallet, _toWallet, numAssets)
+    numMigrated: uint256 = self._migrateFunds(_fromWallet, _toWallet, numAssets)
+    assert numMigrated != 0 # dev: trial funds could not be removed
+
+    return numMigrated
 
 
 @internal
 def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256) -> uint256:
+
+    # first thing first, handle trial funds if applicable
+    areTrialFundsRemoved: bool = self._removeTrialFundsIfApplicable(_fromWallet)
+    if not areTrialFundsRemoved:
+        return 0
+
     numMigrated: uint256 = 0
     usdValue: uint256 = 0
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
@@ -147,6 +162,35 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
     return numMigrated
 
 
+# handle trial funds (if applicable)
+
+
+@internal
+def _removeTrialFundsIfApplicable(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+
+    # check trial funds info
+    trialFundsAsset: address = empty(address)
+    trialFundsAmount: uint256 = 0
+    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(walletConfig).getTrialFundsInfo()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
+        return True
+
+    # what is acceptable dust to allow migration
+    acceptableDust: uint256 = trialFundsAmount * 1_00 // HUNDRED_PERCENT # 0.10$ if $10 trial funds
+
+    # clawback funds
+    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
+    extcall Hatchery(hatchery).clawBackTrialFunds(_userWallet)
+
+    # check if we have enough funds
+    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(walletConfig).getTrialFundsInfo()
+    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
+        return True
+    
+    return trialFundsAmount <= acceptableDust
+
+
 # validation
 
 
@@ -174,10 +218,6 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
 
     # validate caller is owner of fromWallet
     if _caller != fromData.owner:
-        return False
-
-    # cannot migrate if fromWallet has trial funds
-    if fromData.trialFundsAmount != 0:
         return False
 
     # cannot migrate if fromWallet is frozen
@@ -404,7 +444,6 @@ def _getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle
     startingAgent: address = staticcall UserWalletConfig(walletConfig).startingAgent()
     return wcs.MigrationConfigBundle(
         owner = staticcall UserWalletConfig(walletConfig).owner(),
-        trialFundsAmount = staticcall UserWalletConfig(walletConfig).trialFundsAmount(),
         isFrozen = staticcall UserWalletConfig(walletConfig).isFrozen(),
         numPayees = staticcall UserWalletConfig(walletConfig).numPayees(),
         numWhitelisted = staticcall UserWalletConfig(walletConfig).numWhitelisted(),

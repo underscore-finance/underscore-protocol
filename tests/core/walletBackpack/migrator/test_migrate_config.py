@@ -252,7 +252,6 @@ def test_migration_bundle_data_for_config(migrator, user_wallet, user_wallet_con
     
     # Verify bundle data matches wallet config
     assert bundle.owner == bob
-    assert bundle.trialFundsAmount == user_wallet_config.trialFundsAmount()
     assert bundle.isFrozen == user_wallet_config.isFrozen()
     assert bundle.numPayees == user_wallet_config.numPayees()
     assert bundle.numWhitelisted == user_wallet_config.numWhitelisted()

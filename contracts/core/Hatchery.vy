@@ -355,6 +355,10 @@ def _clawBackTrialFunds(
             if len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
                 assetsToDeregister.append(asset)
 
+    # nothing to recover, roh roh roh
+    if amountRecovered == 0 or staticcall IERC20(trialFundsAsset).balanceOf(_user) == 0:
+        return 0
+
     # now remove trial funds
     amountRemoved: uint256 = extcall UserWalletConfig(_walletConfig).removeTrialFunds()
 
