@@ -36,14 +36,15 @@ interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
     def isLockedSigner(_signer: address) -> bool: view
 
+interface Registry:
+    def isValidAddr(_addr: address) -> bool: view
+    def getAddr(_regId: uint256) -> address: view
+
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
-
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
 
 event EjectionModeSet:
     inEjectMode: bool
@@ -679,16 +680,14 @@ def preparePayment(
     _vaultToken: address,
     _vaultAmount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
-    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    if msg.sender != ad.hatchery:
-        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
 
     # withdraw from yield position
     na: uint256 = 0
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(ad.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
+    na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(self.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
     assert underlyingAsset == _targetAsset # dev: invalid target asset
 
     return underlyingAmount, txUsdValue
@@ -699,8 +698,8 @@ def preparePayment(
 
 @external
 def deregisterAsset(_asset: address) -> bool:
-    if msg.sender not in [self.migrator, staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)]:
-        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    if msg.sender != self.migrator:
+        assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
     return extcall UserWallet(self.wallet).deregisterAsset(_asset)
 
 
@@ -752,7 +751,7 @@ def setEjectionMode(_shouldEject: bool):
 def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType) -> bool:
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     if msg.sender != ad.walletOwner:
-        assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+        assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
     return extcall UserWallet(ad.wallet).setLegoAccessForAction(ad.legoAddr, _action)
 
 

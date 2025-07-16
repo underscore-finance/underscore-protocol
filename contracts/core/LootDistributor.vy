@@ -591,6 +591,14 @@ def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256):
     self._updateDepositPoints(_user, _newUsdValue, True, ledger)
 
 
+@external
+def updateDepositPointsOnEjection(_user: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    if deptBasics.isPaused:
+        return
+    self._updateDepositPoints(_user, 0, True, addys._getLedgerAddr())
+
+
 @internal
 def _updateDepositPoints(
     _user: address,

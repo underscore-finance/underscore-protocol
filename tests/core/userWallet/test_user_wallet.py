@@ -1038,7 +1038,7 @@ def test_withdraw_from_yield_trusted_tx_only_wallet_config(setupYieldPosition, u
         )
 
 
-def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wallet, yield_underlying_token, yield_vault_token, switchboard_alpha):
+def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wallet, yield_underlying_token, yield_vault_token, hatchery):
     """Test that UserWalletConfig can successfully call withdrawFromYield with _isTrustedTx=True via switchboard"""
     
     # setup position
@@ -1053,7 +1053,7 @@ def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wal
         1,
         yield_vault_token.address,
         vault_tokens // 2,
-        sender=switchboard_alpha.address  # switchboard calling
+        sender=hatchery.address
     )
     
     # verify withdrawal happened
