@@ -16,7 +16,11 @@ import interfaces.ConfigStructs as cs
 
 interface MissionControl:
     def setUserWalletConfig(_config: cs.UserWalletConfig): nonpayable
+    def setManagerConfig(_config: cs.ManagerConfig): nonpayable
+    def setPayeeConfig(_config: cs.PayeeConfig): nonpayable
+    def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
+    def agentConfig() -> cs.AgentConfig: view
 
 flag ActionType:
     USER_WALLET_TEMPLATES
@@ -28,6 +32,11 @@ flag ActionType:
     AMBASSADOR_REV_SHARE
     DEFAULT_YIELD_PARAMS
     LOOT_PARAMS
+    AGENT_TEMPLATE
+    AGENT_CREATION_LIMITS
+    STARTER_AGENT_PARAMS
+    MANAGER_CONFIG
+    PAYEE_CONFIG
 
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
@@ -127,9 +136,60 @@ event LootParamsSet:
     depositRewardsAsset: address
     lootClaimCoolOffPeriod: uint256
 
+event PendingAgentTemplateChange:
+    agentTemplate: address
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AgentTemplateSet:
+    agentTemplate: address
+
+event PendingAgentCreationLimitsChange:
+    numAgentsAllowed: uint256
+    enforceCreatorWhitelist: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AgentCreationLimitsSet:
+    numAgentsAllowed: uint256
+    enforceCreatorWhitelist: bool
+
+event PendingStarterAgentParamsChange:
+    startingAgent: address
+    startingAgentActivationLength: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event StarterAgentParamsSet:
+    startingAgent: address
+    startingAgentActivationLength: uint256
+
+event PendingManagerConfigChange:
+    managerPeriod: uint256
+    managerActivationLength: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event PendingPayeeConfigChange:
+    payeePeriod: uint256
+    payeeActivationLength: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event ManagerConfigSet:
+    managerPeriod: uint256
+    managerActivationLength: uint256
+
+event PayeeConfigSet:
+    payeePeriod: uint256
+    payeeActivationLength: uint256
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingUserWalletConfig: public(HashMap[uint256, cs.UserWalletConfig]) # aid -> config
+pendingAgentConfig: public(HashMap[uint256, cs.AgentConfig]) # aid -> config
+pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
+pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -159,7 +219,7 @@ def setUserWalletTemplates(_walletTemplate: address, _configTemplate: address) -
     assert gov._canGovern(msg.sender) # dev: no perms
 
     assert self._areValidUserWalletTemplates(_walletTemplate, _configTemplate) # dev: invalid user wallet templates
-    return self._setUserWalletConfig(ActionType.USER_WALLET_TEMPLATES, _walletTemplate, _configTemplate)
+    return self._setPendingUserWalletConfig(ActionType.USER_WALLET_TEMPLATES, _walletTemplate, _configTemplate)
 
 
 @view
@@ -178,7 +238,7 @@ def _areValidUserWalletTemplates(_walletTemplate: address, _configTemplate: addr
 @external
 def setTrialFunds(_trialAsset: address, _trialAmount: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.TRIAL_FUNDS,
         empty(address),
         empty(address),
@@ -195,7 +255,7 @@ def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhit
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._isValidNumUserWalletsAllowed(_numUserWalletsAllowed) # dev: invalid num user wallets allowed
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.WALLET_CREATION_LIMITS,
         empty(address),
         empty(address),
@@ -224,7 +284,7 @@ def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTime
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._areValidKeyActionTimelockBounds(_minKeyActionTimeLock, _maxKeyActionTimeLock) # dev: invalid key action timelock bounds
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.KEY_ACTION_TIMELOCK_BOUNDS,
         empty(address),
         empty(address),
@@ -257,7 +317,7 @@ def setDefaultStaleBlocks(_defaultStaleBlocks: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._isValidDefaultStaleBlocks(_defaultStaleBlocks) # dev: invalid default stale blocks
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.DEFAULT_STALE_BLOCKS,
         empty(address),
         empty(address),
@@ -289,7 +349,7 @@ def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256) 
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._areValidTxFees(_swapFee, _stableSwapFee, _rewardsFee) # dev: invalid tx fees
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.TX_FEES,
         empty(address),
         empty(address),
@@ -327,7 +387,7 @@ def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRat
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._areValidAmbassadorRevShareRatios(_swapRatio, _rewardsRatio, _yieldRatio) # dev: invalid ambassador rev share ratios
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.AMBASSADOR_REV_SHARE,
         empty(address),
         empty(address),
@@ -380,7 +440,7 @@ def setDefaultYieldParams(
         _defaultYieldBonusRatio
     ) # dev: invalid default yield params
     
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.DEFAULT_YIELD_PARAMS,
         empty(address),
         empty(address),
@@ -433,7 +493,7 @@ def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint25
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert self._areValidLootParams(_lootClaimCoolOffPeriod) # dev: invalid loot params
-    return self._setUserWalletConfig(
+    return self._setPendingUserWalletConfig(
         ActionType.LOOT_PARAMS,
         empty(address),
         empty(address),
@@ -470,11 +530,161 @@ def _areValidLootParams(_lootClaimCoolOffPeriod: uint256) -> bool:
     return True
 
 
-# set pending general config
+################
+# Agent Config #
+################
+
+
+# agent template
+
+
+@external
+def setAgentTemplate(_agentTemplate: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert self._isValidAgentTemplate(_agentTemplate) # dev: invalid agent template
+    return self._setPendingAgentConfig(
+        ActionType.AGENT_TEMPLATE,
+        _agentTemplate
+    )
+
+
+@view
+@internal
+def _isValidAgentTemplate(_agentTemplate: address) -> bool:
+    if _agentTemplate == empty(address):
+        return False
+    if not _agentTemplate.is_contract:
+        return False
+    return True
+
+
+# agent creation limits
+
+
+@external
+def setAgentCreationLimits(_numAgentsAllowed: uint256, _enforceCreatorWhitelist: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert self._isValidNumAgentsAllowed(_numAgentsAllowed) # dev: invalid num agents allowed
+    return self._setPendingAgentConfig(
+        ActionType.AGENT_CREATION_LIMITS,
+        empty(address),
+        _numAgentsAllowed,
+        _enforceCreatorWhitelist
+    )
+
+
+@view
+@internal
+def _isValidNumAgentsAllowed(_numAgentsAllowed: uint256) -> bool:
+    if _numAgentsAllowed == 0:
+        return False
+    if _numAgentsAllowed == max_value(uint256):
+        return False
+    return True
+
+
+# starter agent params
+
+
+@external
+def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params
+    return self._setPendingAgentConfig(
+        ActionType.STARTER_AGENT_PARAMS,
+        empty(address),
+        0,
+        False,
+        _startingAgent,
+        _startingAgentActivationLength
+    )
+
+
+@view
+@internal
+def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> bool:
+
+    # If starting agent is set, activation length must be non-zero
+    if _startingAgent != empty(address) and _startingAgentActivationLength == 0:
+        return False
+
+    # If starting agent is zero address, activation length must be zero
+    if _startingAgent == empty(address) and _startingAgentActivationLength != 0:
+        return False
+
+    # Activation length cannot be max value
+    if _startingAgentActivationLength == max_value(uint256):
+        return False
+
+    return True
+
+
+##################
+# Manager Config #
+##################
+
+
+@external
+def setManagerConfig(_managerPeriod: uint256, _managerActivationLength: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert 0 not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
+    assert max_value(uint256) not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.MANAGER_CONFIG
+    self.pendingManagerConfig[aid] = cs.ManagerConfig(
+        managerPeriod=_managerPeriod,
+        managerActivationLength=_managerActivationLength
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingManagerConfigChange(
+        managerPeriod=_managerPeriod,
+        managerActivationLength=_managerActivationLength,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
+    return aid
+
+
+################
+# Payee Config #
+################
+
+
+@external
+def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    assert 0 not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
+    assert max_value(uint256) not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.PAYEE_CONFIG
+    self.pendingPayeeConfig[aid] = cs.PayeeConfig(
+        payeePeriod=_payeePeriod,
+        payeeActivationLength=_payeeActivationLength
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingPayeeConfigChange(
+        payeePeriod=_payeePeriod,
+        payeeActivationLength=_payeeActivationLength,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
+    return aid
+
+
+###############
+# Set Pending #
+###############
 
 
 @internal
-def _setUserWalletConfig(
+def _setPendingUserWalletConfig(
     _actionType: ActionType,
     _walletTemplate: address = empty(address),
     _configTemplate: address = empty(address),
@@ -602,6 +812,50 @@ def _setUserWalletConfig(
     return aid
 
 
+@internal
+def _setPendingAgentConfig(
+    _actionType: ActionType,
+    _agentTemplate: address = empty(address),
+    _numAgentsAllowed: uint256 = 0,
+    _enforceCreatorWhitelist: bool = False,
+    _startingAgent: address = empty(address),
+    _startingAgentActivationLength: uint256 = 0,
+) -> uint256:
+    aid: uint256 = timeLock._initiateAction()
+
+    self.actionType[aid] = _actionType
+    self.pendingAgentConfig[aid] = cs.AgentConfig(
+        agentTemplate=_agentTemplate,
+        numAgentsAllowed=_numAgentsAllowed,
+        enforceCreatorWhitelist=_enforceCreatorWhitelist,
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+    )
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    if _actionType == ActionType.AGENT_TEMPLATE:
+        log PendingAgentTemplateChange(
+            agentTemplate=_agentTemplate,
+            confirmationBlock=confirmationBlock,
+            actionId=aid,
+        )
+    elif _actionType == ActionType.AGENT_CREATION_LIMITS:
+        log PendingAgentCreationLimitsChange(
+            numAgentsAllowed=_numAgentsAllowed,
+            enforceCreatorWhitelist=_enforceCreatorWhitelist,
+            confirmationBlock=confirmationBlock,
+            actionId=aid,
+        )
+    elif _actionType == ActionType.STARTER_AGENT_PARAMS:
+        log PendingStarterAgentParamsChange(
+            startingAgent=_startingAgent,
+            startingAgentActivationLength=_startingAgentActivationLength,
+            confirmationBlock=confirmationBlock,
+            actionId=aid,
+        )
+    return aid
+
+
 #############
 # Execution #
 #############
@@ -697,6 +951,39 @@ def executePendingAction(_aid: uint256) -> bool:
         config.lootClaimCoolOffPeriod = p.lootClaimCoolOffPeriod
         extcall MissionControl(mc).setUserWalletConfig(config)
         log LootParamsSet(depositRewardsAsset=p.depositRewardsAsset, lootClaimCoolOffPeriod=p.lootClaimCoolOffPeriod)
+
+    elif actionType == ActionType.AGENT_TEMPLATE:
+        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
+        p: cs.AgentConfig = self.pendingAgentConfig[_aid]
+        config.agentTemplate = p.agentTemplate
+        extcall MissionControl(mc).setAgentConfig(config)
+        log AgentTemplateSet(agentTemplate=p.agentTemplate)
+
+    elif actionType == ActionType.AGENT_CREATION_LIMITS:
+        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
+        p: cs.AgentConfig = self.pendingAgentConfig[_aid]
+        config.numAgentsAllowed = p.numAgentsAllowed
+        config.enforceCreatorWhitelist = p.enforceCreatorWhitelist
+        extcall MissionControl(mc).setAgentConfig(config)
+        log AgentCreationLimitsSet(numAgentsAllowed=p.numAgentsAllowed, enforceCreatorWhitelist=p.enforceCreatorWhitelist)
+
+    elif actionType == ActionType.STARTER_AGENT_PARAMS:
+        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
+        p: cs.AgentConfig = self.pendingAgentConfig[_aid]
+        config.startingAgent = p.startingAgent
+        config.startingAgentActivationLength = p.startingAgentActivationLength
+        extcall MissionControl(mc).setAgentConfig(config)
+        log StarterAgentParamsSet(startingAgent=p.startingAgent, startingAgentActivationLength=p.startingAgentActivationLength)
+
+    elif actionType == ActionType.MANAGER_CONFIG:
+        p: cs.ManagerConfig = self.pendingManagerConfig[_aid]
+        extcall MissionControl(mc).setManagerConfig(p)
+        log ManagerConfigSet(managerPeriod=p.managerPeriod, managerActivationLength=p.managerActivationLength)
+
+    elif actionType == ActionType.PAYEE_CONFIG:
+        p: cs.PayeeConfig = self.pendingPayeeConfig[_aid]
+        extcall MissionControl(mc).setPayeeConfig(p)
+        log PayeeConfigSet(payeePeriod=p.payeePeriod, payeeActivationLength=p.payeeActivationLength)
 
     self.actionType[_aid] = empty(ActionType)
     return True

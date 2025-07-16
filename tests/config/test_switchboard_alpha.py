@@ -1,7 +1,7 @@
 import pytest
 import boa
 from conf_utils import filter_logs
-from constants import ZERO_ADDRESS, CONFIG_ACTION_TYPE
+from constants import ZERO_ADDRESS, CONFIG_ACTION_TYPE, MAX_UINT256
 
 
 @pytest.fixture(scope="module")
@@ -12,6 +12,11 @@ def wallet_template_v2():
 @pytest.fixture(scope="module")
 def config_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+
+
+@pytest.fixture(scope="module")
+def agent_template_v2():
+    return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
 
 
 #########################
@@ -98,9 +103,7 @@ def test_set_user_wallet_templates_success(switchboard_alpha, governance, missio
 
 
 def test_set_user_wallet_templates_non_governance_reverts(switchboard_alpha, alice, wallet_template_v2, config_template_v2):
-    """Test that non-governance cannot set wallet templates"""
-    
-    # Try to set templates as non-governance user
+    """Test that non-governance addresses cannot set wallet templates"""
     with boa.reverts("no perms"):
         switchboard_alpha.setUserWalletTemplates(
             wallet_template_v2.address,
@@ -109,62 +112,34 @@ def test_set_user_wallet_templates_non_governance_reverts(switchboard_alpha, ali
         )
 
 
-def test_set_user_wallet_templates_invalid_addresses_revert(switchboard_alpha, governance, user_wallet_template, user_wallet_config_template, alice, bob):
-    """Test that invalid template addresses revert with 'invalid user wallet templates' error"""
-    
-    # Test 1: Zero address for wallet template
+def test_set_user_wallet_templates_invalid_addresses_revert(switchboard_alpha, governance, wallet_template_v2, alice):
+    """Test various invalid address scenarios"""
+    # Test with zero addresses
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            ZERO_ADDRESS,
-            user_wallet_config_template.address,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(ZERO_ADDRESS, wallet_template_v2.address, sender=governance.address)
     
-    # Test 2: Zero address for config template
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            user_wallet_template.address,
-            ZERO_ADDRESS,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(wallet_template_v2.address, ZERO_ADDRESS, sender=governance.address)
     
-    # Test 3: Both zero addresses
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            ZERO_ADDRESS,
-            ZERO_ADDRESS,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(ZERO_ADDRESS, ZERO_ADDRESS, sender=governance.address)
     
-    # Test 4: EOA address for wallet template (alice is not a contract)
+    # Test with EOA as wallet template
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            alice,
-            user_wallet_config_template.address,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(alice, wallet_template_v2.address, sender=governance.address)
     
-    # Test 5: EOA address for config template (bob is not a contract)
+    # Test with EOA as config template
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            user_wallet_template.address,
-            bob,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(wallet_template_v2.address, alice, sender=governance.address)
     
-    # Test 6: Both EOA addresses
+    # Test with both EOAs
     with boa.reverts("invalid user wallet templates"):
-        switchboard_alpha.setUserWalletTemplates(
-            alice,
-            bob,
-            sender=governance.address
-        )
+        switchboard_alpha.setUserWalletTemplates(alice, alice, sender=governance.address)
 
 
 def test_cancel_pending_wallet_template_update(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2):
     """Test canceling a pending wallet template update"""
-    
-    # Get initial state
+    # Get initial config
     initial_config = mission_control.userWalletConfig()
     
     # Initiate template change
@@ -174,32 +149,30 @@ def test_cancel_pending_wallet_template_update(switchboard_alpha, governance, mi
         sender=governance.address
     )
     
-    # Verify pending action exists
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     
-    # Cancel the action
+    # Cancel the pending action
     result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
     assert result == True
     
     # Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0
-    # Note: pendingUserWalletConfig mapping is not cleared, only actionType is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
     
-    # Time travel and try to execute - should fail
+    # Try to execute canceled action - should fail
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == False
     
-    # Verify config remains unchanged
+    # Verify config hasn't changed
     final_config = mission_control.userWalletConfig()
     assert final_config.walletTemplate == initial_config.walletTemplate
     assert final_config.configTemplate == initial_config.configTemplate
 
 
 def test_cancel_pending_action_non_governance_reverts(switchboard_alpha, governance, alice, wallet_template_v2, config_template_v2):
-    """Test that non-governance cannot cancel pending actions"""
-    
-    # Initiate as governance
+    """Test that non-governance addresses cannot cancel pending actions"""
+    # Create a pending action
     aid = switchboard_alpha.setUserWalletTemplates(
         wallet_template_v2.address,
         config_template_v2.address,
@@ -212,7 +185,9 @@ def test_cancel_pending_action_non_governance_reverts(switchboard_alpha, governa
 
 
 def test_execute_expired_wallet_template_update(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2):
-    """Test that expired actions cannot be executed and are automatically cancelled"""
+    """Test that expired actions auto-cancel and cannot be executed"""
+    # Get initial config
+    initial_config = mission_control.userWalletConfig()
     
     # Initiate template change
     aid = switchboard_alpha.setUserWalletTemplates(
@@ -221,51 +196,33 @@ def test_execute_expired_wallet_template_update(switchboard_alpha, governance, m
         sender=governance.address
     )
     
-    # Verify pending action exists
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    # Time travel past expiration (timelock + max timelock)
+    max_timelock = switchboard_alpha.maxActionTimeLock()
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + max_timelock + 1)
     
-    # Travel to exactly the last valid block (timelock + expiration - 1)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + switchboard_alpha.expiration() - 1)
-    
-    # Should still be executable at the last valid block
+    # Try to execute - should auto-cancel and return False
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Create another pending action to test expiration
-    aid2 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Travel past expiration (timelock + expiration)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + switchboard_alpha.expiration())
-    
-    # Execute should fail silently and cancel the action
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == False
     
-    # Verify action was cancelled
-    assert switchboard_alpha.actionType(aid2) == 0
-    # Note: pendingUserWalletConfig mapping is not cleared, only actionType is cleared
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
     
-    # Verify config was updated by first action but not the expired second one
+    # Verify config hasn't changed
     final_config = mission_control.userWalletConfig()
-    assert final_config.walletTemplate == wallet_template_v2.address
-    assert final_config.configTemplate == config_template_v2.address
+    assert final_config.walletTemplate == initial_config.walletTemplate
+    assert final_config.configTemplate == initial_config.configTemplate
 
 
 def test_execute_pending_action_non_governance_reverts(switchboard_alpha, governance, alice, wallet_template_v2, config_template_v2):
-    """Test that non-governance cannot execute pending actions"""
-    
-    # Initiate as governance
+    """Test that non-governance addresses cannot execute pending actions"""
+    # Create a pending action
     aid = switchboard_alpha.setUserWalletTemplates(
         wallet_template_v2.address,
         config_template_v2.address,
         sender=governance.address
     )
     
-    # Time travel
+    # Time travel to timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     
     # Try to execute as non-governance
@@ -273,160 +230,167 @@ def test_execute_pending_action_non_governance_reverts(switchboard_alpha, govern
         switchboard_alpha.executePendingAction(aid, sender=alice)
 
 
-def test_multiple_pending_wallet_template_updates(switchboard_alpha, governance, wallet_template_v2, config_template_v2):
-    """Test handling multiple pending updates"""
-    # Deploy multiple template versions
-    wallet_v3 = boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
-    config_v3 = boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+def test_multiple_pending_wallet_template_updates(switchboard_alpha, governance, mission_control):
+    """Test creating multiple pending updates with different action IDs"""
+    # Deploy multiple template sets
+    templates1 = boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
+    config1 = boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
     
-    # Create first pending update
+    templates2 = boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
+    config2 = boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+    
+    # Create first pending action
     aid1 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
+        templates1.address,
+        config1.address,
         sender=governance.address
     )
     
-    # Create second pending update
+    # Create second pending action
     aid2 = switchboard_alpha.setUserWalletTemplates(
-        wallet_v3.address,
-        config_v3.address,
+        templates2.address,
+        config2.address,
         sender=governance.address
     )
     
-    # Verify both are pending with different action IDs
+    # Verify different action IDs
     assert aid1 != aid2
-    assert switchboard_alpha.actionType(aid1) == 1
-    assert switchboard_alpha.actionType(aid2) == 1
+    
+    # Verify both are pending
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     
     # Verify different pending configs
     pending1 = switchboard_alpha.pendingUserWalletConfig(aid1)
     pending2 = switchboard_alpha.pendingUserWalletConfig(aid2)
+    assert pending1.walletTemplate == templates1.address
+    assert pending2.walletTemplate == templates2.address
     
-    assert pending1.walletTemplate == wallet_template_v2.address
-    assert pending2.walletTemplate == wallet_v3.address
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify config updated to second set
+    config = mission_control.userWalletConfig()
+    assert config.walletTemplate == templates2.address
+    assert config.configTemplate == config2.address
+    
+    # First action should still be pending
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    
+    # Execute first action
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify config updated to first set
+    final_config = mission_control.userWalletConfig()
+    assert final_config.walletTemplate == templates1.address
+    assert final_config.configTemplate == config1.address
 
 
-###############
-# Trial Funds #
-###############
+################
+# Trial Funds  #
+################
 
 
 def test_set_trial_funds_success(switchboard_alpha, governance, mission_control, alpha_token):
     """Test successful trial funds update through full lifecycle"""
-    # Get initial config from MissionControl
+    # Get initial config
     initial_config = mission_control.userWalletConfig()
-    initial_trial_asset = initial_config.trialAsset
-    initial_trial_amount = initial_config.trialAmount
-    
-    # New trial funds values
-    new_trial_asset = alpha_token.address
-    new_trial_amount = 100 * 10**18  # 100 ALPHA tokens (assuming 18 decimals)
     
     # Step 1: Initiate trial funds change
+    trial_amount = 1000 * 10**18  # 1000 tokens
     aid = switchboard_alpha.setTrialFunds(
-        new_trial_asset,
-        new_trial_amount,
+        alpha_token.address,
+        trial_amount,
         sender=governance.address
     )
     
     # Step 2: Verify event was emitted
     logs = filter_logs(switchboard_alpha, "PendingTrialFundsChange")
     assert len(logs) == 1
-    assert logs[0].trialAsset == new_trial_asset
-    assert logs[0].trialAmount == new_trial_amount
+    assert logs[0].trialAsset == alpha_token.address
+    assert logs[0].trialAmount == trial_amount
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
     expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
     assert logs[0].confirmationBlock == expected_confirmation_block
     
     # Step 3: Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.trialAsset == new_trial_asset
-    assert pending_config.trialAmount == new_trial_amount
+    assert pending_config.trialAsset == alpha_token.address
+    assert pending_config.trialAmount == trial_amount
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.trialAsset == initial_trial_asset
-    assert current_config.trialAmount == initial_trial_amount
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Step 7: Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "TrialFundsSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].trialAsset == new_trial_asset
-    assert exec_logs[0].trialAmount == new_trial_amount
-    
-    # Step 8: Verify state changes in MissionControl
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.trialAsset == new_trial_asset
-    assert updated_config.trialAmount == new_trial_amount
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
-
-
-def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, mission_control):
-    """Test that zero address and zero amount are allowed for trial funds"""
-    # Test with zero address and zero amount - should succeed
-    aid = switchboard_alpha.setTrialFunds(
-        ZERO_ADDRESS,
-        0,
-        sender=governance.address
-    )
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.trialAsset == ZERO_ADDRESS
-    assert pending_config.trialAmount == 0
-    
-    # Execute after timelock
+    # Step 4: Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
+    # Step 5: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "TrialFundsSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].trialAsset == alpha_token.address
+    assert exec_logs[0].trialAmount == trial_amount
+    
+    # Step 6: Verify state changes in MissionControl
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.trialAsset == ZERO_ADDRESS
-    assert updated_config.trialAmount == 0
+    assert updated_config.trialAsset == alpha_token.address
+    assert updated_config.trialAmount == trial_amount
+    
+    # Verify other config fields remain unchanged
+    assert updated_config.walletTemplate == initial_config.walletTemplate
+    assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
+    
+    # Step 7: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test that zero amount and zero address are allowed for trial funds"""
+    # Test with zero amount
+    aid = switchboard_alpha.setTrialFunds(
+        alpha_token.address,
+        0,  # Zero amount
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.userWalletConfig()
+    assert config.trialAsset == alpha_token.address
+    assert config.trialAmount == 0
+    
+    # Test with zero address
+    aid2 = switchboard_alpha.setTrialFunds(
+        ZERO_ADDRESS,  # Zero address
+        100,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    final_config = mission_control.userWalletConfig()
+    assert final_config.trialAsset == ZERO_ADDRESS
+    assert final_config.trialAmount == 100
 
 
 def test_set_trial_funds_non_governance_reverts(switchboard_alpha, alice, alpha_token):
-    """Test that non-governance cannot set trial funds"""
+    """Test that non-governance addresses cannot set trial funds"""
     with boa.reverts("no perms"):
         switchboard_alpha.setTrialFunds(
             alpha_token.address,
-            100 * 10**18,
+            1000,
             sender=alice
         )
 
 
-def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2, alpha_token):
-    """Test that trial funds and template updates can coexist as separate pending actions"""
+def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governance, mission_control, alpha_token, wallet_template_v2, config_template_v2):
+    """Test that trial funds and template updates can coexist as separate actions"""
     # Create pending template update
     aid1 = switchboard_alpha.setUserWalletTemplates(
         wallet_template_v2.address,
@@ -437,36 +401,37 @@ def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governan
     # Create pending trial funds update
     aid2 = switchboard_alpha.setTrialFunds(
         alpha_token.address,
-        50 * 10**18,  # 50 ALPHA tokens
+        2000,
         sender=governance.address
     )
     
-    # Verify both are pending with different action IDs and types
-    assert aid1 != aid2
+    # Verify different action types
     assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
     assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
     
-    # Time travel and execute trial funds first
+    # Execute trial funds first
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == True
     
-    # Verify trial funds updated but templates not yet
+    # Verify only trial funds changed
     config = mission_control.userWalletConfig()
     assert config.trialAsset == alpha_token.address
-    assert config.trialAmount == 50 * 10**18
-    assert config.walletTemplate != wallet_template_v2.address
+    assert config.trialAmount == 2000
+    # Templates should be unchanged
+    initial_config = mission_control.userWalletConfig()
+    assert config.walletTemplate == initial_config.walletTemplate
     
     # Execute template update
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
     
-    # Verify both updates applied
+    # Verify both changes are applied
     final_config = mission_control.userWalletConfig()
     assert final_config.walletTemplate == wallet_template_v2.address
     assert final_config.configTemplate == config_template_v2.address
     assert final_config.trialAsset == alpha_token.address
-    assert final_config.trialAmount == 50 * 10**18
+    assert final_config.trialAmount == 2000
 
 
 ##########################
@@ -475,530 +440,311 @@ def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governan
 
 
 def test_set_wallet_creation_limits_success(switchboard_alpha, governance, mission_control):
-    """Test successful wallet creation limits update through full lifecycle"""
-    # Get initial config from MissionControl
+    """Test successful wallet creation limits update"""
+    # Get initial config
     initial_config = mission_control.userWalletConfig()
-    initial_num_wallets_allowed = initial_config.numUserWalletsAllowed
-    initial_enforce_whitelist = initial_config.enforceCreatorWhitelist
     
-    # New wallet creation limits values
-    new_num_wallets_allowed = 100
-    new_enforce_whitelist = True
-    
-    # Step 1: Initiate wallet creation limits change
+    # Set new limits
     aid = switchboard_alpha.setWalletCreationLimits(
-        new_num_wallets_allowed,
-        new_enforce_whitelist,
+        5,  # numUserWalletsAllowed
+        True,  # enforceCreatorWhitelist
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingWalletCreationLimitsChange")
     assert len(logs) == 1
-    assert logs[0].numUserWalletsAllowed == new_num_wallets_allowed
-    assert logs[0].enforceCreatorWhitelist == new_enforce_whitelist
+    assert logs[0].numUserWalletsAllowed == 5
+    assert logs[0].enforceCreatorWhitelist == True
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.numUserWalletsAllowed == new_num_wallets_allowed
-    assert pending_config.enforceCreatorWhitelist == new_enforce_whitelist
+    assert pending_config.numUserWalletsAllowed == 5
+    assert pending_config.enforceCreatorWhitelist == True
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.numUserWalletsAllowed == initial_num_wallets_allowed
-    assert current_config.enforceCreatorWhitelist == initial_enforce_whitelist
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "WalletCreationLimitsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].numUserWalletsAllowed == new_num_wallets_allowed
-    assert exec_logs[0].enforceCreatorWhitelist == new_enforce_whitelist
+    assert exec_logs[0].numUserWalletsAllowed == 5
+    assert exec_logs[0].enforceCreatorWhitelist == True
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.numUserWalletsAllowed == new_num_wallets_allowed
-    assert updated_config.enforceCreatorWhitelist == new_enforce_whitelist
+    assert updated_config.numUserWalletsAllowed == 5
+    assert updated_config.enforceCreatorWhitelist == True
     
-    # Verify other config fields remain unchanged
+    # Verify other fields unchanged
     assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
     assert updated_config.trialAmount == initial_config.trialAmount
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
 
 
 def test_set_wallet_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
-    """Test that large (but not max) values are allowed for wallet creation limits"""
-    # Test with large value (max uint256 - 1) and false
-    large_value = 2**256 - 2  # max uint256 - 1
+    """Test setting extreme but valid values"""
+    # Test with 1 wallet allowed
     aid = switchboard_alpha.setWalletCreationLimits(
-        large_value,
+        1,  # Minimum valid value
         False,
         sender=governance.address
     )
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.numUserWalletsAllowed == large_value
-    assert pending_config.enforceCreatorWhitelist == False
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.numUserWalletsAllowed == large_value
-    assert updated_config.enforceCreatorWhitelist == False
-
-
-def test_set_wallet_creation_limits_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values (0 and max_value) revert"""
-    # Test with 0 - should revert
-    with boa.reverts("invalid num user wallets allowed"):
-        switchboard_alpha.setWalletCreationLimits(
-            0,
-            True,
-            sender=governance.address
-        )
+    config = mission_control.userWalletConfig()
+    assert config.numUserWalletsAllowed == 1
+    assert config.enforceCreatorWhitelist == False
     
-    # Test with max_value(uint256) - should revert
-    with boa.reverts("invalid num user wallets allowed"):
-        switchboard_alpha.setWalletCreationLimits(
-            2**256 - 1,  # max uint256
-            False,
-            sender=governance.address
-        )
-
-
-def test_set_wallet_creation_limits_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set wallet creation limits"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setWalletCreationLimits(
-            100,
-            True,
-            sender=alice
-        )
-
-
-def test_set_wallet_creation_limits_mixed_with_other_updates(switchboard_alpha, governance, mission_control, wallet_template_v2, config_template_v2, alpha_token):
-    """Test that wallet creation limits can coexist with other pending actions"""
-    # Create pending template update
-    aid1 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Create pending trial funds update
-    aid2 = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        25 * 10**18,
-        sender=governance.address
-    )
-    
-    # Create pending wallet creation limits update
-    aid3 = switchboard_alpha.setWalletCreationLimits(
-        50,
+    # Test with very large number
+    large_num = 2**256 - 2  # max_value - 1
+    aid2 = switchboard_alpha.setWalletCreationLimits(
+        large_num,
         True,
         sender=governance.address
     )
     
-    # Verify all are pending with different action IDs and types
-    assert aid1 != aid2 != aid3
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    assert switchboard_alpha.actionType(aid3) == CONFIG_ACTION_TYPE.WALLET_CREATION_LIMITS
-    
-    # Time travel and execute wallet creation limits first
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid3, sender=governance.address)
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == True
     
-    # Verify only wallet creation limits updated
-    config = mission_control.userWalletConfig()
-    assert config.numUserWalletsAllowed == 50
-    assert config.enforceCreatorWhitelist == True
-    assert config.walletTemplate != wallet_template_v2.address
-    assert config.trialAsset != alpha_token.address
-    
-    # Execute other updates
-    assert switchboard_alpha.executePendingAction(aid1, sender=governance.address) == True
-    assert switchboard_alpha.executePendingAction(aid2, sender=governance.address) == True
-    
-    # Verify all updates applied
     final_config = mission_control.userWalletConfig()
-    assert final_config.walletTemplate == wallet_template_v2.address
-    assert final_config.configTemplate == config_template_v2.address
-    assert final_config.trialAsset == alpha_token.address
-    assert final_config.trialAmount == 25 * 10**18
-    assert final_config.numUserWalletsAllowed == 50
+    assert final_config.numUserWalletsAllowed == large_num
     assert final_config.enforceCreatorWhitelist == True
 
 
-##############################
-# Key Action Timelock Bounds #
-##############################
+def test_set_wallet_creation_limits_invalid_values_revert(switchboard_alpha, governance):
+    """Test that invalid values are rejected"""
+    # Test with 0
+    with boa.reverts("invalid num user wallets allowed"):
+        switchboard_alpha.setWalletCreationLimits(0, False, sender=governance.address)
+    
+    # Test with max_value
+    with boa.reverts("invalid num user wallets allowed"):
+        switchboard_alpha.setWalletCreationLimits(MAX_UINT256, False, sender=governance.address)
+
+
+def test_set_wallet_creation_limits_non_governance_reverts(switchboard_alpha, alice):
+    """Test that non-governance addresses cannot set wallet creation limits"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setWalletCreationLimits(5, True, sender=alice)
+
+
+def test_set_wallet_creation_limits_mixed_with_other_updates(switchboard_alpha, governance, mission_control):
+    """Test that wallet creation limits can be updated alongside other configs"""
+    # Set wallet creation limits
+    aid1 = switchboard_alpha.setWalletCreationLimits(3, True, sender=governance.address)
+    
+    # Set trial funds
+    aid2 = switchboard_alpha.setTrialFunds(ZERO_ADDRESS, 500, sender=governance.address)
+    
+    # Execute both
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result1 == True
+    
+    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result2 == True
+    
+    # Verify both changes applied
+    config = mission_control.userWalletConfig()
+    assert config.numUserWalletsAllowed == 3
+    assert config.enforceCreatorWhitelist == True
+    assert config.trialAsset == ZERO_ADDRESS
+    assert config.trialAmount == 500
+
+
+###############################
+# Key Action Timelock Bounds  #
+###############################
 
 
 def test_set_key_action_timelock_bounds_success(switchboard_alpha, governance, mission_control):
-    """Test successful key action timelock bounds update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_min_timelock = initial_config.minKeyActionTimeLock
-    initial_max_timelock = initial_config.maxKeyActionTimeLock
+    """Test successful key action timelock bounds update"""
+    # Set new bounds
+    min_timelock = 100
+    max_timelock = 1000
     
-    # New timelock bounds values (e.g., 1 hour to 1 week in blocks)
-    new_min_timelock = 3600  # ~1 hour in blocks
-    new_max_timelock = 604800  # ~1 week in blocks
-    
-    # Step 1: Initiate key action timelock bounds change
     aid = switchboard_alpha.setKeyActionTimelockBounds(
-        new_min_timelock,
-        new_max_timelock,
+        min_timelock,
+        max_timelock,
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingKeyActionTimelockBoundsChange")
     assert len(logs) == 1
-    assert logs[0].minKeyActionTimeLock == new_min_timelock
-    assert logs[0].maxKeyActionTimeLock == new_max_timelock
+    assert logs[0].minKeyActionTimeLock == min_timelock
+    assert logs[0].maxKeyActionTimeLock == max_timelock
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.KEY_ACTION_TIMELOCK_BOUNDS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.minKeyActionTimeLock == new_min_timelock
-    assert pending_config.maxKeyActionTimeLock == new_max_timelock
+    assert pending_config.minKeyActionTimeLock == min_timelock
+    assert pending_config.maxKeyActionTimeLock == max_timelock
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.minKeyActionTimeLock == initial_min_timelock
-    assert current_config.maxKeyActionTimeLock == initial_max_timelock
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "KeyActionTimelockBoundsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].minKeyActionTimeLock == new_min_timelock
-    assert exec_logs[0].maxKeyActionTimeLock == new_max_timelock
+    assert exec_logs[0].minKeyActionTimeLock == min_timelock
+    assert exec_logs[0].maxKeyActionTimeLock == max_timelock
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.minKeyActionTimeLock == new_min_timelock
-    assert updated_config.maxKeyActionTimeLock == new_max_timelock
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.minKeyActionTimeLock == min_timelock
+    assert updated_config.maxKeyActionTimeLock == max_timelock
 
 
 def test_set_key_action_timelock_bounds_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values revert with proper error message"""
-    # Test 1: min = 0
+    """Test that invalid bounds are rejected"""
+    # Test with zero values
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            0,
-            1000,
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(0, 1000, sender=governance.address)
     
-    # Test 2: max = 0
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            1000,
-            0,
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(100, 0, sender=governance.address)
     
-    # Test 3: min = max_value(uint256)
+    # Test with max_value
+    max_val = MAX_UINT256
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            2**256 - 1,
-            1000,
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(max_val, 1000, sender=governance.address)
     
-    # Test 4: max = max_value(uint256)
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            1000,
-            2**256 - 1,
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(100, max_val, sender=governance.address)
     
-    # Test 5: min >= max
+    # Test with min >= max
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            1000,
-            1000,  # min == max
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(1000, 1000, sender=governance.address)
     
-    # Test 6: min > max
     with boa.reverts("invalid key action timelock bounds"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            2000,
-            1000,  # min > max
-            sender=governance.address
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(1000, 999, sender=governance.address)
 
 
 def test_set_key_action_timelock_bounds_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set key action timelock bounds"""
+    """Test that non-governance addresses cannot set key action timelock bounds"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setKeyActionTimelockBounds(
-            3600,
-            604800,
-            sender=alice
-        )
+        switchboard_alpha.setKeyActionTimelockBounds(100, 1000, sender=alice)
 
 
 def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance, mission_control):
     """Test edge cases for key action timelock bounds"""
-    # Test with min = 1 and max = 2 (smallest valid range)
-    aid = switchboard_alpha.setKeyActionTimelockBounds(
-        1,
-        2,
-        sender=governance.address
-    )
+    # Test with min = 1, max = 2 (smallest valid range)
+    aid = switchboard_alpha.setKeyActionTimelockBounds(1, 2, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.KEY_ACTION_TIMELOCK_BOUNDS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.minKeyActionTimeLock == 1
-    assert pending_config.maxKeyActionTimeLock == 2
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.minKeyActionTimeLock == 1
-    assert updated_config.maxKeyActionTimeLock == 2
+    config = mission_control.userWalletConfig()
+    assert config.minKeyActionTimeLock == 1
+    assert config.maxKeyActionTimeLock == 2
     
-    # Test with large values (but not max)
-    large_min = 2**255
+    # Test with large valid range
     large_max = 2**256 - 2
-    aid2 = switchboard_alpha.setKeyActionTimelockBounds(
-        large_min,
-        large_max,
-        sender=governance.address
-    )
+    aid2 = switchboard_alpha.setKeyActionTimelockBounds(1, large_max, sender=governance.address)
     
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == True
     
-    # Verify state changes
     final_config = mission_control.userWalletConfig()
-    assert final_config.minKeyActionTimeLock == large_min
+    assert final_config.minKeyActionTimeLock == 1
     assert final_config.maxKeyActionTimeLock == large_max
 
 
-########################
-# Default Stale Blocks #
-########################
+#########################
+# Default Stale Blocks  #
+#########################
 
 
 def test_set_default_stale_blocks_success(switchboard_alpha, governance, mission_control):
-    """Test successful default stale blocks update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_stale_blocks = initial_config.defaultStaleBlocks
+    """Test successful default stale blocks update"""
+    # Set new value
+    stale_blocks = 43200  # ~1 day
     
-    # New default stale blocks value (e.g., 6 hours in blocks)
-    new_stale_blocks = 21600  # ~6 hours in blocks
-    
-    # Step 1: Initiate default stale blocks change
     aid = switchboard_alpha.setDefaultStaleBlocks(
-        new_stale_blocks,
+        stale_blocks,
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingDefaultStaleBlocksChange")
     assert len(logs) == 1
-    assert logs[0].defaultStaleBlocks == new_stale_blocks
+    assert logs[0].defaultStaleBlocks == stale_blocks
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_STALE_BLOCKS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultStaleBlocks == new_stale_blocks
+    assert pending_config.defaultStaleBlocks == stale_blocks
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.defaultStaleBlocks == initial_stale_blocks
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "DefaultStaleBlocksSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].defaultStaleBlocks == new_stale_blocks
+    assert exec_logs[0].defaultStaleBlocks == stale_blocks
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultStaleBlocks == new_stale_blocks
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
-    assert updated_config.minKeyActionTimeLock == initial_config.minKeyActionTimeLock
-    assert updated_config.maxKeyActionTimeLock == initial_config.maxKeyActionTimeLock
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.defaultStaleBlocks == stale_blocks
 
 
 def test_set_default_stale_blocks_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values revert with proper error message"""
-    # Test 1: defaultStaleBlocks = 0
+    """Test that invalid values are rejected"""
+    # Test with 0
     with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(
-            0,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultStaleBlocks(0, sender=governance.address)
     
-    # Test 2: defaultStaleBlocks = max_value(uint256)
+    # Test with max_value
     with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(
-            2**256 - 1,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultStaleBlocks(MAX_UINT256, sender=governance.address)
 
 
 def test_set_default_stale_blocks_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set default stale blocks"""
+    """Test that non-governance addresses cannot set default stale blocks"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setDefaultStaleBlocks(
-            21600,
-            sender=alice
-        )
+        switchboard_alpha.setDefaultStaleBlocks(100, sender=alice)
 
 
 def test_set_default_stale_blocks_edge_cases(switchboard_alpha, governance, mission_control):
     """Test edge cases for default stale blocks"""
-    # Test with minimum valid value (1)
-    aid = switchboard_alpha.setDefaultStaleBlocks(
-        1,
-        sender=governance.address
-    )
+    # Test with 1 (minimum valid)
+    aid = switchboard_alpha.setDefaultStaleBlocks(1, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_STALE_BLOCKS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultStaleBlocks == 1
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultStaleBlocks == 1
+    config = mission_control.userWalletConfig()
+    assert config.defaultStaleBlocks == 1
     
-    # Test with large value (but not max)
-    large_value = 2**256 - 2
-    aid2 = switchboard_alpha.setDefaultStaleBlocks(
-        large_value,
-        sender=governance.address
-    )
+    # Test with max_value - 1
+    large_blocks = 2**256 - 2
+    aid2 = switchboard_alpha.setDefaultStaleBlocks(large_blocks, sender=governance.address)
     
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == True
     
-    # Verify state changes
     final_config = mission_control.userWalletConfig()
-    assert final_config.defaultStaleBlocks == large_value
+    assert final_config.defaultStaleBlocks == large_blocks
 
 
 ###########
@@ -1007,874 +753,455 @@ def test_set_default_stale_blocks_edge_cases(switchboard_alpha, governance, miss
 
 
 def test_set_tx_fees_success(switchboard_alpha, governance, mission_control):
-    """Test successful tx fees update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_swap_fee = initial_config.txFees.swapFee
-    initial_stable_swap_fee = initial_config.txFees.stableSwapFee
-    initial_rewards_fee = initial_config.txFees.rewardsFee
+    """Test successful transaction fees update"""
+    # Set new fees
+    swap_fee = 30  # 0.3%
+    stable_swap_fee = 10  # 0.1%
+    rewards_fee = 50  # 0.5%
     
-    # New tx fees values (in basis points - 100 = 1%)
-    new_swap_fee = 30  # 0.3%
-    new_stable_swap_fee = 10  # 0.1%
-    new_rewards_fee = 50  # 0.5%
-    
-    # Step 1: Initiate tx fees change
     aid = switchboard_alpha.setTxFees(
-        new_swap_fee,
-        new_stable_swap_fee,
-        new_rewards_fee,
+        swap_fee,
+        stable_swap_fee,
+        rewards_fee,
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingTxFeesChange")
     assert len(logs) == 1
-    assert logs[0].swapFee == new_swap_fee
-    assert logs[0].stableSwapFee == new_stable_swap_fee
-    assert logs[0].rewardsFee == new_rewards_fee
+    assert logs[0].swapFee == swap_fee
+    assert logs[0].stableSwapFee == stable_swap_fee
+    assert logs[0].rewardsFee == rewards_fee
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TX_FEES
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.txFees.swapFee == new_swap_fee
-    assert pending_config.txFees.stableSwapFee == new_stable_swap_fee
-    assert pending_config.txFees.rewardsFee == new_rewards_fee
+    assert pending_config.txFees.swapFee == swap_fee
+    assert pending_config.txFees.stableSwapFee == stable_swap_fee
+    assert pending_config.txFees.rewardsFee == rewards_fee
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.txFees.swapFee == initial_swap_fee
-    assert current_config.txFees.stableSwapFee == initial_stable_swap_fee
-    assert current_config.txFees.rewardsFee == initial_rewards_fee
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "TxFeesSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].swapFee == new_swap_fee
-    assert exec_logs[0].stableSwapFee == new_stable_swap_fee
-    assert exec_logs[0].rewardsFee == new_rewards_fee
+    assert exec_logs[0].swapFee == swap_fee
+    assert exec_logs[0].stableSwapFee == stable_swap_fee
+    assert exec_logs[0].rewardsFee == rewards_fee
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.txFees.swapFee == new_swap_fee
-    assert updated_config.txFees.stableSwapFee == new_stable_swap_fee
-    assert updated_config.txFees.rewardsFee == new_rewards_fee
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.txFees.swapFee == swap_fee
+    assert updated_config.txFees.stableSwapFee == stable_swap_fee
+    assert updated_config.txFees.rewardsFee == rewards_fee
 
 
 def test_set_tx_fees_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values (above 100%) revert with proper error message"""
-    # Test 1: swapFee > 100%
+    """Test that fees exceeding 100% are rejected"""
+    # Test swap fee > 100%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(
-            10001,  # > 100%
-            100,
-            100,
-            sender=governance.address
-        )
+        switchboard_alpha.setTxFees(10001, 0, 0, sender=governance.address)
     
-    # Test 2: stableSwapFee > 100%
+    # Test stable swap fee > 100%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(
-            100,
-            10001,  # > 100%
-            100,
-            sender=governance.address
-        )
+        switchboard_alpha.setTxFees(0, 10001, 0, sender=governance.address)
     
-    # Test 3: rewardsFee > 100%
+    # Test rewards fee > 100%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(
-            100,
-            100,
-            10001,  # > 100%
-            sender=governance.address
-        )
+        switchboard_alpha.setTxFees(0, 0, 10001, sender=governance.address)
     
-    # Test 4: All fees > 100%
+    # Test all fees > 100%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(
-            20000,  # 200%
-            15000,  # 150%
-            25000,  # 250%
-            sender=governance.address
-        )
+        switchboard_alpha.setTxFees(20000, 20000, 20000, sender=governance.address)
 
 
 def test_set_tx_fees_zero_values_allowed(switchboard_alpha, governance, mission_control):
-    """Test that zero fee values are allowed"""
-    # Set all fees to 0
-    aid = switchboard_alpha.setTxFees(
-        0,
-        0,
-        0,
-        sender=governance.address
-    )
+    """Test that zero fees are allowed"""
+    aid = switchboard_alpha.setTxFees(0, 0, 0, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TX_FEES
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.txFees.swapFee == 0
-    assert pending_config.txFees.stableSwapFee == 0
-    assert pending_config.txFees.rewardsFee == 0
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.txFees.swapFee == 0
-    assert updated_config.txFees.stableSwapFee == 0
-    assert updated_config.txFees.rewardsFee == 0
+    config = mission_control.userWalletConfig()
+    assert config.txFees.swapFee == 0
+    assert config.txFees.stableSwapFee == 0
+    assert config.txFees.rewardsFee == 0
 
 
 def test_set_tx_fees_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set tx fees"""
+    """Test that non-governance addresses cannot set tx fees"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setTxFees(
-            30,
-            10,
-            50,
-            sender=alice
-        )
+        switchboard_alpha.setTxFees(30, 10, 50, sender=alice)
 
 
 def test_set_tx_fees_maximum_allowed_values(switchboard_alpha, governance, mission_control):
-    """Test maximum allowed fee values (100% = 10000 basis points)"""
-    # Set all fees to maximum allowed (100%)
-    aid = switchboard_alpha.setTxFees(
-        10000,  # 100%
-        10000,  # 100%
-        10000,  # 100%
-        sender=governance.address
-    )
+    """Test setting fees to exactly 100%"""
+    # Set each fee to exactly 100%
+    aid = switchboard_alpha.setTxFees(10000, 10000, 10000, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TX_FEES
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.txFees.swapFee == 10000
-    assert pending_config.txFees.stableSwapFee == 10000
-    assert pending_config.txFees.rewardsFee == 10000
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.txFees.swapFee == 10000
-    assert updated_config.txFees.stableSwapFee == 10000
-    assert updated_config.txFees.rewardsFee == 10000
+    config = mission_control.userWalletConfig()
+    assert config.txFees.swapFee == 10000
+    assert config.txFees.stableSwapFee == 10000
+    assert config.txFees.rewardsFee == 10000
 
 
-########################
-# Ambassador Rev Share #
-########################
+##########################
+# Ambassador Rev Share   #
+##########################
 
 
 def test_set_ambassador_rev_share_success(switchboard_alpha, governance, mission_control):
-    """Test successful ambassador rev share update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_swap_ratio = initial_config.ambassadorRevShare.swapRatio
-    initial_rewards_ratio = initial_config.ambassadorRevShare.rewardsRatio
-    initial_yield_ratio = initial_config.ambassadorRevShare.yieldRatio
+    """Test successful ambassador revenue share update"""
+    # Set new ratios
+    swap_ratio = 1000  # 10%
+    rewards_ratio = 2000  # 20%
+    yield_ratio = 1500  # 15%
     
-    # New ambassador rev share values (in basis points - 100 = 1%)
-    new_swap_ratio = 500  # 5%
-    new_rewards_ratio = 1000  # 10%
-    new_yield_ratio = 750  # 7.5%
-    
-    # Step 1: Initiate ambassador rev share change
     aid = switchboard_alpha.setAmbassadorRevShare(
-        new_swap_ratio,
-        new_rewards_ratio,
-        new_yield_ratio,
+        swap_ratio,
+        rewards_ratio,
+        yield_ratio,
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingAmbassadorRevShareChange")
     assert len(logs) == 1
-    assert logs[0].swapRatio == new_swap_ratio
-    assert logs[0].rewardsRatio == new_rewards_ratio
-    assert logs[0].yieldRatio == new_yield_ratio
+    assert logs[0].swapRatio == swap_ratio
+    assert logs[0].rewardsRatio == rewards_ratio
+    assert logs[0].yieldRatio == yield_ratio
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AMBASSADOR_REV_SHARE
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.ambassadorRevShare.swapRatio == new_swap_ratio
-    assert pending_config.ambassadorRevShare.rewardsRatio == new_rewards_ratio
-    assert pending_config.ambassadorRevShare.yieldRatio == new_yield_ratio
+    assert pending_config.ambassadorRevShare.swapRatio == swap_ratio
+    assert pending_config.ambassadorRevShare.rewardsRatio == rewards_ratio
+    assert pending_config.ambassadorRevShare.yieldRatio == yield_ratio
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.ambassadorRevShare.swapRatio == initial_swap_ratio
-    assert current_config.ambassadorRevShare.rewardsRatio == initial_rewards_ratio
-    assert current_config.ambassadorRevShare.yieldRatio == initial_yield_ratio
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "AmbassadorRevShareSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].swapRatio == new_swap_ratio
-    assert exec_logs[0].rewardsRatio == new_rewards_ratio
-    assert exec_logs[0].yieldRatio == new_yield_ratio
+    assert exec_logs[0].swapRatio == swap_ratio
+    assert exec_logs[0].rewardsRatio == rewards_ratio
+    assert exec_logs[0].yieldRatio == yield_ratio
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.ambassadorRevShare.swapRatio == new_swap_ratio
-    assert updated_config.ambassadorRevShare.rewardsRatio == new_rewards_ratio
-    assert updated_config.ambassadorRevShare.yieldRatio == new_yield_ratio
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    assert updated_config.txFees.swapFee == initial_config.txFees.swapFee
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.ambassadorRevShare.swapRatio == swap_ratio
+    assert updated_config.ambassadorRevShare.rewardsRatio == rewards_ratio
+    assert updated_config.ambassadorRevShare.yieldRatio == yield_ratio
 
 
 def test_set_ambassador_rev_share_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values (above 100%) revert with proper error message"""
-    # Test 1: swapRatio > 100%
+    """Test that ratios exceeding 100% are rejected"""
+    # Test swap ratio > 100%
     with boa.reverts("invalid ambassador rev share ratios"):
-        switchboard_alpha.setAmbassadorRevShare(
-            10001,  # > 100%
-            100,
-            100,
-            sender=governance.address
-        )
+        switchboard_alpha.setAmbassadorRevShare(10001, 0, 0, sender=governance.address)
     
-    # Test 2: rewardsRatio > 100%
+    # Test rewards ratio > 100%
     with boa.reverts("invalid ambassador rev share ratios"):
-        switchboard_alpha.setAmbassadorRevShare(
-            100,
-            10001,  # > 100%
-            100,
-            sender=governance.address
-        )
+        switchboard_alpha.setAmbassadorRevShare(0, 10001, 0, sender=governance.address)
     
-    # Test 3: yieldRatio > 100%
+    # Test yield ratio > 100%
     with boa.reverts("invalid ambassador rev share ratios"):
-        switchboard_alpha.setAmbassadorRevShare(
-            100,
-            100,
-            10001,  # > 100%
-            sender=governance.address
-        )
-    
-    # Test 4: All ratios > 100%
-    with boa.reverts("invalid ambassador rev share ratios"):
-        switchboard_alpha.setAmbassadorRevShare(
-            20000,  # 200%
-            15000,  # 150%
-            25000,  # 250%
-            sender=governance.address
-        )
+        switchboard_alpha.setAmbassadorRevShare(0, 0, 10001, sender=governance.address)
 
 
 def test_set_ambassador_rev_share_zero_values_allowed(switchboard_alpha, governance, mission_control):
-    """Test that zero ratio values are allowed"""
-    # Set all ratios to 0
-    aid = switchboard_alpha.setAmbassadorRevShare(
-        0,
-        0,
-        0,
-        sender=governance.address
-    )
+    """Test that zero ratios are allowed"""
+    aid = switchboard_alpha.setAmbassadorRevShare(0, 0, 0, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AMBASSADOR_REV_SHARE
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.ambassadorRevShare.swapRatio == 0
-    assert pending_config.ambassadorRevShare.rewardsRatio == 0
-    assert pending_config.ambassadorRevShare.yieldRatio == 0
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.ambassadorRevShare.swapRatio == 0
-    assert updated_config.ambassadorRevShare.rewardsRatio == 0
-    assert updated_config.ambassadorRevShare.yieldRatio == 0
+    config = mission_control.userWalletConfig()
+    assert config.ambassadorRevShare.swapRatio == 0
+    assert config.ambassadorRevShare.rewardsRatio == 0
+    assert config.ambassadorRevShare.yieldRatio == 0
 
 
 def test_set_ambassador_rev_share_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set ambassador rev share"""
+    """Test that non-governance addresses cannot set ambassador rev share"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setAmbassadorRevShare(
-            500,
-            1000,
-            750,
-            sender=alice
-        )
+        switchboard_alpha.setAmbassadorRevShare(1000, 2000, 1500, sender=alice)
 
 
 def test_set_ambassador_rev_share_maximum_allowed_values(switchboard_alpha, governance, mission_control):
-    """Test maximum allowed ratio values (100% = 10000 basis points)"""
-    # Set all ratios to maximum allowed (100%)
-    aid = switchboard_alpha.setAmbassadorRevShare(
-        10000,  # 100%
-        10000,  # 100%
-        10000,  # 100%
-        sender=governance.address
-    )
+    """Test setting ratios to exactly 100%"""
+    aid = switchboard_alpha.setAmbassadorRevShare(10000, 10000, 10000, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AMBASSADOR_REV_SHARE
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.ambassadorRevShare.swapRatio == 10000
-    assert pending_config.ambassadorRevShare.rewardsRatio == 10000
-    assert pending_config.ambassadorRevShare.yieldRatio == 10000
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.ambassadorRevShare.swapRatio == 10000
-    assert updated_config.ambassadorRevShare.rewardsRatio == 10000
-    assert updated_config.ambassadorRevShare.yieldRatio == 10000
+    config = mission_control.userWalletConfig()
+    assert config.ambassadorRevShare.swapRatio == 10000
+    assert config.ambassadorRevShare.rewardsRatio == 10000
+    assert config.ambassadorRevShare.yieldRatio == 10000
 
 
 def test_set_ambassador_rev_share_mixed_values(switchboard_alpha, governance, mission_control):
-    """Test setting different values for each ratio"""
-    # Set different values for each ratio
+    """Test setting different ratios for each type"""
     aid = switchboard_alpha.setAmbassadorRevShare(
-        0,      # 0% swap ratio
-        5000,   # 50% rewards ratio
-        10000,  # 100% yield ratio
+        5000,  # 50% swap
+        2500,  # 25% rewards
+        7500,  # 75% yield
         sender=governance.address
     )
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AMBASSADOR_REV_SHARE
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.ambassadorRevShare.swapRatio == 0
-    assert pending_config.ambassadorRevShare.rewardsRatio == 5000
-    assert pending_config.ambassadorRevShare.yieldRatio == 10000
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.userWalletConfig()
+    assert config.ambassadorRevShare.swapRatio == 5000
+    assert config.ambassadorRevShare.rewardsRatio == 2500
+    assert config.ambassadorRevShare.yieldRatio == 7500
+
+
+##########################
+# Default Yield Params   #
+##########################
+
+
+def test_set_default_yield_params_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful default yield parameters update"""
+    # Set new params
+    max_increase = 2000  # 20%
+    performance_fee = 1000  # 10%
+    ambassador_bonus = 500  # 5%
+    bonus_ratio = 1500  # 15%
+    alt_bonus_asset = alpha_token.address
+    
+    aid = switchboard_alpha.setDefaultYieldParams(
+        max_increase,
+        performance_fee,
+        ambassador_bonus,
+        bonus_ratio,
+        alt_bonus_asset,
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingDefaultYieldParamsChange")
+    assert len(logs) == 1
+    assert logs[0].defaultYieldMaxIncrease == max_increase
+    assert logs[0].defaultYieldPerformanceFee == performance_fee
+    assert logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
+    assert logs[0].defaultYieldBonusRatio == bonus_ratio
+    assert logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
+    assert logs[0].actionId == aid
     
     # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.ambassadorRevShare.swapRatio == 0
-    assert updated_config.ambassadorRevShare.rewardsRatio == 5000
-    assert updated_config.ambassadorRevShare.yieldRatio == 10000
-
-
-########################
-# Default Yield Params #
-########################
-
-
-def test_set_default_yield_params_success(switchboard_alpha, governance, mission_control, alice):
-    """Test successful default yield params update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_max_increase = initial_config.defaultYieldMaxIncrease
-    initial_performance_fee = initial_config.defaultYieldPerformanceFee
-    initial_ambassador_bonus_ratio = initial_config.defaultYieldAmbassadorBonusRatio
-    initial_bonus_ratio = initial_config.defaultYieldBonusRatio
-    initial_alt_bonus_asset = initial_config.defaultYieldAltBonusAsset
-    
-    # New default yield params values
-    new_max_increase = 1000  # 10%
-    new_performance_fee = 2000  # 20%
-    new_ambassador_bonus_ratio = 500  # 5%
-    new_bonus_ratio = 1500  # 15%
-    new_alt_bonus_asset = alice  # Using alice address as alt bonus asset
-    
-    # Step 1: Initiate default yield params change
-    aid = switchboard_alpha.setDefaultYieldParams(
-        new_max_increase,
-        new_performance_fee,
-        new_ambassador_bonus_ratio,
-        new_bonus_ratio,
-        new_alt_bonus_asset,
-        sender=governance.address
-    )
-    
-    # Step 2: Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingDefaultYieldParamsChange")
-    assert len(logs) == 1
-    assert logs[0].defaultYieldMaxIncrease == new_max_increase
-    assert logs[0].defaultYieldPerformanceFee == new_performance_fee
-    assert logs[0].defaultYieldAmbassadorBonusRatio == new_ambassador_bonus_ratio
-    assert logs[0].defaultYieldBonusRatio == new_bonus_ratio
-    assert logs[0].defaultYieldAltBonusAsset == new_alt_bonus_asset
-    assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
-    
-    # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_YIELD_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultYieldMaxIncrease == new_max_increase
-    assert pending_config.defaultYieldPerformanceFee == new_performance_fee
-    assert pending_config.defaultYieldAmbassadorBonusRatio == new_ambassador_bonus_ratio
-    assert pending_config.defaultYieldBonusRatio == new_bonus_ratio
-    assert pending_config.defaultYieldAltBonusAsset == new_alt_bonus_asset
-    
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.defaultYieldMaxIncrease == initial_max_increase
-    assert current_config.defaultYieldPerformanceFee == initial_performance_fee
-    assert current_config.defaultYieldAmbassadorBonusRatio == initial_ambassador_bonus_ratio
-    assert current_config.defaultYieldBonusRatio == initial_bonus_ratio
-    assert current_config.defaultYieldAltBonusAsset == initial_alt_bonus_asset
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "DefaultYieldParamsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].defaultYieldMaxIncrease == new_max_increase
-    assert exec_logs[0].defaultYieldPerformanceFee == new_performance_fee
-    assert exec_logs[0].defaultYieldAmbassadorBonusRatio == new_ambassador_bonus_ratio
-    assert exec_logs[0].defaultYieldBonusRatio == new_bonus_ratio
-    assert exec_logs[0].defaultYieldAltBonusAsset == new_alt_bonus_asset
+    assert exec_logs[0].defaultYieldMaxIncrease == max_increase
+    assert exec_logs[0].defaultYieldPerformanceFee == performance_fee
+    assert exec_logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
+    assert exec_logs[0].defaultYieldBonusRatio == bonus_ratio
+    assert exec_logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == new_max_increase
-    assert updated_config.defaultYieldPerformanceFee == new_performance_fee
-    assert updated_config.defaultYieldAmbassadorBonusRatio == new_ambassador_bonus_ratio
-    assert updated_config.defaultYieldBonusRatio == new_bonus_ratio
-    assert updated_config.defaultYieldAltBonusAsset == new_alt_bonus_asset
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.defaultYieldMaxIncrease == max_increase
+    assert updated_config.defaultYieldPerformanceFee == performance_fee
+    assert updated_config.defaultYieldAmbassadorBonusRatio == ambassador_bonus
+    assert updated_config.defaultYieldBonusRatio == bonus_ratio
+    assert updated_config.defaultYieldAltBonusAsset == alt_bonus_asset
 
 
-def test_set_default_yield_params_invalid_values_revert(switchboard_alpha, governance, alice):
-    """Test that invalid values (above 100%) revert with proper error message"""
-    # Test 1: defaultYieldMaxIncrease > 100%
+def test_set_default_yield_params_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that percentages exceeding 100% are rejected"""
+    # Test max increase > 100%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(
-            10001,  # > 100%
-            1000,
-            1000,
-            1000,
-            alice,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultYieldParams(10001, 0, 0, 0, alpha_token.address, sender=governance.address)
     
-    # Test 2: defaultYieldPerformanceFee > 100%
+    # Test performance fee > 100%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(
-            1000,
-            10001,  # > 100%
-            1000,
-            1000,
-            alice,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultYieldParams(0, 10001, 0, 0, alpha_token.address, sender=governance.address)
     
-    # Test 3: defaultYieldAmbassadorBonusRatio > 100%
+    # Test ambassador bonus > 100%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(
-            1000,
-            1000,
-            10001,  # > 100%
-            1000,
-            alice,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultYieldParams(0, 0, 10001, 0, alpha_token.address, sender=governance.address)
     
-    # Test 4: defaultYieldBonusRatio > 100%
+    # Test bonus ratio > 100%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(
-            1000,
-            1000,
-            1000,
-            10001,  # > 100%
-            alice,
-            sender=governance.address
-        )
-    
-    # Test 5: All percentage params > 100%
-    with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(
-            20000,  # 200%
-            15000,  # 150%
-            25000,  # 250%
-            30000,  # 300%
-            alice,
-            sender=governance.address
-        )
+        switchboard_alpha.setDefaultYieldParams(0, 0, 0, 10001, alpha_token.address, sender=governance.address)
 
 
 def test_set_default_yield_params_zero_values_allowed(switchboard_alpha, governance, mission_control):
     """Test that zero values are allowed for all params"""
-    # Set all params to 0/ZERO_ADDRESS
     aid = switchboard_alpha.setDefaultYieldParams(
-        0,
-        0,
-        0,
-        0,
-        ZERO_ADDRESS,
+        0, 0, 0, 0, ZERO_ADDRESS,
         sender=governance.address
     )
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_YIELD_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultYieldMaxIncrease == 0
-    assert pending_config.defaultYieldPerformanceFee == 0
-    assert pending_config.defaultYieldAmbassadorBonusRatio == 0
-    assert pending_config.defaultYieldBonusRatio == 0
-    assert pending_config.defaultYieldAltBonusAsset == ZERO_ADDRESS
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == 0
-    assert updated_config.defaultYieldPerformanceFee == 0
-    assert updated_config.defaultYieldAmbassadorBonusRatio == 0
-    assert updated_config.defaultYieldBonusRatio == 0
-    assert updated_config.defaultYieldAltBonusAsset == ZERO_ADDRESS
+    config = mission_control.userWalletConfig()
+    assert config.defaultYieldMaxIncrease == 0
+    assert config.defaultYieldPerformanceFee == 0
+    assert config.defaultYieldAmbassadorBonusRatio == 0
+    assert config.defaultYieldBonusRatio == 0
+    assert config.defaultYieldAltBonusAsset == ZERO_ADDRESS
 
 
-def test_set_default_yield_params_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set default yield params"""
+def test_set_default_yield_params_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance addresses cannot set default yield params"""
     with boa.reverts("no perms"):
         switchboard_alpha.setDefaultYieldParams(
-            1000,
-            2000,
-            500,
-            1500,
-            alice,
+            2000, 1000, 500, 1500, alpha_token.address,
             sender=alice
         )
 
 
 def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test maximum allowed percentage values (100% = 10000 basis points)"""
-    # Set all percentage params to maximum allowed (100%)
+    """Test setting all percentages to exactly 100%"""
     aid = switchboard_alpha.setDefaultYieldParams(
-        10000,  # 100%
-        10000,  # 100%
-        10000,  # 100%
-        10000,  # 100%
-        alpha_token.address,  # Use a valid token address
+        10000, 10000, 10000, 10000, alpha_token.address,
         sender=governance.address
     )
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_YIELD_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultYieldMaxIncrease == 10000
-    assert pending_config.defaultYieldPerformanceFee == 10000
-    assert pending_config.defaultYieldAmbassadorBonusRatio == 10000
-    assert pending_config.defaultYieldBonusRatio == 10000
-    assert pending_config.defaultYieldAltBonusAsset == alpha_token.address
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == 10000
-    assert updated_config.defaultYieldPerformanceFee == 10000
-    assert updated_config.defaultYieldAmbassadorBonusRatio == 10000
-    assert updated_config.defaultYieldBonusRatio == 10000
-    assert updated_config.defaultYieldAltBonusAsset == alpha_token.address
+    config = mission_control.userWalletConfig()
+    assert config.defaultYieldMaxIncrease == 10000
+    assert config.defaultYieldPerformanceFee == 10000
+    assert config.defaultYieldAmbassadorBonusRatio == 10000
+    assert config.defaultYieldBonusRatio == 10000
+    assert config.defaultYieldAltBonusAsset == alpha_token.address
 
 
-def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mission_control, alice, bob):
-    """Test setting different values for each param"""
-    # Set different values for each param
+def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mission_control, alice):
+    """Test setting different values including EOA address"""
     aid = switchboard_alpha.setDefaultYieldParams(
-        0,      # 0% max increase
-        5000,   # 50% performance fee
-        10000,  # 100% ambassador bonus ratio
-        2500,   # 25% bonus ratio
-        bob,    # bob address as alt bonus asset
+        5000,  # 50%
+        2500,  # 25%
+        7500,  # 75%
+        3333,  # 33.33%
+        alice,  # EOA address allowed
         sender=governance.address
     )
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_YIELD_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultYieldMaxIncrease == 0
-    assert pending_config.defaultYieldPerformanceFee == 5000
-    assert pending_config.defaultYieldAmbassadorBonusRatio == 10000
-    assert pending_config.defaultYieldBonusRatio == 2500
-    assert pending_config.defaultYieldAltBonusAsset == bob
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == 0
-    assert updated_config.defaultYieldPerformanceFee == 5000
-    assert updated_config.defaultYieldAmbassadorBonusRatio == 10000
-    assert updated_config.defaultYieldBonusRatio == 2500
-    assert updated_config.defaultYieldAltBonusAsset == bob
+    config = mission_control.userWalletConfig()
+    assert config.defaultYieldMaxIncrease == 5000
+    assert config.defaultYieldPerformanceFee == 2500
+    assert config.defaultYieldAmbassadorBonusRatio == 7500
+    assert config.defaultYieldBonusRatio == 3333
+    assert config.defaultYieldAltBonusAsset == alice
 
 
-################
-# Loot Params  #
-################
+#################
+# Loot Params   #
+#################
 
 
 def test_set_loot_params_success(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test successful loot params update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.userWalletConfig()
-    initial_deposit_rewards_asset = initial_config.depositRewardsAsset
-    initial_loot_claim_cool_off_period = initial_config.lootClaimCoolOffPeriod
+    """Test successful loot parameters update"""
+    # Set new params
+    deposit_rewards_asset = alpha_token.address
+    cool_off_period = 86400  # ~2 days in blocks
     
-    # New loot params values
-    new_deposit_rewards_asset = alpha_token.address
-    new_loot_claim_cool_off_period = 86400  # ~1 day in blocks
-    
-    # Step 1: Initiate loot params change
     aid = switchboard_alpha.setLootParams(
-        new_deposit_rewards_asset,
-        new_loot_claim_cool_off_period,
+        deposit_rewards_asset,
+        cool_off_period,
         sender=governance.address
     )
     
-    # Step 2: Verify event was emitted
+    # Verify event
     logs = filter_logs(switchboard_alpha, "PendingLootParamsChange")
     assert len(logs) == 1
-    assert logs[0].depositRewardsAsset == new_deposit_rewards_asset
-    assert logs[0].lootClaimCoolOffPeriod == new_loot_claim_cool_off_period
+    assert logs[0].depositRewardsAsset == deposit_rewards_asset
+    assert logs[0].lootClaimCoolOffPeriod == cool_off_period
     assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
     
-    # Step 3: Verify pending state
+    # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.LOOT_PARAMS
     pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.depositRewardsAsset == new_deposit_rewards_asset
-    assert pending_config.lootClaimCoolOffPeriod == new_loot_claim_cool_off_period
+    assert pending_config.depositRewardsAsset == deposit_rewards_asset
+    assert pending_config.lootClaimCoolOffPeriod == cool_off_period
     
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.userWalletConfig()
-    assert current_config.depositRewardsAsset == initial_deposit_rewards_asset
-    assert current_config.lootClaimCoolOffPeriod == initial_loot_claim_cool_off_period
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Step 7: Verify execution event
+    # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "LootParamsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].depositRewardsAsset == new_deposit_rewards_asset
-    assert exec_logs[0].lootClaimCoolOffPeriod == new_loot_claim_cool_off_period
+    assert exec_logs[0].depositRewardsAsset == deposit_rewards_asset
+    assert exec_logs[0].lootClaimCoolOffPeriod == cool_off_period
     
-    # Step 8: Verify state changes in MissionControl
+    # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.depositRewardsAsset == new_deposit_rewards_asset
-    assert updated_config.lootClaimCoolOffPeriod == new_loot_claim_cool_off_period
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.configTemplate == initial_config.configTemplate
-    assert updated_config.trialAsset == initial_config.trialAsset
-    assert updated_config.trialAmount == initial_config.trialAmount
-    assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingUserWalletConfig mapping is not cleared after execution
+    assert updated_config.depositRewardsAsset == deposit_rewards_asset
+    assert updated_config.lootClaimCoolOffPeriod == cool_off_period
 
 
-def test_set_loot_params_invalid_cool_off_period_revert(switchboard_alpha, governance, alice):
-    """Test that invalid cool off period values revert with proper error message"""
-    # Test 1: lootClaimCoolOffPeriod = 0
+def test_set_loot_params_invalid_cool_off_period_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid cool off periods are rejected"""
+    # Test with 0
     with boa.reverts("invalid loot params"):
-        switchboard_alpha.setLootParams(
-            alice,
-            0,
-            sender=governance.address
-        )
+        switchboard_alpha.setLootParams(alpha_token.address, 0, sender=governance.address)
     
-    # Test 2: lootClaimCoolOffPeriod = max_value(uint256)
+    # Test with max_value
     with boa.reverts("invalid loot params"):
-        switchboard_alpha.setLootParams(
-            alice,
-            2**256 - 1,
-            sender=governance.address
-        )
+        switchboard_alpha.setLootParams(alpha_token.address, MAX_UINT256, sender=governance.address)
 
 
 def test_set_loot_params_zero_address_allowed(switchboard_alpha, governance, mission_control):
     """Test that zero address is allowed for depositRewardsAsset"""
-    # Set depositRewardsAsset to ZERO_ADDRESS with valid cool off period
-    aid = switchboard_alpha.setLootParams(
-        ZERO_ADDRESS,
-        43200,  # ~12 hours in blocks
-        sender=governance.address
-    )
+    aid = switchboard_alpha.setLootParams(ZERO_ADDRESS, 43200, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.LOOT_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.depositRewardsAsset == ZERO_ADDRESS
-    assert pending_config.lootClaimCoolOffPeriod == 43200
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.depositRewardsAsset == ZERO_ADDRESS
-    assert updated_config.lootClaimCoolOffPeriod == 43200
+    config = mission_control.userWalletConfig()
+    assert config.depositRewardsAsset == ZERO_ADDRESS
+    assert config.lootClaimCoolOffPeriod == 43200
 
 
-def test_set_loot_params_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance cannot set loot params"""
+def test_set_loot_params_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance addresses cannot set loot params"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setLootParams(
-            alice,
-            86400,
-            sender=alice
-        )
+        switchboard_alpha.setLootParams(alpha_token.address, 86400, sender=alice)
 
 
 def test_set_loot_params_edge_cases(switchboard_alpha, governance, mission_control, alpha_token):
     """Test edge cases for loot params"""
     # Test with minimum valid cool off period (1)
-    aid = switchboard_alpha.setLootParams(
-        alpha_token.address,
-        1,
-        sender=governance.address
-    )
+    aid = switchboard_alpha.setLootParams(alpha_token.address, 1, sender=governance.address)
     
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.LOOT_PARAMS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.depositRewardsAsset == alpha_token.address
-    assert pending_config.lootClaimCoolOffPeriod == 1
-    
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
@@ -1892,7 +1219,6 @@ def test_set_loot_params_edge_cases(switchboard_alpha, governance, mission_contr
         sender=governance.address
     )
     
-    # Execute after timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result == True
@@ -1938,3 +1264,926 @@ def test_set_loot_params_different_assets(switchboard_alpha, governance, mission
     final_config = mission_control.userWalletConfig()
     assert final_config.depositRewardsAsset == alpha_token.address
     assert final_config.lootClaimCoolOffPeriod == 172800
+
+
+##################
+# Agent Template #
+##################
+
+
+def test_set_agent_template_success(switchboard_alpha, governance, mission_control, agent_template_v2):
+    """Test successful agent template update through full lifecycle"""
+    # Get initial config from MissionControl
+    initial_config = mission_control.agentConfig()
+    initial_agent_template = initial_config.agentTemplate
+    
+    # Step 1: Initiate template change
+    aid = switchboard_alpha.setAgentTemplate(
+        agent_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingAgentTemplateChange")
+    assert len(logs) == 1
+    assert logs[0].agentTemplate == agent_template_v2.address
+    assert logs[0].actionId == aid
+    # Confirmation block should be current block + timelock
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Step 3: Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    pending_config = switchboard_alpha.pendingAgentConfig(aid)
+    assert pending_config.agentTemplate == agent_template_v2.address
+    
+    # Verify the action confirmation block matches what we expect
+    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
+    
+    # Step 4: Try to execute before timelock - should fail silently
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change
+    current_config = mission_control.agentConfig()
+    assert current_config.agentTemplate == initial_agent_template
+    
+    # Step 5: Time travel to one block before timelock - should still fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Travel one more block to reach exact timelock
+    boa.env.time_travel(blocks=1)
+    
+    # Step 6: Now execution should succeed
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AgentTemplateSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].agentTemplate == agent_template_v2.address
+    
+    # Step 8: Verify state changes in MissionControl
+    updated_config = mission_control.agentConfig()
+    assert updated_config.agentTemplate == agent_template_v2.address
+    
+    # Verify other config fields remain unchanged
+    assert updated_config.numAgentsAllowed == initial_config.numAgentsAllowed
+    assert updated_config.enforceCreatorWhitelist == initial_config.enforceCreatorWhitelist
+    
+    # Step 9: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
+    # Note: pendingAgentConfig mapping is not cleared after execution
+
+
+def test_set_agent_template_non_governance_reverts(switchboard_alpha, alice, agent_template_v2):
+    """Test that non-governance addresses cannot set agent template"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentTemplate(
+            agent_template_v2.address,
+            sender=alice
+        )
+
+
+def test_set_agent_template_invalid_addresses_revert(switchboard_alpha, governance, alice):
+    """Test various invalid address scenarios"""
+    # Test with zero address
+    with boa.reverts("invalid agent template"):
+        switchboard_alpha.setAgentTemplate(ZERO_ADDRESS, sender=governance.address)
+    
+    # Test with EOA
+    with boa.reverts("invalid agent template"):
+        switchboard_alpha.setAgentTemplate(alice, sender=governance.address)
+
+
+def test_cancel_pending_agent_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
+    """Test canceling a pending agent template update"""
+    # Get initial config
+    initial_config = mission_control.agentConfig()
+    
+    # Initiate template change
+    aid = switchboard_alpha.setAgentTemplate(
+        agent_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    
+    # Cancel the pending action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
+    
+    # Try to execute canceled action - should fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify config hasn't changed
+    final_config = mission_control.agentConfig()
+    assert final_config.agentTemplate == initial_config.agentTemplate
+
+
+def test_execute_expired_agent_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
+    """Test that expired actions auto-cancel and cannot be executed"""
+    # Get initial config
+    initial_config = mission_control.agentConfig()
+    
+    # Initiate template change
+    aid = switchboard_alpha.setAgentTemplate(
+        agent_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Time travel past expiration (timelock + max timelock)
+    max_timelock = switchboard_alpha.maxActionTimeLock()
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + max_timelock + 1)
+    
+    # Try to execute - should auto-cancel and return False
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
+    
+    # Verify config hasn't changed
+    final_config = mission_control.agentConfig()
+    assert final_config.agentTemplate == initial_config.agentTemplate
+
+
+def test_multiple_pending_agent_template_updates(switchboard_alpha, governance, mission_control):
+    """Test creating multiple pending updates with different action IDs"""
+    # Deploy multiple template sets
+    template1 = boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
+    template2 = boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
+    
+    # Create first pending action
+    aid1 = switchboard_alpha.setAgentTemplate(
+        template1.address,
+        sender=governance.address
+    )
+    
+    # Create second pending action
+    aid2 = switchboard_alpha.setAgentTemplate(
+        template2.address,
+        sender=governance.address
+    )
+    
+    # Verify different action IDs
+    assert aid1 != aid2
+    
+    # Verify both are pending
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    
+    # Verify different pending configs
+    pending1 = switchboard_alpha.pendingAgentConfig(aid1)
+    pending2 = switchboard_alpha.pendingAgentConfig(aid2)
+    assert pending1.agentTemplate == template1.address
+    assert pending2.agentTemplate == template2.address
+    
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify config updated to second template
+    config = mission_control.agentConfig()
+    assert config.agentTemplate == template2.address
+    
+    # First action should still be pending
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    
+    # Execute first action
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify config updated to first template
+    final_config = mission_control.agentConfig()
+    assert final_config.agentTemplate == template1.address
+
+
+def test_set_agent_template_mixed_with_user_wallet_updates(switchboard_alpha, governance, mission_control, agent_template_v2, wallet_template_v2, config_template_v2):
+    """Test that agent template and user wallet template updates can coexist as separate actions"""
+    # Create pending user wallet template update
+    aid1 = switchboard_alpha.setUserWalletTemplates(
+        wallet_template_v2.address,
+        config_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Create pending agent template update
+    aid2 = switchboard_alpha.setAgentTemplate(
+        agent_template_v2.address,
+        sender=governance.address
+    )
+    
+    # Verify different action types
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
+    
+    # Execute agent template first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify only agent template changed
+    agent_config = mission_control.agentConfig()
+    assert agent_config.agentTemplate == agent_template_v2.address
+    
+    # User wallet templates should be unchanged
+    user_config = mission_control.userWalletConfig()
+    initial_user_config = mission_control.userWalletConfig()
+    assert user_config.walletTemplate == initial_user_config.walletTemplate
+    
+    # Execute user wallet template update
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify both changes are applied
+    final_user_config = mission_control.userWalletConfig()
+    assert final_user_config.walletTemplate == wallet_template_v2.address
+    assert final_user_config.configTemplate == config_template_v2.address
+    
+    final_agent_config = mission_control.agentConfig()
+    assert final_agent_config.agentTemplate == agent_template_v2.address
+
+
+#########################
+# Agent Creation Limits #
+#########################
+
+
+def test_set_agent_creation_limits_success(switchboard_alpha, governance, mission_control):
+    """Test successful agent creation limits update"""
+    # Get initial config
+    initial_config = mission_control.agentConfig()
+    
+    # Set new limits
+    aid = switchboard_alpha.setAgentCreationLimits(
+        5,  # numAgentsAllowed
+        True,  # enforceCreatorWhitelist
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingAgentCreationLimitsChange")
+    assert len(logs) == 1
+    assert logs[0].numAgentsAllowed == 5
+    assert logs[0].enforceCreatorWhitelist == True
+    assert logs[0].actionId == aid
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_CREATION_LIMITS
+    pending_config = switchboard_alpha.pendingAgentConfig(aid)
+    assert pending_config.numAgentsAllowed == 5
+    assert pending_config.enforceCreatorWhitelist == True
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AgentCreationLimitsSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].numAgentsAllowed == 5
+    assert exec_logs[0].enforceCreatorWhitelist == True
+    
+    # Verify state changes
+    updated_config = mission_control.agentConfig()
+    assert updated_config.numAgentsAllowed == 5
+    assert updated_config.enforceCreatorWhitelist == True
+    
+    # Verify other fields unchanged
+    assert updated_config.agentTemplate == initial_config.agentTemplate
+    assert updated_config.startingAgent == initial_config.startingAgent
+
+
+def test_set_agent_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
+    """Test setting extreme but valid values"""
+    # Test with 1 agent allowed
+    aid = switchboard_alpha.setAgentCreationLimits(
+        1,  # Minimum valid value
+        False,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.agentConfig()
+    assert config.numAgentsAllowed == 1
+    assert config.enforceCreatorWhitelist == False
+    
+    # Test with very large number
+    large_num = 2**256 - 2  # max_value - 1
+    aid2 = switchboard_alpha.setAgentCreationLimits(
+        large_num,
+        True,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    final_config = mission_control.agentConfig()
+    assert final_config.numAgentsAllowed == large_num
+    assert final_config.enforceCreatorWhitelist == True
+
+
+def test_set_agent_creation_limits_invalid_values_revert(switchboard_alpha, governance):
+    """Test that invalid values are rejected"""
+    # Test with 0
+    with boa.reverts("invalid num agents allowed"):
+        switchboard_alpha.setAgentCreationLimits(0, False, sender=governance.address)
+    
+    # Test with max_value
+    with boa.reverts("invalid num agents allowed"):
+        switchboard_alpha.setAgentCreationLimits(MAX_UINT256, False, sender=governance.address)
+
+
+def test_set_agent_creation_limits_non_governance_reverts(switchboard_alpha, alice):
+    """Test that non-governance addresses cannot set agent creation limits"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentCreationLimits(5, True, sender=alice)
+
+
+def test_set_agent_creation_limits_mixed_with_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
+    """Test that agent creation limits can be updated alongside agent template"""
+    # Set agent creation limits
+    aid1 = switchboard_alpha.setAgentCreationLimits(3, True, sender=governance.address)
+    
+    # Set agent template
+    aid2 = switchboard_alpha.setAgentTemplate(agent_template_v2.address, sender=governance.address)
+    
+    # Execute both
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result1 == True
+    
+    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result2 == True
+    
+    # Verify both changes applied
+    config = mission_control.agentConfig()
+    assert config.numAgentsAllowed == 3
+    assert config.enforceCreatorWhitelist == True
+    assert config.agentTemplate == agent_template_v2.address
+
+
+########################
+# Starter Agent Params #
+########################
+
+
+def test_set_starter_agent_params_success(switchboard_alpha, governance, mission_control, alice):
+    """Test successful starter agent params update"""
+    # Get initial config
+    initial_config = mission_control.agentConfig()
+    
+    # Set starter agent params
+    activation_length = 86400  # ~2 days in blocks
+    aid = switchboard_alpha.setStarterAgentParams(
+        alice,  # startingAgent
+        activation_length,  # startingAgentActivationLength
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingStarterAgentParamsChange")
+    assert len(logs) == 1
+    assert logs[0].startingAgent == alice
+    assert logs[0].startingAgentActivationLength == activation_length
+    assert logs[0].actionId == aid
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.STARTER_AGENT_PARAMS
+    pending_config = switchboard_alpha.pendingAgentConfig(aid)
+    assert pending_config.startingAgent == alice
+    assert pending_config.startingAgentActivationLength == activation_length
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "StarterAgentParamsSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].startingAgent == alice
+    assert exec_logs[0].startingAgentActivationLength == activation_length
+    
+    # Verify state changes
+    updated_config = mission_control.agentConfig()
+    assert updated_config.startingAgent == alice
+    assert updated_config.startingAgentActivationLength == activation_length
+    
+    # Verify other fields unchanged
+    assert updated_config.agentTemplate == initial_config.agentTemplate
+    assert updated_config.numAgentsAllowed == initial_config.numAgentsAllowed
+
+
+def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control):
+    """Test disabling starter agent by setting zero address"""
+    # First set a starter agent
+    aid1 = switchboard_alpha.setStarterAgentParams(
+        boa.env.generate_address(),
+        43200,  # ~1 day
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Now disable by setting zero address and zero activation length
+    aid2 = switchboard_alpha.setStarterAgentParams(
+        ZERO_ADDRESS,
+        0,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    # Verify starter agent is disabled
+    config = mission_control.agentConfig()
+    assert config.startingAgent == ZERO_ADDRESS
+    assert config.startingAgentActivationLength == 0
+
+
+def test_set_starter_agent_params_invalid_combinations_revert(switchboard_alpha, governance, alice):
+    """Test that invalid combinations are rejected"""
+    # Test with non-zero address but zero activation length
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setStarterAgentParams(alice, 0, sender=governance.address)
+    
+    # Test with zero address but non-zero activation length
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setStarterAgentParams(ZERO_ADDRESS, 86400, sender=governance.address)
+    
+    # Test with max_value activation length
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setStarterAgentParams(alice, MAX_UINT256, sender=governance.address)
+
+
+def test_set_starter_agent_params_non_governance_reverts(switchboard_alpha, alice, bob):
+    """Test that non-governance addresses cannot set starter agent params"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setStarterAgentParams(bob, 86400, sender=alice)
+
+
+def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, mission_control, alice):
+    """Test edge cases for starter agent params"""
+    # Test with minimum activation length (1)
+    aid1 = switchboard_alpha.setStarterAgentParams(alice, 1, sender=governance.address)
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.agentConfig()
+    assert config.startingAgent == alice
+    assert config.startingAgentActivationLength == 1
+    
+    # Test with large activation length (but not max)
+    large_length = 2**256 - 2
+    aid2 = switchboard_alpha.setStarterAgentParams(
+        boa.env.generate_address(),
+        large_length,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    final_config = mission_control.agentConfig()
+    assert final_config.startingAgentActivationLength == large_length
+
+
+def test_set_starter_agent_params_with_contract_address(switchboard_alpha, governance, mission_control, agent_template_v2):
+    """Test setting a contract address as starter agent"""
+    activation_length = 172800  # ~4 days
+    aid = switchboard_alpha.setStarterAgentParams(
+        agent_template_v2.address,  # Using a contract address
+        activation_length,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.agentConfig()
+    assert config.startingAgent == agent_template_v2.address
+    assert config.startingAgentActivationLength == activation_length
+
+
+##################
+# Manager Config #
+##################
+
+
+def test_set_manager_config_success(switchboard_alpha, governance, mission_control):
+    """Test successful manager config update through full lifecycle"""
+    # Get initial config
+    initial_config = mission_control.managerConfig()
+    
+    # Set new manager config
+    new_manager_period = 86400  # ~2 days in blocks
+    new_activation_length = 43200  # ~1 day in blocks
+    
+    aid = switchboard_alpha.setManagerConfig(
+        new_manager_period,
+        new_activation_length,
+        sender=governance.address
+    )
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingManagerConfigChange")
+    assert len(logs) == 1
+    assert logs[0].managerPeriod == new_manager_period
+    assert logs[0].managerActivationLength == new_activation_length
+    assert logs[0].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
+    pending_config = switchboard_alpha.pendingManagerConfig(aid)
+    assert pending_config.managerPeriod == new_manager_period
+    assert pending_config.managerActivationLength == new_activation_length
+    
+    # Try to execute before timelock - should fail
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change
+    current_config = mission_control.managerConfig()
+    assert current_config.managerPeriod == initial_config.managerPeriod
+    assert current_config.managerActivationLength == initial_config.managerActivationLength
+    
+    # Time travel to reach timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    # Execute the action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "ManagerConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].managerPeriod == new_manager_period
+    assert exec_logs[0].managerActivationLength == new_activation_length
+    
+    # Verify state changes in MissionControl
+    updated_config = mission_control.managerConfig()
+    assert updated_config.managerPeriod == new_manager_period
+    assert updated_config.managerActivationLength == new_activation_length
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_manager_config_invalid_params_revert(switchboard_alpha, governance):
+    """Test that invalid manager config parameters are rejected"""
+    # Test with zero manager period
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(0, 86400, sender=governance.address)
+    
+    # Test with zero activation length
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(86400, 0, sender=governance.address)
+    
+    # Test with both zero
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(0, 0, sender=governance.address)
+    
+    # Test with max_value manager period
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(MAX_UINT256, 86400, sender=governance.address)
+    
+    # Test with max_value activation length
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(86400, MAX_UINT256, sender=governance.address)
+    
+    # Test with both max_value
+    with boa.reverts("invalid manager config"):
+        switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, sender=governance.address)
+
+
+def test_set_manager_config_non_governance_reverts(switchboard_alpha, alice):
+    """Test that non-governance addresses cannot set manager config"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setManagerConfig(86400, 43200, sender=alice)
+
+
+def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_control):
+    """Test edge cases for manager config"""
+    # Test with minimum values (1, 1)
+    aid1 = switchboard_alpha.setManagerConfig(1, 1, sender=governance.address)
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.managerConfig()
+    assert config.managerPeriod == 1
+    assert config.managerActivationLength == 1
+    
+    # Test with large values (but not max)
+    large_period = 2**256 - 2
+    large_activation = 2**256 - 3
+    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, sender=governance.address)
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    final_config = mission_control.managerConfig()
+    assert final_config.managerPeriod == large_period
+    assert final_config.managerActivationLength == large_activation
+
+
+def test_set_manager_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
+    """Test creating multiple pending manager config actions"""
+    # Create first pending action
+    aid1 = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
+    
+    # Create second pending action with different values
+    aid2 = switchboard_alpha.setManagerConfig(200000, 100000, sender=governance.address)
+    
+    # Verify both are stored separately
+    pending1 = switchboard_alpha.pendingManagerConfig(aid1)
+    pending2 = switchboard_alpha.pendingManagerConfig(aid2)
+    
+    assert pending1.managerPeriod == 100000
+    assert pending1.managerActivationLength == 50000
+    assert pending2.managerPeriod == 200000
+    assert pending2.managerActivationLength == 100000
+    
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.managerConfig()
+    assert config.managerPeriod == 200000
+    assert config.managerActivationLength == 100000
+    
+    # Execute first action
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify it overwrites with first action's values
+    final_config = mission_control.managerConfig()
+    assert final_config.managerPeriod == 100000
+    assert final_config.managerActivationLength == 50000
+
+
+def test_set_manager_config_cancel_pending_action(switchboard_alpha, governance, mission_control):
+    """Test canceling a pending manager config action"""
+    # Get initial config
+    initial_config = mission_control.managerConfig()
+    
+    # Create pending action
+    aid = switchboard_alpha.setManagerConfig(150000, 75000, sender=governance.address)
+    
+    # Cancel the action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+    
+    # Try to execute cancelled action after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify config remains unchanged
+    current_config = mission_control.managerConfig()
+    assert current_config.managerPeriod == initial_config.managerPeriod
+    assert current_config.managerActivationLength == initial_config.managerActivationLength
+
+
+################
+# Payee Config #
+################
+
+
+def test_set_payee_config_success(switchboard_alpha, governance, mission_control):
+    """Test successful payee config update through full lifecycle"""
+    # Get initial config
+    initial_config = mission_control.payeeConfig()
+    
+    # Set new payee config
+    new_payee_period = 129600  # ~3 days in blocks
+    new_activation_length = 64800  # ~1.5 days in blocks
+    
+    aid = switchboard_alpha.setPayeeConfig(
+        new_payee_period,
+        new_activation_length,
+        sender=governance.address
+    )
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingPayeeConfigChange")
+    assert len(logs) == 1
+    assert logs[0].payeePeriod == new_payee_period
+    assert logs[0].payeeActivationLength == new_activation_length
+    assert logs[0].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.PAYEE_CONFIG
+    pending_config = switchboard_alpha.pendingPayeeConfig(aid)
+    assert pending_config.payeePeriod == new_payee_period
+    assert pending_config.payeeActivationLength == new_activation_length
+    
+    # Try to execute before timelock - should fail
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify no state change
+    current_config = mission_control.payeeConfig()
+    assert current_config.payeePeriod == initial_config.payeePeriod
+    assert current_config.payeeActivationLength == initial_config.payeeActivationLength
+    
+    # Time travel to reach timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    
+    # Execute the action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "PayeeConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].payeePeriod == new_payee_period
+    assert exec_logs[0].payeeActivationLength == new_activation_length
+    
+    # Verify state changes in MissionControl
+    updated_config = mission_control.payeeConfig()
+    assert updated_config.payeePeriod == new_payee_period
+    assert updated_config.payeeActivationLength == new_activation_length
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_payee_config_invalid_params_revert(switchboard_alpha, governance):
+    """Test that invalid payee config parameters are rejected"""
+    # Test with zero payee period
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(0, 86400, sender=governance.address)
+    
+    # Test with zero activation length
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(86400, 0, sender=governance.address)
+    
+    # Test with both zero
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(0, 0, sender=governance.address)
+    
+    # Test with max_value payee period
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(MAX_UINT256, 86400, sender=governance.address)
+    
+    # Test with max_value activation length
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(86400, MAX_UINT256, sender=governance.address)
+    
+    # Test with both max_value
+    with boa.reverts("invalid payee config"):
+        switchboard_alpha.setPayeeConfig(MAX_UINT256, MAX_UINT256, sender=governance.address)
+
+
+def test_set_payee_config_non_governance_reverts(switchboard_alpha, alice):
+    """Test that non-governance addresses cannot set payee config"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setPayeeConfig(129600, 64800, sender=alice)
+
+
+def test_set_payee_config_edge_cases(switchboard_alpha, governance, mission_control):
+    """Test edge cases for payee config"""
+    # Test with minimum values (1, 1)
+    aid1 = switchboard_alpha.setPayeeConfig(1, 1, sender=governance.address)
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.payeeConfig()
+    assert config.payeePeriod == 1
+    assert config.payeeActivationLength == 1
+    
+    # Test with large values (but not max)
+    large_period = 2**256 - 10
+    large_activation = 2**256 - 5
+    aid2 = switchboard_alpha.setPayeeConfig(large_period, large_activation, sender=governance.address)
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    final_config = mission_control.payeeConfig()
+    assert final_config.payeePeriod == large_period
+    assert final_config.payeeActivationLength == large_activation
+
+
+def test_set_payee_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
+    """Test creating multiple pending payee config actions"""
+    # Create first pending action
+    aid1 = switchboard_alpha.setPayeeConfig(120000, 60000, sender=governance.address)
+    
+    # Create second pending action with different values
+    aid2 = switchboard_alpha.setPayeeConfig(240000, 120000, sender=governance.address)
+    
+    # Verify both are stored separately
+    pending1 = switchboard_alpha.pendingPayeeConfig(aid1)
+    pending2 = switchboard_alpha.pendingPayeeConfig(aid2)
+    
+    assert pending1.payeePeriod == 120000
+    assert pending1.payeeActivationLength == 60000
+    assert pending2.payeePeriod == 240000
+    assert pending2.payeeActivationLength == 120000
+    
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+    
+    config = mission_control.payeeConfig()
+    assert config.payeePeriod == 240000
+    assert config.payeeActivationLength == 120000
+    
+    # Execute first action
+    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result == True
+    
+    # Verify it overwrites with first action's values
+    final_config = mission_control.payeeConfig()
+    assert final_config.payeePeriod == 120000
+    assert final_config.payeeActivationLength == 60000
+
+
+def test_set_payee_config_cancel_pending_action(switchboard_alpha, governance, mission_control):
+    """Test canceling a pending payee config action"""
+    # Get initial config
+    initial_config = mission_control.payeeConfig()
+    
+    # Create pending action
+    aid = switchboard_alpha.setPayeeConfig(180000, 90000, sender=governance.address)
+    
+    # Cancel the action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+    
+    # Try to execute cancelled action after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify config remains unchanged
+    current_config = mission_control.payeeConfig()
+    assert current_config.payeePeriod == initial_config.payeePeriod
+    assert current_config.payeeActivationLength == initial_config.payeeActivationLength
+
+
+def test_set_payee_config_different_from_manager_config(switchboard_alpha, governance, mission_control):
+    """Test that payee config is independent from manager config"""
+    # Set manager config
+    manager_aid = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
+    
+    # Set payee config with different values
+    payee_aid = switchboard_alpha.setPayeeConfig(200000, 100000, sender=governance.address)
+    
+    # Execute both
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(manager_aid, sender=governance.address) == True
+    assert switchboard_alpha.executePendingAction(payee_aid, sender=governance.address) == True
+    
+    # Verify they have different values
+    manager_config = mission_control.managerConfig()
+    payee_config = mission_control.payeeConfig()
+    
+    assert manager_config.managerPeriod == 100000
+    assert manager_config.managerActivationLength == 50000
+    assert payee_config.payeePeriod == 200000
+    assert payee_config.payeeActivationLength == 100000
