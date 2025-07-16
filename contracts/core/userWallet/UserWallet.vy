@@ -25,11 +25,9 @@ interface WalletConfig:
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
     def addLootFromSwapOrRewards(_asset: address, _amount: uint256, _action: ws.ActionType, _missionControl: address = empty(address)): nonpayable
+    def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address, _missionControl: address = empty(address)) -> uint256: view
+    def getRewardsFee(_user: address, _asset: address, _missionControl: address = empty(address)) -> uint256: view
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
-
-interface MissionControl:
-    def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256: view
-    def getRewardsFee(_user: address, _asset: address) -> uint256: view
 
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
@@ -400,7 +398,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 
     # handle swap fee
     if lastTokenOut != empty(address):
-        swapFee: uint256 = staticcall MissionControl(ad.missionControl).getSwapFee(self, tokenIn, lastTokenOut)
+        swapFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getSwapFee(self, tokenIn, lastTokenOut, ad.missionControl)
         if swapFee != 0 and lastTokenOutAmount != 0:
             swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, 5_00), ws.ActionType.SWAP, ad.lootDistributor, ad.missionControl)
             lastTokenOutAmount -= swapFee
@@ -697,7 +695,7 @@ def claimRewards(
 
     # handle rewards fee
     if _rewardToken != empty(address):
-        rewardsFee: uint256 = staticcall MissionControl(ad.missionControl).getRewardsFee(self, _rewardToken)
+        rewardsFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getRewardsFee(self, _rewardToken, ad.missionControl)
         if rewardsFee != 0 and rewardAmount != 0:
             rewardsFee = self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, 25_00), ws.ActionType.REWARDS, ad.lootDistributor, ad.missionControl)
             rewardAmount -= rewardsFee

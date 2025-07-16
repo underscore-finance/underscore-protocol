@@ -20,6 +20,13 @@ import interfaces.ConfigStructs as cs
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
+interface MissionControl:
+    def getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256: view
+    def getLootDistroConfig(_asset: address) -> LootDistroConfig: view
+    def getRewardsFee(_asset: address) -> uint256: view
+    def getLootClaimCoolOffPeriod() -> uint256: view
+    def getDepositRewardsAsset() -> address: view
+
 interface Ledger:
     def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
     def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
@@ -31,11 +38,6 @@ interface Appraiser:
     def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def getPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-
-interface MissionControl:
-    def getLootDistroConfig(_asset: address) -> LootDistroConfig: view
-    def getLootClaimCoolOffPeriod() -> uint256: view
-    def getDepositRewardsAsset() -> address: view
 
 interface UserWalletConfig:
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
@@ -768,6 +770,35 @@ def recoverDepositRewards(_recipient: address):
 
     self.depositRewards = empty(DepositRewards)
     log DepositRewardsRecovered(asset=data.asset, recipient=_recipient, amount=amount)
+
+
+####################
+# Transaction Fees #
+####################
+
+
+@view
+@external
+def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address, _missionControl: address = empty(address)) -> uint256:
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
+    return staticcall MissionControl(missionControl).getSwapFee(_tokenIn, _tokenOut)
+
+
+@view
+@external
+def getRewardsFee(_user: address, _asset: address, _missionControl: address = empty(address)) -> uint256:
+    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+
+    missionControl: address = _missionControl
+    if _missionControl == empty(address):
+        missionControl = addys._getMissionControlAddr()
+
+    return staticcall MissionControl(missionControl).getRewardsFee(_asset)
 
 
 #############

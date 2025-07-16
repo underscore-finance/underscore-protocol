@@ -111,7 +111,6 @@ def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbas
     def setAssetConfig(
         _asset,
         _legoId = 1,
-        _isStablecoin = False,
         _staleBlocks = 0,
         _txFees = createTxFees(),
         _ambassadorRevShare = createAmbassadorRevShare(),
@@ -119,7 +118,6 @@ def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbas
     ):
         config = (
             _legoId,
-            _isStablecoin,
             _asset.decimals(),
             _staleBlocks,
             _txFees,

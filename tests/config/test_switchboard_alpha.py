@@ -801,22 +801,22 @@ def test_set_tx_fees_success(switchboard_alpha, governance, mission_control):
 
 
 def test_set_tx_fees_invalid_values_revert(switchboard_alpha, governance):
-    """Test that fees exceeding 100% are rejected"""
-    # Test swap fee > 100%
+    """Test that fees exceeding their specific limits are rejected"""
+    # Test swap fee > 5%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(10001, 0, 0, sender=governance.address)
+        switchboard_alpha.setTxFees(501, 0, 0, sender=governance.address)
     
-    # Test stable swap fee > 100%
+    # Test stable swap fee > 2%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(0, 10001, 0, sender=governance.address)
+        switchboard_alpha.setTxFees(0, 201, 0, sender=governance.address)
     
-    # Test rewards fee > 100%
+    # Test rewards fee > 25%
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(0, 0, 10001, sender=governance.address)
+        switchboard_alpha.setTxFees(0, 0, 2501, sender=governance.address)
     
-    # Test all fees > 100%
+    # Test all fees at their max + 1
     with boa.reverts("invalid tx fees"):
-        switchboard_alpha.setTxFees(20000, 20000, 20000, sender=governance.address)
+        switchboard_alpha.setTxFees(501, 201, 2501, sender=governance.address)
 
 
 def test_set_tx_fees_zero_values_allowed(switchboard_alpha, governance, mission_control):
@@ -840,18 +840,46 @@ def test_set_tx_fees_non_governance_reverts(switchboard_alpha, alice):
 
 
 def test_set_tx_fees_maximum_allowed_values(switchboard_alpha, governance, mission_control):
-    """Test setting fees to exactly 100%"""
-    # Set each fee to exactly 100%
-    aid = switchboard_alpha.setTxFees(10000, 10000, 10000, sender=governance.address)
+    """Test setting fees to their maximum allowed values"""
+    # Set each fee to its maximum: swap 5%, stable swap 2%, rewards 25%
+    aid = switchboard_alpha.setTxFees(500, 200, 2500, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.txFees.swapFee == 10000
-    assert config.txFees.stableSwapFee == 10000
-    assert config.txFees.rewardsFee == 10000
+    assert config.txFees.swapFee == 500
+    assert config.txFees.stableSwapFee == 200
+    assert config.txFees.rewardsFee == 2500
+
+
+def test_set_tx_fees_edge_cases(switchboard_alpha, governance, mission_control):
+    """Test setting fees at their exact limits"""
+    # Test swap fee at exactly 5%
+    aid = switchboard_alpha.setTxFees(500, 0, 0, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Test stable swap fee at exactly 2%
+    aid = switchboard_alpha.setTxFees(0, 200, 0, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Test rewards fee at exactly 25%
+    aid = switchboard_alpha.setTxFees(0, 0, 2500, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Verify all fees work at their limits simultaneously
+    aid = switchboard_alpha.setTxFees(500, 200, 2500, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    config = mission_control.userWalletConfig()
+    assert config.txFees.swapFee == 500
+    assert config.txFees.stableSwapFee == 200
+    assert config.txFees.rewardsFee == 2500
 
 
 ##########################
@@ -983,10 +1011,10 @@ def test_set_ambassador_rev_share_mixed_values(switchboard_alpha, governance, mi
 def test_set_default_yield_params_success(switchboard_alpha, governance, mission_control, alpha_token):
     """Test successful default yield parameters update"""
     # Set new params
-    max_increase = 2000  # 20%
-    performance_fee = 1000  # 10%
-    ambassador_bonus = 500  # 5%
-    bonus_ratio = 1500  # 15%
+    max_increase = 500  # 5% (max is 10%)
+    performance_fee = 1000  # 10% (max is 25%)
+    ambassador_bonus = 5000  # 50% (max is 100%)
+    bonus_ratio = 1500  # 15% (max is 100%)
     alt_bonus_asset = alpha_token.address
     
     aid = switchboard_alpha.setDefaultYieldParams(
@@ -1032,14 +1060,14 @@ def test_set_default_yield_params_success(switchboard_alpha, governance, mission
 
 
 def test_set_default_yield_params_invalid_values_revert(switchboard_alpha, governance, alpha_token):
-    """Test that percentages exceeding 100% are rejected"""
-    # Test max increase > 100%
+    """Test that percentages exceeding their specific limits are rejected"""
+    # Test max increase > 10%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(10001, 0, 0, 0, alpha_token.address, sender=governance.address)
+        switchboard_alpha.setDefaultYieldParams(1001, 0, 0, 0, alpha_token.address, sender=governance.address)
     
-    # Test performance fee > 100%
+    # Test performance fee > 25%
     with boa.reverts("invalid default yield params"):
-        switchboard_alpha.setDefaultYieldParams(0, 10001, 0, 0, alpha_token.address, sender=governance.address)
+        switchboard_alpha.setDefaultYieldParams(0, 2501, 0, 0, alpha_token.address, sender=governance.address)
     
     # Test ambassador bonus > 100%
     with boa.reverts("invalid default yield params"):
@@ -1079,9 +1107,9 @@ def test_set_default_yield_params_non_governance_reverts(switchboard_alpha, alic
 
 
 def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test setting all percentages to exactly 100%"""
+    """Test setting all percentages to their maximum allowed values"""
     aid = switchboard_alpha.setDefaultYieldParams(
-        10000, 10000, 10000, 10000, alpha_token.address,
+        1000, 2500, 10000, 10000, alpha_token.address,
         sender=governance.address
     )
     
@@ -1090,8 +1118,8 @@ def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, gove
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 10000
-    assert config.defaultYieldPerformanceFee == 10000
+    assert config.defaultYieldMaxIncrease == 1000
+    assert config.defaultYieldPerformanceFee == 2500
     assert config.defaultYieldAmbassadorBonusRatio == 10000
     assert config.defaultYieldBonusRatio == 10000
     assert config.defaultYieldAltBonusAsset == alpha_token.address
@@ -1100,10 +1128,10 @@ def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, gove
 def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mission_control, alice):
     """Test setting different values including EOA address"""
     aid = switchboard_alpha.setDefaultYieldParams(
-        5000,  # 50%
-        2500,  # 25%
-        7500,  # 75%
-        3333,  # 33.33%
+        500,   # 5% (max 10%)
+        2500,  # 25% (max 25%)
+        7500,  # 75% (max 100%)
+        3333,  # 33.33% (max 100%)
         alice,  # EOA address allowed
         sender=governance.address
     )
@@ -1113,11 +1141,46 @@ def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mi
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 5000
+    assert config.defaultYieldMaxIncrease == 500
     assert config.defaultYieldPerformanceFee == 2500
     assert config.defaultYieldAmbassadorBonusRatio == 7500
     assert config.defaultYieldBonusRatio == 3333
     assert config.defaultYieldAltBonusAsset == alice
+
+
+def test_set_default_yield_params_edge_cases(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test setting yield params at their exact limits"""
+    # Test max increase at exactly 10%
+    aid = switchboard_alpha.setDefaultYieldParams(1000, 0, 0, 0, alpha_token.address, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Test performance fee at exactly 25%
+    aid = switchboard_alpha.setDefaultYieldParams(0, 2500, 0, 0, alpha_token.address, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Test ambassador bonus at exactly 100%
+    aid = switchboard_alpha.setDefaultYieldParams(0, 0, 10000, 0, alpha_token.address, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Test bonus ratio at exactly 100%
+    aid = switchboard_alpha.setDefaultYieldParams(0, 0, 0, 10000, alpha_token.address, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    # Verify all params work at their limits simultaneously
+    aid = switchboard_alpha.setDefaultYieldParams(1000, 2500, 10000, 10000, alpha_token.address, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
+    
+    config = mission_control.userWalletConfig()
+    assert config.defaultYieldMaxIncrease == 1000
+    assert config.defaultYieldPerformanceFee == 2500
+    assert config.defaultYieldAmbassadorBonusRatio == 10000
+    assert config.defaultYieldBonusRatio == 10000
+    assert config.defaultYieldAltBonusAsset == alpha_token.address
 
 
 #################
@@ -1264,6 +1327,602 @@ def test_set_loot_params_different_assets(switchboard_alpha, governance, mission
     final_config = mission_control.userWalletConfig()
     assert final_config.depositRewardsAsset == alpha_token.address
     assert final_config.lootClaimCoolOffPeriod == 172800
+
+
+#################
+# Asset Config  #
+#################
+
+
+def test_set_asset_config_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful asset configuration update"""
+    # Set new asset config
+    asset = alpha_token.address
+    lego_id = 1  # Assuming valid lego ID
+    stale_blocks = 100
+    swap_fee = 30  # 0.3%
+    stable_swap_fee = 10  # 0.1%
+    rewards_fee = 50  # 0.5%
+    ambassador_swap_ratio = 1000  # 10%
+    ambassador_rewards_ratio = 2000  # 20%
+    ambassador_yield_ratio = 1500  # 15%
+    is_yield_asset = True
+    is_rebasing = False
+    underlying_asset = ZERO_ADDRESS
+    max_yield_increase = 500  # 5%
+    performance_fee = 1000  # 10%
+    ambassador_bonus_ratio = 5000  # 50%
+    bonus_ratio = 3000  # 30%
+    alt_bonus_asset = ZERO_ADDRESS
+    
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        lego_id,
+        stale_blocks,
+        swap_fee,
+        stable_swap_fee,
+        rewards_fee,
+        ambassador_swap_ratio,
+        ambassador_rewards_ratio,
+        ambassador_yield_ratio,
+        is_yield_asset,
+        is_rebasing,
+        underlying_asset,
+        max_yield_increase,
+        performance_fee,
+        ambassador_bonus_ratio,
+        bonus_ratio,
+        alt_bonus_asset,
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingAssetConfigChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].legoId == lego_id
+    assert logs[0].staleBlocks == stale_blocks
+    assert logs[0].txFeesSwapFee == swap_fee
+    assert logs[0].txFeesStableSwapFee == stable_swap_fee
+    assert logs[0].txFeesRewardsFee == rewards_fee
+    assert logs[0].ambassadorRevShareSwapRatio == ambassador_swap_ratio
+    assert logs[0].ambassadorRevShareRewardsRatio == ambassador_rewards_ratio
+    assert logs[0].ambassadorRevShareYieldRatio == ambassador_yield_ratio
+    assert logs[0].isYieldAsset == is_yield_asset
+    assert logs[0].isRebasing == is_rebasing
+    assert logs[0].underlyingAsset == underlying_asset
+    assert logs[0].maxYieldIncrease == max_yield_increase
+    assert logs[0].performanceFee == performance_fee
+    assert logs[0].ambassadorBonusRatio == ambassador_bonus_ratio
+    assert logs[0].bonusRatio == bonus_ratio
+    assert logs[0].altBonusAsset == alt_bonus_asset
+    assert logs[0].actionId == aid
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Verify execution event - must use filter_logs immediately after the transaction
+    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert result == True
+    
+    # Verify the asset config was saved in MissionControl
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.legoId == lego_id
+    assert saved_config.decimals == 18  # Alpha token has 18 decimals
+    assert saved_config.staleBlocks == stale_blocks
+    
+    # Verify tx fees
+    assert saved_config.txFees.swapFee == swap_fee
+    assert saved_config.txFees.stableSwapFee == stable_swap_fee
+    assert saved_config.txFees.rewardsFee == rewards_fee
+    
+    # Verify ambassador rev share
+    assert saved_config.ambassadorRevShare.swapRatio == ambassador_swap_ratio
+    assert saved_config.ambassadorRevShare.rewardsRatio == ambassador_rewards_ratio
+    assert saved_config.ambassadorRevShare.yieldRatio == ambassador_yield_ratio
+    
+    # Verify yield config
+    assert saved_config.yieldConfig.isYieldAsset == is_yield_asset
+    assert saved_config.yieldConfig.isRebasing == is_rebasing
+    assert saved_config.yieldConfig.underlyingAsset == underlying_asset
+    assert saved_config.yieldConfig.maxYieldIncrease == max_yield_increase
+    assert saved_config.yieldConfig.performanceFee == performance_fee
+    assert saved_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus_ratio
+    assert saved_config.yieldConfig.bonusRatio == bonus_ratio
+    assert saved_config.yieldConfig.altBonusAsset == alt_bonus_asset
+
+
+def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, alpha_token):
+    """Test that asset config with invalid tx fees is rejected"""
+    # Test swap fee > 5%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 501, 0, 0,  # swap fee too high
+            0, 0, 0, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+    
+    # Test stable swap fee > 2%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 0, 201, 0,  # stable swap fee too high
+            0, 0, 0, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+    
+    # Test rewards fee > 25%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 0, 0, 2501,  # rewards fee too high
+            0, 0, 0, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+
+
+def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governance, alpha_token):
+    """Test that asset config with invalid yield params is rejected"""
+    # Test max increase > 10%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            1001, 0, 0, 0, ZERO_ADDRESS,  # max increase too high
+            sender=governance.address
+        )
+    
+    # Test performance fee > 25%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            500, 2501, 0, 0, ZERO_ADDRESS,  # performance fee too high
+            sender=governance.address
+        )
+    
+    # Test ambassador bonus > 100%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            500, 1000, 10001, 0, ZERO_ADDRESS,  # ambassador bonus too high
+            sender=governance.address
+        )
+    
+    # Test bonus ratio > 100%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            500, 1000, 5000, 10001, ZERO_ADDRESS,  # bonus ratio too high
+            sender=governance.address
+        )
+
+
+def test_set_asset_config_invalid_ambassador_rev_share_revert(switchboard_alpha, governance, alpha_token):
+    """Test that asset config with invalid ambassador rev share is rejected"""
+    # Test swap ratio > 100%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            10001, 0, 0, False, False, ZERO_ADDRESS,  # swap ratio too high
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+    
+    # Test rewards ratio > 100%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            0, 10001, 0, False, False, ZERO_ADDRESS,  # rewards ratio too high
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+    
+    # Test yield ratio > 100%
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            0, 0, 10001, False, False, ZERO_ADDRESS,  # yield ratio too high
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+
+
+def test_set_asset_config_invalid_asset_revert(switchboard_alpha, governance):
+    """Test that asset config with invalid asset address is rejected"""
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            ZERO_ADDRESS, 1, 100, 50, 10, 100,  # zero address asset
+            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+
+
+def test_set_asset_config_invalid_stale_blocks_revert(switchboard_alpha, governance, alpha_token):
+    """Test that asset config with invalid stale blocks is rejected"""
+    # Test stale blocks = 0
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 0, 50, 10, 100,  # stale blocks = 0
+            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+    
+    # Test stale blocks = max_value(uint256)
+    with boa.reverts("invalid asset config"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 2**256 - 1, 50, 10, 100,  # stale blocks = max uint256
+            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=governance.address
+        )
+
+
+def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test setting config for non-yield asset"""
+    aid = switchboard_alpha.setAssetConfig(
+        alpha_token.address, 1, 100, 50, 10, 100,
+        1000, 2000, 1500, False, False, ZERO_ADDRESS,  # is_yield_asset = False
+        999, 2499, 9999, 9999, alpha_token.address,  # These should be ignored
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Verify the yield config is empty when is_yield_asset is False
+    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].isYieldAsset == False
+    assert exec_logs[0].maxYieldIncrease == 0
+    assert exec_logs[0].performanceFee == 0
+    assert exec_logs[0].ambassadorBonusRatio == 0
+    assert exec_logs[0].bonusRatio == 0
+    assert exec_logs[0].altBonusAsset == ZERO_ADDRESS
+    assert result == True
+    
+    # Verify the config was saved in MissionControl
+    saved_config = mission_control.assetConfig(alpha_token.address)
+    assert saved_config.legoId == 1
+    assert saved_config.staleBlocks == 100
+    assert saved_config.txFees.swapFee == 50
+    assert saved_config.txFees.stableSwapFee == 10
+    assert saved_config.txFees.rewardsFee == 100
+    assert saved_config.ambassadorRevShare.swapRatio == 1000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 2000
+    assert saved_config.ambassadorRevShare.yieldRatio == 1500
+    
+    # Verify yield config is not set when is_yield_asset is False
+    assert saved_config.yieldConfig.isYieldAsset == False
+    assert saved_config.yieldConfig.isRebasing == False
+    assert saved_config.yieldConfig.underlyingAsset == ZERO_ADDRESS
+    assert saved_config.yieldConfig.maxYieldIncrease == 0
+    assert saved_config.yieldConfig.performanceFee == 0
+    assert saved_config.yieldConfig.ambassadorBonusRatio == 0
+    assert saved_config.yieldConfig.bonusRatio == 0
+    assert saved_config.yieldConfig.altBonusAsset == ZERO_ADDRESS
+
+
+def test_set_asset_config_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test setting all percentages to their maximum allowed values"""
+    aid = switchboard_alpha.setAssetConfig(
+        alpha_token.address, 1, 100,
+        500, 200, 2500,  # Max tx fees: 5%, 2%, 25%
+        10000, 10000, 10000,  # Max ambassador rev share: 100% each
+        True, False, ZERO_ADDRESS,
+        1000, 2500, 10000, 10000, alpha_token.address,  # Max yield params: 10%, 25%, 100%, 100%
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].txFeesSwapFee == 500
+    assert exec_logs[0].txFeesStableSwapFee == 200
+    assert exec_logs[0].txFeesRewardsFee == 2500
+    assert exec_logs[0].ambassadorRevShareSwapRatio == 10000
+    assert exec_logs[0].ambassadorRevShareRewardsRatio == 10000
+    assert exec_logs[0].ambassadorRevShareYieldRatio == 10000
+    assert exec_logs[0].maxYieldIncrease == 1000
+    assert exec_logs[0].performanceFee == 2500
+    assert exec_logs[0].ambassadorBonusRatio == 10000
+    assert exec_logs[0].bonusRatio == 10000
+    assert result == True
+    
+    # Verify all max values were saved in MissionControl
+    saved_config = mission_control.assetConfig(alpha_token.address)
+    assert saved_config.txFees.swapFee == 500
+    assert saved_config.txFees.stableSwapFee == 200
+    assert saved_config.txFees.rewardsFee == 2500
+    assert saved_config.ambassadorRevShare.swapRatio == 10000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 10000
+    assert saved_config.ambassadorRevShare.yieldRatio == 10000
+    assert saved_config.yieldConfig.maxYieldIncrease == 1000
+    assert saved_config.yieldConfig.performanceFee == 2500
+    assert saved_config.yieldConfig.ambassadorBonusRatio == 10000
+    assert saved_config.yieldConfig.bonusRatio == 10000
+
+
+def test_set_asset_config_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance addresses cannot set asset config"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAssetConfig(
+            alpha_token.address, 1, 100, 50, 10, 100,
+            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            0, 0, 0, 0, ZERO_ADDRESS,
+            sender=alice
+        )
+
+
+def test_set_asset_config_edge_case_stale_blocks(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test setting asset config with edge case stale blocks values"""
+    # Test with stale blocks = 1 (minimum valid value)
+    aid = switchboard_alpha.setAssetConfig(
+        alpha_token.address, 1, 1, 50, 10, 100,  # stale blocks = 1
+        1000, 2000, 1500, False, False, ZERO_ADDRESS,
+        0, 0, 0, 0, ZERO_ADDRESS,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Must use filter_logs immediately after the transaction
+    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].staleBlocks == 1
+    assert result == True
+    
+    # Verify MissionControl saved the minimum stale blocks value
+    saved_config = mission_control.assetConfig(alpha_token.address)
+    assert saved_config.staleBlocks == 1
+    
+    # Test with stale blocks = max_value - 1 (maximum valid value)
+    aid = switchboard_alpha.setAssetConfig(
+        alpha_token.address, 1, 2**256 - 2, 50, 10, 100,  # stale blocks = max - 1
+        1000, 2000, 1500, False, False, ZERO_ADDRESS,
+        0, 0, 0, 0, ZERO_ADDRESS,
+        sender=governance.address
+    )
+    
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Must use filter_logs immediately after the transaction
+    exec_logs2 = filter_logs(switchboard_alpha, "AssetConfigSet")
+    assert len(exec_logs2) == 1
+    assert exec_logs2[0].staleBlocks == 2**256 - 2
+    assert result == True
+    
+    # Verify MissionControl saved the maximum stale blocks value
+    saved_config2 = mission_control.assetConfig(alpha_token.address)
+    assert saved_config2.staleBlocks == 2**256 - 2
+
+
+##################
+# Is Stablecoin  #
+##################
+
+
+def test_set_is_stablecoin_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful isStablecoin flag update"""
+    # Set alpha_token as a stablecoin
+    aid = switchboard_alpha.setIsStablecoin(
+        alpha_token.address,
+        True,
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingIsStablecoinChange")
+    assert len(logs) == 1
+    assert logs[0].asset == alpha_token.address
+    assert logs[0].isStablecoin == True
+    assert logs[0].actionId == aid
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.IS_STABLECOIN
+    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    assert pending_data.addr == alpha_token.address
+    assert pending_data.isAllowed == True
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    
+    # Verify execution event - must use filter_logs immediately after the transaction
+    exec_logs = filter_logs(switchboard_alpha, "IsStablecoinSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == alpha_token.address
+    assert exec_logs[0].isStablecoin == True
+    assert result == True
+    
+    # Verify the stablecoin flag was saved in MissionControl
+    assert mission_control.isStablecoin(alpha_token.address) == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_is_stablecoin_false(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test setting isStablecoin to false"""
+    # First set it to true
+    aid1 = switchboard_alpha.setIsStablecoin(alpha_token.address, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert mission_control.isStablecoin(alpha_token.address) == True
+    
+    # Now set it back to false
+    aid2 = switchboard_alpha.setIsStablecoin(
+        alpha_token.address,
+        False,
+        sender=governance.address
+    )
+    
+    # Verify event
+    logs = filter_logs(switchboard_alpha, "PendingIsStablecoinChange")
+    assert len(logs) == 1
+    assert logs[0].asset == alpha_token.address
+    assert logs[0].isStablecoin == False
+    assert logs[0].actionId == aid2
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "IsStablecoinSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == alpha_token.address
+    assert exec_logs[0].isStablecoin == False
+    assert result == True
+    
+    # Verify the stablecoin flag was updated in MissionControl
+    assert mission_control.isStablecoin(alpha_token.address) == False
+
+
+def test_set_is_stablecoin_zero_address(switchboard_alpha, governance, mission_control):
+    """Test setting isStablecoin for zero address"""
+    # This should be allowed as there's no validation preventing it
+    aid = switchboard_alpha.setIsStablecoin(
+        ZERO_ADDRESS,
+        True,
+        sender=governance.address
+    )
+    
+    # Verify it goes through
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify MissionControl stored it
+    assert mission_control.isStablecoin(ZERO_ADDRESS) == True
+
+
+def test_set_is_stablecoin_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance addresses cannot set isStablecoin"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setIsStablecoin(
+            alpha_token.address,
+            True,
+            sender=alice
+        )
+
+
+def test_set_is_stablecoin_multiple_pending(switchboard_alpha, governance, mission_control, alpha_token, wallet_template_v2):
+    """Test multiple pending isStablecoin updates"""
+    # Create first pending action
+    aid1 = switchboard_alpha.setIsStablecoin(
+        alpha_token.address,
+        True,
+        sender=governance.address
+    )
+    
+    # Create second pending action for different asset
+    aid2 = switchboard_alpha.setIsStablecoin(
+        wallet_template_v2.address,
+        True,
+        sender=governance.address
+    )
+    
+    # Verify different action IDs
+    assert aid1 != aid2
+    
+    # Verify both are pending
+    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.IS_STABLECOIN
+    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.IS_STABLECOIN
+    
+    # Execute second action first
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result2 == True
+    assert mission_control.isStablecoin(wallet_template_v2.address) == True
+    assert mission_control.isStablecoin(alpha_token.address) == False  # Not yet executed
+    
+    # Execute first action
+    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    assert result1 == True
+    assert mission_control.isStablecoin(alpha_token.address) == True
+
+
+def test_cancel_pending_is_stablecoin(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test canceling a pending isStablecoin update"""
+    # Create pending action
+    aid = switchboard_alpha.setIsStablecoin(
+        alpha_token.address,
+        True,
+        sender=governance.address
+    )
+    
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.IS_STABLECOIN
+    
+    # Cancel the pending action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+    
+    # Try to execute canceled action - should fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify isStablecoin wasn't set
+    assert mission_control.isStablecoin(alpha_token.address) == False
+
+
+def test_execute_expired_is_stablecoin(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test that expired isStablecoin actions auto-cancel"""
+    # Create pending action
+    aid = switchboard_alpha.setIsStablecoin(
+        alpha_token.address,
+        True,
+        sender=governance.address
+    )
+    
+    # Time travel past expiration
+    max_timelock = switchboard_alpha.maxActionTimeLock()
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + max_timelock + 1)
+    
+    # Try to execute - should auto-cancel and return False
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+    
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+    
+    # Verify isStablecoin wasn't set
+    assert mission_control.isStablecoin(alpha_token.address) == False
+
+
+def test_set_is_stablecoin_eoa_address(switchboard_alpha, governance, mission_control, alice):
+    """Test setting isStablecoin for an EOA address"""
+    # This should be allowed as there's no validation preventing it
+    aid = switchboard_alpha.setIsStablecoin(
+        alice,
+        True,
+        sender=governance.address
+    )
+    
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+    
+    # Verify MissionControl stored it
+    assert mission_control.isStablecoin(alice) == True
 
 
 ##################

@@ -78,6 +78,7 @@ payeeConfig: public(cs.PayeeConfig)
 
 # asset config
 assetConfig: public(HashMap[address, cs.AssetConfig])
+isStablecoin: public(HashMap[address, bool])
 
 # security / limits
 creatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted
@@ -240,6 +241,13 @@ def setAssetConfig(_asset: address, _config: cs.AssetConfig):
     self.assetConfig[_asset] = _config
 
 
+@external
+def setIsStablecoin(_asset: address, _isStablecoin: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
+    self.isStablecoin[_asset] = _isStablecoin
+
+
 # helpers
 
 
@@ -291,16 +299,14 @@ def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
 
 @view
 @external
-def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256:
-    # NOTE: passing in `_user` in case we ever have different fees for different users in future
-    inConfig: cs.AssetConfig = self.assetConfig[_tokenIn]
-    outConfig: cs.AssetConfig = self.assetConfig[_tokenOut]
+def getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256:
 
     # stable swap fee
-    if inConfig.isStablecoin and outConfig.isStablecoin:
+    if self.isStablecoin[_tokenIn] and self.isStablecoin[_tokenOut]:
         return self.userWalletConfig.txFees.stableSwapFee
 
     # asset swap fee takes precedence over global swap fee
+    outConfig: cs.AssetConfig = self.assetConfig[_tokenOut]
     if outConfig.decimals != 0:
         return outConfig.txFees.swapFee
 
@@ -309,8 +315,7 @@ def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address) -> uint256
 
 @view
 @external
-def getRewardsFee(_user: address, _asset: address) -> uint256:
-    # NOTE: passing in `_user` in case we ever have different fees for different users in future
+def getRewardsFee(_asset: address) -> uint256:
     config: cs.AssetConfig = self.assetConfig[_asset]
     if config.decimals != 0:
         return config.txFees.rewardsFee

@@ -22,7 +22,6 @@ struct UserWalletConfig:
 
 struct AssetConfig:
     legoId: uint256
-    isStablecoin: bool
     decimals: uint256
     staleBlocks: uint256
     txFees: TxFees
