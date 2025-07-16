@@ -159,11 +159,15 @@ def switchboard_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def switchboard(switchboard_deploy, deploy3r, switchboard_alpha):
+def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bravo):
 
     # alpha
     assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_alpha, "Alpha", sender=deploy3r)
     assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_alpha, sender=deploy3r) == 1
+
+    # bravo
+    assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_bravo, "Bravo", sender=deploy3r)
+    assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_bravo, sender=deploy3r) == 2
 
     # finish setup
     assert switchboard_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
@@ -186,6 +190,21 @@ def switchboard_alpha(undy_hq_deploy, fork):
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
         PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
         name="switchboard_alpha",
+    )
+
+
+# switchboard bravo
+
+
+@pytest.fixture(scope="session")
+def switchboard_bravo(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/config/SwitchboardBravo.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="switchboard_bravo",
     )
 
 

@@ -1027,6 +1027,136 @@ def test_claw_back_trial_funds_permissions(
     assert amount_recovered2 == 10 * EIGHTEEN_DECIMALS
 
 
+def test_can_clawback_trial_funds_view_owner(
+    hatchery, alice, bob, setupTrialFundsWallet
+):
+    """Test canClawbackTrialFunds view function for wallet owner"""
+    
+    wallet = setupTrialFundsWallet()
+    
+    # Alice (owner) should be able to claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, alice) == True
+    
+    # Bob (non-owner) should not be able to claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, bob) == False
+
+
+def test_can_clawback_trial_funds_view_security_action(
+    hatchery, alice, bob, charlie, setupTrialFundsWallet, mission_control, switchboard_alpha
+):
+    """Test canClawbackTrialFunds view function for users with security action permission"""
+    
+    wallet = setupTrialFundsWallet()
+    
+    # Initially charlie cannot claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, charlie) == False
+    
+    # Grant charlie security action permission
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    
+    # Now charlie should be able to claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, charlie) == True
+    
+    # Bob still cannot (no permissions)
+    assert hatchery.canClawbackTrialFunds(wallet.address, bob) == False
+    
+    # Alice (owner) can still claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, alice) == True
+
+
+def test_can_clawback_trial_funds_view_switchboard(
+    hatchery, alice, bob, setupTrialFundsWallet, switchboard_alpha, switchboard_bravo
+):
+    """Test canClawbackTrialFunds view function for switchboard addresses"""
+    
+    wallet = setupTrialFundsWallet()
+    
+    # Both switchboards should be able to claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, switchboard_alpha.address) == True
+    assert hatchery.canClawbackTrialFunds(wallet.address, switchboard_bravo.address) == True
+    
+    # Regular users cannot
+    assert hatchery.canClawbackTrialFunds(wallet.address, bob) == False
+    
+    # Owner can
+    assert hatchery.canClawbackTrialFunds(wallet.address, alice) == True
+
+
+def test_can_clawback_trial_funds_view_backpack_item(
+    hatchery, alice, bob, setupTrialFundsWallet, ledger, switchboard_alpha, paymaster
+):
+    """Test canClawbackTrialFunds view function for registered backpack items"""
+    
+    wallet = setupTrialFundsWallet()
+    
+    # Paymaster is a registered backpack item and should be able to claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, paymaster.address) == True
+    
+    # Bob is not a registered backpack item
+    assert hatchery.canClawbackTrialFunds(wallet.address, bob) == False
+    
+    # Owner can still claw back
+    assert hatchery.canClawbackTrialFunds(wallet.address, alice) == True
+
+
+def test_can_clawback_trial_funds_view_multiple_wallets(
+    hatchery, alice, bob, charlie, setupTrialFundsWallet
+):
+    """Test canClawbackTrialFunds with multiple wallets owned by different users"""
+    
+    # Create Alice's wallet
+    wallet_alice = setupTrialFundsWallet()
+    
+    # Create Bob's wallet
+    wallet_bob = hatchery.createUserWallet(sender=bob)
+    
+    # Create Charlie's wallet
+    wallet_charlie = hatchery.createUserWallet(sender=charlie)
+    
+    # Each owner can only claw back their own wallet
+    assert hatchery.canClawbackTrialFunds(wallet_alice, alice) == True
+    assert hatchery.canClawbackTrialFunds(wallet_alice, bob) == False
+    assert hatchery.canClawbackTrialFunds(wallet_alice, charlie) == False
+    
+    assert hatchery.canClawbackTrialFunds(wallet_bob, alice) == False
+    assert hatchery.canClawbackTrialFunds(wallet_bob, bob) == True
+    assert hatchery.canClawbackTrialFunds(wallet_bob, charlie) == False
+    
+    assert hatchery.canClawbackTrialFunds(wallet_charlie, alice) == False
+    assert hatchery.canClawbackTrialFunds(wallet_charlie, bob) == False
+    assert hatchery.canClawbackTrialFunds(wallet_charlie, charlie) == True
+
+
+def test_can_clawback_trial_funds_view_combined_permissions(
+    hatchery, alice, bob, charlie, setupTrialFundsWallet, mission_control, 
+    switchboard_alpha, switchboard_bravo, paymaster
+):
+    """Test canClawbackTrialFunds with various permission combinations"""
+    
+    # Create two wallets owned by alice and bob
+    wallet_alice = setupTrialFundsWallet()
+    wallet_bob = hatchery.createUserWallet(sender=bob)
+    
+    # Give charlie security action permission
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    
+    # Test alice's wallet
+    assert hatchery.canClawbackTrialFunds(wallet_alice, alice) == True  # owner
+    assert hatchery.canClawbackTrialFunds(wallet_alice, bob) == False  # non-owner
+    assert hatchery.canClawbackTrialFunds(wallet_alice, charlie) == True  # security action
+    assert hatchery.canClawbackTrialFunds(wallet_alice, switchboard_alpha.address) == True  # switchboard
+    assert hatchery.canClawbackTrialFunds(wallet_alice, switchboard_bravo.address) == True  # switchboard
+    assert hatchery.canClawbackTrialFunds(wallet_alice, paymaster.address) == True  # backpack item
+    
+    # Test bob's wallet
+    assert hatchery.canClawbackTrialFunds(wallet_bob, alice) == False  # non-owner
+    assert hatchery.canClawbackTrialFunds(wallet_bob, bob) == True  # owner
+    assert hatchery.canClawbackTrialFunds(wallet_bob, charlie) == True  # security action
+    assert hatchery.canClawbackTrialFunds(wallet_bob, switchboard_alpha.address) == True  # switchboard
+    assert hatchery.canClawbackTrialFunds(wallet_bob, switchboard_bravo.address) == True  # switchboard
+    assert hatchery.canClawbackTrialFunds(wallet_bob, paymaster.address) == True  # backpack item
+
+
 def test_claw_back_trial_funds_already_clawed_back(
     hatchery, alice, setupTrialFundsWallet
 ):

@@ -28,6 +28,7 @@ interface UserWalletConfig:
 
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
     def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
     def createAgent(_agent: address): nonpayable
@@ -283,8 +284,7 @@ def clawBackTrialFunds(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
     assert staticcall Ledger(a.ledger).isUserWallet(_user) # dev: not a user wallet
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    if not addys._isSwitchboardAddr(msg.sender) and not staticcall MissionControl(a.missionControl).canPerformSecurityAction(msg.sender):
-        assert staticcall UserWalletConfig(walletConfig).owner() == msg.sender # dev: no perms
+    assert self._canClawbackTrialFunds(msg.sender, walletConfig, a.missionControl, a.ledger) # dev: no perms
     return self._clawBackTrialFunds(_user, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
 
 
@@ -367,7 +367,38 @@ def _clawBackTrialFunds(
     return amountRemoved
 
 
-# check if it remains
+# access to clawback
+
+
+@view
+@external
+def canClawbackTrialFunds(_user: address, _caller: address) -> bool:
+    a: addys.Addys = addys._getAddys()
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    return self._canClawbackTrialFunds(_caller, walletConfig, a.missionControl, a.ledger)
+
+
+@view
+@internal
+def _canClawbackTrialFunds(
+    _caller: address,
+    _walletConfig: address,
+    _missionControl: address,
+    _ledger: address,
+) -> bool:
+    if staticcall MissionControl(_missionControl).canPerformSecurityAction(_caller):
+        return True
+
+    if staticcall UserWalletConfig(_walletConfig).owner() == _caller:
+        return True
+
+    if addys._isSwitchboardAddr(_caller):
+        return True
+
+    return staticcall Ledger(_ledger).isRegisteredBackpackItem(_caller)
+
+
+# view functions on trial funds
 
 
 @view
