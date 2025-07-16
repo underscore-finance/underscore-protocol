@@ -18,8 +18,20 @@ interface UndyEcoContract:
     def recoverFunds(_recipient: address, _asset: address): nonpayable
     def pause(_shouldPause: bool): nonpayable
 
+interface LootDistributor:
+    def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool: nonpayable
+    def recoverDepositRewards(_recipient: address): nonpayable
+    def claimAllLoot(_user: address) -> bool: nonpayable
+    def updateDepositPoints(_user: address): nonpayable
+
+interface Hatchery:
+    def clawBackTrialFunds(_user: address) -> uint256: nonpayable
+
 interface MissionControl:
     def canPerformSecurityAction(_signer: address) -> bool: view
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
 
 flag ActionType:
     RECOVER_FUNDS
@@ -88,6 +100,17 @@ event RecoverNftExecuted:
     nftTokenId: uint256
     recipient: indexed(address)
 
+event ClawbackTrialFundsExecuted:
+    numUsers: uint256
+
+event LootClaimedForUser:
+    user: indexed(address)
+    caller: indexed(address)
+
+event LootClaimedForManyUsers:
+    numUsers: uint256
+    caller: indexed(address)
+
 # pending actions storage
 actionType: public(HashMap[uint256, ActionType])
 pendingPauseActions: public(HashMap[uint256, PauseAction])
@@ -96,6 +119,8 @@ pendingRecoverFundsManyActions: public(HashMap[uint256, RecoverFundsManyAction])
 pendingRecoverNftActions: public(HashMap[uint256, RecoverNftAction])
 
 MAX_RECOVER_ASSETS: constant(uint256) = 20
+MAX_CLAWBACK_USERS: constant(uint256) = 50
+MAX_CLAIM_USERS: constant(uint256) = 50
 
 
 @deploy
@@ -115,10 +140,10 @@ def __init__(
 
 @view
 @internal
-def hasPermsForLiteAction(_caller: address, _hasLiteAccess: bool) -> bool:
+def _hasPerms(_caller: address, _isLiteAccess: bool) -> bool:
     if gov._canGovern(_caller):
         return True
-    if _hasLiteAccess:
+    if _isLiteAccess:
         return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
     return False
 
@@ -133,7 +158,7 @@ def hasPermsForLiteAction(_caller: address, _hasLiteAccess: bool) -> bool:
 
 @external
 def pause(_contractAddr: address, _shouldPause: bool) -> bool:
-    assert self.hasPermsForLiteAction(msg.sender, _shouldPause) # dev: no perms
+    assert self._hasPerms(msg.sender, _shouldPause) # dev: no perms
 
     extcall UndyEcoContract(_contractAddr).pause(_shouldPause)
     log PauseExecuted(contractAddr=_contractAddr, shouldPause=_shouldPause)
@@ -218,6 +243,51 @@ def recoverNft(_addr: address, _collection: address, _nftTokenId: uint256, _reci
         actionId=aid
     )
     return aid
+
+
+###############
+# Trial Funds #
+###############
+
+
+@external
+def clawBackTrialFunds(_users: DynArray[address, MAX_CLAWBACK_USERS]) -> bool:
+    assert self._hasPerms(msg.sender, True) # dev: no perms
+
+    hatchery: address = addys._getHatcheryAddr()
+    ledger: address = addys._getLedgerAddr()
+    for u: address in _users:
+        if not staticcall Ledger(ledger).isUserWallet(u):
+            continue
+        extcall Hatchery(hatchery).clawBackTrialFunds(u)
+    log ClawbackTrialFundsExecuted(numUsers=len(_users))
+    return True
+
+
+####################
+# Loot Distributor #
+####################
+
+
+# claim loot 
+
+
+@external
+def claimLootForUser(_user: address):
+    assert self._hasPerms(msg.sender, True) # dev: no perms
+    assert _user != empty(address) # dev: invalid user
+
+    extcall LootDistributor(addys._getLootDistributorAddr()).claimAllLoot(_user)
+    log LootClaimedForUser(user=_user, caller=msg.sender)
+
+
+@external
+def claimLootForManyUsers(_users: DynArray[address, MAX_CLAIM_USERS]):
+    assert self._hasPerms(msg.sender, True) # dev: no perms
+    assert len(_users) != 0 # dev: no users provided
+    for u: address in _users:
+        extcall LootDistributor(addys._getLootDistributorAddr()).claimAllLoot(u)
+    log LootClaimedForManyUsers(numUsers=len(_users), caller=msg.sender)
 
 
 #############
