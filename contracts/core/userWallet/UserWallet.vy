@@ -740,6 +740,35 @@ def claimRewards(
 ###############
 
 
+# weth -> eth
+
+
+@nonreentrant
+@external
+def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
+    weth: address = WETH
+    eth: address = ETH
+    ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.WETH_TO_ETH, False, [weth, eth], [], empty(address))
+
+    # convert weth to eth
+    amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
+    extcall WethContract(weth).withdraw(amount)
+
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
+    self._performPostActionTasks([weth, eth], txUsdValue, ad)
+    log WalletAction(
+        op = 2,
+        asset1 = weth,
+        asset2 = eth,
+        amount1 = amount,
+        amount2 = amount,
+        usdValue = txUsdValue,
+        legoId = 0,
+        signer = ad.signer,
+    )
+    return amount, txUsdValue
+
+
 # eth -> weth
 
 
@@ -763,35 +792,6 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
         asset1 = eth,
         asset2 = weth,
         amount1 = msg.value,
-        amount2 = amount,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
-    return amount, txUsdValue
-
-
-# weth -> eth
-
-
-@nonreentrant
-@external
-def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
-    weth: address = WETH
-    eth: address = ETH
-    ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.WETH_TO_ETH, False, [weth, eth], [], empty(address))
-
-    # convert weth to eth
-    amount: uint256 = self._getAmountAndApprove(weth, _amount, empty(address)) # nothing to approve
-    extcall WethContract(weth).withdraw(amount)
-
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
-    self._performPostActionTasks([weth, eth], txUsdValue, ad)
-    log WalletAction(
-        op = 4,
-        asset1 = weth,
-        asset2 = eth,
-        amount1 = amount,
         amount2 = amount,
         usdValue = txUsdValue,
         legoId = 0,

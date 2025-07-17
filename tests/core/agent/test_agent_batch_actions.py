@@ -728,11 +728,11 @@ def test_batch_weth_eth_conversions(
     # Create batch: convert 2 ETH to WETH, then convert 1 WETH back to ETH
     instructions = [
         createActionInstruction(
-            action=2,  # convertEthToWeth
+            action=3,  # convertEthToWeth (action 3)
             amount=2 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
-            action=3,  # convertWethToEth
+            action=2,  # convertWethToEth (action 2)
             amount=1 * EIGHTEEN_DECIMALS,
         )
     ]
@@ -751,12 +751,12 @@ def test_batch_weth_eth_conversions(
     assert len(logs) == 2
     
     # First conversion: ETH to WETH
-    assert logs[0].op == 2  # ETH_TO_WETH
+    assert logs[0].op == 3  # ETH_TO_WETH (op code 3)
     assert logs[0].asset2 == weth.address
     assert logs[0].amount2 == 2 * EIGHTEEN_DECIMALS
     
     # Second conversion: WETH to ETH
-    assert logs[1].op == 3  # WETH_TO_ETH
+    assert logs[1].op == 2  # WETH_TO_ETH (op code 2)
     assert logs[1].asset1 == weth.address
     assert logs[1].amount1 == 1 * EIGHTEEN_DECIMALS
     
@@ -1098,11 +1098,11 @@ def test_batch_weth_conversion_with_prev_amount(
     # Create batch: convert ETH to WETH, then use prev amount to convert back
     instructions = [
         createActionInstruction(
-            action=2,  # convertEthToWeth
+            action=3,  # convertEthToWeth (action 3)
             amount=3 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
-            action=3,  # convertWethToEth
+            action=2,  # convertWethToEth (action 2)
             usePrevAmountOut=True,  # Use the WETH amount from previous conversion
             amount=0,  # Will be overridden
         )
@@ -1122,9 +1122,9 @@ def test_batch_weth_conversion_with_prev_amount(
     assert len(logs) == 2
     
     # Verify operations
-    assert logs[0].op == 2  # ETH_TO_WETH
+    assert logs[0].op == 3  # ETH_TO_WETH (op code 3)
     assert logs[0].amount2 == 3 * EIGHTEEN_DECIMALS
-    assert logs[1].op == 3  # WETH_TO_ETH
+    assert logs[1].op == 2  # WETH_TO_ETH (op code 2)
     assert logs[1].amount1 == logs[0].amount2  # Used prev amount
     
     # Final balances - should be back to original ETH

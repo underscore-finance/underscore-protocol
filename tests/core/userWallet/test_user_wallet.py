@@ -262,6 +262,7 @@ def test_transfer_funds_trusted_tx_only_wallet_config(prepareAssetForWalletTx, u
             alice,
             alpha_token.address,
             50 * EIGHTEEN_DECIMALS,
+            False,
             True,  # _isTrustedTx = True
             sender=bob  # owner trying to call with trusted tx
         )
@@ -272,6 +273,7 @@ def test_transfer_funds_trusted_tx_only_wallet_config(prepareAssetForWalletTx, u
             alice,
             alpha_token.address,
             50 * EIGHTEEN_DECIMALS,
+            False,
             True,  # _isTrustedTx = True
             sender=alice  # non-owner trying to call with trusted tx
         )
@@ -1616,7 +1618,7 @@ def test_convert_eth_to_weth_basic(user_wallet, bob, weth, fork, mock_ripe):
     
     # Check event
     log = filter_logs(user_wallet, "WalletAction")[0]
-    assert log.op == 2  # ETH_TO_WETH operation
+    assert log.op == 3  # ETH_TO_WETH operation
     assert log.asset1 == ETH
     assert log.asset2 == weth.address
     assert log.amount1 == 0  # msg.value (0 for non-payable)
@@ -1671,7 +1673,7 @@ def test_convert_weth_to_eth_basic(user_wallet, bob, weth, fork, mock_ripe, whal
     
     # Check event
     log = filter_logs(user_wallet, "WalletAction")[0]
-    assert log.op == 3  # WETH_TO_ETH operation
+    assert log.op == 2  # WETH_TO_ETH operation
     assert log.asset1 == weth.address
     assert log.asset2 == ETH
     assert log.amount1 == convert_amount

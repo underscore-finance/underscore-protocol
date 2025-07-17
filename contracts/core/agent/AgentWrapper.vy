@@ -14,7 +14,7 @@ struct Signature:
 
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
-    action: uint8              # Action type: 1=transfer, 2=eth2weth, 3=weth2eth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
+    action: uint8              # Action type: 1=transfer, 2=weth2eth, 3=eth2weth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
     legoId: uint16             # Protocol/Lego ID (use amount2 for toLegoId in rebalance)
     asset: address             # Primary asset/token (or vaultToken for withdrawals)
     target: address            # Varies: recipient/vaultAddr/tokenOut/pool based on action

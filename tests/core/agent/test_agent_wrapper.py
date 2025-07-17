@@ -961,7 +961,7 @@ def test_agent_convert_eth_to_weth_basic(
     log = filter_logs(starter_agent, "WalletAction")[0]
     
     # Verify events
-    assert log.op == 2  # ETH_TO_WETH
+    assert log.op == 3  # ETH_TO_WETH (op code 3 in contract)
     assert log.asset1 == ETH
     assert log.asset2 == weth.address
     assert log.amount1 == 0  # msg.value (0 for non-payable)
@@ -1019,7 +1019,7 @@ def test_agent_convert_weth_to_eth_basic(
     log = filter_logs(starter_agent, "WalletAction")[0]
     
     # Verify events
-    assert log.op == 3  # WETH_TO_ETH
+    assert log.op == 2  # WETH_TO_ETH (op code 2 in contract)
     assert log.asset1 == weth.address
     assert log.asset2 == ETH
     assert log.amount1 == amount_converted
