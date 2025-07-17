@@ -18,6 +18,7 @@ interface Appraiser:
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
+    def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
     def migrator() -> address: view
@@ -174,6 +175,36 @@ def transferFunds(
     self._performPostActionTasks([_asset], txUsdValue, ad, _isTrustedTx)
     log WalletAction(
         op = 1,
+        asset1 = _asset,
+        asset2 = _recipient,
+        amount1 = amount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = 0,
+        signer = ad.signer,
+    )
+    return amount, txUsdValue
+
+
+@nonreentrant
+@external
+def payCheque(
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+) -> (uint256, uint256):
+    ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.PAY_CHEQUE, False, [_asset], [], _recipient)
+    amount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(self))
+    assert amount != 0 # dev: no amt
+
+    # validate cheque
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, ad)
+    assert extcall WalletConfig(ad.walletConfig).validateCheque(_recipient, _asset, amount, txUsdValue, ad.signer) # dev: cheque invalid
+    assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
+    
+    self._performPostActionTasks([_asset], txUsdValue, ad, False)
+    log WalletAction(
+        op = 2,
         asset1 = _asset,
         asset2 = _recipient,
         amount1 = amount,
@@ -738,7 +769,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([eth, weth], txUsdValue, ad)
     log WalletAction(
-        op = 2,
+        op = 3,
         asset1 = eth,
         asset2 = weth,
         amount1 = msg.value,
@@ -767,7 +798,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([weth, eth], txUsdValue, ad)
     log WalletAction(
-        op = 3,
+        op = 4,
         asset1 = weth,
         asset2 = eth,
         amount1 = amount,

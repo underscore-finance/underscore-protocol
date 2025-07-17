@@ -37,6 +37,15 @@ def transferFunds(
     ...
 
 
+@external
+def payCheque(
+    _recipient: address,
+    _asset: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+) -> (uint256, uint256):
+    ...
+
+
 #########
 # Yield #
 #########

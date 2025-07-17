@@ -97,6 +97,43 @@ struct PendingWhitelist:
     confirmBlock: uint256
     currentOwner: address
 
+# cheques
+
+struct Cheque:
+    recipient: address
+    asset: address
+    amount: uint256
+    creationBlock: uint256
+    unlockBlock: uint256
+    expiryBlock: uint256
+    usdValueOnCreation: uint256
+    canManagerPay: bool
+    canBePulled: bool
+    creator: address
+    active: bool
+
+struct ChequeSettings:
+    instantUsdThreshold: uint256
+    perPeriodUsdCap: uint256
+    maxNumChequesPerPeriod: uint256
+    periodLength: uint256
+    expensiveDelayBlocks: uint256
+    cooldownBlocks: uint256
+    defaultExpiryBlocks: uint256
+    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
+    canManagersCreateCheques: bool
+    canManagerPay: bool
+    canBePulled: bool
+
+struct ChequeData:
+    numChequesInPeriod: uint256
+    totalUsdValueInPeriod: uint256
+    periodStartBlock: uint256
+    totalNumCheques: uint256
+    totalUsdValue: uint256
+    lastChequeCreatedBlock: uint256
+    lastChequePaidBlock: uint256
+
 # managers
 
 struct ManagerData:

@@ -26,6 +26,7 @@ interface UserWallet:
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
+    def isValidChequeAndGetData(_isManager: bool, _isRecipient: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData) -> (bool, wcs.ChequeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
 
 interface Ledger:
@@ -92,6 +93,11 @@ indexOfWhitelist: public(HashMap[address, uint256]) # whitelist -> index
 numWhitelisted: public(uint256) # num whitelisted
 pendingWhitelist: public(HashMap[address, wcs.PendingWhitelist]) # addr -> pending whitelist
 
+# cheques
+cheques: public(HashMap[address, wcs.Cheque]) # addr -> cheque
+chequeSettings: public(wcs.ChequeSettings)
+chequePeriodData: public(wcs.ChequeData)
+
 # global config
 globalManagerSettings: public(wcs.GlobalManagerSettings)
 globalPayeeSettings: public(wcs.GlobalPayeeSettings)
@@ -136,6 +142,7 @@ def __init__(
     # manager / payee settings
     _globalManagerSettings: wcs.GlobalManagerSettings,
     _globalPayeeSettings: wcs.GlobalPayeeSettings,
+    _chequeSettings: wcs.ChequeSettings,
     _startingAgent: address,
     _starterAgentSettings: wcs.ManagerSettings,
     # key contracts / addrs
@@ -181,6 +188,7 @@ def __init__(
     # manager / payee settings
     self.globalManagerSettings = _globalManagerSettings
     self.globalPayeeSettings = _globalPayeeSettings
+    self.chequeSettings = _chequeSettings
 
     # initial agent
     if _startingAgent != empty(address):
@@ -232,10 +240,10 @@ def checkSignerPermissionsAndGetBundle(
     # make sure signer is not locked
     assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
 
-    # if _transferRecipient is whitelisted, set to empty address, will not check `allowedPayees` for manager
-    payee: address = _transferRecipient
+    # if _transferRecipient is whitelisted, set to 0x0, will not check `allowedPayees` for manager
+    recipient: address = _transferRecipient
     if _transferRecipient != empty(address) and self.indexOfWhitelist[_transferRecipient] != 0:
-        payee = empty(address)
+        recipient = empty(address)
 
     # main validation
     hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerPerformActionWithConfig(
@@ -247,7 +255,7 @@ def checkSignerPermissionsAndGetBundle(
         _action,
         _assets,
         _legoIds,
-        payee,
+        recipient,
     )
 
     # IMPORTANT -- checks if the signer is allowed to perform the action
@@ -335,6 +343,49 @@ def checkRecipientLimitsAndUpdateData(
     # only save if data was updated  
     if data.lastTxBlock != 0:
         self.payeePeriodData[_recipient] = data
+    
+    return True
+
+
+#####################
+# Cheque Validation #
+#####################
+
+
+@external
+def validateCheque(
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _txUsdValue: uint256,
+    _signer: address,
+) -> bool:
+    assert msg.sender == self.wallet # dev: no perms
+
+    # get required config / data
+    cheque: wcs.Cheque = self.cheques[_recipient]
+    globalConfig: wcs.ChequeSettings = self.chequeSettings
+    data: wcs.ChequeData = self.chequePeriodData
+
+    # cheque validation
+    isValidCheque: bool = False
+    isValidCheque, data = staticcall Sentinel(self.sentinel).isValidChequeAndGetData(
+        self.indexOfManager[_signer] != 0,
+        _signer == _recipient,
+        _asset,
+        _amount,
+        _txUsdValue,
+        cheque,
+        globalConfig,
+        data,
+    )
+
+    # IMPORTANT -- make sure this recipient has valid cheque
+    assert isValidCheque # dev: invalid cheque
+
+    # only save if data was updated  
+    if data.lastChequePaidBlock != 0:
+        self.chequePeriodData = data
     
     return True
 
@@ -597,6 +648,38 @@ def confirmPendingPayee(_payee: address):
 def cancelPendingPayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
     self.pendingPayees[_payee] = empty(wcs.PendingPayee)
+
+
+###################
+# Cheque Settings #
+###################
+
+
+# create cheque
+
+
+@external
+def createCheque(_recipient: address, _cheque: wcs.Cheque):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.cheques[_recipient] = _cheque
+    
+
+# cancel cheque
+
+
+@external
+def cancelCheque(_recipient: address):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.cheques[_recipient] = empty(wcs.Cheque)
+
+
+# global cheque settings
+
+
+@external
+def setChequeSettings(_config: wcs.ChequeSettings):
+    assert msg.sender == self.paymaster # dev: no perms
+    self.chequeSettings = _config
 
 
 ################

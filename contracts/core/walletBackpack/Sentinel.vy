@@ -41,9 +41,9 @@ def canSignerPerformAction(
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
-    _transferRecipient: address = empty(address),
+    _txRecipient: address = empty(address),
 ) -> bool:
-    c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _signer, _transferRecipient)
+    c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _signer, _txRecipient)
     return self._canSignerPerformAction(c.isOwner, c.isManager, c.data, c.config, c.globalConfig, _action, _assets, _legoIds, c.payee)
 
 
@@ -58,9 +58,9 @@ def canSignerPerformActionWithConfig(
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS] = [],
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
-    _payee: address = empty(address),
+    _txRecipient: address = empty(address),
 ) -> bool:
-    return self._canSignerPerformAction(_isOwner, _isManager, _managerData, _config, _globalConfig, _action, _assets, _legoIds, _payee)
+    return self._canSignerPerformAction(_isOwner, _isManager, _managerData, _config, _globalConfig, _action, _assets, _legoIds, _txRecipient)
 
 
 # core logic -- manager access control
@@ -77,7 +77,7 @@ def _canSignerPerformAction(
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
-    _payee: address,
+    _txRecipient: address,
 ) -> bool:
     # check if signer is the owner, and if owner can manage
     if _isOwner and _globalConfig.canOwnerManage:
@@ -95,11 +95,11 @@ def _canSignerPerformAction(
         return False
 
     # specific manager
-    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _payee, _managerConfig.limits, _managerConfig.legoPerms, _managerConfig.transferPerms, _managerConfig.allowedAssets):
+    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _txRecipient, _managerConfig.limits, _managerConfig.legoPerms, _managerConfig.transferPerms, _managerConfig.allowedAssets):
         return False
 
     # global manager settings
-    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _payee, _globalConfig.limits, _globalConfig.legoPerms, _globalConfig.transferPerms, _globalConfig.allowedAssets):
+    if not self._checkManagerPermsAndLimitsPreAction(managerData, _action, _assets, _legoIds, _txRecipient, _globalConfig.limits, _globalConfig.legoPerms, _globalConfig.transferPerms, _globalConfig.allowedAssets):
         return False
 
     return True
@@ -136,7 +136,7 @@ def _checkManagerPermsAndLimitsPreAction(
     _txAction: ws.ActionType,
     _txAssets: DynArray[address, MAX_ASSETS],
     _txLegoIds: DynArray[uint256, MAX_LEGOS],
-    _txPayee: address,
+    _txRecipient: address,
     _limits: wcs.ManagerLimits,
     _legoPerms: wcs.LegoPerms,
     _transferPerms: wcs.TransferPerms,
@@ -160,12 +160,12 @@ def _checkManagerPermsAndLimitsPreAction(
                 return False
 
     # check allowed payees
-    if _txPayee != empty(address) and len(_transferPerms.allowedPayees) != 0:
-        if _txPayee not in _transferPerms.allowedPayees:
+    if _txRecipient != empty(address) and len(_transferPerms.allowedPayees) != 0:
+        if _txRecipient not in _transferPerms.allowedPayees:
             return False
 
     # check action permissions
-    if _txAction == ws.ActionType.TRANSFER:
+    if _txAction in (ws.ActionType.TRANSFER | ws.ActionType.PAY_CHEQUE):
         return _transferPerms.canTransfer
     elif _txAction in (ws.ActionType.EARN_DEPOSIT | ws.ActionType.EARN_WITHDRAW | ws.ActionType.EARN_REBALANCE):
         return _legoPerms.canManageYield
@@ -522,6 +522,111 @@ def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs
     return True
 
 
+#####################
+# Cheque Validation #
+#####################
+
+
+@view
+@external
+def isValidChequeAndGetData(
+    _isManager: bool,
+    _isRecipient: bool,
+    _asset: address,
+    _amount: uint256,
+    _txUsdValue: uint256,
+    _cheque: wcs.Cheque,
+    _globalConfig: wcs.ChequeSettings,
+    _chequeData: wcs.ChequeData,
+) -> (bool, wcs.ChequeData):
+    return self._isValidChequeAndGetData(_isManager, _isRecipient, _asset, _amount, _txUsdValue, _cheque, _globalConfig, _chequeData)
+
+
+# core logic -- is valid cheque
+
+
+@view
+@internal
+def _isValidChequeAndGetData(
+    _isManager: bool,
+    _isRecipient: bool,
+    _asset: address,
+    _amount: uint256,
+    _txUsdValue: uint256,
+    _cheque: wcs.Cheque,
+    _globalConfig: wcs.ChequeSettings,
+    _chequeData: wcs.ChequeData,
+) -> (bool, wcs.ChequeData):
+
+    # check if cheque is active
+    if not _cheque.active:
+        return False, empty(wcs.ChequeData)
+
+    # check if within expiry and unlock blocks
+    if block.number >= _cheque.expiryBlock or block.number < _cheque.unlockBlock:
+        return False, empty(wcs.ChequeData)
+
+    # no recipient or asset
+    if empty(address) in [_cheque.recipient, _cheque.asset]:
+        return False, empty(wcs.ChequeData)
+
+    # check asset matches
+    if _cheque.asset != _asset:
+        return False, empty(wcs.ChequeData)
+
+    # check amount does not exceed cheque amount
+    if _cheque.amount == 0 or _amount > _cheque.amount:
+        return False, empty(wcs.ChequeData)
+
+    # check if manager can pay (if signer is manager)
+    if _isManager:
+        if not _cheque.canManagerPay or not _globalConfig.canManagerPay:
+            return False, empty(wcs.ChequeData)
+
+    # check if can be pulled (if caller is recipient)
+    if _isRecipient:
+        if not _cheque.canBePulled or not _globalConfig.canBePulled:
+            return False, empty(wcs.ChequeData)
+
+    # check if asset is allowed in global config
+    if len(_globalConfig.allowedAssets) != 0:
+        if _asset not in _globalConfig.allowedAssets:
+            return False, empty(wcs.ChequeData)
+
+    # get latest cheque data
+    chequeData: wcs.ChequeData = self._getLatestChequeData(_chequeData, _globalConfig.periodLength)
+
+    # update cheque data
+    chequeData.numChequesInPeriod += 1
+    chequeData.totalUsdValueInPeriod += _txUsdValue
+    chequeData.totalNumCheques += 1
+    chequeData.totalUsdValue += _txUsdValue
+    chequeData.lastChequePaidBlock = block.number
+
+    return True, chequeData
+
+
+# get latest cheque data (period reset)
+
+
+@view
+@internal
+def _getLatestChequeData(_chequeData: wcs.ChequeData, _periodLength: uint256) -> wcs.ChequeData:
+    chequeData: wcs.ChequeData = _chequeData
+    
+    # initialize period if first cheque
+    if chequeData.periodStartBlock == 0:
+        chequeData.periodStartBlock = block.number
+    
+    # check if current period has ended
+    elif _periodLength != 0 and block.number >= chequeData.periodStartBlock + _periodLength:
+        chequeData.numChequesInPeriod = 0
+        chequeData.totalUsdValueInPeriod = 0
+        chequeData.periodStartBlock = block.number
+    
+    return chequeData
+
+
 #############
 # Utilities #
 #############
@@ -529,11 +634,11 @@ def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs
 
 @view
 @internal
-def _getManagerConfigBundle(_userWallet: address, _signer: address, _transferRecipient: address = empty(address)) -> wcs.ManagerConfigBundle:
+def _getManagerConfigBundle(_userWallet: address, _signer: address, _txRecipient: address = empty(address)) -> wcs.ManagerConfigBundle:
     userWalletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
 
-    payee: address = _transferRecipient
-    if _transferRecipient != empty(address) and staticcall UserWalletConfig(userWalletConfig).indexOfWhitelist(_transferRecipient) != 0:
+    payee: address = _txRecipient
+    if _txRecipient != empty(address) and staticcall UserWalletConfig(userWalletConfig).indexOfWhitelist(_txRecipient) != 0:
         payee = empty(address)
 
     return wcs.ManagerConfigBundle(

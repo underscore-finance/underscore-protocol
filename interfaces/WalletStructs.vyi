@@ -19,6 +19,7 @@ flag ActionType:
     REMOVE_LIQ
     ADD_LIQ_CONC
     REMOVE_LIQ_CONC
+    PAY_CHEQUE
 
 struct WalletAssetData:
     assetBalance: uint256
