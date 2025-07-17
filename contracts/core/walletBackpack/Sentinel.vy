@@ -530,16 +530,15 @@ def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs
 @view
 @external
 def isValidChequeAndGetData(
-    _isManager: bool,
-    _isRecipient: bool,
     _asset: address,
     _amount: uint256,
     _txUsdValue: uint256,
     _cheque: wcs.Cheque,
     _globalConfig: wcs.ChequeSettings,
     _chequeData: wcs.ChequeData,
+    _isManager: bool,
 ) -> (bool, wcs.ChequeData):
-    return self._isValidChequeAndGetData(_isManager, _isRecipient, _asset, _amount, _txUsdValue, _cheque, _globalConfig, _chequeData)
+    return self._isValidChequeAndGetData(_asset, _amount, _txUsdValue, _cheque, _globalConfig, _chequeData, _isManager)
 
 
 # core logic -- is valid cheque
@@ -548,14 +547,13 @@ def isValidChequeAndGetData(
 @view
 @internal
 def _isValidChequeAndGetData(
-    _isManager: bool,
-    _isRecipient: bool,
     _asset: address,
     _amount: uint256,
     _txUsdValue: uint256,
     _cheque: wcs.Cheque,
     _globalConfig: wcs.ChequeSettings,
     _chequeData: wcs.ChequeData,
+    _isManager: bool,
 ) -> (bool, wcs.ChequeData):
 
     # check if cheque is active
@@ -574,33 +572,52 @@ def _isValidChequeAndGetData(
     if _cheque.asset != _asset:
         return False, empty(wcs.ChequeData)
 
-    # check amount does not exceed cheque amount
-    if _cheque.amount == 0 or _amount > _cheque.amount:
+    # check amount matches cheque amount
+    if _amount != _cheque.amount:
         return False, empty(wcs.ChequeData)
-
-    # check if manager can pay (if signer is manager)
-    if _isManager:
-        if not _cheque.canManagerPay or not _globalConfig.canManagerPay:
-            return False, empty(wcs.ChequeData)
-
-    # check if can be pulled (if caller is recipient)
-    if _isRecipient:
-        if not _cheque.canBePulled or not _globalConfig.canBePulled:
-            return False, empty(wcs.ChequeData)
 
     # check if asset is allowed in global config
     if len(_globalConfig.allowedAssets) != 0:
         if _asset not in _globalConfig.allowedAssets:
             return False, empty(wcs.ChequeData)
 
+    # check if USD value is zero
+    if _txUsdValue == 0:
+        return False, empty(wcs.ChequeData)
+
+    # check max cheque USD value
+    if _globalConfig.maxChequeUsdValue != 0:
+        if _txUsdValue > _globalConfig.maxChequeUsdValue:
+            return False, empty(wcs.ChequeData)
+
+    # check if manager can pay
+    if _isManager:
+        if not _globalConfig.canManagerPay or not _cheque.canManagerPay:
+            return False, empty(wcs.ChequeData)
+
     # get latest cheque data
     chequeData: wcs.ChequeData = self._getLatestChequeData(_chequeData, _globalConfig.periodLength)
 
+    # check pay cooldown
+    if _globalConfig.payCooldownBlocks != 0:
+        if block.number < chequeData.lastChequePaidBlock + _globalConfig.payCooldownBlocks:
+            return False, empty(wcs.ChequeData)
+
+    # check max num cheques paid per period
+    if _globalConfig.maxNumChequesPaidPerPeriod != 0:
+        if chequeData.numChequesPaidInPeriod >= _globalConfig.maxNumChequesPaidPerPeriod:
+            return False, empty(wcs.ChequeData)
+
+    # check per period paid USD cap
+    if _globalConfig.perPeriodPaidUsdCap != 0:
+        if chequeData.totalUsdValuePaidInPeriod + _txUsdValue > _globalConfig.perPeriodPaidUsdCap:
+            return False, empty(wcs.ChequeData)
+
     # update cheque data
-    chequeData.numChequesInPeriod += 1
-    chequeData.totalUsdValueInPeriod += _txUsdValue
-    chequeData.totalNumCheques += 1
-    chequeData.totalUsdValue += _txUsdValue
+    chequeData.numChequesPaidInPeriod += 1
+    chequeData.totalUsdValuePaidInPeriod += _txUsdValue
+    chequeData.totalNumChequesPaid += 1
+    chequeData.totalUsdValuePaid += _txUsdValue
     chequeData.lastChequePaidBlock = block.number
 
     return True, chequeData
@@ -620,8 +637,14 @@ def _getLatestChequeData(_chequeData: wcs.ChequeData, _periodLength: uint256) ->
     
     # check if current period has ended
     elif _periodLength != 0 and block.number >= chequeData.periodStartBlock + _periodLength:
-        chequeData.numChequesInPeriod = 0
-        chequeData.totalUsdValueInPeriod = 0
+
+        # reset paid period data
+        chequeData.numChequesPaidInPeriod = 0
+        chequeData.totalUsdValuePaidInPeriod = 0
+
+        # reset created period data
+        chequeData.numChequesCreatedInPeriod = 0
+        chequeData.totalUsdValueCreatedInPeriod = 0
         chequeData.periodStartBlock = block.number
     
     return chequeData

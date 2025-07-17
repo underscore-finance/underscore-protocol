@@ -32,16 +32,8 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
+    _isCheque: bool = False,
     _isTrustedTx: bool = False,
-) -> (uint256, uint256):
-    ...
-
-
-@external
-def payCheque(
-    _recipient: address,
-    _asset: address = empty(address),
-    _amount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
     ...
 

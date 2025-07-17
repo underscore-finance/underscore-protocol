@@ -188,7 +188,14 @@ def createUserWallet(
     # default manager / payee settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
+    
+    
+    # TODO
+    # TODO
     chequeSettings: wcs.ChequeSettings = empty(wcs.ChequeSettings) # TODO: get cheque settings
+    
+    
+    
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     if config.startingAgent != empty(address):
         starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(config.startingAgentActivationLength)

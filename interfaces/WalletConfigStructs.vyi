@@ -113,12 +113,17 @@ struct Cheque:
     active: bool
 
 struct ChequeSettings:
+    maxNumActiveCheques: uint256
+    maxChequeUsdValue: uint256
     instantUsdThreshold: uint256
-    perPeriodUsdCap: uint256
-    maxNumChequesPerPeriod: uint256
+    perPeriodPaidUsdCap: uint256
+    maxNumChequesPaidPerPeriod: uint256
+    payCooldownBlocks: uint256
+    perPeriodCreatedUsdCap: uint256
+    maxNumChequesCreatedPerPeriod: uint256
+    createCooldownBlocks: uint256
     periodLength: uint256
     expensiveDelayBlocks: uint256
-    cooldownBlocks: uint256
     defaultExpiryBlocks: uint256
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
     canManagersCreateCheques: bool
@@ -126,13 +131,30 @@ struct ChequeSettings:
     canBePulled: bool
 
 struct ChequeData:
-    numChequesInPeriod: uint256
-    totalUsdValueInPeriod: uint256
-    periodStartBlock: uint256
-    totalNumCheques: uint256
-    totalUsdValue: uint256
-    lastChequeCreatedBlock: uint256
+    numChequesPaidInPeriod: uint256
+    totalUsdValuePaidInPeriod: uint256
+    totalNumChequesPaid: uint256
+    totalUsdValuePaid: uint256
     lastChequePaidBlock: uint256
+    numChequesCreatedInPeriod: uint256
+    totalUsdValueCreatedInPeriod: uint256
+    totalNumChequesCreated: uint256
+    totalUsdValueCreated: uint256
+    lastChequeCreatedBlock: uint256
+    periodStartBlock: uint256
+
+struct ChequeManagementBundle:
+    wallet: address
+    walletConfig: address
+    owner: address
+    isRecipientOnWhitelist: bool
+    isCreatorManager: bool
+    managerSettings: ManagerSettings
+    chequeSettings: ChequeSettings
+    chequeData: ChequeData
+    isExistingCheque: bool
+    numActiveCheques: uint256
+    timeLock: uint256
 
 # managers
 

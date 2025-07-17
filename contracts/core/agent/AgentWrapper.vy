@@ -14,7 +14,7 @@ struct Signature:
 
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
-    action: uint8              # Action type: 1=transfer, 2=payCheque, 3=eth2weth, 4=weth2eth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
+    action: uint8              # Action type: 1=transfer, 2=eth2weth, 3=weth2eth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
     legoId: uint16             # Protocol/Lego ID (use amount2 for toLegoId in rebalance)
     asset: address             # Primary asset/token (or vaultToken for withdrawals)
     target: address            # Varies: recipient/vaultAddr/tokenOut/pool based on action
@@ -25,7 +25,7 @@ struct ActionInstruction:
     minOut2: uint256           # Min output for secondary asset (liquidity ops)
     tickLower: int24           # For concentrated liquidity positions
     tickUpper: int24           # For concentrated liquidity positions
-    extraData: bytes32         # Protocol-specific extra data
+    extraData: bytes32         # Protocol-specific extra data (LSB used for isCheque in transfers)
     auxData: bytes32           # Packed data: lpToken addr (action 15) or pool+nftId (16-17)
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
 
@@ -69,23 +69,11 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
+    _isCheque: bool = False,
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, False)
-
-
-@nonreentrant
-@external
-def payCheque(
-    _userWallet: address,
-    _recipient: address,
-    _asset: address = empty(address),
-    _amount: uint256 = max_value(uint256),
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(2, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_userWallet).payCheque(_recipient, _asset, _amount)
+    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, _isCheque, False)
 
 
 #########
@@ -271,16 +259,16 @@ def claimRewards(
 
 @nonreentrant
 @external
-def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_userWallet).convertEthToWeth(_amount)
+def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).convertWethToEth(_amount)
 
 
 @nonreentrant
 @external
-def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(4, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_userWallet).convertWethToEth(_amount)
+def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
+    self._authenticateAccess(keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).convertEthToWeth(_amount)
 
 
 #############
@@ -403,22 +391,19 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
 
     # transfer funds
     if instruction.action == 1:
-        nextAmount, txUsdValue = extcall Wallet(_userWallet).transferFunds(instruction.target, instruction.asset, nextAmount, False)
+        # Extract isCheque from the least significant bit of extraData
+        isCheque: bool = convert(convert(instruction.extraData, uint256) & 1, bool)
+        nextAmount, txUsdValue = extcall Wallet(_userWallet).transferFunds(instruction.target, instruction.asset, nextAmount, isCheque, False)
         return nextAmount
 
-    # pay cheque
+    # convert weth to eth
     elif instruction.action == 2:
-        nextAmount, txUsdValue = extcall Wallet(_userWallet).payCheque(instruction.target, instruction.asset, nextAmount)
+        nextAmount, txUsdValue = extcall Wallet(_userWallet).convertWethToEth(nextAmount)
         return nextAmount
 
     # convert eth to weth
     elif instruction.action == 3:
         nextAmount, txUsdValue = extcall Wallet(_userWallet).convertEthToWeth(nextAmount)
-        return nextAmount
-
-    # convert weth to eth
-    elif instruction.action == 4:
-        nextAmount, txUsdValue = extcall Wallet(_userWallet).convertWethToEth(nextAmount)
         return nextAmount
 
     # deposit for yield

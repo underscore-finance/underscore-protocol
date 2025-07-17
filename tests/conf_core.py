@@ -385,6 +385,11 @@ def paymaster(undy_hq_deploy, fork):
         PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        PARAMS[fork]["CHEQUE_MIN_PERIOD"],
+        PARAMS[fork]["CHEQUE_MAX_PERIOD"],
+        PARAMS[fork]["CHEQUE_MIN_EXPENSIVE_DELAY"],
+        PARAMS[fork]["CHEQUE_MAX_UNLOCK_BLOCKS"],
+        PARAMS[fork]["CHEQUE_MAX_EXPIRY_BLOCKS"],
         name="paymaster",
     )
 

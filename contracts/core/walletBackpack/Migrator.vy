@@ -7,6 +7,7 @@ from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
+    def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
@@ -31,7 +32,6 @@ interface UserWalletConfig:
     def isFrozen() -> bool: view
 
 interface UserWallet:
-    def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isTrustedTx: bool = False) -> (uint256, uint256): nonpayable
     def assetData(_asset: address) -> ws.WalletAssetData: view
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
@@ -125,6 +125,10 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
     if not areTrialFundsRemoved:
         return 0
 
+    # get wallet config
+    walletConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+
+    # migrate funds
     numMigrated: uint256 = 0
     usdValue: uint256 = 0
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
@@ -142,9 +146,7 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
         data: ws.WalletAssetData = staticcall UserWallet(_fromWallet).assetData(asset)
 
         # transfer funds
-        amount: uint256 = 0
-        na: uint256 = 0
-        amount, na = extcall UserWallet(_fromWallet).transferFunds(_toWallet, asset, max_value(uint256), True)
+        amount: uint256 = extcall UserWalletConfig(walletConfig).migrateFunds(_toWallet, asset)
         if amount != 0:
             numMigrated += 1
             usdValue += data.usdValue
@@ -154,7 +156,6 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
 
     # deregister assets
     if len(assetsToDeregister) != 0:
-        walletConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
         for asset: address in assetsToDeregister:
             extcall UserWalletConfig(walletConfig).deregisterAsset(asset)
 

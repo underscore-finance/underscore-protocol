@@ -26,7 +26,7 @@ interface UserWallet:
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
-    def isValidChequeAndGetData(_isManager: bool, _isRecipient: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData) -> (bool, wcs.ChequeData): view
+    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
 
 interface Ledger:
@@ -97,6 +97,7 @@ pendingWhitelist: public(HashMap[address, wcs.PendingWhitelist]) # addr -> pendi
 cheques: public(HashMap[address, wcs.Cheque]) # addr -> cheque
 chequeSettings: public(wcs.ChequeSettings)
 chequePeriodData: public(wcs.ChequeData)
+numActiveCheques: public(uint256)
 
 # global config
 globalManagerSettings: public(wcs.GlobalManagerSettings)
@@ -367,17 +368,20 @@ def validateCheque(
     globalConfig: wcs.ChequeSettings = self.chequeSettings
     data: wcs.ChequeData = self.chequePeriodData
 
+    isManager: bool = False
+    if _signer != ownership.owner:
+        isManager = self.indexOfManager[_signer] != 0
+
     # cheque validation
     isValidCheque: bool = False
     isValidCheque, data = staticcall Sentinel(self.sentinel).isValidChequeAndGetData(
-        self.indexOfManager[_signer] != 0,
-        _signer == _recipient,
         _asset,
         _amount,
         _txUsdValue,
         cheque,
         globalConfig,
         data,
+        isManager,
     )
 
     # IMPORTANT -- make sure this recipient has valid cheque
@@ -386,6 +390,7 @@ def validateCheque(
     # only save if data was updated  
     if data.lastChequePaidBlock != 0:
         self.chequePeriodData = data
+        self.numActiveCheques -= 1
     
     return True
 
@@ -659,10 +664,18 @@ def cancelPendingPayee(_payee: address):
 
 
 @external
-def createCheque(_recipient: address, _cheque: wcs.Cheque):
+def createCheque(
+    _recipient: address,
+    _cheque: wcs.Cheque,
+    _chequeData: wcs.ChequeData,
+    _isExistingCheque: bool,
+):
     assert msg.sender == self.paymaster # dev: no perms
     self.cheques[_recipient] = _cheque
-    
+    self.chequePeriodData = _chequeData
+    if not _isExistingCheque:
+        self.numActiveCheques += 1
+
 
 # cancel cheque
 
@@ -671,6 +684,7 @@ def createCheque(_recipient: address, _cheque: wcs.Cheque):
 def cancelCheque(_recipient: address):
     assert msg.sender == self.paymaster # dev: no perms
     self.cheques[_recipient] = empty(wcs.Cheque)
+    self.numActiveCheques -= 1
 
 
 # global cheque settings
@@ -751,6 +765,18 @@ def removeTrialFunds() -> uint256:
 @external
 def getTrialFundsInfo() -> (address, uint256):
     return self.trialFundsAsset, self.trialFundsAmount
+
+
+# migrate funds
+
+
+@external
+def migrateFunds(_toWallet: address, _asset: address) -> uint256:
+    assert msg.sender == self.migrator # dev: no perms
+    amount: uint256 = 0
+    na: uint256 = 0
+    amount, na = extcall UserWallet(self.wallet).transferFunds(_toWallet, _asset, max_value(uint256), True)
+    return amount
 
 
 # prepare payment

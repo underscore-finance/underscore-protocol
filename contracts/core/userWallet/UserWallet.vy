@@ -21,7 +21,6 @@ interface WalletConfig:
     def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
     def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
-    def migrator() -> address: view
 
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
@@ -129,10 +128,60 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
-    _isTrustedTx: bool = False,
+    _isCheque: bool = False,
+    _isSpecialTx: bool = False,
 ) -> (uint256, uint256):
+    asset: address = empty(address)
     ad: ws.ActionData = empty(ws.ActionData)
-    shouldCheckRecipientLimits: bool = True
+    asset, ad = self._validateCanTransfer(msg.sender, _recipient, _asset, _isSpecialTx, _isCheque)
+
+    # finalize amount
+    amount: uint256 = 0
+    if asset == ad.eth:
+        amount = min(_amount, self.balance)
+    else:
+        amount = min(_amount, staticcall IERC20(asset).balanceOf(self))
+    assert amount != 0 # dev: no amt
+
+    # get usd value
+    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(asset, amount, ad)
+
+    # make sure recipient can actually receive funds
+    if not _isSpecialTx:
+        if _isCheque:
+            assert extcall WalletConfig(ad.walletConfig).validateCheque(_recipient, asset, amount, txUsdValue, ad.signer) # dev: cheque invalid
+        else:
+            assert extcall WalletConfig(ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, asset, amount) # dev: recipient limits exceeded
+
+    # do actual transfer
+    if asset == ad.eth:
+        send(_recipient, amount)
+    else:
+        assert extcall IERC20(asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
+    
+    self._performPostActionTasks([asset], txUsdValue, ad, _isSpecialTx)
+    log WalletAction(
+        op = 1,
+        asset1 = asset,
+        asset2 = _recipient,
+        amount1 = amount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = 0,
+        signer = ad.signer,
+    )
+    return amount, txUsdValue
+
+
+@internal
+def _validateCanTransfer(
+    _signer: address,
+    _recipient: address,
+    _asset: address,
+    _isSpecialTx: bool,
+    _isCheque: bool,
+) -> (address, ws.ActionData):
+    ad: ws.ActionData = empty(ws.ActionData)
     assert _recipient != empty(address) # dev: inv recipient
 
     # finalize asset
@@ -140,80 +189,21 @@ def transferFunds(
     if asset == empty(address):
         asset = ETH
 
-    # only wallet config can do trusted txs
-    if _isTrustedTx:
+    # only wallet config can do trusted txs (migration, clawback trial funds)
+    if _isSpecialTx:
         walletConfig: address = self.walletConfig
-        assert msg.sender in [walletConfig, staticcall WalletConfig(walletConfig).migrator()] # dev: perms
-
-        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(0, msg.sender)
+        assert _signer == walletConfig # dev: perms
+        ad = staticcall WalletConfig(walletConfig).getActionDataBundle(0, _signer)
         self._checkForYieldProfits(asset, ad)
-        shouldCheckRecipientLimits = False
 
     # normal transaction
     else:
-        ad = self._performPreActionTasks(msg.sender, ws.ActionType.TRANSFER, False, [asset], [], _recipient)
+        action: ws.ActionType = ws.ActionType.TRANSFER
+        if _isCheque:
+            action = ws.ActionType.PAY_CHEQUE
+        ad = self._performPreActionTasks(_signer, action, False, [asset], [], _recipient)
 
-    # finalize amount
-    amount: uint256 = 0
-    if _asset == ad.eth:
-        amount = min(_amount, self.balance)
-    else:
-        amount = min(_amount, staticcall IERC20(_asset).balanceOf(self))
-    assert amount != 0 # dev: no amt
-
-    # check recipient limits
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, ad)
-    if shouldCheckRecipientLimits:
-        assert extcall WalletConfig(ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, _asset, amount) # dev: recip
-
-    # do actual transfer
-    if _asset == ad.eth:
-        send(_recipient, amount)
-    else:
-        assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
-    
-    self._performPostActionTasks([_asset], txUsdValue, ad, _isTrustedTx)
-    log WalletAction(
-        op = 1,
-        asset1 = _asset,
-        asset2 = _recipient,
-        amount1 = amount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
-    return amount, txUsdValue
-
-
-@nonreentrant
-@external
-def payCheque(
-    _recipient: address,
-    _asset: address = empty(address),
-    _amount: uint256 = max_value(uint256),
-) -> (uint256, uint256):
-    ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.PAY_CHEQUE, False, [_asset], [], _recipient)
-    amount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(self))
-    assert amount != 0 # dev: no amt
-
-    # validate cheque
-    txUsdValue: uint256 = self._updatePriceAndGetUsdValue(_asset, amount, ad)
-    assert extcall WalletConfig(ad.walletConfig).validateCheque(_recipient, _asset, amount, txUsdValue, ad.signer) # dev: cheque invalid
-    assert extcall IERC20(_asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
-    
-    self._performPostActionTasks([_asset], txUsdValue, ad, False)
-    log WalletAction(
-        op = 2,
-        asset1 = _asset,
-        asset2 = _recipient,
-        amount1 = amount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
-    return amount, txUsdValue
+    return asset, ad
 
 
 #########
@@ -285,12 +275,12 @@ def withdrawFromYield(
     _vaultToken: address,
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
-    _isTrustedTx: bool = False,
+    _isSpecialTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
     ad: ws.ActionData = empty(ws.ActionData)
 
-    # only wallet config can do trusted txs
-    if _isTrustedTx:
+    # prepares payment (might be clawback trial funds, or some other payment/transfer/cheque)
+    if _isSpecialTx:
         walletConfig: address = self.walletConfig
         assert msg.sender == walletConfig # dev: perms
 
@@ -301,7 +291,7 @@ def withdrawFromYield(
     else:
         ad = self._performPreActionTasks(msg.sender, ws.ActionType.EARN_WITHDRAW, False, [_vaultToken], [_legoId])
 
-    return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, True, _isTrustedTx, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, True, _isSpecialTx, ad)
 
 
 @internal
@@ -311,7 +301,7 @@ def _withdrawFromYield(
     _extraData: bytes32,
     _shouldPerformPostActionTasks: bool,
     _shouldGenerateEvent: bool,
-    _isTrustedTx: bool,
+    _isSpecialTx: bool,
     _ad: ws.ActionData,
 ) -> (uint256, address, uint256, uint256):
     amount: uint256 = _amount
@@ -333,7 +323,7 @@ def _withdrawFromYield(
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
-        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _isTrustedTx)
+        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _isSpecialTx)
 
     if _shouldGenerateEvent:
         log WalletAction(
@@ -1074,22 +1064,22 @@ def _performPostActionTasks(
     _assets: DynArray[address, MAX_ASSETS],
     _txUsdValue: uint256,
     _ad: ws.ActionData,
-    _isTrustedTx: bool = False,
+    _isSpecialTx: bool = False,
 ):
     # first, check and update manager caps
-    if not _isTrustedTx:
+    if not _isSpecialTx:
         assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
 
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
     for a: address in _assets:
-        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, not _isTrustedTx, _ad)
+        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, not _isSpecialTx, _ad)
 
     if not _ad.inEjectMode:
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
-        
+
         # check if wallet still has trial funds
-        if not _isTrustedTx:
+        if not _isSpecialTx:
             assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
 
 
