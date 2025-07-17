@@ -12,8 +12,8 @@ from ethereum.ercs import IERC721
 from ethereum.ercs import IERC20
 
 interface UserWallet:
-    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isTrustedTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
-    def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isTrustedTx: bool = False) -> (uint256, uint256): nonpayable
+    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
+    def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
     def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool: nonpayable
@@ -739,8 +739,8 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
 
 @external
 def removeTrialFunds() -> uint256:
-    ad: ws.ActionData = self._getActionDataBundle(0, msg.sender)
-    assert ad.hatchery == msg.sender and ad.hatchery != empty(address) # dev: no perms
+    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
+    assert msg.sender == hatchery # dev: no perms
 
     # trial funds info
     trialFundsAmount: uint256 = self.trialFundsAmount
@@ -750,7 +750,7 @@ def removeTrialFunds() -> uint256:
     # transfer assets
     amount: uint256 = 0
     na: uint256 = 0
-    amount, na = extcall UserWallet(ad.wallet).transferFunds(ad.hatchery, trialFundsAsset, trialFundsAmount, True)
+    amount, na = extcall UserWallet(self.wallet).transferFunds(hatchery, trialFundsAsset, trialFundsAmount, False, True)
 
     # update trial funds info
     remainingAmount: uint256 = trialFundsAmount - min(trialFundsAmount, amount)
@@ -775,7 +775,7 @@ def migrateFunds(_toWallet: address, _asset: address) -> uint256:
     assert msg.sender == self.migrator # dev: no perms
     amount: uint256 = 0
     na: uint256 = 0
-    amount, na = extcall UserWallet(self.wallet).transferFunds(_toWallet, _asset, max_value(uint256), True)
+    amount, na = extcall UserWallet(self.wallet).transferFunds(_toWallet, _asset, max_value(uint256), False, True)
     return amount
 
 
