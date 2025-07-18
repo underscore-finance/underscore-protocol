@@ -62,10 +62,12 @@ event NftRecovered:
 # core
 wallet: public(address)
 
-# helper contracts
+# wallet backpack contracts
+kernel: public(address)
 sentinel: public(address)
 highCommand: public(address)
 paymaster: public(address)
+chequeBook: public(address)
 migrator: public(address)
 
 # trial funds info
@@ -147,9 +149,11 @@ def __init__(
     _startingAgent: address,
     _starterAgentSettings: wcs.ManagerSettings,
     # key contracts / addrs
+    _kernel: address,
     _sentinel: address,
     _highCommand: address,
     _paymaster: address,
+    _chequeBook: address,
     _migrator: address,
     _wethAddr: address,
     _ethAddr: address,
@@ -161,12 +165,16 @@ def __init__(
     ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
     UNDY_HQ = _undyHq
 
-    # set addys
-    assert empty(address) not in [_sentinel, _highCommand, _paymaster, _migrator, _wethAddr, _ethAddr] # dev: invalid addrs
+    # wallet backpack addrs
+    assert empty(address) not in [_kernel, _sentinel, _highCommand, _paymaster, _chequeBook, _migrator, _wethAddr, _ethAddr] # dev: invalid addrs
+    self.kernel = _kernel
     self.sentinel = _sentinel
     self.highCommand = _highCommand
     self.paymaster = _paymaster
+    self.chequeBook = _chequeBook
     self.migrator = _migrator
+
+    # eth addrs
     WETH = _wethAddr
     ETH = _ethAddr
 
@@ -175,7 +183,7 @@ def __init__(
     self.numPayees = 1
     self.numWhitelisted = 1
 
-    # other
+    # trial funds / group id
     self.groupId = _groupId
     self.trialFundsAsset = _trialFundsAsset
     self.trialFundsAmount = _trialFundsAmount
@@ -405,7 +413,7 @@ def validateCheque(
 
 @external
 def addPendingWhitelistAddr(_addr: address, _pending: wcs.PendingWhitelist):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.kernel # dev: no perms
     self.pendingWhitelist[_addr] = _pending
 
 
@@ -414,7 +422,7 @@ def addPendingWhitelistAddr(_addr: address, _pending: wcs.PendingWhitelist):
 
 @external
 def cancelPendingWhitelistAddr(_addr: address):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.kernel # dev: no perms
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
 
 
@@ -423,7 +431,7 @@ def cancelPendingWhitelistAddr(_addr: address):
 
 @external
 def confirmWhitelistAddr(_addr: address):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.kernel # dev: no perms
     assert self.pendingWhitelist[_addr].confirmBlock >= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._registerWhitelistAddr(_addr)
@@ -456,7 +464,7 @@ def _registerWhitelistAddr(_addr: address):
 
 @external
 def removeWhitelistAddr(_addr: address):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.kernel # dev: no perms
 
     numWhitelisted: uint256 = self.numWhitelisted
     if numWhitelisted == 1:
@@ -670,7 +678,7 @@ def createCheque(
     _chequeData: wcs.ChequeData,
     _isExistingCheque: bool,
 ):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.chequeBook # dev: no perms
     self.cheques[_recipient] = _cheque
     self.chequePeriodData = _chequeData
     if not _isExistingCheque:
@@ -682,7 +690,7 @@ def createCheque(
 
 @external
 def cancelCheque(_recipient: address):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.chequeBook # dev: no perms
     self.cheques[_recipient] = empty(wcs.Cheque)
     self.numActiveCheques -= 1
 
@@ -692,7 +700,7 @@ def cancelCheque(_recipient: address):
 
 @external
 def setChequeSettings(_config: wcs.ChequeSettings):
-    assert msg.sender == self.paymaster # dev: no perms
+    assert msg.sender == self.chequeBook # dev: no perms
     self.chequeSettings = _config
 
 
@@ -895,6 +903,12 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 
 
 @external
+def setKernel(_kernel: address):
+    assert self._canSetBackpackItem(_kernel, msg.sender) # dev: no perms
+    self.kernel = _kernel
+
+
+@external
 def setSentinel(_sentinel: address):
     assert self._canSetBackpackItem(_sentinel, msg.sender) # dev: no perms
     self.sentinel = _sentinel
@@ -910,6 +924,12 @@ def setHighCommand(_highCommand: address):
 def setPaymaster(_paymaster: address):
     assert self._canSetBackpackItem(_paymaster, msg.sender) # dev: no perms
     self.paymaster = _paymaster
+
+
+@external
+def setChequeBook(_chequeBook: address):
+    assert self._canSetBackpackItem(_chequeBook, msg.sender) # dev: no perms
+    self.chequeBook = _chequeBook
 
 
 @external

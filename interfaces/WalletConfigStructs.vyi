@@ -11,9 +11,11 @@ flag WhitelistAction:
     REMOVE_WHITELIST
 
 flag BackpackType:
+    WALLET_KERNEL
     WALLET_SENTINEL
     WALLET_HIGH_COMMAND
     WALLET_PAYMASTER
+    WALLET_CHEQUE_BOOK
     WALLET_MIGRATOR
 
 # payees

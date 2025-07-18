@@ -18,14 +18,6 @@ from interfaces import WalletConfigStructs as wcs
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
-interface UserWalletConfig:
-    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
-    def deregisterAsset(_asset: address) -> bool: nonpayable
-    def setWallet(_wallet: address) -> bool: nonpayable
-    def getTrialFundsInfo() -> (address, uint256): view
-    def removeTrialFunds() -> uint256: nonpayable
-    def owner() -> address: view
-
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -34,6 +26,22 @@ interface Ledger:
     def createAgent(_agent: address): nonpayable
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
+
+interface UserWalletConfig:
+    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
+    def deregisterAsset(_asset: address) -> bool: nonpayable
+    def setWallet(_wallet: address) -> bool: nonpayable
+    def getTrialFundsInfo() -> (address, uint256): view
+    def removeTrialFunds() -> uint256: nonpayable
+    def owner() -> address: view
+
+interface WalletBackpack:
+    def highCommand() -> address: view
+    def chequeBook() -> address: view
+    def paymaster() -> address: view
+    def migrator() -> address: view
+    def sentinel() -> address: view
+    def kernel() -> address: view
 
 interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
@@ -47,19 +55,15 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface WalletBackpack:
-    def highCommand() -> address: view
-    def paymaster() -> address: view
-    def migrator() -> address: view
-    def sentinel() -> address: view
-
-interface Paymaster:
-    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: view
-    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
-
 interface HighCommand:
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
+
+interface ChequeBook:
+    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: view
+
+interface Paymaster:
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
 interface Appraiser:
     def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
@@ -186,15 +190,14 @@ def createUserWallet(
         trialFundsAmount = config.trialAmount
 
     # get wallet backpack addys
-    sentinel: address = staticcall WalletBackpack(a.walletBackpack).sentinel()
     highCommand: address = staticcall WalletBackpack(a.walletBackpack).highCommand()
     paymaster: address = staticcall WalletBackpack(a.walletBackpack).paymaster()
-    migrator: address = staticcall WalletBackpack(a.walletBackpack).migrator()
+    chequeBook: address = staticcall WalletBackpack(a.walletBackpack).chequeBook()
 
     # default manager / payee / cheque settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
-    chequeSettings: wcs.ChequeSettings = staticcall Paymaster(paymaster).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
+    chequeSettings: wcs.ChequeSettings = staticcall ChequeBook(chequeBook).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
 
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     if config.startingAgent != empty(address):
@@ -213,10 +216,12 @@ def createUserWallet(
         chequeSettings,
         config.startingAgent,
         starterAgentSettings,
-        sentinel,
+        staticcall WalletBackpack(a.walletBackpack).kernel(),
+        staticcall WalletBackpack(a.walletBackpack).sentinel(),
         highCommand,
         paymaster,
-        migrator,
+        chequeBook,
+        staticcall WalletBackpack(a.walletBackpack).migrator(),
         WETH,
         ETH,
         config.minKeyActionTimeLock,

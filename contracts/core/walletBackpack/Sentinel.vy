@@ -538,23 +538,6 @@ def isValidChequeAndGetData(
     _chequeData: wcs.ChequeData,
     _isManager: bool,
 ) -> (bool, wcs.ChequeData):
-    return self._isValidChequeAndGetData(_asset, _amount, _txUsdValue, _cheque, _globalConfig, _chequeData, _isManager)
-
-
-# core logic -- is valid cheque
-
-
-@view
-@internal
-def _isValidChequeAndGetData(
-    _asset: address,
-    _amount: uint256,
-    _txUsdValue: uint256,
-    _cheque: wcs.Cheque,
-    _globalConfig: wcs.ChequeSettings,
-    _chequeData: wcs.ChequeData,
-    _isManager: bool,
-) -> (bool, wcs.ChequeData):
 
     # check if cheque is active
     if not _cheque.active:

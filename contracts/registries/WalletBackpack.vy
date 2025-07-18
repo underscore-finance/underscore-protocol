@@ -24,6 +24,7 @@ from interfaces import WalletStructs as ws
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
+    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
     def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
 
 interface Ledger:
@@ -54,9 +55,11 @@ event PendingBackpackItemCancelled:
     cancelledBy: indexed(address)
 
 # current implementations
+kernel: public(address)
 sentinel: public(address)
 highCommand: public(address)
 paymaster: public(address)
+chequeBook: public(address)
 migrator: public(address)
 
 # pending changes
@@ -85,6 +88,12 @@ def __init__(
 
 
 @external
+def addPendingKernel(_addr: address) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._addPendingBackpackItem(wcs.BackpackType.WALLET_KERNEL, _addr)
+
+
+@external
 def addPendingSentinel(_addr: address) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._addPendingBackpackItem(wcs.BackpackType.WALLET_SENTINEL, _addr)
@@ -100,6 +109,12 @@ def addPendingHighCommand(_addr: address) -> bool:
 def addPendingPaymaster(_addr: address) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._addPendingBackpackItem(wcs.BackpackType.WALLET_PAYMASTER, _addr)
+
+
+@external
+def addPendingChequeBook(_addr: address) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._addPendingBackpackItem(wcs.BackpackType.WALLET_CHEQUE_BOOK, _addr)
 
 
 @external
@@ -141,12 +156,16 @@ def canAddBackpackItem(_backpackType: wcs.BackpackType, _addr: address) -> bool:
 @view
 @internal
 def _canAddBackpackItem(_backpackType: wcs.BackpackType, _addr: address) -> bool:
+    if _backpackType == wcs.BackpackType.WALLET_KERNEL:
+        return self._isValidAddr(_addr, self.kernel)
     if _backpackType == wcs.BackpackType.WALLET_SENTINEL:
         return self._isValidSentinel(_addr)
     elif _backpackType == wcs.BackpackType.WALLET_HIGH_COMMAND:
         return self._isValidAddr(_addr, self.highCommand)
     elif _backpackType == wcs.BackpackType.WALLET_PAYMASTER:
         return self._isValidAddr(_addr, self.paymaster)
+    elif _backpackType == wcs.BackpackType.WALLET_CHEQUE_BOOK:
+        return self._isValidAddr(_addr, self.chequeBook)
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         return self._isValidAddr(_addr, self.migrator)
     return False
@@ -192,6 +211,17 @@ def _isValidSentinel(_addr: address) -> bool:
         0,
         empty(wcs.ManagerData),
     )
+
+    chequeData: wcs.ChequeData = empty(wcs.ChequeData)
+    isValid, chequeData = staticcall Sentinel(_addr).isValidChequeAndGetData(
+        empty(address),
+        0,
+        0,
+        empty(wcs.Cheque),
+        empty(wcs.ChequeSettings),
+        empty(wcs.ChequeData),
+        False,
+    )
     return True
 
 
@@ -206,6 +236,12 @@ def _isValidAddr(_addr: address, _prevAddr: address) -> bool:
 ########################
 # Confirm Pending Item #
 ########################
+
+
+@external
+def confirmPendingKernel() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._confirmBackpackItem(wcs.BackpackType.WALLET_KERNEL, msg.sender)
 
 
 @external
@@ -224,6 +260,12 @@ def confirmPendingHighCommand() -> bool:
 def confirmPendingPaymaster() -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._confirmBackpackItem(wcs.BackpackType.WALLET_PAYMASTER, msg.sender)
+
+
+@external
+def confirmPendingChequeBook() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._confirmBackpackItem(wcs.BackpackType.WALLET_CHEQUE_BOOK, msg.sender)
 
 
 @external
@@ -263,12 +305,16 @@ def _confirmBackpackItem(_backpackType: wcs.BackpackType, _caller: address) -> b
 
 @internal
 def _setBackpackItem(_backpackType: wcs.BackpackType, _addr: address):
-    if _backpackType == wcs.BackpackType.WALLET_SENTINEL:
+    if _backpackType == wcs.BackpackType.WALLET_KERNEL:
+        self.kernel = _addr
+    elif _backpackType == wcs.BackpackType.WALLET_SENTINEL:
         self.sentinel = _addr
     elif _backpackType == wcs.BackpackType.WALLET_HIGH_COMMAND:
         self.highCommand = _addr
     elif _backpackType == wcs.BackpackType.WALLET_PAYMASTER:
         self.paymaster = _addr
+    elif _backpackType == wcs.BackpackType.WALLET_CHEQUE_BOOK:
+        self.chequeBook = _addr
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         self.migrator = _addr
 
@@ -279,6 +325,12 @@ def _setBackpackItem(_backpackType: wcs.BackpackType, _addr: address):
 #######################
 # Cancel Pending Item #
 #######################
+
+
+@external
+def cancelPendingKernel() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_KERNEL, msg.sender)
 
 
 @external
@@ -297,6 +349,12 @@ def cancelPendingHighCommand() -> bool:
 def cancelPendingPaymaster() -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_PAYMASTER, msg.sender)
+
+
+@external
+def cancelPendingChequeBook() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_CHEQUE_BOOK, msg.sender)
 
 
 @external

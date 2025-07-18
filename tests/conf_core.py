@@ -327,7 +327,12 @@ def wallet_backpack_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, migrator, governance):
+def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paymaster, cheque_book, migrator, governance):
+
+    # set kernel
+    wallet_backpack_deploy.addPendingKernel(kernel, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingKernel(sender=governance.address)
 
     # set sentinel
     wallet_backpack_deploy.addPendingSentinel(sentinel, sender=governance.address)
@@ -344,6 +349,11 @@ def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, m
     boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
     wallet_backpack_deploy.confirmPendingPaymaster(sender=governance.address)
 
+    # set cheque book
+    wallet_backpack_deploy.addPendingChequeBook(cheque_book, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingChequeBook(sender=governance.address)
+
     # set migrator
     wallet_backpack_deploy.addPendingMigrator(migrator, sender=governance.address)
     boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
@@ -353,6 +363,18 @@ def wallet_backpack(wallet_backpack_deploy, sentinel, high_command, paymaster, m
     wallet_backpack_deploy.setActionTimeLockAfterSetup(sender=governance.address)
 
     return wallet_backpack_deploy
+
+
+# kernel
+
+
+@pytest.fixture(scope="session")
+def kernel(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/walletBackpack/Kernel.vy",
+        undy_hq_deploy,
+        name="kernel",
+    )
 
 
 # high command
@@ -385,12 +407,24 @@ def paymaster(undy_hq_deploy, fork):
         PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        name="paymaster",
+    )
+
+
+# cheque book
+
+
+@pytest.fixture(scope="session")
+def cheque_book(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/walletBackpack/ChequeBook.vy",
+        undy_hq_deploy,
         PARAMS[fork]["CHEQUE_MIN_PERIOD"],
         PARAMS[fork]["CHEQUE_MAX_PERIOD"],
         PARAMS[fork]["CHEQUE_MIN_EXPENSIVE_DELAY"],
         PARAMS[fork]["CHEQUE_MAX_UNLOCK_BLOCKS"],
         PARAMS[fork]["CHEQUE_MAX_EXPIRY_BLOCKS"],
-        name="paymaster",
+        name="cheque_book",
     )
 
 
