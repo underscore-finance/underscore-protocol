@@ -15,6 +15,11 @@ from interfaces import LegoPartner as Lego
 
 from ethereum.ercs import IERC20Detailed
 
+interface Ledger:
+    def isRegisteredBackpackItem(_user: address) -> bool: view
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
+    def isUserWallet(_user: address) -> bool: view
+
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
@@ -22,10 +27,6 @@ interface MissionControl:
 interface RipePriceDesk:
     def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
     def addPriceSnapshot(_asset: address) -> bool: nonpayable
-
-interface Ledger:
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-    def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -320,8 +321,8 @@ def updatePriceAndGetUsdValue(
     _legoBook: address = empty(address),
 ) -> uint256:
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
-    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
-        assert addys._isValidUndyAddr(msg.sender) # dev: no perms
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender) and not addys._isValidUndyAddr(msg.sender):
+        assert staticcall Ledger(ledger).isRegisteredBackpackItem(msg.sender) # dev: no perms
 
     # if paused, fail gracefully
     if deptBasics.isPaused:

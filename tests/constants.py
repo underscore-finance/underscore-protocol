@@ -66,3 +66,14 @@ class CONFIG_ACTION_TYPE(IntFlag):
     CAN_PERFORM_SECURITY_ACTION = 16384  # 2^14
     ASSET_CONFIG = 32768  # 2^15
     IS_STABLECOIN = 65536  # 2^16
+
+
+# Backpack types for WalletBackpack
+# These match the Vyper flag enum (powers of 2)
+class BACKPACK_TYPE(IntFlag):
+    WALLET_KERNEL = 1  # 2^0
+    WALLET_SENTINEL = 2  # 2^1
+    WALLET_HIGH_COMMAND = 4  # 2^2
+    WALLET_PAYMASTER = 8  # 2^3
+    WALLET_CHEQUE_BOOK = 16  # 2^4
+    WALLET_MIGRATOR = 32  # 2^5

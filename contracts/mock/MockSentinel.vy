@@ -64,6 +64,22 @@ def checkManagerUsdLimitsAndUpdateData(
     return True, _data
 
 
+@view
+@external
+def isValidChequeAndGetData(
+    _asset: address,
+    _amount: uint256,
+    _txUsdValue: uint256,
+    _cheque: wcs.Cheque,
+    _globalConfig: wcs.ChequeSettings,
+    _chequeData: wcs.ChequeData,
+    _isManager: bool,
+) -> (bool, wcs.ChequeData):
+    if self.fail_validation:
+        return False, _chequeData
+    return True, _chequeData
+
+
 # Helper function for testing
 @external
 def setFailValidation(_fail: bool):
