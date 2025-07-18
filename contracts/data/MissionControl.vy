@@ -28,6 +28,11 @@ struct UserWalletCreationConfig:
     managerActivationLength: uint256
     payeePeriod: uint256
     payeeActivationLength: uint256
+    chequeMaxNumActiveCheques: uint256
+    chequeInstantUsdThreshold: uint256
+    chequePeriodLength: uint256
+    chequeExpensiveDelayBlocks: uint256
+    chequeDefaultExpiryBlocks: uint256
     trialAsset: address
     trialAmount: uint256
     minKeyActionTimeLock: uint256
@@ -75,6 +80,7 @@ userWalletConfig: public(cs.UserWalletConfig)
 agentConfig: public(cs.AgentConfig)
 managerConfig: public(cs.ManagerConfig)
 payeeConfig: public(cs.PayeeConfig)
+chequeConfig: public(cs.ChequeConfig)
 
 # asset config
 assetConfig: public(HashMap[address, cs.AssetConfig])
@@ -96,6 +102,7 @@ def __init__(_undyHq: address, _defaults: address):
         self.agentConfig = staticcall Defaults(_defaults).agentConfig()
         self.managerConfig = staticcall Defaults(_defaults).managerConfig()
         self.payeeConfig = staticcall Defaults(_defaults).payeeConfig()
+        self.chequeConfig = staticcall Defaults(_defaults).chequeConfig()
 
 
 ######################
@@ -124,6 +131,13 @@ def setPayeeConfig(_config: cs.PayeeConfig):
     self.payeeConfig = _config
 
 
+@external
+def setChequeConfig(_config: cs.ChequeConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
+    self.chequeConfig = _config
+
+
 # helper
 
 
@@ -134,6 +148,7 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
     managerConfig: cs.ManagerConfig = self.managerConfig
     payeeConfig: cs.PayeeConfig = self.payeeConfig
     agentConfig: cs.AgentConfig = self.agentConfig
+    chequeConfig: cs.ChequeConfig = self.chequeConfig
     return UserWalletCreationConfig(
         numUserWalletsAllowed = config.numUserWalletsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
@@ -145,6 +160,11 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         managerActivationLength = managerConfig.managerActivationLength,
         payeePeriod = payeeConfig.payeePeriod,
         payeeActivationLength = payeeConfig.payeeActivationLength,
+        chequeMaxNumActiveCheques = chequeConfig.maxNumActiveCheques,
+        chequeInstantUsdThreshold = chequeConfig.instantUsdThreshold,
+        chequePeriodLength = chequeConfig.periodLength,
+        chequeExpensiveDelayBlocks = chequeConfig.expensiveDelayBlocks,
+        chequeDefaultExpiryBlocks = chequeConfig.defaultExpiryBlocks,
         trialAsset = config.trialAsset,
         trialAmount = config.trialAmount,
         minKeyActionTimeLock = config.minKeyActionTimeLock,

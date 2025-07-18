@@ -53,12 +53,13 @@ interface WalletBackpack:
     def migrator() -> address: view
     def sentinel() -> address: view
 
+interface Paymaster:
+    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: view
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
+
 interface HighCommand:
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
-
-interface Paymaster:
-    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
 interface Appraiser:
     def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
@@ -89,6 +90,11 @@ struct UserWalletCreationConfig:
     managerActivationLength: uint256
     payeePeriod: uint256
     payeeActivationLength: uint256
+    chequeMaxNumActiveCheques: uint256
+    chequeInstantUsdThreshold: uint256
+    chequePeriodLength: uint256
+    chequeExpensiveDelayBlocks: uint256
+    chequeDefaultExpiryBlocks: uint256
     trialAsset: address
     trialAmount: uint256
     minKeyActionTimeLock: uint256
@@ -185,17 +191,11 @@ def createUserWallet(
     paymaster: address = staticcall WalletBackpack(a.walletBackpack).paymaster()
     migrator: address = staticcall WalletBackpack(a.walletBackpack).migrator()
 
-    # default manager / payee settings
+    # default manager / payee / cheque settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength)
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
-    
-    
-    # TODO
-    # TODO
-    chequeSettings: wcs.ChequeSettings = empty(wcs.ChequeSettings) # TODO: get cheque settings
-    
-    
-    
+    chequeSettings: wcs.ChequeSettings = staticcall Paymaster(paymaster).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
+
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     if config.startingAgent != empty(address):
         starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(config.startingAgentActivationLength)

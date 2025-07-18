@@ -62,3 +62,10 @@ struct ManagerConfig:
 struct PayeeConfig:
     payeePeriod: uint256
     payeeActivationLength: uint256
+
+struct ChequeConfig:
+    maxNumActiveCheques: uint256
+    instantUsdThreshold: uint256
+    periodLength: uint256
+    expensiveDelayBlocks: uint256
+    defaultExpiryBlocks: uint256

@@ -520,3 +520,128 @@ def createPayeeData():
             _periodStartBlock,
         )
     yield createPayeeData
+
+
+#########################
+# User Wallet - Cheques #
+#########################
+
+
+# cheque settings (user wallet)
+
+
+@pytest.fixture(scope="session")
+def createChequeSettings():
+    def createChequeSettings(
+        _maxNumActiveCheques = 0,  # 0 = unlimited
+        _maxChequeUsdValue = 0,  # 0 = unlimited
+        _instantUsdThreshold = 0,  # 0 = no instant threshold
+        _perPeriodPaidUsdCap = 0,  # 0 = unlimited
+        _maxNumChequesPaidPerPeriod = 0,  # 0 = unlimited
+        _payCooldownBlocks = 0,  # 0 = no cooldown
+        _perPeriodCreatedUsdCap = 0,  # 0 = unlimited
+        _maxNumChequesCreatedPerPeriod = 0,  # 0 = unlimited
+        _createCooldownBlocks = 0,  # 0 = no cooldown
+        _periodLength = ONE_MONTH_IN_BLOCKS,
+        _expensiveDelayBlocks = 0,  # 0 = use timelock
+        _defaultExpiryBlocks = 0,  # 0 = use timelock
+        _allowedAssets = [],  # empty = all assets allowed
+        _canManagersCreateCheques = True,
+        _canManagerPay = True,
+        _canBePulled = True,
+    ):
+        return (
+            _maxNumActiveCheques,
+            _maxChequeUsdValue,
+            _instantUsdThreshold,
+            _perPeriodPaidUsdCap,
+            _maxNumChequesPaidPerPeriod,
+            _payCooldownBlocks,
+            _perPeriodCreatedUsdCap,
+            _maxNumChequesCreatedPerPeriod,
+            _createCooldownBlocks,
+            _periodLength,
+            _expensiveDelayBlocks,
+            _defaultExpiryBlocks,
+            _allowedAssets,
+            _canManagersCreateCheques,
+            _canManagerPay,
+            _canBePulled,
+        )
+    yield createChequeSettings
+
+
+# cheque data (user wallet)
+
+
+@pytest.fixture(scope="session")
+def createChequeData():
+    def createChequeData(
+        _numChequesPaidInPeriod = 0,
+        _totalUsdValuePaidInPeriod = 0,
+        _totalNumChequesPaid = 0,
+        _totalUsdValuePaid = 0,
+        _lastChequePaidBlock = 0,
+        _numChequesCreatedInPeriod = 0,
+        _totalUsdValueCreatedInPeriod = 0,
+        _totalNumChequesCreated = 0,
+        _totalUsdValueCreated = 0,
+        _lastChequeCreatedBlock = 0,
+        _periodStartBlock = 0,
+    ):
+        return (
+            _numChequesPaidInPeriod,
+            _totalUsdValuePaidInPeriod,
+            _totalNumChequesPaid,
+            _totalUsdValuePaid,
+            _lastChequePaidBlock,
+            _numChequesCreatedInPeriod,
+            _totalUsdValueCreatedInPeriod,
+            _totalNumChequesCreated,
+            _totalUsdValueCreated,
+            _lastChequeCreatedBlock,
+            _periodStartBlock,
+        )
+    yield createChequeData
+
+
+# cheque (user wallet)
+
+
+@pytest.fixture(scope="session")
+def createCheque():
+    def createCheque(
+        _recipient = ZERO_ADDRESS,
+        _asset = ZERO_ADDRESS,
+        _amount = 0,
+        _creationBlock = 0,
+        _unlockBlock = 0,
+        _expiryBlock = 0,
+        _usdValueOnCreation = 0,
+        _canManagerPay = True,
+        _canBePulled = True,
+        _creator = ZERO_ADDRESS,
+        _active = True,
+    ):
+        if _creationBlock == 0:
+            _creationBlock = boa.env.evm.patch.block_number
+        if _unlockBlock == 0:
+            _unlockBlock = _creationBlock + ONE_DAY_IN_BLOCKS
+        if _expiryBlock == 0:
+            _expiryBlock = _unlockBlock + ONE_MONTH_IN_BLOCKS
+            
+        return (
+            _recipient,
+            _asset,
+            _amount,
+            _creationBlock,
+            _unlockBlock,
+            _expiryBlock,
+            _usdValueOnCreation,
+            _canManagerPay,
+            _canBePulled,
+            _creator,
+            _active,
+        )
+    yield createCheque
+

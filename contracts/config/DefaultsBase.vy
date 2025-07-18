@@ -4,6 +4,8 @@ implements: Defaults
 from interfaces import Defaults
 import interfaces.ConfigStructs as cs
 
+EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
+
 # blocks
 DAY_IN_BLOCKS: constant(uint256) = 43_200
 WEEK_IN_BLOCKS: constant(uint256) = 7 * DAY_IN_BLOCKS
@@ -107,4 +109,16 @@ def payeeConfig() -> cs.PayeeConfig:
     return cs.PayeeConfig(
         payeePeriod = MONTH_IN_BLOCKS,
         payeeActivationLength = YEAR_IN_BLOCKS,
+    )
+
+
+@view
+@external
+def chequeConfig() -> cs.ChequeConfig:
+    return cs.ChequeConfig(
+        maxNumActiveCheques = 3,
+        instantUsdThreshold = 100 * EIGHTEEN_DECIMALS,
+        periodLength = DAY_IN_BLOCKS,
+        expensiveDelayBlocks = DAY_IN_BLOCKS,
+        defaultExpiryBlocks = 2 * DAY_IN_BLOCKS,
     )

@@ -25,3 +25,10 @@ def managerConfig() -> cs.ManagerConfig:
 @external
 def payeeConfig() -> cs.PayeeConfig:
     ...
+
+
+
+@view
+@external
+def chequeConfig() -> cs.ChequeConfig:
+    ...

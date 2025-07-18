@@ -1170,13 +1170,21 @@ def createCheque(
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
-    
+
     # validate and create cheque
     isValid: bool = False
     cheque: wcs.Cheque = empty(wcs.Cheque)
     updatedChequeData: wcs.ChequeData = empty(wcs.ChequeData)
     isValid, cheque, updatedChequeData = self._isValidNewCheque(
-        config,
+        config.wallet,
+        config.walletConfig,
+        config.owner,
+        config.isRecipientOnWhitelist,
+        config.chequeSettings,
+        config.chequeData,
+        config.isExistingCheque,
+        config.numActiveCheques,
+        config.timeLock,
         _recipient,
         _asset,
         _amount,
@@ -1203,7 +1211,6 @@ def createCheque(
         canBePulled = _canBePulled,
         creator = msg.sender,
     )
-    
     return True
 
 
@@ -1257,25 +1264,63 @@ def _canCreateCheque(
 @view
 @external
 def isValidNewCheque(
-    _userWallet: address,
-    _creator: address,
+    _wallet: address,
+    _walletConfig: address,
+    _owner: address,
+    _isRecipientOnWhitelist: bool,
+    _chequeSettings: wcs.ChequeSettings,
+    _chequeData: wcs.ChequeData,
+    _isExistingCheque: bool,
+    _numActiveCheques: uint256,
+    _timeLock: uint256,
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _usdValue: uint256,
     _unlockNumBlocks: uint256,
     _expiryNumBlocks: uint256,
     _canManagerPay: bool,
     _canBePulled: bool,
-) -> (bool, wcs.Cheque, wcs.ChequeData):
-    config: wcs.ChequeManagementBundle = self._getChequeConfig(_userWallet, _creator, _recipient)
-    return self._isValidNewCheque(config, _recipient, _asset, _amount, _unlockNumBlocks, _expiryNumBlocks, _canManagerPay, _canBePulled, _creator, _usdValue)
+    _creator: address,
+    _usdValue: uint256,
+) -> bool:
+    isValid: bool = False
+    cheque: wcs.Cheque = empty(wcs.Cheque)
+    chequeData: wcs.ChequeData = empty(wcs.ChequeData)    
+    isValid, cheque, chequeData = self._isValidNewCheque(
+        _wallet,
+        _walletConfig,
+        _owner,
+        _isRecipientOnWhitelist,
+        _chequeSettings,
+        _chequeData,
+        _isExistingCheque,
+        _numActiveCheques,
+        _timeLock,
+        _recipient,
+        _asset,
+        _amount,
+        _unlockNumBlocks,
+        _expiryNumBlocks,
+        _canManagerPay,
+        _canBePulled,
+        _creator,
+        _usdValue,
+    )
+    return isValid
 
 
 @view
 @internal
 def _isValidNewCheque(
-    _config: wcs.ChequeManagementBundle,
+    _wallet: address,
+    _walletConfig: address,
+    _owner: address,
+    _isRecipientOnWhitelist: bool,
+    _chequeSettings: wcs.ChequeSettings,
+    _chequeData: wcs.ChequeData,
+    _isExistingCheque: bool,
+    _numActiveCheques: uint256,
+    _timeLock: uint256,
     _recipient: address,
     _asset: address,
     _amount: uint256,
@@ -1288,11 +1333,11 @@ def _isValidNewCheque(
 ) -> (bool, wcs.Cheque, wcs.ChequeData):
 
     # validate recipient
-    if _config.isRecipientOnWhitelist:
+    if _isRecipientOnWhitelist:
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
     if _recipient == empty(address):
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
-    if _recipient in [_config.wallet, _config.walletConfig, _config.owner]:
+    if _recipient in [_wallet, _walletConfig, _owner]:
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # validate asset and amount
@@ -1302,32 +1347,32 @@ def _isValidNewCheque(
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
     
     # check if asset is allowed
-    if len(_config.chequeSettings.allowedAssets) != 0:
-        if _asset not in _config.chequeSettings.allowedAssets:
+    if len(_chequeSettings.allowedAssets) != 0:
+        if _asset not in _chequeSettings.allowedAssets:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # validate canBePulled and canManagerPay against global settings
-    if _canBePulled and not _config.chequeSettings.canBePulled:
+    if _canBePulled and not _chequeSettings.canBePulled:
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
-    if _canManagerPay and not _config.chequeSettings.canManagerPay:
+    if _canManagerPay and not _chequeSettings.canManagerPay:
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # check max number of active cheques (only if creating new cheque, not replacing)
-    if not _config.isExistingCheque and _config.chequeSettings.maxNumActiveCheques != 0:
-        if _config.numActiveCheques >= _config.chequeSettings.maxNumActiveCheques:
+    if not _isExistingCheque and _chequeSettings.maxNumActiveCheques != 0:
+        if _numActiveCheques >= _chequeSettings.maxNumActiveCheques:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # get latest cheque data (with period reset if needed)
-    chequeData: wcs.ChequeData = self._getLatestChequeData(_config.chequeData, _config.chequeSettings.periodLength)
+    chequeData: wcs.ChequeData = self._getLatestChequeData(_chequeData, _chequeSettings.periodLength)
 
     # check creation cooldown
-    if _config.chequeSettings.createCooldownBlocks != 0 and chequeData.lastChequeCreatedBlock != 0:
-        if block.number < chequeData.lastChequeCreatedBlock + _config.chequeSettings.createCooldownBlocks:
+    if _chequeSettings.createCooldownBlocks != 0 and chequeData.lastChequeCreatedBlock != 0:
+        if block.number < chequeData.lastChequeCreatedBlock + _chequeSettings.createCooldownBlocks:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # check max num cheques created per period
-    if _config.chequeSettings.maxNumChequesCreatedPerPeriod != 0:
-        if chequeData.numChequesCreatedInPeriod >= _config.chequeSettings.maxNumChequesCreatedPerPeriod:
+    if _chequeSettings.maxNumChequesCreatedPerPeriod != 0:
+        if chequeData.numChequesCreatedInPeriod >= _chequeSettings.maxNumChequesCreatedPerPeriod:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # if no usd value, return False
@@ -1335,13 +1380,13 @@ def _isValidNewCheque(
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # check max cheque USD value
-    if _config.chequeSettings.maxChequeUsdValue != 0:
-        if _usdValue > _config.chequeSettings.maxChequeUsdValue:
+    if _chequeSettings.maxChequeUsdValue != 0:
+        if _usdValue > _chequeSettings.maxChequeUsdValue:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # check per period created USD cap
-    if _config.chequeSettings.perPeriodCreatedUsdCap != 0:
-        if chequeData.totalUsdValueCreatedInPeriod + _usdValue > _config.chequeSettings.perPeriodCreatedUsdCap:
+    if _chequeSettings.perPeriodCreatedUsdCap != 0:
+        if chequeData.totalUsdValueCreatedInPeriod + _usdValue > _chequeSettings.perPeriodCreatedUsdCap:
             return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # cannot be too long
@@ -1352,20 +1397,20 @@ def _isValidNewCheque(
     unlockBlock: uint256 = block.number + _unlockNumBlocks
 
     # apply time lock if USD value exceeds instant threshold
-    if _config.chequeSettings.instantUsdThreshold != 0 and _usdValue > _config.chequeSettings.instantUsdThreshold:
-        if _config.chequeSettings.expensiveDelayBlocks != 0:
-            unlockBlock = max(unlockBlock, block.number + _config.chequeSettings.expensiveDelayBlocks)
+    if _chequeSettings.instantUsdThreshold != 0 and _usdValue > _chequeSettings.instantUsdThreshold:
+        if _chequeSettings.expensiveDelayBlocks != 0:
+            unlockBlock = max(unlockBlock, block.number + _chequeSettings.expensiveDelayBlocks)
         else:
-            unlockBlock = max(unlockBlock, block.number + _config.timeLock)
+            unlockBlock = max(unlockBlock, block.number + _timeLock)
 
     # calculate expiry block
     expiryBlock: uint256 = 0
     if _expiryNumBlocks != 0:
         expiryBlock = unlockBlock + _expiryNumBlocks
-    elif _config.chequeSettings.defaultExpiryBlocks != 0:
-        expiryBlock = unlockBlock + _config.chequeSettings.defaultExpiryBlocks
+    elif _chequeSettings.defaultExpiryBlocks != 0:
+        expiryBlock = unlockBlock + _chequeSettings.defaultExpiryBlocks
     else:
-        expiryBlock = unlockBlock + _config.timeLock
+        expiryBlock = unlockBlock + _timeLock
 
     # cannot be too long (active duration)
     activeDuration: uint256 = expiryBlock - unlockBlock
@@ -1457,7 +1502,6 @@ def cancelCheque(_userWallet: address, _recipient: address) -> bool:
         canBePulled = cheque.canBePulled,
         cancelledBy = msg.sender,
     )
-    
     return True
 
 
@@ -1511,7 +1555,7 @@ def setChequeSettings(
         _defaultExpiryBlocks,
         staticcall UserWalletConfig(walletConfig).timeLock(),
     ) # dev: invalid cheque settings
-    
+
     # create settings
     settings: wcs.ChequeSettings = wcs.ChequeSettings(
         maxNumActiveCheques = _maxNumActiveCheques,
@@ -1531,10 +1575,9 @@ def setChequeSettings(
         canManagerPay = _canManagerPay,
         canBePulled = _canBePulled,
     )
-    
+
     # update settings
     extcall UserWalletConfig(walletConfig).setChequeSettings(settings)
-    
     log ChequeSettingsModified(
         user = _userWallet,
         maxNumActiveCheques = _maxNumActiveCheques,
@@ -1553,7 +1596,6 @@ def setChequeSettings(
         canManagerPay = _canManagerPay,
         canBePulled = _canBePulled,
     )
-    
     return True
 
 
@@ -1563,7 +1605,6 @@ def setChequeSettings(
 @view
 @external
 def isValidChequeSettings(
-    _userWallet: address,
     _maxNumActiveCheques: uint256,
     _maxChequeUsdValue: uint256,
     _instantUsdThreshold: uint256,
@@ -1839,4 +1880,36 @@ def createDefaultGlobalPayeeSettings(
         failOnZeroPrice = False,
         usdLimits = empty(wcs.PayeeLimits),
         canPayOwner = True,
+    )
+
+
+# default cheque settings
+
+
+@view
+@external
+def createDefaultChequeSettings(
+    _maxNumActiveCheques: uint256,
+    _instantUsdThreshold: uint256,
+    _periodLength: uint256,
+    _expensiveDelayBlocks: uint256,
+    _defaultExpiryBlocks: uint256,
+) -> wcs.ChequeSettings:
+    return wcs.ChequeSettings(
+        maxNumActiveCheques = _maxNumActiveCheques,
+        maxChequeUsdValue = 0,
+        instantUsdThreshold = _instantUsdThreshold,
+        perPeriodPaidUsdCap = 0,
+        maxNumChequesPaidPerPeriod = 0,
+        payCooldownBlocks = 0,
+        perPeriodCreatedUsdCap = 0,
+        maxNumChequesCreatedPerPeriod = 0,
+        createCooldownBlocks = 0,
+        periodLength = _periodLength,
+        expensiveDelayBlocks = _expensiveDelayBlocks,
+        defaultExpiryBlocks = _defaultExpiryBlocks,
+        allowedAssets = [],
+        canManagersCreateCheques = False,
+        canManagerPay = True,
+        canBePulled = False,
     )
