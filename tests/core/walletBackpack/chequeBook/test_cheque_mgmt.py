@@ -782,3 +782,447 @@ def test_createCheque_expiry_calculation_paths(
 # Cancel Cheque #
 #################
 
+
+def test_cancelCheque_success_by_owner(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book
+):
+    """Test successful cheque cancellation by owner"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Create a cheque first
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    # Verify cheque exists and is active
+    cheque_before = user_wallet_config.cheques(alice)
+    assert cheque_before.active == True
+    
+    # Cancel the cheque
+    tx = cheque_book.cancelCheque(
+        user_wallet.address,
+        alice,
+        sender=bob  # Owner canceling
+    )
+    
+    # Verify cheque was cancelled
+    cheque_after = user_wallet_config.cheques(alice)
+    assert cheque_after.active == False
+    
+    # Verify ChequeCancelled event was emitted
+    events = filter_logs(cheque_book, "ChequeCancelled")
+    assert len(events) == 1
+    
+    event = events[0]
+    assert event.user == user_wallet.address
+    assert event.recipient == alice
+    assert event.asset == alpha_token.address
+    assert event.amount == amount
+    assert event.usdValue == amount  # Price is $1 per token
+    assert event.unlockBlock == cheque_before.unlockBlock
+    assert event.expiryBlock == cheque_before.expiryBlock
+    assert event.canManagerPay == True
+    assert event.canBePulled == False
+    assert event.cancelledBy == bob
+
+
+def test_cancelCheque_fails_non_owner_without_security_perms(
+    bob, alice, charlie, alpha_token, mock_ripe,
+    user_wallet, cheque_book
+):
+    """Test that non-owner without security permissions cannot cancel cheque"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Create a cheque first
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    # Try to cancel as non-owner without security permissions
+    with boa.reverts("no perms"):
+        cheque_book.cancelCheque(
+            user_wallet.address,
+            alice,
+            sender=charlie  # Non-owner, no security perms
+        )
+
+
+def test_cancelCheque_fails_invalid_user_wallet(
+    bob, alice, user_wallet, cheque_book
+):
+    """Test that cancel fails with invalid user wallet"""
+    # Try to cancel with invalid user wallet
+    invalid_wallet = boa.env.generate_address()
+    with boa.reverts("invalid user wallet"):
+        cheque_book.cancelCheque(
+            invalid_wallet,
+            alice,
+            sender=bob
+        )
+
+
+def test_cancelCheque_fails_no_active_cheque(
+    bob, alice, user_wallet, cheque_book
+):
+    """Test that cancel fails when no active cheque exists for recipient"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Try to cancel non-existent cheque
+    with boa.reverts("no active cheque"):
+        cheque_book.cancelCheque(
+            user_wallet.address,
+            alice,  # No cheque exists for alice
+            sender=bob
+        )
+
+
+def test_cancelCheque_fails_already_cancelled(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, cheque_book
+):
+    """Test that cancel fails when cheque is already cancelled"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Create a cheque first
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    # Cancel the cheque once
+    cheque_book.cancelCheque(
+        user_wallet.address,
+        alice,
+        sender=bob
+    )
+    
+    # Try to cancel again (should fail)
+    with boa.reverts("no active cheque"):
+        cheque_book.cancelCheque(
+            user_wallet.address,
+            alice,
+            sender=bob
+        )
+
+
+def test_cancelCheque_event_contains_correct_data(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book
+):
+    """Test that ChequeCancelled event contains all correct data"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price to $2 per token
+    mock_ripe.setPrice(alpha_token.address, 2 * EIGHTEEN_DECIMALS)
+    
+    # Create a cheque with specific parameters
+    amount = 75 * EIGHTEEN_DECIMALS
+    unlock_blocks = ONE_DAY_IN_BLOCKS * 2
+    expiry_blocks = ONE_WEEK_IN_BLOCKS
+    
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        unlock_blocks,
+        expiry_blocks,
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Get the created cheque data
+    created_cheque = user_wallet_config.cheques(alice)
+    
+    # Cancel the cheque
+    tx = cheque_book.cancelCheque(
+        user_wallet.address,
+        alice,
+        sender=bob
+    )
+    
+    # Verify event data
+    events = filter_logs(cheque_book, "ChequeCancelled")
+    assert len(events) == 1
+    
+    event = events[0]
+    assert event.user == user_wallet.address
+    assert event.recipient == alice
+    assert event.asset == alpha_token.address
+    assert event.amount == amount
+    assert event.usdValue == amount * 2  # $2 per token
+    assert event.unlockBlock == created_cheque.unlockBlock
+    assert event.expiryBlock == created_cheque.expiryBlock
+    assert event.canManagerPay == True
+    assert event.canBePulled == False
+    assert event.cancelledBy == bob
+
+
+def test_cancelCheque_multiple_cheques_cancel_specific(
+    bob, alice, charlie, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book
+):
+    """Test canceling a specific cheque when multiple exist"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Create cheques for both alice and charlie
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        75 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    # Verify both cheques exist
+    alice_cheque_before = user_wallet_config.cheques(alice)
+    charlie_cheque_before = user_wallet_config.cheques(charlie)
+    assert alice_cheque_before.active == True
+    assert charlie_cheque_before.active == True
+    
+    # Cancel only alice's cheque
+    cheque_book.cancelCheque(
+        user_wallet.address,
+        alice,
+        sender=bob
+    )
+    
+    # Verify alice's cheque is cancelled but charlie's is still active
+    alice_cheque_after = user_wallet_config.cheques(alice)
+    charlie_cheque_after = user_wallet_config.cheques(charlie)
+    assert alice_cheque_after.active == False
+    assert charlie_cheque_after.active == True
+    
+    # Verify only one ChequeCancelled event
+    events = filter_logs(cheque_book, "ChequeCancelled")
+    assert len(events) == 1
+    assert events[0].recipient == alice
+
+
+def test_cancelCheque_function_returns_true(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, cheque_book
+):
+    """Test that cancelCheque function returns True on success"""
+    # Setup
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+    
+    # Set price
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Create a cheque
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+    
+    # Cancel the cheque and verify return value
+    result = cheque_book.cancelCheque(
+        user_wallet.address,
+        alice,
+        sender=bob
+    )
+    
+    # Function should return True
+    assert result == True
+
