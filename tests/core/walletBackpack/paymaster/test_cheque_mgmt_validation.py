@@ -1320,3 +1320,367 @@ def test_isValidNewCheque_succeeds_with_zero_create_cooldown(
         100 * EIGHTEEN_DECIMALS,  # _usdValue
     )
     assert is_valid == True
+
+
+####################################
+# Cheque Creation - Access Control #
+####################################
+
+
+def test_canCreateCheque_owner_can_always_create(
+    paymaster, createManagerSettings
+):
+    """Test that owner can always create cheques regardless of settings"""
+    # Even with restrictive manager settings, owner should be able to create
+    manager_settings = createManagerSettings(
+        _startBlock=boa.env.evm.patch.block_number + 1000,  # Not started yet
+        _expiryBlock=0,
+        _transferPerms=(False, False, False, [])  # All permissions disabled
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        True,   # _isCreatorOwner
+        False,  # _isCreatorManager
+        False,  # _canManagersCreateCheques (globally disabled)
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_non_owner_non_manager_cannot_create(
+    paymaster, createManagerSettings
+):
+    """Test that non-owner non-manager cannot create cheques"""
+    manager_settings = createManagerSettings()
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        False,  # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_cannot_create_when_globally_disabled(
+    paymaster, createManagerSettings
+):
+    """Test that managers cannot create cheques when globally disabled"""
+    manager_settings = createManagerSettings(
+        _transferPerms=(True, True, True, [])  # All permissions enabled
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        False,  # _canManagersCreateCheques (globally disabled)
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_cannot_create_without_permission(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers need specific permission to create cheques"""
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=False,  # No cheque creation permission
+        _canAddPendingPayee=True,
+        _allowedPayees=[]
+    )
+    
+    manager_settings = createManagerSettings(
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques (globally enabled)
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_can_create_with_permission(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers can create cheques with proper permissions"""
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,  # Has cheque creation permission
+        _canAddPendingPayee=True,
+        _allowedPayees=[]
+    )
+    
+    manager_settings = createManagerSettings(
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques (globally enabled)
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_manager_cannot_create_before_start_block(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers cannot create cheques before their start block"""
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    manager_settings = createManagerSettings(
+        _startBlock=boa.env.evm.patch.block_number + 100,  # Starts in future
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_can_create_after_start_block(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers can create cheques after their start block"""
+    # Advance blocks first
+    boa.env.time_travel(blocks=200)
+    
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    # Set start block in the past
+    start_block = boa.env.evm.patch.block_number - 100
+    manager_settings = createManagerSettings(
+        _startBlock=start_block,
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_manager_cannot_create_after_expiry(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers cannot create cheques after expiry block"""
+    # Advance blocks first to ensure we have room
+    boa.env.time_travel(blocks=10)
+    
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    # Set expiry block in the past
+    expiry_block = boa.env.evm.patch.block_number - 1
+    manager_settings = createManagerSettings(
+        _startBlock=0,  # Already started
+        _expiryBlock=expiry_block,  # Already expired
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_can_create_before_expiry(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers can create cheques before expiry block"""
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    # Set expiry block in the future
+    expiry_block = boa.env.evm.patch.block_number + 100
+    manager_settings = createManagerSettings(
+        _startBlock=0,  # Already started
+        _expiryBlock=expiry_block,  # Not expired yet
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_manager_can_create_with_zero_expiry(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that zero expiry means no expiry for managers"""
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    manager_settings = createManagerSettings(
+        _startBlock=0,
+        _expiryBlock=0,  # Zero means no expiry
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_manager_at_exact_expiry_block(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers cannot create at exact expiry block"""
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    # Set expiry block to current block
+    expiry_block = boa.env.evm.patch.block_number
+    manager_settings = createManagerSettings(
+        _startBlock=0,
+        _expiryBlock=expiry_block,  # Expires at current block
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_at_exact_start_block(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that managers can create at exact start block"""
+    transfer_perms = createTransferPerms(
+        _canCreateCheque=True
+    )
+    
+    # Set start block to current block
+    start_block = boa.env.evm.patch.block_number
+    manager_settings = createManagerSettings(
+        _startBlock=start_block,  # Starts at current block
+        _expiryBlock=0,
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_complex_scenario_all_conditions_met(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test complex scenario where all conditions are met for manager"""
+    # Advance blocks to have room for past/future tests
+    boa.env.time_travel(blocks=1000)
+    
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _canAddPendingPayee=True,
+        _allowedPayees=[]
+    )
+    
+    manager_settings = createManagerSettings(
+        _startBlock=boa.env.evm.patch.block_number - 100,  # Started 100 blocks ago
+        _expiryBlock=boa.env.evm.patch.block_number + 100,  # Expires in 100 blocks
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == True
+
+
+def test_canCreateCheque_complex_scenario_one_condition_fails(
+    paymaster, createManagerSettings, createTransferPerms
+):
+    """Test that failing any single condition prevents cheque creation"""
+    # Test 1: All good except global setting
+    transfer_perms = createTransferPerms(_canCreateCheque=True)
+    manager_settings = createManagerSettings(
+        _startBlock=0,
+        _expiryBlock=0,
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        False,  # _canManagersCreateCheques (FAIL: globally disabled)
+        manager_settings
+    )
+    assert can_create == False
+    
+    # Test 2: All good except permission
+    transfer_perms = createTransferPerms(_canCreateCheque=False)  # FAIL: no permission
+    manager_settings = createManagerSettings(
+        _startBlock=0,
+        _expiryBlock=0,
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+    
+    # Test 3: All good except timing
+    transfer_perms = createTransferPerms(_canCreateCheque=True)
+    manager_settings = createManagerSettings(
+        _startBlock=boa.env.evm.patch.block_number + 1,  # FAIL: not started
+        _expiryBlock=0,
+        _transferPerms=transfer_perms
+    )
+    
+    can_create = paymaster.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        manager_settings
+    )
+    assert can_create == False
+
+

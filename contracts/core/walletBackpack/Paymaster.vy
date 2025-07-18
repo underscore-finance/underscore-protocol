@@ -1218,10 +1218,19 @@ def createCheque(
 
 
 @view
-@internal
-def canCreateCheque(_userWallet: address, _creator: address, _recipient: address) -> bool:
-    config: wcs.ChequeManagementBundle = self._getChequeConfig(_userWallet, _creator, _recipient)
-    return self._canCreateCheque(config.owner == msg.sender, config.isCreatorManager, config.chequeSettings.canManagersCreateCheques, config.managerSettings)
+@external
+def canCreateCheque(
+    _isCreatorOwner: bool,
+    _isCreatorManager: bool,
+    _canManagersCreateCheques: bool,
+    _managerSettings: wcs.ManagerSettings,
+) -> bool:
+    return self._canCreateCheque(
+        _isCreatorOwner,
+        _isCreatorManager,
+        _canManagersCreateCheques,
+        _managerSettings,
+    )
 
 
 @view
