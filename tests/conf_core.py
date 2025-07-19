@@ -297,7 +297,7 @@ def loot_distributor(undy_hq_deploy):
 
 @pytest.fixture(scope="session")
 def appraiser(undy_hq_deploy, fork, mock_ripe):
-    ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ"]
+    ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
 
     return boa.load(
         "contracts/core/Appraiser.vy",
