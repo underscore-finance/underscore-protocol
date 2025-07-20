@@ -133,6 +133,7 @@ def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAm
     amount: uint256 = 0
     usdValue: uint256 = 0
     amount, usdValue = self._pullPayment(_paymentAsset, _paymentAmount, chequeRecipient, True, _userWallet, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
+    assert amount != 0 # dev: insufficient funds
     
     log ChequePaymentPulled(asset = _paymentAsset, amount = amount, usdValue = usdValue, chequeRecipient = chequeRecipient, userWallet = _userWallet)
     return amount, usdValue
@@ -181,6 +182,7 @@ def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmo
     amount: uint256 = 0
     usdValue: uint256 = 0
     amount, usdValue = self._pullPayment(_paymentAsset, _paymentAmount, payee, False, _userWallet, walletConfig, a.missionControl, a.legoBook, a.appraiser, a.ledger)
+    assert amount != 0 # dev: insufficient funds
     
     log PayeePaymentPulled(asset = _paymentAsset, amount = amount, usdValue = usdValue, payee = payee, userWallet = _userWallet)
     return amount, usdValue
@@ -240,7 +242,12 @@ def _pullPayment(
         return 0, 0
 
     # transfer assets
-    return extcall UserWallet(_userWallet).transferFunds(_recipient, _paymentAsset, _paymentAmount, _isCheque, False)
+    amount: uint256 = 0
+    usdValue: uint256 = 0
+    amount, usdValue = extcall UserWallet(_userWallet).transferFunds(_recipient, _paymentAsset, _paymentAmount, _isCheque, False)
+    extcall UserWalletConfig(_userWalletConfig).deregisterAsset(_paymentAsset) # deregister asset if it has no balance left
+
+    return amount, usdValue
 
 
 # withdraw from yield opportunities
