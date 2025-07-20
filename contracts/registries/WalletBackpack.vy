@@ -1,3 +1,17 @@
+#
+#     _____  _____  _____  __ ___ _____  _____  _____  __ ___
+#    /  _  \/  _  \/     \|  |  //  _  \/  _  \/     \|  |  /
+#    |  _  <|  _  ||  |--||  _ < |   __/|  _  ||  |--||  _ < 
+#    \_____/\__|__/\_____/|__|__\\__/   \__|__/\_____/|__|__\
+#                                                        
+#     ╔═════════════════════════════════════════════════════╗
+#     ║  ** Wallet Backpack **                              ║
+#     ║  Registry for all wallet-related support contracts. ║
+#     ╚═════════════════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025                                                           
+
 # @version 0.4.3
 
 implements: Department

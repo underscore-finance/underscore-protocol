@@ -1,3 +1,16 @@
+#     _____  _____  __  __    ____   _____  _____  _____ 
+#    |  _  \/   __\/  \/  \  /  _/  /   __\/   __\/  _  \
+#    |  |  ||   __|>-    -<  |  |---|   __||  |_ ||  |  |
+#    |_____/\_____/\__/\__/  \_____/\_____/\_____/\_____/
+#                                                                       
+#     ╔═════════════════════════════════════════╗
+#     ║  ** Aero Classic Lego **                ║
+#     ║  Integration with Aerodrome Classic.    ║
+#     ╚═════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025   
+
 # @version 0.4.3
 
 implements: Lego

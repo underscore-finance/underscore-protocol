@@ -1,3 +1,17 @@
+#     __                   _____         _     
+#    |  |   ___ ___ ___   |_   _|___ ___| |___ 
+#    |  |__| -_| . | . |    | | | . | . | |_ -|
+#    |_____|___|_  |___|    |_| |___|___|_|___|
+#              |___|                           
+#
+#     ╔═══════════════════════════════════════════╗
+#     ║  ** Lego Tools **                         ║
+#     ║  Tools for interacting with the legos.    ║
+#     ╚═══════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025   
+
 # @version 0.4.3
 
 implements: Department

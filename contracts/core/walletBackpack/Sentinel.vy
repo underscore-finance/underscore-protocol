@@ -1,3 +1,20 @@
+#    ┓ ┏  ┓┓   
+#    ┃┃┃┏┓┃┃┏┓╋
+#    ┗┻┛┗┻┗┗┗ ┗
+#     ______   ______   __   __   ______  __   __   __   ______   __        
+#    /\  ___\ /\  ___\ /\ "-.\ \ /\__  _\/\ \ /\ "-.\ \ /\  ___\ /\ \       
+#    \ \___  \\ \  __\ \ \ \-.  \\/_/\ \/\ \ \\ \ \-.  \\ \  __\ \ \ \____  
+#     \/\_____\\ \_____\\ \_\\"\_\  \ \_\ \ \_\\ \_\\"\_\\ \_____\\ \_____\ 
+#      \/_____/ \/_____/ \/_/ \/_/   \/_/  \/_/ \/_/ \/_/ \/_____/ \/_____/ 
+#                                                                                                
+#     ╔════════════════════════════════════════╗
+#     ║  ** Sentinel **                        ║
+#     ║  Validation on user wallet activity.   ║
+#     ╚════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025   
+
 # @version 0.4.3
 
 from interfaces import WalletStructs as ws

@@ -1,3 +1,20 @@
+#    ┓ ┏  ┓┓   
+#    ┃┃┃┏┓┃┃┏┓╋
+#    ┗┻┛┗┻┗┗┗ ┗
+#     __  __   ______   ______   __   __   ______   __        
+#    /\ \/ /  /\  ___\ /\  == \ /\ "-.\ \ /\  ___\ /\ \       
+#    \ \  _"-.\ \  __\ \ \  __< \ \ \-.  \\ \  __\ \ \ \____  
+#     \ \_\ \_\\ \_____\\ \_\ \_\\ \_\\"\_\\ \_____\\ \_____\ 
+#      \/_/\/_/ \/_____/ \/_/ /_/ \/_/ \/_/ \/_____/ \/_____/ 
+#                                                         
+#     ╔═══════════════════════════════════════════╗
+#     ║  ** Kernel **                             ║
+#     ║  Whitelist management for user wallets.   ║
+#     ╚═══════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025   
+
 # @version 0.4.3
 
 from interfaces import WalletConfigStructs as wcs

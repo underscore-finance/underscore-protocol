@@ -1,3 +1,6 @@
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025
+
 # @version 0.4.3
 
 implements: Defaults

@@ -1,3 +1,20 @@
+#    ┓ ┏  ┓┓   
+#    ┃┃┃┏┓┃┃┏┓╋
+#    ┗┻┛┗┻┗┗┗ ┗
+#     __    __   __   ______   ______   ______   ______  ______   ______    
+#    /\ "-./  \ /\ \ /\  ___\ /\  == \ /\  __ \ /\__  _\/\  __ \ /\  == \   
+#    \ \ \-./\ \\ \ \\ \ \__ \\ \  __< \ \  __ \\/_/\ \/\ \ \/\ \\ \  __<   
+#     \ \_\ \ \_\\ \_\\ \_____\\ \_\ \_\\ \_\ \_\  \ \_\ \ \_____\\ \_\ \_\ 
+#      \/_/  \/_/ \/_/ \/_____/ \/_/ /_/ \/_/\/_/   \/_/  \/_____/ \/_/ /_/ 
+#                                                         
+#     ╔═══════════════════════════════════════════════════╗
+#     ║  ** Migrator **                                   ║
+#     ║  Migrate funds and config between user wallets.   ║
+#     ╚═══════════════════════════════════════════════════╝
+#
+#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
+#     Hightop Financial, Inc. (C) 2025   
+
 # @version 0.4.3
 
 from interfaces import WalletStructs as ws
