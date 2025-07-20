@@ -415,6 +415,7 @@ def createGlobalPayeeSettings(createPayeeLimits):
         _failOnZeroPrice = False, # accept zero-priced transactions by default
         _usdLimits = None,
         _canPayOwner = True, # allow payments to owner by default
+        _canPull = True, # allow payments to payees by default
     ):
         if _usdLimits is None:
             _usdLimits = createPayeeLimits()
@@ -428,6 +429,7 @@ def createGlobalPayeeSettings(createPayeeLimits):
             _failOnZeroPrice,
             _usdLimits,
             _canPayOwner,
+            _canPull,
         )
     yield createGlobalPayeeSettings
 

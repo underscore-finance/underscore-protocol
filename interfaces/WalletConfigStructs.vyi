@@ -52,6 +52,7 @@ struct GlobalPayeeSettings:
     failOnZeroPrice: bool
     usdLimits: PayeeLimits
     canPayOwner: bool
+    canPull: bool
 
 struct PayeeLimits:
     perTxCap: uint256

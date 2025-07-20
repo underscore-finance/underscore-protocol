@@ -63,8 +63,12 @@ def test_add_payee_verifies_caller_is_owner(paymaster, user_wallet, createPayeeL
         )
 
 
-def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_wallet_config, createPayeeLimits, alice, bob, alpha_token):
+def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob, alpha_token):
     """Test that addPayee correctly saves all payee settings in user wallet config"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Create specific limits to verify they're saved correctly
     unit_limits = createPayeeLimits(
         _perTxCap=100,
@@ -138,8 +142,11 @@ def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_
     assert direct_settings.maxNumTxsPerPeriod == 15
 
 
-def test_add_payee_emits_event_with_correct_data(paymaster, user_wallet, createPayeeLimits, alice, bob, alpha_token):
+def test_add_payee_emits_event_with_correct_data(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob, alpha_token):
     """Test that addPayee emits PayeeAdded event with all correct data"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
     
     # Create specific limits
     unit_limits = createPayeeLimits(
@@ -298,8 +305,12 @@ def test_update_payee_verifies_caller_is_owner(paymaster, user_wallet, createPay
         )
 
 
-def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, alice, bob, alpha_token, bravo_token):
+def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob, alpha_token, bravo_token):
     """Test that updatePayee correctly saves all new payee settings"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add alice as a payee with initial settings
     initial_unit_limits = createPayeeLimits(
         _perTxCap=50,
@@ -388,8 +399,12 @@ def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_con
     assert updated_settings.usdLimits.lifetimeCap == 200000 * EIGHTEEN_DECIMALS
 
 
-def test_update_payee_emits_event_with_correct_data(paymaster, user_wallet, createPayeeLimits, alice, bob, alpha_token):
+def test_update_payee_emits_event_with_correct_data(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob, alpha_token):
     """Test that updatePayee emits PayeeUpdated event with all correct data"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add alice as a payee
     paymaster.addPayee(
         user_wallet,
@@ -502,8 +517,12 @@ def test_update_payee_reverts_on_invalid_settings(paymaster, user_wallet, create
         )
 
 
-def test_update_payee_preserves_start_expiry_blocks(paymaster, user_wallet, user_wallet_config, createPayeeLimits, alice, bob):
+def test_update_payee_preserves_start_expiry_blocks(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
     """Test that updatePayee preserves original start and expiry blocks"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Add payee with specific start delay and activation length
     paymaster.addPayee(
         user_wallet,
@@ -714,8 +733,12 @@ def test_remove_payee_emits_event(paymaster, user_wallet, createPayeeLimits, ali
     assert event.removedBy == bob
 
 
-def test_remove_payee_clears_all_data(paymaster, user_wallet, user_wallet_config, createPayeeLimits, alice, bob, charlie):
+def test_remove_payee_clears_all_data(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob, charlie):
     """Test that removing a payee clears all their data"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Add alice as a payee with specific settings
     paymaster.addPayee(
         user_wallet,
@@ -772,8 +795,12 @@ def test_remove_payee_clears_all_data(paymaster, user_wallet, user_wallet_config
     assert settings.periodLength == 0
 
 
-def test_remove_payee_allows_re_adding(paymaster, user_wallet, user_wallet_config, createPayeeLimits, alice, bob):
+def test_remove_payee_allows_re_adding(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
     """Test that a removed payee can be added again"""
+    # Set global payee settings to allow canPull
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Add alice as a payee
     paymaster.addPayee(
         user_wallet,
@@ -975,8 +1002,12 @@ def test_non_manager_cannot_add_pending_payee(paymaster, user_wallet, createPaye
         )
 
 
-def test_add_pending_payee_saves_all_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command, alpha_token):
+def test_add_pending_payee_saves_all_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command, alpha_token):
     """Test that addPendingPayee correctly saves all payee settings"""
+    # Set global payee settings to allow canPull
+    global_payee_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
+    
     # Setup manager
     global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
     new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
@@ -1330,8 +1361,12 @@ def test_confirm_pending_payee_no_pending_fails(paymaster, user_wallet, charlie,
         paymaster.confirmPendingPayee(user_wallet, charlie, sender=bob)
 
 
-def test_confirm_pending_payee_preserves_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command, alpha_token):
+def test_confirm_pending_payee_preserves_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command, alpha_token):
     """Test that confirmed payee has all the settings from pending payee"""
+    # Set global payee settings to allow canPull
+    global_payee_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
+    
     # Setup manager
     global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
     new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
@@ -1502,3 +1537,351 @@ def test_confirm_pending_payee_invalid_wallet_fails(paymaster, alice, bob):
         paymaster.confirmPendingPayee(bob, alice, sender=bob)
 
 
+#############################
+# canPull Validation Tests  #
+#############################
+
+
+def test_payee_cannot_have_canpull_when_global_is_false(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that payee cannot have canPull=True when global canPull=False"""
+    # Set global payee settings with canPull=False (default)
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create valid limits
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+    
+    # Try to add payee with canPull=True (should fail)
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPayee(
+            user_wallet,
+            alice,
+            True,  # canPull - not allowed when global is False
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            usd_limits,
+            sender=bob
+        )
+
+
+def test_payee_can_have_canpull_false_when_global_is_false(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that payee can have canPull=False when global canPull=False"""
+    # Set global payee settings with canPull=False
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create valid limits
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+    
+    # Add payee with canPull=False (should succeed)
+    result = paymaster.addPayee(
+        user_wallet,
+        alice,
+        False,  # canPull=False is always allowed
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+        sender=bob
+    )
+    
+    assert result == True
+    assert user_wallet_config.payeeSettings(alice).canPull == False
+
+
+def test_payee_can_have_canpull_true_when_global_is_true(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that payee can have canPull=True when global canPull=True"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create valid limits
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+    
+    # Add payee with canPull=True (should succeed)
+    result = paymaster.addPayee(
+        user_wallet,
+        alice,
+        True,  # canPull=True allowed when global is True
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+        sender=bob
+    )
+    
+    assert result == True
+    assert user_wallet_config.payeeSettings(alice).canPull == True
+
+
+def test_payee_can_have_canpull_false_when_global_is_true(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that payee can have canPull=False even when global canPull=True"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create valid limits
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+    
+    # Add payee with canPull=False (should succeed)
+    result = paymaster.addPayee(
+        user_wallet,
+        alice,
+        False,  # canPull=False is always allowed
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+        sender=bob
+    )
+    
+    assert result == True
+    assert user_wallet_config.payeeSettings(alice).canPull == False
+
+
+def test_pull_payee_must_have_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that pull payees (canPull=True) must have at least one type of limit"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Try to add pull payee with no limits (all zeros)
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPayee(
+            user_wallet,
+            alice,
+            True,  # canPull=True
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),  # All zero limits
+            createPayeeLimits(),  # All zero limits
+            sender=bob
+        )
+
+
+def test_pull_payee_with_unit_limits_only(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that pull payees can have only unit limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create unit limits only
+    unit_limits = createPayeeLimits(
+        _perTxCap=100,
+        _perPeriodCap=1000,
+        _lifetimeCap=10000
+    )
+    
+    # Add pull payee with unit limits only (should succeed)
+    result = paymaster.addPayee(
+        user_wallet,
+        alice,
+        True,  # canPull=True
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        unit_limits,  # Has unit limits
+        createPayeeLimits(),  # No USD limits
+        sender=bob
+    )
+    
+    assert result == True
+    assert user_wallet_config.payeeSettings(alice).canPull == True
+
+
+def test_pull_payee_with_usd_limits_only(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that pull payees can have only USD limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Create USD limits only
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+    
+    # Add pull payee with USD limits only (should succeed)
+    result = paymaster.addPayee(
+        user_wallet,
+        alice,
+        True,  # canPull=True
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),  # No unit limits
+        usd_limits,  # Has USD limits
+        sender=bob
+    )
+    
+    assert result == True
+    assert user_wallet_config.payeeSettings(alice).canPull == True
+
+
+def test_update_payee_cannot_enable_canpull_when_global_is_false(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that updating a payee cannot set canPull=True when global canPull=False"""
+    # Set global payee settings with canPull=False
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # First add alice as a payee with canPull=False
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+    paymaster.addPayee(
+        user_wallet,
+        alice,
+        False,  # canPull=False
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+        sender=bob
+    )
+    
+    # Try to update to canPull=True (should fail)
+    with boa.reverts("invalid payee settings"):
+        paymaster.updatePayee(
+            user_wallet,
+            alice,
+            True,  # Try to enable canPull
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            usd_limits,
+            sender=bob
+        )
+
+
+def test_changing_global_canpull_does_not_affect_existing_payees(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice, bob):
+    """Test that changing global canPull setting doesn't affect existing payees"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add payee with canPull=True
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+    paymaster.addPayee(
+        user_wallet,
+        alice,
+        True,  # canPull=True
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(_perTxCap=100),  # Has limits
+        usd_limits,
+        sender=bob
+    )
+    
+    # Verify payee has canPull=True
+    assert user_wallet_config.payeeSettings(alice).canPull == True
+    
+    # Now change global settings to canPull=False
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Existing payee should still have canPull=True
+    assert user_wallet_config.payeeSettings(alice).canPull == True
+    
+    # But we can't add new payees with canPull=True
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPayee(
+            user_wallet,
+            bob,  # Different payee
+            True,  # canPull=True not allowed anymore
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(_perTxCap=100),
+            usd_limits,
+            sender=bob
+        )
+
+
+def test_pending_payee_canpull_validation(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command):
+    """Test that pending payees also respect global canPull setting"""
+    # Set global payee settings with canPull=False
+    global_payee_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
+    
+    # Setup manager with permission to add pending payees
+    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+    
+    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+    
+    # Try to add pending payee with canPull=True (should fail)
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPendingPayee(
+            user_wallet,
+            charlie,
+            True,  # canPull=True not allowed
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+            sender=alice
+        )

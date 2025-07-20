@@ -7,9 +7,9 @@ from conf_utils import filter_logs
 ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
 
 
-##########################
-# Pull Payment As Cheque #
-##########################
+#########################
+# Cheque - Pull Payment #
+#########################
 
 
 def test_pullPaymentAsCheque_success_basic(
@@ -852,3 +852,9 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
     # Verify vault was emptied and deregistered
     assert alpha_token_vault.balanceOf(user_wallet.address) == 0
     assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
+
+
+########################
+# Payee - Pull Payment #
+########################
+

@@ -36,19 +36,20 @@ from interfaces import WalletConfigStructs as wcs
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
+interface UserWalletConfig:
+    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
+    def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
+    def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def deregisterAsset(_asset: address) -> bool: nonpayable
+    def cheques(_recipient: address) -> wcs.Cheque: view
+    def chequeSettings() -> wcs.ChequeSettings: view
+
 interface UserWallet:
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
     def assetData(asset: address) -> WalletAssetData: view
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
-
-interface UserWalletConfig:
-    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
-    def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
-    def deregisterAsset(_asset: address) -> bool: nonpayable
-    def cheques(_recipient: address) -> wcs.Cheque: view
-    def chequeSettings() -> wcs.ChequeSettings: view
 
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
@@ -203,8 +204,11 @@ def _canPullPaymentAsPayee(_payee: address, _walletConfig: address) -> bool:
     # NOTE: a lot more validation will occur later in flow as to whether this payee is valid
     # UserWallet.transferFunds() -> WalletConfig.checkRecipientLimitsAndUpdateData() -> Sentinel.isValidPayeeAndGetData()
     # For now, we are only checking if the payee can pull payment
+    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(_walletConfig).globalPayeeSettings()
+    if not globalPayeeSettings.canPull:
+        return False
+    
     payeeSettings: wcs.PayeeSettings = staticcall UserWalletConfig(_walletConfig).payeeSettings(_payee)
-    # TODO: add canPull to GlobalPayeeSettings
     return payeeSettings.canPull
 
 

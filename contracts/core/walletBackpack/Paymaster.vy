@@ -102,6 +102,7 @@ event GlobalPayeeSettingsModified:
     txCooldownBlocks: uint256
     failOnZeroPrice: bool
     canPayOwner: bool
+    canPull: bool
     usdPerTxCap: uint256
     usdPerPeriodCap: uint256
     usdLifetimeCap: uint256
@@ -191,6 +192,7 @@ def setGlobalPayeeSettings(
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
     _canPayOwner: bool,
+    _canPull: bool,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
 
@@ -199,7 +201,7 @@ def setGlobalPayeeSettings(
     assert msg.sender == config.owner # dev: no perms
 
     # validate global settings
-    assert self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, config.timeLock) # dev: invalid settings
+    assert self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, _canPull, config.timeLock) # dev: invalid settings
 
     # update global settings in wallet config
     settings: wcs.GlobalPayeeSettings = wcs.GlobalPayeeSettings(
@@ -211,6 +213,7 @@ def setGlobalPayeeSettings(
         failOnZeroPrice = _failOnZeroPrice,
         usdLimits = _usdLimits,
         canPayOwner = _canPayOwner,
+        canPull = _canPull,
     )
     extcall UserWalletConfig(config.walletConfig).setGlobalPayeeSettings(settings)
 
@@ -223,6 +226,7 @@ def setGlobalPayeeSettings(
         txCooldownBlocks = _txCooldownBlocks,
         failOnZeroPrice = _failOnZeroPrice,
         canPayOwner = _canPayOwner,
+        canPull = _canPull,
         usdPerTxCap = _usdLimits.perTxCap,
         usdPerPeriodCap = _usdLimits.perPeriodCap,
         usdLifetimeCap = _usdLimits.lifetimeCap,
@@ -315,7 +319,7 @@ def updatePayee(
     assert msg.sender == config.owner # dev: no perms
 
     # validate payee settings
-    assert self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits) # dev: invalid payee settings
+    assert self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, config.globalPayeeSettings.canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits) # dev: invalid payee settings
 
     # update config while preserving start/expiry blocks
     settings: wcs.PayeeSettings = wcs.PayeeSettings(
@@ -611,7 +615,7 @@ def _isValidNewPayee(
         return False, empty(wcs.PayeeSettings)
 
     # validate pull payee
-    if not self._validatePullPayee(_canPull, _unitLimits, _usdLimits):
+    if not self._validatePullPayee(_canPull, _config.globalPayeeSettings.canPull, _unitLimits, _usdLimits):
         return False, empty(wcs.PayeeSettings)
 
     # create start and expiry blocks
@@ -653,7 +657,7 @@ def isValidPayeeUpdate(
     _usdLimits: wcs.PayeeLimits,
 ) -> bool:
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
-    return self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits)
+    return self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, config.globalPayeeSettings.canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits)
 
 
 @view
@@ -661,6 +665,7 @@ def isValidPayeeUpdate(
 def _isValidPayeeUpdate(
     _isRegisteredPayee: bool,
     _canPull: bool,
+    _globalCanPull: bool,
     _periodLength: uint256,
     _maxNumTxsPerPeriod: uint256,
     _txCooldownBlocks: uint256,
@@ -696,7 +701,7 @@ def _isValidPayeeUpdate(
         return False
 
     # validate pull payee
-    if not self._validatePullPayee(_canPull, _unitLimits, _usdLimits):
+    if not self._validatePullPayee(_canPull, _globalCanPull, _unitLimits, _usdLimits):
         return False
 
     return True
@@ -752,9 +757,10 @@ def isValidGlobalPayeeSettings(
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
     _canPayOwner: bool,
+    _canPull: bool,
 ) -> bool:
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, empty(address))
-    return self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, config.timeLock)
+    return self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, _canPull, config.timeLock)
 
 
 @view
@@ -768,6 +774,7 @@ def _isValidGlobalPayeeSettings(
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
     _canPayOwner: bool,
+    _canPull: bool,
     _timeLock: uint256,
 ) -> bool:
 
@@ -838,12 +845,17 @@ def _validatePrimaryAsset(_primaryAsset: address, _onlyPrimaryAsset: bool) -> bo
 @internal
 def _validatePullPayee(
     _canPull: bool,
+    _globalCanPull: bool,
     _unitLimits: wcs.PayeeLimits,
     _usdLimits: wcs.PayeeLimits,
 ) -> bool:
     if not _canPull:
         return True # not a pull payee, no additional validation needed
     
+    # if global canPull is false, payee cannot pull
+    if not _globalCanPull:
+        return False
+
     # pull payees must have at least one type of limit
     hasUnitLimits: bool = (
         _unitLimits.perTxCap != 0 or 
@@ -953,4 +965,5 @@ def createDefaultGlobalPayeeSettings(
         failOnZeroPrice = False,
         usdLimits = empty(wcs.PayeeLimits),
         canPayOwner = True,
+        canPull = False,
     )

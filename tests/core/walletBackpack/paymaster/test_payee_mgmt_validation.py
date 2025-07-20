@@ -29,7 +29,8 @@ def test_valid_global_payee_settings(paymaster, user_wallet, createPayeeLimits, 
         100,  # _txCooldownBlocks: Must be <= periodLength
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -51,7 +52,8 @@ def test_valid_global_payee_settings_zero_cooldown(paymaster, user_wallet, creat
         0,  # _txCooldownBlocks: Zero cooldown
         False,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        True  # _canPayOwner
+        True,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -69,7 +71,8 @@ def test_invalid_period_length_too_short(paymaster, user_wallet, createPayeeLimi
         0,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -87,7 +90,8 @@ def test_invalid_period_length_too_long(paymaster, user_wallet, createPayeeLimit
         0,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -107,7 +111,8 @@ def test_invalid_cooldown_exceeds_period(paymaster, user_wallet, createPayeeLimi
         period_length + 1,  # _txCooldownBlocks: Exceeds period
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -129,7 +134,8 @@ def test_invalid_payee_limits_per_tx_exceeds_period(paymaster, user_wallet, crea
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -151,7 +157,8 @@ def test_invalid_payee_limits_period_exceeds_lifetime(paymaster, user_wallet, cr
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -169,7 +176,8 @@ def test_invalid_activation_length_too_short(paymaster, user_wallet, createPayee
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -187,7 +195,8 @@ def test_invalid_activation_length_too_long(paymaster, user_wallet, createPayeeL
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -207,7 +216,8 @@ def test_invalid_start_delay_below_timelock(paymaster, user_wallet, user_wallet_
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -225,7 +235,8 @@ def test_invalid_start_delay_exceeds_max(paymaster, user_wallet, createPayeeLimi
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -248,7 +259,8 @@ def test_valid_limits_with_zero_values(paymaster, user_wallet, createPayeeLimits
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -268,7 +280,8 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
         0,  # _txCooldownBlocks
         False,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        True  # _canPayOwner
+        True,  # _canPayOwner
+        True  # _canPull
     )
     
     # Test at maximum boundaries
@@ -281,7 +294,8 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
         PARAMS[fork]["PAYMASTER_MAX_PAYEE_PERIOD"],  # _txCooldownBlocks: At period length
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False  # _canPayOwner
+        False,  # _canPayOwner
+        True  # _canPull
     )
 
 
@@ -626,8 +640,12 @@ def test_invalid_new_payee_cooldown_exceeds_period(paymaster, user_wallet, creat
     )
 
 
-def test_invalid_new_payee_pull_without_limits(paymaster, user_wallet, createPayeeLimits, alice):
+def test_invalid_new_payee_pull_without_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice):
     """Test invalid new payee with pull enabled but no limits"""
+    # Set global payee settings with canPull=True to test the limits requirement
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Create limits with all zeros (no limits)
     unit_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
     usd_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
@@ -648,8 +666,12 @@ def test_invalid_new_payee_pull_without_limits(paymaster, user_wallet, createPay
     )
 
 
-def test_valid_new_payee_pull_with_unit_limits(paymaster, user_wallet, createPayeeLimits, alice):
+def test_valid_new_payee_pull_with_unit_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice):
     """Test valid new payee with pull enabled and unit limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Create unit limits only
     unit_limits = createPayeeLimits(_perTxCap=100, _perPeriodCap=1000, _lifetimeCap=10000)
     usd_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
@@ -670,8 +692,12 @@ def test_valid_new_payee_pull_with_unit_limits(paymaster, user_wallet, createPay
     )
 
 
-def test_valid_new_payee_pull_with_usd_limits(paymaster, user_wallet, createPayeeLimits, alice):
+def test_valid_new_payee_pull_with_usd_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings, alice):
     """Test valid new payee with pull enabled and USD limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # Create USD limits only
     unit_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
     usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS, _perPeriodCap=10000 * EIGHTEEN_DECIMALS, _lifetimeCap=0)
@@ -783,8 +809,12 @@ def test_new_payee_custom_start_delay_and_activation_length(paymaster, user_wall
 ###########################
 
 
-def test_valid_payee_update_basic(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice):
+def test_valid_payee_update_basic(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, createGlobalPayeeSettings, alice):
     """Test valid payee update with basic parameters"""
+    # Set global payee settings with canPull=True to allow the update
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add an existing payee
     initial_settings = createPayeeSettings(
         _canPull=False,
@@ -931,8 +961,12 @@ def test_valid_payee_update_cooldown_equals_period(paymaster, user_wallet, user_
     )
 
 
-def test_invalid_payee_update_pull_without_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice):
+def test_invalid_payee_update_pull_without_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, createGlobalPayeeSettings, alice):
     """Test update fails for pull payee without limits"""
+    # Set global payee settings with canPull=True to test the limits requirement
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add an existing payee
     initial_settings = createPayeeSettings()
     user_wallet_config.addPayee(alice, initial_settings, sender=paymaster.address)
@@ -953,8 +987,12 @@ def test_invalid_payee_update_pull_without_limits(paymaster, user_wallet, user_w
     )
 
 
-def test_valid_payee_update_pull_with_unit_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice, alpha_token):
+def test_valid_payee_update_pull_with_unit_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, createGlobalPayeeSettings, alice, alpha_token):
     """Test update succeeds for pull payee with unit limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add an existing payee
     initial_settings = createPayeeSettings()
     user_wallet_config.addPayee(alice, initial_settings, sender=paymaster.address)
@@ -981,8 +1019,12 @@ def test_valid_payee_update_pull_with_unit_limits(paymaster, user_wallet, user_w
     )
 
 
-def test_valid_payee_update_pull_with_usd_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice):
+def test_valid_payee_update_pull_with_usd_limits(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, createGlobalPayeeSettings, alice):
     """Test update succeeds for pull payee with USD limits"""
+    # Set global payee settings with canPull=True
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add an existing payee
     initial_settings = createPayeeSettings()
     user_wallet_config.addPayee(alice, initial_settings, sender=paymaster.address)
@@ -1053,8 +1095,12 @@ def test_invalid_payee_update_only_primary_without_asset(paymaster, user_wallet,
     )
 
 
-def test_valid_payee_update_change_all_parameters(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice, alpha_token, bravo_token, fork):
+def test_valid_payee_update_change_all_parameters(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, createGlobalPayeeSettings, alice, alpha_token, bravo_token, fork):
     """Test update succeeds when changing all parameters"""
+    # Set global payee settings with canPull=True to allow the update
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
     # First add an existing payee with specific settings
     initial_settings = createPayeeSettings(
         _canPull=False,
