@@ -1,7 +1,7 @@
 import boa
 import pytest
 
-from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import filter_logs
 
 ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
@@ -857,4 +857,736 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
 ########################
 # Payee - Pull Payment #
 ########################
+
+
+def test_pullPaymentAsPayee_success_basic(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, switchboard_alpha
+):
+    """Test successful pull payment as payee with basic setup"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    usd_limits = createPayeeLimits(
+        _perTxCap=100 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=10000 * EIGHTEEN_DECIMALS
+    )
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,  # payee
+        True,  # canPull - Enable pull payments
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits,  # usdLimits
+        0,  # startDelay - start immediately
+        2**256 - 1,  # activationLength - no expiry (max uint256)
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)  # $1 per token
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet
+    amount = 50 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Alice pulls payment
+    initial_balance = alpha_token.balanceOf(alice)
+    
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+    
+    # Verify payment was pulled
+    assert tx_amount == amount
+    assert tx_usd_value == amount  # $1 per token
+    assert alpha_token.balanceOf(alice) == initial_balance + amount
+    
+    # Verify event
+    events = filter_logs(billing, "PayeePaymentPulled")
+    assert len(events) == 1
+    event = events[0]
+    assert event.asset == alpha_token.address
+    assert event.amount == amount
+    assert event.usdValue == amount
+    assert event.payee == alice
+    assert event.userWallet == user_wallet.address
+
+
+def test_pullPaymentAsPayee_fails_not_user_wallet(
+    billing, alice, alpha_token
+):
+    """Test that pull payment fails when address is not a user wallet"""
+    invalid_wallet = boa.env.generate_address()
+    
+    with boa.reverts("not a user wallet"):
+        billing.pullPaymentAsPayee(
+            invalid_wallet,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsPayee_fails_global_settings_disabled(
+    billing, bob, alice, alpha_token, user_wallet, user_wallet_config,
+    paymaster, createPayeeLimits, createGlobalPayeeSettings
+):
+    """Test that pull payment fails when global payee settings canPull is disabled"""
+    # Set global payee settings with canPull disabled
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Try to add payee with canPull=True when global is False (should fail)
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPayee(
+            user_wallet.address,
+            alice,
+            True,  # canPull - Cannot be True when global is False
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+            sender=bob
+        )
+    
+    # Add payee with canPull=False instead
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        False,  # canPull - Must be False when global is False
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        sender=bob
+    )
+    
+    # Alice tries to pull payment
+    with boa.reverts("no perms"):
+        billing.pullPaymentAsPayee(
+            user_wallet.address,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsPayee_fails_payee_canPull_disabled(
+    billing, bob, alice, alpha_token, user_wallet, user_wallet_config,
+    paymaster, createPayeeLimits, createGlobalPayeeSettings
+):
+    """Test that pull payment fails when specific payee canPull is disabled"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull disabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        False,  # canPull - Disabled for this specific payee
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        sender=bob
+    )
+    
+    # Alice tries to pull payment
+    with boa.reverts("no perms"):
+        billing.pullPaymentAsPayee(
+            user_wallet.address,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsPayee_fails_no_payee_exists(
+    billing, alice, alpha_token, user_wallet
+):
+    """Test that pull payment fails when no payee exists for sender"""
+    # Alice tries to pull payment without being a registered payee
+    with boa.reverts("no perms"):
+        billing.pullPaymentAsPayee(
+            user_wallet.address,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsPayee_insufficient_funds_reverts(
+    billing, bob, alice, alpha_token, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, switchboard_alpha
+):
+    """Test that pull payment reverts when wallet has insufficient funds"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Don't fund the wallet - leave it empty
+    
+    # Alice tries to pull payment - should revert with insufficient funds
+    with boa.reverts("insufficient funds"):
+        billing.pullPaymentAsPayee(
+            user_wallet.address,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsPayee_with_vault_withdrawal(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+):
+    """Test pull payment that requires withdrawal from vault"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet with tokens and deposit into vault
+    total_funds = 60 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Deposit 40 tokens into vault, keep 20 in wallet
+    user_wallet.depositForYield(
+        1,  # legoId for mock_yield_lego
+        alpha_token.address,
+        alpha_token_vault.address,
+        40 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(user_wallet.address) == 20 * EIGHTEEN_DECIMALS
+    assert alpha_token_vault.balanceOf(user_wallet.address) > 0
+    
+    # Alice pulls payment (needs 50 but only 20 in wallet, so 30 from vault)
+    amount = 50 * EIGHTEEN_DECIMALS
+    initial_alice_balance = alpha_token.balanceOf(alice)
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+    
+    # Verify payment was pulled
+    assert tx_amount == amount
+    assert tx_usd_value == amount
+    assert alpha_token.balanceOf(alice) == initial_alice_balance + amount
+    
+    # Verify vault tokens were withdrawn
+    assert alpha_token_vault.balanceOf(user_wallet.address) < 40 * EIGHTEEN_DECIMALS
+    
+    # Verify event
+    events = filter_logs(billing, "PayeePaymentPulled")
+    assert len(events) == 1
+
+
+def test_pullPaymentAsPayee_with_multiple_vaults(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings,
+    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3, switchboard_alpha
+):
+    """Test pull payment that withdraws from multiple vaults"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=150 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet and split across vaults
+    total_funds = 120 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Deposit into multiple vaults: 30 in each vault, keep 30 in wallet
+    user_wallet.depositForYield(
+        1,  # legoId
+        alpha_token.address,
+        alpha_token_vault.address,
+        30 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    user_wallet.depositForYield(
+        1,  # legoId
+        alpha_token.address,
+        alpha_token_vault_2.address,
+        30 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    user_wallet.depositForYield(
+        1,  # legoId
+        alpha_token.address,
+        alpha_token_vault_3.address,
+        30 * EIGHTEEN_DECIMALS,
+        sender=bob
+    )
+    
+    # Verify initial state
+    assert alpha_token.balanceOf(user_wallet.address) == 30 * EIGHTEEN_DECIMALS
+    
+    # Alice pulls payment (needs 100: 30 from wallet + 70 from vaults)
+    amount = 100 * EIGHTEEN_DECIMALS
+    initial_alice_balance = alpha_token.balanceOf(alice)
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+    
+    # Verify payment was pulled
+    assert tx_amount == amount
+    assert tx_usd_value == amount
+    assert alpha_token.balanceOf(alice) == initial_alice_balance + amount
+    
+    # Verify withdrawals happened from vaults
+    total_remaining_in_vaults = (
+        alpha_token_vault.balanceOf(user_wallet.address) +
+        alpha_token_vault_2.balanceOf(user_wallet.address) +
+        alpha_token_vault_3.balanceOf(user_wallet.address)
+    )
+    assert total_remaining_in_vaults < 90 * EIGHTEEN_DECIMALS
+
+
+def test_pullPaymentAsPayee_partial_funds_succeeds(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, switchboard_alpha
+):
+    """Test that pull payment succeeds with partial funds for payees (unlike cheques)"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet with partial amount (30 tokens)
+    partial_amount = 30 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, partial_amount, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    # Verify wallet has partial funds
+    assert alpha_token.balanceOf(user_wallet.address) == partial_amount
+    
+    # Alice tries to pull 50 tokens (more than available)
+    requested_amount = 50 * EIGHTEEN_DECIMALS
+    initial_balance = alpha_token.balanceOf(alice)
+    
+    # Payees support partial payments, so this should succeed with 30 tokens
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        requested_amount,
+        sender=alice
+    )
+    
+    # Verify partial payment was made
+    assert tx_amount == partial_amount  # Got what was available
+    assert tx_usd_value == partial_amount  # $1 per token
+    assert alpha_token.balanceOf(alice) == initial_balance + partial_amount
+    assert alpha_token.balanceOf(user_wallet.address) == 0  # Wallet emptied
+
+
+def test_pullPaymentAsPayee_with_yield_gains(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+):
+    """Test pull payment when vault has generated yield"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet and deposit all into vault
+    amount = 50 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    user_wallet.depositForYield(
+        1,  # legoId
+        alpha_token.address,
+        alpha_token_vault.address,
+        amount,
+        sender=bob
+    )
+    
+    # Simulate yield generation: add 20% to vault
+    yield_amount = 10 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(alpha_token_vault.address, yield_amount, sender=alpha_token_whale)
+    
+    # Check vault state before withdrawal
+    shares_before = alpha_token_vault.balanceOf(user_wallet.address)
+    assert shares_before == amount  # 50 shares
+    assets_before = alpha_token_vault.convertToAssets(shares_before)
+    assert assets_before == 60 * EIGHTEEN_DECIMALS  # 60 tokens due to yield
+    
+    # Alice pulls payment
+    initial_balance = alpha_token.balanceOf(alice)
+    
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount,  # Request 50 tokens
+        sender=alice
+    )
+    
+    # Verify payment was pulled
+    assert tx_amount == amount
+    assert tx_usd_value == amount
+    assert alpha_token.balanceOf(alice) == initial_balance + amount
+    
+    # Verify vault was used and appropriate shares were redeemed
+    shares_after = alpha_token_vault.balanceOf(user_wallet.address)
+    assert shares_after == 0  # All shares withdrawn due to buffer calculation
+    
+    # The wallet should have received the yield bonus
+    wallet_final_balance = alpha_token.balanceOf(user_wallet.address)
+    assert wallet_final_balance == 10 * EIGHTEEN_DECIMALS  # 10 tokens of yield remain
+
+
+def test_canPullPaymentAsPayee_view_function(
+    billing, bob, alice, charlie, sally, user_wallet, user_wallet_config,
+    paymaster, createPayeeLimits, createGlobalPayeeSettings
+):
+    """Test canPullPaymentAsPayee view function showing all combinations of settings"""
+    # Initially no payee exists
+    assert billing.canPullPaymentAsPayee(user_wallet.address, alice) == False
+    
+    # Test Case 1: Both global and payee canPull are False
+    global_settings = createGlobalPayeeSettings(_canPull=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        False,  # canPull - DISABLED for payee
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        sender=bob
+    )
+    
+    # Both false = cannot pull
+    assert billing.canPullPaymentAsPayee(user_wallet.address, alice) == False
+    
+    # Test Case 2: Enable global canPull, existing alice payee still has canPull=False
+    global_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Alice: Global true, but Payee false = cannot pull
+    assert billing.canPullPaymentAsPayee(user_wallet.address, alice) == False
+    
+    # Test Case 3: Create payee with both global and payee canPull=True
+    paymaster.addPayee(
+        user_wallet.address,
+        charlie,
+        True,  # canPull - ENABLED for payee
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        sender=bob
+    )
+    
+    # Charlie: Global true, Payee true = CAN PULL
+    assert billing.canPullPaymentAsPayee(user_wallet.address, charlie) == True
+    
+    # Test Case 4: Create payee with global True but payee False
+    paymaster.addPayee(
+        user_wallet.address,
+        sally,
+        False,  # canPull - DISABLED for payee
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        sender=bob
+    )
+    
+    # Sally: Global true, Payee false = cannot pull
+    assert billing.canPullPaymentAsPayee(user_wallet.address, sally) == False
+    
+    # Summary of results:
+    # - Both must be true for pull payment to be allowed
+    # - Global False + Payee False = Cannot pull (alice initially)
+    # - Global True + Payee False = Cannot pull (alice after settings change, sally)
+    # - Global True + Payee True = CAN PULL (charlie)
+
+
+def test_pullPaymentAsPayee_deregisters_empty_vault(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+):
+    """Test that empty vault assets are deregistered after withdrawal"""
+    # Set global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+    
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),
+        0,  # startDelay
+        2**256 - 1,  # activationLength - no expiry
+        sender=bob
+    )
+    
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    
+    # Time travel to make the payee active
+    boa.env.time_travel(blocks=22000)  # Travel past startBlock
+    
+    # Fund the wallet and deposit all into vault
+    amount = 50 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+    
+    # Register the asset in the wallet config
+    user_wallet_config.updateAssetData(
+        0,  # _op (lego_id)
+        alpha_token.address,
+        False,  # _shouldCheckYield
+        sender=switchboard_alpha.address
+    )
+    
+    user_wallet.depositForYield(
+        1,  # legoId
+        alpha_token.address,
+        alpha_token_vault.address,
+        amount,
+        sender=bob
+    )
+    
+    # Verify vault is registered
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) > 0
+    
+    # Alice pulls full payment (empties the vault)
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+    
+    # Verify payment was pulled
+    assert tx_amount == amount
+    
+    # Verify vault was emptied and deregistered
+    assert alpha_token_vault.balanceOf(user_wallet.address) == 0
+    assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
 

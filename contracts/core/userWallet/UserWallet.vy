@@ -1091,7 +1091,7 @@ def _performPostActionTasks(
     _isSpecialTx: bool = False,
 ):
     # first, check and update manager caps
-    if not _isSpecialTx:
+    if not _isSpecialTx and _ad.signer != _ad.billing:
         assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
 
     # can immediately deregister assets on zero balance

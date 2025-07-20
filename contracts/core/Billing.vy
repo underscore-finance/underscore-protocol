@@ -10,10 +10,10 @@
 #        \  \::/        \__\/       \__\/         \__\/         \__\/      \  \:\        \  \::/   
 #         \__\/                                                             \__\/         \__\/    
 #
-#     ╔═════════════════════════════════════════════════╗
-#     ║  ** Billing **                                  ║
-#     ║  Where payees / cheque recipients pull payment. ║
-#     ╚═════════════════════════════════════════════════╝
+#     ╔═════════════════════════════════════════════════════╗
+#     ║  ** Billing **                                      ║
+#     ║  Where payees / cheque recipients can pull payment. ║
+#     ╚═════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
 #     Hightop Financial, Inc. (C) 2025   
@@ -240,16 +240,17 @@ def _pullPayment(
         amountNeeded: uint256 = _paymentAmount - availPaymentAmount
         self._withdrawFromYieldOpportunities(_paymentAsset, amountNeeded, _userWallet, _userWalletConfig, _missionControl, _legoBook, _appraiser, _ledger)
 
-    # check if wallet has sufficient funds for payment
+    # cheque payments must be full amount -- payees can pull partial payments
     availPaymentAmount = staticcall IERC20(_paymentAsset).balanceOf(_userWallet)
-    if availPaymentAmount < _paymentAmount:
+    if _isCheque and availPaymentAmount < _paymentAmount:
         return 0, 0
 
     # transfer assets
     amount: uint256 = 0
     usdValue: uint256 = 0
-    amount, usdValue = extcall UserWallet(_userWallet).transferFunds(_recipient, _paymentAsset, _paymentAmount, _isCheque, False)
-    extcall UserWalletConfig(_userWalletConfig).deregisterAsset(_paymentAsset) # deregister asset if it has no balance left
+    if availPaymentAmount != 0:
+        amount, usdValue = extcall UserWallet(_userWallet).transferFunds(_recipient, _paymentAsset, _paymentAmount, _isCheque, False)
+        extcall UserWalletConfig(_userWalletConfig).deregisterAsset(_paymentAsset) # deregister asset if it has no balance left
 
     return amount, usdValue
 
