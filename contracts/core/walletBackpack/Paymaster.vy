@@ -179,6 +179,7 @@ def __init__(
 #########################
 
 
+@nonreentrant
 @external
 def setGlobalPayeeSettings(
     _userWallet: address,
@@ -237,6 +238,7 @@ def setGlobalPayeeSettings(
 # add payee
 
 
+@nonreentrant
 @external
 def addPayee(
     _userWallet: address,
@@ -291,6 +293,7 @@ def addPayee(
 # update existing payee
 
 
+@nonreentrant
 @external
 def updatePayee(
     _userWallet: address,
@@ -355,6 +358,7 @@ def updatePayee(
 # remove payee
 
 
+@nonreentrant
 @external
 def removePayee(_userWallet: address, _payee: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -381,6 +385,7 @@ def removePayee(_userWallet: address, _payee: address) -> bool:
 # add pending payee (for managers)
 
 
+@nonreentrant
 @external
 def addPendingPayee(
     _userWallet: address,
@@ -444,6 +449,7 @@ def addPendingPayee(
 # confirm pending payee (for owner)
 
 
+@nonreentrant
 @external
 def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -473,6 +479,7 @@ def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
 # cancel pending payee
 
 
+@nonreentrant
 @external
 def cancelPendingPayee(_userWallet: address, _payee: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet

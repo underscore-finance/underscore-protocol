@@ -177,6 +177,7 @@ def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
 ######################
 
 
+@nonreentrant
 @external
 def createUserWallet(
     _owner: address = msg.sender,
@@ -276,6 +277,7 @@ def createUserWallet(
 ################
 
 
+@nonreentrant
 @external
 def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
     assert not deptBasics.isPaused # dev: contract paused
@@ -312,6 +314,7 @@ def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
 # clawback trial funds
 
 
+@nonreentrant
 @external
 def clawBackTrialFunds(_user: address) -> uint256:
     assert not deptBasics.isPaused # dev: contract paused

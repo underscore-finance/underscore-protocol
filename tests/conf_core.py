@@ -38,6 +38,7 @@ def undy_hq(
     appraiser,
     wallet_backpack_deploy,
     loot_distributor,
+    billing,
 ):
     # finish token setup
     assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
@@ -79,6 +80,10 @@ def undy_hq(
     # 9
     assert undy_hq_deploy.startAddNewAddressToRegistry(wallet_backpack_deploy, "Wallet Backpack", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(wallet_backpack_deploy, sender=deploy3r) == 9
+
+    # 10
+    assert undy_hq_deploy.startAddNewAddressToRegistry(billing, "Billing", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(billing, sender=deploy3r) == 10
 
     # special permission setup
 
@@ -306,6 +311,20 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
         TOKENS[fork]["WETH"],
         TOKENS[fork]["ETH"],
         name="appraiser",
+    )
+
+
+# billing
+
+
+@pytest.fixture(scope="session")
+def billing(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/Billing.vy",
+        undy_hq_deploy,
+        TOKENS[fork]["WETH"],
+        TOKENS[fork]["ETH"],
+        name="billing",
     )
 
 

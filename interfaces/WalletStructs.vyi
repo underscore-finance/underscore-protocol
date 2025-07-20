@@ -34,6 +34,7 @@ struct ActionData:
     hatchery: address
     lootDistributor: address
     appraiser: address
+    billing: address
     wallet: address
     walletConfig: address
     walletOwner: address

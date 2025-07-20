@@ -1094,10 +1094,15 @@ def _performPostActionTasks(
     if not _isSpecialTx:
         assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
 
+    # can immediately deregister assets on zero balance
+    canDeregister: bool = True
+    if _isSpecialTx or _ad.signer == _ad.billing:
+        canDeregister = False
+
     # update each asset that was touched
     newTotalUsdValue: uint256 = _ad.lastTotalUsdValue
     for a: address in _assets:
-        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, not _isSpecialTx, _ad)
+        newTotalUsdValue = self._updateAssetData(a, newTotalUsdValue, canDeregister, _ad)
 
     if not _ad.inEjectMode:
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
@@ -1207,7 +1212,7 @@ def _updateAssetData(
         data.usdValue = 0
         self.assetData[_asset] = data
 
-        # in some cases (wallet migration, trial funds clawback, etc), we are iterating thru assets
+        # in some cases (wallet migration, trial funds clawback, pulling payment, etc), we are iterating thru assets
         # we cannot deregister here or it'll mess up the indexes/order/iteration
         if _canDeregister:
             self._deregisterAsset(_asset)

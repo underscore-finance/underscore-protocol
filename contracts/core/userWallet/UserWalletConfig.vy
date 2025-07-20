@@ -150,6 +150,7 @@ SWITCHBOARD_ID: constant(uint256) = 5
 HATCHERY_ID: constant(uint256) = 6
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
+BILLING_ID: constant(uint256) = 10
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -270,6 +271,10 @@ def checkSignerPermissionsAndGetBundle(
 
     # main data for this transaction
     ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
+
+    # if the signer is the billing contract, no need to check signer
+    if ad.signer == ad.billing:
+        return ad
 
     # make sure signer is not locked
     assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
@@ -1009,6 +1014,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
         hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID),
         lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
+        billing = staticcall Registry(hq).getAddr(BILLING_ID),
         wallet = wallet,
         walletConfig = self,
         walletOwner = owner,

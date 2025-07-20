@@ -159,6 +159,7 @@ def __init__(
 # add manager
 
 
+@nonreentrant
 @external
 def addManager(
     _userWallet: address,
@@ -218,6 +219,7 @@ def addManager(
 # update existing manager
 
 
+@nonreentrant
 @external
 def updateManager(
     _userWallet: address,
@@ -281,6 +283,7 @@ def updateManager(
 # remove manager
 
 
+@nonreentrant
 @external
 def removeManager(_userWallet: address, _manager: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -298,6 +301,7 @@ def removeManager(_userWallet: address, _manager: address) -> bool:
 # adjust activation length
 
 
+@nonreentrant
 @external
 def adjustManagerActivationLength(
     _userWallet: address,
@@ -340,6 +344,7 @@ def adjustManagerActivationLength(
 ###########################
 
 
+@nonreentrant
 @external
 def setGlobalManagerSettings(
     _userWallet: address,

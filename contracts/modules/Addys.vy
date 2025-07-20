@@ -24,6 +24,7 @@ struct Addys:
     lootDistributor: address
     appraiser: address
     walletBackpack: address
+    billing: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -38,6 +39,7 @@ HATCHERY_ID: constant(uint256) = 6
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
 APPRAISER_ID: constant(uint256) = 8
 WALLET_BACKPACK_ID: constant(uint256) = 9
+BILLING_ID: constant(uint256) = 10
 
 
 @deploy
@@ -80,6 +82,7 @@ def _generateAddys() -> Addys:
         lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
         walletBackpack = staticcall UndyHq(hq).getAddr(WALLET_BACKPACK_ID),
+        billing = staticcall UndyHq(hq).getAddr(BILLING_ID),
     )
 
 
@@ -282,3 +285,18 @@ def _getWalletBackpackId() -> uint256:
 @internal
 def _getWalletBackpackAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_BACKPACK_ID)
+
+
+# billing
+
+
+@view
+@internal
+def _getBillingId() -> uint256:
+    return BILLING_ID
+
+
+@view
+@internal
+def _getBillingAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BILLING_ID)

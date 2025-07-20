@@ -134,6 +134,7 @@ def __init__(
 #####################
 
 
+@nonreentrant
 @external
 def createCheque(
     _userWallet: address,
@@ -472,6 +473,7 @@ def _getLatestChequeData(_chequeData: wcs.ChequeData, _periodLength: uint256) ->
 # cancel cheque
 
 
+@nonreentrant
 @external
 def cancelCheque(_userWallet: address, _recipient: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -513,6 +515,7 @@ def cancelCheque(_userWallet: address, _recipient: address) -> bool:
 # set cheque settings
 
 
+@nonreentrant
 @external
 def setChequeSettings(
     _userWallet: address,
