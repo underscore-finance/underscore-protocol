@@ -98,6 +98,9 @@ def __init__(
     # undy token
     assert registry._startAddNewAddressToRegistry(_undyToken, "Undy Token") # dev: failed to register undy token
     assert registry._confirmNewAddressToRegistry(_undyToken) == 1 # dev: failed to confirm undy token
+    
+    # enable minting by default
+    self.mintEnabled = True
 
 
 ############
