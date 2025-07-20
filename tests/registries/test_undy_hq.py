@@ -111,10 +111,6 @@ def test_hq_config_change_validation(
     with boa.reverts("invalid hq config"):
         undy_hq.initiateHqConfigChange(999, True, False, sender=governance.address)
 
-    # Test token reg ID cannot mint
-    with boa.reverts("invalid hq config"):
-        undy_hq.initiateHqConfigChange(1, True, False, sender=governance.address)  # undy token
-
     # Test department must support minting if trying to enable minting
     with boa.reverts("invalid hq config"):
         undy_hq.initiateHqConfigChange(cannot_mint_reg_id, True, False, sender=governance.address)  # can't mint undy
@@ -190,20 +186,35 @@ def test_hq_config_change_invalid_after_time_lock(
     assert not undy_hq.hasPendingHqConfigChange(reg_id)
 
 
-def test_token_specific_restrictions(
+def test_set_undy_token(
     undy_hq,
     governance,
+    undy_token,
+    alice,
 ):
-    # Test token getter
-    assert undy_hq.undyToken() == undy_hq.getAddr(1)
+    # Test token starts as zero address
+    assert undy_hq.undyToken() == ZERO_ADDRESS
 
-    # Test that token ID cannot be configured for minting
-    with boa.reverts("invalid hq config"):
-        undy_hq.initiateHqConfigChange(1, True, False, sender=governance.address)  # undy token
+    # Test non-governance cannot set token
+    with boa.reverts("no perms"):
+        undy_hq.setUndyToken(undy_token, sender=alice)
 
-    # Test that token ID cannot set its own blacklist
-    with boa.reverts("invalid hq config"):
-        undy_hq.initiateHqConfigChange(1, False, True, sender=governance.address)  # undy token
+    # Test cannot set zero address
+    with boa.reverts("invalid token"):
+        undy_hq.setUndyToken(ZERO_ADDRESS, sender=governance.address)
+
+    # Test successful token setting
+    undy_hq.setUndyToken(undy_token, sender=governance.address)
+    
+    # Verify event
+    token_set_log = filter_logs(undy_hq, "UndyTokenSet")[0]
+    assert token_set_log.token == undy_token.address
+    
+    assert undy_hq.undyToken() == undy_token.address
+
+    # Test token cannot be set again
+    with boa.reverts("already set"):
+        undy_hq.setUndyToken(undy_token, sender=governance.address)
 
 
 def test_minting_capability_validation(
@@ -223,6 +234,12 @@ def test_minting_capability_validation(
     undy_hq.initiateHqConfigChange(reg_id, True, False, sender=governance.address)
     boa.env.time_travel(blocks=time_lock)
     assert undy_hq.confirmHqConfigChange(reg_id, sender=governance.address)
+    
+    # Still can't mint because minting is disabled
+    assert not undy_hq.canMintUndy(mock_dept_can_mint_undy)
+    
+    # Enable minting
+    undy_hq.setMintingEnabled(True, sender=governance.address)
     assert undy_hq.canMintUndy(mock_dept_can_mint_undy)  # Both config and capability
 
     # Test that zero address cannot mint
@@ -233,6 +250,9 @@ def test_minting_capability_validation(
     boa.env.time_travel(blocks=time_lock)
     assert undy_hq.confirmAddressDisableInRegistry(reg_id, sender=governance.address)
     assert not undy_hq.canMintUndy(mock_dept_can_mint_undy)
+    
+    # Disable minting to reset state
+    undy_hq.setMintingEnabled(False, sender=governance.address)
 
 
 def test_fund_recovery(
@@ -337,23 +357,26 @@ def test_multiple_pending_configs(
 
 def test_mint_enabled_by_default(undy_hq):
     """Test that minting is enabled by default"""
-    assert undy_hq.mintEnabled() == True
+    assert undy_hq.mintEnabled() == False
 
 
 def test_disable_minting(undy_hq, governance):
     """Test that governance can disable minting"""
-    # Disable minting
+    # First enable minting
+    undy_hq.setMintingEnabled(True, sender=governance.address)
+    assert undy_hq.mintEnabled() == True
+    
+    # Then disable minting
     undy_hq.setMintingEnabled(False, sender=governance.address)
     assert undy_hq.mintEnabled() == False
 
 
 def test_enable_minting(undy_hq, governance):
-    """Test that governance can re-enable minting"""
-    # First disable
-    undy_hq.setMintingEnabled(False, sender=governance.address)
+    """Test that governance can enable minting"""
+    # Minting is disabled by default
     assert undy_hq.mintEnabled() == False
     
-    # Then enable
+    # Enable minting
     undy_hq.setMintingEnabled(True, sender=governance.address)
     assert undy_hq.mintEnabled() == True
 
@@ -371,16 +394,16 @@ def test_only_governance_can_toggle_minting(undy_hq, alice):
 
 def test_cannot_set_same_state(undy_hq, governance):
     """Test that setting the same state fails"""
-    # Minting is enabled by default, try to enable again
-    with boa.reverts("already set"):
-        undy_hq.setMintingEnabled(True, sender=governance.address)
-    
-    # Disable minting
-    undy_hq.setMintingEnabled(False, sender=governance.address)
-    
-    # Try to disable again
+    # Minting is disabled by default, try to disable again
     with boa.reverts("already set"):
         undy_hq.setMintingEnabled(False, sender=governance.address)
+    
+    # Enable minting
+    undy_hq.setMintingEnabled(True, sender=governance.address)
+    
+    # Try to enable again
+    with boa.reverts("already set"):
+        undy_hq.setMintingEnabled(True, sender=governance.address)
 
 
 def test_mint_circuit_breaker_affects_undy_minting(undy_hq, mock_dept_can_mint_undy, governance):
@@ -396,7 +419,13 @@ def test_mint_circuit_breaker_affects_undy_minting(undy_hq, mock_dept_can_mint_u
     boa.env.time_travel(blocks=time_lock)
     undy_hq.confirmHqConfigChange(reg_id, sender=governance.address)
     
-    # Department should be able to mint when enabled
+    # Department should not be able to mint when minting is disabled by default
+    assert undy_hq.canMintUndy(mock_dept_can_mint_undy) == False
+    
+    # Enable minting
+    undy_hq.setMintingEnabled(True, sender=governance.address)
+    
+    # Now department should be able to mint
     assert undy_hq.canMintUndy(mock_dept_can_mint_undy) == True
     
     # Disable minting
@@ -414,19 +443,19 @@ def test_mint_circuit_breaker_affects_undy_minting(undy_hq, mock_dept_can_mint_u
 
 def test_events_emitted_correctly(undy_hq, governance):
     """Test that events are emitted with correct data"""
+    # Test enable event (minting is disabled by default)
+    undy_hq.setMintingEnabled(True, sender=governance.address)
+    events = filter_logs(undy_hq, "MintingEnabled")
+    
+    assert len(events) == 1
+    assert events[0].isEnabled == True
+    
     # Test disable event
     undy_hq.setMintingEnabled(False, sender=governance.address)
     events = filter_logs(undy_hq, "MintingEnabled")
     
     assert len(events) == 1
     assert events[0].isEnabled == False
-    
-    # Test enable event
-    undy_hq.setMintingEnabled(True, sender=governance.address)
-    events = filter_logs(undy_hq, "MintingEnabled")
-    
-    assert len(events) == 1
-    assert events[0].isEnabled == True
 
 
 def test_circuit_breaker_blocks_all_minters(undy_hq, mock_dept_can_mint_undy, governance):
@@ -442,7 +471,11 @@ def test_circuit_breaker_blocks_all_minters(undy_hq, mock_dept_can_mint_undy, go
     boa.env.time_travel(blocks=time_lock)
     undy_hq.confirmHqConfigChange(reg_id, sender=governance.address)
     
-    # All minters should be able to mint initially
+    # Minting is disabled by default
+    assert undy_hq.canMintUndy(mock_dept_can_mint_undy) == False
+    
+    # Enable minting first
+    undy_hq.setMintingEnabled(True, sender=governance.address)
     assert undy_hq.canMintUndy(mock_dept_can_mint_undy) == True
     
     # Disable minting

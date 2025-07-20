@@ -91,9 +91,9 @@ event ChequeSettingsModified:
     canBePulled: bool
 
 UNDY_HQ: public(immutable(address))
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
-APPRAISER_ID: constant(uint256) = 8
+LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
+APPRAISER_ID: constant(uint256) = 7
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 
 MIN_CHEQUE_PERIOD: public(immutable(uint256))

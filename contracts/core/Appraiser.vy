@@ -87,9 +87,6 @@ lastPrice: public(HashMap[address, LastPrice]) # asset -> last price
 lastPricePerShare: public(HashMap[address, LastPricePerShare]) # asset -> last price per share
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
-LEGO_BOOK_ID: constant(uint256) = 4
 
 # ripe
 RIPE_HQ: immutable(address)

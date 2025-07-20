@@ -6,6 +6,7 @@
 interface UndyHq:
     def isValidAddr(_addr: address) -> bool: view
     def getAddr(_regId: uint256) -> address: view
+    def undyToken() -> address: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -30,16 +31,15 @@ struct Addys:
 UNDY_HQ_FOR_ADDYS: immutable(address)
 
 # core addys
-UNDY_TOKEN_ID: constant(uint256) = 1
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
-LEGO_BOOK_ID: constant(uint256) = 4
-SWITCHBOARD_ID: constant(uint256) = 5
-HATCHERY_ID: constant(uint256) = 6
-LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
-APPRAISER_ID: constant(uint256) = 8
-WALLET_BACKPACK_ID: constant(uint256) = 9
-BILLING_ID: constant(uint256) = 10
+LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
+LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
+HATCHERY_ID: constant(uint256) = 5
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
+APPRAISER_ID: constant(uint256) = 7
+WALLET_BACKPACK_ID: constant(uint256) = 8
+BILLING_ID: constant(uint256) = 9
 
 
 @deploy
@@ -73,7 +73,7 @@ def _generateAddys() -> Addys:
     hq: address = UNDY_HQ_FOR_ADDYS
     return Addys(
         hq = hq,
-        undyToken = staticcall UndyHq(hq).getAddr(UNDY_TOKEN_ID),
+        undyToken = staticcall UndyHq(hq).undyToken(),
         ledger = staticcall UndyHq(hq).getAddr(LEDGER_ID),
         missionControl = staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),
         legoBook = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),
@@ -94,7 +94,7 @@ def _generateAddys() -> Addys:
 @view
 @internal
 def _getUndyToken() -> address:
-    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(UNDY_TOKEN_ID)
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).undyToken()
 
 
 ###########

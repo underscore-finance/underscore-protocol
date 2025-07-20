@@ -111,9 +111,9 @@ event ManagerActivationLengthAdjusted:
     didRestart: bool
 
 UNDY_HQ: public(immutable(address))
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
-LEGO_BOOK_ID: constant(uint256) = 4
+LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
+LEGO_BOOK_ID: constant(uint256) = 3
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25

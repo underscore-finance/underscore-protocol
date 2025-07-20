@@ -11,10 +11,9 @@ from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
 
 
 @pytest.fixture(scope="session")
-def undy_hq_deploy(deploy3r, fork, undy_token):
+def undy_hq_deploy(deploy3r, fork):
     return boa.load(
         "contracts/registries/UndyHq.vy",
-        undy_token,
         deploy3r,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
@@ -27,7 +26,6 @@ def undy_hq_deploy(deploy3r, fork, undy_token):
 @pytest.fixture(scope="session", autouse=True)
 def undy_hq(
     undy_hq_deploy,
-    undy_token,
     switchboard,
     lego_book,
     deploy3r,
@@ -40,56 +38,53 @@ def undy_hq(
     loot_distributor,
     billing,
 ):
-    # finish token setup
-    assert undy_token.finishTokenSetup(undy_hq_deploy, sender=deploy3r)
-
     # data
 
-    # 2
+    # 1
     assert undy_hq_deploy.startAddNewAddressToRegistry(ledger, "Ledger", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(ledger, sender=deploy3r) == 2
+    assert undy_hq_deploy.confirmNewAddressToRegistry(ledger, sender=deploy3r) == 1
 
-    # 3
+    # 2
     assert undy_hq_deploy.startAddNewAddressToRegistry(mission_control, "Mission Control", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(mission_control, sender=deploy3r) == 3
+    assert undy_hq_deploy.confirmNewAddressToRegistry(mission_control, sender=deploy3r) == 2
 
     # registries
 
-    # 4
+    # 3
     assert undy_hq_deploy.startAddNewAddressToRegistry(lego_book, "Lego Book", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 4
+    assert undy_hq_deploy.confirmNewAddressToRegistry(lego_book, sender=deploy3r) == 3
 
-    # 5
+    # 4
     assert undy_hq_deploy.startAddNewAddressToRegistry(switchboard, "Switchboard", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 5
+    assert undy_hq_deploy.confirmNewAddressToRegistry(switchboard, sender=deploy3r) == 4
 
     # other
 
-    # 6
+    # 5
     assert undy_hq_deploy.startAddNewAddressToRegistry(hatchery, "Hatchery", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 6
+    assert undy_hq_deploy.confirmNewAddressToRegistry(hatchery, sender=deploy3r) == 5
+
+    # 6
+    assert undy_hq_deploy.startAddNewAddressToRegistry(loot_distributor, "Loot Distributor", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(loot_distributor, sender=deploy3r) == 6
 
     # 7
-    assert undy_hq_deploy.startAddNewAddressToRegistry(loot_distributor, "Loot Distributor", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(loot_distributor, sender=deploy3r) == 7
+    assert undy_hq_deploy.startAddNewAddressToRegistry(appraiser, "Appraiser", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 7
 
     # 8
-    assert undy_hq_deploy.startAddNewAddressToRegistry(appraiser, "Appraiser", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(appraiser, sender=deploy3r) == 8
+    assert undy_hq_deploy.startAddNewAddressToRegistry(wallet_backpack_deploy, "Wallet Backpack", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(wallet_backpack_deploy, sender=deploy3r) == 8
 
     # 9
-    assert undy_hq_deploy.startAddNewAddressToRegistry(wallet_backpack_deploy, "Wallet Backpack", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(wallet_backpack_deploy, sender=deploy3r) == 9
-
-    # 10
     assert undy_hq_deploy.startAddNewAddressToRegistry(billing, "Billing", sender=deploy3r)
-    assert undy_hq_deploy.confirmNewAddressToRegistry(billing, sender=deploy3r) == 10
+    assert undy_hq_deploy.confirmNewAddressToRegistry(billing, sender=deploy3r) == 9
 
     # special permission setup
 
     # switchboard can set token blacklists
-    undy_hq_deploy.initiateHqConfigChange(5, False, True, sender=deploy3r)
-    assert undy_hq_deploy.confirmHqConfigChange(5, sender=deploy3r)
+    undy_hq_deploy.initiateHqConfigChange(4, False, True, sender=deploy3r)
+    assert undy_hq_deploy.confirmHqConfigChange(4, sender=deploy3r)
 
     # finish undy hq setup
     assert undy_hq_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)

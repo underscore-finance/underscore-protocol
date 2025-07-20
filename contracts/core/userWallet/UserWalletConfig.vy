@@ -143,14 +143,14 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
 # registry ids
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
-LEGO_BOOK_ID: constant(uint256) = 4
-SWITCHBOARD_ID: constant(uint256) = 5
-HATCHERY_ID: constant(uint256) = 6
-LOOT_DISTRIBUTOR_ID: constant(uint256) = 7
-APPRAISER_ID: constant(uint256) = 8
-BILLING_ID: constant(uint256) = 10
+LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
+LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
+HATCHERY_ID: constant(uint256) = 5
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
+APPRAISER_ID: constant(uint256) = 7
+BILLING_ID: constant(uint256) = 9
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))

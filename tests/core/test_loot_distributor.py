@@ -2892,9 +2892,9 @@ def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wa
     new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq)
 
     # Update undy hq with new loot distributor
-    assert undy_hq.startAddressUpdateToRegistry(7, new_loot_distributor, sender=governance.address)
+    assert undy_hq.startAddressUpdateToRegistry(6, new_loot_distributor, sender=governance.address)
     boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
-    assert undy_hq.confirmAddressUpdateToRegistry(7, sender=governance.address)
+    assert undy_hq.confirmAddressUpdateToRegistry(6, sender=governance.address)
     
     # Try to claim from old distributor - should fail
     with boa.reverts("not current loot distributor"):

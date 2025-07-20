@@ -77,8 +77,8 @@ event ConfigCloned:
     numWhitelistCopied: uint256
 
 UNDY_HQ: public(immutable(address))
-LEDGER_ID: constant(uint256) = 2
-HATCHERY_ID: constant(uint256) = 6
+LEDGER_ID: constant(uint256) = 1
+HATCHERY_ID: constant(uint256) = 5
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 

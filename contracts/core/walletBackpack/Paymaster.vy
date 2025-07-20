@@ -141,8 +141,8 @@ event PayeePendingCancelled:
     cancelledBy: indexed(address)
 
 UNDY_HQ: public(immutable(address))
-LEDGER_ID: constant(uint256) = 2
-MISSION_CONTROL_ID: constant(uint256) = 3
+LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
 
 MIN_PAYEE_PERIOD: public(immutable(uint256))
 MAX_PAYEE_PERIOD: public(immutable(uint256))

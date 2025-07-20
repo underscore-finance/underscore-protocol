@@ -10,10 +10,10 @@
 #        \  \::/        /__/:/       \__\::/      \__\/                    /__/:/        /__/:/   
 #         \__\/         \__\/            ~~                                \__\/         \__\/    
 #
-#     ╔═══════════════════════════════════════════════════════════════════════════════╗
-#     ║  ** Undy Hq **                                                                ║
-#     ║  Main address registry for Underscore protocol. Also handles minting config.  ║
-#     ╚═══════════════════════════════════════════════════════════════════════════════╝
+#     ╔══════════════════════════════════════════════════╗
+#     ║  ** Undy Hq **                                   ║
+#     ║  Main address registry for Underscore protocol.  ║
+#     ╚══════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
 #     Hightop Financial, Inc. (C) 2025                                                           
@@ -70,22 +70,25 @@ event UndyHqFundsRecovered:
     recipient: indexed(address)
     balance: uint256
 
+event UndyTokenSet:
+    token: indexed(address)
+
 event MintingEnabled:
     isEnabled: bool
+
+# token
+undyToken: public(address)
+mintEnabled: public(bool)
 
 # hq config
 hqConfig: public(HashMap[uint256, HqConfig]) # reg id -> hq config
 pendingHqConfig: public(HashMap[uint256, PendingHqConfig]) # reg id -> pending hq config
-
-# minting circuit breaker
-mintEnabled: public(bool)
 
 MAX_RECOVER_ASSETS: constant(uint256) = 20
 
 
 @deploy
 def __init__(
-    _undyToken: address,
     _initialGov: address,
     _minGovTimeLock: uint256,
     _maxGovTimeLock: uint256,
@@ -94,13 +97,6 @@ def __init__(
 ):
     gov.__init__(empty(address), _initialGov, _minGovTimeLock, _maxGovTimeLock, 0)
     registry.__init__(_minRegistryTimeLock, _maxRegistryTimeLock, 0, "UndyHq.vy")
-
-    # undy token
-    assert registry._startAddNewAddressToRegistry(_undyToken, "Undy Token") # dev: failed to register undy token
-    assert registry._confirmNewAddressToRegistry(_undyToken) == 1 # dev: failed to confirm undy token
-    
-    # enable minting by default
-    self.mintEnabled = True
 
 
 ############
@@ -155,8 +151,6 @@ def cancelAddressUpdateToRegistry(_regId: uint256) -> bool:
 
 @external
 def startAddressDisableInRegistry(_regId: uint256) -> bool:
-    assert not self._isUndyToken(_regId) # dev: cannot disable token
-
     assert msg.sender == gov.governance # dev: no perms
     return registry._startAddressDisableInRegistry(_regId)
 
@@ -282,10 +276,6 @@ def isValidHqConfig(_regId: uint256, _canMintUndy: bool) -> bool:
 @internal
 def _isValidHqConfig(_regId: uint256, _canMintUndy: bool) -> bool:
 
-    # tokens cannot mint, cannot set their own blacklist, cannot modify mission control
-    if self._isUndyToken(_regId):
-        return False
-
     # invalid reg id
     if not registry._isValidRegId(_regId):
         return False
@@ -301,21 +291,25 @@ def _isValidHqConfig(_regId: uint256, _canMintUndy: bool) -> bool:
     return True
 
 
-@view
-@internal
-def _isUndyToken(_regId: uint256) -> bool:
-    return _regId == 1
-
-
 ##########
 # Tokens #
 ##########
 
 
-@view
+# setting token
+
+
 @external
-def undyToken() -> address:
-    return registry._getAddr(1)
+def setUndyToken(_token: address):
+    assert msg.sender == gov.governance # dev: no perms
+    assert _token != empty(address) and _token.is_contract # dev: invalid token
+    assert registry._getRegId(_token) == 0 # dev: already registered
+    assert self.undyToken == empty(address) # dev: already set
+    self.undyToken = _token
+    log UndyTokenSet(token=_token)
+
+
+# permission to mint
 
 
 @view
@@ -331,20 +325,7 @@ def canMintUndy(_addr: address) -> bool:
     return staticcall Department(_addr).canMintUndy()
 
 
-@view
-@external
-def canSetTokenBlacklist(_addr: address) -> bool:
-    if _addr == empty(address):
-        return False
-    regId: uint256 = registry._getRegId(_addr)
-    if regId == 0:
-        return False
-    return self.hqConfig[regId].canSetTokenBlacklist
-
-
-###########################
-# Minting Circuit Breaker #
-###########################
+# minting circuit breaker
 
 
 @external
@@ -354,6 +335,20 @@ def setMintingEnabled(_shouldEnable: bool):
 
     self.mintEnabled = _shouldEnable
     log MintingEnabled(isEnabled=_shouldEnable)
+
+
+# token blacklist
+
+
+@view
+@external
+def canSetTokenBlacklist(_addr: address) -> bool:
+    if _addr == empty(address):
+        return False
+    regId: uint256 = registry._getRegId(_addr)
+    if regId == 0:
+        return False
+    return self.hqConfig[regId].canSetTokenBlacklist
 
 
 ############
