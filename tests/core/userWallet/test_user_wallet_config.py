@@ -714,3 +714,182 @@ def test_time_delay_enforcement(user_wallet_config, kernel, paymaster, alice, pe
     # Should succeed after time delay
     boa.env.time_travel(blocks=10)  # Now at confirmBlock
     user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
+
+
+#######################
+# Security Mode Tests #
+#######################
+
+
+def test_set_frozen_access(user_wallet_config, alice, charlie):
+    """Only owner or addresses with security permissions should be able to freeze/unfreeze"""
+    # Get the wallet owner
+    owner = user_wallet_config.owner()
+    
+    # Use charlie as the non-owner address
+    assert charlie != owner, f"Charlie should not be the wallet owner. Owner: {owner}, Charlie: {charlie}"
+    
+    # Initial state should be unfrozen
+    assert user_wallet_config.isFrozen() == False
+    
+    # First freeze the wallet as owner
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
+    
+    # Non-owner address should fail to unfreeze
+    with boa.reverts("no perms"):
+        user_wallet_config.setFrozen(False, sender=charlie)
+    
+    # State should still be frozen
+    assert user_wallet_config.isFrozen() == True
+    
+    # Owner can unfreeze
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
+    
+    # Can't set to same value
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setFrozen(False, sender=owner)
+
+
+def test_set_frozen_by_owner_only(user_wallet_config):
+    """Test that owner can freeze/unfreeze their wallet"""
+    owner = user_wallet_config.owner()
+    
+    # Initial state
+    assert user_wallet_config.isFrozen() == False
+    
+    # Owner can freeze their own wallet
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
+    
+    # Can't set to same value
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setFrozen(True, sender=owner)
+    
+    # Owner can unfreeze
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
+
+
+def test_set_frozen_persistence(user_wallet_config):
+    """Frozen state should persist correctly"""
+    owner = user_wallet_config.owner()
+    
+    # Initial state
+    assert user_wallet_config.isFrozen() == False
+    
+    # Set frozen
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
+    
+    # Setting to same value should fail
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setFrozen(True, sender=owner)
+    
+    # State should still be frozen
+    assert user_wallet_config.isFrozen() == True
+    
+    # Unfreeze
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
+    
+    # Setting to same value should fail
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setFrozen(False, sender=owner)
+    
+    # State should still be unfrozen
+    assert user_wallet_config.isFrozen() == False
+
+
+def test_set_ejection_mode_access(user_wallet_config, alice, bob, switchboard_alpha):
+    """Only switchboard should be able to set ejection mode"""
+    # Initial state should be false
+    assert user_wallet_config.inEjectMode() == False
+    
+    # Non-switchboard address should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setEjectionMode(True, sender=bob)
+    
+    # Switchboard should succeed
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
+    
+    # Can't set to same value
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    
+    # Switchboard can turn off ejection mode
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == False
+
+
+def test_set_ejection_mode_persistence(user_wallet_config, switchboard_alpha):
+    """Ejection mode state should persist correctly"""
+    # Initial state should be false
+    assert user_wallet_config.inEjectMode() == False
+    
+    # Enable ejection mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
+    
+    # Setting to same value should fail
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    
+    # State should still be true
+    assert user_wallet_config.inEjectMode() == True
+    
+    # Disable ejection mode
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == False
+    
+    # Setting to same value should fail
+    with boa.reverts("nothing to change"):
+        user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    
+    # State should still be false
+    assert user_wallet_config.inEjectMode() == False
+
+
+def test_frozen_and_ejection_mode_independence(user_wallet_config, switchboard_alpha):
+    """Frozen and ejection mode should be independent states"""
+    owner = user_wallet_config.owner()
+    
+    # Both should start false
+    assert user_wallet_config.isFrozen() == False
+    assert user_wallet_config.inEjectMode() == False
+    
+    # Set frozen (by owner)
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
+    assert user_wallet_config.inEjectMode() == False  # Should remain unchanged
+    
+    # Set ejection mode (by switchboard)
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.isFrozen() == True  # Should remain unchanged
+    assert user_wallet_config.inEjectMode() == True
+    
+    # Unfreeze (by owner)
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
+    assert user_wallet_config.inEjectMode() == True  # Should remain unchanged
+    
+    # Turn off ejection mode (by switchboard)
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    assert user_wallet_config.isFrozen() == False
+    assert user_wallet_config.inEjectMode() == False
+
+
+def test_ejection_mode_no_trial_funds(user_wallet_config, switchboard_alpha):
+    """Can set ejection mode when wallet has no trial funds"""
+    # This wallet should have no trial funds
+    assert user_wallet_config.trialFundsAmount() == 0
+    
+    # Should be able to set ejection mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
+    
+    # Reset back
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == False
