@@ -893,3 +893,290 @@ def test_ejection_mode_no_trial_funds(user_wallet_config, switchboard_alpha):
     # Reset back
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == False
+
+
+##############################
+# Backpack Item Setter Tests #
+##############################
+
+
+def test_set_kernel_access(user_wallet_config, alice, kernel):
+    """Only owner can set kernel and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setKernel(kernel.address, sender=alice)
+    
+    # Owner should succeed (kernel is already a registered backpack item)
+    user_wallet_config.setKernel(kernel.address, sender=owner)
+    assert user_wallet_config.kernel() == kernel.address
+
+
+def test_set_sentinel_access(user_wallet_config, alice, sentinel):
+    """Only owner can set sentinel and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setSentinel(sentinel.address, sender=alice)
+    
+    # Owner should succeed (sentinel is already a registered backpack item)
+    user_wallet_config.setSentinel(sentinel.address, sender=owner)
+    assert user_wallet_config.sentinel() == sentinel.address
+
+
+def test_set_high_command_access(user_wallet_config, alice, high_command):
+    """Only owner can set high command and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setHighCommand(high_command.address, sender=alice)
+    
+    # Owner should succeed (high_command is already a registered backpack item)
+    user_wallet_config.setHighCommand(high_command.address, sender=owner)
+    assert user_wallet_config.highCommand() == high_command.address
+
+
+def test_set_paymaster_access(user_wallet_config, alice, paymaster):
+    """Only owner can set paymaster and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setPaymaster(paymaster.address, sender=alice)
+    
+    # Owner should succeed (paymaster is already a registered backpack item)
+    user_wallet_config.setPaymaster(paymaster.address, sender=owner)
+    assert user_wallet_config.paymaster() == paymaster.address
+
+
+def test_set_cheque_book_access(user_wallet_config, alice, cheque_book):
+    """Only owner can set cheque book and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setChequeBook(cheque_book.address, sender=alice)
+    
+    # Owner should succeed (cheque_book is already a registered backpack item)
+    user_wallet_config.setChequeBook(cheque_book.address, sender=owner)
+    assert user_wallet_config.chequeBook() == cheque_book.address
+
+
+def test_set_migrator_access(user_wallet_config, alice, migrator):
+    """Only owner can set migrator and it must be a registered backpack item"""
+    owner = user_wallet_config.owner()
+    
+    # Non-owner should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.setMigrator(migrator.address, sender=alice)
+    
+    # Owner should succeed (migrator is already a registered backpack item)
+    user_wallet_config.setMigrator(migrator.address, sender=owner)
+    assert user_wallet_config.migrator() == migrator.address
+
+
+def test_set_backpack_item_not_registered(user_wallet_config, alice):
+    """Cannot set backpack item to an unregistered address"""
+    owner = user_wallet_config.owner()
+    
+    # Alice is not a registered backpack item
+    # Should fail even when called by owner
+    with boa.reverts("no perms"):
+        user_wallet_config.setKernel(alice, sender=owner)
+    
+    with boa.reverts("no perms"):
+        user_wallet_config.setSentinel(alice, sender=owner)
+    
+    with boa.reverts("no perms"):
+        user_wallet_config.setHighCommand(alice, sender=owner)
+    
+    with boa.reverts("no perms"):
+        user_wallet_config.setPaymaster(alice, sender=owner)
+    
+    with boa.reverts("no perms"):
+        user_wallet_config.setChequeBook(alice, sender=owner)
+    
+    with boa.reverts("no perms"):
+        user_wallet_config.setMigrator(alice, sender=owner)
+
+
+def test_backpack_item_persistence(user_wallet_config, kernel, sentinel, high_command, paymaster, cheque_book, migrator):
+    """Test that backpack items persist correctly when set"""
+    owner = user_wallet_config.owner()
+    
+    # Store initial values
+    initial_kernel = user_wallet_config.kernel()
+    initial_sentinel = user_wallet_config.sentinel()
+    initial_high_command = user_wallet_config.highCommand()
+    initial_paymaster = user_wallet_config.paymaster()
+    initial_cheque_book = user_wallet_config.chequeBook()
+    initial_migrator = user_wallet_config.migrator()
+    
+    # All should already be set from fixtures
+    assert initial_kernel == kernel.address
+    assert initial_sentinel == sentinel.address
+    assert initial_high_command == high_command.address
+    assert initial_paymaster == paymaster.address
+    assert initial_cheque_book == cheque_book.address
+    assert initial_migrator == migrator.address
+    
+    # Setting to the same value should still work
+    user_wallet_config.setKernel(kernel.address, sender=owner)
+    user_wallet_config.setSentinel(sentinel.address, sender=owner)
+    user_wallet_config.setHighCommand(high_command.address, sender=owner)
+    user_wallet_config.setPaymaster(paymaster.address, sender=owner)
+    user_wallet_config.setChequeBook(cheque_book.address, sender=owner)
+    user_wallet_config.setMigrator(migrator.address, sender=owner)
+    
+    # Values should remain the same
+    assert user_wallet_config.kernel() == kernel.address
+    assert user_wallet_config.sentinel() == sentinel.address
+    assert user_wallet_config.highCommand() == high_command.address
+    assert user_wallet_config.paymaster() == paymaster.address
+    assert user_wallet_config.chequeBook() == cheque_book.address
+    assert user_wallet_config.migrator() == migrator.address
+
+
+##########################
+# Asset Management Tests #
+##########################
+
+
+def test_update_asset_data_access(user_wallet_config, alice, alpha_token):
+    """Only switchboard or authorized addresses should be able to update asset data"""
+    # Non-authorized address should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=alice)
+
+
+def test_update_asset_data_by_switchboard(user_wallet_config, switchboard_alpha, alpha_token, user_wallet, alpha_token_whale):
+    """Switchboard should be able to update asset data"""
+    # Give the wallet some of the asset first (assets need balance to be registered)
+    alpha_token.transfer(user_wallet.address, 100 * 10**18, sender=alpha_token_whale)
+    
+    # Update asset data
+    new_total_value = user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    
+    # Should return a value (total USD value)
+    assert isinstance(new_total_value, int)
+    assert new_total_value >= 0
+    
+    # Asset should now have assetData (even if not in assets array due to zero USD value)
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0
+
+
+def test_update_all_asset_data_access(user_wallet_config, alice):
+    """Only switchboard or authorized addresses should be able to update all asset data"""
+    # Non-authorized address should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.updateAllAssetData(False, sender=alice)
+
+
+def test_update_all_asset_data_by_switchboard(user_wallet_config, switchboard_alpha):
+    """Switchboard should be able to update all asset data"""
+    # Should work and return total USD value
+    new_total_value = user_wallet_config.updateAllAssetData(False, sender=switchboard_alpha.address)
+    
+    # Should return a value (total USD value)
+    assert isinstance(new_total_value, int)
+    assert new_total_value >= 0
+
+
+def test_deregister_asset_access(user_wallet_config, alice, alpha_token):
+    """Only migrator or registered addresses can deregister assets"""
+    # Non-authorized address should fail
+    with boa.reverts("no perms"):
+        user_wallet_config.deregisterAsset(alpha_token.address, sender=alice)
+
+
+def test_deregister_asset_by_migrator(user_wallet_config, migrator, alpha_token, switchboard_alpha, user_wallet, alpha_token_whale):
+    """Migrator should be able to deregister assets"""
+    # Give the wallet some of the asset first
+    alpha_token.transfer(user_wallet.address, 100 * 10**18, sender=alpha_token_whale)
+    
+    # Register the asset
+    user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    
+    # Verify asset has assetData
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0
+    
+    # Deregister the asset
+    result = user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
+    
+    # Should return a boolean
+    assert isinstance(result, bool)
+    
+    # Deregister only removes from assets array but asset data remains
+    # The asset balance is still there but it's not tracked in the assets array anymore
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0  # Balance still exists
+
+
+def test_asset_data_persistence_cycle(user_wallet_config, switchboard_alpha, alpha_token, migrator, user_wallet, alpha_token_whale):
+    """Test complete asset lifecycle: register, update, deregister"""
+    # Asset should not have assetData initially
+    initial_asset_data = user_wallet.assetData(alpha_token.address)
+    assert initial_asset_data.assetBalance == 0
+    
+    # Give the wallet some of the asset
+    alpha_token.transfer(user_wallet.address, 100 * 10**18, sender=alpha_token_whale)
+    
+    # Update asset data to register it
+    new_total_value1 = user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    
+    # Asset should now have assetData
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0
+    
+    # Update asset data again - should work
+    new_total_value2 = user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    
+    # Asset should still have data
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0
+    
+    # Deregister the asset
+    user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
+    
+    # Deregister only removes from assets array but asset data remains
+    # The asset balance is still there but it's not tracked in the assets array anymore
+    asset_data = user_wallet.assetData(alpha_token.address)
+    assert asset_data.assetBalance > 0  # Balance still exists
+
+
+def test_update_asset_data_yield_check_parameter(user_wallet_config, switchboard_alpha, alpha_token):
+    """Test updateAssetData with different shouldCheckYield values"""
+    # Test with shouldCheckYield = False
+    new_total_value1 = user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value1, int)
+    
+    # Test with shouldCheckYield = True
+    new_total_value2 = user_wallet_config.updateAssetData(0, alpha_token.address, True, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value2, int)
+
+
+def test_update_all_asset_data_yield_check_parameter(user_wallet_config, switchboard_alpha):
+    """Test updateAllAssetData with different shouldCheckYield values"""
+    # Test with shouldCheckYield = False
+    new_total_value1 = user_wallet_config.updateAllAssetData(False, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value1, int)
+    
+    # Test with shouldCheckYield = True  
+    new_total_value2 = user_wallet_config.updateAllAssetData(True, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value2, int)
+
+
+def test_update_asset_data_with_lego_id(user_wallet_config, switchboard_alpha, alpha_token):
+    """Test updateAssetData with different lego IDs"""
+    # Test with lego ID 0 (default)
+    new_total_value1 = user_wallet_config.updateAssetData(0, alpha_token.address, False, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value1, int)
+    
+    # Test with lego ID 1 (mock yield lego)
+    new_total_value2 = user_wallet_config.updateAssetData(1, alpha_token.address, False, sender=switchboard_alpha.address)
+    assert isinstance(new_total_value2, int)
