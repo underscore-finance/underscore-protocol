@@ -462,7 +462,7 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.kernel # dev: no perms
-    assert self.pendingWhitelist[_addr].confirmBlock >= block.number # dev: time delay not reached
+    assert self.pendingWhitelist[_addr].confirmBlock <= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._registerWhitelistAddr(_addr)
 
@@ -681,7 +681,7 @@ def addPendingPayee(_payee: address, _pending: wcs.PendingPayee):
 def confirmPendingPayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
     pending: wcs.PendingPayee = self.pendingPayees[_payee]
-    assert pending.confirmBlock != 0 and pending.confirmBlock >= block.number # dev: time delay not reached
+    assert pending.confirmBlock != 0 and pending.confirmBlock <= block.number # dev: time delay not reached
     self.payeeSettings[_payee] = pending.settings
     self.pendingPayees[_payee] = empty(wcs.PendingPayee)
     self._registerPayee(_payee)
