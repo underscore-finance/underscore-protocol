@@ -5,6 +5,19 @@ from eth_account import Account
 from constants import EIGHTEEN_DECIMALS, MAX_UINT256, ZERO_ADDRESS
 
 
+@pytest.fixture(scope="module", autouse=True)
+def connect_token_and_hq(undy_hq, undy_token, deploy3r, governance):
+    """Connect undy token and undy hq for ERC20 signature tests"""
+    # Only connect if not already connected
+    if undy_hq.undyToken() == ZERO_ADDRESS:
+        # Set the undy token in the hq
+        undy_hq.setUndyToken(undy_token, sender=governance.address)
+        # Connect the token to the hq
+        undy_token.finishTokenSetup(undy_hq, sender=deploy3r)
+        # Enable minting for tests
+        undy_hq.setMintingEnabled(True, sender=governance.address)
+
+
 @pytest.fixture(scope="module")
 def signPermit(special_signer):
     def signPermit(

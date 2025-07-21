@@ -6,28 +6,57 @@ from conf_utils import filter_logs
 from config.BluePrint import PARAMS
 
 
+@pytest.fixture(scope="module", autouse=True)
+def connect_token_and_hq(undy_hq, undy_token, deploy3r, governance):
+    """Connect undy token and undy hq for ERC20 tests"""
+    # Only connect if not already connected
+    if undy_hq.undyToken() == ZERO_ADDRESS:
+        # Set the undy token in the hq
+        undy_hq.setUndyToken(undy_token, sender=governance.address)
+        # Connect the token to the hq
+        undy_token.finishTokenSetup(undy_hq, sender=deploy3r)
+        # Enable minting for tests
+        undy_hq.setMintingEnabled(True, sender=governance.address)
+
+
 @pytest.fixture(scope="module")
-def mock_undy_hq(governance, fork, undy_token):
-    return boa.load(
+def mock_undy_hq(governance, fork, deploy3r):
+    """Mock UndyHq for testing HQ changes"""
+    hq = boa.load(
         "contracts/registries/UndyHq.vy",
-        undy_token,
         governance,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
-        name="undy_hq",
+        name="mock_undy_hq",
     )
+    # Create a new token for the mock hq
+    mock_token = boa.load(
+        "contracts/tokens/UndyToken.vy",
+        ZERO_ADDRESS,
+        deploy3r,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        1_000_000 * EIGHTEEN_DECIMALS,
+        deploy3r,
+        name="mock_undy_token",
+    )
+    # Connect them
+    hq.setUndyToken(mock_token, sender=governance.address)
+    mock_token.finishTokenSetup(hq, sender=deploy3r)
+    hq.setMintingEnabled(True, sender=governance.address)
+    return hq
 
 
 @pytest.fixture(scope="module")
-def mock_dept_can_mint_undy(mock_undy_hq):
-    return boa.load("contracts/mock/MockDept.vy", mock_undy_hq, True, name="mock_dept_can_mint_undy")
+def mock_dept_can_mint_undy(undy_hq):
+    return boa.load("contracts/mock/MockDept.vy", undy_hq, True, name="mock_dept_can_mint_undy")
 
 
 @pytest.fixture(scope="module") 
-def mock_dept_cannot_mint_undy(mock_undy_hq):
-    return boa.load("contracts/mock/MockDept.vy", mock_undy_hq, False, name="mock_dept_cannot_mint_undy")
+def mock_dept_cannot_mint_undy(undy_hq):
+    return boa.load("contracts/mock/MockDept.vy", undy_hq, False, name="mock_dept_cannot_mint_undy")
 
 # tests
 
