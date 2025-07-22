@@ -10,8 +10,7 @@
 #     ║  Registry for all configuration-related contracts  ║
 #     ╚════════════════════════════════════════════════════╝
 #
-#     Underscore Protocol License: https://github.com/hightophq/underscore-protocol/blob/master/LICENSE.md
-#     Hightop Financial, Inc. (C) 2025                                                           
+#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
 
