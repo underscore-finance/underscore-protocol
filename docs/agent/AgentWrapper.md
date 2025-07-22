@@ -105,13 +105,13 @@ struct ActionInstruction:
     target: address           # Target address (varies by action)
     amount: uint256           # Primary amount
     asset2: address           # Secondary asset
-    amount2: uint256          # Secondary amount or data
+    amount2: uint256          # Secondary amount or data (for rebalance operations action 12, this field is used for toLegoId)
     minOut1: uint256          # Minimum output for primary asset
     minOut2: uint256          # Minimum output for secondary asset
     tickLower: int24          # For concentrated liquidity
     tickUpper: int24          # For concentrated liquidity
-    extraData: bytes32        # Protocol-specific data
-    auxData: bytes32          # Packed auxiliary data
+    extraData: bytes32        # Protocol-specific data (for transfer operations action 1, the least significant bit is used as the isCheque flag)
+    auxData: bytes32          # Packed auxiliary data (for removeLiquidity action 31, this holds the lpToken address; for concentrated liquidity actions 32-33, it packs the pool address and nftId)
     swapInstructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]
 ```
 
@@ -699,7 +699,7 @@ Public view function
 The contract implements EIP-712 typed data signatures:
 
 1. **Message Hashing**: Each function creates a unique hash of all parameters
-2. **Domain Separator**: Includes contract address and chain ID
+2. **Domain Separator**: The EIP-712 digest is created using a domain separator with the name hardcoded to 'UnderscoreAgent', the contract's chainId, and its own address
 3. **Signature Components**: Extracts r, s, v from 65-byte signature
 4. **Recovery**: Uses ecrecover precompile to get signer address
 5. **Validation**: Ensures signer is the wallet owner

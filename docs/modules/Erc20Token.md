@@ -239,6 +239,10 @@ def transfer(_recipient: address, _amount: uint256) -> bool:
 
 Standard ERC20 transfer with blacklist and pause checks.
 
+#### Events Emitted
+
+- `Transfer` - Contains sender (indexed), recipient (indexed), and amount
+
 #### `transferFrom`
 ```vyper
 @external
@@ -246,6 +250,10 @@ def transferFrom(_sender: address, _recipient: address, _amount: uint256) -> boo
 ```
 
 Transfer on behalf of another address using allowance.
+
+#### Events Emitted
+
+- `Transfer` - Contains sender (indexed), recipient (indexed), and amount
 
 ### Allowance Functions
 
@@ -257,6 +265,10 @@ def approve(_spender: address, _amount: uint256) -> bool:
 
 Set spending allowance with validation.
 
+#### Events Emitted
+
+- `Approval` - Contains owner (indexed), spender (indexed), and amount
+
 #### `increaseAllowance`
 ```vyper
 @external
@@ -265,6 +277,10 @@ def increaseAllowance(_spender: address, _amount: uint256) -> bool:
 
 Safely increase allowance (prevents race conditions).
 
+#### Events Emitted
+
+- `Approval` - Contains owner (indexed), spender (indexed), and new total amount
+
 #### `decreaseAllowance`
 ```vyper
 @external
@@ -272,6 +288,10 @@ def decreaseAllowance(_spender: address, _amount: uint256) -> bool:
 ```
 
 Safely decrease allowance (prevents underflow).
+
+#### Events Emitted
+
+- `Approval` - Contains owner (indexed), spender (indexed), and new total amount
 
 ### Minting and Burning
 
@@ -283,6 +303,10 @@ def _mint(_recipient: address, _amount: uint256) -> bool:
 
 Mints new tokens. Must be called by inheriting contract with proper permissions.
 
+#### Events Emitted
+
+- `Transfer` - Contains empty address as sender, recipient (indexed), and amount
+
 #### `burn`
 ```vyper
 @external
@@ -290,6 +314,10 @@ def burn(_amount: uint256) -> bool:
 ```
 
 Burns tokens from caller's balance.
+
+#### Events Emitted
+
+- `Transfer` - Contains sender (indexed), empty address as recipient, and amount
 
 ## Permit Function (EIP-2612)
 
@@ -353,6 +381,10 @@ token.permit(
 )
 ```
 
+#### Events Emitted
+
+- `Approval` - Contains owner (indexed), spender (indexed), and approved amount
+
 ## Blacklist Functions
 
 ### `setBlacklist`
@@ -372,6 +404,10 @@ Only addresses with `canSetTokenBlacklist` permission in [UndyHq](../registries/
 - Cannot blacklist token contract itself
 - Cannot blacklist zero address
 
+#### Events Emitted
+
+- `BlacklistModified` - Contains address (indexed) and isBlacklisted bool
+
 ### `burnBlacklistTokens`
 
 Burns tokens from blacklisted addresses.
@@ -387,6 +423,10 @@ Only protocol governance.
 
 #### Parameters
 - `_amount`: Amount to burn (defaults to full balance)
+
+#### Events Emitted
+
+- `Transfer` - Contains blacklisted address as sender, empty address as recipient, and burned amount
 
 ## UndyHq Management
 
@@ -408,6 +448,10 @@ Current governance only.
 - No pending governance changes in either HQ
 - Both tokens must be set in new HQ
 
+#### Events Emitted
+
+- `HqChangeInitiated` - Contains previous HQ (indexed), new HQ (indexed), and confirmation block
+
 ### `confirmHqChange`
 
 Completes HQ migration after timelock.
@@ -419,6 +463,10 @@ def confirmHqChange() -> bool:
 
 Re-validates and updates UndyHq pointer.
 
+#### Events Emitted
+
+- `HqChangeConfirmed` - Contains previous HQ (indexed), new HQ (indexed), initiation block, and confirmation block
+
 ### `setHqChangeTimeLock`
 
 Adjusts timelock for future HQ changes.
@@ -429,6 +477,10 @@ def setHqChangeTimeLock(_newTimeLock: uint256) -> bool:
 ```
 
 Must be within MIN/MAX bounds.
+
+#### Events Emitted
+
+- `HqChangeTimeLockModified` - Contains previous time-lock and new time-lock values
 
 ## Pause Function
 
@@ -451,6 +503,10 @@ Protocol governance only.
 - No minting
 - No burning
 
+#### Events Emitted
+
+- `TokenPauseModified` - Contains isPaused bool value
+
 ## Initial Setup Function
 
 ### `finishTokenSetup`
@@ -472,6 +528,10 @@ Temporary governance only.
 3. Configures timelock
 4. Clears temporary governance
 
+#### Events Emitted
+
+- `InitialUndyHqSet` - Contains HQ address (indexed) and time-lock value
+
 ## View Functions
 
 ### Token Info
@@ -490,23 +550,6 @@ Temporary governance only.
 ### Timelock Bounds
 - `minHqTimeLock() -> uint256`
 - `maxHqTimeLock() -> uint256`
-
-## Events
-
-### Token Events
-- `Transfer` - Token transfers
-- `Approval` - Allowance changes
-
-### Blacklist Events
-- `BlacklistModified` - Address blacklist status changed
-
-### Governance Events
-- `HqChangeInitiated` - HQ migration started
-- `HqChangeConfirmed` - HQ migration completed
-- `HqChangeCancelled` - HQ migration cancelled
-- `TokenPauseModified` - Pause state changed
-- `InitialUndyHqSet` - Initial setup completed
-- `HqChangeTimeLockModified` - Timelock adjusted
 
 ## Security Considerations
 

@@ -174,6 +174,7 @@ def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bra
 
     # finish setup on switchboard config contracts
     assert switchboard_alpha.setActionTimeLockAfterSetup(sender=deploy3r)
+    assert switchboard_bravo.setActionTimeLockAfterSetup(sender=deploy3r)
 
     return switchboard_deploy
 
