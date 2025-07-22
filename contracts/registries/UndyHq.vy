@@ -268,11 +268,13 @@ def cancelHqConfigChange(_regId: uint256) -> bool:
 # validation
 
 
+@view
 @external
 def isValidHqConfig(_regId: uint256, _canMintUndy: bool) -> bool:
     return self._isValidHqConfig(_regId, _canMintUndy)
 
 
+@view
 @internal
 def _isValidHqConfig(_regId: uint256, _canMintUndy: bool) -> bool:
 
