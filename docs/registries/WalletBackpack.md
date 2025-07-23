@@ -181,42 +181,6 @@ From [DeptBasics](../modules/DeptBasics.md):
 - `isPaused: bool` - Emergency pause state
 - `canMintUndy: bool` - Set to False (no minting capability)
 
-## Events
-
-### `PendingBackpackItemAdded`
-Emitted when a new infrastructure upgrade is initiated.
-
-```vyper
-event PendingBackpackItemAdded:
-    backpackType: BackpackType
-    addr: indexed(address)
-    actionId: uint256
-    confirmationBlock: uint256
-    addedBy: indexed(address)
-```
-
-### `BackpackItemConfirmed`
-Emitted when a pending upgrade is confirmed and applied.
-
-```vyper
-event BackpackItemConfirmed:
-    backpackType: BackpackType
-    addr: indexed(address)
-    actionId: uint256
-    confirmedBy: indexed(address)
-```
-
-### `PendingBackpackItemCancelled`
-Emitted when a pending upgrade is cancelled.
-
-```vyper
-event PendingBackpackItemCancelled:
-    backpackType: BackpackType
-    addr: indexed(address)
-    actionId: uint256
-    cancelledBy: indexed(address)
-```
-
 ## Constructor
 
 ### `__init__`
@@ -346,7 +310,7 @@ Only callable by addresses that can perform actions (governance and not paused).
 
 #### Common Events Emitted
 
-- `PendingBackpackItemAdded` - Contains component type, address, action ID, confirmation block, and initiator
+- `PendingBackpackItemAdded` - Contains component type, address, action ID, confirmation block, and initiator: `log PendingBackpackItemAdded(backpackType=_backpackType, addr=_addr, actionId=actionId, confirmationBlock=confirmationBlock, addedBy=msg.sender)`
 
 #### Example Usage
 ```python
@@ -386,7 +350,7 @@ Only callable by addresses that can perform actions.
 
 #### Common Events Emitted
 
-- `BackpackItemConfirmed` - Contains component type, address, action ID, and confirmer
+- `BackpackItemConfirmed` - Contains component type, address, action ID, and confirmer: `log BackpackItemConfirmed(backpackType=_backpackType, addr=pendingAddr, actionId=pendingUpdate.actionId, confirmedBy=_caller)`
 
 #### Example Usage
 ```python
@@ -429,7 +393,7 @@ Only callable by addresses that can perform actions.
 
 #### Common Events Emitted
 
-- `PendingBackpackItemCancelled` - Contains component type, address, action ID, and canceller
+- `PendingBackpackItemCancelled` - Contains component type, address, action ID, and canceller: `log PendingBackpackItemCancelled(backpackType=_backpackType, addr=pendingAddr, actionId=pendingUpdate.actionId, cancelledBy=_caller)`
 
 ## Validation Functions
 

@@ -824,35 +824,6 @@ Functions that allow security operators:
 - `updateDepositPoints()`
 - `updateAssetData()` / `updateAllAssetData()`
 
-## Events
-
-SwitchboardBravo emits comprehensive events for operational tracking:
-
-### Pending Action Events
-- `PendingRecoverFundsAction` - Single fund recovery initiation
-- `PendingRecoverFundsManyAction` - Multi-fund recovery initiation
-- `PendingRecoverNftAction` - NFT recovery initiation
-- `PendingLootAdjustAction` - Loot adjustment initiation
-- `PendingRecoverDepositRewardsAction` - Deposit reward recovery initiation
-- `PendingSetEjectionModeAction` - Ejection mode change initiation
-
-### Execution Events
-- `PauseExecuted` - Contract pause/unpause
-- `RecoverFundsExecuted` - Single fund recovery completion
-- `RecoverFundsManyExecuted` - Multi-fund recovery completion
-- `RecoverNftExecuted` - NFT recovery completion
-- `LootAdjusted` - Loot adjustment completion
-- `RecoverDepositRewardsExecuted` - Deposit reward recovery completion
-- `SetEjectionModeExecuted` - Ejection mode change completion
-
-### Operational Events
-- `ClawbackTrialFundsExecuted` - Trial fund clawback
-- `DepositPointsUpdated` - Deposit point updates
-- `LootClaimedForUser` - Individual loot claim
-- `LootClaimedForManyUsers` - Batch loot claims
-- `AssetDataUpdated` - Asset data updates
-- `AllAssetDataUpdated` - Full asset data updates
-
 ## Security Considerations
 
 ### Access Control Levels

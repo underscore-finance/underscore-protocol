@@ -975,23 +975,6 @@ RipeLego includes placeholder implementations for DEX-related functions that are
 - `removeLiquidityConcentrated()` - Returns (0, 0, 0, False, 0)
 - `getPrice()` - Returns 0
 
-## Events
-
-RipeLego emits comprehensive events for all operations:
-
-### Debt Management Events
-- `RipeCollateralDeposit` - Collateral deposit operations
-- `RipeCollateralWithdrawal` - Collateral withdrawal operations  
-- `RipeBorrow` - Borrowing operations
-- `RipeRepay` - Debt repayment operations
-
-### Rewards Events
-- `RipeClaimRewards` - RIPE token reward claiming
-
-### Yield Farming Events
-- `RipeSavingsGreenDeposit` - Savings Green deposit operations
-- `RipeSavingsGreenWithdrawal` - Savings Green withdrawal operations
-
 ## Security Considerations
 
 ### Access Control

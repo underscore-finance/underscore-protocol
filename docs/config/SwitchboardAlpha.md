@@ -864,23 +864,6 @@ Multiple internal validation functions ensure configuration integrity:
 - `_isValidAgentTemplate()` - Validates agent templates
 - `_areValidStarterAgentParams()` - Validates starter agent configuration
 
-## Events
-
-SwitchboardAlpha emits comprehensive events for all configuration changes:
-
-### Pending Change Events
-Each configuration type has corresponding pending and confirmed events:
-- `PendingUserWalletTemplatesChange` / `UserWalletTemplatesSet`
-- `PendingTrialFundsChange` / `TrialFundsSet`
-- `PendingWalletCreationLimitsChange` / `WalletCreationLimitsSet`
-- `PendingAssetConfigChange` / `AssetConfigSet`
-- And many more for each configuration category
-
-### Security Events
-- `CreatorWhitelistSet` - Creator whitelist changes
-- `LockedSignerSet` - Signer lock status changes
-- `CanPerformSecurityAction` - Security permission changes
-
 ## Security Considerations
 
 ### Time-Lock Protection

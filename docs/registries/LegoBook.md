@@ -143,22 +143,6 @@ From [DeptBasics](../modules/DeptBasics.md):
 - `isPaused: bool` - Emergency pause state
 - `canMintUndy: bool` - Set to False (no minting capability)
 
-## Events
-
-### `LegoToolsSet`
-Emitted when the LegoTools address is updated.
-
-```vyper
-event LegoToolsSet:
-    addr: indexed(address)
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `addr` | `address` (indexed) | The new LegoTools contract address |
-
 ## Constructor
 
 ### `__init__`
@@ -413,7 +397,7 @@ Only callable by Switchboard addresses (via `addys._isSwitchboardAddr`).
 
 #### Events Emitted
 
-- `LegoToolsSet` - Contains the new LegoTools address
+- `LegoToolsSet` - Contains the new LegoTools address: `log LegoToolsSet(addr=_addr)`
 
 #### Example Usage
 ```python
