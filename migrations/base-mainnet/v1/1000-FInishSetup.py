@@ -5,12 +5,16 @@ def migrate(migration: Migration):
     migration.log.h2("Billing")
     hq = migration.get_contract("UndyHq")
 
-    switchboard_alpha = migration.get_contract("SwitchboardAlpha")
-
     # Deploy an agent contract
     hatchery = migration.get_contract("Hatchery")
     agent = migration.execute(hatchery.createAgent, migration.blueprint.INTEGRATION_ADDYS["AGENT_OWNER"], 1)
+
+    switchboard_alpha = migration.get_contract("SwitchboardAlpha")
+
     actionId = migration.execute(switchboard_alpha.setStarterAgentParams, agent, migration.blueprint.BLOCKS.YEAR * 2)
+    migration.execute(switchboard_alpha.executePendingAction, actionId)
+
+    actionId = migration.execute(switchboard_alpha.setAgentCreationLimits, 25, True)
     migration.execute(switchboard_alpha.executePendingAction, actionId)
 
     migration.execute(switchboard_alpha.setActionTimeLockAfterSetup)
