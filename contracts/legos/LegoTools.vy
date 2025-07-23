@@ -414,33 +414,6 @@ def getVaultTokensForUser(_user: address, _asset: address, _legoBook: address = 
     return vaultTokens
 
 
-# get lego info (given a vault token)
-
-
-@view
-@external
-def getLegoFromVaultToken(_vaultToken: address, _legoBook: address = empty(address)) -> (uint256, address):
-    if _vaultToken == empty(address):
-        return 0, empty(address)
-
-    legoBook: address = _legoBook
-    if _legoBook == empty(address):
-        legoBook = addys._getLegoBookAddr()
-
-    numLegos: uint256 = staticcall Registry(legoBook).numAddrs()
-    if numLegos == 0:
-        return 0, empty(address)
-
-    for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
-            continue
-
-        if staticcall YieldLego(legoAddr).isVaultToken(_vaultToken):
-            return i, legoAddr
-
-    return 0, empty(address)
-
 
 # is vault token (given a vault token)
 
