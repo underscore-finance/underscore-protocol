@@ -4,7 +4,7 @@
 
 ## Overview
 
-Billing is the pull payment engine for the Underscore Protocol. As a Department contract, it enables authorized payees and cheque recipients to pull payments directly from user wallets, implementing sophisticated asset discovery and yield withdrawal mechanisms to ensure payment fulfillment while maintaining security through permission validation and amount controls.
+Billing is the pull payment engine for the Underscore Protocol. As a Department contract, it enables authorized payees and cheque recipients to pull payments directly from [UserWallet](../userWallet/UserWallet.md) instances, implementing sophisticated asset discovery and yield withdrawal mechanisms to ensure payment fulfillment while maintaining security through permission validation and amount controls.
 
 **Core Features**:
 - **Pull Payment Support**: Enable payees and cheque recipients to pull authorized payments

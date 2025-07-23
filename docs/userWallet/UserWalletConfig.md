@@ -8,11 +8,11 @@ UserWalletConfig is the comprehensive configuration and access control contract 
 
 **Core Features**:
 - **Multi-tier Permission System**: Hierarchical access control with owner, managers, payees, and whitelisted addresses
-- **Transaction Limits**: Configurable USD value and frequency limits for managers and payees with per-period tracking
+- **Transaction Limits**: Configurable USD value and frequency limits for managers and payees with per-period tracking  
 - **Cheque Management**: Full cheque lifecycle management with creation, validation, and payment controls
 - **Security Controls**: Wallet freezing, ejection mode, time-locked operations, and trial fund management
 
-The contract implements sophisticated period-based tracking for rate limiting, flexible configuration for different user types, integration with the wallet backpack module system, and comprehensive validation through the Sentinel contract for all operations.
+The contract implements sophisticated period-based tracking for rate limiting, flexible configuration for different user types, integration with the wallet backpack module system, and comprehensive validation through the [Sentinel](../walletBackpack/Sentinel.md) contract for all operations. Managers are administered through [HighCommand](../walletBackpack/HighCommand.md), payees through [Paymaster](../walletBackpack/Paymaster.md), and cheques through [ChequeBook](../walletBackpack/ChequeBook.md). Pull payments are processed via the [Billing](../core/Billing.md) engine.
 
 ## Architecture & Modules
 

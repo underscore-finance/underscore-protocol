@@ -1,6 +1,6 @@
 # TimeLock Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/TimeLock.vy)
+[📄 View Source Code](../../contracts/modules/Timelock.vy)
 
 ## Overview
 

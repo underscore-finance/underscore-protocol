@@ -10,9 +10,9 @@ UserWallet is the core wallet contract for the Underscore Protocol that manages 
 - **Asset Management**: Handles ETH and ERC20 token transfers with built-in yield tracking and USD value calculations
 - **Yield Operations**: Comprehensive yield farming support including deposits, withdrawals, and position rebalancing
 - **DeFi Integrations**: Swapping, liquidity provision (standard and concentrated), debt management, and rewards claiming
-- **Security Controls**: Permission-based access control through WalletConfig, time-locked operations, and trial fund management
+- **Security Controls**: Permission-based access control through [UserWalletConfig](UserWalletConfig.md), time-locked operations, and trial fund management
 
-The wallet implements sophisticated yield profit tracking for rebasing and non-rebasing assets, automated fee distribution for protocol sustainability, flexible lego partner integrations for external protocols, and comprehensive event logging for transaction transparency.
+The wallet implements sophisticated yield profit tracking for rebasing and non-rebasing assets, automated fee distribution for protocol sustainability, flexible Lego Partner integrations through [LegoTools](../legos/LegoTools.md) for external protocols, and comprehensive event logging for transaction transparency. Management operations can be delegated through the [AgentWrapper](../agent/AgentWrapper.md) system.
 
 ## System Architecture Diagram
 

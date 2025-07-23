@@ -4,7 +4,7 @@
 
 ## Overview
 
-AgentWrapper is a secure intermediary contract that enables managers (agents) to perform actions on user wallets through signature-based authentication. It serves as a wrapper around UserWallet functionality, implementing EIP-712 typed data signatures for secure off-chain authorization while maintaining the same interface as UserWallet for seamless integration.
+AgentWrapper is a secure intermediary contract that enables managers (agents) to perform actions on user wallets through signature-based authentication. It serves as a wrapper around [UserWallet](../userWallet/UserWallet.md) functionality, implementing EIP-712 typed data signatures for secure off-chain authorization while maintaining the same interface as UserWallet for seamless integration. Manager permissions and limits are configured through the [HighCommand](../walletBackpack/HighCommand.md) module.
 
 **Core Features**:
 - **Signature-Based Authentication**: All actions require valid EIP-712 signatures from the wallet owner

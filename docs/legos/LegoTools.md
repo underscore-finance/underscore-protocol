@@ -10,7 +10,7 @@ LegoTools is the unified interface for interacting with all protocol integration
 - **Yield Protocol Discovery**: Find vault tokens, calculate underlying amounts, and track yield opportunities across multiple protocols
 - **DEX Routing Engine**: Intelligent swap routing with multi-hop optimization across various DEX protocols
 - **Protocol Abstraction**: Unified interface for Aave, Compound, Euler, Fluid, Moonwell, Morpho, Uniswap, Aerodrome, and Curve
-- **Dynamic Integration**: Automatically discovers new Lego partners registered in LegoBook
+- **Dynamic Integration**: Automatically discovers new Lego partners registered in [LegoBook](../registries/LegoBook.md)
 - **Gas-Optimized Routing**: Finds optimal paths considering both price and gas costs
 
 The contract implements sophisticated routing algorithms including single-hop and multi-hop swap optimization, automatic router token bridging (USDC/WETH), yield vault discovery and valuation, protocol-agnostic interfaces, and dynamic slippage management.

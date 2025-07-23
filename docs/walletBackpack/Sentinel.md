@@ -4,7 +4,7 @@
 
 ## Overview
 
-Sentinel is the validation engine for user wallet activity in the Underscore Protocol. As a critical wallet backpack item, it enforces comprehensive permission checks, transaction limits, and USD value restrictions for managers, payees, and cheque payments, ensuring all wallet actions comply with configured security policies before and after execution.
+Sentinel is the validation engine for [UserWallet](../userWallet/UserWallet.md) activity in the Underscore Protocol. As a critical wallet backpack item, it enforces comprehensive permission checks, transaction limits, and USD value restrictions for managers, payees, and cheque payments, ensuring all wallet actions comply with configured security policies before and after execution.
 
 **Core Features**:
 - **Pre-Action Validation**: Checks permissions before transaction execution

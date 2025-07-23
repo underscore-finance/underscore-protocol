@@ -4,7 +4,7 @@
 
 ## Overview
 
-HighCommand is the central manager administration module for user wallets in the Underscore Protocol. As a critical wallet backpack item, it provides comprehensive configuration and control over manager permissions, enabling fine-grained access control for delegated wallet management while maintaining security through time-locked operations and multi-tier validation.
+HighCommand is the central manager administration module for user wallets in the Underscore Protocol. As a critical wallet backpack item, it provides comprehensive configuration and control over manager permissions, enabling fine-grained access control for delegated wallet management while maintaining security through time-locked operations and multi-tier validation. Managers configured through HighCommand can execute wallet operations via the [AgentWrapper](../agent/AgentWrapper.md) with signature-based authentication.
 
 **Core Features**:
 - **Manager Lifecycle Management**: Add, update, and remove managers with time-delayed activation

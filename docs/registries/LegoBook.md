@@ -8,7 +8,7 @@ LegoBook is the master registry for all Lego partner contracts (DeFi protocol in
 
 **Core Functions**:
 - **Lego Partner Registry**: Maintains a registry of all DeFi protocol integration contracts (Yield Legos, DEX Legos).
-- **LegoTools Coordination**: Manages the official LegoTools contract address for protocol-wide routing.
+- **LegoTools Coordination**: Manages the official [LegoTools](../legos/LegoTools.md) contract address for protocol-wide routing.
 - **Integration Validation**: Provides address validation functions for other protocol components.
 
 Built with the same modular architecture as other protocol registries, LegoBook ensures that DeFi integrations are managed through controlled, time-locked processes. It serves as the single source of truth for all protocol integrations, enabling dynamic discovery while maintaining security through governance oversight.

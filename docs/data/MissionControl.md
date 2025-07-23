@@ -11,7 +11,7 @@ MissionControl is the central configuration management contract for the Undersco
 - **Asset-Specific Settings**: Configure per-asset fees, yield parameters, and integration details
 - **Security Controls**: Manage creator whitelists, security signers, and locked addresses
 - **Fee Structure**: Define swap fees, rewards fees, and ambassador revenue shares
-- **Dynamic Configuration**: Update settings through governance without contract upgrades
+- **Dynamic Configuration**: Update settings through governance without contract upgrades via [SwitchboardAlpha](../config/SwitchboardAlpha.md) and [SwitchboardBravo](../config/SwitchboardBravo.md)
 
 The contract implements sophisticated configuration patterns including hierarchical settings with defaults and overrides, structured data for complex configurations, granular access control for updates, and view helpers for aggregated configurations.
 
