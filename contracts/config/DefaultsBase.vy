@@ -90,7 +90,7 @@ def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
         agentTemplate = AGENT_TEMPLATE,
         numAgentsAllowed = 25,
-        enforceCreatorWhitelist = True,
+        enforceCreatorWhitelist = False,
         startingAgent = STARTING_AGENT,
         startingAgentActivationLength = 2 * YEAR_IN_BLOCKS,
     )
