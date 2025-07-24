@@ -6,22 +6,30 @@ The Whitelist's power requires equally strong security measures. Every addition 
 
 Adding an address to the whitelist is never instant. Here's how it works:
 
+```
+Propose Address → Time-Lock Period → Confirm Addition → Whitelist Active
+     (Day 1)         (3-7 days)          (Day 4+)         (Immediate)
+```
+
 #### Step 1: Propose an Address
 Submit the address you want to whitelist. This creates a pending entry and starts the security countdown.
 
 *Example timeline*:
 - Monday 2pm: You propose your hardware wallet address
 - System records: Block 18,945,000, pending until block 18,995,400
+- Status: Address enters "pending" state
 
 #### Step 2: Mandatory Time-Lock
 A security delay prevents immediate additions, giving you time to detect and stop unauthorized attempts.
 
 *Typical delays*:
-- **3 days** (25,920 blocks): Common for personal wallets
-- **7 days** (60,480 blocks): Often used for high-value wallets
+- **3 days** (25,920 blocks): Common for personal wallets holding < $100,000
+- **7 days** (60,480 blocks): Recommended for high-value wallets > $100,000
 - Your specific delay is set in your wallet configuration
 
-*Security feature*: If the wallet owner changes during this waiting period, all pending whitelist proposals are automatically cancelled. This prevents an attacker who gains temporary control from adding their own addresses.
+**Critical Security Feature**: If the wallet owner changes during this waiting period, all pending whitelist proposals are automatically cancelled. This prevents an attacker who gains temporary control from adding their own addresses.
+
+*Example*: Attacker compromises your wallet on Tuesday, proposes their address. You regain control Wednesday and change ownership. Their pending whitelist is automatically cancelled.
 
 #### Step 3: Confirm the Addition
 After the time-lock expires, you must send a second transaction to complete the whitelisting.
@@ -34,6 +42,14 @@ After the time-lock expires, you must send a second transaction to complete the 
 ### Administration Hierarchy
 
 Clear rules govern who can manage your whitelist:
+
+#### Permission Matrix
+
+| Role | Add Pending | Confirm | Cancel | Remove | Override Limits |
+|------|------------|---------|---------|---------|----------------|
+| **Owner** | ✓ Always | ✓ Always | ✓ Always | ✓ Always | N/A |
+| **Manager** | ✓ If permitted | ✓ If permitted | ✓ If permitted | ✓ If permitted | No |
+| **MissionControl** | ✗ | ✗ | ✓ Emergency | ✓ Emergency | Yes |
 
 #### The Owner (You)
 Complete control over all whitelist operations:
@@ -50,9 +66,18 @@ Can be granted specific whitelist permissions:
 - **canCancel**: Cancel pending proposals  
 - **canRemove**: Remove whitelisted addresses
 
-*Note*: These follow the dual-permission system—both global and specific manager settings must allow the action.
+**Dual-Permission System**: Both individual manager permissions AND global manager settings must allow the action.
 
-*Common pattern*: Grant your accountant `canAddPending` but not `canConfirm`, requiring your final approval for all additions.
+```
+Manager wants to add pending whitelist:
+  ✓ Individual permission: canAddPending = true
+  ✓ Global setting: canAddPending = true
+  = Action allowed
+
+If either is false, action is denied.
+```
+
+*Common pattern*: Grant your CFO `canAddPending` but not `canConfirm`, requiring your final approval for all additions.
 
 #### Security Override (MissionControl)
 Protocol-level emergency powers (rarely used):
@@ -104,6 +129,26 @@ Protocol-level emergency powers (rarely used):
    - Have a process for security incidents
    - Keep whitelist as small as practical
 
+### Troubleshooting Common Issues
+
+**"Cannot confirm whitelist - time delay not reached"**
+- Wait until the confirmation block is reached
+- Check current block vs. confirmation block
+- Time-locks cannot be bypassed
+
+**"Owner must match"**
+- The wallet owner changed during pending period
+- All pending proposals were cancelled
+- Start the proposal process again
+
+**"Already whitelisted"**
+- Address is already in the whitelist
+- Check your whitelist before proposing
+
+**"Invalid address"**
+- Cannot whitelist: empty address, the wallet itself, owner address, or config contracts
+- These are protected for security reasons
+
 ### Common Questions
 
 **Q: Can I speed up the time-lock?**
@@ -117,5 +162,8 @@ A: Yes, but they must go through the full proposal process again.
 
 **Q: How many addresses can I whitelist?**
 A: No hard limit, but keep it minimal for security. Most users need 2-5 addresses.
+
+**Q: What happens if I lose access to a whitelisted address?**
+A: Remove it immediately. A compromised whitelisted address is your highest security risk.
 
 The whitelist security process may seem strict, but it's designed to protect your assets while still enabling the flexibility you need for legitimate operations.
