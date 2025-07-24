@@ -1,63 +1,106 @@
-## The Ambassador Program: Build Your DeFi Network
+## The Ambassador Program
 
-Turn your network into a revenue stream. The Ambassador Program isn't just a referral system - it's your opportunity to build lasting, passive income by helping others discover the power of Underscore.
+The Ambassador Program creates a revenue-sharing relationship between you and users who join through your referral. When they generate protocol fees, you automatically receive a percentage of those fees as ambassador rewards.
 
-### How It Works in Practice
+### How Ambassador Relationships Work
 
-When someone creates their User Wallet and names you as their Ambassador, you've just gained a permanent income stream. Every fee they generate, forever, shares rewards with you.
+**Setup Process:**
+1. Share your User Wallet address with potential users
+2. They enter your address as their ambassador during wallet creation
+3. The relationship is recorded permanently on-chain
+4. You earn a percentage of all fees they generate
 
-**The Setup is Simple:**
-1. Share your User Wallet address with friends
-2. They enter it when creating their wallet
-3. You're now permanently linked on-chain
-4. Start earning from their activity immediately
+**Revenue Share Percentages:**
+- Swap fees: ~30% ambassador share
+- Yield fees: ~30% ambassador share
+- External rewards fees: ~20% ambassador share
 
-### Real Success Stories
+*Note: Exact percentages are configured in the smart contract and may vary*
 
-**Lisa's Coffee Shop Network**  
-Lisa runs a local coffee shop and introduced Underscore to her regular customers who were interested in DeFi. In 6 months:
-- 15 customers joined with her as Ambassador
-- They collectively manage $150,000 in assets
-- Lisa earns ~$500/month in passive ambassador rewards
-- Her highest-earning referral alone generates $100/month for her
+### Realistic Example Calculations
 
-**Dev Community Leader**  
-Alex moderates a developer Discord and shared Underscore with his community:
-- 50+ developers joined through his ambassador link
-- High-activity users generating significant swap volume
-- Monthly ambassador earnings exceed $2,000
-- Built a sustainable income stream while helping others
+**Small Network Example:**
+You refer 5 active users who each:
+- Hold $10,000 in yield positions (5% APY)
+- Generate $41.67 monthly yield
+- Pay ~$4.17 in yield fees (10%)
 
-### The Power of Network Effects
+Your monthly ambassador earnings:
+- 5 users × $4.17 fees × 30% share = $6.25
+- Annual passive income: ~$75
 
-Here's what makes the Ambassador Program special:
+**Active Trader Network:**
+You refer 10 traders who each:
+- Trade $20,000 monthly volume
+- Pay $20 in swap fees (0.1%)
 
-**Permanent Relationships**: Unlike temporary referral bonuses, your ambassador relationship lasts forever. Someone you refer today could be earning you rewards 5 years from now.
+Your monthly ambassador earnings:
+- 10 users × $20 fees × 30% share = $60
+- Annual passive income: ~$720
 
-**No Limits**: Refer 10 people? 100? 1,000? There's no cap on ambassador relationships or earnings.
+**Growth Scenario:**
+A network of 50 mixed users (holders + traders):
+- Average fees per user: $15/month
+- Your 30% share: $4.50 per user
+- Monthly earnings: $225
+- Annual passive income: $2,700
 
-**Compounding Growth**: As your referrals' wallets grow and they become more active, your earnings automatically increase. Their success is literally your success.
+### Program Characteristics
 
-### Maximizing Your Ambassador Earnings
+**Permanent On-Chain Relationships**: 
+- Once established, ambassador relationships cannot be changed
+- Earnings continue as long as users remain active
+- No expiration or time limits
 
-**Target Active Users**: Focus on people who will actually use DeFi features:
-- Yield farmers seeking better returns
-- Active traders looking for efficient swaps
-- DAOs needing treasury management
-- Businesses wanting automated payments
+**Scalability**:
+- No limit on number of referrals
+- Earnings scale with user activity
+- Automated distribution via smart contract
 
-**Provide Value**: The most successful ambassadors don't just share a link - they:
-- Explain specific features that solve problems
-- Show real examples of earnings potential
-- Offer guidance on getting started
-- Build communities around shared success
+**Important Considerations**:
+- Earnings depend entirely on user activity
+- Inactive users generate no fees
+- Market conditions affect trading volume and yields
+- Your earnings = sum of (each user's fees × ambassador percentage)
 
-### Tracking Your Network
+### Building an Effective Network
 
-Your User Wallet dashboard provides complete transparency:
-- List of all wallets you're ambassador for
-- Individual earnings from each referral
-- Total monthly ambassador income
-- Activity metrics for your network
+**Target Users Most Likely to Generate Fees:**
+- Active DeFi users already familiar with yield farming
+- Traders who perform regular swaps
+- Long-term holders seeking yield optimization
+- Organizations managing treasuries
 
-Remember: Being an ambassador isn't about aggressive marketing. It's about sharing a tool that genuinely helps people earn more from their DeFi activities. When they succeed, you succeed - permanently.
+**Sustainable Approach:**
+- Focus on quality over quantity
+- Help users understand the protocol benefits
+- Provide ongoing support to keep users active
+- Set realistic expectations about returns
+
+**Growth Strategy:**
+- Start with your most DeFi-savvy contacts
+- Document your own success to share
+- Create educational content about features
+- Build genuine relationships, not just referrals
+
+### Monitoring Your Ambassador Rewards
+
+**Available Metrics:**
+- Total referrals linked to your address
+- Claimable rewards by asset
+- Historical earnings data
+- Individual referral activity levels
+
+**Claiming Process:**
+- Rewards accumulate in the LootDistributor
+- Subject to same cooldown periods as other rewards
+- Can claim all assets in one transaction
+- Gas-efficient batch claiming available
+
+**Best Practices:**
+- Monitor which referrals are most active
+- Track your earnings trends over time
+- Claim rewards when gas fees are favorable
+- Reinvest earnings to compound growth
+
+The Ambassador Program rewards those who help grow the protocol's user base. Success comes from building a network of genuinely active users who benefit from the protocol's features.

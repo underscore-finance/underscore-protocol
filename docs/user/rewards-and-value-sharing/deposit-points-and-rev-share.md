@@ -1,52 +1,100 @@
-## Earning from Protocol Fees (Deposit Points & Rev Share)
+## Deposit Points and Revenue Sharing
 
-Your wallet isn't just storing value - it's actively earning you a share of every fee generated across the entire Underscore ecosystem. Here's how it works in practice.
+Deposit Points determine your share of protocol-generated fees. The system tracks your deposit value over time and calculates your proportional share of rewards based on a transparent formula.
 
-### Deposit Points: Your Automatic Earning Power
+### How Deposit Points Work
 
-Think of Deposit Points as your "ownership stake" in the protocol's success. They're not tokens you trade - they're your automatic, real-time calculation of how much you've earned.
+Deposit Points measure your contribution to the protocol over time. They are not tokens but rather an accounting mechanism used to calculate your share of fee distributions.
 
-#### How Your Earnings Grow
+**The Formula:**
+```
+Points = (USD Value of Deposits × Blocks Held) / 10^18
+```
 
-**The Math is Simple:**
-- Hold $1,000 in your wallet = Earn like you own 0.1% of the protocol (if total value is $1M)
-- Hold $10,000 = Earn like you own 1%
-- Hold $100,000 = Earn like you own 10%
+This means both your deposit value AND how long you hold assets matter for determining your rewards share.
 
-**Real Example:**
-Sarah deposits $5,000 worth of stETH into her User Wallet. The protocol has $500,000 total value locked. Sarah now has 1% of all Deposit Points. When the protocol collects $10,000 in fees this week, Sarah automatically earns $100 (her 1% share).
+#### Calculating Your Share
 
-#### Time-Based Accumulation = Loyalty Rewards
+**Example Calculation:**
+- You deposit: $10,000
+- You hold for: 100,000 blocks (~2 weeks on Ethereum)
+- Your points: (10,000 × 100,000) / 10^18 = 0.001 points
 
-Here's what most people don't realize: your points grow over time, not just from your balance. Hold assets for 30 days? Your share increases. Hold for 90 days? Even more. This rewards loyal users who trust the protocol long-term.
+Your reward share = Your Points / Total Global Points
 
-### How You Actually Get Paid
+**Practical Example:**
+- Your points: 1,000
+- Global points: 100,000
+- Your share: 1%
+- If protocol collects $5,000 in fees
+- Your claimable amount: $50
 
-Unlike complex staking systems, Underscore's distribution is refreshingly straightforward:
+**Important**: Your percentage changes as others deposit/withdraw and as time passes.
 
-1. **Fees Accumulate**: Every swap, yield harvest, and reward claim across all wallets generates fees
-2. **Distribution Triggers**: After 24-48 hours, anyone can trigger a distribution (yes, even you!)
-3. **Instant Calculation**: The smart contract instantly calculates everyone's share
-4. **Direct Payment**: Your earnings appear in your wallet, ready to use or compound
+#### Points Accumulation Over Time
 
-#### Ambassador Boost: Passive Income Multiplier
+**How Time Affects Points:**
+- Points accumulate each block you hold assets
+- Longer holding periods = more points
+- Points continue growing until you claim deposit rewards
+- After claiming deposit rewards, your points reset to zero
 
-When someone you referred earns fees, you get an automatic cut:
-- User performs a $10,000 swap → generates $10 fee
-- They get 70% ($7) in points
-- You get 30% ($3) in points as their ambassador
-- This happens forever, with no action required
+**Note**: Regular fee claims don't reset points - only deposit reward claims do.
 
-**Power User Example:**
-Mark referred 10 active traders. They collectively generate $1,000 in fees monthly. Mark automatically earns $300/month in ambassador rewards, on top of his own trading rewards.
+### Two Types of Distributions
 
-### Checking Your Earnings
+**1. Revenue Share (Claimable Loot):**
+- Accumulates from swap, yield, and reward fees
+- Can be claimed anytime (with cooldown)
+- Doesn't affect your deposit points
+- Multiple assets can accumulate
 
-Want to see your accumulated rewards? Your User Wallet dashboard shows:
-- Current Deposit Points balance
-- Percentage of total protocol share
-- Pending rewards ready to claim
-- Historical earnings over time
-- Ambassador earnings breakdown
+**2. Deposit Rewards:**
+- Special reward pool funded separately
+- Distributed based on deposit points
+- Claiming resets your points to zero
+- Typically single asset (e.g., UNDY token)
 
-The beautiful part? This all happens automatically. No staking, no locking, no complex claiming processes. Just hold value, use your wallet, and earn your fair share.
+**Claiming Process:**
+- Both types subject to cooldown periods
+- Can claim all assets in one transaction
+- Managers with permission can claim for you
+- Gas-efficient batch claiming available
+
+#### How Ambassador Rewards Integrate
+
+Ambassador rewards are separate from deposit points:
+- Direct fee share (not points-based)
+- Percentage varies by fee type (20-30%)
+- Accumulates as claimable loot
+- Doesn't require deposits to earn
+
+**Example Flow:**
+- Your referral swaps $10,000 (pays $10 fee)
+- You receive 30% = $3 as claimable loot
+- They receive points for remaining 70%
+- Both can claim when ready
+
+### Monitoring Your Rewards
+
+**Key Metrics to Track:**
+- Current deposit points balance
+- Points as % of global total
+- USD value of deposits
+- Last update block
+- Claimable assets and amounts
+- Cooldown status
+
+**Understanding Cooldowns:**
+- Prevents reward manipulation
+- Typical period: 100-1000 blocks
+- Owners can claim anytime
+- Managers subject to cooldown
+
+**Optimization Tips:**
+- Claim when gas is low
+- Batch multiple assets together
+- Monitor points percentage changes
+- Track earnings vs fees paid
+
+The system ensures fair distribution through transparent on-chain calculations. Your rewards are always verifiable and claimable based on your actual contribution to the protocol.

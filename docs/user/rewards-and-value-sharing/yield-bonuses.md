@@ -1,72 +1,107 @@
-## Earning from Special Promotions (Yield Bonuses)
+## Yield Bonuses
 
-Think of Yield Bonuses as "double rewards" - you earn your normal yield PLUS special bonus rewards just for holding assets in your Underscore wallet. These limited-time promotions can significantly boost your returns.
+Yield Bonuses are additional rewards distributed to users holding eligible yield-bearing assets. These bonuses are configured per asset and distributed automatically when yield is realized through the protocol.
 
-### How Yield Bonuses Multiply Your Earnings
+### How Yield Bonuses Work
 
-**Example Scenario:**
-The protocol launches a 30-day stETH promotion:
-- Your stETH earns its normal 5% APY
-- PLUS you earn an additional 3% APY in bonus rewards
-- Total return: 8% APY for the promotion period
+**Technical Implementation:**
+- Bonuses triggered when yield profits are realized
+- YieldLego contracts determine eligibility
+- Bonus rates configured in MissionControl
+- Distribution respects available balance limits
 
-But here's where it gets interesting...
+**Bonus Calculation:**
+- Based on percentage of yield realized
+- Can be paid in three forms:
+  1. In-kind (same asset)
+  2. Underlying asset
+  3. Alternative asset (e.g., protocol tokens)
 
-### Real Examples of Yield Bonus Campaigns
+**Example:**
+- You realize $100 in stETH yield
+- Bonus rate: 20%
+- You receive: $20 bonus (in configured asset)
 
-**The Lido Partnership Launch**  
-When Underscore partnered with a major liquid staking protocol:
-- Users holding stETH earned bonus LDO tokens
-- Average user with $10,000 stETH earned $150 in LDO over 30 days
-- Some power users earned thousands in bonus tokens
-- All while keeping their regular stETH yield
+### Types of Yield Bonus Configurations
 
-**The Stablecoin Summer**  
-A 90-day campaign for USDC yield positions:
-- 2% bonus APY paid in USDC
-- Perfect for risk-averse users wanting stable returns
-- A $50,000 position earned an extra $250 in bonus USDC
-- Combined with regular yield for 7-8% total APY on stablecoins
+**1. Standard User Bonus**
+- Configured per asset via `bonusRatio`
+- Typical range: 10-30% of yield realized
+- Paid from available LootDistributor balance
+- Example: 20% bonus on $100 yield = $20 bonus
 
-### Types of Bonus Rewards You Can Earn
+**2. Ambassador Bonus**
+- Additional bonus for ambassadors
+- Configured via `ambassadorBonusRatio`
+- Stacks with regular user bonus
+- Rewards ambassadors for bringing active users
 
-**1. Same-Asset Bonuses**  
-Hold wstETH → Earn bonus wstETH  
-Your position grows faster through compound rewards. A $10,000 position could become $10,300 after a typical 3-month campaign.
+**3. Alternative Asset Bonuses**
+- Paid in different token than yield asset
+- Requires price oracle for conversion
+- Common for partnership promotions
+- Example: Earn UNDY tokens for stETH yield
 
-**2. Base-Asset Bonuses**  
-Hold stETH → Earn bonus ETH  
-Get liquid rewards you can use immediately. Perfect for users who want to take profits without unwrapping their yield positions.
+### Bonus Distribution Examples
 
-**3. Partner Token Bonuses**  
-Hold rETH → Earn RPL governance tokens  
-Access to valuable governance tokens through strategic partnerships. Often the highest-value rewards, especially during bull markets.
+**In-Kind Bonus (Same Asset):**
+- Hold: 100 stETH
+- Yield realized: 0.5 stETH  
+- Bonus at 20%: 0.1 stETH
+- Total received: 0.6 stETH
+- Benefit: Compounds automatically
 
-### Maximizing Your Yield Bonus Strategy
+**Underlying Asset Bonus:**
+- Hold: Vault token worth 10 ETH
+- Yield realized: $200 value
+- Bonus: $40 worth of ETH
+- Benefit: Liquid ETH without unwrapping
 
-**Stack Multiple Bonuses:**
-- Hold assets eligible for multiple concurrent bonuses
-- Example: stETH bonus + general deposit points + ambassador rewards
-- Some users achieve 15-20% effective APY during peak campaigns
+**Alternative Asset Bonus:**
+- Hold: $10,000 in yield position
+- Yield realized: $100
+- Bonus: $20 worth of UNDY tokens
+- Conversion: Based on current oracle prices
+- Benefit: Accumulate protocol tokens
 
-**Time Your Entry:**
-- Bonuses often have limited budgets
-- Early participants may earn higher rates
-- Watch for announcement channels to catch new campaigns
+### Important Bonus Mechanics
 
-**Choose Strategic Assets:**
-- Blue-chip yield tokens (stETH, rETH) often have the best bonuses
-- Newer protocols may offer higher bonuses to attract users
-- Balance risk and reward based on your goals
+**Eligibility Requirements:**
+- Asset must be configured for bonuses
+- YieldLego must return `isEligibleForYieldBonus = true`
+- Sufficient balance in LootDistributor
+- Yield must be realized (not just accrued)
 
-### Tracking and Claiming Your Bonuses
+**Distribution Priority:**
+1. Contract checks available balance
+2. Subtracts reserved amounts (other claims)
+3. Calculates maximum payable bonus
+4. Distributes up to configured percentage
 
-Your wallet dashboard shows:
-- Active bonus campaigns you're participating in
-- Accumulated rewards in real-time
-- Time remaining in each campaign
-- One-click claiming when you're ready
+**Limitations:**
+- Bonuses paid only from available funds
+- No borrowing or minting for bonuses
+- If insufficient funds, partial payment
+- First-come, first-served basis
 
-**Pro Tip**: You don't need to claim daily. Bonuses accumulate securely and can be claimed whenever gas fees are favorable. Some users claim monthly to compound efficiently.
+### Claiming Yield Bonuses
 
-The beauty of Yield Bonuses? They're pure upside. You take no extra risk, make no complex decisions - just hold your preferred yield assets in Underscore and earn extra rewards automatically.
+**How Bonuses Are Distributed:**
+- Automatically added to claimable loot
+- No separate claim process needed
+- Subject to same cooldown as other rewards
+- Tracked per asset for transparency
+
+**Monitoring Your Bonuses:**
+- Check claimable assets in LootDistributor
+- View accumulated amounts per asset
+- Track bonus events in transaction history
+- Verify calculations on-chain
+
+**Optimization Strategies:**
+- Time yield realizations for active bonuses
+- Consolidate positions in bonus-eligible assets
+- Monitor LootDistributor balance for availability
+- Claim during low gas periods
+
+**Key Takeaway**: Yield bonuses provide additional rewards for holding eligible assets, but actual payments depend on configured rates, available funds, and yield realization timing. Always verify current bonus configurations before making investment decisions.
