@@ -1,9 +1,5 @@
 # Summary
 
-- [Getting Started: The Hatchery](getting-started-hatchery/README.md)
-  - [Creating Your User Wallet](getting-started-hatchery/creating-your-user-wallet.md)
-  - [Trial Funds](getting-started-hatchery/trial-funds.md)
-  - [Creating an AI Agent](getting-started-hatchery/creating-an-ai-agent.md)
 - [Your User Wallet](user-wallet/README.md)
   - [The Power of Legos](user-wallet/the-power-of-legos.md)
   - [Core DeFi Capabilities](user-wallet/core-defi-capabilities.md)
