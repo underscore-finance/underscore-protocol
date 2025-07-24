@@ -79,7 +79,7 @@ An AI Manager monitors your business systems and streamlines payments:
 4. **You approve** after time-lock security delay
 5. **Payment executes** automatically on due date
 
-*Real example*: Marketing agency processes 50+ vendor payments monthly. AI Agent reduces payment processing from hours to minutes while maintaining security.
+Real example: Marketing agency processes 50+ vendor payments monthly. AI Agent reduces payment processing from hours to minutes while maintaining security.
 
 **Smart Contract Integration**
 Your protocol or DAO can integrate Payees for automated operations:
@@ -96,7 +96,7 @@ Imagine a debit card that:
 - Respects your preset daily/monthly limits
 - Keeps remaining funds earning yield
 
-*How it works*: Card provider is a Pull Payee with daily limit. When you buy coffee for $5, they pull exactly $5 from your yield-earning USDC. Your money works for you until the second you spend it.
+How it works: Card provider is a Pull Payee with daily limit. When you buy coffee for $5, they pull exactly $5 from your yield-earning USDC. Your money works for you until the second you spend it.
 
 ### System Comparison: Real Numbers
 

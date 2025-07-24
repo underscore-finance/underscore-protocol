@@ -11,30 +11,30 @@ Propose Address → Time-Lock Period → Confirm Addition → Whitelist Active
      (Day 1)         (3-7 days)          (Day 4+)         (Immediate)
 ```
 
-#### Step 1: Propose an Address
+### Step 1: Propose an Address
 Submit the address you want to whitelist. This creates a pending entry and starts the security countdown.
 
-*Example timeline*:
+Example timeline:
 - Monday 2pm: You propose your hardware wallet address
 - System records: Block 18,945,000, pending until block 18,995,400
 - Status: Address enters "pending" state
 
-#### Step 2: Mandatory Time-Lock
+### Step 2: Mandatory Time-Lock
 A security delay prevents immediate additions, giving you time to detect and stop unauthorized attempts.
 
-*Typical delays*:
+Typical delays:
 - **3 days** (25,920 blocks): Common for personal wallets holding < $100,000
 - **7 days** (60,480 blocks): Recommended for high-value wallets > $100,000
 - Your specific delay is set in your wallet configuration
 
 **Critical Security Feature**: If the wallet owner changes during this waiting period, all pending whitelist proposals are automatically cancelled. This prevents an attacker who gains temporary control from adding their own addresses.
 
-*Example*: Attacker compromises your wallet on Tuesday, proposes their address. You regain control Wednesday and change ownership. Their pending whitelist is automatically cancelled.
+Example: Attacker compromises your wallet on Tuesday, proposes their address. You regain control Wednesday and change ownership. Their pending whitelist is automatically cancelled.
 
-#### Step 3: Confirm the Addition
+### Step 3: Confirm the Addition
 After the time-lock expires, you must send a second transaction to complete the whitelisting.
 
-*Example completion*:
+Example completion:
 - Thursday 2pm: Time-lock expired
 - You confirm: Hardware wallet now whitelisted
 - Can immediately transfer any amount
@@ -43,7 +43,7 @@ After the time-lock expires, you must send a second transaction to complete the 
 
 Clear rules govern who can manage your whitelist:
 
-#### Permission Matrix
+### Permission Matrix
 
 | Role | Add Pending | Confirm | Cancel | Remove | Override Limits |
 |------|------------|---------|---------|---------|----------------|
@@ -51,7 +51,7 @@ Clear rules govern who can manage your whitelist:
 | **Manager** | ✓ If permitted | ✓ If permitted | ✓ If permitted | ✓ If permitted | No |
 | **MissionControl** | ✗ | ✗ | ✓ Emergency | ✓ Emergency | Yes |
 
-#### The Owner (You)
+### The Owner (You)
 Complete control over all whitelist operations:
 - Propose new addresses
 - Confirm after time-lock
@@ -59,7 +59,7 @@ Complete control over all whitelist operations:
 - Remove existing addresses
 - No restrictions on your authority
 
-#### Managers
+### Managers
 Can be granted specific whitelist permissions:
 - **canAddPending**: Propose new addresses
 - **canConfirm**: Confirm after time-lock expires
@@ -77,9 +77,9 @@ Manager wants to add pending whitelist:
 If either is false, action is denied.
 ```
 
-*Common pattern*: Grant your CFO `canAddPending` but not `canConfirm`, requiring your final approval for all additions.
+Common pattern: Grant your CFO `canAddPending` but not `canConfirm`, requiring your final approval for all additions.
 
-#### Security Override (MissionControl)
+### Security Override (MissionControl)
 Protocol-level emergency powers (rarely used):
 - Cancel suspicious pending proposals
 - Remove addresses in security emergencies
@@ -88,17 +88,17 @@ Protocol-level emergency powers (rarely used):
 
 ### Practical Administration Examples
 
-#### Solo User Setup
+### Solo User Setup
 - You propose and confirm all addresses
 - 3-day time-lock for security
 - No manager permissions needed
 
-#### Family Wallet
+### Family Wallet
 - You and spouse can both propose
 - Either can confirm after delay
 - Both can cancel if something seems wrong
 
-#### Business Treasury
+### Business Treasury
 - CFO can propose new addresses
 - CEO must confirm additions
 - Security team can cancel suspicious proposals

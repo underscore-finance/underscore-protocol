@@ -20,66 +20,66 @@ Like Payees and Managers, Cheque limits work on a rolling period system:
 
 Control how many Cheques can be written:
 
-#### Max Active Cheques (`maxNumActiveCheques`)
+### Max Active Cheques (`maxNumActiveCheques`)
 Total number of unpaid Cheques allowed at once.
-* *Example*: 20 active cheques maximum
-* *Use case*: Freelancer managing multiple client invoices
-* *Why it matters*: Prevents overcommitment of future funds
+* Example: 20 active cheques maximum
+* Use case: Freelancer managing multiple client invoices
+* Why it matters: Prevents overcommitment of future funds
 
-#### Max Cheque USD Value (`maxChequeUsdValue`)
+### Max Cheque USD Value (`maxChequeUsdValue`)
 Largest single Cheque you can create.
-* *Example*: $50,000 maximum per cheque
-* *Use case*: Business with typical transactions under this amount
-* *Protection*: Prevents accidental creation of enormous cheques
+* Example: $50,000 maximum per cheque
+* Use case: Business with typical transactions under this amount
+* Protection: Prevents accidental creation of enormous cheques
 
-#### Creation Period Controls
+### Creation Period Controls
 Limit Cheque creation within time windows:
 * **Per-Period USD Cap**: e.g., $100,000 worth of cheques per month
 * **Max Number Per Period**: e.g., 30 cheques per month
 * **Creation Cooldown**: e.g., 100 blocks (20 minutes) between cheques
 
-*Real scenario*: Prevents a compromised Manager from creating hundreds of cheques rapidly.
+Real scenario: Prevents a compromised Manager from creating hundreds of cheques rapidly.
 
 ### Payment Limits
 
 Control how Cheques are cashed:
 
-#### Payment Period Controls
+### Payment Period Controls
 Limit how many Cheques can be paid in a period:
 * **Per-Period USD Cap**: e.g., $50,000 paid out per week
 * **Max Number Per Period**: e.g., 10 cheques cashed per week  
 * **Payment Cooldown**: e.g., 50 blocks (10 minutes) between payments
 
-*Why this matters*: Even if you have 50 active cheques, you can control the payment velocity to manage cash flow.
+Why this matters: Even if you have 50 active cheques, you can control the payment velocity to manage cash flow.
 
 ### Timing Controls - Your Safety Net
 
-#### Instant USD Threshold (`instantUsdThreshold`)
+### Instant USD Threshold (`instantUsdThreshold`)
 The dividing line between instant and delayed cheques.
-* *Example*: Set to $1,000
+* Example: Set to $1,000
 * Below $1,000: Cheques can be immediate
 * Above $1,000: Automatic security delay applied
-* *Business use*: Routine payments instant, large payments get review time
+* Business use: Routine payments instant, large payments get review time
 
-#### Expensive Delay (`expensiveDelayBlocks`)
+### Expensive Delay (`expensiveDelayBlocks`)
 How long high-value cheques must wait.
-* *Example*: 50,400 blocks ≈ 7 days
-* *Example*: 7,200 blocks ≈ 24 hours for faster business
-* *Benefit*: Time to catch errors on large payments
+* Example: 50,400 blocks ≈ 7 days
+* Example: 7,200 blocks ≈ 24 hours for faster business
+* Benefit: Time to catch errors on large payments
 
-#### Default Expiry (`defaultExpiryBlocks`)
+### Default Expiry (`defaultExpiryBlocks`)
 How long cheques remain cashable after unlocking.
-* *Example*: 216,000 blocks ≈ 30 days (standard invoice terms)
-* *Example*: 50,400 blocks ≈ 7 days for time-sensitive payments
-* *Note*: Can be overridden per cheque if needed
+* Example: 216,000 blocks ≈ 30 days (standard invoice terms)
+* Example: 50,400 blocks ≈ 7 days for time-sensitive payments
+* Note: Can be overridden per cheque if needed
 
 ### Asset Controls
 
-#### Allowed Assets List
+### Allowed Assets List
 Restrict which tokens can be used in cheques.
-* *Example*: Only [USDC, USDT, DAI] for stablecoin business
-* *Example*: Only [WETH] for ETH-denominated operations
-* *Empty list*: Allows any token (use with caution)
+* Example: Only [USDC, USDT, DAI] for stablecoin business
+* Example: Only [WETH] for ETH-denominated operations
+* Empty list: Allows any token (use with caution)
 
 **Security Warning**: An empty allowed assets list means:
 - Any token can be used, including volatile ones
@@ -90,20 +90,20 @@ Restrict which tokens can be used in cheques.
 
 The protocol enforces these validation rules:
 
-#### Timing Constraints
+### Timing Constraints
 - **Cooldowns cannot exceed period length**: If period = 30 days, cooldown must be < 30 days
 - **Minimum expensive delay**: Set by protocol deployment
 - **Maximum unlock delay**: Cannot exceed protocol maximum
 - **Maximum active duration**: Expiry - unlock cannot exceed limit
 
-#### Expiry Fallback Logic
+### Expiry Fallback Logic
 ```
 if custom expiry provided → use it
 else if default expiry set → use default
 else → use wallet timeLock setting
 ```
 
-#### USD Cap Consistency
+### USD Cap Consistency
 - Per-cheque cap cannot exceed period caps
 - If maxChequeUsdValue = $10,000 and perPeriodCreatedUsdCap = $50,000
 - You can create at most 5 maximum-value cheques per period

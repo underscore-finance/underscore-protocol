@@ -86,13 +86,13 @@ The Cheque is now "live" and can be cashed.
 
 Every Cheque eventually reaches one of two final states:
 
-#### Successfully Paid
+### Successfully Paid
 - Funds transfer to recipient
 - USD value at payment recorded
 - Cheque marked as inactive
 - Cannot be paid again
 
-#### Expired
+### Expired
 - Expiry block reached without payment
 - Cheque becomes void
 - Cannot be cashed anymore

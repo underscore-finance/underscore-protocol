@@ -2,7 +2,7 @@
 
 This section details the full suite of permissions and controls you can configure for a Manager. It covers what actions they are allowed to perform and the security guardrails you can place around those actions.
 
-#### The Dual-Permission System
+### The Dual-Permission System
 For an action to be permitted, **both the global setting and the specific manager's setting must be enabled (`True`)**.
 
 1.  **Global Manager Settings**: This is your master control panel where you define a default "template" of permissions and limits. If you turn a permission `off` at the global level, no manager will be able to perform that action. This also includes the `canOwnerManage` flag, which determines if you, the owner, are also subject to the global manager limits.
@@ -14,7 +14,7 @@ For an action to be permitted, **both the global setting and the specific manage
 
 These settings define the specific types of actions a Manager is authorized to perform.
 
-#### Permission Matrix Overview
+### Permission Matrix Overview
 
 | Permission Category | Permission | What It Enables | Common Use Case |
 |-------------------|------------|-----------------|-----------------|
@@ -33,7 +33,7 @@ These settings define the specific types of actions a Manager is authorized to p
 | **Rewards** | Claim Protocol | Harvest Underscore rewards | Collect platform incentives |
 | | Claim Loot | Collect revenue share | Automated profit collection |
 
-#### DeFi Permissions Explained
+### DeFi Permissions Explained
 
 **Understanding "Legos"**: In Underscore, DeFi protocols are called "Legos" - modular building blocks that can be combined. Each Lego has a unique ID in the registry.
 
@@ -56,20 +56,20 @@ These settings define the specific types of actions a Manager is authorized to p
 * **Claim Rewards**: Claim accumulated rewards from DeFi activities
   * Example: Harvest and sell governance tokens every week
 
-#### Transfer & Payment Permissions
+### Transfer & Payment Permissions
 These settings control how a Manager can move funds and manage payment-related primitives.
 * **General Transfers**: A master switch that allows the Manager to transfer assets out of the wallet.
 * **Create Cheques**: Allows the Manager to create schedulable, one-time payment Cheques.
 * **Propose New Payees**: Permits the Manager to propose new, recurring Payees, which require your final confirmation.
 
-#### Whitelist Permissions
+### Whitelist Permissions
 These permissions control a Manager's ability to manage the wallet's address whitelist.
 * **Propose Whitelist Additions**: Allows the Manager to propose a new address to be added to the whitelist.
 * **Confirm Whitelist Additions**: Permits the Manager to confirm a pending address after the security time-lock has passed.
 * **Cancel Pending Additions**: Allows the Manager to cancel a pending whitelist proposal before it is confirmed.
 * **Remove Whitelisted Addresses**: Grants the Manager the ability to remove an already active address from the whitelist.
 
-#### Reward Management Permissions
+### Reward Management Permissions
 * **Claim Protocol Rewards**: Allows the Manager to claim Underscore protocol rewards that have been allocated to your wallet.
 * **Claim Loot (Revenue Share)**: Permits the Manager to claim your share of protocol revenue (loot) on your behalf. This is particularly useful for AI agents that can monitor and claim rewards before they expire.
 
@@ -79,7 +79,7 @@ These permissions control a Manager's ability to manage the wallet's address whi
 
 These settings act as security guardrails, defining the boundaries within which a Manager must operate.
 
-#### Two-Phase Security Model
+### Two-Phase Security Model
 
 Underscore implements a sophisticated two-phase validation system that provides comprehensive protection:
 
@@ -105,7 +105,7 @@ This dual validation ensures that:
 2. Even authorized actions must stay within financial limits
 3. All checks happen atomically within the transaction
 
-#### Understanding Period-Based Limits
+### Understanding Period-Based Limits
 Many Manager controls operate on a **period system**. A period is a configurable time window (measured in blocks) that automatically resets, giving your Manager fresh limits.
 
 **How Periods Work:**
@@ -129,44 +129,44 @@ Remaining: $3k         Remaining: $0           Remaining: $7k
 
 This system ensures consistent, predictable spending patterns while preventing runaway spending.
 
-#### Financial & Transaction Limits
+### Financial & Transaction Limits
 These settings control the "how much" and "how often" of a Manager's financial activities.
 
 * **Max Value Per Transaction**: Sets the maximum USD value for any single transaction.
-  * *Example*: Set to $5,000 to prevent large one-time losses from bad trades
+  * Example: Set to $5,000 to prevent large one-time losses from bad trades
 
 * **Max Value Per Period**: Sets the total USD value a Manager can transact within a recurring time window.
-  * *Example*: $10,000 per week for an AI trading agent
-  * *Example*: $50,000 per month for a business operations manager
+  * Example: $10,000 per week for an AI trading agent
+  * Example: $50,000 per month for a business operations manager
 
 * **Lifetime Value Limit**: Sets the cumulative USD value a Manager can transact over their entire tenure.
-  * *Example*: $500,000 lifetime limit for a year-long AI agent subscription
+  * Example: $500,000 lifetime limit for a year-long AI agent subscription
 
 * **Max Transactions Per Period**: Sets the maximum number of transactions a Manager can execute in a period.
-  * *Example*: 100 transactions per day to prevent spam or runaway bots
+  * Example: 100 transactions per day to prevent spam or runaway bots
 
 * **Transaction Cooldown**: Enforces a mandatory waiting period (in blocks) between a Manager's transactions.
-  * *Example*: 50 blocks (~10 minutes) to slow down potential attacks
-  * *Example*: 300 blocks (~1 hour) for high-value manager accounts
+  * Example: 50 blocks (~10 minutes) to slow down potential attacks
+  * Example: 300 blocks (~1 hour) for high-value manager accounts
 
 * **Fail on Zero Price**: A security feature that blocks a transaction if an asset's price is reported as zero.
-  * *Why it matters*: Prevents managers from trading during oracle failures when assets might appear worthless
+  * Why it matters: Prevents managers from trading during oracle failures when assets might appear worthless
 
-#### Asset & Application Restrictions
+### Asset & Application Restrictions
 For ultimate security, you can restrict a Manager to a very specific, pre-approved "sandbox".
 
 * **Restrict to Specific Assets**: Provide a specific list of tokens (e.g., USDC, WETH) that the Manager is allowed to interact with.
-  * *Example*: Only allow stablecoins (USDC, USDT, DAI) for a conservative yield strategy
-  * *Example*: Restrict to ETH and WETH for an Ethereum-focused trading bot
+  * Example: Only allow stablecoins (USDC, USDT, DAI) for a conservative yield strategy
+  * Example: Restrict to ETH and WETH for an Ethereum-focused trading bot
 
 * **Restrict to Specific dApps**: Provide a specific list of DeFi applications ("Legos") that the Manager is permitted to use.
-  * *Example*: Only allow Aave and Compound for a yield-focused manager
-  * *Example*: Restrict to Uniswap and Curve for a trading-only agent
-  * *Note*: You specify Lego IDs, giving you protocol-level control
+  * Example: Only allow Aave and Compound for a yield-focused manager
+  * Example: Restrict to Uniswap and Curve for a trading-only agent
+  * Note: You specify Lego IDs, giving you protocol-level control
 
 * **Restrict to Specific Payees**: Provide a specific list of pre-approved addresses that the Manager is allowed to send funds to.
-  * *Example*: Only allow payments to your verified business vendors
-  * *Example*: Restrict family member manager to emergency addresses only
+  * Example: Only allow payments to your verified business vendors
+  * Example: Restrict family member manager to emergency addresses only
 
 ---
 

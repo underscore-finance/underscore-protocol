@@ -2,7 +2,7 @@
 
 Managers unlock a new level of functionality and automation for your wallet.
 
-#### The Automated Yield Farmer AI Agent
+### The Automated Yield Farmer AI Agent
 
 **Scenario**: You have $100,000 in stablecoins earning yield across DeFi protocols.
 
@@ -21,7 +21,7 @@ Managers unlock a new level of functionality and automation for your wallet.
 
 **Actual Numbers**: On $100k, this could mean $3,000-$5,000 extra per year.
 
-#### The Secure Business Operations Manager
+### The Secure Business Operations Manager
 
 **Scenario**: Running a crypto business with regular expenses.
 
@@ -41,7 +41,7 @@ Managers unlock a new level of functionality and automation for your wallet.
 
 **Real Impact**: Streamline operations while protecting against insider threats.
 
-#### The Smart Portfolio Rebalancer
+### The Smart Portfolio Rebalancer
 
 **Scenario**: Maintaining a 60% ETH, 30% BTC, 10% stables portfolio.
 
@@ -61,7 +61,7 @@ Managers unlock a new level of functionality and automation for your wallet.
 
 **Cost Savings**: Avoid emotional trading and save on monitoring time.
 
-#### Professional AI Services - The Next Level
+### Professional AI Services - The Next Level
 The most powerful way to use Managers is with professional AI services that provide sophisticated portfolio management. Here's how it works in simple terms:
 
 **Think of it like hiring a professional investment firm:**
@@ -100,7 +100,7 @@ The most powerful way to use Managers is with professional AI services that prov
 - Your extra profit: $7,500/year
 - Your effort: Zero
 
-#### Additional Powerful Use Cases
+### Additional Powerful Use Cases
 
 **Family Emergency Access Manager**
 - **Who**: Trusted family member

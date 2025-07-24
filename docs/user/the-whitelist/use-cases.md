@@ -4,7 +4,7 @@ The Whitelist enables essential financial operations that require unrestricted t
 
 ### Personal Finance
 
-#### Multi-Wallet Security Strategy
+### Multi-Wallet Security Strategy
 Many users maintain multiple wallets for security:
 - **Hot Wallet**: Daily operations with $5,000 - $50,000
 - **Hardware Wallet**: Long-term storage with $100,000 - $1,000,000
@@ -14,7 +14,7 @@ By whitelisting your hardware wallet and multi-sig addresses, you can instantly 
 
 **Real Scenario**: Market crash begins. You have $500,000 in your hot wallet but only a $25,000 daily limit. With your hardware wallet whitelisted, you can immediately secure all funds instead of waiting 20 days.
 
-#### Emergency Family Access
+### Emergency Family Access
 Life is unpredictable. Whitelisting a trusted family member's address ensures:
 - Immediate access to funds in medical emergencies
 - No delays due to payment limits during critical moments
@@ -27,7 +27,7 @@ Life is unpredictable. Whitelisting a trusted family member's address ensures:
 
 ### Business Operations
 
-#### Treasury Management
+### Treasury Management
 Businesses often need to move large sums between wallets:
 - **Operational Wallet** → **Main Treasury**: Daily revenue sweeps of $50,000-$200,000
 - **Treasury** → **Payroll Wallet**: Monthly transfers of $500,000+
@@ -37,7 +37,7 @@ Whitelisting these addresses enables smooth cash flow without artificial limits 
 
 **ROI Example**: A business processes $3M monthly. Without whitelisting, a $50,000 daily limit would require 60 transactions and constant monitoring. With whitelisting: instant transfers, saving 10+ hours monthly in treasury operations.
 
-#### Multi-Entity Operations
+### Multi-Entity Operations
 Companies with multiple entities or departments can whitelist:
 - Subsidiary wallets for intercompany transfers
 - Department wallets for budget allocations
@@ -45,7 +45,7 @@ Companies with multiple entities or departments can whitelist:
 
 ### Trading and Investment
 
-#### High-Frequency Trading Setup
+### High-Frequency Trading Setup
 Active traders often need:
 - **Main Wallet** → **Exchange Wallet**: Deploy $100,000+ for opportunities
 - **Profit Wallet** → **Cold Storage**: Secure $50,000+ gains immediately
@@ -55,7 +55,7 @@ Whitelisting enables instant movement of large positions when market opportuniti
 
 **Time-Critical Example**: Bitcoin flash crash to $25,000. You need to deploy $250,000 from cold storage immediately. With whitelisting, you can act in seconds instead of being limited to your $25,000 daily transfer limit.
 
-#### DeFi Position Management
+### DeFi Position Management
 When managing complex DeFi positions:
 - Quick rebalancing between wallets
 - Emergency liquidation prevention transfers
@@ -63,13 +63,13 @@ When managing complex DeFi positions:
 
 ### Special Situations
 
-#### Estate Planning
+### Estate Planning
 Some users whitelist:
 - Beneficiary addresses with clear documentation
 - Trust wallet addresses
 - Legal entity wallets for succession planning
 
-#### Migration Scenarios
+### Migration Scenarios
 When upgrading wallet infrastructure:
 - Whitelist new wallet before full migration
 - Transfer assets in any size batches

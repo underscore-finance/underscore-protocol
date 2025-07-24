@@ -4,7 +4,7 @@ Managing Payees is straightforward yet powerful, with multiple layers of control
 
 ### The Two-Layer Settings System
 
-#### 1. Global Payee Settings
+### 1. Global Payee Settings
 Your wallet-wide defaults that apply to all Payees. Think of these as your master controls:
 
 * **Default period length**: Standard payment cycle (e.g., 30 days)
@@ -12,26 +12,26 @@ Your wallet-wide defaults that apply to all Payees. Think of these as your maste
 * **canPayOwner**: Whether you can pay yourself without setup
 * **canPull**: Master switch for pull payment functionality
 
-*Example setup for a business*:
+Example setup for a business:
 - Default period: 30 days (monthly)
 - Default per-transaction cap: $5,000
 - canPayOwner: Enabled (for moving funds between your wallets)
 - canPull: Enabled (for subscriptions)
 
-#### 2. Specific Payee Settings
+### 2. Specific Payee Settings
 Custom rules for each individual Payee that override defaults:
 
 * **Individual limits**: Tailored to each relationship
 * **Custom periods**: Weekly for contractors, monthly for employees
 * **Asset restrictions**: USDC only for some, any token for others
 
-*Example*: Your default limit is $5,000, but you set your landlord's limit to $10,000 for rent payments.
+Example: Your default limit is $5,000, but you set your landlord's limit to $10,000 for rent payments.
 
 ### Lifecycle Management
 
 Payees follow a secure activation process:
 
-#### Start Delay (`startDelay`)
+### Start Delay (`startDelay`)
 Time buffer before a new Payee becomes active.
 
 | Use Case | Delay | Blocks (Ethereum) | Why |
@@ -41,9 +41,9 @@ Time buffer before a new Payee becomes active.
 | Trusted family | 1 day | ~7,200 | Quick access for emergencies |
 | Existing partner | 1 hour | ~300 | Minimal delay for known entities |
 
-*Security benefit*: Cancel if something seems wrong before activation
+Security benefit: Cancel if something seems wrong before activation
 
-#### Activation Length (`activationLength`)
+### Activation Length (`activationLength`)
 How long the Payee remains active before automatic expiry.
 
 | Payee Type | Duration | Use Case |
@@ -53,9 +53,9 @@ How long the Payee remains active before automatic expiry.
 | Subscription service | 30 days | Monthly renewal |
 | One-time vendor | 7 days | Single transaction |
 
-*Auto-expiry*: Forces regular review of payment relationships
+Auto-expiry: Forces regular review of payment relationships
 
-#### Payee State Flow
+### Payee State Flow
 ```
 Added → Pending → Active → Expired/Removed
   │        │         │          │
@@ -95,25 +95,25 @@ Clear hierarchy ensures security while enabling flexibility:
 └─────────────────────────────────────────────┘
 ```
 
-#### The Owner (You)
+### The Owner (You)
 * Add new Payees with configurable delay (e.g., 3-day security buffer)
 * Update any Payee's settings immediately
 * Remove any Payee instantly
 * Confirm or reject Manager proposals
 
-#### Managers
+### Managers
 * Can propose new Payees through two-tier process
 * Creates pending entry with time-lock
 * Owner must confirm after delay expires
 * Useful for: HR proposing new $5,000/month employee
 
-#### The Payee
+### The Payee
 * Can remove themselves (self-service offboarding)
 * Cannot modify their own limits
 * Cannot add other Payees
 * Example: Contractor finishing project removes access
 
-#### Security Team (MissionControl)
+### Security Team (MissionControl)
 * Emergency removal rights only
 * Cannot add or modify
 * Last resort for compromised accounts

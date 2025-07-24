@@ -31,13 +31,13 @@ Example AI Agent Configuration:
 
 **Manager Templates**:
 
-*Conservative (Family Member)*:
+Conservative (Family Member):
 - $500 daily, $2,000 monthly limit
 - Transfer permissions only
 - 3-day activation delay
 - 6-month expiry
 
-*Active (Trading Bot)*:
+Active (Trading Bot):
 - $10,000 daily, $100,000 monthly limit  
 - Full DeFi permissions
 - 1-day activation delay
@@ -64,19 +64,19 @@ Applied Rule: The MORE restrictive limit always applies
 
 **Common Use Cases with Numbers**:
 
-*Employee Payroll*:
+Employee Payroll:
 - Monthly salary: $5,000 USDC
 - Period: 30 days
 - Max transactions: 2 per period (bi-weekly)
 - Lifetime cap: $60,000 (1 year)
 
-*SaaS Subscriptions*:
+SaaS Subscriptions:
 - Monthly limit: $100
 - Pull payment: Enabled
 - Token: USDC only
 - Auto-expiry: 12 months
 
-*Contractor Payments*:
+Contractor Payments:
 - Per transaction: $2,500
 - Weekly period: $10,000 max
 - Cooldown: 24 hours between payments
@@ -110,13 +110,13 @@ Yield earned during wait: ~$2 at 5% APY
 
 **Use Case Examples**:
 
-*Invoice Payment*:
+Invoice Payment:
 - Amount: $3,000 USDC
 - Unlock: 3 days (review period)
 - Expiry: 30 days (net terms)
 - Benefit: Can cancel if work unsatisfactory
 
-*Rent Payment*:
+Rent Payment:
 - Amount: $2,500 USDC
 - Created: 25th of month
 - Unlocks: 1st of next month

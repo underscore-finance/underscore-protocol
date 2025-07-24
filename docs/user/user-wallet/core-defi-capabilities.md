@@ -17,9 +17,9 @@ The wallet implements sophisticated yield tracking that works automatically:
 ```
 
 **For Rebasing Assets** (balance increases):
-- Automatic detection of balance changes
-- Yield calculated on every interaction
-- No manual tracking needed
+* Automatic detection of balance changes
+* Yield calculated on every interaction
+* No manual tracking needed
 
 ### Earning Yield
 
@@ -58,10 +58,10 @@ Underscore:
 ### Trading & Swapping
 
 **Token Swap Capabilities**:
-- Maximum 5 hops in a single transaction
-- Automatic routing through multiple DEXs
-- Swap fee: 0-5% cap (configurable)
-- Supports Uniswap V2/V3, Aerodrome, Curve, and more
+* Maximum 5 hops in a single transaction
+* Automatic routing through multiple DEXs
+* Swap fee: 0-5% cap (configurable)
+* Supports Uniswap V2/V3, Aerodrome, Curve, and more
 
 **Complex Swap Example**:
 ```
@@ -75,15 +75,15 @@ Execution: Single transaction
 **Liquidity Provision**:
 ```
 Standard LP (Uniswap V2 style):
-- Add liquidity: $40 gas
-- Remove liquidity: $35 gas
-- Auto-calculation of impermanent loss
+* Add liquidity: $40 gas
+* Remove liquidity: $35 gas
+* Auto-calculation of impermanent loss
 
 Concentrated LP (Uniswap V3):
-- Mint position: $120 gas
-- Add to position: $80 gas
-- NFT position tracking included
-- Range adjustment capabilities
+* Mint position: $120 gas
+* Add to position: $80 gas
+* NFT position tracking included
+* Range adjustment capabilities
 ```
 
 **DEX Integrations**: 10+ protocols including Uniswap, Curve, Balancer, Aerodrome
@@ -91,24 +91,24 @@ Concentrated LP (Uniswap V3):
 ### Asset Management
 
 **ETH/WETH Conversion**:
-- Gas cost: ~$3-5
-- No slippage or fees
-- Instant execution
-- Automatic balance updates
+* Gas cost: ~$3-5
+* No slippage or fees
+* Instant execution
+* Automatic balance updates
 
 **NFT Management**:
-- ERC-721 support
-- Safe transfer implementation
-- Recovery function for mistakes
-- No storage limits
+* ERC-721 support
+* Safe transfer implementation
+* Recovery function for mistakes
+* No storage limits
 
 **Mint & Redeem Operations**:
 ```
 Example: DAI → sDAI (Savings DAI)
-- Mint sDAI: $15 gas
-- Current rate: 5% APY
-- Redeem anytime: $12 gas
-- No lock-up periods
+* Mint sDAI: $15 gas
+* Current rate: 5% APY
+* Redeem anytime: $12 gas
+* No lock-up periods
 ```
 
 ### Borrowing & Debt Management
@@ -116,17 +116,17 @@ Example: DAI → sDAI (Savings DAI)
 **Collateral Operations**:
 ```
 Example Setup:
-- Deposit 10 ETH as collateral
-- Borrow up to 5,000 USDC (50% LTV)
-- Health factor monitoring: 1.5+
-- Liquidation protection alerts
+* Deposit 10 ETH as collateral
+* Borrow up to 5,000 USDC (50% LTV)
+* Health factor monitoring: 1.5+
+* Liquidation protection alerts
 ```
 
 **Gas Costs**:
-- Add collateral: $40
-- Borrow assets: $60
-- Repay debt: $35
-- Remove collateral: $40
+* Add collateral: $40
+* Borrow assets: $60
+* Repay debt: $35
+* Remove collateral: $40
 
 **Integrated Protocols**: Ripe Finance, with more coming
 
@@ -135,21 +135,21 @@ Example Setup:
 **Automated Reward Claiming**:
 ```
 Manual Process:
-- Check each protocol: 10 min
-- Claim rewards: $20 gas × 5 protocols
-- Total: $100 gas + 30 min time
+* Check each protocol: 10 min
+* Claim rewards: $20 gas × 5 protocols
+* Total: $100 gas + 30 min time
 
 With AI Manager:
-- Auto-monitors all positions
-- Claims when gas-efficient
-- Bundles multiple claims: $40 total
-- Savings: 60% gas + 100% time
+* Auto-monitors all positions
+* Claims when gas-efficient
+* Bundles multiple claims: $40 total
+* Savings: 60% gas + 100% time
 ```
 
 **Fee Structure**: 
-- Reward claiming fee: 2-5% of rewards
-- Applied only on successful claims
-- No fee if no rewards available
+* Reward claiming fee: 2-5% of rewards
+* Applied only on successful claims
+* No fee if no rewards available
 
 ### Gas Optimization Summary
 

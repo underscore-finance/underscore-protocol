@@ -20,18 +20,18 @@ Eligible yield-bearing assets may earn additional bonuses during promotional per
 ### Key Features of the Rewards System
 
 **Transparent Distribution**:
-- All fees and distributions tracked on-chain
-- Share calculation based on verifiable formulas
-- Claims subject to cooldown periods (configurable)
-- Multiple claim options: individual rewards or batch claiming
+* All fees and distributions tracked on-chain
+* Share calculation based on verifiable formulas
+* Claims subject to cooldown periods (configurable)
+* Multiple claim options: individual rewards or batch claiming
 
 **Fee Structure Overview**:
-- **Swap fees**: 0.1-0.5% (varies by asset pair)
-- **Yield fees**: Up to 25% of profits only (typically 10%)
-- **External rewards fees**: Up to 25% of claimed rewards
+* **Swap fees**: 0.1-0.5% (varies by asset pair)
+* **Yield fees**: Up to 25% of profits only (typically 10%)
+* **External rewards fees**: Up to 25% of claimed rewards
 
 **Important Notes**:
-- Fees are split between users, ambassadors, and protocol operations
-- Actual returns depend on protocol activity and your participation level
-- Rewards accumulate until claimed (subject to available balances)
-- Manager permissions can allow delegated claiming
+* Fees are split between users, ambassadors, and protocol operations
+* Actual returns depend on protocol activity and your participation level
+* Rewards accumulate until claimed (subject to available balances)
+* Manager permissions can allow delegated claiming

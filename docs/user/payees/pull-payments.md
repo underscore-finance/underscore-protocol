@@ -5,14 +5,14 @@ Pull payments transform how you handle recurring charges and subscriptions. Inst
 ### The Game-Changing Difference
 
 **Traditional Subscriptions**: 
-- Credit card on file with full access to your bank account
-- Cancel by calling customer service during business hours
-- Charges can increase without your explicit approval
+* Credit card on file with full access to your bank account
+* Cancel by calling customer service during business hours
+* Charges can increase without your explicit approval
 
 **Underscore Pull Payments**: 
-- Service can only pull what you've authorized
-- Cancel instantly with one transaction
-- Price increases blocked by your preset limits
+* Service can only pull what you've authorized
+* Cancel instantly with one transaction
+* Price increases blocked by your preset limits
 
 ### How Pull Payments Work
 
@@ -42,15 +42,15 @@ Monthly benefit: $20 extra income from yield on subscription funds
 ```
 
 **Real Numbers Comparison**:
-- Traditional: $6,000 yearly subscriptions sitting idle = $0 earned
-- Underscore: Same $6,000 earning 5% until needed = $300 extra per year
-- That's a free month of subscriptions from yield alone!
+* Traditional: $6,000 yearly subscriptions sitting idle = $0 earned
+* Underscore: Same $6,000 earning 5% until needed = $300 extra per year
+* That's a free month of subscriptions from yield alone!
 
 ### Security Requirements
 
 Pull payments have strict safety requirements enforced by smart contracts:
 
-#### Double Activation Required
+### Double Activation Required
 ```
 Global Settings              AND    Specific Payee Settings
 canPull: true                       canPull: true
@@ -64,7 +64,7 @@ If either is false → Pull payments blocked
 
 **Why double activation?** Prevents accidental enablement and gives you two control points
 
-#### Mandatory Financial Limits
+### Mandatory Financial Limits
 Pull Payees MUST have at least one type of limit:
 
 | Configuration | Valid? | Why |
@@ -75,11 +75,11 @@ Pull Payees MUST have at least one type of limit:
 | No limits set | ✗ | System blocks - no unlimited access |
 
 **Example**: Netflix-style service
-- Unit limit: 20 USDC per month
-- USD limit: $25 per month  
-- Result: Protected even if USDC depegs
+* Unit limit: 20 USDC per month
+* USD limit: $25 per month  
+* Result: Protected even if USDC depegs
 
-#### Best Practices
+### Best Practices
 * Start with small limits and increase as you build trust
 * Use period caps for subscriptions (e.g., $50/month)
 * Set lifetime caps for project-based services
@@ -90,37 +90,37 @@ Pull Payees MUST have at least one type of limit:
 **Monthly Subscriptions** ($50-500/month typical)
 ```
 Example: Business SaaS Suite
-- QuickBooks: $30/month
-- Slack: $100/month  
-- AWS: $200/month (capped)
-- Total: $330/month in subscriptions
+* QuickBooks: $30/month
+* Slack: $100/month  
+* AWS: $200/month (capped)
+* Total: $330/month in subscriptions
 
 Configuration:
-- Period: 30 days
-- USD limit: $50-200 per service
-- Pull enabled individually
-- Saves: ~$15/month in yield
+* Period: 30 days
+* USD limit: $50-200 per service
+* Pull enabled individually
+* Saves: ~$15/month in yield
 ```
 
 **Usage-Based Services** (Variable but capped)
 ```
 Example: OpenAI API
-- Average use: $50-100/month
-- Spike protection: $500 cap
-- Period: 30 days
-- Cooldown: 25 days
-- Only USDC accepted
+* Average use: $50-100/month
+* Spike protection: $500 cap
+* Period: 30 days
+* Cooldown: 25 days
+* Only USDC accepted
 Result: Never worry about runaway API costs
 ```
 
 **DAO Contributions** (Supporting ecosystem)
 ```
 Example: Protocol supporter
-- Gitcoin: $100/month
-- Local DAO: $50/month
-- Dev fund: $25/week
-- All pull automatically
-- Cancel = remove payee
+* Gitcoin: $100/month
+* Local DAO: $50/month
+* Dev fund: $25/week
+* All pull automatically
+* Cancel = remove payee
 Benefit: "Set and forget" supporting builders
 ```
 

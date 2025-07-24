@@ -24,13 +24,13 @@ This dual system protects you during market volatility—your ETH payments won't
 
 ### Financial Limits
 
-#### Per-Transaction Cap (`perTxCap`)
+### Per-Transaction Cap (`perTxCap`)
 The maximum amount a Payee can receive in a single transaction.
-* *Example*: Set 5000 USDC cap for vendor payments
-* *Example*: Set $10,000 USD cap for large invoices
-* *Use case*: Prevents accidental overpayment due to input errors
+* Example: Set 5000 USDC cap for vendor payments
+* Example: Set $10,000 USD cap for large invoices
+* Use case: Prevents accidental overpayment due to input errors
 
-#### Per-Period Cap (`perPeriodCap`)
+### Per-Period Cap (`perPeriodCap`)
 The total amount a Payee can receive within a recurring time window.
 
 **Visual Example - $10,000 Monthly Limit**:
@@ -43,39 +43,39 @@ Remaining: $3,000         Remaining: $0              Remaining: $7,000
    (doesn't roll over)      (hit the cap)           (fresh start)
 ```
 
-* *Employee salary*: $6,000 per month, paid in 2 installments
-* *Vendor payments*: $20,000 per month, multiple invoices
-* *Contractor*: 500 USDC per week for ongoing services
+* Employee salary: $6,000 per month, paid in 2 installments
+* Vendor payments: $20,000 per month, multiple invoices
+* Contractor: 500 USDC per week for ongoing services
 
-#### Lifetime Cap (`lifetimeCap`)
+### Lifetime Cap (`lifetimeCap`)
 The cumulative total amount a Payee can ever receive.
-* *Example*: $50,000 total for a contractor's project
-* *Example*: 10,000 USDC for a limited engagement
-* *Security benefit*: Once reached, no more payments possible without your intervention
+* Example: $50,000 total for a contractor's project
+* Example: 10,000 USDC for a limited engagement
+* Security benefit: Once reached, no more payments possible without your intervention
 
 ### Timing & Frequency Controls
 
-#### Period Length (`periodLength`)
+### Period Length (`periodLength`)
 Defines your payment cycle in blocks.
-* *Example*: 216,000 blocks ≈ 30 days for monthly payments
-* *Example*: 50,400 blocks ≈ 7 days for weekly payments
-* *Tip*: Periods start from the Payee's first transaction
+* Example: 216,000 blocks ≈ 30 days for monthly payments
+* Example: 50,400 blocks ≈ 7 days for weekly payments
+* Tip: Periods start from the Payee's first transaction
 
-#### Max Transactions Per Period (`maxNumTxsPerPeriod`)
+### Max Transactions Per Period (`maxNumTxsPerPeriod`)
 Limits payment frequency within each period.
-* *Example*: 1 transaction per month for salary
-* *Example*: 4 transactions per week for flexible contractor
-* *Protection*: Prevents payment spam or abuse
+* Example: 1 transaction per month for salary
+* Example: 4 transactions per week for flexible contractor
+* Protection: Prevents payment spam or abuse
 
-#### Transaction Cooldown (`txCooldownBlocks`)
+### Transaction Cooldown (`txCooldownBlocks`)
 Mandatory waiting period between payments.
-* *Example*: 7,200 blocks ≈ 24 hours between payments
-* *Example*: 300 blocks ≈ 1 hour for more frequent needs
-* *Why it matters*: Gives you time to react if something seems wrong
+* Example: 7,200 blocks ≈ 24 hours between payments
+* Example: 300 blocks ≈ 1 hour for more frequent needs
+* Why it matters: Gives you time to react if something seems wrong
 
 ### Asset Restrictions
 
-#### Primary Asset Settings
+### Primary Asset Settings
 Control which tokens can be sent to each Payee—critical for preventing wrong-token mistakes.
 
 * **primaryAsset**: The main token this Payee receives (e.g., USDC address)
@@ -94,12 +94,12 @@ Control which tokens can be sent to each Payee—critical for preventing wrong-t
 
 ### Safety Features
 
-#### Fail on Zero Price (`failOnZeroPrice`)
+### Fail on Zero Price (`failOnZeroPrice`)
 Critical protection during oracle failures or market anomalies.
-* *When enabled*: Blocks transactions if token price reads as $0
-* *Why crucial*: Prevents paying 1000 ETH when system thinks ETH = $0
-* *Real example*: If oracle fails and shows ETH = $0, your $5,000 limit wouldn't protect you
-* *Best practice*: Always enable unless you have specific reason not to
+* When enabled: Blocks transactions if token price reads as $0
+* Why crucial: Prevents paying 1000 ETH when system thinks ETH = $0
+* Real example: If oracle fails and shows ETH = $0, your $5,000 limit wouldn't protect you
+* Best practice: Always enable unless you have specific reason not to
 
 ### Complete Configuration Examples
 

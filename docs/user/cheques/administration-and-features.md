@@ -4,7 +4,7 @@ Cheques offer powerful features beyond basic payments, enabling sophisticated pa
 
 ### Advanced Payment Features
 
-#### Pull Payments (`canBePulled`)
+### Pull Payments (`canBePulled`)
 Transform Cheques into claimable payments that recipients control.
 
 **Double-Flag Requirement**:
@@ -29,14 +29,14 @@ canBePulled: true               canBePulled: true
 - Services that batch process payments
 - Anyone who prefers to pull rather than wait
 
-**Real example**: 
+Real example: 
 A contractor completes work and receives a pull-enabled Cheque for $5,000:
 - Claim immediately if they need funds
 - Wait until month-end for tax purposes  
 - Batch multiple client payments together
 - Funds earn 5% APY until claimed (~$20/month)
 
-#### Manager Payments (`canManagerPay`)
+### Manager Payments (`canManagerPay`)
 Delegate payment execution without giving full access.
 
 **Use cases**:
@@ -58,7 +58,7 @@ Like Payees, Cheques intelligently source funds when needed:
 2. **Auto-withdraw from yield** if needed (Aave, Compound, etc.)
 3. **Complete payment** seamlessly
 
-*Example*: You have a $10,000 cheque to pay but only $2,000 liquid. The system automatically:
+Example: You have a $10,000 cheque to pay but only $2,000 liquid. The system automatically:
 - Uses your $2,000 liquid funds
 - Withdraws $8,000 from your yield positions
 - Completes the payment in one transaction
@@ -67,7 +67,7 @@ Like Payees, Cheques intelligently source funds when needed:
 
 Clear rules about who can do what:
 
-#### Creating Cheques
+### Creating Cheques
 **The Owner (You)**: 
 - Always can create cheques
 - No restrictions on amounts or settings
@@ -93,7 +93,7 @@ Two Conditions Must Be True:
 - Prevents accidental permissions
 - Maximum security for fund control
 
-#### Cancelling Cheques
+### Cancelling Cheques
 **The Owner**: 
 - Can cancel any cheque before it's paid
 - No questions asked

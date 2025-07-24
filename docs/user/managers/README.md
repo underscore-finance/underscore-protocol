@@ -25,14 +25,14 @@ Managers can be:
 * **Professional Services**: Registered financial services with proven track records
 * **AI Agents**: Sophisticated algorithms that optimize your portfolio 24/7
 
-#### Why AI Agents Are Finally Safe
+### Why AI Agents Are Finally Safe
 Traditional AI wallets are risky—if the AI or its server is compromised, you lose everything. Underscore's approach is different:
 * **Hard Limits**: Set a maximum of $10,000 per month, and the AI cannot spend $10,001. Configure per-transaction limits (e.g., $1,000 max) and lifetime caps (e.g., $100,000 total)
 * **Transparent Rules**: Every permission is visible on-chain—no hidden capabilities
 * **Instant Revocation**: Remove a manager with one transaction if anything seems wrong
 * **Time-Locked Activation**: New managers wait 7 days (configurable) before activation, giving you time to verify legitimate additions
 
-#### Concrete Examples
+### Concrete Examples
 * **Monthly DCA Bot**: $5,000/month limit, can only buy ETH and BTC, 24-hour cooldown between purchases
 * **Yield Optimizer**: Access to USDC/USDT only, can interact with Aave and Compound, $50,000 lifetime limit
 * **Team Treasury Manager**: Can pay 5 pre-approved vendors, $2,000 per transaction, requires 12-hour gaps between payments
