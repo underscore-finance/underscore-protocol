@@ -3,13 +3,63 @@
 Managers unlock a new level of functionality and automation for your wallet.
 
 #### The Automated Yield Farmer AI Agent
-Set up an AI Agent as a Manager with permissions to `Manage Yield` and `Claim Rewards`. This agent can work for you 24/7, automatically harvesting rewards from your DeFi positions and compounding them back into your yield-bearing assets to maximize your returns.
 
-#### The Secure Spending Allowance
-Delegate a Manager to a team member with `Transfer` permissions but with strict controls like a low **Max USD Value Per Period** and a specific list of **Allowed Payees**.
+**Scenario**: You have $100,000 in stablecoins earning yield across DeFi protocols.
 
-#### The Portfolio Rebalancer AI Agent
-Appoint an AI-powered rebalancing service as a Manager with `Buy and Sell` permissions to execute swaps and maintain your target portfolio allocation. You can use **Financial Limits** to ensure it can't drain your account in a single trade.
+**Configuration**:
+- **Permissions**: Manage Yield, Claim Rewards
+- **Limits**: $20,000 per transaction, $100,000 per month
+- **Allowed Assets**: USDC, USDT, DAI
+- **Allowed Legos**: Aave, Compound, Yearn
+- **Activation**: 3-day delay, 180-day duration
+
+**What It Does**:
+- Monitors APY rates across protocols every hour
+- When Aave offers 2% more than Compound, moves funds
+- Claims and auto-compounds rewards daily
+- Result: Extra 3-5% APY through optimization
+
+**Actual Numbers**: On $100k, this could mean $3,000-$5,000 extra per year.
+
+#### The Secure Business Operations Manager
+
+**Scenario**: Running a crypto business with regular expenses.
+
+**Configuration**:
+- **Permissions**: Transfer only
+- **Limits**: $2,500 per transaction, $25,000 per week
+- **Transaction Cooldown**: 1 hour (300 blocks)
+- **Allowed Payees**: 10 verified vendor addresses
+- **Allowed Assets**: USDC only
+- **Activation**: 24-hour delay, 90-day duration
+
+**What It Does**:
+- Team member can pay invoices without accessing treasury
+- Can't exceed weekly budget or pay unapproved addresses
+- One-hour cooldown prevents rapid-fire mistakes
+- Auto-expires quarterly for review
+
+**Real Impact**: Streamline operations while protecting against insider threats.
+
+#### The Smart Portfolio Rebalancer
+
+**Scenario**: Maintaining a 60% ETH, 30% BTC, 10% stables portfolio.
+
+**Configuration**:
+- **Permissions**: Buy and Sell only
+- **Limits**: $5,000 per transaction, $50,000 per month
+- **Allowed Assets**: ETH, WBTC, USDC
+- **Allowed Legos**: Uniswap, Curve
+- **Rebalance Threshold**: 5% deviation
+- **Activation**: 7-day delay, 365-day duration
+
+**What It Does**:
+- Checks portfolio balance every 6 hours
+- When ETH rises to 65%, sells to USDC
+- When BTC drops to 25%, buys from USDC
+- Maintains target allocation automatically
+
+**Cost Savings**: Avoid emotional trading and save on monitoring time.
 
 #### Professional AI Services - The Next Level
 The most powerful way to use Managers is with professional AI services that provide sophisticated portfolio management. Here's how it works in simple terms:
@@ -26,13 +76,60 @@ The most powerful way to use Managers is with professional AI services that prov
 * **Professional Grade**: Access institutional-level trading strategies from your personal wallet
 * **Always in Control**: You can revoke access instantly if needed
 
-**Real Example:**
-Imagine an AI yield optimizer service:
-- You authorize it with "Manage Yield" permissions
-- Set a $50,000 per month limit
-- Restrict it to only use Aave, Compound, and Morpho
-- The AI monitors rates 24/7 and moves your funds to the highest yields
-- It pays all the gas fees
-- You earn an extra 2-3% APY with zero effort
+**Real Example - Professional Yield Optimizer:**
 
-This is the future of DeFi: professional-grade automation with retail-level control and security.
+**Your Setup**:
+- Portfolio: $250,000 in stablecoins
+- Manager: YieldMaxAI Service
+- Permissions: Manage Yield, Claim Rewards
+- Limits: $50,000 per tx, $500,000 per month
+- Allowed Protocols: Aave, Compound, Morpho, Yearn
+- Activation: 7-day delay, 1-year duration
+
+**What Happens**:
+1. YieldMaxAI monitors 20+ yield sources every block
+2. When Morpho offers 12% vs Aave's 8%, it executes:
+   - Withdraw from Aave → Deposit to Morpho (one atomic transaction)
+3. Auto-harvests and compounds rewards every 8 hours
+4. Pays all gas fees (you pay nothing)
+5. Sends you weekly performance reports
+
+**The Numbers**:
+- Base yield without optimization: 8% = $20,000/year
+- Optimized yield with AI: 11% = $27,500/year
+- Your extra profit: $7,500/year
+- Your effort: Zero
+
+#### Additional Powerful Use Cases
+
+**Family Emergency Access Manager**
+- **Who**: Trusted family member
+- **Permissions**: Transfer only
+- **Limits**: $10,000 lifetime cap
+- **Assets**: USDC only
+- **Activation**: 1-hour delay for emergencies
+- **Purpose**: Emergency access without compromising main funds
+
+**DCA (Dollar Cost Average) Bot**
+- **Strategy**: Buy $1,000 of ETH weekly
+- **Permissions**: Buy only
+- **Limits**: $1,000 per tx, $4,500 per month
+- **Cooldown**: 7 days between purchases
+- **Assets**: Can only buy ETH with USDC
+- **Result**: Automated investing without overbuying
+
+**Liquidity Manager for Uniswap V3**
+- **Purpose**: Maintain concentrated liquidity positions
+- **Permissions**: Manage Liquidity, Claim Rewards
+- **Limits**: $25,000 per position adjustment
+- **Features**: Rebalances when price moves 2% from range
+- **Benefit**: Capture more fees without constant monitoring
+
+**Tax Harvesting Assistant**
+- **When**: End of year tax optimization
+- **Permissions**: Buy and Sell
+- **Limits**: $20,000 per day
+- **Strategy**: Realize losses on underperforming assets
+- **Restriction**: Can only sell at a loss, preventing abuse
+
+This is the future of DeFi: professional-grade automation with user-controlled security boundaries.
