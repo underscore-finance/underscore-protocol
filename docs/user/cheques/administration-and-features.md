@@ -7,6 +7,16 @@ Cheques offer powerful features beyond basic payments, enabling sophisticated pa
 #### Pull Payments (`canBePulled`)
 Transform Cheques into claimable payments that recipients control.
 
+**Double-Flag Requirement**:
+```
+Global Setting            AND    Individual Cheque
+canBePulled: true               canBePulled: true
+       ↓                              ↓
+       └──────────┬───────────────────┘
+                  │
+           Pull Payment Works
+```
+
 **How it works**:
 - You create a Cheque with pull permission
 - Recipient sees it's ready on their schedule
@@ -15,15 +25,16 @@ Transform Cheques into claimable payments that recipients control.
 
 **Perfect for**:
 - Freelancers who want control over payment timing
-- Landlords collecting rent
+- Landlords collecting rent ($2,500/month)
 - Services that batch process payments
 - Anyone who prefers to pull rather than wait
 
 **Real example**: 
-A contractor completes work and receives a pull-enabled Cheque. They can:
+A contractor completes work and receives a pull-enabled Cheque for $5,000:
 - Claim immediately if they need funds
 - Wait until month-end for tax purposes  
 - Batch multiple client payments together
+- Funds earn 5% APY until claimed (~$20/month)
 
 #### Manager Payments (`canManagerPay`)
 Delegate payment execution without giving full access.
@@ -67,10 +78,20 @@ Clear rules about who can do what:
 - Subject to the same wallet limits as you
 - Perfect for delegated invoice processing
 
-**Why two flags?**: 
-- Global flag: Enables the feature
-- Per-manager flag: Grants specific permission
-- Double-opt-in for maximum security
+**Manager Permission Requirements**:
+```
+Two Conditions Must Be True:
+1. Global: canManagersCreateCheques = true
+2. Manager: transferPerms.canCreateCheque = true
+                    ↓
+           Both Required for Creation
+```
+
+**Why double permission?**: 
+- Global flag: Master switch for the feature
+- Per-manager flag: Individual authorization
+- Prevents accidental permissions
+- Maximum security for fund control
 
 #### Cancelling Cheques
 **The Owner**: 
@@ -106,6 +127,26 @@ Clear rules about who can do what:
 - Another Manager or AI executes payments
 - Full audit trail maintained
 
+### Manager Cheque Creation Workflow
+
+When a Manager creates a cheque, here's the complete flow:
+
+```
+1. Manager Attempts Creation     2. Permission Check           3. Validation
+   "Create $5,000 cheque"       Global: ✓ Managers allowed    Amount: Within limits?
+          │                     Manager: ✓ Has permission     Period: Under cap?
+          │                              │                     Active: < max cheques?
+          └──────────────────────────────┴─────────────────────┘
+                                        │
+                              4. Time-Lock Applied
+                              $5,000 > $1,000 threshold
+                              → 3-day automatic delay
+                                        │
+                              5. Cheque Created
+                              Visible on-chain
+                              Owner can review/cancel
+```
+
 ### The Power of Combining Features
 
 **Scenario**: Automated invoice processing
@@ -115,7 +156,12 @@ Clear rules about who can do what:
 4. Vendor pulls payment → No action needed
 5. Funds sourced from yield → Maximum efficiency
 
-**Result**: Accounts payable that runs itself while you maintain control.
+**Real Numbers**:
+- Invoice amount: $8,000
+- Automatic delay: 3 days (exceeds $1,000 threshold)
+- Yield earned during delay: ~$3.30
+- Total time saved: 30 minutes per invoice
+- Monthly volume: 20 invoices = 10 hours saved
 
 ### Security Best Practices
 

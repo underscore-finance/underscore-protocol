@@ -2,6 +2,25 @@
 
 Every Cheque follows a transparent four-stage journey, with clear rules at each step. Understanding this lifecycle helps you use Cheques effectively for different scenarios.
 
+### Lifecycle Visualization
+
+```
+Creation → Time-locked → Active → Finalized (Paid/Expired)
+   │           │           │           │
+   ├───────────┴───────────┴───────────┤
+   │     Can Cancel Anytime Until Paid │
+   └───────────────────────────────────┘
+               │           │
+               │           └─→ Payment Period
+               │               - Owner can pay
+               │               - Manager can pay (if allowed)
+               │               - Recipient can pull (if allowed)
+               │
+               └─→ Security Review Period
+                   - Automatic for large amounts
+                   - Custom for future dating
+```
+
 ### Stage 1: Creation
 
 When you "write" a Cheque, you're creating a payment promise without moving any funds yet.
@@ -24,21 +43,29 @@ Freelancer completes work on Monday. Client creates:
 
 The security waiting period before a Cheque can be cashed.
 
-**Duration depends on**:
-- Your instant threshold setting
-- The cheque amount
-- Custom unlock time you set
+**Duration Formula**:
+```
+Unlock Time = MAX(
+    User-specified delay,
+    Automatic expensive delay (if amount > threshold)
+)
+```
 
-**Examples**:
-- $500 cheque with $1,000 threshold → No delay, immediately active
-- $10,000 cheque with $1,000 threshold → 7-day automatic delay
-- Any amount with custom future date → Waits until that date
+**Real Examples**:
+| Cheque Amount | Instant Threshold | User Delay | Actual Delay | Reason |
+|---------------|-------------------|------------|--------------|---------|
+| $500 | $1,000 | 0 blocks | 0 blocks | Under threshold |
+| $2,000 | $1,000 | 0 blocks | 21,600 blocks (3 days) | Auto-delay triggered |
+| $500 | $1,000 | 7,200 blocks | 7,200 blocks (1 day) | User preference |
+| $10,000 | $5,000 | 3,600 blocks | 50,400 blocks (7 days) | Expensive delay override |
 
-**What happens**: 
-- Cheque is visible on-chain
+**What happens during time-lock**: 
+- Cheque is visible on-chain (transparency)
 - Recipient sees the commitment
-- You can still cancel if needed
+- USD value locked at creation price
+- You can cancel anytime
 - No funds have moved
+- Funds continue earning yield
 
 ### Stage 3: Active (Unlocked)
 
@@ -74,24 +101,47 @@ Every Cheque eventually reaches one of two final states:
 ### Practical Timeline Examples
 
 **Immediate Small Payment**:
-- Create: $200 cheque at block 1000
-- Active: Immediately (under threshold)
-- Paid: Block 1001
-- Total time: 2 blocks (≈20 seconds)
+```
+Create: $200 USDC cheque at block 1000
+Settings: $1,000 instant threshold
+Time-locked: None (under threshold)
+Active: Block 1000 (immediate)
+Paid: Block 1001 
+Total time: 1 block (≈12 seconds)
+Yield earned: Negligible
+```
 
-**Standard Invoice**:
-- Create: $3,000 cheque Monday 9am
-- Time-locked: 3 days (review period)
-- Active: Thursday 9am
-- Expires: 30 days from creation
-- Paid: Following Monday (recipient's choice)
+**Standard Invoice (Net 30)**:
+```
+Create: $3,000 USDC cheque Monday 9am (block 100,000)
+Settings: $1,000 instant threshold, 3-day expensive delay
+Time-locked: 21,600 blocks (auto-triggered)
+Active: Thursday 9am (block 121,600)
+Expires: Block 316,000 (30 days from creation)
+Paid: Following Monday (block 150,000)
+Yield earned: ~$2.50 over 8 days at 5% APY
+```
 
-**High-Value Transfer**:
-- Create: $50,000 cheque
-- Time-locked: 7 days (automatic delay)
-- Active: Week later
-- Owner reviews and pays manually
-- Or cancels if something seems wrong
+**High-Value Contract Payment**:
+```
+Create: $50,000 USDC cheque (block 200,000)
+Settings: $5,000 threshold, 7-day expensive delay
+Time-locked: 50,400 blocks (automatic)
+Active: Block 250,400 (week later)
+Expires: Block 466,400 (30 days after unlock)
+Review period benefit: Time to verify deliverables
+Yield earned: ~$48 during 7-day delay at 5% APY
+```
+
+**Future-Dated Rent Payment**:
+```
+Create: $2,500 USDC cheque on 25th (block 300,000)
+Custom unlock: 6 days (to reach 1st of month)
+Time-locked: 43,200 blocks 
+Active: 1st of month (block 343,200)
+Pull enabled: Landlord claims when convenient
+Expiry: 45 days total (standard terms)
+```
 
 ### Why This Lifecycle Matters
 

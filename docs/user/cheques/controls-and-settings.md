@@ -5,9 +5,16 @@ As the owner, you can configure comprehensive wallet-wide rules for all Cheques.
 ### Understanding Period-Based Limits
 
 Like Payees and Managers, Cheque limits work on a rolling period system:
-- Set a period (e.g., 30 days)
+- Set a period (e.g., 30 days = 216,000 blocks on Ethereum)
 - Limits reset automatically each period
 - Prevents both runaway spending and creation spam
+- Creation and payment periods tracked independently
+
+**Block Time Reference**:
+- 1 hour ≈ 300 blocks
+- 1 day ≈ 7,200 blocks
+- 1 week ≈ 50,400 blocks
+- 30 days ≈ 216,000 blocks
 
 ### Creation Limits
 
@@ -74,28 +81,76 @@ Restrict which tokens can be used in cheques.
 * *Example*: Only [WETH] for ETH-denominated operations
 * *Empty list*: Allows any token (use with caution)
 
+**Security Warning**: An empty allowed assets list means:
+- Any token can be used, including volatile ones
+- Potential for scam token cheques
+- Best practice: Always specify trusted tokens
+
+### Technical Constraints
+
+The protocol enforces these validation rules:
+
+#### Timing Constraints
+- **Cooldowns cannot exceed period length**: If period = 30 days, cooldown must be < 30 days
+- **Minimum expensive delay**: Set by protocol deployment
+- **Maximum unlock delay**: Cannot exceed protocol maximum
+- **Maximum active duration**: Expiry - unlock cannot exceed limit
+
+#### Expiry Fallback Logic
+```
+if custom expiry provided → use it
+else if default expiry set → use default
+else → use wallet timeLock setting
+```
+
+#### USD Cap Consistency
+- Per-cheque cap cannot exceed period caps
+- If maxChequeUsdValue = $10,000 and perPeriodCreatedUsdCap = $50,000
+- You can create at most 5 maximum-value cheques per period
+
 ### Practical Configuration Examples
 
 **Conservative Personal Wallet**:
-- Max 5 active cheques
-- $5,000 instant threshold
-- 3-day delay for large amounts
-- 30-day default expiry
-- Only stablecoins allowed
+```
+maxNumActiveCheques: 5
+maxChequeUsdValue: $10,000
+instantUsdThreshold: $1,000
+perPeriodCreatedUsdCap: $25,000
+periodLength: 216,000 (30 days)
+expensiveDelayBlocks: 21,600 (3 days)
+defaultExpiryBlocks: 216,000 (30 days)
+allowedAssets: [USDC, USDT, DAI]
+```
 
 **Active Business Wallet**:
-- Max 50 active cheques
-- $10,000 instant threshold  
-- 24-hour delay for large amounts
-- 45-day default expiry (net terms)
-- Multiple tokens allowed
+```
+maxNumActiveCheques: 50
+maxChequeUsdValue: $100,000
+instantUsdThreshold: $10,000
+perPeriodCreatedUsdCap: $500,000
+maxNumChequesCreatedPerPeriod: 200
+periodLength: 216,000 (30 days)
+expensiveDelayBlocks: 7,200 (24 hours)
+defaultExpiryBlocks: 324,000 (45 days)
+allowedAssets: [USDC, USDT, DAI, WETH]
+canManagersCreateCheques: true
+```
 
 **High-Security Treasury**:
-- Max 10 active cheques
-- $500 instant threshold
-- 7-day delay for anything above
-- 14-day expiry (short validity)
-- Only USDC allowed
+```
+maxNumActiveCheques: 10
+maxChequeUsdValue: $50,000
+instantUsdThreshold: $500
+perPeriodPaidUsdCap: $100,000
+maxNumChequesPaidPerPeriod: 20
+periodLength: 50,400 (7 days)
+expensiveDelayBlocks: 50,400 (7 days)
+defaultExpiryBlocks: 100,800 (14 days)
+createCooldownBlocks: 300 (1 hour)
+allowedAssets: [USDC]
+canManagersCreateCheques: false
+canBePulled: false
+```
 
 ### Permission Flags
 
@@ -105,3 +160,17 @@ Control who can do what:
 * **canBePulled**: Enable recipients to pull payments themselves
 
 Each setting balances convenience with security, letting you tailor the system to your exact needs.
+
+### Troubleshooting Common Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "Cannot create cheque" | Hit active cheque limit | Check maxNumActiveCheques |
+| "Cheque creation failed" | Exceeded period USD cap | Wait for period reset or increase cap |
+| "Manager cannot create" | Missing permission | Check both global and manager flags |
+| "Invalid cheque amount" | Exceeds maxChequeUsdValue | Reduce amount or increase limit |
+| "Cooldown not met" | Too soon after last cheque | Wait for cooldown blocks |
+| "Period cap exceeded" | Too many/much this period | Wait for automatic reset |
+| "Asset not allowed" | Token not in allowed list | Add token or use approved one |
+| "Cheque expired" | Past expiry block | Create new cheque |
+| "Cannot pull payment" | Pull not enabled | Check both global and cheque flags |

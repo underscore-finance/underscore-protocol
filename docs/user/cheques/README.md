@@ -33,3 +33,24 @@ A Cheque is a blockchain-native payment that you can schedule, cancel, or modify
 5. **Settlement**: Funds transfer only when explicitly executed
 
 The USD value is recorded at creation time, making accounting and tax reporting straightforward—no more guessing what that payment was worth when you made it.
+
+### Concrete Example
+
+Let's say you need to pay a contractor $5,000:
+- **Monday 9am**: Create cheque for 5,000 USDC
+- **Automatic delay**: 3 days applied (exceeds your $1,000 instant threshold)
+- **Thursday 9am**: Cheque unlocks, contractor can claim
+- **Next 30 days**: Active period for payment
+- **Your benefit**: Funds earn ~$3 yield during the wait
+
+### How Cheques Compare
+
+| Feature | Traditional Check | Bank Wire | Crypto Transfer | Underscore Cheque |
+|---------|------------------|-----------|-----------------|-------------------|
+| **Cancel ability** | Call bank, hope it works | Sometimes | Never | Instant on-chain |
+| **Future dating** | Yes | No | No | Yes |
+| **Visible to recipient** | No | No | After sent | Immediately |
+| **Earning yield** | No | No | No | Yes, until paid |
+| **Time to process** | 3-5 days | 1-3 days | Instant | You control |
+| **Cost** | $15-30 | $25-50 | Gas only | Gas only |
+| **Automatic delays** | No | No | No | USD-based thresholds |
