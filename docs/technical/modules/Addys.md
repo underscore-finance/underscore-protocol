@@ -157,7 +157,7 @@ Called only during module initialization
 ```python
 # When deploying a contract that uses Addys
 contract = boa.load(
-    "contracts/core/SomeContract.vy",
+    "contracts/core/Appraiser.vy",
     undy_hq.address  # Passed to Addys module
 )
 ```

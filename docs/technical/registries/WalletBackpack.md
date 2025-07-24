@@ -49,9 +49,9 @@ WalletBackpack uses the Department architecture with specialized TimeLock functi
 - **Exported Interface**: All department functions are exposed via `deptBasics.__interface__`.
 
 ### TimeLock Module
-- **Location**: `contracts/modules/TimeLock.vy`
+- **Location**: `contracts/modules/Timelock.vy`
 - **Purpose**: Provides time-locked action management for wallet upgrades.
-- **Documentation**: See [TimeLock Technical Documentation](../modules/TimeLock.md)
+- **Documentation**: See [Timelock Technical Documentation](../modules/Timelock.md)
 - **Key Features**:
   - Configurable minimum and maximum timelock periods.
   - Action initiation, confirmation, and cancellation.
@@ -172,7 +172,7 @@ From [LocalGov](../modules/LocalGov.md):
 - `governance: address` - Set to UndyHq address
 - `tempGovernance: address` - Temporary governance during setup
 
-From [TimeLock](../modules/TimeLock.md):
+From [Timelock](../modules/Timelock.md):
 - `minTimeLock: uint256` - Minimum timelock period
 - `maxTimeLock: uint256` - Maximum timelock period
 - Various action tracking variables

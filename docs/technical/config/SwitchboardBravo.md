@@ -40,9 +40,9 @@ SwitchboardBravo uses the same modular architecture as SwitchboardAlpha with spe
 - **Exported Interface**: All governance functions are exposed via `gov.__interface__`
 
 ### TimeLock Module
-- **Location**: `contracts/modules/TimeLock.vy`
+- **Location**: `contracts/modules/Timelock.vy`
 - **Purpose**: Provides time-locked action management for sensitive operations
-- **Documentation**: See [TimeLock Technical Documentation](../modules/TimeLock.md)
+- **Documentation**: See [Timelock Technical Documentation](../modules/Timelock.md)
 - **Key Features**:
   - Configurable timelock periods for fund recovery and sensitive operations
   - Action initiation, confirmation, and cancellation

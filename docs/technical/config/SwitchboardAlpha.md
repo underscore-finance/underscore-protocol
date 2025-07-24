@@ -40,9 +40,9 @@ SwitchboardAlpha uses a modular architecture combining governance, timelock, and
 - **Exported Interface**: All governance functions are exposed via `gov.__interface__`
 
 ### TimeLock Module
-- **Location**: `contracts/modules/TimeLock.vy`
+- **Location**: `contracts/modules/Timelock.vy`
 - **Purpose**: Provides time-locked action management for configuration changes
-- **Documentation**: See [TimeLock Technical Documentation](../modules/TimeLock.md)
+- **Documentation**: See [Timelock Technical Documentation](../modules/Timelock.md)
 - **Key Features**:
   - Configurable minimum and maximum timelock periods
   - Action initiation, confirmation, and cancellation

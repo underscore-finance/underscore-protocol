@@ -2,7 +2,7 @@
 
 ## 🛠️ **For Developers, Auditors & Integrators**
 
-**[📖 Complete Technical Documentation](docs/README.md)** - Deep dive into Underscore Protocol's architecture:
+**[📖 Complete Technical Documentation](docs/technical/README.md)** - Deep dive into Underscore Protocol's architecture:
 
 - 🏗️ **System Architecture** - 30+ production contracts working in harmony
 - 📋 **Comprehensive Documentation** - Detailed contract guides with function-by-function breakdowns
