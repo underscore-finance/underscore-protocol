@@ -81,7 +81,6 @@ def __init__(
 ##################
 
 
-@nonreentrant
 @external
 def transferFunds(
     _userWallet: address,
@@ -100,7 +99,6 @@ def transferFunds(
 #########
 
 
-@nonreentrant
 @external
 def depositForYield(
     _userWallet: address,
@@ -115,7 +113,6 @@ def depositForYield(
     return extcall Wallet(_userWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData)
 
 
-@nonreentrant
 @external
 def withdrawFromYield(
     _userWallet: address,
@@ -129,7 +126,6 @@ def withdrawFromYield(
     return extcall Wallet(_userWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraData, False)
 
 
-@nonreentrant
 @external
 def rebalanceYieldPosition(
     _userWallet: address,
@@ -150,7 +146,6 @@ def rebalanceYieldPosition(
 ###################
 
 
-@nonreentrant
 @external
 def swapTokens(
     _userWallet: address,
@@ -161,7 +156,6 @@ def swapTokens(
     return extcall Wallet(_userWallet).swapTokens(_swapInstructions)
 
 
-@nonreentrant
 @external
 def mintOrRedeemAsset(
     _userWallet: address,
@@ -177,7 +171,6 @@ def mintOrRedeemAsset(
     return extcall Wallet(_userWallet).mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
 
 
-@nonreentrant
 @external
 def confirmMintOrRedeemAsset(
     _userWallet: address,
@@ -196,7 +189,6 @@ def confirmMintOrRedeemAsset(
 ###################
 
 
-@nonreentrant
 @external
 def addCollateral(
     _userWallet: address,
@@ -210,7 +202,6 @@ def addCollateral(
     return extcall Wallet(_userWallet).addCollateral(_legoId, _asset, _amount, _extraData)
 
 
-@nonreentrant
 @external
 def removeCollateral(
     _userWallet: address,
@@ -224,7 +215,6 @@ def removeCollateral(
     return extcall Wallet(_userWallet).removeCollateral(_legoId, _asset, _amount, _extraData)
 
 
-@nonreentrant
 @external
 def borrow(
     _userWallet: address,
@@ -238,7 +228,6 @@ def borrow(
     return extcall Wallet(_userWallet).borrow(_legoId, _borrowAsset, _amount, _extraData)
 
 
-@nonreentrant
 @external
 def repayDebt(
     _userWallet: address,
@@ -257,7 +246,6 @@ def repayDebt(
 #################
 
 
-@nonreentrant
 @external
 def claimRewards(
     _userWallet: address,
@@ -276,14 +264,12 @@ def claimRewards(
 ###############
 
 
-@nonreentrant
 @external
 def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
     self._authenticateAccess(keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).convertWethToEth(_amount)
 
 
-@nonreentrant
 @external
 def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
     self._authenticateAccess(keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
@@ -295,7 +281,6 @@ def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256)
 #############
 
 
-@nonreentrant
 @external
 def addLiquidity(
     _userWallet: address,
@@ -315,7 +300,6 @@ def addLiquidity(
     return extcall Wallet(_userWallet).addLiquidity(_legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
 
 
-@nonreentrant
 @external
 def removeLiquidity(
     _userWallet: address,
@@ -334,7 +318,6 @@ def removeLiquidity(
     return extcall Wallet(_userWallet).removeLiquidity(_legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
 
 
-@nonreentrant
 @external
 def addLiquidityConcentrated(
     _userWallet: address,
@@ -357,7 +340,6 @@ def addLiquidityConcentrated(
     return extcall Wallet(_userWallet).addLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
 
 
-@nonreentrant
 @external
 def removeLiquidityConcentrated(
     _userWallet: address,
@@ -382,7 +364,6 @@ def removeLiquidityConcentrated(
 #################
 
 
-@nonreentrant
 @external
 def performBatchActions(
     _userWallet: address,
