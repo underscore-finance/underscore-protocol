@@ -186,7 +186,6 @@ wallet = UserWallet.deploy(
 Transfers funds to a recipient with various modes (normal, cheque, special).
 
 ```vyper
-@nonreentrant
 @external
 def transferFunds(
     _recipient: address,
@@ -246,7 +245,6 @@ amount, usd_value = wallet.transferFunds(
 Deposits assets into yield-generating protocols.
 
 ```vyper
-@nonreentrant
 @external
 def depositForYield(
     _legoId: uint256,
@@ -300,7 +298,6 @@ asset_amount, vault_token, vault_amount, usd_value = wallet.depositForYield(
 Withdraws assets from yield-generating protocols.
 
 ```vyper
-@nonreentrant
 @external
 def withdrawFromYield(
     _legoId: uint256,
@@ -343,7 +340,6 @@ External function requiring EARN_WITHDRAW permission
 Rebalances between yield positions in a single transaction.
 
 ```vyper
-@nonreentrant
 @external
 def rebalanceYieldPosition(
     _fromLegoId: uint256,
@@ -390,7 +386,6 @@ External function requiring EARN_REBALANCE permission
 Executes token swaps through multiple protocols.
 
 ```vyper
-@nonreentrant
 @external
 def swapTokens(
     _instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]
@@ -443,7 +438,6 @@ token_in, amount_in, token_out, amount_out, usd_value = wallet.swapTokens(
 Mints or redeems protocol-specific assets (e.g., stETH, rETH).
 
 ```vyper
-@nonreentrant
 @external
 def mintOrRedeemAsset(
     _legoId: uint256,
@@ -490,7 +484,6 @@ External function requiring MINT_REDEEM permission
 Adds liquidity to standard AMM pools.
 
 ```vyper
-@nonreentrant
 @external
 def addLiquidity(
     _legoId: uint256,
@@ -543,7 +536,6 @@ External function requiring ADD_LIQ permission
 Removes liquidity from standard AMM pools.
 
 ```vyper
-@nonreentrant
 @external
 def removeLiquidity(
     _legoId: uint256,
@@ -608,7 +600,6 @@ amount_a, amount_b, lp_burned, usd_value = wallet.removeLiquidity(
 Adds liquidity to concentrated liquidity pools (e.g., Uniswap V3).
 
 ```vyper
-@nonreentrant
 @external
 def addLiquidityConcentrated(
     _legoId: uint256,
@@ -668,7 +659,6 @@ External function requiring ADD_LIQ_CONC permission
 Removes liquidity from concentrated liquidity pools (e.g., Uniswap V3).
 
 ```vyper
-@nonreentrant
 @external
 def removeLiquidityConcentrated(
     _legoId: uint256,
@@ -746,7 +736,6 @@ amount_a, amount_b, liq_removed, usd_value = wallet.removeLiquidityConcentrated(
 Adds collateral to lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def addCollateral(
     _legoId: uint256,
@@ -785,7 +774,6 @@ External function requiring ADD_COLLATERAL permission
 Removes collateral from lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def removeCollateral(
     _legoId: uint256,
@@ -835,7 +823,6 @@ amount_removed, usd_value = wallet.removeCollateral(
 Borrows assets from lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def borrow(
     _legoId: uint256,
@@ -874,7 +861,6 @@ External function requiring BORROW permission
 Repays borrowed assets.
 
 ```vyper
-@nonreentrant
 @external
 def repayDebt(
     _legoId: uint256,
@@ -915,7 +901,6 @@ External function requiring REPAY_DEBT permission
 Claims rewards from protocols with automatic fee handling.
 
 ```vyper
-@nonreentrant
 @external
 def claimRewards(
     _legoId: uint256,
@@ -956,7 +941,6 @@ External function requiring REWARDS permission
 Unwraps WETH to ETH.
 
 ```vyper
-@nonreentrant
 @external
 def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
 ```
@@ -987,7 +971,6 @@ External function requiring WETH_TO_ETH permission
 Wraps ETH to WETH.
 
 ```vyper
-@nonreentrant
 @payable
 @external
 def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
@@ -1225,7 +1208,6 @@ The protocol collects fees on specific operations:
 - Manager limits enforced for non-billing signers
 
 ### Reentrancy Protection
-- All external functions use `@nonreentrant` decorator
 - State changes occur before external calls
 - Approvals are reset after each operation
 

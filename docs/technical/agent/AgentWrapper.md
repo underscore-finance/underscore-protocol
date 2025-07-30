@@ -192,7 +192,6 @@ Called only during deployment
 Transfers funds from user wallet with signature authentication.
 
 ```vyper
-@nonreentrant
 @external
 def transferFunds(
     _userWallet: address,
@@ -259,7 +258,6 @@ amount, usd_value = agent_wrapper.transferFunds(
 Deposits assets into yield protocols with signature.
 
 ```vyper
-@nonreentrant
 @external
 def depositForYield(
     _userWallet: address,
@@ -279,7 +277,6 @@ Similar signature authentication pattern as transferFunds.
 Withdraws assets from yield protocols.
 
 ```vyper
-@nonreentrant
 @external
 def withdrawFromYield(
     _userWallet: address,
@@ -296,7 +293,6 @@ def withdrawFromYield(
 Rebalances between yield positions.
 
 ```vyper
-@nonreentrant
 @external
 def rebalanceYieldPosition(
     _userWallet: address,
@@ -317,7 +313,6 @@ def rebalanceYieldPosition(
 Executes token swaps through integrated protocols.
 
 ```vyper
-@nonreentrant
 @external
 def swapTokens(
     _userWallet: address,
@@ -331,7 +326,6 @@ def swapTokens(
 Mints or redeems protocol-specific assets.
 
 ```vyper
-@nonreentrant
 @external
 def mintOrRedeemAsset(
     _userWallet: address,
@@ -350,7 +344,6 @@ def mintOrRedeemAsset(
 Confirms pending mint/redeem operations.
 
 ```vyper
-@nonreentrant
 @external
 def confirmMintOrRedeemAsset(
     _userWallet: address,
@@ -369,7 +362,6 @@ def confirmMintOrRedeemAsset(
 Adds collateral to lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def addCollateral(
     _userWallet: address,
@@ -386,7 +378,6 @@ def addCollateral(
 Removes collateral from lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def removeCollateral(
     _userWallet: address,
@@ -403,7 +394,6 @@ def removeCollateral(
 Borrows assets from lending protocols.
 
 ```vyper
-@nonreentrant
 @external
 def borrow(
     _userWallet: address,
@@ -420,7 +410,6 @@ def borrow(
 Repays borrowed assets.
 
 ```vyper
-@nonreentrant
 @external
 def repayDebt(
     _userWallet: address,
@@ -439,7 +428,6 @@ def repayDebt(
 Claims rewards from protocols.
 
 ```vyper
-@nonreentrant
 @external
 def claimRewards(
     _userWallet: address,
@@ -456,7 +444,6 @@ def claimRewards(
 Unwraps WETH to ETH.
 
 ```vyper
-@nonreentrant
 @external
 def convertWethToEth(
     _userWallet: address,
@@ -470,7 +457,6 @@ def convertWethToEth(
 Wraps ETH to WETH.
 
 ```vyper
-@nonreentrant
 @external
 def convertEthToWeth(
     _userWallet: address,
@@ -486,7 +472,6 @@ def convertEthToWeth(
 Adds liquidity to AMM pools.
 
 ```vyper
-@nonreentrant
 @external
 def addLiquidity(
     _userWallet: address,
@@ -509,7 +494,6 @@ def addLiquidity(
 Removes liquidity from AMM pools.
 
 ```vyper
-@nonreentrant
 @external
 def removeLiquidity(
     _userWallet: address,
@@ -531,7 +515,6 @@ def removeLiquidity(
 Adds liquidity to concentrated liquidity pools.
 
 ```vyper
-@nonreentrant
 @external
 def addLiquidityConcentrated(
     _userWallet: address,
@@ -557,7 +540,6 @@ def addLiquidityConcentrated(
 Removes liquidity from concentrated liquidity pools.
 
 ```vyper
-@nonreentrant
 @external
 def removeLiquidityConcentrated(
     _userWallet: address,
@@ -582,7 +564,6 @@ def removeLiquidityConcentrated(
 Executes multiple actions in sequence with output chaining.
 
 ```vyper
-@nonreentrant
 @external
 def performBatchActions(
     _userWallet: address,

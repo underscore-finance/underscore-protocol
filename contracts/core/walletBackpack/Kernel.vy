@@ -88,7 +88,6 @@ def __init__(_undyHq: address):
 # add whitelist
 
 
-@nonreentrant
 @external
 def addPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -117,7 +116,6 @@ def addPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 # confirm whitelist
 
 
-@nonreentrant
 @external
 def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -136,7 +134,6 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 # cancel pending whitelist
 
 
-@nonreentrant
 @external
 def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -154,7 +151,6 @@ def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 # remove whitelist
 
 
-@nonreentrant
 @external
 def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet

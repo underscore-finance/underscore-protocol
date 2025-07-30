@@ -148,7 +148,6 @@ cheque_book = ChequeBook.deploy(
 Creates a new cheque with specified parameters and time-locks.
 
 ```vyper
-@nonreentrant
 @external
 def createCheque(
     _userWallet: address,
@@ -231,7 +230,6 @@ success = cheque_book.createCheque(
 Cancels an active cheque.
 
 ```vyper
-@nonreentrant
 @external
 def cancelCheque(_userWallet: address, _recipient: address) -> bool:
 ```
@@ -282,7 +280,6 @@ success = cheque_book.cancelCheque(
 Configures global cheque settings for a wallet.
 
 ```vyper
-@nonreentrant
 @external
 def setChequeSettings(
     _userWallet: address,

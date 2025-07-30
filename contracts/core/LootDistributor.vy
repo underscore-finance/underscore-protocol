@@ -388,7 +388,6 @@ def _handleSpecificYieldBonus(
 ################################
 
 
-@nonreentrant
 @external
 def claimRevShareAndBonusLoot(_user: address) -> uint256:
     a: addys.Addys = addys._getAddys()
@@ -693,7 +692,6 @@ def _isValidWalletConfig(_wallet: address, _caller: address, _ledger: address) -
 # claim deposit rewards
 
 
-@nonreentrant
 @external
 def claimDepositRewards(_user: address) -> uint256:
     assert not deptBasics.isPaused # dev: contract paused
@@ -758,7 +756,6 @@ def _claimDepositRewards(_user: address, _ledger: address) -> uint256:
 # add rewards
 
 
-@nonreentrant
 @external
 def addDepositRewards(_asset: address, _amount: uint256):
     assert not deptBasics.isPaused # dev: contract paused
@@ -839,7 +836,6 @@ def getRewardsFee(_user: address, _asset: address, _missionControl: address = em
 # claim ALL loot (both rev share and deposit rewards)
 
 
-@nonreentrant
 @external
 def claimAllLoot(_user: address) -> bool:
     assert not deptBasics.isPaused # dev: contract paused

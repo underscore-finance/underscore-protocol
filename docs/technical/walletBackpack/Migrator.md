@@ -124,7 +124,6 @@ migrator = Migrator.deploy(
 Migrates both funds and configuration in a single transaction.
 
 ```vyper
-@nonreentrant
 @external
 def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 ```
@@ -178,7 +177,6 @@ print(f"Config cloned: {config_cloned}")
 Migrates all funds from one wallet to another.
 
 ```vyper
-@nonreentrant
 @external
 def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
 ```
@@ -240,7 +238,6 @@ The migration process includes special handling for trial funds:
 Copies all configuration from one wallet to another.
 
 ```vyper
-@nonreentrant
 @external
 def cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 ```

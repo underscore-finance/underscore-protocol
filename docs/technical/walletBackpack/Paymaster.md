@@ -145,7 +145,6 @@ paymaster = Paymaster.deploy(
 Sets default settings for all payees in a wallet.
 
 ```vyper
-@nonreentrant
 @external
 def setGlobalPayeeSettings(
     _userWallet: address,
@@ -220,7 +219,6 @@ success = paymaster.setGlobalPayeeSettings(
 Adds a new payee with specified limits and permissions.
 
 ```vyper
-@nonreentrant
 @external
 def addPayee(
     _userWallet: address,
@@ -308,7 +306,6 @@ success = paymaster.addPayee(
 Updates existing payee settings (limits and permissions only).
 
 ```vyper
-@nonreentrant
 @external
 def updatePayee(
     _userWallet: address,
@@ -353,7 +350,6 @@ Only callable by wallet owner
 Removes a payee from the wallet.
 
 ```vyper
-@nonreentrant
 @external
 def removePayee(_userWallet: address, _payee: address) -> bool:
 ```
@@ -405,7 +401,6 @@ success = paymaster.removePayee(
 Allows managers to propose payees requiring owner confirmation.
 
 ```vyper
-@nonreentrant
 @external
 def addPendingPayee(
     _userWallet: address,
@@ -466,7 +461,6 @@ success = paymaster.addPendingPayee(
 Owner confirms a pending payee after time-lock.
 
 ```vyper
-@nonreentrant
 @external
 def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
 ```
@@ -510,7 +504,6 @@ success = paymaster.confirmPendingPayee(
 Cancels a pending payee addition.
 
 ```vyper
-@nonreentrant
 @external
 def cancelPendingPayee(_userWallet: address, _payee: address) -> bool:
 ```

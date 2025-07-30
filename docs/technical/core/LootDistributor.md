@@ -239,7 +239,6 @@ loot_distributor.addLootFromYieldProfit(
 Claims accumulated revenue share and bonus rewards.
 
 ```vyper
-@nonreentrant
 @external
 def claimRevShareAndBonusLoot(_user: address) -> uint256:
 ```
@@ -289,7 +288,6 @@ print(f"Claimed {num_claimed} different assets")
 Claims accumulated deposit rewards based on points.
 
 ```vyper
-@nonreentrant
 @external
 def claimDepositRewards(_user: address) -> uint256:
 ```
@@ -335,7 +333,6 @@ rewards_amount = loot_distributor.claimDepositRewards(
 Claims both revenue share/bonuses and deposit rewards.
 
 ```vyper
-@nonreentrant
 @external
 def claimAllLoot(_user: address) -> bool:
 ```
@@ -504,7 +501,6 @@ points = loot_distributor.getLatestDepositPoints(
 Adds rewards to the deposit rewards pool.
 
 ```vyper
-@nonreentrant
 @external
 def addDepositRewards(_asset: address, _amount: uint256):
 ```

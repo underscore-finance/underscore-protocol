@@ -136,7 +136,6 @@ billing = Billing.deploy(
 Allows cheque recipients to pull authorized payments.
 
 ```vyper
-@nonreentrant
 @external
 def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256):
 ```
@@ -227,7 +226,6 @@ if billing.canPullPaymentAsCheque(wallet, recipient):
 Allows authorized payees to pull payments.
 
 ```vyper
-@nonreentrant
 @external
 def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256):
 ```

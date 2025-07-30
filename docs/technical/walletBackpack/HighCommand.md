@@ -153,7 +153,6 @@ high_command = HighCommand.deploy(
 Adds a new manager with specified permissions and limits.
 
 ```vyper
-@nonreentrant
 @external
 def addManager(
     _userWallet: address,
@@ -240,7 +239,6 @@ success = high_command.addManager(
 Updates existing manager settings (permissions and limits only).
 
 ```vyper
-@nonreentrant
 @external
 def updateManager(
     _userWallet: address,
@@ -291,7 +289,6 @@ Only callable by wallet owner
 Removes a manager from the wallet.
 
 ```vyper
-@nonreentrant
 @external
 def removeManager(_userWallet: address, _manager: address) -> bool:
 ```
@@ -341,7 +338,6 @@ success = high_command.removeManager(
 Adjusts the activation period for an existing manager.
 
 ```vyper
-@nonreentrant
 @external
 def adjustManagerActivationLength(
     _userWallet: address,
@@ -387,7 +383,6 @@ Only callable by wallet owner
 Sets default settings for all future managers.
 
 ```vyper
-@nonreentrant
 @external
 def setGlobalManagerSettings(
     _userWallet: address,

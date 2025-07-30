@@ -141,7 +141,6 @@ hatchery = Hatchery.deploy(
 Creates a new user wallet with configuration.
 
 ```vyper
-@nonreentrant
 @external
 def createUserWallet(
     _owner: address = msg.sender,
@@ -205,7 +204,6 @@ wallet = hatchery.createUserWallet(
 Creates a new agent contract.
 
 ```vyper
-@nonreentrant
 @external
 def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
 ```
@@ -254,7 +252,6 @@ agent = hatchery.createAgent(
 Recovers trial funds from a user wallet.
 
 ```vyper
-@nonreentrant
 @external
 def clawBackTrialFunds(_user: address) -> uint256:
 ```

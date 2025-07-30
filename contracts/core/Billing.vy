@@ -118,7 +118,6 @@ def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
 #########################
 
 
-@nonreentrant
 @external
 def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256):
     a: addys.Addys = addys._getAddys()
@@ -167,7 +166,6 @@ def _canPullPaymentAsCheque(_chequeRecipient: address, _walletConfig: address) -
 ########################
 
 
-@nonreentrant
 @external
 def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256):
     a: addys.Addys = addys._getAddys()

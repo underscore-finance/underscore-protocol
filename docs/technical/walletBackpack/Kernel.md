@@ -119,7 +119,6 @@ kernel = Kernel.deploy(
 Initiates a time-locked whitelist addition for an address.
 
 ```vyper
-@nonreentrant
 @external
 def addPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 ```
@@ -168,7 +167,6 @@ kernel.addPendingWhitelistAddr(
 Confirms a pending whitelist entry after time-lock expiry.
 
 ```vyper
-@nonreentrant
 @external
 def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 ```
@@ -213,7 +211,6 @@ kernel.confirmWhitelistAddr(
 Cancels a pending whitelist entry.
 
 ```vyper
-@nonreentrant
 @external
 def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 ```
@@ -257,7 +254,6 @@ kernel.cancelPendingWhitelistAddr(
 Removes an active whitelist entry.
 
 ```vyper
-@nonreentrant
 @external
 def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address):
 ```

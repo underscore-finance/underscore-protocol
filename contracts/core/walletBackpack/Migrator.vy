@@ -93,7 +93,6 @@ def __init__(_undyHq: address):
 ############################
 
 
-@nonreentrant
 @external
 def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 
@@ -119,7 +118,6 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 #################
 
 
-@nonreentrant
 @external
 def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
     assert self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender) # dev: invalid migration
@@ -293,7 +291,6 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
 ################
 
 
-@nonreentrant
 @external
 def cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     assert self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender) # dev: cannot copy config
