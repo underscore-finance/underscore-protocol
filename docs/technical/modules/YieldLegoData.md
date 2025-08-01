@@ -1,6 +1,6 @@
 # YieldLegoData Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/YieldLegoData.vy)
+[📄 View Source Code](../../../contracts/modules/YieldLegoData.vy)
 
 ## Overview
 
@@ -502,4 +502,4 @@ for asset in assets:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_yield_lego_data.py`](../../tests/modules/test_yield_lego_data.py)
+For comprehensive test examples, see: [`tests/modules/`](../../../tests/modules/)

@@ -1,6 +1,6 @@
 # UndyHq Technical Documentation
 
-[📄 View Source Code](../../contracts/registries/UndyHq.vy)
+[📄 View Source Code](../../../contracts/registries/UndyHq.vy)
 
 ## Overview
 
@@ -606,4 +606,4 @@ Only callable by the governance address.
 
 ## Testing
 
-For comprehensive test examples, see: `tests/registries/test_undy_hq.py`
+For comprehensive test examples, see: [`tests/registries/test_undy_hq.py`](../../../tests/registries/test_undy_hq.py)

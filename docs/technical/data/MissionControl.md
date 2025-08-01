@@ -1,6 +1,6 @@
 # MissionControl Technical Documentation
 
-[📄 View Source Code](../../contracts/data/MissionControl.vy)
+[📄 View Source Code](../../../contracts/data/MissionControl.vy)
 
 ## Overview
 
@@ -685,4 +685,4 @@ else:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/data/test_mission_control.py`](../../tests/data/test_mission_control.py)
+For comprehensive test examples, see: [`tests/core/data/test_mission_control.py`](../../../tests/core/data/test_mission_control.py)

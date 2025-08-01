@@ -1,6 +1,6 @@
 # TimeLock Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/Timelock.vy)
+[📄 View Source Code](../../../contracts/modules/Timelock.vy)
 
 ## Overview
 
@@ -542,4 +542,4 @@ class ParentContract:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_timelock.py`](../../tests/modules/test_timelock.py)
+For comprehensive test examples, see: [`tests/modules/test_timelock.py`](../../../tests/modules/test_timelock.py)

@@ -1,6 +1,6 @@
 # LegoBook Technical Documentation
 
-[📄 View Source Code](../../contracts/registries/LegoBook.vy)
+[📄 View Source Code](../../../contracts/registries/LegoBook.vy)
 
 ## Overview
 
@@ -669,4 +669,4 @@ lego_book.startAddressUpdateToRegistry(
 
 ## Testing
 
-For comprehensive test examples, see integration tests in: [`tests/legos/`](../../tests/legos/) and [`tests/registries/`](../../tests/registries/)
+For comprehensive test examples, see integration tests in: [`tests/legos/`](../../../tests/legos/) and [`tests/registries/`](../../../tests/registries/)

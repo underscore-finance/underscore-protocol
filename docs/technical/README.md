@@ -62,6 +62,27 @@ Modular integrations with external DeFi protocols for yield generation and tradi
 | [LegoTools.vy](legos/LegoTools.md) | Universal routing engine providing unified access to all Lego Partners with optimal path discovery |
 | [RipeLego.vy](legos/RipeLego.md)   | Integration with Ripe Protocol for yield farming, collateralized borrowing, and RIPE token rewards |
 
+### DEX Lego Partners
+
+| Contract                                              | Description                                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [AeroClassic.vy](legos/dexes/AeroClassic.md)         | Integration with Aerodrome Classic AMM pools for token swapping and liquidity management               |
+| [AeroSlipstream.vy](legos/dexes/AeroSlipstream.md)   | Integration with Aerodrome Slipstream (concentrated liquidity) for advanced trading and LP positioning |
+| [Curve.vy](legos/dexes/Curve.md)                     | Integration with Curve Finance supporting multiple pool types and optimized stable swaps                |
+| [UniswapV2.vy](legos/dexes/UniswapV2.md)             | Integration with Uniswap V2 AMM for token swapping and standard liquidity provision                    |
+| [UniswapV3.vy](legos/dexes/UniswapV3.md)             | Integration with Uniswap V3 for concentrated liquidity and NFT-based position management               |
+
+### Yield Lego Partners
+
+| Contract                                            | Description                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [AaveV3.vy](legos/yields/AaveV3.md)                | Integration with Aave V3 for interest-bearing aTokens with automatic yield accrual                            |
+| [CompoundV3.vy](legos/yields/CompoundV3.md)        | Integration with Compound V3 (Compound III) for single-asset borrowing markets and COMP rewards               |
+| [Euler.vy](legos/yields/Euler.md)                  | Integration with Euler Protocol's ERC-4626 vaults for optimized lending with non-rebasing shares              |
+| [Fluid.vy](legos/yields/Fluid.md)                  | Integration with Fluid Protocol's liquidity layer for dynamic yield optimization across markets               |
+| [Moonwell.vy](legos/yields/Moonwell.md)            | Integration with Moonwell Protocol for cross-chain lending markets with multi-asset reward distribution       |
+| [Morpho.vy](legos/yields/Morpho.md)                | Integration with Morpho Protocol's peer-to-peer layer for improved lending rates through MetaMorpho vaults    |
+
 ### Lego Data Management
 
 | Contract                                     | Description                                                                                                              |
@@ -100,6 +121,15 @@ Modular components that provide specialized functionality for UserWallet operati
 | [Paymaster.vy](walletBackpack/Paymaster.md)     | Payee administration module that allows the wallet owner to add, update, and remove authorized payment recipients (payees) and configure their specific spending limits |
 | [Sentinel.vy](walletBackpack/Sentinel.md)       | Stateless validation engine that enforces all permission and limit rules for managers, payees, and cheques with no stored state                                         |
 | [Migrator.vy](walletBackpack/Migrator.md)       | User wallet migration module that facilitates the secure transfer of all funds and configurations from one UserWallet to another                                        |
+
+## Protocol Governance
+
+Protocol-wide tokens and configuration defaults.
+
+| Contract                                     | Description                                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| UndyToken.vy                                 | Protocol governance token (documentation pending)                                                |
+| DefaultsBase.vy                              | Base configuration defaults for protocol parameters (documentation pending)                      |
 
 ## Common Modules
 

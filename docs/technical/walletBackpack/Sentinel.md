@@ -1,6 +1,6 @@
 # Sentinel Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/Sentinel.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/Sentinel.vy)
 
 ## Overview
 
@@ -607,4 +607,4 @@ save_manager_data(manager, updated)
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_sentinel.py`](../../tests/core/walletBackpack/test_sentinel.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/sentinel/`](../../../tests/core/walletBackpack/sentinel/)

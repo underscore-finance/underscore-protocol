@@ -1,6 +1,6 @@
 # LocalGov Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/LocalGov.vy)
+[📄 View Source Code](../../../contracts/modules/LocalGov.vy)
 
 ## Overview
 
@@ -569,4 +569,4 @@ success = undy_hq.finishUndyHqSetup(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_local_gov.py`](../../tests/modules/test_local_gov.py)
+For comprehensive test examples, see: [`tests/modules/test_local_gov.py`](../../../tests/modules/test_local_gov.py)

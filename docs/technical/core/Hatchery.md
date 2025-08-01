@@ -1,6 +1,6 @@
 # Hatchery Technical Documentation
 
-[📄 View Source Code](../../contracts/core/Hatchery.vy)
+[📄 View Source Code](../../../contracts/core/Hatchery.vy)
 
 ## Overview
 
@@ -559,4 +559,4 @@ if config.isCreatorAllowed:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/test_hatchery.py`](../../tests/core/test_hatchery.py)
+For comprehensive test examples, see: [`tests/core/test_hatchery.py`](../../../tests/core/test_hatchery.py)

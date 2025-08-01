@@ -1,6 +1,6 @@
 # Ownership Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/Ownership.vy)
+[📄 View Source Code](../../../contracts/modules/Ownership.vy)
 
 ## Overview
 
@@ -418,4 +418,4 @@ assert contract.owner() == new_owner.address
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_ownership.py`](../../tests/modules/test_ownership.py)
+For comprehensive test examples, see: [`tests/modules/test_ownership.py`](../../../tests/modules/test_ownership.py)

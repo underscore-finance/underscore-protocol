@@ -1,6 +1,6 @@
 # ChequeBook Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/ChequeBook.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/ChequeBook.vy)
 
 ## Overview
 
@@ -753,4 +753,4 @@ cheque_book.createCheque(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_cheque_book.py`](../../tests/core/walletBackpack/test_cheque_book.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/chequeBook/`](../../../tests/core/walletBackpack/chequeBook/)

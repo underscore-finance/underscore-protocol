@@ -1,6 +1,6 @@
 # UserWallet Technical Documentation
 
-[📄 View Source Code](../../contracts/core/userWallet/UserWallet.vy)
+[📄 View Source Code](../../../contracts/core/userWallet/UserWallet.vy)
 
 ## Overview
 
@@ -1225,4 +1225,4 @@ The protocol collects fees on specific operations:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/userWallet/`](../../tests/core/userWallet/)
+For comprehensive test examples, see: [`tests/core/userWallet/`](../../../tests/core/userWallet/)

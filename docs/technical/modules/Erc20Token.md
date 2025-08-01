@@ -1,6 +1,6 @@
 # Erc20Token Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/Erc20Token.vy)
+[📄 View Source Code](../../../contracts/modules/Erc20Token.vy)
 
 ## Overview
 
@@ -602,4 +602,4 @@ token.burnBlacklistTokens(bad_actor.address, sender=governance)
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_erc20.py`](../../tests/modules/test_erc20.py) and [`tests/modules/test_erc20_sigs.py`](../../tests/modules/test_erc20_sigs.py)
+For comprehensive test examples, see: [`tests/modules/test_erc20.py`](../../../tests/modules/test_erc20.py) and [`tests/modules/test_erc20_sigs.py`](../../../tests/modules/test_erc20_sigs.py)

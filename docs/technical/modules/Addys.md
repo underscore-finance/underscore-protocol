@@ -1,6 +1,6 @@
 # Addys Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/Addys.vy)
+[📄 View Source Code](../../../contracts/modules/Addys.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Ledger Technical Documentation
 
-[📄 View Source Code](../../contracts/data/Ledger.vy)
+[📄 View Source Code](../../../contracts/data/Ledger.vy)
 
 ## Overview
 
@@ -620,4 +620,4 @@ if ambassador != ZERO_ADDRESS:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/data/test_ledger.py`](../../tests/data/test_ledger.py)
+For comprehensive test examples, see: [`tests/core/data/test_ledger.py`](../../../tests/core/data/test_ledger.py)

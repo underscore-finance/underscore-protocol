@@ -1,6 +1,6 @@
 # SwitchboardBravo Technical Documentation
 
-[📄 View Source Code](../../contracts/config/SwitchboardBravo.vy)
+[📄 View Source Code](../../../contracts/config/SwitchboardBravo.vy)
 
 ## Overview
 
@@ -934,4 +934,4 @@ switchboard_bravo.updateAssetData(updates)
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/config/test_switchboard_bravo.py`](../../tests/config/test_switchboard_bravo.py)
+For comprehensive test examples, see: [`tests/config/`](../../../tests/config/)

@@ -1,6 +1,6 @@
 # LootDistributor Technical Documentation
 
-[📄 View Source Code](../../contracts/core/LootDistributor.vy)
+[📄 View Source Code](../../../contracts/core/LootDistributor.vy)
 
 ## Overview
 
@@ -816,4 +816,4 @@ loot_distributor.updateDepositPointsOnEjection(user_wallet)
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/test_loot_distributor.py`](../../tests/core/test_loot_distributor.py)
+For comprehensive test examples, see: [`tests/core/test_loot_distributor.py`](../../../tests/core/test_loot_distributor.py)

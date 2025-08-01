@@ -1,6 +1,6 @@
 # Kernel Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/Kernel.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/Kernel.vy)
 
 ## Overview
 
@@ -530,4 +530,4 @@ if kernel.canManageWhitelist(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_kernel.py`](../../tests/core/walletBackpack/test_kernel.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/kernel/`](../../../tests/core/walletBackpack/kernel/)

@@ -1,6 +1,6 @@
 # Billing Technical Documentation
 
-[📄 View Source Code](../../contracts/core/Billing.vy)
+[📄 View Source Code](../../../contracts/core/Billing.vy)
 
 ## Overview
 
@@ -449,4 +449,4 @@ else:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/test_billing.py`](../../tests/core/test_billing.py)
+For comprehensive test examples, see: [`tests/core/test_billing.py`](../../../tests/core/test_billing.py)

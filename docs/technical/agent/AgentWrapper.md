@@ -1,6 +1,6 @@
 # AgentWrapper Technical Documentation
 
-[📄 View Source Code](../../contracts/core/agent/AgentWrapper.vy)
+[📄 View Source Code](../../../contracts/core/agent/AgentWrapper.vy)
 
 ## Overview
 
@@ -758,4 +758,4 @@ Quick action with owner approval:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/agent/`](../../tests/core/agent/)
+For comprehensive test examples, see: [`tests/core/agent/`](../../../tests/core/agent/)

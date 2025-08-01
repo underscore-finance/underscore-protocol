@@ -1,6 +1,6 @@
 # Switchboard Technical Documentation
 
-[📄 View Source Code](../../contracts/registries/Switchboard.vy)
+[📄 View Source Code](../../../contracts/registries/Switchboard.vy)
 
 ## Overview
 
@@ -533,4 +533,4 @@ switchboard.pause(False, sender=governance)
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/config/test_switchboard_alpha.py`](../../tests/config/test_switchboard_alpha.py)
+For comprehensive test examples, see: [`tests/config/test_switchboard_alpha.py`](../../../tests/config/test_switchboard_alpha.py)

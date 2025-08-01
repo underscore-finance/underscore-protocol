@@ -1,6 +1,6 @@
 # LegoTools Technical Documentation
 
-[📄 View Source Code](../../contracts/legos/LegoTools.vy)
+[📄 View Source Code](../../../contracts/legos/LegoTools.vy)
 
 ## Overview
 
@@ -1012,4 +1012,4 @@ for vault_info in vaults:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/legos/test_lego_tools.py`](../../tests/legos/test_lego_tools.py)
+For comprehensive test examples, see: [`tests/legos/`](../../../tests/legos/)

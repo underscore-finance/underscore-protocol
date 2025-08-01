@@ -1,6 +1,6 @@
 # AddressRegistry Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/AddressRegistry.vy)
+[📄 View Source Code](../../../contracts/modules/AddressRegistry.vy)
 
 ## Overview
 
@@ -780,4 +780,4 @@ These functions emit the following events:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_address_registry.py`](../../tests/modules/test_address_registry.py)
+For comprehensive test examples, see: [`tests/modules/test_address_registry.py`](../../../tests/modules/test_address_registry.py)

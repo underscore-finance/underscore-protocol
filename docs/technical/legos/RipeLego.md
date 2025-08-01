@@ -1,6 +1,6 @@
 # RipeLego Technical Documentation
 
-[📄 View Source Code](../../contracts/legos/RipeLego.vy)
+[📄 View Source Code](../../../contracts/legos/RipeLego.vy)
 
 ## Overview
 
@@ -1081,4 +1081,4 @@ if contract_addr != empty(address):
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/legos/test_ripe_lego.py`](../../tests/legos/test_ripe_lego.py)
+For comprehensive test examples, see: [`tests/legos/`](../../../tests/legos/)

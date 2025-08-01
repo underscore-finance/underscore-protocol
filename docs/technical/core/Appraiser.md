@@ -1,6 +1,6 @@
 # Appraiser Technical Documentation
 
-[📄 View Source Code](../../contracts/core/Appraiser.vy)
+[📄 View Source Code](../../../contracts/core/Appraiser.vy)
 
 ## Overview
 
@@ -678,4 +678,4 @@ if ripe_price == 0:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/test_appraiser.py`](../../tests/core/test_appraiser.py)
+For comprehensive test examples, see: [`tests/core/test_appraiser.py`](../../../tests/core/test_appraiser.py)

@@ -1,6 +1,6 @@
 # Paymaster Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/Paymaster.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/Paymaster.vy)
 
 ## Overview
 
@@ -904,4 +904,4 @@ paymaster.confirmPendingPayee(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_paymaster.py`](../../tests/core/walletBackpack/test_paymaster.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/paymaster/`](../../../tests/core/walletBackpack/paymaster/)

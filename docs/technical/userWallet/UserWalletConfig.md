@@ -1,6 +1,6 @@
 # UserWalletConfig Technical Documentation
 
-[📄 View Source Code](../../contracts/core/userWallet/UserWalletConfig.vy)
+[📄 View Source Code](../../../contracts/core/userWallet/UserWalletConfig.vy)
 
 ## Overview
 
@@ -1377,4 +1377,4 @@ The contract maintains efficient registries for managers, payees, and whitelist:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/userWallet/`](../../tests/core/userWallet/)
+For comprehensive test examples, see: [`tests/core/userWallet/`](../../../tests/core/userWallet/)

@@ -1,6 +1,6 @@
 # HighCommand Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/HighCommand.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/HighCommand.vy)
 
 ## Overview
 
@@ -796,4 +796,4 @@ high_command.removeManager(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_high_command.py`](../../tests/core/walletBackpack/test_high_command.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/highCommand/`](../../../tests/core/walletBackpack/highCommand/)

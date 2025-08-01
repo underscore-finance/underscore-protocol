@@ -1,6 +1,6 @@
 # DexLegoData Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/DexLegoData.vy)
+[📄 View Source Code](../../../contracts/modules/DexLegoData.vy)
 
 ## Overview
 
@@ -370,4 +370,4 @@ appraiser = mini_addys.appraiser
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/modules/test_dex_lego_data.py`](../../tests/modules/test_dex_lego_data.py)
+For comprehensive test examples, see: [`tests/modules/`](../../../tests/modules/)

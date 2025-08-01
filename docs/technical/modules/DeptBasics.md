@@ -1,6 +1,6 @@
 # DeptBasics Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/DeptBasics.vy)
+[📄 View Source Code](../../../contracts/modules/DeptBasics.vy)
 
 ## Overview
 

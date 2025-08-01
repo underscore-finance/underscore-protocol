@@ -1,6 +1,6 @@
 # WalletBackpack Technical Documentation
 
-[📄 View Source Code](../../contracts/registries/WalletBackpack.vy)
+[📄 View Source Code](../../../contracts/registries/WalletBackpack.vy)
 
 ## Overview
 
@@ -735,4 +735,4 @@ for component_type, address in components:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/registries/test_wallet_backpack.py`](../../tests/registries/test_wallet_backpack.py) and wallet component tests in [`tests/walletBackpack/`](../../tests/walletBackpack/)
+For comprehensive test examples, see: [`tests/registries/`](../../../tests/registries/) and wallet component tests in [`tests/core/walletBackpack/`](../../../tests/core/walletBackpack/)

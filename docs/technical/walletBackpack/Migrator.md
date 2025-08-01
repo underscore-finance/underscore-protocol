@@ -1,6 +1,6 @@
 # Migrator Technical Documentation
 
-[📄 View Source Code](../../contracts/core/walletBackpack/Migrator.vy)
+[📄 View Source Code](../../../contracts/core/walletBackpack/Migrator.vy)
 
 ## Overview
 
@@ -494,4 +494,4 @@ except Exception as e:
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/core/walletBackpack/test_migrator.py`](../../tests/core/walletBackpack/test_migrator.py)
+For comprehensive test examples, see: [`tests/core/walletBackpack/migrator/`](../../../tests/core/walletBackpack/migrator/)

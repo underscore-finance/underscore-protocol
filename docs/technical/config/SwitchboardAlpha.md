@@ -1,6 +1,6 @@
 # SwitchboardAlpha Technical Documentation
 
-[📄 View Source Code](../../contracts/config/SwitchboardAlpha.vy)
+[📄 View Source Code](../../../contracts/config/SwitchboardAlpha.vy)
 
 ## Overview
 
@@ -945,4 +945,4 @@ stablecoin_action = switchboard_alpha.setIsStablecoin(
 
 ## Testing
 
-For comprehensive test examples, see: [`tests/config/test_switchboard_alpha.py`](../../tests/config/test_switchboard_alpha.py)
+For comprehensive test examples, see: [`tests/config/test_switchboard_alpha.py`](../../../tests/config/test_switchboard_alpha.py)
