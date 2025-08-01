@@ -40,7 +40,7 @@ Underscore:    Give someone a virtual card → Hard-coded $1,000 limit → Auto-
 
 ### The Two-Phase Security Model
 
-Every Manager action passes through two validation phases, ensuring comprehensive protection:
+Every Manager action passes through two validation phases, ensuring comprehensive protection. Behind the scenes, configurations are validated through three layers: HighCommand → UserWalletConfig → Sentinel, guaranteeing enforcement at runtime:
 
 ```
 Phase 1: Pre-Action Validation        Phase 2: Post-Action Validation
@@ -78,16 +78,6 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 
 ## Permissions: What Managers Can Do
 
-### DeFi Operations
-
-| Permission           | Capability                            | Example Use Case                     |
-| -------------------- | ------------------------------------- | ------------------------------------ |
-| **Manage Yield**     | Deposit/withdraw from yield protocols | Auto-compound Aave positions daily   |
-| **Buy & Sell**       | Swap tokens, rebalance portfolios     | Maintain 60/40 ETH/USDC ratio        |
-| **Manage Debt**      | Handle loans and collateral           | Keep 150% collateralization          |
-| **Manage Liquidity** | Provide/remove DEX liquidity          | Optimize Uniswap V3 ranges           |
-| **Claim Rewards**    | Harvest protocol incentives           | Collect and reinvest farming rewards |
-
 ### Transfer & Payment Operations
 
 | Permission            | Capability                       | Example Use Case        |
@@ -96,6 +86,16 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 | **Create Cheques**    | Schedule one-time payments       | Delayed vendor payments |
 | **Propose Payees**    | Add recurring payment recipients | Onboard new contractors |
 
+### DeFi Operations
+
+| Permission           | Capability                            | Example Use Case                     |
+| -------------------- | ------------------------------------- | ------------------------------------ |
+| **Buy & Sell**       | Swap tokens, rebalance portfolios     | Maintain 60/40 ETH/USDC ratio        |
+| **Manage Yield**     | Deposit/withdraw from yield protocols | Auto-compound Aave positions daily   |
+| **Manage Debt**      | Handle loans and collateral           | Keep 150% collateralization          |
+| **Manage Liquidity** | Provide/remove DEX liquidity          | Optimize Uniswap V3 ranges           |
+| **Claim Rewards**    | Harvest protocol incentives           | Collect and reinvest farming rewards |
+
 ### Administrative Operations
 
 | Permission                 | Capability                    | Example Use Case            |
@@ -103,6 +103,14 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 | **Whitelist Management**   | Add/remove approved addresses | Maintain vendor list        |
 | **Claim Protocol Rewards** | Harvest Underscore incentives | Auto-claim platform rewards |
 | **Claim Loot**             | Collect revenue share         | Maximize protocol earnings  |
+
+> **📝 Time Units in Underscore**  
+> All time-based settings (delays, cooldowns, periods) are stored in blocks, not wall-clock time. On Base L2 with 2-second blocks:
+> - 1 hour = 1,800 blocks
+> - 1 day = 43,200 blocks  
+> - 1 week = 302,400 blocks
+> 
+> Examples in this guide assume Base's 2-second block time.
 
 ## Controls: Security Boundaries
 
@@ -116,8 +124,9 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 **Period-Based Limits**
 
 - Total USD value allowed within recurring time windows
-- Periods reset automatically (daily, weekly, monthly)
-- Example: $10,000 per week for trading operations
+- Period length set via `managerPeriod` in global settings (e.g., 43,200 blocks = 1 day)
+- Periods reset automatically when the current period ends
+- Example: $10,000 per day for trading operations
 
 ```
 Week 1: Use $7k of $10k limit → Week 2: Fresh $10k limit
@@ -134,7 +143,7 @@ Unused amounts don't roll over — each period starts clean
 **Transaction Cooldown**
 
 - Mandatory waiting period between transactions
-- Measured in blocks (e.g., 1,800 blocks ≈ 1 hour)
+- Measured in blocks (e.g., 1,800 blocks = 1 hour on Base)
 - Prevents rapid-fire mistakes or attacks
 
 **Asset Restrictions**
@@ -146,7 +155,7 @@ Unused amounts don't roll over — each period starts clean
 **Protocol Restrictions (Legos)**
 
 - Restrict to specific DeFi protocols by ID
-- Each protocol ("Lego") registered in LegoBook
+- Each protocol (["Lego"](user-wallet.md#the-lego-system) = standardized integration, e.g., Aave, Curve) registered in LegoBook
 - Example: Only allow Aave and Compound interactions
 - Maximum 25 different protocols per manager
 
@@ -167,14 +176,58 @@ Unused amounts don't roll over — each period starts clean
 **Activation Delay**
 
 - New Managers wait before permissions activate
-- Configurable: 1 hour (emergency) to 7 days (high-value)
+- Configurable up to the max delay your wallet was deployed with (typically 2-3 hours)
 - Time to verify additions and cancel if suspicious
+- Default: 5,000 blocks (about 2 hours 48 minutes on Base)
 
 **Activation Length**
 
 - Set Manager expiration periods
 - Auto-revoke after: 30 days (trial), 90 days (quarterly), 365 days (annual)
 - No action needed — permissions end automatically
+
+## How to Set Up Your First Manager
+
+### The Journey from Zero to Automated
+
+**1. Choose Your Manager Period**  
+Decide how often spending limits reset — daily, weekly, or monthly. This becomes your default for all managers through global settings. Think of it like a credit card billing cycle.
+
+**2. Add Your Manager**  
+Provide their address and two key timeframes:
+- **Security Delay**: How long to wait before they’re active (up to your wallet's maximum, typically 2-3 hours)
+- **Active Period**: How long they can operate (30 days for trials, 90+ days for trusted services)
+
+**3. Set Permissions and Limits**  
+Pick what they can do from the permissions menu:
+- Which actions (trade, yield, transfer, etc.)
+- Which assets they can touch
+- Which protocols they can use
+- Maximum amounts per transaction, per period, and lifetime
+
+**4. Monitor Performance**  
+Check anytime to see:
+- How much they’ve spent vs. their limits
+- Transaction history and patterns
+- Days remaining in their active period
+
+Your wallet provides detailed manager statistics through the dashboard or by querying current usage data.
+
+**5. Adjust or Remove**  
+Based on performance:
+- Extend their active period if they’re doing well
+- Increase limits for proven performers
+- Remove instantly if anything seems wrong
+
+### What to Expect
+
+**During Setup**: Small gas fee to configure (similar to approving a token)
+
+**While Active**: Each manager transaction costs normal DeFi gas — no extra overhead
+
+**For Monitoring**: Checking balances and history is free
+
+**If Problems Arise**: Removal is instant and costs minimal gas
 
 ## Real-World Configurations
 
@@ -277,6 +330,14 @@ The most powerful Manager implementations come from professional services that p
 4. **Gas Abstraction**: Many services pay gas fees for you
 5. **Performance Tracking**: Real-time reporting and analytics
 
+> **💸 Fee Considerations**  
+> Manager transactions still incur:
+> - Normal gas fees (paid by transaction sender - you or the service)
+> - Protocol fees on swaps/yields (0.1-0.5%)
+> - These fees contribute to your rewards
+> 
+> Professional services may cover gas costs as part of their offering.
+
 ### The Starter Agent
 
 New wallets can include a pre-configured "Starter Agent" with:
@@ -375,6 +436,7 @@ Managers can only interact with assets you've specifically allowed them to acces
 - Managers can claim [rewards](rewards.md) if given permission
 - Cannot change reward settings or ambassador codes
 - Useful for automated reward compounding strategies
+
 
 ## The Bottom Line
 
