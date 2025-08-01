@@ -1,199 +1,257 @@
-# Underscore Protocol Technical Documentation
-
-## Overview
-
-Underscore Protocol is a comprehensive wallet infrastructure system that provides **non-custodial smart contract wallets with integrated DeFi access, automated management capabilities, and sophisticated permission controls**. The protocol creates programmable wallet instances that can interact with external DeFi protocols through standardized interfaces while maintaining granular security controls and delegation mechanisms.
-
-Each UserWallet functions as an autonomous financial account capable of yield farming, token swapping, liquidity provision, collateralized borrowing, and rewards claiming across integrated protocols. The system supports delegation through Agents (automated managers with signature-based authentication), Payees (authorized payment recipients with configurable limits), and Cheques (time-locked payment promises), enabling complex financial workflows while preserving user control and security.
-
-### Key Features
-
-| Feature                            | Why it matters                                                                                                                                                         |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Smart Contract Wallets**         | Non-custodial wallet contracts that track assets, calculate USD values, and manage yield profits with automatic price updates and comprehensive event logging.         |
-| **Lego Partner Integrations**      | Standardized interfaces to external DeFi protocols enabling yield farming, swapping, lending, and liquidity operations through a unified routing system.               |
-| **Delegation & Management System** | Agents can execute wallet operations via EIP-712 signatures, Payees can receive payments within configured limits, and Cheques enable time-locked payment commitments. |
-| **Comprehensive Permission Model** | WalletConfig contracts control action permissions per signer, enforce spending limits, manage time-locks, and validate transaction recipients.                         |
-| **Multi-Asset Yield Tracking**     | Automatic yield profit calculation for both rebasing and non-rebasing assets with price-per-share monitoring and fee distribution to protocol rewards.                 |
-| **Modular Security Architecture**  | Time-locked configuration changes, emergency pause controls, ejection modes for asset recovery, and multi-tier governance with protocol-wide coordination.             |
-| **Cross-Protocol Operations**      | Multi-hop token swaps, concentrated liquidity management, collateral deposits/withdrawals, debt borrowing/repayment, and reward claiming across integrated protocols.  |
-
-### Protocol Components
-
-The protocol consists of several interconnected systems:
-
-- **Core Infrastructure**: User wallets, configuration management, data storage, and billing systems
-- **Lego Partners**: Standardized integrations with external DeFi protocols for yield and trading
-- **Registry System**: Coordinated management of protocol components, templates, and permissions
-- **Configuration Layer**: Time-locked parameter management with governance oversight
-- **Agent System**: Automated management services with configurable strategies and risk controls
-- **Wallet Backpack**: Infrastructure services for transaction processing and system maintenance
-
-## Core Infrastructure
-
-Essential protocol functionality for user wallets and system operations.
-
-| Contract                                              | Description                                                                                                                                                              |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [UserWallet.vy](userWallet/UserWallet.md)             | Intelligent wallet instance providing automated yield optimization and DeFi access with per-user configuration                                                           |
-| [UserWalletConfig.vy](userWallet/UserWalletConfig.md) | Configuration management for individual wallets including risk parameters and strategy settings                                                                          |
-| [Appraiser.vy](core/Appraiser.md)                     | Multi-oracle price aggregation system providing reliable asset valuations with staleness protection                                                                      |
-| [Billing.vy](core/Billing.md)                         | Pull payment engine that enables authorized payees and cheque recipients to withdraw funds directly from a UserWallet, with logic to unwind yield positions if necessary |
-| [Hatchery.vy](core/Hatchery.md)                       | User wallet factory with trial fund management and creation limit enforcement                                                                                            |
-| [LootDistributor.vy](core/LootDistributor.md)         | Rewards distribution system managing loot claiming, deposit points, and user incentives                                                                                  |
-
-## Data & Configuration
-
-Protocol state management and configuration systems.
-
-| Contract                                          | Description                                                                                          |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [Ledger.vy](data/Ledger.md)                       | Central data storage managing user positions, vault tokens, and protocol metrics with indexed access |
-| [MissionControl.vy](data/MissionControl.md)       | Configuration hub storing operational parameters, security settings, and protocol defaults           |
-| [SwitchboardAlpha.vy](config/SwitchboardAlpha.md) | Configuration management for user wallets, assets, agents, and security with time-locked changes     |
-| [SwitchboardBravo.vy](config/SwitchboardBravo.md) | Operational management for fund recovery, loot adjustment, and maintenance functions                 |
-
-## Lego Partners
-
-Modular integrations with external DeFi protocols for yield generation and trading.
-
-| Contract                           | Description                                                                                        |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [LegoTools.vy](legos/LegoTools.md) | Universal routing engine providing unified access to all Lego Partners with optimal path discovery |
-| [RipeLego.vy](legos/RipeLego.md)   | Integration with Ripe Protocol for yield farming, collateralized borrowing, and RIPE token rewards |
-
-### Lego Data Management
-
-| Contract                                     | Description                                                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| [YieldLegoData.vy](modules/YieldLegoData.md) | Data management for yield protocol integrations with bidirectional vault token mappings                                  |
-| [DexLegoData.vy](modules/DexLegoData.md)     | Minimal data module for DEX integrations that serves as a foundational module for DEX Legos that provide routing support |
-
-## Registries
-
-Central coordination points for protocol components and authoritative records.
-
-| Contract                                          | Description                                                                            |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [UndyHq.vy](registries/UndyHq.md)                 | Master protocol registry and governance hub coordinating all system components         |
-| [LegoBook.vy](registries/LegoBook.md)             | Registry of approved Lego Partner contracts with validation and integration management |
-| [Switchboard.vy](registries/Switchboard.md)       | Time-locked configuration registry managing protocol parameters and access control     |
-| [WalletBackpack.vy](registries/WalletBackpack.md) | Infrastructure component registry for wallet support services and system utilities     |
-
-## Agent System
-
-Automated management services with configurable strategies.
-
-| Contract                                 | Description                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [AgentWrapper.vy](agent/AgentWrapper.md) | Automated portfolio management agent providing strategy execution and risk management for user wallets |
-
-## Wallet Backpack Infrastructure
-
-Modular components that provide specialized functionality for UserWallet operations.
-
-| Contract                                        | Description                                                                                                                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Kernel.vy](walletBackpack/Kernel.md)           | Whitelist management module that handles the time-locked addition, confirmation, and removal of whitelisted addresses for a UserWallet                                  |
-| [HighCommand.vy](walletBackpack/HighCommand.md) | Manager administration module that allows the wallet owner to add, update, and remove managers and configure their specific permissions and spending limits             |
-| [ChequeBook.vy](walletBackpack/ChequeBook.md)   | Cheque creation and management module that allows the wallet owner or authorized managers to create, cancel, and configure time-locked payment promises (cheques)       |
-| [Paymaster.vy](walletBackpack/Paymaster.md)     | Payee administration module that allows the wallet owner to add, update, and remove authorized payment recipients (payees) and configure their specific spending limits |
-| [Sentinel.vy](walletBackpack/Sentinel.md)       | Stateless validation engine that enforces all permission and limit rules for managers, payees, and cheques with no stored state                                         |
-| [Migrator.vy](walletBackpack/Migrator.md)       | User wallet migration module that facilitates the secure transfer of all funds and configurations from one UserWallet to another                                        |
-
-## Common Modules
-
-Shared functionality used across multiple contracts.
-
-| Module                                           | Description                                                                                 |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [Addys.vy](modules/Addys.md)                     | Centralized address resolution providing validated protocol component addresses             |
-| [AddressRegistry.vy](modules/AddressRegistry.md) | Flexible registry for managing dynamic address mappings with time-lock controls             |
-| [DeptBasics.vy](modules/DeptBasics.md)           | Base functionality for protocol departments including pause controls and access management  |
-| [Erc20Token.vy](modules/Erc20Token.md)           | Enhanced ERC20 implementation with advanced features and protocol integration               |
-| [LocalGov.vy](modules/LocalGov.md)               | Two-tier governance system enabling both protocol-wide and contract-specific administration |
-| [Ownership.vy](modules/Ownership.md)             | Ownership management module with transfer controls and access validation                    |
-| [Timelock.vy](modules/Timelock.md)               | Time-delay mechanism for critical configuration changes with expiration windows             |
-
+---
+description: Your Financial Command Center, Reimagined
 ---
 
-## Getting Started
+# Underscore Protocol: One Wallet. Every Protocol. Total Control.
 
-1. **New Users**: Start with [UserWallet.vy](userWallet/UserWallet.md) to understand wallet functionality
-2. **Developers**: Review [UndyHq.vy](registries/UndyHq.md) for protocol architecture overview
-3. **Integrators**: Explore [LegoTools.vy](legos/LegoTools.md) for protocol integration patterns
-4. **Operators**: Check [SwitchboardAlpha.vy](config/SwitchboardAlpha.md) for configuration management
+Your crypto is trapped in a basic wallet that can't do anything. You juggle 10 different DeFi apps. You miss yield opportunities while sleeping. You pay excessive gas from inefficiency. And one wrong click could drain everything.
 
-## Architecture Principles
+Underscore changes all of this. Your wallet becomes an intelligent financial operating system — connecting to every protocol, automating complex strategies, maintaining total security. Finally, a wallet that works as hard as you do.
 
-- **Modular Design**: Reusable modules reduce complexity and enable rapid feature development
-- **Department Pattern**: Logical separation of concerns with specialized contract roles
-- **Registry Coordination**: Central registries maintain authoritative records and component relationships
-- **Time-Locked Governance**: Critical changes require delays and multi-signature approval
-- **Multi-Oracle Resilience**: Diverse price sources prevent single points of failure
-- **User-Centric Security**: Non-custodial design with user-controlled risk parameters and emergency controls
+***
 
-## Protocol Flow
+## The Problem: Today's Wallets Are Just Expensive Storage
+
+**Basic Wallets** (MetaMask, Rainbow)  
+Hold assets. Send transactions. That's it. Like having a Ferrari but only using it to listen to the radio.
+
+**DeFi Fragmentation**  
+Aave for lending. Uniswap for swaps. Compound for yields. Ten tabs open, none talking to each other. This isn't the future we were promised.
+
+**Manual Everything**  
+Claim rewards at 3am. Rebalance positions constantly. Miss opportunities while you sleep. The 24/7 market doesn't care about your schedule.
+
+## The Underscore Solution: Intelligent Financial Automation
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│   User Wallet   │◄──►│   Lego Partners  │◄──►│  External Protocols │
-│                 │    │                  │    │                     │
-│ • Yield Optimization │    │ • Standardized   │    │ • Ripe Protocol     │
-│ • Asset Management  │    │   Interfaces     │    │ • AMMs & DEXs      │
-│ • Risk Controls     │    │ • Route Discovery│    │ • Lending Markets   │
-└─────────┬───────┘    └─────────┬────────┘    └─────────────────────┘
-          │                      │
-          ▼                      ▼
-┌─────────────────┐    ┌──────────────────┐
-│  Configuration  │    │    Registries    │
-│                 │    │                  │
-│ • Switchboards  │    │ • UndyHq         │
-│ • MissionControl│    │ • LegoBook       │
-│ • Time Locks    │    │ • WalletBackpack │
-└─────────────────┘    └──────────────────┘
+Traditional:                    Underscore:
+┌─────────────┐                ┌─────────────────────┐
+│ Basic Wallet│                │   User Wallet       │
+│             │                │                     │
+│ • Hold assets│               │ • Hold assets       │
+│ • Send tokens│               │ • Auto-yield 24/7   │
+│             │                │ • AI optimization   │
+│             │                │ • Cross-protocol ops│
+│             │                │ • Granular security │
+└─────────────┘                └─────────────────────┘
+     Static                           Dynamic
 ```
 
-The protocol creates a unified interface for DeFi interactions while maintaining the flexibility and composability that makes decentralized finance powerful. Users benefit from automated optimization without sacrificing control, while developers can easily integrate new protocols and strategies through the standardized Lego Partner interface.
+***
 
-## Deployed Contracts
+## Core Components
 
-### Base Mainnet
+#### 🎯 [User Wallet: Your Financial Command Center](user-wallet.md)
 
-| Contract                 | Address                                                                                                               |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| UndyHq                   | [0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9](https://basescan.org/address/0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9) |
-| UserWalletTemplate       | [0x5aB75ef37A30736f38F637a9129348AD327EfD08](https://basescan.org/address/0x5aB75ef37A30736f38F637a9129348AD327EfD08) |
-| UserWalletConfigTemplate | [0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1](https://basescan.org/address/0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1) |
-| AgentWrapperTemplate     | [0x55eeA103abA26FA85fb1359E2D2e1961d1B46218](https://basescan.org/address/0x55eeA103abA26FA85fb1359E2D2e1961d1B46218) |
-| Ledger                   | [0x9e97A2e527890E690c7FA978696A88EFA868c5D0](https://basescan.org/address/0x9e97A2e527890E690c7FA978696A88EFA868c5D0) |
-| MissionControl           | [0x910FE9484540fa21B092eE04a478A30A6B342006](https://basescan.org/address/0x910FE9484540fa21B092eE04a478A30A6B342006) |
-| LegoBook                 | [0xEaf30ef8a98055981a67222E9088b4dE90B0924A](https://basescan.org/address/0xEaf30ef8a98055981a67222E9088b4dE90B0924A) |
-| RipeLego                 | [0xF3F436491e9a0d50F67eBED70D2cE5586F098fB4](https://basescan.org/address/0xF3F436491e9a0d50F67eBED70D2cE5586F098fB4) |
-| AaveV3Lego               | [0xb7401d91f1586474164B6c6Df328E3C3A5f24649](https://basescan.org/address/0xb7401d91f1586474164B6c6Df328E3C3A5f24649) |
-| CompoundV3Lego           | [0x5Dec90961280605Dd9f3BA19dB0ad57459a86A61](https://basescan.org/address/0x5Dec90961280605Dd9f3BA19dB0ad57459a86A61) |
-| EulerLego                | [0x22D16D820c20492597caDb6e36db976Ca16c4156](https://basescan.org/address/0x22D16D820c20492597caDb6e36db976Ca16c4156) |
-| FluidLego                | [0x4719731fC7c8A3e17CB3e1EadD4412692432B404](https://basescan.org/address/0x4719731fC7c8A3e17CB3e1EadD4412692432B404) |
-| MoonwellLego             | [0x9CdE6b17b88432734f64E760B5Dfbba372b4975F](https://basescan.org/address/0x9CdE6b17b88432734f64E760B5Dfbba372b4975F) |
-| MorphoLego               | [0xd7a412C42c7430802e2A60F8145c36A4c6d0bA84](https://basescan.org/address/0xd7a412C42c7430802e2A60F8145c36A4c6d0bA84) |
-| AeroClassicLego          | [0x15099c548DDE962ca9Bf520A771fB523818261C3](https://basescan.org/address/0x15099c548DDE962ca9Bf520A771fB523818261C3) |
-| AeroSlipstreamLego       | [0x680D5701F6f328C01eF0dad2B1E6eAD224a51D36](https://basescan.org/address/0x680D5701F6f328C01eF0dad2B1E6eAD224a51D36) |
-| CurveLego                | [0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4](https://basescan.org/address/0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4) |
-| UniswapV2Lego            | [0xadB9aa252dD6163f4958443b414177248435c0EC](https://basescan.org/address/0xadB9aa252dD6163f4958443b414177248435c0EC) |
-| UniswapV3Lego            | [0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249](https://basescan.org/address/0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249) |
-| LegoTools                | [0x2edb54bE8c4F6Cde402CAAe86A809D434b3AFC66](https://basescan.org/address/0x2edb54bE8c4F6Cde402CAAe86A809D434b3AFC66) |
-| Switchboard              | [0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e](https://basescan.org/address/0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e) |
-| SwitchboardAlpha         | [0x2256122FCb6F9789aa356F387435F545c3C52ba5](https://basescan.org/address/0x2256122FCb6F9789aa356F387435F545c3C52ba5) |
-| SwitchboardBravo         | [0xf1F5938559884D3c54400b417292B93cd81C368c](https://basescan.org/address/0xf1F5938559884D3c54400b417292B93cd81C368c) |
-| Hatchery                 | [0xFd89e4A3D9B97f4dD117c29Fa71c25aD904c590a](https://basescan.org/address/0xFd89e4A3D9B97f4dD117c29Fa71c25aD904c590a) |
-| LootDistributor          | [0x3e1B07E220B861e82c15f2E0844e9B0560Ed3067](https://basescan.org/address/0x3e1B07E220B861e82c15f2E0844e9B0560Ed3067) |
-| Appraiser                | [0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad](https://basescan.org/address/0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad) |
-| WalletBackpack           | [0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD](https://basescan.org/address/0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD) |
-| Kernel                   | [0xf5097601AeeE421F0B1b33deBE788ab2159f6704](https://basescan.org/address/0xf5097601AeeE421F0B1b33deBE788ab2159f6704) |
-| HighCommand              | [0xD13E72Dea7a32f487be9a3c6d0B640472Eccb4C8](https://basescan.org/address/0xD13E72Dea7a32f487be9a3c6d0B640472Eccb4C8) |
-| Paymaster                | [0x5aDc5a2b5018426243C98Aa52E4696F614274946](https://basescan.org/address/0x5aDc5a2b5018426243C98Aa52E4696F614274946) |
-| ChequeBook               | [0x27F769D5eFaddB6f3beb5b51A7F083144a55aE5D](https://basescan.org/address/0x27F769D5eFaddB6f3beb5b51A7F083144a55aE5D) |
-| Migrator                 | [0xD30961C917709FE4bC2690A2B69E185acef392bD](https://basescan.org/address/0xD30961C917709FE4bC2690A2B69E185acef392bD) |
-| Sentinel                 | [0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30](https://basescan.org/address/0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30) |
-| Billing                  | [0xA44685E909e61072271937871Ca93B43fA7fa654](https://basescan.org/address/0xA44685E909e61072271937871Ca93B43fA7fa654) |
-| DefaultsBase             | [0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6](https://basescan.org/address/0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6) |
+Stop choosing between security and functionality. Get both.
+
+* **One address** for every DeFi protocol
+* **Intelligent automation** with manual override always available
+* **Institutional security** without institutional complexity
+* **Gas optimization** saving 30-50% on complex operations
+
+#### 👥 [Managers: Delegation That Actually Works](managers.md)
+
+Let humans or AI work for you — within your exact boundaries.
+
+* **Granular permissions** - Allow only what you specify
+* **Hard spending limits** - Daily, monthly, and lifetime caps
+* **Time-based controls** - Auto-expire after set periods
+* **Instant revocation** - Your control is absolute
+
+#### 💸 [Payees: Streamlined Payment Rails](payees.md)
+
+Replace wire transfers with programmable payment relationships.
+
+* **Pre-approved recipients** with individual limits
+* **Automated payments** while funds earn yield
+* **Pull payment support** for subscriptions
+* **Period-based caps** preventing overspending
+
+#### 📝 [Cheques: Payments with an Undo Button](cheques.md)
+
+Time-locked payment promises you control until cashed.
+
+* **Security delays** for large amounts
+* **Cancel anytime** before payment
+* **Transparent on-chain** for both parties
+* **No funds locked** until actual payment
+
+#### 🏆 [Whitelist: Your VIP List](whitelist.md)
+
+Unlimited access for your most trusted addresses.
+
+* **No restrictions** for whitelisted addresses
+* **Time-locked additions** for security
+* **Perfect for** hardware wallets and treasuries
+* **Instant removal** if ever needed
+
+## Value Capture
+
+#### 💎 [Rewards: Get Paid for Using DeFi](rewards.md)
+
+Real revenue sharing from actual protocol usage.
+
+* **Deposit points** - Earn based on holdings over time
+* **Ambassador rewards** - 20-30% of referred user fees
+* **Yield bonuses** - Extra rewards on profitable positions
+* **No token locks** - Claim when you want
+
+***
+
+## The Magic: How It All Works Together
+
+Your Underscore Wallet isn't just one thing — it's an ecosystem of intelligent features working in harmony.
+
+### Example Day in Your Financial Life
+
+**7 AM**: Your [AI Manager](managers.md) notices Morpho offering 1% better yield than Aave. It automatically rebalances $50,000, saving you gas and capturing extra yield. You're still sleeping.
+
+**10 AM**: Monthly rent is due. Your landlord (configured as [Payee](payees.md)) pulls exactly $2,500 USDC. Not a penny more. Your remaining funds keep earning yield.
+
+**2 PM**: You need to pay a contractor. Create a $5,000 [cheque](cheques.md) with 3-day delay. If they don't deliver, cancel it. Simple.
+
+**4 PM**: Market crash! Move $200,000 to your hardware wallet ([whitelisted](whitelist.md)) instantly. No daily limits blocking emergency moves.
+
+**11 PM**: Check your [rewards](rewards.md). $150 accumulated from protocol fees. Your 10 referred users generated $500 in fees, netting you another $150. Passive income while you lived your life.
+
+***
+
+## Real-World Impact
+
+### For Individuals
+- **Save** 200+ hours annually on DeFi management
+- **Earn** $2,000-5,000 extra through optimization
+- **Reduce** gas costs by 30-50%
+- **Sleep** knowing your assets are secure AND productive
+
+### For Businesses  
+- **Eliminate** $1,000+ monthly in wire fees
+- **Automate** payroll while earning yield
+- **Manage** treasury across protocols seamlessly
+- **Scale** operations without operational overhead
+
+### For Traders
+- **Execute** complex strategies atomically
+- **Deploy** capital instantly across venues
+- **Automate** 24/7 without sacrificing control
+- **Compound** gains through intelligent routing
+
+***
+
+## Common Questions
+
+**Is my wallet upgradeable?**  
+No. Your wallet code is immutable for security. New features come through Lego integrations.
+
+**What are Legos?**  
+Standardized integrations with DeFi protocols. When new protocols launch, your wallet can use them immediately.
+
+**Can I use multiple wallets?**  
+Yes. Whitelist them for instant transfers between your wallets.
+
+**What about L2s?**  
+Currently Base L2 only. More chains coming.
+
+**How do fees work?**  
+Small fees (0.1-0.5% on swaps, 10% on yield profits) fund rewards. You earn back through participation.
+
+***
+
+## Pick Your Path
+
+Four ways to start. All lead to better financial outcomes.
+
+### 🚀 **The Quick Start**: Basic Wallet → Smart Wallet
+
+Deploy your User Wallet. Transfer assets. Start earning immediately.  
+**→** [**Deploy Your Wallet**](user-wallet.md)
+
+### 🤖 **The Optimizer**: Add an AI Manager
+
+Let algorithms work 24/7 within your risk parameters. Sleep while earning.  
+**→** [**Configure AI Manager**](managers.md)
+
+### 💼 **The Business**: Automate Operations
+
+Replace wire transfers. Automate payroll. Streamline vendor payments.  
+**→** [**Set Up Payees**](payees.md)
+
+### 🎯 **The Ambassador**: Build Passive Income
+
+Share Underscore. Earn 20-30% of fees your network generates. Forever.  
+**→** [**Start Earning**](rewards.md)
+
+***
+
+## 🔧 Technical Documentation
+
+Building on Underscore? Integrating with the protocol? Deep dive into the architecture.
+
+#### 📚 [Complete Technical Documentation](technical/)
+
+The technical docs provide comprehensive coverage of:
+
+* **Smart Contract Architecture** - Detailed documentation for 50+ contracts
+* **Integration Guides** - How to build Lego Partners and integrate protocols
+* **Module System** - Reusable components and design patterns
+* **Security Model** - Time-locks, registries, and permission systems
+* **Deployed Addresses** - All Base mainnet contract addresses
+
+### Key Technical Components
+
+**Core Infrastructure**
+- UserWallet and UserWalletConfig contracts
+- Multi-oracle price aggregation (Appraiser)
+- Rewards distribution (LootDistributor)
+- Pull payment engine (Billing)
+
+**Lego Partner System**
+- 6 yield protocol integrations (Aave, Compound, Morpho, etc.)
+- 5 DEX integrations (Uniswap, Curve, Aerodrome, etc.)
+- Universal routing through LegoTools
+
+**Security & Governance**
+- Registry-based architecture (UndyHq, LegoBook)
+- Time-locked configuration changes
+- Emergency pause and recovery systems
+- Modular permission management
+
+**→** [**Explore Technical Documentation**](technical/)
+
+***
+
+## 🤝 Join the Underscore Community
+
+### Connect & Learn
+
+* **Discord**: [Join our community](https://discord.gg/underscore) — Get help, share strategies, connect with users
+* **Twitter/X**: [@UnderscoreFi](https://x.com/UnderscoreFi) — Latest updates and announcements
+* **Blog**: [blog.underscore.finance](https://blog.underscore.finance) — Deep dives and insights
+* **GitHub**: [underscore-finance](https://github.com/underscore-finance) — Open source development
+
+### Need Help?
+
+* **User Docs**: You're here! Navigate using the menu
+* **Technical Docs**: [Technical Documentation](technical/) — For developers
+* **Discord Support**: Ask in #support for quick help
+
+***
+
+## The Real Vision: Financial Sovereignty Through Intelligence
+
+Here's what actually matters: You shouldn't have to choose between security and opportunity. Between automation and control. Between simplicity and power.
+
+Every other wallet makes you pick one. Underscore gives you everything.
+
+Your assets work 24/7 across every protocol. Your security preferences are enforced by code, not trust. Your strategies execute automatically within your exact boundaries. This is what crypto was supposed to enable.
+
+While others debate the future of finance, we built it.
+
+One wallet. Every protocol. Total control.
+
+Welcome to finance that actually works for you.
+
+***
+
+_For technical implementation details, see the [Technical Documentation](technical/)._

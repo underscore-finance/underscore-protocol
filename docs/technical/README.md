@@ -1,5 +1,7 @@
 # Underscore Protocol Technical Documentation
 
+> **Looking for user documentation?** Visit the [User Documentation](../) for guides on using Underscore Protocol.
+
 ## Overview
 
 Underscore Protocol is a comprehensive wallet infrastructure system that provides **non-custodial smart contract wallets with integrated DeFi access, automated management capabilities, and sophisticated permission controls**. The protocol creates programmable wallet instances that can interact with external DeFi protocols through standardized interfaces while maintaining granular security controls and delegation mechanisms.
@@ -56,6 +58,8 @@ Protocol state management and configuration systems.
 ## Lego Partners
 
 Modular integrations with external DeFi protocols for yield generation and trading.
+
+### Core Lego Infrastructure
 
 | Contract                           | Description                                                                                        |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -121,15 +125,6 @@ Modular components that provide specialized functionality for UserWallet operati
 | [Paymaster.vy](walletBackpack/Paymaster.md)     | Payee administration module that allows the wallet owner to add, update, and remove authorized payment recipients (payees) and configure their specific spending limits |
 | [Sentinel.vy](walletBackpack/Sentinel.md)       | Stateless validation engine that enforces all permission and limit rules for managers, payees, and cheques with no stored state                                         |
 | [Migrator.vy](walletBackpack/Migrator.md)       | User wallet migration module that facilitates the secure transfer of all funds and configurations from one UserWallet to another                                        |
-
-## Protocol Governance
-
-Protocol-wide tokens and configuration defaults.
-
-| Contract                                     | Description                                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| UndyToken.vy                                 | Protocol governance token (documentation pending)                                                |
-| DefaultsBase.vy                              | Base configuration defaults for protocol parameters (documentation pending)                      |
 
 ## Common Modules
 
@@ -226,4 +221,3 @@ The protocol creates a unified interface for DeFi interactions while maintaining
 | Migrator                 | [0xD30961C917709FE4bC2690A2B69E185acef392bD](https://basescan.org/address/0xD30961C917709FE4bC2690A2B69E185acef392bD) |
 | Sentinel                 | [0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30](https://basescan.org/address/0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30) |
 | Billing                  | [0xA44685E909e61072271937871Ca93B43fA7fa654](https://basescan.org/address/0xA44685E909e61072271937871Ca93B43fA7fa654) |
-| DefaultsBase             | [0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6](https://basescan.org/address/0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6) |
