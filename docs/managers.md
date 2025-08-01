@@ -156,9 +156,9 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 > **📝 Time Units in Underscore**  
 > All time-based settings (delays, cooldowns, periods) are stored in blocks, not wall-clock time. On Base L2 with 2-second blocks:
 >
-> - 1 hour = 1,800 blocks
-> - 1 day = 43,200 blocks
-> - 1 week = 302,400 blocks
+> - 1 hour (1,800 blocks)
+> - 1 day (43,200 blocks)
+> - 1 week (302,400 blocks)
 >
 > Examples in this guide assume Base's 2-second block time.
 
@@ -174,7 +174,7 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 **Period-Based Limits**
 
 - Total USD value allowed within recurring time windows
-- Period length set via `managerPeriod` in global settings (e.g., 43,200 blocks = 1 day)
+- Period length set via `managerPeriod` in global settings (e.g., 1 day = 43,200 blocks)
 - Periods reset automatically when the current period ends
 - Example: $10,000 per day for trading operations
 
@@ -193,7 +193,7 @@ Unused amounts don't roll over — each period starts clean
 **Transaction Cooldown**
 
 - Mandatory waiting period between transactions
-- Measured in blocks (e.g., 1,800 blocks = 1 hour on Base)
+- Measured in blocks (e.g., 1 hour = 1,800 blocks on Base)
 - Prevents rapid-fire mistakes or attacks
 
 **Asset Restrictions**
@@ -226,7 +226,7 @@ Unused amounts don't roll over — each period starts clean
 **Activation Delay**
 
 - New Managers wait before permissions activate
-- Configurable up to your wallet's maximum (5,000 blocks = 2 hours 48 minutes on Base)
+- Configurable up to your wallet's maximum (about 2 hours 48 minutes = 5,000 blocks on Base)
 - Time to verify additions and cancel if suspicious
 - Protects against rushed or malicious manager additions
 

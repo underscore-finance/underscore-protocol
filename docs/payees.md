@@ -1,20 +1,20 @@
-# Payees: Automated Payment Relationships That Actually Work
+# Payees: Your Circle of Trust for Automated Payments
 
 **TL;DR:**
 
-- Replace wire transfers with automated crypto payments that earn yield until needed
-- Set hard limits per payee: monthly caps for vendors, weekly limits for employees, etc.
-- Save thousands in fees while gaining hours back every month
+- Build your personal "Circle of Trust" — a safe list of verified payment addresses
+- Set individual limits for each recipient: monthly caps for vendors, weekly for employees
+- Your funds earn yield until payment while saving thousands in wire fees
 
-Stop losing $400 monthly because your payroll sits in a checking account earning nothing. Stop paying $50 wire fees. Stop missing payments while traveling. Stop worrying about sending too much by accident.
+Tired of triple-checking crypto addresses? Losing sleep over that large payment you just sent? Watching your payroll earn nothing in a checking account?
 
-**Payees** are pre-approved payment recipients with smart contract-enforced limits. Think automatic bill pay, but you keep earning yield until the moment of payment, you can cancel instantly, and you control every parameter.
+**Payees** transform scary crypto payments into confident, automated transactions. Like saving contacts in your phone, you verify an address once and pay with peace of mind forever. Add your employees, vendors, and regular recipients to your Circle of Trust. Set their individual limits. Then relax knowing every payment is protected from typos, overspending, and mistakes.
 
-This is what happens when you redesign payments from first principles. Your money works harder, your operations run smoother, and you sleep better.
+This is payment security that actually makes sense — your trusted addresses, your rules, your peace of mind.
 
-## Core Concept: Controlled Payment Relationships
+## Your Circle of Trust: Safe, Smart, Automated
 
-Traditional payments force bad choices: manual processing (time-consuming) or full access (risky). Payees create a better way:
+Think of Payees as your wallet's trusted contacts list. Just like you save phone numbers to avoid misdialing, you save payment addresses to avoid costly mistakes:
 
 ```
 Traditional: Give vendor your credit card → They charge whatever, whenever
@@ -34,6 +34,8 @@ $100,000 in Aave → 5% APY → $5,000/year
 Automatic withdrawal only when payments due
 ```
 
+This yield is generated through established DeFi lending protocols like Aave, Morpho, Euler, where your funds are supplied to liquidity pools and earn a share of the interest paid by borrowers — all while maintaining instant access for payments.
+
 **Real impact**: A business with $500k in operating funds earns ~$25,000 annually instead of $50.
 
 ## Payment Validation Hierarchy
@@ -46,6 +48,19 @@ The system checks payment recipients in strict order:
 4. **Others** → Payment blocked
 
 This hierarchy maximizes flexibility while maintaining security.
+
+## Why Your Circle of Trust is Unbreakable
+
+### Only You Hold the Keys
+**Absolute Owner Control**: Only you, as the wallet owner, can add or remove addresses from your Circle of Trust. Not your accountant. Not your manager. Not even your AI assistant. This fundamental rule is enforced by the blockchain itself — it's not a policy that can be bent, it's code that cannot be broken.
+
+### Tamper-Proof by Design
+**Immutable Records**: Once you add someone to your Circle of Trust, that record is written to the blockchain permanently. No hacker can secretly change "Alice's Wallet" to point to their own address. The address you saved is the address that stays.
+
+### Managers Can Only Pay Your Trusted Circle
+**The Ultimate Safety Net**: When you grant a manager permission to make payments, they can ONLY send funds to addresses already in your Circle of Trust. They cannot add new payees. They cannot modify existing ones. They cannot "accidentally" send your entire treasury to an unknown address. Every payment must go to someone you've already verified and approved.
+
+This isn't just security theater — it's security architecture. Your Circle of Trust creates an impenetrable boundary around your funds.
 
 ## Two-Layer Control System
 
@@ -94,12 +109,12 @@ Limits reset automatically each period:
 Month 1: Use $7k of $10k → Month 2: Fresh $10k (unused doesn't roll)
 ```
 
-Common configurations:
+Common configurations (on Base L2):
 
-- Daily: ~43,200 blocks
-- Weekly: ~302,400 blocks
-- Monthly: ~1,296,000 blocks
-- Quarterly: ~3,888,000 blocks
+- Daily: ~24 hours (43,200 blocks)
+- Weekly: ~7 days (302,400 blocks)
+- Monthly: ~30 days (1,296,000 blocks)
+- Quarterly: ~90 days (3,888,000 blocks)
 
 ### Transaction Controls
 
@@ -121,9 +136,9 @@ Control exactly what tokens each payee can receive:
 
 ### Maximum Counts
 
-- **40 payees per wallet**: Need more? Spin up another wallet or remove inactive payees
+- **40 Payees per wallet**: Need more? Spin up another wallet or remove inactive Payees
 - **40 assets per payee**: More than enough for any payment relationship
-- **25 protocols per manager**: If a manager proposes payees
+- **25 protocols per manager**: If a manager proposes Payees
 
 ### Fail on Zero Price Protection
 
@@ -132,6 +147,8 @@ This critical safety feature blocks transactions when asset prices are unavailab
 - **Why it matters**: Prevents unlimited token transfers during oracle failures
 - **Keep it enabled**: A broken price feed could otherwise drain your wallet
 - **Only disable for**: Pure stablecoin operations where you trust the 1:1 peg
+
+Price oracles are essential services that provide real-world asset prices to the blockchain. By blocking payments when this price data is unavailable, the system prevents potential exploits that could otherwise drain funds during an oracle malfunction.
 
 ### Pull Payment Safety
 
@@ -163,11 +180,12 @@ Added → Pending → Active → Expired/Removed
 - Confirm manager proposals
 - Full control always
 
-**[Managers](managers.md)**
+**[Managers](managers.md)** — Your Trusted Operators
 
-- Propose new payees only
-- Requires owner confirmation
-- Cannot modify/remove
+- Can make payments to anyone in your Circle of Trust
+- Can suggest new Payees (requires your approval)
+- Cannot modify your Circle of Trust directly
+- Perfect for delegating routine payments while maintaining control
 
 **Payees**
 
@@ -184,7 +202,7 @@ Added → Pending → Active → Expired/Removed
 
 ## Pull Payments: The Subscription Revolution
 
-Enable payees to request payment when due, always within your limits.
+Enable Payees to request payment when due, always within your limits.
 
 ### How It Works
 
@@ -212,20 +230,20 @@ With pull payments:
 - $500/month earning 5% = $25/year extra
 - $6,000 annual subscriptions = $300/year bonus
 
-**Safety**: Pull payees MUST have limits. No unlimited access allowed.
+**Safety**: Pull Payees MUST have limits. No unlimited access allowed.
 
 ## Real-World Configurations
 
-### Small Business Payroll
+### Transform Your Payroll
+
+**Before**: Logging into your bank, paying $35 wire fees, losing 3 days of yield
+**After**: John gets paid automatically on the 1st and 15th, your funds earn until payment
 
 ```
-Employee: John Smith - Developer
-Period: 30 days
-Limits: $10k/month, $10k/transaction
-Transactions: 2 per month (bi-weekly)
-Cooldown: 10 days
-Asset: USDC only
-Result: Automated payroll, funds earn yield until payday
+Payee: John Smith - Developer
+Your Benefit: Save $70/month in wire fees + earn yield
+Protection: Can only receive his set salary amount
+Convenience: Payments happen while you sleep
 ```
 
 ### Vendor Management
@@ -267,13 +285,13 @@ Result: Never miss payment, earn yield on float
 **What happens at expiry?**
 Payees automatically deactivate. Payments blocked until you renew.
 
-**Can payees see my balance?**
+**Can Payees see my balance?**
 No. They can only receive what you've authorized.
 
 **What if I overpay by mistake?**
 Impossible. Hard limits prevent sending more than configured.
 
-**Do I need separate payees for each employee?**
+**Do I need separate Payees for each employee?**
 Yes. Each payee has individual limits and tracking.
 
 **Can I modify limits after setup?**
@@ -283,7 +301,7 @@ Yes. Changes take effect immediately.
 
 For employees:
 
-- ✓ Monthly period (1,296,000 blocks)
+- ✓ Monthly period (~30 days)
 - ✓ Salary amount as period cap
 - ✓ 1-2 transactions per period
 - ✓ 10+ day cooldown
@@ -308,6 +326,20 @@ Payees fix all three problems simultaneously. Your funds earn until needed. Paym
 For a typical small business: Save $10,000+ annually in fees and lost yield. Reclaim 10 hours monthly from payment processing. Sleep knowing payments can't exceed your limits.
 
 Stop choosing between convenience and control. With Payees, you get both. Plus yield that pays for your Netflix subscription 10 times over.
+
+## The Perfect Partnership: Managers + Payees
+
+**Your Circle of Trust** (Payees) defines WHO can receive payments.
+**Your Operators** ([Managers](managers.md)) handle the routine work of making those payments.
+
+Together, they create unbreakable security:
+- You verify payment addresses once (adding them as Payees)
+- Your manager handles daily operations (paying only those Payees)
+- You maintain ultimate control (only you can modify the Circle of Trust)
+
+This separation of powers means you can delegate work without delegating trust. Your CFO can pay all your vendors without being able to add their cousin as a new "vendor." Your AI can optimize payments without being able to drain your wallet to an unknown address.
+
+**Learn more**: See how [Managers](managers.md) can automate your payment workflows.
 
 ## Related Features
 

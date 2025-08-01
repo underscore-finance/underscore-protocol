@@ -103,7 +103,7 @@ Returns scale with:
 ### Claiming Your Rewards
 
 1. **Check Claimable Assets**: View all accumulated rewards
-2. **Respect Cooldowns**: Typically 100-1,000 blocks between claims
+2. **Respect Cooldowns**: Typically 3-30 minutes between claims
 3. **Batch Claims**: Get all assets in one transaction
 4. **Manager Support**: [Managers](managers.md) can claim if permitted
 
