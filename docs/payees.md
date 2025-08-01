@@ -52,12 +52,15 @@ This hierarchy maximizes flexibility while maintaining security.
 ## Why Your Circle of Trust is Unbreakable
 
 ### Only You Hold the Keys
+
 **Absolute Owner Control**: Only you, as the wallet owner, can add or remove addresses from your Circle of Trust. Not your accountant. Not your manager. Not even your AI assistant. This fundamental rule is enforced by the blockchain itself — it's not a policy that can be bent, it's code that cannot be broken.
 
 ### Tamper-Proof by Design
+
 **Immutable Records**: Once you add someone to your Circle of Trust, that record is written to the blockchain permanently. No hacker can secretly change "Alice's Wallet" to point to their own address. The address you saved is the address that stays.
 
 ### Managers Can Only Pay Your Trusted Circle
+
 **The Ultimate Safety Net**: When you grant a manager permission to make payments, they can ONLY send funds to addresses already in your Circle of Trust. They cannot add new payees. They cannot modify existing ones. They cannot "accidentally" send your entire treasury to an unknown address. Every payment must go to someone you've already verified and approved.
 
 This isn't just security theater — it's security architecture. Your Circle of Trust creates an impenetrable boundary around your funds.
@@ -333,6 +336,7 @@ Stop choosing between convenience and control. With Payees, you get both. Plus y
 **Your Operators** ([Managers](managers.md)) handle the routine work of making those payments.
 
 Together, they create unbreakable security:
+
 - You verify payment addresses once (adding them as Payees)
 - Your manager handles daily operations (paying only those Payees)
 - You maintain ultimate control (only you can modify the Circle of Trust)

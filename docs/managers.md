@@ -1,6 +1,7 @@
 # Managers: The Autonomous Operators of Your Underscore Wallet
 
 **TL;DR:**
+
 - Let AI or trusted people operate your wallet within strict limits you control
 - Automate yield optimization and DeFi strategies that work 24/7
 - Set up once, revoke instantly, sleep soundly knowing your rules are enforced by code
