@@ -6,50 +6,94 @@ Enter **Managers** — the game-changing delegation system that lets your wallet
 
 This isn't your grandfather's power of attorney. This is programmable, revocable, limited delegation that puts you in complete control while enabling 24/7 optimization.
 
-## Core Concept: Delegation Without Trust
+## What Managers Do For You
 
-Traditional finance forces an impossible choice: keep full control and miss opportunities, or hand over your keys and pray. Underscore Managers create a third option:
+**💰 Make Money While You Sleep**
 
-```
-Traditional:   Give someone your credit card → Hope they don't max it out
-Underscore:    Give someone a virtual card → Hard-coded $1,000 limit → Auto-expires in 30 days
-```
+- AI managers optimize yields 24/7 across multiple protocols
+- Capture arbitrage opportunities in milliseconds
+- Auto-compound rewards you'd otherwise miss
+- Average users gain 2-5% extra APY
 
-### Who Can Be a Manager?
+**⏰ Save Time on Routine Tasks**
 
-**Human Operators**
+- Automate weekly DCA purchases at optimal prices
+- Let your CFO handle vendor payments independently
+- Auto-rebalance portfolios to maintain target allocations
+- Reclaim 10+ hours monthly from manual operations
 
-- Family members with emergency access
-- Business partners handling operations
-- Team members paying approved vendors
-- Professional traders executing strategies
+**🔒 Stay Secure with Granular Control**
 
-**AI Agents**
+- Set exact spending limits enforced by smart contracts
+- Restrict managers to specific tokens and protocols
+- Revoke access instantly if anything seems wrong
+- Time delays prevent rushed or malicious actions
 
-- Yield optimization bots working 24/7
-- Rebalancing algorithms maintaining portfolios
-- DCA bots executing regular purchases
-- Arbitrage hunters capturing opportunities
+**🎯 Access Professional Strategies**
 
-**Professional Services**
+- Use institutional-grade trading algorithms
+- Benefit from strategies requiring 24/7 monitoring
+- Pay performance fees only on profits
+- No minimum investment requirements
 
-- Registered financial advisors
-- Institutional trading desks
-- Yield aggregator protocols
-- Automated market makers
+## Stop Choosing Between Control and Growth
 
-### The Two-Phase Security Model
+Every crypto holder faces the same dilemma:
 
-Every Manager action passes through two validation phases, ensuring comprehensive protection. Behind the scenes, configurations are validated through three layers: HighCommand → UserWalletConfig → Sentinel, guaranteeing enforcement at runtime:
+- **Keep full control** = Miss opportunities, waste time on manual tasks
+- **Share your keys** = Risk losing everything
 
-```
-Phase 1: Pre-Action Validation        Phase 2: Post-Action Validation
-├─ Manager active?                    ├─ Under per-tx USD limit?
-├─ Action permitted?                  ├─ Under period USD limit?
-├─ Asset allowed?                     ├─ Under lifetime USD limit?
-├─ Protocol allowed?                  └─ Update tracking data
-└─ Cooldown passed?
-```
+Managers eliminate this impossible choice:
+
+**Old Way**: Give your accountant your seed phrase and pray
+**Manager Way**: Give your accountant permission to pay invoices up to $5k/month. Nothing more.
+
+**Old Way**: Stay up until 3am to catch the best yield rates
+**Manager Way**: Your AI manager rebalances automatically within your set limits
+
+**Old Way**: Your spouse can't help if something happens to you
+**Manager Way**: Your spouse has emergency access that activates only when needed
+
+### Your Manager Options
+
+**People You Trust** = Handle specific tasks without full access
+
+- Your spouse can pay bills but can't trade your ETH
+- Your business partner can handle vendors but can't touch reserves
+- Your accountant can view transactions but can't move funds
+- Your trader friend can swap tokens but only up to set limits
+
+**AI That Never Sleeps** = Capture opportunities 24/7
+
+- Yield optimizers that move funds to the best rates automatically
+- Rebalancing bots that maintain your 60/40 portfolio split
+- DCA bots that buy $100 of ETH every Monday at optimal prices
+- Arbitrage bots that profit from price differences while you sleep
+
+**Professional Services** = Institutional strategies for everyone
+
+- Get hedge fund returns without the $10M minimum
+- Access quant strategies previously exclusive to banks
+- Let proven traders work within your risk limits
+- Benefit from AI models trained on billions in trades
+
+### Your Protection Never Sleeps
+
+Every manager action faces a gauntlet of automatic checks:
+
+**Before Any Action**:
+✓ Is this manager still active?
+✓ Can they perform this specific action?
+✓ Can they touch this particular asset?
+✓ Are they using an approved protocol?
+✓ Has enough time passed since their last action?
+
+**After The Action**:
+✓ Did they stay under their per-transaction limit?
+✓ Are they still within their daily/weekly/monthly budget?
+✓ Have they exceeded their total lifetime allowance?
+
+If any check fails, the transaction stops cold. No exceptions, no overrides, no "just this once." Your rules are enforced by code, not promises.
 
 Both phases execute atomically within the transaction — if any check fails, the entire action reverts.
 
@@ -106,10 +150,11 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 
 > **📝 Time Units in Underscore**  
 > All time-based settings (delays, cooldowns, periods) are stored in blocks, not wall-clock time. On Base L2 with 2-second blocks:
+>
 > - 1 hour = 1,800 blocks
-> - 1 day = 43,200 blocks  
+> - 1 day = 43,200 blocks
 > - 1 week = 302,400 blocks
-> 
+>
 > Examples in this guide assume Base's 2-second block time.
 
 ## Controls: Security Boundaries
@@ -176,9 +221,9 @@ Unused amounts don't roll over — each period starts clean
 **Activation Delay**
 
 - New Managers wait before permissions activate
-- Configurable up to the max delay your wallet was deployed with (typically 2-3 hours)
+- Configurable up to your wallet's maximum (5,000 blocks = 2 hours 48 minutes on Base)
 - Time to verify additions and cancel if suspicious
-- Default: 5,000 blocks (about 2 hours 48 minutes on Base)
+- Protects against rushed or malicious manager additions
 
 **Activation Length**
 
@@ -195,11 +240,13 @@ Decide how often spending limits reset — daily, weekly, or monthly. This becom
 
 **2. Add Your Manager**  
 Provide their address and two key timeframes:
+
 - **Security Delay**: How long to wait before they’re active (up to your wallet's maximum, typically 2-3 hours)
 - **Active Period**: How long they can operate (30 days for trials, 90+ days for trusted services)
 
 **3. Set Permissions and Limits**  
 Pick what they can do from the permissions menu:
+
 - Which actions (trade, yield, transfer, etc.)
 - Which assets they can touch
 - Which protocols they can use
@@ -207,6 +254,7 @@ Pick what they can do from the permissions menu:
 
 **4. Monitor Performance**  
 Check anytime to see:
+
 - How much they’ve spent vs. their limits
 - Transaction history and patterns
 - Days remaining in their active period
@@ -215,6 +263,7 @@ Your wallet provides detailed manager statistics through the dashboard or by que
 
 **5. Adjust or Remove**  
 Based on performance:
+
 - Extend their active period if they’re doing well
 - Increase limits for proven performers
 - Remove instantly if anything seems wrong
@@ -229,58 +278,80 @@ Based on performance:
 
 **If Problems Arise**: Removal is instant and costs minimal gas
 
-## Real-World Configurations
+## Real People, Real Results
 
-### The Conservative Yield Farmer
+### Sarah's Passive Income Machine
 
-```
-Manager: YieldMaxAI Bot
-Permissions: Manage Yield, Claim Rewards
-Assets: USDC, USDT, DAI only
-Protocols: Aave, Compound, Yearn
-Limits: $20k/tx, $100k/month, $1M lifetime
-Cooldown: 6 hours between moves
-Activation: 7-day delay, 180-day duration
-Result: +3-5% APY through optimization
-```
+**The Situation**: Sarah holds $100k in stablecoins but barely earns 2% because she can't monitor rates 24/7.
 
-### The Business Operations Manager
+**The Solution**: She added YieldMaxAI as a manager with these limits:
 
-```
-Manager: Trusted CFO
-Permissions: Transfers only
-Assets: USDC only
-[Payees](payees.md): 10 verified vendor addresses
-Limits: $2.5k/tx, $25k/week
-Cooldown: 1 hour minimum
-Activation: 24-hour delay, 90-day duration
-Result: Streamlined payments without treasury access
-```
+- Can only touch her stablecoins (USDC, USDT, DAI)
+- Can only use trusted protocols (Aave, Compound)
+- Maximum $20k per transaction
+- Must wait 6 hours between moves
 
-### The Emergency Access System
+**The Result**: Her AI manager:
 
-```
-Manager: Family Member
-Permissions: Transfers only
-Assets: USDC only
-Limits: $10k lifetime cap
-Cooldown: None (emergency use)
-Activation: 1-hour delay
-Result: Quick help without compromising savings
-```
+- Moved funds to Compound when rates hit 5.2% at 3am
+- Shifted to Aave during a 6.1% promotional period
+- Auto-claimed $312 in rewards she would have missed
+- **Generated an extra $3,000 annually** with zero effort
 
-### The Professional Trading Desk
+### David's Distributed Company
 
-```
-Manager: InstitutionalTradingCo
-Permissions: Buy & Sell, Manage Liquidity
-Assets: ETH, WBTC, USDC, USDT
-Protocols: Uniswap, Curve, Balancer
-Limits: $50k/tx, $500k/week, $10M lifetime
-Cooldown: 10 minutes
-Activation: 3-day delay, 365-day duration
-Result: Institutional strategies in personal wallet
-```
+**The Situation**: David runs a DAO with 50 contributors. He was drowning in payment requests and wire transfers cost $35 each.
+
+**The Solution**: He made his CFO a manager with strict boundaries:
+
+- Can only send USDC to pre-approved vendor addresses
+- Maximum $2,500 per payment
+- Maximum $25,000 per week total
+- 1 hour cooldown between payments
+
+**The Result**:
+
+- CFO handles all routine payments independently
+- **Saved $1,750/month** in wire fees
+- **Freed up 10 hours/week** of David's time
+- Zero access to investment funds or treasury reserves
+
+### Maria's Safety Net
+
+**The Situation**: Maria travels frequently and worries about her family accessing funds if something happens.
+
+**The Solution**: She made her brother an emergency manager:
+
+- Can only transfer USDC
+- Lifetime limit of $10,000
+- No cooldown (for true emergencies)
+- Activates after just 1 hour
+
+**The Result**:
+
+- Brother can help in genuine emergencies
+- Can't touch her ETH or other investments
+- **Peace of mind** without compromising security
+- Already helped once when Maria lost her phone abroad
+
+### Alex's Institutional Edge
+
+**The Situation**: Alex wanted access to sophisticated trading strategies but didn't have $10M for a hedge fund minimum.
+
+**The Solution**: He connected TradingDeskPro as a manager:
+
+- Can trade ETH, BTC, and stablecoins
+- Can use major DEXes (Uniswap, Curve)
+- Maximum $50k per trade
+- 10-minute cooldown between trades
+- Annual contract with 3-day security delay
+
+**The Result**:
+
+- Access to arbitrage strategies previously exclusive to institutions
+- **Earned 18% last quarter** through automated trading
+- Pays only 20% performance fee vs 2-and-20 hedge fund structure
+- Can revoke access instantly if strategies underperform
 
 ## Lifecycle Management
 
@@ -332,10 +403,11 @@ The most powerful Manager implementations come from professional services that p
 
 > **💸 Fee Considerations**  
 > Manager transactions still incur:
+>
 > - Normal gas fees (paid by transaction sender - you or the service)
 > - Protocol fees on swaps/yields (0.1-0.5%)
 > - These fees contribute to your rewards
-> 
+>
 > Professional services may cover gas costs as part of their offering.
 
 ### The Starter Agent
@@ -418,25 +490,28 @@ Managers can only interact with assets you've specifically allowed them to acces
 ## Working with Other Features
 
 ### Managers and Payees
+
 - Managers can transfer to approved [payees](payees.md) within their limits
 - Add payee restrictions to limit manager transfers to known addresses
 - Perfect for accounts payable roles with vendor payment access
 
 ### Managers and Cheques
+
 - Managers can create [cheques](cheques.md) within their spending limits
 - Cheque amounts count against manager's daily/period/lifetime caps
 - Time delays on cheques add extra security layer
 
 ### Managers and Whitelist
+
 - Managers cannot modify the [whitelist](whitelist.md)
 - Whitelisted addresses bypass all manager restrictions
 - Use whitelist for emergency access, managers for daily operations
 
 ### Managers and Rewards
+
 - Managers can claim [rewards](rewards.md) if given permission
 - Cannot change reward settings or ambassador codes
 - Useful for automated reward compounding strategies
-
 
 ## The Bottom Line
 
