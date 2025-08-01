@@ -1,10 +1,16 @@
 # Payees: Automated Payment Relationships That Actually Work
 
+**TL;DR:**
+
+- Replace wire transfers with automated crypto payments that earn yield until needed
+- Set hard limits per payee: monthly caps for vendors, weekly limits for employees, etc.
+- Save thousands in fees while gaining hours back every month
+
 Stop losing $400 monthly because your payroll sits in a checking account earning nothing. Stop paying $50 wire fees. Stop missing payments while traveling. Stop worrying about sending too much by accident.
 
 **Payees** are pre-approved payment recipients with smart contract-enforced limits. Think automatic bill pay, but you keep earning yield until the moment of payment, you can cancel instantly, and you control every parameter.
 
-This is what happens when you redesign payments from first principles — your money works harder, your operations run smoother, and you sleep better.
+This is what happens when you redesign payments from first principles. Your money works harder, your operations run smoother, and you sleep better.
 
 ## Core Concept: Controlled Payment Relationships
 
@@ -49,8 +55,8 @@ Wallet-wide defaults affecting all payees:
 
 - Default period length (e.g., 30 days)
 - Base transaction and period limits
-- `canPayOwner`: Self-payment toggle
-- `canPull`: Master switch for pull payments
+- `canPayOwner`: Self-payment toggle (default: enabled)
+- `canPull`: Master switch for pull payments (default: disabled for security)
 
 ### Specific Payee Settings
 
@@ -111,6 +117,26 @@ Control exactly what tokens each payee can receive:
 | Primary Asset + Any          | Preference indicated | Vendor prefers USDT |
 | No Restrictions              | Accept anything      | Trading services    |
 
+## System Limits & Safety Features
+
+### Maximum Counts
+
+- **40 payees per wallet**: Need more? Spin up another wallet or remove inactive payees
+- **40 assets per payee**: More than enough for any payment relationship
+- **25 protocols per manager**: If a manager proposes payees
+
+### Fail on Zero Price Protection
+
+This critical safety feature blocks transactions when asset prices are unavailable:
+
+- **Why it matters**: Prevents unlimited token transfers during oracle failures
+- **Keep it enabled**: A broken price feed could otherwise drain your wallet
+- **Only disable for**: Pure stablecoin operations where you trust the 1:1 peg
+
+### Pull Payment Safety
+
+**Hard requirement**: You _cannot_ enable pull payments without setting limits. The system enforces at least one cap (transaction or period) to prevent unlimited access.
+
 ## Lifecycle Management
 
 ### Activation Flow
@@ -120,12 +146,14 @@ Added → Pending → Active → Expired/Removed
          (delay)   (working)
 ```
 
-Typical delays:
+### Typical Activation & Expiry Combinations
 
-- High-value vendor: 7 days
-- New employee: 3 days
-- Trusted family: 1 day
-- Known partner: 1 hour
+| Use Case                 | Activation Delay | Auto-Expiry | Why This Combo                                        |
+| ------------------------ | ---------------- | ----------- | ----------------------------------------------------- |
+| **New Vendor**           | 7 days           | 90 days     | High security for new relationships; quarterly review |
+| **Regular Employee**     | 3 days           | 365 days    | Moderate security; annual contract cycle              |
+| **Trusted Family**       | 1 day            | Never       | Quick access for emergencies; permanent relationship  |
+| **Subscription Service** | 2 hours          | 30 days     | Fast setup; monthly renewal matches billing           |
 
 ### Administrative Hierarchy
 
@@ -151,9 +179,12 @@ Typical delays:
 - Emergency removal only
 - Protocol safety net
 
+> **📋 Manager Proposals Need Your Approval**  
+> If a manager proposes a new payee, you'll see a pending request in your dashboard. After the security delay (typically 2-3 hours), you must manually confirm to activate the payee. This two-step process prevents unauthorized additions.
+
 ## Pull Payments: The Subscription Revolution
 
-Enable payees to request payment when due — within your limits.
+Enable payees to request payment when due, always within your limits.
 
 ### How It Works
 
@@ -276,7 +307,7 @@ Payees fix all three problems simultaneously. Your funds earn until needed. Paym
 
 For a typical small business: Save $10,000+ annually in fees and lost yield. Reclaim 10 hours monthly from payment processing. Sleep knowing payments can't exceed your limits.
 
-Stop choosing between convenience and control. With Payees, you get both — plus yield that pays for your Netflix subscription 10 times over.
+Stop choosing between convenience and control. With Payees, you get both. Plus yield that pays for your Netflix subscription 10 times over.
 
 ## Related Features
 

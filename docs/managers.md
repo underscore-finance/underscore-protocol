@@ -1,5 +1,10 @@
 # Managers: The Autonomous Operators of Your Underscore Wallet
 
+**TL;DR:**
+- Let AI or trusted people operate your wallet within strict limits you control
+- Automate yield optimization and DeFi strategies that work 24/7
+- Set up once, revoke instantly, sleep soundly knowing your rules are enforced by code
+
 You've been doing DeFi wrong. Manually claiming rewards at 3am. Missing arbitrage opportunities while you sleep. Watching yields evaporate because you couldn't rebalance fast enough.
 
 Enter **Managers** — the game-changing delegation system that lets your wallet work as hard as you do. Grant specific permissions to trusted operators, AI agents, or professional services. Set unbreakable spending limits enforced by smart contracts. Revoke access instantly if anything seems off.

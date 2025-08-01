@@ -1,5 +1,10 @@
 # Rewards: Get Paid for Using DeFi the Right Way
 
+**TL;DR:**
+- Earn revenue share from protocol fees in the assets you already use (no useless tokens)
+- Get deposit points for holding assets and ambassador rewards for referrals
+- No lock-ups, no vesting, no complexity – just claim when you want
+
 Every protocol promises rewards. Most deliver complexity, vesting schedules, and tokens you'll never use. Underscore does it differently — you get real value sharing from actual protocol revenue, paid in assets you already hold.
 
 No governance tokens. No staking requirements. No lock-ups. Just transparent fee sharing that rewards active users and those who grow the ecosystem. This is DeFi alignment done right.

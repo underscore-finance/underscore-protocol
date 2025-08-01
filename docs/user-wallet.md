@@ -1,5 +1,10 @@
 # User Wallet: Your Financial Command Center, Reimagined
 
+**TL;DR:**
+- One smart wallet that connects to every DeFi protocol automatically
+- Built-in security tools: managers, payees, cheques, and whitelist
+- Reduce gas costs while earning yield 24/7 through intelligent automation
+
 Your current crypto wallet is like a safe with no tools inside. It holds your assets but can't do much else. You switch between 10 different apps to manage DeFi. You miss yield opportunities while sleeping. You pay 40% more gas than necessary. And one wrong click could drain everything.
 
 The **Underscore User Wallet** changes all of this. It's not just a wallet — it's an intelligent financial operating system that manages complexity while you maintain control. One address. Every protocol. Total security. Maximum efficiency.

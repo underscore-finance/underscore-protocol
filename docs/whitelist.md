@@ -1,5 +1,10 @@
 # Whitelist: Unlimited Trust for Your Most Important Addresses
 
+**TL;DR:**
+- Grant unlimited, instant transfer access to your most trusted addresses
+- Perfect for hardware wallets, emergency contacts, or treasury management
+- Time-locked addition process ensures security while instant removal provides control
+
 Your hardware wallet holding $1 million. Your spouse who needs emergency access. Your business treasury requiring daily sweeps. Some addresses deserve unlimited trust — and the Whitelist delivers exactly that.
 
 No more being blocked by your own security limits when moving funds between your wallets. No more panic during emergencies because daily limits prevent helping family. The **Whitelist** is your wallet's VIP list — addresses that bypass all restrictions for instant, unlimited transfers.

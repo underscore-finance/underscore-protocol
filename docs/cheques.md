@@ -1,5 +1,10 @@
 # Cheques: The Safety Net Your Crypto Payments Never Had
 
+**TL;DR:**
+- Create cancellable payments with built-in time delays for security
+- Perfect for large transfers, contractor payments, or any transaction needing an "undo" button
+- Funds stay in your wallet earning yield until the cheque is actually cashed
+
 That sinking feeling when you realize you sent $50,000 to the wrong address. The panic when a contractor cashes your payment before delivering. The wire recall that takes three days and might not work.
 
 **Cheques** fix all of this. They're blockchain-native payments you control until the moment they're cashed — like having an "undo" button for your money.
