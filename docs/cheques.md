@@ -40,7 +40,7 @@ Creation → Time-locked → Active → Finalized
 
 ### Creation
 
-Specify recipient, amount, timing, and permissions. USD value locked at creation for clean accounting.
+Specify recipient, amount, timing, and permissions. We record the cheque's USD value when you create it — this snapshot powers limits, reporting, and automatic delays.
 
 ### Time-locked
 
@@ -66,10 +66,12 @@ Either paid (funds transferred) or expired (becomes void).
 
 ### Automatic USD Thresholds
 
-Set an instant threshold (e.g., $1,000):
+Set a delay threshold (e.g., $1,000):
 
 - Below: Cheques can be immediate
 - Above: Automatic delay applied
+
+> **Note**: Cheques cannot be created for [whitelisted addresses](whitelist.md). If you trust an address enough to whitelist it, pay them directly with instant, unlimited transfers — Cheques are for everything else.
 
 Example impact:
 
@@ -82,6 +84,8 @@ Example impact:
 - **Expensive Delay**: How long high-value cheques wait (e.g., 3-7 days)
 - **Default Expiry**: How long cheques stay active (e.g., 30 days)
 - **Custom Timing**: Override per cheque as needed
+
+Time is measured in blocks (on Base L2: ~2 seconds per block, ~43,200 blocks per day).
 
 ## Financial Controls
 
@@ -189,25 +193,28 @@ No, but you can cancel and recreate with new terms.
 **What happens at expiry?**
 Cheque becomes void, cannot be cashed anymore.
 
+**Can I write a cheque to a whitelisted address?**
+No — use [Whitelist](whitelist.md) for instant payments. Cheques are for non-whitelisted recipients who need payment controls.
+
 ## Quick Setup Guide
 
 For personal use:
 
-- Set $1,000 instant threshold
+- Set $1,000 delay threshold
 - 3-day expensive delay
 - 30-day default expiry
 - 10 max active cheques
 
 For business:
 
-- Set $10,000 instant threshold
+- Set $10,000 delay threshold
 - 24-hour expensive delay
 - 45-day default expiry
 - Allow manager creation
 
 For high security:
 
-- Set $500 instant threshold
+- Set $500 delay threshold
 - 7-day expensive delay
 - Disable pull payments
 - Single asset only
@@ -222,6 +229,14 @@ For businesses: Save thousands in payment errors and days of reconciliation work
 For individuals: Never lose sleep over a large transfer again.
 
 This isn't just a better payment method — it's payment control that matches the stakes of modern crypto. When moving real money, you deserve a real safety net.
+
+## When to Use What
+
+| Use Case | Choose | Why |
+|----------|--------|-----|
+| One-off, high-value payment needing review window | **Cheque** | Time-lock + cancel up to payout; global period caps |
+| Recurring payments to trusted relationships | **[Payee](payees.md)** | Individual caps, pull-payment safety, "Circle of Trust" |
+| Emergency or ultra-trusted transfers | **[Whitelist](whitelist.md)** | Instant, no limits or delays |
 
 ## Related Features
 
