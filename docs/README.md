@@ -88,6 +88,15 @@ Unlimited access for your most trusted addresses.
 * **Perfect for** hardware wallets and treasuries
 * **Instant removal** if ever needed
 
+### [Rewards: Get Paid for Using DeFi](rewards.md)
+
+Earn real revenue share from protocol activity.
+
+* **50% revenue share** for ambassadors (default)
+* **Yield bonuses** on realized profits
+* **Deposit points** for holding assets
+* **No lock-ups** - claim anytime
+
 ***
 
 ## The Magic: How It All Works Together
@@ -123,7 +132,7 @@ Yes. Whitelist them for instant transfers between your wallets.
 Currently Base L2 only. More chains coming.
 
 **How do fees work?**  
-Small fees on swaps, earned yield and when claiming rewards. No fees on transfers, deposits, or idle funds.
+Small fees on swaps (0.25%), yield profits (10%), and external reward claims (10%). No fees on transfers, deposits, or idle funds. Up to 50% of fees go to ambassadors and users through revenue sharing.
 
 ***
 
@@ -135,6 +144,7 @@ Start with the [User Wallet](user-wallet.md) to understand the foundation. Then 
 - **For Recurring Payments**: Configure [Payees](payees.md) for automated transfers
 - **For One-Time Payments**: Use [Cheques](cheques.md) with cancellation ability
 - **For Multi-Wallet Strategies**: Add addresses to your [Whitelist](whitelist.md)
+- **For Earning Rewards**: Learn about [revenue sharing and bonuses](rewards.md)
 
 ***
 

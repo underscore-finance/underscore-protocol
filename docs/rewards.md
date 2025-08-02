@@ -2,226 +2,171 @@
 description: Earn revenue share from protocol fees with no lock-ups or complex tokenomics
 ---
 
-# Rewards: Get Paid for Using DeFi the Right Way
+# Rewards: Real Revenue Share from Real DeFi Activity
 
-**TL;DR:**
-- Earn revenue share from protocol fees in the assets you already use (no useless tokens)
-- Get deposit points for holding assets and ambassador rewards for referrals
-- No lock-ups, no vesting, no complexity – just claim when you want
+You just paid $50 in swap fees. Another protocol pocketed 100% of it. Your $25K position earned the protocol $2,500 in yield fees this year. You got nothing back. Meanwhile, professional trading firms negotiate revenue share deals worth millions. Regular users are excluded from these deals.
 
-Every protocol promises rewards. Most deliver complexity, vesting schedules, and tokens you'll never use. Underscore does it differently — you get real value sharing from actual protocol revenue, paid in assets you already hold.
+**Underscore** shares actual protocol revenue with users and ambassadors. Swap fees, yield fees, rewards fees — up to 50% flows directly back to participants. Direct fee sharing in the assets you already use, plus additional rewards and bonuses.
 
-No governance tokens. No staking requirements. No lock-ups. Just transparent fee sharing that rewards active users and those who grow the ecosystem. This is DeFi alignment done right.
+Finally, a protocol that treats you like a partner, not exit liquidity.
 
-## Core Concept: Real Revenue, Real Rewards
+## How Revenue Sharing Works
 
-Underscore collects fees only on value-generating activities and shares them with participants:
+Underscore collects fees on value-generating activities and distributes them through the LootDistributor:
 
 ```
-Protocol Fees Collected → LootDistributor → You (based on participation)
+User Activity → Protocol Fee → Distribution:
+                              ├── Ambassador Revenue Share (50% default)
+                              ├── Yield Bonuses (if configured)
+                              └── Deposit Rewards Pool
 ```
 
-The more you use the protocol, the more you earn. The more users you bring, the more you earn. Simple, transparent, sustainable.
+The math is transparent. The distribution is automatic. The claiming is permissionless.
 
-## Three Ways to Earn
+_Note: All percentages shown are defaults and examples. Actual rates are configurable by the protocol._
 
-### 1. Deposit Points: Your Share of Protocol Revenue
+## Ambassador Earnings: Two Revenue Streams
 
-Hold assets in your wallet, earn points over time, claim your share of fees.
+Ambassadors earn when their referred users generate value:
 
-**The Formula**:
+### 1. Revenue Share on All Fees
+
+**Automatic percentage of every fee generated** (default 50%, configurable):
+
+| User Activity       | Protocol Fee | Ambassador Gets 50% | Example                     |
+| ------------------- | ------------ | ------------------- | --------------------------- |
+| $10,000 swap        | 0.25% = $25  | $12.50              | User swaps tokens           |
+| $1,000 yield profit | 10% = $100   | $50                 | User realizes gains         |
+| $200 rewards claim  | 10% = $20    | $10                 | User claims MORPHO/WELL/etc |
+
+### 2. Yield Bonuses (Only on Yield Profits)
+
+**Additional rewards when users realize yield profits** (not on swaps or reward claims):
+
+- 25% bonus on top of the yield profit amount (typical example, varies by asset)
+- Can be yield asset, underlying, or alternative tokens (configurable by protocol)
+- Requires: eligible yield position and available distributor balance
+- Distributed first-come, first-served when balance is limited
+
+**Example**: User realizes $1,000 in yield profit
+
+- User keeps their $1,000 profit
+- Ambassador gets $250 bonus (25% of profit amount)
+- This is IN ADDITION to the $50 revenue share from fees
+
+**Example Ambassador Income**:
+
+Assuming each user generates $50/month in total protocol fees:
+
+- Protocol collects: $50 in fees
+- Ambassador receives: $25 (50% revenue share)
+
+**Network Growth Projections**:
+| Users in Network | Monthly Revenue Share | Annual Revenue Share |
+|------------------|----------------------|---------------------|
+| 5 users | $125 | $1,500 |
+| 10 users | $250 | $3,000 |
+| 20 users | $500 | $6,000 |
+| 50 users | $1,250 | $15,000 |
+
+_Plus potential yield bonuses when users realize profits (calculated separately based on actual yield performance)_
+
+## User Earnings: Two Reward Mechanisms
+
+Users earn through participation and performance:
+
+### 1. Yield Bonuses (Only on Yield Profits)
+
+**Direct bonus on your realized yield profits** (not on swaps or rewards):
+
+- 25% extra on top of your yield profit (typical example, configurable)
+- Paid automatically when claiming yield
+- Only applies to yield strategies, not trading or reward claims
+- Requires: eligible yield position and available distributor balance
+- Example: Realize $1,000 yield profit → Get $250 bonus
+
+### 2. Deposit Points System
+
+**Share of protocol-wide rewards based on holdings**:
+
 ```
-Points = (USD Value × Blocks Held) / 10^18
+Points = (USD Value × Blocks Held)
 Your Share = Your Points / Total Global Points
 ```
 
-**Example**: 
-- Hold $10,000 for 2 weeks (~604,800 blocks)
-- Earn proportional share of all protocol fees
-- Larger deposits + longer holding = bigger share
+**How it works**:
 
-Points accumulate until you claim deposit rewards (then reset to zero).
+1. Hold assets in your [wallet](user-wallet.md)
+2. Accumulate points over time
+3. Protocol adds rewards to pool
+4. Claim your proportional share
 
-### 2. Ambassador Revenue: Earn from Your Network
+**Example calculation**:
 
-When users you refer generate fees, you automatically receive 20-30% of those fees.
+- Hold $10,000 for 2 weeks = 60.48 points
+- Total protocol points = 3,024
+- Your share = 2%
+- $5,000 rewards added to pool → You claim $100
 
-**Revenue Split by Fee Type**:
-- Swap fees: ~30% to ambassador
-- Yield fees: ~30% to ambassador  
-- Rewards fees: ~20% to ambassador
+## Fee Structure
 
-**Realistic Examples**:
-- 5 active users × $50 monthly fees each = $75/month to you
-- 20 mixed users averaging $30 fees = $180/month passive income
-- Scale with protocol growth, not token speculation
+### What Gets Collected
 
-Relationships are permanent on-chain. Earn as long as your referrals stay active.
+_All fees are configurable. Examples below show typical defaults._
 
-### 3. Yield Bonuses: Extra Rewards on Profits
+| Activity | Fee Range       | Applied To      | Example                  |
+| -------- | --------------- | --------------- | ------------------------ |
+| Yield    | 10% (default)   | Profits only    | $1,000 profit → $100 fee |
+| Swaps    | 0.25% (default) | Trade amount    | $10,000 trade → $25 fee  |
+| Rewards  | 10% (default)   | External claims | $200 claim → $20 fee     |
 
-Eligible yield positions can earn bonus rewards when profits are realized.
+### Where Fees Go
 
-**How Bonuses Work**:
-- Configured per asset (typically 10-30% of yield)
-- Paid in-kind, underlying, or alternative assets
-- Subject to available balance in distributor
-- Automatic distribution with yield claims
+All fees flow through transparent distribution:
 
-**Example**: Realize $100 in stETH yield → Get $20 bonus in stETH
-
-## Fee Structure: What You Pay, What You Earn
-
-### Fees Collected
-
-**Yield Fees**
-- Typically 10% of profits (max 25%)
-- Only on gains, never principal
-- Example: $100 profit → $10 fee → distributed to users
-
-**Swap Fees**
-- 0.1-0.5% per trade (varies by pair)
-- Example: $10,000 swap → $10-50 fee → shared with participants
-
-**Rewards Fees**
-- Up to 25% on external protocol claims
-- Example: Claim $200 CRV → $20 fee → into reward pool
-
-### Your Net Position
-
-The key question: Do you earn more than you pay?
-
-**Active User Example**:
-- Monthly activity: $25,000 yielding 5% APY
-- Fees paid: ~$25 on yield and swaps
-- If holding 2% of deposit points: Earn $50 share
-- Net profit: $25/month ($300/year)
-
-Returns scale with:
-- Your deposit size and holding time
-- Total protocol activity
-- Number of active referrals
-
-## How Distribution Works
-
-### Claiming Your Rewards
-
-1. **Check Claimable Assets**: View all accumulated rewards
-2. **Respect Cooldowns**: Typically 3-30 minutes between claims
-3. **Batch Claims**: Get all assets in one transaction
-4. **Manager Support**: [Managers](managers.md) can claim if permitted
-
-### Two Types of Claims
-
-**Revenue Share (Claimable Loot)**
-- Accumulates from all fee types
-- Claim anytime (with cooldown)
-- Doesn't affect deposit points
-- Multiple assets possible
-
-**Deposit Rewards**
-- Special distributions (like UNDY tokens)
-- Based on points share
-- Claiming resets points to zero
-- Usually single asset
-
-### Tracking Your Earnings
-
-Monitor these metrics:
-- Current deposit points
-- Points as % of global total
-- Claimable assets and amounts
-- Ambassador referral activity
-- Cooldown status
-
-## Building Ambassador Income
-
-### Quality Over Quantity
-
-**Target High-Value Users**:
-- Active traders (generate swap fees)
-- Yield farmers (consistent yield fees)
-- Long-term holders (stable point generation)
-- Protocol enthusiasts (understand [all features](user-wallet.md))
-
-**Realistic Growth**:
-- Start with 5-10 quality referrals
-- Help them succeed in the protocol
-- Let compound effects build over time
-- Focus on sustainable relationships
-
-### Example Ambassador Scenarios
-
-**Small Network** (5 users, $10k each):
-- Monthly fees per user: ~$40
-- Your 30% share: $12 per user
-- Total monthly: $60
-- Annual passive: $720
-
-**Growth Network** (20 active users):
-- Average fees: $30/user/month
-- Your share: $9 per user
-- Total monthly: $180
-- Annual passive: $2,160
-
-**Scaled Network** (50+ users):
-- Mixed activity levels
-- $15 average fees per user
-- Monthly earnings: $225+
-- Annual passive: $2,700+
-
-## Yield Bonus Mechanics
-
-### Eligibility Requirements
-- Asset must be configured for bonuses
-- Yield must be realized (not just accrued)
-- Sufficient balance in distributor
-- First-come, first-served distribution
-
-### Bonus Types
-
-**In-Kind**: Same asset as yield (compounds naturally)
-**Underlying**: Base asset of yield position
-**Alternative**: Different token (often UNDY)
-
-### Distribution Priority
-1. Check available balance
-2. Calculate maximum payable
-3. Distribute up to configured %
-4. Add to claimable loot
+- **Ambassador share**: 50% to referrer (default, configurable)
+- **Yield bonuses**: If eligible and available
+- **Deposit pool**: For points-based distribution
+- **Protocol**: Remaining for operations
 
 ## Common Questions
 
-**When do rewards become claimable?**
-Immediately as fees are generated, subject to cooldowns.
+**Q: When can I claim?**
+A: Immediately after fees generate, subject to cooldown. [Managers](managers.md) can claim on your behalf if authorized.
 
-**Can I lose accumulated rewards?**
-No, they're yours until claimed (subject to contract balance).
+**Q: Can rewards be lost?**
+A: No, they accumulate until claimed (limited by contract balance).
 
-**Do small deposits earn anything?**
-Yes, but returns scale with deposit size and protocol activity.
+**Q: How do points work?**
+A: Points = deposit value × time. More deposits + longer holding = more points.
 
-**How often should I claim?**
-When gas costs make sense relative to rewards amount.
+**Q: What's the cooldown?**
+A: Configured cooldown period, preventing spam while allowing regular claims.
 
-**Can rewards run out?**
-Only bonus rewards depend on distributor balance. Fee shares come directly from activity.
+**Q: Do bonuses always pay out?**
+A: Only if distributor has sufficient balance. First-come, first-served.
 
 ## The Bottom Line
 
-Underscore's reward system aligns everyone's interests: users earn from participation, ambassadors earn from growth, and the protocol thrives from activity.
+Traditional protocols keep 100% of the fees you generate. Underscore shares real revenue from real activity.
 
-No token gymnastics. No unsustainable yields. Just transparent revenue sharing from real DeFi usage. The more value the protocol creates, the more participants earn.
+**For Ambassadors**: Build a network, earn 50% of all fees forever (default rate). Five active users = $2,700/year. Scale from there.
 
-Your rewards grow with your participation and the ecosystem's success. Start earning by using DeFi through Underscore — where every transaction contributes to your returns.
+**For Users**: Your deposits earn points. Your yields earn bonuses. Your activity generates returns.
 
-## Related Features
+Transparent fee sharing that rewards participation. Use DeFi, get paid. Refer users, get paid more. Rewards come in various forms — the assets you're already using, protocol tokens, or other valuable assets.
 
-- **[User Wallet](user-wallet.md)**: Deploy your wallet to start earning
-- **[Managers](managers.md)**: Automate reward claiming with AI
-- **[Payees](payees.md)**: Receive ambassador rewards automatically
-- **[Whitelist](whitelist.md)**: Instant access to your earned rewards
+This is how DeFi should work — where protocols and users succeed together.
 
 ---
 
-_For technical implementation details, see the [technical documentation](technical/)._
+## Next Steps
+
+- **[Deploy Your Wallet](user-wallet.md)**: Start earning rewards immediately
+- **[Become an Ambassador](user-wallet.md)**: Build a network and earn revenue share
+- **[Add Managers](managers.md)**: Automate reward claiming
+- **[Set Up Whitelist](whitelist.md)**: Direct rewards to any trusted wallet
+
+---
+
+_For technical implementation details, see the [LootDistributor contract documentation](technical/)._

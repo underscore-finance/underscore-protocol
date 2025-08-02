@@ -4,9 +4,9 @@ description: Instant unlimited transfers to your most trusted addresses with tim
 
 # Whitelist: Unlimited Trust for Your Most Important Addresses
 
-Your AI trading agent just spotted a massive arbitrage opportunity. You need to move $500,000 from your conservative Underscore wallet to your aggressive trading Underscore wallet immediately. But without the whitelist, you'd need to create multiple Cheques with delays or set up Payees with limits. By the time the funds arrive, the opportunity is gone.
+Your AI trading agent just spotted a massive arbitrage opportunity. You need to move $500,000 from your conservative [Underscore wallet](user-wallet.md) to your aggressive trading [Underscore wallet](user-wallet.md) immediately. But without the whitelist, you'd need to create multiple Cheques with delays or set up Payees with limits. By the time the funds arrive, the opportunity is gone.
 
-Or your DAO needs immediate treasury consolidation. Markets are volatile, opportunities are time-sensitive, and you need to move $2 million between wallets now — not after security delays, not in chunks to avoid limits.
+Or your DAO needs immediate treasury consolidation. Markets are volatile, opportunities are time-sensitive, and you need to move $2 million between [wallets](user-wallet.md) now — not after security delays, not in chunks to avoid limits.
 
 **The Whitelist** breaks the emergency glass on your own security. Your cold storage wallet. Your corporate treasury for business operations. Your backup wallet for redundancy. These addresses get unlimited transfers — no limits, no delays, no friction.
 
@@ -16,19 +16,19 @@ Your security should protect you from threats, not from yourself.
 
 ### The Problem with Three-Recipient Restrictions
 
-Your wallet requires every recipient to be either a Payee (with limits), sent via Cheque (with delays), or Whitelisted. This keeps you safe but creates friction:
+Your [wallet](user-wallet.md) requires every recipient to be either a [Payee](payees.md) (with limits), sent via [Cheque](cheques.md) (with delays), or Whitelisted. This keeps you safe but creates friction:
 
 - **Payees**: Great for recurring payments, but limits restrict large transfers
 - **Cheques**: Perfect for one-time payments, but delays kill time-sensitive opportunities
 - **Missing option**: What about your own wallets that need instant, unlimited access?
 
-When your AI agent spots arbitrage or your DAO needs treasury consolidation, Payee limits and Cheque delays become profit killers.
+When your AI agent spots arbitrage or your DAO needs treasury consolidation, [Payee](payees.md) limits and [Cheque](cheques.md) delays become profit killers.
 
 ### The Whitelist Solution
 
 The Whitelist completes the payment trinity with a special category for absolute trust:
 
-- **Your other Underscore wallets**: Move millions between your own accounts instantly
+- **Your other [Underscore wallets](user-wallet.md)**: Move millions between your own accounts instantly
 - **Hardware wallets**: Secure funds without friction when threats emerge
 - **Corporate treasuries**: Enable instant consolidation for business operations
 - **Time-locked security**: Additions require waiting period, removals are instant
@@ -38,11 +38,11 @@ The Whitelist completes the payment trinity with a special category for absolute
 
 ### Payment Hierarchy
 
-Your wallet recognizes three types of payment recipients:
+Your [wallet](user-wallet.md) recognizes three types of payment recipients:
 
 ```
-Payees → Recurring payments with configured limits
-Cheques → One-time payments with delays and cancellation
+[Payees](payees.md) → Recurring payments with configured limits
+[Cheques](cheques.md) → One-time payments with delays and cancellation
 Whitelist → Instant unlimited transfers
 ```
 
@@ -114,6 +114,7 @@ Complete authority over all whitelist operations:
 - Add, confirm, cancel, remove addresses
 - No restrictions on your control
 - Override all other permissions
+- Direct [rewards](rewards.md) to any whitelisted wallet
 
 ### [Managers](managers.md)
 Delegated whitelist powers (if granted):

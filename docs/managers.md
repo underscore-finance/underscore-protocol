@@ -2,7 +2,7 @@
 description: Delegate operations to humans or AI within unbreakable boundaries you control
 ---
 
-# Managers: Delegated Control for Your Underscore Wallet
+# Managers: Delegated Control for Your [Underscore Wallet](user-wallet.md)
 
 Your yield optimizer found a 15% APY opportunity at 3am. By the time you wake up and manually move funds, it's down to 5%. Another $500 in missed gains because you need sleep.
 
@@ -16,10 +16,10 @@ Finally, delegation that doesn't mean giving up control.
 
 ### The Problem with Manual Wallet Management
 
-Running a wallet solo creates impossible tradeoffs:
+Running a [wallet](user-wallet.md) solo creates impossible tradeoffs:
 
 - **24/7 Opportunities**: DeFi never sleeps, but you need to
-- **Routine Tasks**: Paying vendors, claiming rewards, rebalancing — repetitive time drains
+- **Routine Tasks**: Paying vendors, [claiming rewards](rewards.md), rebalancing — repetitive time drains
 - **Specialized Knowledge**: Complex strategies require expertise you might not have
 - **Emergency Access**: If something happens to you, your funds are locked
 
@@ -32,7 +32,7 @@ Traditional solutions all fail:
 
 Managers enable programmable delegation with precise controls:
 
-- **Limited Permissions**: Grant only specific actions (lend, swap tokens, pay Payees, etc.)
+- **Limited Permissions**: Grant only specific actions (lend, swap tokens, pay [Payees](payees.md), etc.)
 - **Spending Limits**: Hard caps on transaction and period amounts
 - **Asset Restrictions**: Limit which tokens managers can touch
 - **Instant Revocation**: Remove access with one transaction
@@ -44,7 +44,7 @@ Managers enable programmable delegation with precise controls:
 
 - Your spouse can pay bills but can't trade your ETH
 - Your business partner can pay vendors but can't touch reserves
-- Your accountant can claim rewards and rebalance but can't withdraw
+- Your accountant can [claim rewards](rewards.md) and rebalance but can't withdraw
 - Your trader friend can swap tokens but only up to set limits
 
 **AI That Never Sleeps** = Capture opportunities 24/7
@@ -87,9 +87,9 @@ Permissions are granular capabilities you grant to managers. You can mix and mat
 
 | Permission            | Capability                                           | Example Use Case        |
 | --------------------- | ---------------------------------------------------- | ----------------------- |
-| **General Transfers** | Send assets to Payees, Whitelist, or via Cheques    | Pay monthly expenses    |
-| **Create Cheques**    | Schedule one-time payments       | Delayed vendor payments |
-| **Propose Payees**    | Add recurring payment recipients | Onboard new contractors |
+| **General Transfers** | Send assets to [Payees](payees.md), [Whitelist](whitelist.md), or via [Cheques](cheques.md)    | Pay monthly expenses    |
+| **Create [Cheques](cheques.md)**    | Schedule one-time payments       | Delayed vendor payments |
+| **Propose [Payees](payees.md)**    | Add recurring payment recipients | Onboard new contractors |
 
 ### DeFi Operations
 
@@ -99,15 +99,15 @@ Permissions are granular capabilities you grant to managers. You can mix and mat
 | **Manage Yield**     | Deposit/withdraw from yield protocols | Rebalance Morpho/Aave positions      |
 | **Manage Debt**      | Handle loans and collateral           | Keep 150% collateralization          |
 | **Manage Liquidity** | Provide/remove DEX liquidity          | Optimize Uniswap V3 ranges           |
-| **Claim Rewards**    | Harvest protocol incentives           | Collect and reinvest farming rewards |
+| **Claim Rewards**    | Harvest protocol incentives           | Collect and reinvest [farming rewards](rewards.md) |
 
 ### Administrative Operations
 
 | Permission                 | Capability                    | Example Use Case            |
 | -------------------------- | ----------------------------- | --------------------------- |
 | **Whitelist Management**   | Add/remove approved addresses | Maintain vendor list        |
-| **Claim Protocol Rewards** | Harvest Underscore incentives | Auto-claim platform rewards |
-| **Claim Loot**             | Collect revenue share         | Maximize protocol earnings  |
+| **Claim Protocol Rewards** | Harvest Underscore incentives | Auto-claim [platform rewards](rewards.md) |
+| **Claim Loot**             | Collect revenue share         | Maximize [protocol earnings](rewards.md)  |
 
 > **📝 Time Units in Underscore**  
 > All time-based settings (delays, cooldowns, periods) are stored in blocks, not wall-clock time. On Base L2 with 2-second blocks:
@@ -231,7 +231,7 @@ Manager B: Can trade = No, Max per tx = $200k → Cannot trade at all
 **Results**:
 - Captured 5.2% Morpho rate at 3am
 - Moved to 6.1% Euler promotional rate
-- Auto-claimed $312 in missed rewards/incentives
+- Auto-claimed $312 in missed [rewards/incentives](rewards.md)
 - Additional yield: $3,000 annually
 
 ### Business Operations

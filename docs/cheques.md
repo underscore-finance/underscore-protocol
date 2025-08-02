@@ -8,7 +8,7 @@ You send $5,000 USDC to a contractor. Three hours later, you realize it's the wr
 
 Or you're paying a vendor for work they haven't finished yet. With traditional crypto, you either pay upfront and hope, or make them wait and chase you for payment. Neither feels right.
 
-**Digital Cheques** bring the control of paper cheques to crypto — without the paper. Write payments that recipients cash on their schedule. Cancel anytime before they do. Set automatic delays for large amounts. Keep earning yield until the moment of payment.
+**Digital Cheques** bring the control of paper cheques to crypto — without the paper. Write payments that recipients cash on their schedule. Cancel anytime before they do. Set automatic delays for large amounts. Keep earning yield until the moment of payment in your [wallet](user-wallet.md).
 
 Finally, crypto payments that understand mistakes happen.
 
@@ -30,7 +30,7 @@ Digital Cheques separate payment authorization from execution:
 - **Write Now, Pay Later**: Create a payment commitment that executes on your terms
 - **Cancellable Until Cashed**: Maintain control until the moment funds transfer
 - **Automatic Security Delays**: Large payments get built-in review periods
-- **Yield Preservation**: Funds keep earning in your wallet until payment
+- **Yield Preservation**: Funds keep earning in your wallet until payment, plus [protocol rewards](rewards.md)
 - **One-Off Simplicity**: No recurring schedules to manage — perfect for single payments
 
 ## The Four-Stage Lifecycle
@@ -77,7 +77,7 @@ Set a single delay threshold (e.g., $1,000):
 - Below: Cheques can be immediate
 - Above: Automatic delay applied
 
-> **Note**: Cheques cannot be created for whitelisted addresses. If you trust an address enough to whitelist it, use the [Whitelist feature for instant, unlimited transfers](whitelist.md) — Cheques are for addresses that need payment controls.
+> **Note**: Cheques cannot be created for [whitelisted](whitelist.md) addresses. If you trust an address enough to whitelist it, use the [Whitelist feature for instant, unlimited transfers](whitelist.md) — Cheques are for addresses that need payment controls.
 
 Example impact:
 
@@ -184,11 +184,11 @@ This creates a trust-building dynamic: the recipient sees your commitment to pay
 
 ## Advanced Features
 
-### Manager-Created Cheques
+### [Manager](managers.md)-Created Cheques
 
 Let AI or team members create cheques within your rules. Learn about [setting up Managers with cheque permissions](managers.md):
 
-1. Manager creates cheque from approved invoice
+1. [Manager](managers.md) creates cheque from approved invoice
 2. Time-lock applies automatically
 3. You review during delay period
 4. Cancel or let it proceed
@@ -221,8 +221,8 @@ Just like a void cheque at the bank, expired cheques become invalid automaticall
 **Are there limits on cheque amounts or how many I can have?**
 Yes, for security. You can set maximum values per cheque and limit total active cheques. These safeguards prevent accidental overcommitment while giving plenty of flexibility for normal use.
 
-**Can my Manager handle cheques for me?**
-Yes, and it's incredibly useful. You can authorize a Wallet Manager to create and cancel cheques within limits you set. This is perfect for businesses where your CFO handles vendor payments, or individuals who want their financial advisor to help manage large transactions. The beauty is that Managers can only operate within your pre-set boundaries — they can't exceed spending limits or change your security settings. Learn how to set up these secure delegated permissions in our guide on [Managing Your Wallet with Managers](managers.md).
+**Can my [Manager](managers.md) handle cheques for me?**
+Yes, and it's incredibly useful. You can authorize a [Wallet Manager](managers.md) to create and cancel cheques within limits you set. This is perfect for businesses where your CFO handles vendor payments, or individuals who want their financial advisor to help manage large transactions. The beauty is that Managers can only operate within your pre-set boundaries — they can't exceed spending limits or change your security settings. Learn how to set up these secure delegated permissions in our guide on [Managing Your Wallet with Managers](managers.md).
 
 ## Cheques vs Payees: Which Payment Tool is Right for You?
 

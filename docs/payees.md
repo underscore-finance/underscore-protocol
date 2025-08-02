@@ -8,7 +8,7 @@ Your business checking account holds $500,000. At 0.01% APY, that's $50 a year. 
 
 Now imagine those same funds earning 5% in DeFi ($25,000/year) while automatically paying your team on schedule. No wires. No manual transfers. No watching the clock on payday. Just verified addresses with preset limits, executing payments while your money keeps working.
 
-**Payees** are your wallet's trusted contacts — verified once, paid forever. Like speed dial for payments, but with built-in spending limits and automatic execution. Add an employee with a $10,000 monthly cap. A vendor with $50,000 quarterly. Your office rent at exactly $8,500 on the first.
+**Payees** are your [wallet's](user-wallet.md) trusted contacts — verified once, paid forever. Like speed dial for payments, but with built-in spending limits and automatic execution. Add an employee with a $10,000 monthly cap. A vendor with $50,000 quarterly. Your office rent at exactly $8,500 on the first.
 
 Stop choosing between yield and liquidity. Your money can do both.
 
@@ -33,13 +33,14 @@ Traditional: Give vendor your credit card → They charge whatever, whenever
 Underscore: Add vendor as Payee → $5,000/month limit → Only USDC → Auto-expires quarterly
 ```
 
-Your funds stay in DeFi earning yield (via protocols like Aave, Morpho, Euler) until the moment of payment. The system automatically withdraws only what's needed, when it's needed.
+Your funds stay in DeFi earning yield (via protocols like Aave, Morpho, Euler) until the moment of payment. The system automatically withdraws only what's needed, when it's needed. Plus, you earn [rewards](rewards.md) on all your DeFi activity.
 
 **Example Impact**:
 
 - $500k operating funds at 5% APY = $25,000/year earned
 - Traditional bank at 0.01% APY = $50/year earned
 - Difference: $24,950 additional revenue annually
+- Plus: [Protocol rewards](rewards.md) on top of yield
 
 ## Payment Validation Hierarchy
 
@@ -56,7 +57,7 @@ This hierarchy maximizes flexibility while maintaining security.
 
 ### Only You Hold the Keys
 
-**Absolute Owner Control**: Only you, as the wallet owner, can add or remove addresses from your Circle of Trust. Not your accountant. Not your manager. Not even your AI assistant. This fundamental rule is enforced by the blockchain itself — it's not a policy that can be bent, it's code that cannot be broken.
+**Absolute Owner Control**: Only you, as the [wallet owner](user-wallet.md), can add or remove addresses from your Circle of Trust. Not your accountant. Not your manager. Not even your AI assistant. This fundamental rule is enforced by the blockchain itself — it's not a policy that can be bent, it's code that cannot be broken.
 
 ### Tamper-Proof by Design
 

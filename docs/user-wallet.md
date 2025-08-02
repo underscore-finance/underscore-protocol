@@ -132,7 +132,7 @@ Underscore's architecture allows complex multi-step operations to execute atomic
 1. Remove liquidity from multiple pools
 2. Swap assets to target allocations
 3. Re-deploy into new positions
-4. Claim and reinvest all rewards
+4. Claim and reinvest all [rewards](rewards.md)
 → Entire rebalance atomically
 ```
 
@@ -226,6 +226,7 @@ Use your whitelisted addresses (like your hardware wallet or Gnosis Safe) to rec
 - **Swap fees**: Small percentage on token swaps (configurable by protocol)
 - **Rewards fees**: Small percentage when claiming protocol rewards (configurable by protocol)
 - **Yield fees**: Small percentage of profits when earning yield (configurable by protocol)
+- **Revenue sharing**: Up to 50% of fees go back to users and ambassadors through [rewards](rewards.md)
 - **No fees on**: Transfers, idle funds, deposits, debt operations, liquidity provision, or ETH/WETH wrapping
 - **Full transparency**: Exact fee percentages shown before every transaction
 
