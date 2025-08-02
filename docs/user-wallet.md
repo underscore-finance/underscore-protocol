@@ -1,266 +1,263 @@
-# User Wallet: Your Financial Command Center, Reimagined
+# User Wallet: Your DeFi Command Center
 
-**TL;DR:**
-- One smart wallet that connects to every DeFi protocol automatically
-- Built-in security tools: managers, payees, cheques, and whitelist for emergency access
-- Reduce gas costs while earning yield 24/7 through intelligent automation
-- Instant freeze and rescue capabilities if something goes wrong
+You're managing $100K+ across 5 protocols, but you're still copying addresses, approving tokens one by one, and checking rates manually like it's 2020.
 
-Your current crypto wallet is like a safe with no tools inside. It holds your assets but can't do much else. You switch between 10 different apps to manage DeFi. You miss yield opportunities while sleeping. You pay more gas than necessary. And one wrong click could drain everything.
+The constant tab switching. The missed yield opportunities while you sleep. The anxiety every time you paste an address. The hours lost to manual operations that should take seconds.
 
-The **Underscore User Wallet** changes all of this. It's not just a wallet — it's an intelligent financial operating system that manages complexity while you maintain control. One address. Every protocol. Total security. Maximum efficiency.
+**Underscore** unifies your entire DeFi experience into one powerful smart wallet. Direct access to 20+ protocols. Managers that optimize yields 24/7. Payment systems that actually work. Security that protects without restricting.
 
-This is what happens when you rebuild crypto wallets from first principles.
+Finally, professional-grade DeFi tools without the complexity.
 
-## Core Architecture: Security Through Layers
+## Core Architecture
 
-Your User Wallet implements institutional-grade security without institutional complexity:
+Underscore is a smart wallet system built on Base L2 that provides four key components:
 
-```
-Your Control Center
-├─ Owner (You): Complete authority, can freeze everything instantly
-├─ Whitelist: Your trusted addresses with unlimited access
-├─ Managers: Delegated operators with specific limits
-├─ Payees: Pre-approved recipients with payment caps
-└─ Everyone Else: Zero access
-```
+1. **Unified Protocol Access**: Direct integration with 20+ DeFi protocols through standardized adapters
+2. **Delegation System**: Managers who can execute strategies within defined boundaries
+3. **Payment Rails**: Automated payment systems for recurring transfers and one-time payments
+4. **Security Layers**: Time-locks, whitelists, and granular permissions protecting every operation
 
-Each layer serves a purpose. Each permission has boundaries. Every action leaves an audit trail.
+## Security Architecture
 
-**How are these rules enforced?** Every transaction passes through Sentinel, our automated security engine that blocks anything outside your configured limits. It's like having a vigilant guard who never sleeps, checking every action against your rules before allowing it to proceed.
-
-## The Power of Legos: One Wallet, Every Protocol
-
-Legos are standardized DeFi integrations that give your wallet superpowers:
+The wallet implements a hierarchical permission system:
 
 ```
-Your Wallet → LegoTools (Router) → Lego Adapters → 20+ DeFi Protocols
+OWNER → Full control, can modify all settings
+  │
+  ├── WHITELIST → Unlimited transfer access to trusted addresses
+  │
+  ├── MANAGERS → Delegated operators with specific permissions and limits
+  │
+  └── PAYEES → Pre-approved recipients with configured payment limits
 ```
 
-**What this means**: When Morpho launches with better rates than Aave, your wallet can use it immediately. When new DEXs offer better prices, you access them automatically. No upgrades. No migrations. No new interfaces to learn.
+**Access Control**:
 
-**Why you can trust Legos**: Every Lego integration is open-source, audited, and runs in a sandboxed environment with limited permissions. They can only perform specific actions you've authorized — never more.
+- **Owner**: Complete control over wallet configuration and funds
+- **Whitelist**: Time-locked additions, instant removal, unlimited transfers
+- **Managers**: Can only execute permitted actions within spending limits
+- **Payees**: Can only receive payments up to configured amounts
+- **Others**: No access - all transfers and actions blocked
 
-**Currently integrated**: 
-- 6 yield protocols (Aave, Morpho, Compound, more)
-- 8+ DEX protocols (Uniswap, Curve, Aerodrome, more)
-- Lending, liquidity, and specialized protocols
+This architecture ensures that every transaction must pass through appropriate security checks before execution.
 
-Your wallet gets more powerful over time, not obsolete.
+## Protocol Integration: The Lego System
 
-## Built-In Security Tools
+Underscore connects to DeFi protocols through standardized adapters called "Legos". Each Lego provides a consistent interface for protocol-specific operations, enabling atomic multi-protocol transactions with optimized gas usage. New protocols integrate seamlessly through the Lego Book registry — your wallet gains new capabilities automatically without upgrades.
 
-### [Managers](managers.md): Your Automated Operators
+### Yield & Lending Protocols
 
-Delegate specific operations to humans or AI with precise controls:
+**Integrated protocols**: Morpho, Moonwell, Aave, Euler, Fluid, Compound
 
-**Example AI Yield Manager**:
-- Daily limit: $10,000
-- Monthly cap: $100,000
-- Permissions: Yield optimization only
-- Result: Higher yields through 24/7 rebalancing
-- Activation: 3-day security delay
+**Capabilities**:
 
-Managers can execute complex strategies within your boundaries. Revoke access instantly if needed. Learn more about [setting up managers](managers.md).
+- Deposit assets to earn yield
+- Withdraw funds with automatic unwinding
+- Track yields and calculate profits
+- Claim protocol rewards
+- Rebalance between protocols
 
-### [Payees](payees.md): Streamlined Payment Rails
+### Trading & DEX Integration
 
-Pre-approved addresses that can receive funds within defined limits:
+**Integrated DEXs**: Aerodrome, Uniswap, Curve
 
-**Example Employee Setup**:
-- Monthly salary: $5,000 USDC
-- Period: 30 days
-- Transactions: 2 per month (bi-weekly)
-- Result: Automated payroll, zero wire fees
+**Capabilities**:
 
-Your funds earn yield until payment moment. Traditional payroll: $50 fees + lost yield. Discover how to [configure payees](payees.md) for your business.
+- Swap tokens with smart routing (up to 5 hops)
+- Add/remove liquidity with automatic ratio calculation
+- Support for both standard (uni v2) and concentrated liquidity (uni v3+)
+- Manage NFT positions and adjust ranges
 
-### [Cheques](cheques.md): Payments with an Undo Button
+### Debt Management
 
-Time-locked payment promises you control until cashed:
+**Integrated protocols**: Ripe Protocol
+
+**Capabilities**:
+
+- Deposit any supported asset as collateral
+- Borrow against collateral in GREEN or yield-bearing sGREEN
+- Repay debt with any accepted token
+- Earn and claim RIPE rewards
+
+### Asset Transformations
+
+**Capabilities**:
+
+- ETH ↔ WETH conversion with zero slippage
+- Mint and redeem receipt tokens (like stETH)
+- Handle delayed redemptions
+- Automatic format conversion for protocol requirements
+
+### Rewards & Incentives
+
+**Capabilities**:
+
+- Batch claim rewards across all protocols in one transaction
+- Auto-compound rewards into productive positions
+- Track lifetime earnings across protocols
+
+## Batch Operations: Multiple Actions, One Transaction
+
+Underscore's architecture allows complex multi-step operations to execute atomically in a single transaction. This provides significant gas savings and eliminates the risk of partial execution.
+
+### Examples of Batch Operations
+
+**Yield Rebalancing**:
 
 ```
-Create $10,000 cheque → 3-day security delay → Recipient can claim
-Cancel anytime before claimed → Funds never left wallet
+1. Withdraw from Aave (lower yield)
+2. Deposit to Morpho (higher yield)
+3. Claim rewards from both protocols
+4. Convert rewards to productive assets
+→ All in one transaction
 ```
 
-Perfect for invoices, rent, or any payment needing review time. See how [cheques work](cheques.md) in detail.
+**Complex Position Entry**:
 
-### [Whitelist](whitelist.md): VIP Access
-
-Your most trusted addresses (hardware wallet, treasury) with unlimited transfer rights:
-- No limits or delays
-- 3-7 day security period to add
-- Instant removal if compromised
-- Typically 2-5 addresses maximum
-
-## DeFi Operations: Complexity Made Simple
-
-### Yield Farming
-- **Traditional**: 3 transactions, higher gas costs, manual tracking
-- **Underscore**: 1 transaction, optimized gas usage, automatic profit calculation
-- **Benefit**: Significant gas reduction + perfect accounting
-
-Your wallet tracks yield across all positions, calculates profits automatically, and enables single-transaction rebalancing.
-
-### Token Swaps
-Execute complex routes in one transaction:
 ```
-USDC → ETH → wstETH (wrapped staked ETH)
-Maximum 5 hops for best rates
-One transaction instead of three separate swaps
+1. Deposit collateral to Ripe Protocol
+2. Borrow against collateral
+3. Provide borrowed funds as liquidity
+4. Stake LP tokens for additional yield
+→ Complete strategy in one click
 ```
 
-### Liquidity Provision
-Add/remove liquidity with automatic position tracking:
-- Standard pools: Lower gas costs
-- Concentrated liquidity: Uniswap V3 positions with higher gas costs
-- Impermanent loss calculations included
+**Portfolio Rebalancing**:
 
-### Borrowing & Lending
-Manage collateralized positions safely:
-- Real-time health monitoring
-- Multi-protocol support
-- Efficient collateral management
-- Liquidation protection features
+```
+1. Remove liquidity from multiple pools
+2. Swap assets to target allocations
+3. Re-deploy into new positions
+4. Claim and reinvest all rewards
+→ Entire rebalance atomically
+```
 
-## Real-World Impact
+## Core Features
 
-### For Individuals
-**Portfolio**: $100,000 across DeFi
-**With Underscore**:
-- AI Manager rebalances daily for optimal yields
-- Gas costs: Minimal on Base L2
-- Time saved: 5 hours/week
-- Sleep quality: Priceless
+### [Managers](managers.md): Delegated Operations
 
-### For Businesses
-**Monthly operations**: $500,000
-**With Underscore**:
-- Automated payroll for 20 employees: Save $1,000/month in fees
-- Vendor payments streamlined: Save 10 hours/month
-- Treasury yield optimization maximizes returns
-- Zero wire transfer delays
+Managers are authorized operators — human or AI — who execute actions within your defined boundaries. They can trade, optimize yields, and manage payments, but cannot withdraw to external addresses or exceed your limits.
 
-### For Traders
-**Active portfolio**: $1,000,000
-**With Underscore**:
-- Deploy capital instantly during crashes
-- Complex strategies in single transactions
-- Professional tools without institutional fees
-- 24/7 automated execution
+**Use cases**:
 
-## Technical Capabilities
+- 24/7 yield optimization by AI agents
+- CFO handling vendor and contractor payments
+- Professional traders managing portions of portfolio
+- Automated debt position management
+- Family members with emergency access
 
-### Asset Management
-- Track up to 10 different assets simultaneously
-- Automatic USD value calculations
-- Yield-bearing asset detection
-- NFT support (ERC-721)
+[→ Learn more about Managers](managers.md)
 
-### Transaction Limits
-- 5 maximum swap hops
-- 10 assets per complex operation
-- 5 Lego protocols per transaction
-- Gas optimization on every action
+### [Payees](payees.md): Your Circle of Trust
 
-### Emergency Features
-- **Wallet Freeze**: Instant lockdown if compromised
-- **Eject Mode**: Emergency withdrawal-only state
-- **NFT Recovery**: Retrieve accidentally sent NFTs
-- **Owner Override**: You always have ultimate control
+Payees form your verified payment network — addresses that can only receive what you've pre-approved. Your funds earn yield until payment time, then transfer automatically. Only you can add addresses to this circle.
 
-## Quick Start Examples
+**Use cases**:
 
-### Personal Setup
-1. Deploy wallet with 3-day timelock
-2. [Whitelist](whitelist.md) your hardware wallet
-3. Add spouse as emergency [Manager](managers.md) ($1k daily limit)
-4. Configure AI yield optimizer ($10k daily limit)
-5. Set up monthly rent as [Payee](payees.md)
+- Employee salaries paid from yield-earning funds
+- Automated vendor and contractor payments
+- Subscription services with pull payment capability
+- Family allowances with monthly limits
 
-### Business Configuration
-1. Deploy with 7-day timelock
-2. [Whitelist](whitelist.md) company treasury
-3. Add CFO as [Manager](managers.md) (transfers only)
-4. Configure all employees as [Payees](payees.md)
-5. Enable AI for yield optimization
+[→ Learn more about Payees](payees.md)
 
-### Trading Setup
-1. Deploy with 1-day timelock
-2. [Whitelist](whitelist.md) cold storage wallets
-3. Add trading bot [Manager](managers.md) with strict limits
-4. Configure DEX preferences
-5. Set up profit-taking [Cheques](cheques.md)
+### [Cheques](cheques.md): Digital Cheques with Control
 
-## The Financial Advantage
+Digital cheques bring the control of paper cheques to crypto — write payments that recipients cash on their schedule, cancel anytime before they do. Large amounts get automatic security delays. Your funds keep earning yield until payment.
 
-**Traditional Wallet**:
-- Multiple interfaces to manage
-- Higher gas costs from inefficiency
-- Manual tracking nightmare
-- Constant security anxiety
-- Zero yield on idle funds
+**Use cases**:
 
-**Underscore User Wallet**:
-- Single command center
-- Optimized transactions save gas
-- Automatic profit tracking
-- Granular security controls
-- 24/7 yield optimization
+- Contractor payments you can cancel if work isn't delivered
+- Large transfers with built-in review time
+- Social payments like splitting lunch ($30 to a friend)
+- One-time vendor invoices with payment flexibility
+- Any payment where you need an "undo" option
 
-**The difference is clear**: 
-- Higher yields from 24/7 optimization
-- Lower gas costs through efficient routing
-- Hours saved from automation
-- Peace of mind from mistake prevention
+[→ Learn more about Cheques](cheques.md)
 
-## Common Questions
+### [Whitelist](whitelist.md): Unlimited Trust
 
-**Is my wallet upgradeable?**
-No. Your wallet code is immutable for security. New features come through Lego integrations.
+The whitelist breaks the emergency glass on your security — addresses that get unlimited transfers with no delays or limits. Time-locked additions protect against compromise, while instant removal maintains control.
 
-**What if a Lego is compromised?**
-Legos have limited permissions. Your security settings always apply. Remove access instantly if needed.
+**Use cases**:
 
-**Can I use multiple wallets?**
-Yes. Whitelist them for instant transfers between your wallets.
+- Hardware wallet for emergency fund access
+- Corporate treasury requiring immediate consolidation
+- Multi-wallet strategies for risk distribution
+- Gnosis Safe for recovery if you lose access
 
-**What about L2s?**
-We're live on Base L2! This gives you the same security as Ethereum with much lower transaction costs.
+[→ Learn more about Whitelist](whitelist.md)
 
-**How do fees work?**
-Protocol fees apply only on profitable activities:
-- Yield optimization: 10% of profits (never more than 25%)
-- Token swaps: 0.1-0.5% per trade
-- No fees on losses, transfers, or idle funds
+## Architecture Comparison
 
-## The Bottom Line
+| Traditional Multi-Wallet Setup      | Underscore Smart Wallet        |
+| ----------------------------------- | ------------------------------ |
+| Multiple interfaces and logins      | Single unified interface       |
+| Manual token approvals per protocol | Pre-configured protocol access |
+| External transfers between wallets  | Internal routing, no transfers |
+| Manual yield tracking               | Automatic profit calculation   |
+| Limited automation options          | Full delegation capabilities   |
+| Separate security per wallet        | Unified security model         |
 
-Every other wallet makes you choose between security and functionality. The Underscore User Wallet delivers both.
+## Frequently Asked Questions
 
-One address that connects to every protocol. Security layers that protect without restricting. Automation that works while you sleep. Gas savings that pay for themselves. This isn't an incremental improvement — it's a fundamental rethinking of what a wallet should be.
+### 🔐 **Security & Control**
 
-> **Risks & Responsibilities**: DeFi involves smart contract risk, market volatility, and potential oracle failures. While we've implemented multiple security layers and audit our code, no system is risk-free. Always start with small amounts, understand the protocols you're using, and never invest more than you can afford to lose.
+**Is this a self-custody wallet?**  
+Yes, absolutely. You maintain complete control of your private keys and assets. Underscore provides the smart contract infrastructure, but only you can authorize transactions.
 
-Your money. Your control. Every protocol. Maximum efficiency.
+**What happens if Underscore disappears?**  
+Your funds remain safe and accessible. The smart contracts are immutable and don't depend on Underscore's servers. You could interact with your wallet directly through BaseScan or any other interface.
 
-Welcome to the future of DeFi. It's already here.
+**Can managers or automated strategies steal my funds?**  
+No. Managers operate within strict, code-enforced boundaries. They can only perform the specific actions you've authorized, with the limits you've set. You can revoke access instantly at any time.
 
-## Ready to Get Started?
+**How do I recover access if I lose my keys?**  
+Use your whitelisted addresses (like your hardware wallet or Gnosis Safe) to recover funds. If you lose access to your owner wallet but still have manager access, managers can transfer funds to your whitelisted addresses - providing a recovery path even when the primary wallet is lost.
 
-**→ [Deploy Your User Wallet](https://app.underscore.finance)** in under 3 minutes
+### 💰 **Costs & Fees**
 
-Need help? **[Join our Discord](https://discord.gg/underscore)** for setup support and strategy discussions.
+**What are the fees?**
 
-## Related Features
+- **Swap fees**: Small percentage on token swaps (configurable by protocol)
+- **Rewards fees**: Small percentage when claiming protocol rewards (configurable by protocol)
+- **Yield fees**: Small percentage of profits when earning yield (configurable by protocol)
+- **No fees on**: Transfers, idle funds, deposits, debt operations, liquidity provision, or ETH/WETH wrapping
+- **Full transparency**: Exact fee percentages shown before every transaction
 
-- **[Managers](managers.md)**: Delegate operations to AI or trusted operators
-- **[Payees](payees.md)**: Set up automated recurring payments
-- **[Cheques](cheques.md)**: Create time-locked payment promises
-- **[Whitelist](whitelist.md)**: Grant unlimited access to trusted addresses
-- **[Rewards](rewards.md)**: Earn from protocol usage and referrals
+### Technical Setup
+
+**Which blockchain is this on?**  
+Underscore runs on Base L2, providing Ethereum's security with significantly lower transaction costs.
+
+**Can I use this with my existing wallet?**  
+Yes. You deploy your Underscore smart wallet using your existing wallet (like MetaMask), which then acts as the owner key.
+
+**What protocols can I access?**  
+20+ protocols including Aave, Morpho, Compound (lending), Ripe Protocol (borrowing), Uniswap, Curve, Aerodrome (trading), and more. New protocols integrate automatically through the Lego system.
+
+**What if Base L2 has issues?**  
+Base inherits Ethereum's security model. In the unlikely event of L2 issues, established procedures exist for withdrawing assets to Ethereum mainnet. Your funds remain under your control.
 
 ---
 
-_For technical implementation details, see the [technical documentation](technical/)._
+## Your Move
+
+Right now, while you're reading this, yields are compounding. Opportunities are emerging. Strategies are executing.
+
+Just not yours.
+
+Every day you delay is another day of:
+
+- Manual approvals eating your time
+- Missed yields while you sleep
+- Anxiety about security
+- Opportunities slipping through your fingers
+
+Stop juggling wallets. Stop missing opportunities. Stop letting manual operations eat your time.
+
+Your DeFi operations deserve professional tools. Deploy your Underscore wallet and take control of your financial future.
+
+---
+
+_One wallet. Every protocol. Total control._

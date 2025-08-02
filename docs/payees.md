@@ -1,42 +1,41 @@
 # Payees: Your Circle of Trust for Automated Payments
 
-**TL;DR:**
+Your business checking account holds $500,000. At 0.01% APY, that's $50 a year. Meanwhile, you're paying $35 per wire transfer, 20 times a month. That's $8,400 annually — gone.
 
-- Build your personal "Circle of Trust" — a safe list of verified payment addresses
-- Set individual limits for each recipient: monthly caps for vendors, weekly for employees
-- Your funds earn yield until payment while saving thousands in wire fees
+Now imagine those same funds earning 5% in DeFi ($25,000/year) while automatically paying your team on schedule. No wires. No manual transfers. No watching the clock on payday. Just verified addresses with preset limits, executing payments while your money keeps working.
 
-Tired of triple-checking crypto addresses? Losing sleep over that large payment you just sent? Watching your payroll earn nothing in a checking account?
+**Payees** are your wallet's trusted contacts — verified once, paid forever. Like speed dial for payments, but with built-in spending limits and automatic execution. Add an employee with a $10,000 monthly cap. A vendor with $50,000 quarterly. Your office rent at exactly $8,500 on the first.
 
-**Payees** transform scary crypto payments into confident, automated transactions. Like saving contacts in your phone, you verify an address once and pay with peace of mind forever. Add your employees, vendors, and regular recipients to your Circle of Trust. Set their individual limits. Then relax knowing every payment is protected from typos, overspending, and mistakes.
+Stop choosing between yield and liquidity. Your money can do both.
 
-This is payment security that actually makes sense — your trusted addresses, your rules, your peace of mind.
+## Why Payees Exist
 
-## Your Circle of Trust: Safe, Smart, Automated
+### The Problem with Recurring Crypto Payments
 
-Think of Payees as your wallet's trusted contacts list. Just like you save phone numbers to avoid misdialing, you save payment addresses to avoid costly mistakes:
+Making regular crypto payments today means choosing between bad options:
+
+- **Manual transfers**: Re-enter addresses, risk typos, waste time every pay period
+- **Give full access**: Share private keys or grant unlimited spending permissions
+- **Traditional banking**: Pay wire fees, lose DeFi yield, wait for processing
+
+None of these work for businesses or individuals who need reliable, controlled automation.
+
+### The Payee Solution
+
+Payees create a verified recipient list with granular controls:
 
 ```
 Traditional: Give vendor your credit card → They charge whatever, whenever
 Underscore: Add vendor as Payee → $5,000/month limit → Only USDC → Auto-expires quarterly
 ```
 
-### The Yield Advantage
+Your funds stay in DeFi earning yield (via protocols like Aave, Morpho, Euler) until the moment of payment. The system automatically withdraws only what's needed, when it's needed.
 
-Your payment funds earn yield until needed:
+**Example Impact**:
 
-```
-Traditional Business Account:
-$100,000 payroll fund → 0.01% APY → $10/year
-
-Underscore with Payees:
-$100,000 in Aave → 5% APY → $5,000/year
-Automatic withdrawal only when payments due
-```
-
-This yield is generated through established DeFi lending protocols like Aave, Morpho, Euler, where your funds are supplied to liquidity pools and earn a share of the interest paid by borrowers — all while maintaining instant access for payments.
-
-**Real impact**: A business with $500k in operating funds earns ~$25,000 annually instead of $50.
+- $500k operating funds at 5% APY = $25,000/year earned
+- Traditional bank at 0.01% APY = $50/year earned
+- Difference: $24,950 additional revenue annually
 
 ## Payment Validation Hierarchy
 
@@ -65,89 +64,63 @@ This hierarchy maximizes flexibility while maintaining security.
 
 This isn't just security theater — it's security architecture. Your Circle of Trust creates an impenetrable boundary around your funds.
 
-## Two-Layer Control System
+## Payee Controls & Configuration
 
-### Global Payee Settings
+You can set comprehensive controls for each payee, ensuring payments happen exactly as intended. These controls protect against overspending, timing errors, and unauthorized changes.
 
-Wallet-wide defaults affecting all payees:
+### Financial Limits
 
-- Default period length (e.g., 30 days)
-- Base transaction and period limits
-- `canPayOwner`: Self-payment toggle (default: enabled)
-- `canPull`: Master switch for pull payments (default: disabled for security)
+#### Dual Protection System
 
-### Specific Payee Settings
+Every payee supports both token amount AND USD value limits:
 
-Individual overrides for each relationship:
+- **Transaction Limits**: Maximum per single payment (e.g., 1,000 USDC or $1,000)
+- **Period Limits**: Maximum per time period (e.g., 5,000 USDC or $5,000/month)
+- **Lifetime Limits**: Total cumulative maximum (e.g., 50,000 USDC or $50,000)
 
-- Custom limits tailored to each payee
-- Specific period lengths
-- Asset restrictions
-- Pull payment permissions
+The most restrictive limit always applies, protecting against price volatility.
 
-The most restrictive setting always wins.
+#### Period Configuration
 
-## Financial Controls
+- **Custom Periods**: Set any duration in blocks (e.g., 43,200 blocks ≈ 1 day on Base)
+- **Auto-Reset**: Limits refresh each period (unused amounts don't roll over)
+- **Common Settings**: Daily, weekly, bi-weekly, monthly, quarterly
 
-### Dual Limit System
+### Payment Controls
 
-Payees support both token amount AND USD value limits:
+#### Transaction Restrictions
 
-```
-Token Limits:              USD Limits:
-├─ Per Tx: 1000 USDC      ├─ Per Tx: $1,000
-├─ Per Period: 5000 USDC  ├─ Per Period: $5,000
-└─ Lifetime: 50000 USDC   └─ Lifetime: $50,000
+- **Max Transactions**: Limit payment count per period (e.g., 1 for monthly salary)
+- **Cooldown Period**: Minimum time between payments (prevents accidental double-pays)
+- **Expiry Date**: Auto-deactivate payees after set time (e.g., contractor end date)
 
-Applied: MOST RESTRICTIVE wins
-```
+#### Asset Restrictions
 
-**Why both?** Protects against price volatility. Your 10 ETH payment won't accidentally send $40,000 if ETH spikes.
+Control exactly which tokens each payee can receive:
 
-### Period-Based Limits
+- **Single Asset**: Lock to one token only (e.g., USDC for salaries)
+- **Preferred Asset**: Set default with flexibility for others
+- **Any Asset**: Accept all tokens (useful for trading desks)
 
-Limits reset automatically each period:
+### Security Features
 
-```
-Month 1: Use $7k of $10k → Month 2: Fresh $10k (unused doesn't roll)
-```
+#### Global Settings (Wallet-Wide)
 
-Common configurations (on Base L2):
+- **Pull Payment Master Switch**: Enable/disable all pull payments
+- **Self-Payment Toggle**: Allow/block payments to yourself
+- **Default Limits**: Base settings inherited by new payees
 
-- Daily: ~24 hours (43,200 blocks)
-- Weekly: ~7 days (302,400 blocks)
-- Monthly: ~30 days (1,296,000 blocks)
-- Quarterly: ~90 days (3,888,000 blocks)
+#### Individual Overrides
 
-### Transaction Controls
+- **Custom Limits**: Override globals for specific relationships
+- **Pull Permission**: Enable per-payee even if globally disabled
+- **Asset Whitelist**: Restrict tokens beyond global settings
 
-- **Max Transactions**: Limit payment frequency (e.g., 1/month for salary)
-- **Cooldown Period**: Minimum time between payments (prevents double-pays)
-- **Fail on Zero Price**: Blocks payments if price oracles fail
+### System Limits
 
-## Asset Restrictions
-
-Control exactly what tokens each payee can receive:
-
-| Setting                      | Effect               | Use Case            |
-| ---------------------------- | -------------------- | ------------------- |
-| Primary Asset + Only Primary | Single token only    | Salary in USDC only |
-| Primary Asset + Any          | Preference indicated | Vendor prefers USDT |
-| No Restrictions              | Accept anything      | Trading services    |
-
-## System Limits & Safety Features
-
-### Maximum Counts
-
-- **40 Payees per wallet**: Need more? Spin up another wallet or remove inactive Payees
-- **40 assets per payee**: More than enough for any payment relationship
-- **25 protocols per manager**: If a manager proposes Payees
-
-### Fail on Zero Price Protection
-
-This critical safety feature blocks transactions when asset prices are unavailable:
-
-- **Why it matters**: Prevents unlimited token transfers during oracle failures
+- **Maximum 40 Payees**: Per wallet capacity
+- **Maximum 40 Assets**: Per payee restriction list
+- **Fail-Safe Protection**: Blocks payments if price oracles unavailable
 - **Keep it enabled**: A broken price feed could otherwise drain your wallet
 - **Only disable for**: Pure stablecoin operations where you trust the 1:1 peg
 
@@ -156,6 +129,26 @@ Price oracles are essential services that provide real-world asset prices to the
 ### Pull Payment Safety
 
 **Hard requirement**: You _cannot_ enable pull payments without setting limits. The system enforces at least one cap (transaction or period) to prevent unlimited access.
+
+## Permission System
+
+### Who Can Add Payees
+
+**Owner**: Full control to add, modify, or remove any payee
+**Managers**: Can propose new payees (requires owner approval after delay)
+**Others**: No access to modify Circle of Trust
+
+### Who Can Execute Payments
+
+**Owner**: Can pay any active payee within limits
+**Managers**: Same payment rights as owner (to active payees only)
+**Payees**: Can pull payments if explicitly enabled
+
+### Who Can Remove
+
+**Owner**: Can remove any payee immediately
+**Payees**: Can remove themselves (clean exit option)
+**Managers**: Cannot remove payees directly
 
 ## Lifecycle Management
 
@@ -195,24 +188,19 @@ Added → Pending → Active → Expired/Removed
 - Can remove themselves
 - Enables clean exits
 
-**Security (MissionControl)**
-
-- Emergency removal only
-- Protocol safety net
-
 > **📋 Manager Proposals Need Your Approval**  
-> If a manager proposes a new payee, you'll see a pending request in your dashboard. After the security delay (typically 2-3 hours), you must manually confirm to activate the payee. This two-step process prevents unauthorized additions.
+> If a manager proposes a new payee, you'll see a pending request. After the security delay (configurable by you), you must manually confirm to activate the payee. This two-step process prevents unauthorized additions.
 
 ## Pull Payments: The Subscription Revolution
 
-Enable Payees to request payment when due, always within your limits.
+Enable Payees to pull payment directly from your wallet, always within your preset limits.
 
 ### How It Works
 
-1. Service requests payment amount
-2. Smart contract validates against limits
-3. Funds pulled from yield if needed (like [cheques](cheques.md))
-4. Payment completes automatically
+1. Payee initiates withdrawal from your wallet
+2. Smart contract validates against all configured limits
+3. Funds automatically sourced from yield positions if needed
+4. Payment executes immediately if within limits
 
 ### Double Activation Required
 
@@ -237,16 +225,13 @@ With pull payments:
 
 ## Real-World Configurations
 
-### Transform Your Payroll
-
-**Before**: Logging into your bank, paying $35 wire fees, losing 3 days of yield
-**After**: John gets paid automatically on the 1st and 15th, your funds earn until payment
+### Employee Payroll Configuration
 
 ```
 Payee: John Smith - Developer
-Your Benefit: Save $70/month in wire fees + earn yield
-Protection: Can only receive his set salary amount
-Convenience: Payments happen while you sleep
+Limits: $5,000 bi-weekly, USDC only
+Schedule: 1st and 15th of each month
+Result: Automatic payment from yield-earning funds
 ```
 
 ### Vendor Management
@@ -288,11 +273,8 @@ Result: Never miss payment, earn yield on float
 **What happens at expiry?**
 Payees automatically deactivate. Payments blocked until you renew.
 
-**Can Payees see my balance?**
-No. They can only receive what you've authorized.
-
 **What if I overpay by mistake?**
-Impossible. Hard limits prevent sending more than configured.
+Impossible. Hard limits enforced by smart contracts on the blockchain prevent sending more than configured.
 
 **Do I need separate Payees for each employee?**
 Yes. Each payee has individual limits and tracking.
@@ -300,35 +282,32 @@ Yes. Each payee has individual limits and tracking.
 **Can I modify limits after setup?**
 Yes. Changes take effect immediately.
 
-## Quick Setup Checklist
+## Payees vs Cheques: Which Payment Tool is Right for You?
 
-For employees:
+Understanding when to use Payees versus Cheques ensures you're using the most efficient tool for each situation:
 
-- ✓ Monthly period (~30 days)
-- ✓ Salary amount as period cap
-- ✓ 1-2 transactions per period
-- ✓ 10+ day cooldown
-- ✓ USDC only
-- ✓ 3-day activation delay
+| Feature                 | **Payees**                                                                                              | **[Cheques](cheques.md)**                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primary Use Case**    | Automated, recurring payments for ongoing relationships                                                 | Flexible, one-time payments that you control until cashed                                                                                      |
+| **Payment Frequency**   | Scheduled intervals (weekly, monthly, etc.)                                                             | Single, non-repeating transaction                                                                                                              |
+| **Recipient Setup**     | Must add recipient to your "Circle of Trust" first                                                      | No setup needed — send to any address                                                                                                          |
+| **Key Benefit**         | Convenience & Automation: Set once, runs automatically                                                  | Control & Flexibility: Create now, cancel anytime before cashed                                                                                |
+| **Ideal For**           | • Employee salaries • Rent or subscriptions • Regular vendor payments • Allowances or stipends | • Paying contractors after work approval • Settling one-time invoices • Sending gifts or prizes • Large transfers needing review time |
+| **Management**          | Set up once, modify schedule as needed                                                                  | Each cheque managed individually                                                                                                               |
+| **How Payment Happens** | Can be executed by owner/manager or pulled by recipient (if enabled)                                    | Can be cashed by owner/manager or pulled by recipient (if enabled)                                                                             |
+| **Cancellation**        | Pause or stop entire payment schedule                                                                   | Cancel specific cheque anytime before cashed                                                                                                   |
 
-For subscriptions:
+## The Future of Business Payments
 
-- ✓ Enable pull payments (both layers)
-- ✓ Monthly period matching billing
-- ✓ Exact amount as caps
-- ✓ 1 transaction per period
-- ✓ 25+ day cooldown
-- ✓ Stablecoin only
+Remember that $500,000 sitting in your checking account earning $50 a year? That's not banking — that's charity to your bank.
 
-## The Bottom Line
+With Payees, those same funds earn $25,000 annually. Your team gets paid automatically on schedule. No more Friday afternoon wire transfers. No more $35 fees adding up to thousands. No more manual entry errors sending money to the wrong place.
 
-Every dollar sitting in a business checking account is a dollar not earning yield. Every manual payment is time wasted. Every wire fee is money burned.
+This is what business banking should have been from the start. Not choosing between yield and liquidity. Not trusting vendors with unlimited access. Not wasting hours on repetitive transfers.
 
-Payees fix all three problems simultaneously. Your funds earn until needed. Payments execute automatically within your rules. Minimal gas costs replace expensive wire fees.
+Just verified addresses. Preset limits. Automatic execution. And money that works as hard as you do.
 
-For a typical small business: Save $10,000+ annually in fees and lost yield. Reclaim 10 hours monthly from payment processing. Sleep knowing payments can't exceed your limits.
-
-Stop choosing between convenience and control. With Payees, you get both. Plus yield that pays for your Netflix subscription 10 times over.
+Welcome to payments that finally make sense.
 
 ## The Perfect Partnership: Managers + Payees
 
@@ -347,10 +326,10 @@ This separation of powers means you can delegate work without delegating trust. 
 
 ## Related Features
 
-- **[Managers](managers.md)**: Grant payee management permissions to trusted operators
 - **[Cheques](cheques.md)**: One-time payments with time delays and cancellation ability
-- **[Whitelist](whitelist.md)**: Unlimited payment access for your most trusted addresses
-- **[User Wallet](user-wallet.md)**: Your command center for all payment configurations
+- **[Managers](managers.md)**: Learn how to delegate payment tasks to AI or team members
+- **[Whitelist](whitelist.md)**: Configure instant, unlimited transfers for your most trusted addresses
+- **[User Wallet](user-wallet.md)**: Explore your complete financial command center and all its features
 
 ---
 

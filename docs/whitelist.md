@@ -1,44 +1,111 @@
 # Whitelist: Unlimited Trust for Your Most Important Addresses
 
-**TL;DR:**
-- Grant unlimited, instant transfer access to your most trusted addresses
-- Perfect for hardware wallets, emergency contacts, or treasury management
-- Time-locked addition process ensures security while instant removal provides control
+Your AI trading agent just spotted a massive arbitrage opportunity. You need to move $500,000 from your conservative Underscore wallet to your aggressive trading Underscore wallet immediately. But without the whitelist, you'd need to create multiple Cheques with delays or set up Payees with limits. By the time the funds arrive, the opportunity is gone.
 
-Your hardware wallet holding $1 million. Your spouse who needs emergency access. Your business treasury requiring daily sweeps. Some addresses deserve unlimited trust — and the Whitelist delivers exactly that.
+Or your DAO needs immediate treasury consolidation. Markets are volatile, opportunities are time-sensitive, and you need to move $2 million between wallets now — not after security delays, not in chunks to avoid limits.
 
-No more being blocked by your own security limits when moving funds between your wallets. No more panic during emergencies because daily limits prevent helping family. The **Whitelist** is your wallet's VIP list — addresses that bypass all restrictions for instant, unlimited transfers.
+**The Whitelist** breaks the emergency glass on your own security. Your cold storage wallet. Your corporate treasury for business operations. Your backup wallet for redundancy. These addresses get unlimited transfers — no limits, no delays, no friction.
 
-## Core Concept: Trust Without Limits
+Your security should protect you from threats, not from yourself.
 
-The Whitelist creates a clear hierarchy in your wallet:
+## Why the Whitelist Exists
+
+### The Problem with Three-Recipient Restrictions
+
+Your wallet requires every recipient to be either a Payee (with limits), sent via Cheque (with delays), or Whitelisted. This keeps you safe but creates friction:
+
+- **Payees**: Great for recurring payments, but limits restrict large transfers
+- **Cheques**: Perfect for one-time payments, but delays kill time-sensitive opportunities
+- **Missing option**: What about your own wallets that need instant, unlimited access?
+
+When your AI agent spots arbitrage or your DAO needs treasury consolidation, Payee limits and Cheque delays become profit killers.
+
+### The Whitelist Solution
+
+The Whitelist completes the payment trinity with a special category for absolute trust:
+
+- **Your other Underscore wallets**: Move millions between your own accounts instantly
+- **Hardware wallets**: Secure funds without friction when threats emerge
+- **Corporate treasuries**: Enable instant consolidation for business operations
+- **Time-locked security**: Additions require waiting period, removals are instant
+- **Manager compatible**: Delegate whitelist management without giving away funds
+
+## How the Whitelist Works
+
+### Payment Hierarchy
+
+Your wallet recognizes three types of payment recipients:
 
 ```
-Regular Recipients → Subject to all limits and controls
-Whitelisted Addresses → Instant unlimited transfers
+Payees → Recurring payments with configured limits
+Cheques → One-time payments with delays and cancellation
+Whitelist → Instant unlimited transfers
 ```
 
-It's like the difference between a visitor pass and executive access — whitelisted addresses have the keys to the kingdom.
+Only addresses in one of these three categories can receive payments from your wallet.
 
-## The Two-Step Security Process
+### Transaction Flow
 
-Adding an address requires deliberate action and patience:
+```
+You initiate transfer
+        ↓
+Is recipient whitelisted?
+        ↓
+    ┌───┴───┐
+    │       │
+   YES      NO
+    │       │
+    ↓       ↓
+Transfer   Is it a Payee or Cheque?
+proceeds        ↓
+instantly   ┌───┴───┐
+            │       │
+           YES      NO
+            │       │
+            ↓       ↓
+        Apply limits  Transaction
+        and proceed   BLOCKED
+```
+
+## Security Features
+
+### Time-Locked Additions
+
+Adding a whitelisted address follows a security delay that you control:
 
 ```
 Propose → Time-Lock → Confirm → Active
-Day 1      3-7 days    Day 4+    Forever
+Day 1      Your Choice   Ready    Until Removed
 ```
 
-This delay is your safety net. Even if someone compromises your wallet, they can't immediately drain it to their address.
+**This is your ultimate defense against wallet compromise.**
 
-### Time-Lock Examples
-- Personal wallet (<$100k): 3 days (129,600 blocks)
-- High-value wallet (>$100k): 7 days (302,400 blocks)
-- Business treasury: Custom based on risk tolerance
+Every Underscore wallet has an "owner" — the external wallet (EOA or hardware wallet) that has full control. If an attacker compromises this owner wallet, the time-lock gives you a crucial defense window.
 
-## Permission Hierarchy
+Even with full control of your owner wallet, the attacker CANNOT immediately drain your Underscore wallet funds. Here's why:
 
-### The Owner (You)
+1. **Attacker tries to whitelist their address** → Enters time-lock period (e.g., 7 days)
+2. **You see the pending addition** → You have days to respond, not minutes
+3. **You immediately cancel the malicious addition** → Attacker's plan fails
+4. **You transfer all funds to your pre-whitelisted cold storage** → Your money is safe
+
+The attacker is forced to reveal their hand while you still have full control. They can't add their address instantly, can't speed up the time-lock, and can't stop you from moving funds to your already-whitelisted addresses.
+
+This time delay transforms a successful attack into a failed attempt, giving you a critical window to protect your assets.
+
+### Configurable Security Delay
+
+The delay period is controlled by your wallet's `timeLock` setting, measured in blocks. You can set any duration that suits your needs — shorter for more convenience, longer for more security.
+
+This same delay applies to all security-critical operations in your wallet, not just whitelist additions.
+
+### Instant Removal
+
+Unlike additions, removing whitelisted addresses takes effect immediately — protecting you when every second counts.
+
+## Permission System
+
+### Owner (You)
 Complete authority over all whitelist operations:
 - Add, confirm, cancel, remove addresses
 - No restrictions on your control
@@ -46,112 +113,60 @@ Complete authority over all whitelist operations:
 
 ### [Managers](managers.md)
 Delegated whitelist powers (if granted):
-- `canAddPending`: Propose new addresses
-- `canConfirm`: Complete additions after delay
-- `canCancel`: Stop pending additions
-- `canRemove`: Delete existing entries
+- **Propose**: Suggest new addresses for your approval
+- **Confirm**: Complete additions after the security delay
+- **Cancel**: Stop pending additions before they activate
+- **Remove**: Delete existing whitelisted addresses
 
-Dual-permission system: Both individual AND global settings must allow the action.
+Each permission must be explicitly granted — managers only get the whitelist powers you choose to give them.
 
-### Security Override
-MissionControl can:
-- Cancel suspicious pending additions
-- Remove addresses in emergencies
-- Cannot add new addresses (safety only)
+### Additional Security Features
 
-## Security Features
-
-### Owner Change Protection
-If wallet ownership changes during the pending period, ALL pending whitelist proposals automatically cancel. This prevents attackers from completing their own additions.
-
-### Address Validation
-Cannot whitelist:
-- Empty addresses
-- The wallet itself
-- Current owner address
-- Configuration contracts
-
-### No Cheque Creation
-Whitelisted addresses cannot receive Cheques — they already have unlimited access.
+- **Owner Change Protection**: All pending additions cancel if ownership changes
+- **No Cheque Creation**: Whitelisted addresses cannot receive Cheques
+- **Address Validation**: Cannot whitelist empty addresses, the wallet itself, or config contracts
 
 ## Real-World Use Cases
 
-### Personal Finance
+### Multi-Wallet Strategies
 
-**Multi-Wallet Security**
-- Hot wallet: $5k-50k daily operations
-- Hardware wallet: $100k-1M cold storage
-- Multi-sig vault: $1M+ ultimate security
+**Conservative + Aggressive Split**
+- Conservative wallet: Stablecoin yield farming, vendor payments
+- Aggressive wallet: AI trading agent, DeFi strategies
+- Instant rebalancing: Move millions between strategies as opportunities arise
 
-Whitelist your cold storage to instantly secure funds during market crashes or security concerns.
+Whitelist each other for instant capital deployment when your AI spots alpha.
 
-**Emergency Family Access**
-Whitelist trusted family for:
-- Medical emergency funding
-- Crisis situations requiring immediate help
-- Peace of mind knowing they're covered
+**Security Threat Response**
+- Active wallet: Daily operations, exposed to more interactions
+- Secure cold storage: Maximum security setup, rarely accessed
+- Instant evacuation: Move entire balance when threats emerge
 
-### Business Operations
+When you suspect compromise or face a wrench attack, every second counts. Whitelist your secure storage to evacuate funds instantly.
 
-**Treasury Management**
-- Operations → Treasury: Daily $200k revenue sweeps
-- Treasury → Payroll: Monthly $500k+ transfers
-- Treasury → Investments: Deploy millions instantly
+### DAO & Corporate Treasury
 
-Save 10+ hours monthly by eliminating transfer limits between company wallets.
+**Multi-Signature Operations**
+- Operations wallet → Main treasury: Daily revenue consolidation
+- Treasury → Operations: Instant funding for opportunities
+- Emergency moves: React to governance decisions immediately
 
-**Multi-Entity Operations**
-- Subsidiary transfers
-- Department allocations
-- Joint venture funding
+**Department Management**
+- Marketing wallet needs urgent campaign funding
+- Development wallet requires immediate contractor payment
+- Investment wallet spots time-sensitive opportunity
 
-### Trading & Investment
+Whitelist between departments for operational efficiency without compromising security.
 
-**High-Frequency Trading**
-- Deploy $250k during flash crashes
-- Secure profits instantly
-- Rebalance between strategies
+### AI Agent Operations
 
-Without whitelist: Miss opportunities due to $25k daily limits
-With whitelist: Act in seconds with any amount
+**Automated Strategy Execution**
+- AI identifies arbitrage across protocols
+- Needs immediate capital from your yield wallet
+- Opportunity window: Often under 60 seconds
 
-## What NOT to Whitelist
-
-❌ **Exchange deposit addresses** - Can change without notice
-❌ **Service providers** - Use Payees with limits instead
-❌ **New acquaintances** - No matter how trustworthy
-❌ **Smart contracts** - Unless thoroughly audited
-❌ **Temporary needs** - Use Cheques for one-time transfers
-
-Remember: Whitelisted addresses can drain your entire wallet instantly.
-
-## Best Practices
-
-1. **Minimal List**: Only addresses you absolutely trust
-2. **Document Everything**: Record why each address is whitelisted
-3. **Regular Audits**: Review quarterly, remove unnecessary entries
-4. **Test First**: Send $10 before trusting with millions
-5. **Plan Ahead**: Add addresses during calm periods, not crises
-
-## Quick Setup Guide
-
-### For Personal Use
-1. Whitelist your hardware wallet
-2. Add spouse/family emergency contact
-3. Use 3-day time-lock
-4. Document in secure location
-
-### For Business
-1. Whitelist treasury wallets
-2. Add operational wallets
-3. Use 7-day time-lock for high-value
-4. Implement dual-control (propose/confirm split)
-
-### For Traders
-1. Whitelist main trading wallets
-2. Add cold storage for profits
-3. Balance speed vs security in delay choice
-4. Keep exchange addresses OFF the list
+Without whitelist: Cheque delays or Payee limits kill the trade
+With whitelist: Your AI executes at market speed
 
 ## Common Questions
 
@@ -161,34 +176,48 @@ No. The delay is absolute for security. Plan additions in advance.
 **What if I lose access to a whitelisted address?**
 Remove it immediately. A compromised whitelisted address is your highest risk.
 
-**How many addresses should I whitelist?**
-Most users need 2-5. Keep it minimal for security.
-
 **Can removed addresses be re-added?**
 Yes, but they go through the full process again.
 
-## Integration with Other Features
+**What happens if I try to send to an unapproved address?**
+The transaction will be blocked before any funds leave your wallet.
 
-- **[Managers](managers.md)**: Have limits; whitelisted addresses don't
-- **[Payees](payees.md)**: Pull payments within bounds; whitelist is unlimited push
-- **[Cheques](cheques.md)**: Controlled scheduled payments; whitelist is instant unlimited
+**Can a Manager steal my funds?**
+No. Managers cannot initiate transfers or withdraw funds. They can only manage your whitelist if you've granted those specific permissions.
 
-## The Bottom Line
+**How does the whitelist interact with my daily transfer limits?**
+Whitelisted addresses bypass ALL limits — daily, weekly, and lifetime. This is why you should only whitelist addresses you trust completely.
 
-The Whitelist solves a fundamental problem: how to maintain strong security while enabling legitimate large transfers. It's the difference between being protected by your limits and being trapped by them.
+## Whitelist vs Other Payment Methods
 
-For personal users: Move millions between your wallets instantly while keeping hackers at bay.
-For businesses: Eliminate treasury friction while maintaining audit trails.
-For everyone: Emergency access when it matters most.
+Understanding when to use the Whitelist versus other payment tools:
 
-Your money, your addresses, your control — with no artificial limits standing in the way.
+| Feature                 | **Whitelist**                                                          | **[Payees](payees.md)**                                                                                 | **[Cheques](cheques.md)**                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Primary Use Case**    | Unlimited instant transfers to your most trusted addresses             | Automated, recurring payments for ongoing relationships                                                 | Flexible, one-time payments that you control until cashed                                                      |
+| **Payment Limits**      | None — completely unlimited                                            | Customizable per-recipient limits                                                                       | Set per cheque with optional delays                                                                            |
+| **Recipient Setup**     | Time-locked addition (i.e. 3-7 days), instant removal                       | Add to Circle of Trust with specific limits                                                             | No setup needed — send to any address                                                                          |
+| **Key Benefit**         | Emergency Access: Move millions instantly when needed                  | Convenience & Automation: Set once, runs automatically                                                  | Control & Flexibility: Create now, cancel anytime before cashed                                                |
+| **Ideal For**           | • Your hardware wallets • Emergency contacts • Treasury wallets • Business operations | • Employee salaries • Rent or subscriptions • Regular vendor payments • Allowances or stipends | • Paying contractors after work approval • Settling one-time invoices • Sending gifts or prizes • Large transfers needing review time |
+| **Risk Level**          | Highest — can drain entire wallet                                      | Medium — limited by configured caps                                                                     | Low — cancellable until cashed                                                                                 |
+| **Manager Access**      | Can manage whitelist (if permitted) but bypasses their spending limits | Managers pay within their own limits                                                                    | Managers can create/cancel within rules                                                                        |
+
+## The Future of Trust Without Limits
+
+Remember that AI trading opportunity that needed $500,000 moved in seconds? Or your DAO's urgent treasury consolidation? Without the Whitelist, those moments become missed opportunities and operational nightmares.
+
+Every other security system forces you to choose: protection or accessibility. The Whitelist breaks the tradeoff. Time-locked additions keep attackers out. Instant removal maintains your control. Unlimited transfers mean your money moves at the speed of opportunity.
+
+This is what wallet security should have been from the start. Not choosing between being safe and being functional. Not watching arbitrage windows close while funds sit in transit. Not explaining to your DAO why the treasury consolidation is delayed by security theater.
+
+Stop being prisoner to your own protection. Start having security that knows the difference between a thief and your hardware wallet.
 
 ## Related Features
 
-- **[Managers](managers.md)**: Delegate whitelist management permissions
-- **[Payees](payees.md)**: Recurring payments with spending limits
-- **[Cheques](cheques.md)**: One-time payments with time delays
-- **[User Wallet](user-wallet.md)**: Configure all security settings
+- **[Payees](payees.md)**: Set up automated recurring payments for regular expenses
+- **[Cheques](cheques.md)**: One-time payments with time delays and cancellation ability
+- **[Managers](managers.md)**: Learn how to delegate payment tasks to AI or team members
+- **[User Wallet](user-wallet.md)**: Explore your complete financial command center and all its features
 
 ---
 
