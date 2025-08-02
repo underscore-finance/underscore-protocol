@@ -1,3 +1,7 @@
+---
+description: Delegate operations to humans or AI within unbreakable boundaries you control
+---
+
 # Managers: Delegated Control for Your Underscore Wallet
 
 Your yield optimizer found a 15% APY opportunity at 3am. By the time you wake up and manually move funds, it's down to 5%. Another $500 in missed gains because you need sleep.

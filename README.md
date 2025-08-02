@@ -1,34 +1,32 @@
-# 🎯 Underscore Protocol
+# Underscore Protocol: One Wallet. Every Protocol. Total Control.
 
-## 🛠️ **For Developers, Auditors & Integrators**
+Ten DeFi tabs open. Constantly verifying URLs to avoid getting drained. Manual token approvals for every protocol, every time. While you sleep, that 15% APY drops to 5%. Another $2,000 in missed yield this month alone. The 24/7 market doesn't care about your schedule. 
 
-**[📖 Complete Technical Documentation](docs/technical/README.md)** - Deep dive into Underscore Protocol's architecture:
+This isn't DeFi. This is DeFi held back by tools from 2020.
 
-- 🏗️ **System Architecture** - 30+ production contracts working in harmony
-- 📋 **Comprehensive Documentation** - Detailed contract guides with function-by-function breakdowns
-- 🔍 **Security Model** - Time-locked governance, multi-tier permissions, and emergency controls
-- 🧩 **Modular Design** - Reusable modules for governance, registries, and DeFi integrations
-- 🔗 **Integration Patterns** - Build on top of Underscore's wallet infrastructure with Lego Partners
+**Underscore** transforms your wallet into an intelligent financial operating system. Connect to 20+ protocols through one interface. Enable AI agents and trusted operators to work within your exact boundaries. Pay vendors automatically while funds earn yield. Move millions between your wallets instantly.
+
+This is what DeFi promised. Your money working as hard as you do.
+
+## Learn More
+
+**[📖 Complete Documentation](docs/)**
+Explore how Underscore reimagines DeFi operations with intelligent wallets, automated payments, and secure delegation.
+
+**[🔧 Technical Documentation](docs/technical/)**  
+For developers: Smart contract architecture, integration guides, and API documentation.
 
 ---
 
-## Deployed Contracts
+## Security & Responsible Disclosure
 
-To add...
+Found a vulnerability? Please report it privately:
 
----
+**Email**: underscore_team@proton.me (include "SECURITY" in subject)  
+**Include**: Description, severity, steps to reproduce, affected contracts  
+**Don't**: Exploit funds or disclose publicly before we confirm a fix
 
-## Security / Responsible Disclosure
-
-If you find a bug, vulnerability, or anything that could put user funds at risk, please report it **privately**.
-
-- **Email:** underscore_team@proton.me (include **"SECURITY"** in the subject).
-- **What to include:** clear description, impact / severity, reproducible steps or PoC, affected contract addresses + chain(s), relevant tx hashes or block numbers, and how we can reach you (e.g., GitHub handle, ENS, email, wallet for potential thanks).
-- **Please do not:** exploit funds, run non-trivial mainnet attacks, or share details publicly until we've confirmed a fix or given written approval to disclose.
-- **Ack & follow‑up:** we'll acknowledge as quickly as we can and keep you updated through remediation.
-- **Researcher Thanks (RIPE Tokens):** qualifying responsibly disclosed issues may receive a discretionary allocation of **RIPE** tokens as a thank‑you (we are also developers of [Ripe Protocol](https://www.ripe.finance/)). We're a startup with a limited budget (No VCs); awards will be modest, scaled by severity/impact, and subject to token availability, lockups, and all applicable laws/regulations. We'll discuss details with you after triage.
-
-Thank you for helping keep Underscore Protocol safe for everyone!
+We acknowledge reports quickly and may offer RIPE token rewards for qualifying disclosures.
 
 ## Deployed Contracts
 

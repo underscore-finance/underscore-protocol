@@ -1,3 +1,7 @@
+---
+description: One wallet unifying 20+ DeFi protocols with automated payments and secure delegation
+---
+
 # User Wallet: Your DeFi Command Center
 
 You're managing $100K+ across 5 protocols, but you're still copying addresses, approving tokens one by one, and checking rates manually like it's 2020.

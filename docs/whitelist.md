@@ -1,3 +1,7 @@
+---
+description: Instant unlimited transfers to your most trusted addresses with time-locked security
+---
+
 # Whitelist: Unlimited Trust for Your Most Important Addresses
 
 Your AI trading agent just spotted a massive arbitrage opportunity. You need to move $500,000 from your conservative Underscore wallet to your aggressive trading Underscore wallet immediately. But without the whitelist, you'd need to create multiple Cheques with delays or set up Payees with limits. By the time the funds arrive, the opportunity is gone.

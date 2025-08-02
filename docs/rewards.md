@@ -1,3 +1,7 @@
+---
+description: Earn revenue share from protocol fees with no lock-ups or complex tokenomics
+---
+
 # Rewards: Get Paid for Using DeFi the Right Way
 
 **TL;DR:**

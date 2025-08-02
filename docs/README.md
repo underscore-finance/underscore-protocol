@@ -4,53 +4,55 @@ description: Your Financial Command Center, Reimagined
 
 # Underscore Protocol: One Wallet. Every Protocol. Total Control.
 
-Your crypto is trapped in a basic wallet that can't do anything. You juggle 10 different DeFi apps. You miss yield opportunities while sleeping. You pay excessive gas from inefficiency. And one wrong click could drain everything.
+Ten DeFi tabs open. Constantly verifying URLs to avoid getting drained. Manual token approvals for every protocol, every time. While you sleep, that 15% APY drops to 5%. Another $2,000 in missed yield this month alone. The 24/7 market doesn't care about your schedule.
 
-Underscore changes all of this. Your wallet becomes an intelligent financial operating system — connecting to every protocol, automating complex strategies, maintaining total security. Finally, a wallet that works as hard as you do.
+This isn't DeFi. This is DeFi held back by tools from 2020.
+
+**Underscore** transforms your wallet into an intelligent financial operating system. Connect to 20+ protocols through one interface. Enable AI agents and trusted operators to work within your exact boundaries. Pay vendors automatically while funds earn yield. Move millions between your wallets instantly.
+
+This is what DeFi promised. Your money working as hard as you do.
 
 ***
 
 ## The Problem: Today's Wallets Are Just Expensive Storage
 
 **Basic Wallets** (MetaMask, Rainbow)  
-Hold assets. Send transactions. That's it. Like having a Ferrari but only using it to listen to the radio.
+Manual approvals for every protocol, every time. No built-in payment scheduling — miss a payment, lose a deal. No delegation capabilities — you're the only one who can act, 24/7. Your $500k sits idle between transactions earning nothing. Like having a Ferrari but only using first gear.
 
 **DeFi Fragmentation**  
-Aave for lending. Uniswap for swaps. Compound for yields. Ten tabs open, none talking to each other. This isn't the future we were promised.
+Aave for lending. Uniswap for swaps. Compound for yields. Ten tabs open, constantly verifying URLs to avoid phishing sites, none talking to each other. This isn't the future we were promised.
 
 **Manual Everything**  
-Claim rewards at 3am. Rebalance positions constantly. Miss opportunities while you sleep. The 24/7 market doesn't care about your schedule.
+Wake up to claim rewards before they expire. Check yields hourly to catch rate changes. Rebalance positions one by one, transaction by transaction. That 20% APY spike at 3am? Gone by morning. Another $500 in missed gains because you need sleep.
 
 ## The Underscore Solution: Intelligent Financial Automation
 
-```
-Traditional:                    Underscore:
-┌─────────────┐                ┌─────────────────────┐
-│ Basic Wallet│                │   User Wallet       │
-│             │                │                     │
-│ • Hold assets│               │ • Hold assets       │
-│ • Send tokens│               │ • Auto-yield 24/7   │
-│             │                │ • AI optimization   │
-│             │                │ • Cross-protocol ops│
-│             │                │ • Granular security │
-└─────────────┘                └─────────────────────┘
-     Static                           Dynamic
-```
+Transform your static wallet into a dynamic financial operating system. One that connects to every protocol, enables automated strategies through secure delegation, and maintains institutional-grade security — all through a single interface.
+
+**Unified Protocol Access**: No more tab juggling or phishing risks. Your Underscore wallet connects directly to Aave, Morpho, Uniswap, and 20+ protocols through standardized adapters. Execute complex multi-protocol strategies in single transactions. Your funds work across every protocol without you lifting a finger.
+
+**Intelligent Payment Rails**: Three distinct systems for every payment need. Digital Cheques you can cancel if the contractor doesn't deliver. Payees that pull payments automatically so you never miss payroll. Whitelist for moving millions between your wallets instantly. Your funds earn 5% APY until the second they're needed.
+
+**Secure Delegation**: Let AI agents capture that 15% APY at 3am. Enable your CFO to pay $100k in vendor invoices without touching your $2M reserves. Allow traders to work your portfolio within exact position limits. Every action validated against your rules, revocable with one click.
+
+**Atomic Operations**: Rebalance $500k across five protocols in one transaction. Claim rewards from Aave, swap to USDC, and re-deploy to Morpho — all in 12 seconds. What used to take 30 minutes and 5 transactions now happens instantly.
+
+This isn't incremental improvement. It's a fundamental reimagining of what a wallet can be.
 
 ***
 
 ## Core Components
 
-#### 🎯 [User Wallet: Your Financial Command Center](user-wallet.md)
+### [User Wallet: Your Financial Command Center](user-wallet.md)
 
 Stop choosing between security and functionality. Get both.
 
 * **One address** for every DeFi protocol
 * **Intelligent automation** with manual override always available
 * **Institutional security** without institutional complexity
-* **Gas optimization** saving 30-50% on complex operations
+* **Complex operations** executed in single transactions
 
-#### 👥 [Managers: Delegation That Actually Works](managers.md)
+### [Managers: Delegation That Actually Works](managers.md)
 
 Let humans or AI work for you — within your exact boundaries.
 
@@ -59,7 +61,7 @@ Let humans or AI work for you — within your exact boundaries.
 * **Time-based controls** - Auto-expire after set periods
 * **Instant revocation** - Your control is absolute
 
-#### 💸 [Payees: Streamlined Payment Rails](payees.md)
+### [Payees: Streamlined Payment Rails](payees.md)
 
 Replace wire transfers with programmable payment relationships.
 
@@ -68,7 +70,7 @@ Replace wire transfers with programmable payment relationships.
 * **Pull payment support** for subscriptions
 * **Period-based caps** preventing overspending
 
-#### 📝 [Cheques: Payments with an Undo Button](cheques.md)
+### [Cheques: Payments with an Undo Button](cheques.md)
 
 Time-locked payment promises you control until cashed.
 
@@ -77,7 +79,7 @@ Time-locked payment promises you control until cashed.
 * **Transparent on-chain** for both parties
 * **No funds locked** until actual payment
 
-#### 🏆 [Whitelist: Your VIP List](whitelist.md)
+### [Whitelist: Your VIP List](whitelist.md)
 
 Unlimited access for your most trusted addresses.
 
@@ -85,17 +87,6 @@ Unlimited access for your most trusted addresses.
 * **Time-locked additions** for security
 * **Perfect for** hardware wallets and treasuries
 * **Instant removal** if ever needed
-
-## Value Capture
-
-#### 💎 [Rewards: Get Paid for Using DeFi](rewards.md)
-
-Real revenue sharing from actual protocol usage.
-
-* **Deposit points** - Earn based on holdings over time
-* **Ambassador rewards** - 20-30% of referred user fees
-* **Yield bonuses** - Extra rewards on profitable positions
-* **No token locks** - Claim when you want
 
 ***
 
@@ -105,37 +96,15 @@ Your Underscore Wallet isn't just one thing — it's an ecosystem of intelligent
 
 ### Example Day in Your Financial Life
 
-**7 AM**: Your [AI Manager](managers.md) notices Morpho offering 1% better yield than Aave. It automatically rebalances $50,000, saving you gas and capturing extra yield. You're still sleeping.
+**7 AM**: Your [AI Manager](managers.md) notices Morpho offering 1% better yield than Aave. It automatically rebalances $50,000, capturing extra yield while you sleep.
 
 **10 AM**: Monthly rent is due. Your landlord (configured as [Payee](payees.md)) pulls exactly $2,500 USDC. Not a penny more. Your remaining funds keep earning yield.
 
 **2 PM**: You need to pay a contractor. Create a $5,000 [cheque](cheques.md) with 3-day delay. If they don't deliver, cancel it. Simple.
 
-**4 PM**: Market crash! Move $200,000 to your hardware wallet ([whitelisted](whitelist.md)) instantly. No daily limits blocking emergency moves.
+**4 PM**: Time to fund your aggressive trading wallet. Move $200,000 to your other Underscore wallet ([whitelisted](whitelist.md)) instantly. Your AI agent spots an arbitrage opportunity.
 
-**11 PM**: Check your [rewards](rewards.md). $150 accumulated from protocol fees. Your 10 referred users generated $500 in fees, netting you another $150. Passive income while you lived your life.
-
-***
-
-## Real-World Impact
-
-### For Individuals
-- **Save** 200+ hours annually on DeFi management
-- **Earn** $2,000-5,000 extra through optimization
-- **Reduce** gas costs by 30-50%
-- **Sleep** knowing your assets are secure AND productive
-
-### For Businesses  
-- **Eliminate** $1,000+ monthly in wire fees
-- **Automate** payroll while earning yield
-- **Manage** treasury across protocols seamlessly
-- **Scale** operations without operational overhead
-
-### For Traders
-- **Execute** complex strategies atomically
-- **Deploy** capital instantly across venues
-- **Automate** 24/7 without sacrificing control
-- **Compound** gains through intelligent routing
+**11 PM**: Your portfolio rebalanced 3 times today across 5 protocols. You didn't lift a finger. Total additional yield captured: $247.
 
 ***
 
@@ -154,104 +123,47 @@ Yes. Whitelist them for instant transfers between your wallets.
 Currently Base L2 only. More chains coming.
 
 **How do fees work?**  
-Small fees (0.1-0.5% on swaps, 10% on yield profits) fund rewards. You earn back through participation.
+Small fees on swaps, earned yield and when claiming rewards. No fees on transfers, deposits, or idle funds.
 
 ***
 
-## Pick Your Path
+## Getting Started
 
-Four ways to start. All lead to better financial outcomes.
+Start with the [User Wallet](user-wallet.md) to understand the foundation. Then explore the specific features that match your needs:
 
-### 🚀 **The Quick Start**: Basic Wallet → Smart Wallet
-
-Deploy your User Wallet. Transfer assets. Start earning immediately.  
-**→** [**Deploy Your Wallet**](user-wallet.md)
-
-### 🤖 **The Optimizer**: Add an AI Manager
-
-Let algorithms work 24/7 within your risk parameters. Sleep while earning.  
-**→** [**Configure AI Manager**](managers.md)
-
-### 💼 **The Business**: Automate Operations
-
-Replace wire transfers. Automate payroll. Streamline vendor payments.  
-**→** [**Set Up Payees**](payees.md)
-
-### 🎯 **The Ambassador**: Build Passive Income
-
-Share Underscore. Earn 20-30% of fees your network generates. Forever.  
-**→** [**Start Earning**](rewards.md)
+- **For Automation**: Set up [Managers](managers.md) to delegate operations
+- **For Recurring Payments**: Configure [Payees](payees.md) for automated transfers
+- **For One-Time Payments**: Use [Cheques](cheques.md) with cancellation ability
+- **For Multi-Wallet Strategies**: Add addresses to your [Whitelist](whitelist.md)
 
 ***
 
-## 🔧 Technical Documentation
+## Technical Documentation
 
-Building on Underscore? Integrating with the protocol? Deep dive into the architecture.
+For developers and integrators: [Complete Technical Documentation](technical/)
 
-#### 📚 [Complete Technical Documentation](technical/)
-
-The technical docs provide comprehensive coverage of:
-
-* **Smart Contract Architecture** - Detailed documentation for 50+ contracts
-* **Integration Guides** - How to build Lego Partners and integrate protocols
-* **Module System** - Reusable components and design patterns
-* **Security Model** - Time-locks, registries, and permission systems
-* **Deployed Addresses** - All Base mainnet contract addresses
-
-### Key Technical Components
-
-**Core Infrastructure**
-- UserWallet and UserWalletConfig contracts
-- Multi-oracle price aggregation (Appraiser)
-- Rewards distribution (LootDistributor)
-- Pull payment engine (Billing)
-
-**Lego Partner System**
-- 6 yield protocol integrations (Aave, Compound, Morpho, etc.)
-- 5 DEX integrations (Uniswap, Curve, Aerodrome, etc.)
-- Universal routing through LegoTools
-
-**Security & Governance**
-- Registry-based architecture (UndyHq, LegoBook)
-- Time-locked configuration changes
-- Emergency pause and recovery systems
-- Modular permission management
-
-**→** [**Explore Technical Documentation**](technical/)
+Build on Underscore's infrastructure with detailed guides on smart contract architecture, Lego Partner integrations, and security models. Over 30 production contracts documented with integration examples.
 
 ***
 
-## 🤝 Join the Underscore Community
+## Community & Support
 
-### Connect & Learn
-
-* **Discord**: [Join our community](https://discord.gg/underscore) — Get help, share strategies, connect with users
-* **Twitter/X**: [@UnderscoreFi](https://x.com/UnderscoreFi) — Latest updates and announcements
-* **Blog**: [blog.underscore.finance](https://blog.underscore.finance) — Deep dives and insights
-* **GitHub**: [underscore-finance](https://github.com/underscore-finance) — Open source development
-
-### Need Help?
-
-* **User Docs**: You're here! Navigate using the menu
-* **Technical Docs**: [Technical Documentation](technical/) — For developers
-* **Discord Support**: Ask in #support for quick help
+- **Discord**: [discord.gg/underscore](https://discord.gg/Y6PWmndNaC)
+- **Twitter/X**: [@UnderscoreFi](https://x.com/underscore_hq)
+- **GitHub**: [github.com/underscore-finance](https://github.com/underscore-finance/underscore-protocol)
 
 ***
 
-## The Real Vision: Financial Sovereignty Through Intelligence
+## The Future of Financial Operations
 
-Here's what actually matters: You shouldn't have to choose between security and opportunity. Between automation and control. Between simplicity and power.
+Remember those 10 tabs you had open, constantly checking URLs? The yield opportunities you missed at 3am? The manual approvals, one by one, for every protocol?
 
-Every other wallet makes you pick one. Underscore gives you everything.
+That's not DeFi. That's DeFi handicapped by tools from 2020.
 
-Your assets work 24/7 across every protocol. Your security preferences are enforced by code, not trust. Your strategies execute automatically within your exact boundaries. This is what crypto was supposed to enable.
+Underscore delivers what crypto promised: programmable money that works as hard as you do. Your funds earning across protocols while maintaining liquidity for payments. Your trusted operators executing strategies within unbreakable boundaries. Your security protecting without restricting.
 
-While others debate the future of finance, we built it.
+This isn't about choosing the lesser evil. It's about having everything — automation and control, security and accessibility, simplicity and power.
 
 One wallet. Every protocol. Total control.
 
-Welcome to finance that actually works for you.
-
-***
-
-_For technical implementation details, see the [Technical Documentation](technical/)._
+Stop managing wallets. Start managing wealth.

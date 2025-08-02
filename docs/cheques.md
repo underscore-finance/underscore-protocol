@@ -1,3 +1,7 @@
+---
+description: One-time payments you can cancel anytime before they're cashed
+---
+
 # Digital Cheques: Send Money with Total Control
 
 You send $5,000 USDC to a contractor. Three hours later, you realize it's the wrong address. Your money? Gone forever. No undo button. No customer service. Just an expensive lesson in triple-checking addresses.

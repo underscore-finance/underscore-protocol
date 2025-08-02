@@ -1,3 +1,7 @@
+---
+description: Automated recurring payments to verified addresses while your funds earn yield
+---
+
 # Payees: Your Circle of Trust for Automated Payments
 
 Your business checking account holds $500,000. At 0.01% APY, that's $50 a year. Meanwhile, you're paying $35 per wire transfer, 20 times a month. That's $8,400 annually — gone.
