@@ -1,19 +1,23 @@
-# Underscore Protocol: One Wallet. Every Protocol. Total Control.
+# Underscore Protocol: Intelligent Financial Automation
 
-Ten DeFi tabs open. Constantly verifying URLs to avoid getting drained. Manual token approvals for every protocol, every time. While you sleep, that 15% APY drops to 5%. Another $2,000 in missed yield this month alone. The 24/7 market doesn't care about your schedule. 
+Transform your static wallet into a dynamic financial operating system. One that connects to every top DeFi protocol, enables automated strategies through secure delegation, and maintains institutional-grade security — all through a single interface.
 
-This isn't DeFi. This is DeFi held back by tools from 2020.
+**Atomic Operations**: Rebalance $500k across five protocols in one transaction. Move from Aave's 7% to Morpho's 12% APY in one click. Claim rewards, swap to USDC, and re-deploy — what took 15 minutes and 5 transactions now happens instantly.
 
-**Underscore** transforms your wallet into an intelligent financial operating system. Connect to 20+ protocols through one interface. Enable AI agents and trusted operators to work within your exact boundaries. Pay vendors automatically while funds earn yield. Move millions between your wallets instantly.
+**Secure Delegation**: Let AI agents capture that 15% APY spike at 3am while you sleep. Enable your CFO to pay $100k in vendor invoices without touching your $2M reserves. Set exact position limits: "Trade up to $50k USDC but never touch my ETH." Every action validated against your rules, revocable with one click. All powered by [Managers](https://docs.underscore.finance/core-features/managers) — your automated operators that never sleep.
 
-This is what DeFi promised. Your money working as hard as you do.
+**Unified Protocol Access**: No more tab juggling or phishing risks. Your Underscore wallet connects directly to Morpho, Aerodrome, Aave, Uniswap, and every major protocol through battle-tested adapters. Execute a Morpho deposit → Aerodrome swap → Aave leverage strategy in a single transaction.
+
+**Intelligent Payment Rails**: Pay contractors with 72-hour cancellation windows using [Digital Cheques](https://docs.underscore.finance/core-features/cheques). Let employees pull their exact $5k monthly salary (not a penny more) as [Payees](https://docs.underscore.finance/core-features/payees). Move millions between your own wallets instantly via [Whitelist](https://docs.underscore.finance/core-features/whitelist). Your funds earn 5% APY until the millisecond they're needed.
+
+Your wallet shouldn't just hold money. It should make money. Every second. Automatically.
 
 ## Learn More
 
-**[📖 Complete Documentation](docs/)**
+**[📖 Complete Documentation](https://docs.underscore.finance/)**
 Explore how Underscore reimagines DeFi operations with intelligent wallets, automated payments, and secure delegation.
 
-**[🔧 Technical Documentation](docs/technical/)**  
+**[🔧 Technical Documentation](https://underscore-1.gitbook.io/developers)**  
 For developers: Smart contract architecture, integration guides, and API documentation.
 
 ---
