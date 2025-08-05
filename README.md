@@ -57,7 +57,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | CurveLego                | [0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4](https://basescan.org/address/0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4) |
 | UniswapV2Lego            | [0xadB9aa252dD6163f4958443b414177248435c0EC](https://basescan.org/address/0xadB9aa252dD6163f4958443b414177248435c0EC) |
 | UniswapV3Lego            | [0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249](https://basescan.org/address/0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249) |
-| LegoTools                | [0x2edb54bE8c4F6Cde402CAAe86A809D434b3AFC66](https://basescan.org/address/0x2edb54bE8c4F6Cde402CAAe86A809D434b3AFC66) |
+| LegoTools                | [0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F](https://basescan.org/address/0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F) |
 | Switchboard              | [0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e](https://basescan.org/address/0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e) |
 | SwitchboardAlpha         | [0x2256122FCb6F9789aa356F387435F545c3C52ba5](https://basescan.org/address/0x2256122FCb6F9789aa356F387435F545c3C52ba5) |
 | SwitchboardBravo         | [0xf1F5938559884D3c54400b417292B93cd81C368c](https://basescan.org/address/0xf1F5938559884D3c54400b417292B93cd81C368c) |
