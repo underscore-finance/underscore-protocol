@@ -414,7 +414,6 @@ def getVaultTokensForUser(_user: address, _asset: address, _legoBook: address = 
     return vaultTokens
 
 
-
 # is vault token (given a vault token)
 
 
@@ -740,22 +739,26 @@ def _getBestSwapAmountOutWithRouterPool(
     # usdc -> weth -> tokenOut
     if _tokenIn == _routerTokenA:
         firstRoute = self._getSwapAmountOutViaRouterPool(_routerTokenA, _routerTokenB, _amountIn, _numLegos, _legoRegistry, _includeLegoIds)
-        secondRoute = self._getBestSwapAmountOutSinglePool(_routerTokenB, _tokenOut, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
+        if firstRoute.amountOut != 0:
+            secondRoute = self._getBestSwapAmountOutSinglePool(_routerTokenB, _tokenOut, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
 
     # tokenIn -> weth -> usdc
     elif _tokenOut == _routerTokenA:
         firstRoute = self._getBestSwapAmountOutSinglePool(_tokenIn, _routerTokenB, _amountIn, _numLegos, _legoRegistry, _includeLegoIds)
-        secondRoute = self._getSwapAmountOutViaRouterPool(_routerTokenB, _routerTokenA, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
+        if firstRoute.amountOut != 0:
+            secondRoute = self._getSwapAmountOutViaRouterPool(_routerTokenB, _routerTokenA, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
 
     # weth -> usdc -> tokenOut
     elif _tokenIn == _routerTokenB:
         firstRoute = self._getSwapAmountOutViaRouterPool(_routerTokenB, _routerTokenA, _amountIn, _numLegos, _legoRegistry, _includeLegoIds)
-        secondRoute = self._getBestSwapAmountOutSinglePool(_routerTokenA, _tokenOut, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
+        if firstRoute.amountOut != 0:
+            secondRoute = self._getBestSwapAmountOutSinglePool(_routerTokenA, _tokenOut, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
 
     # tokenIn -> usdc -> weth
     elif _tokenOut == _routerTokenB:
         firstRoute = self._getBestSwapAmountOutSinglePool(_tokenIn, _routerTokenA, _amountIn, _numLegos, _legoRegistry, _includeLegoIds)
-        secondRoute = self._getSwapAmountOutViaRouterPool(_routerTokenA, _routerTokenB, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
+        if firstRoute.amountOut != 0:
+            secondRoute = self._getSwapAmountOutViaRouterPool(_routerTokenA, _routerTokenB, firstRoute.amountOut, _numLegos, _legoRegistry, _includeLegoIds)
 
     # let's try multi hop routes
     else:
@@ -1052,22 +1055,26 @@ def _getBestSwapAmountInWithRouterPool(
     # usdc -> weth -> tokenOut
     if _tokenIn == _routerTokenA:
         secondRoute = self._getBestSwapAmountInSinglePool(_routerTokenB, _tokenOut, _amountOut, _numLegos, _legoRegistry, _includeLegoIds)
-        firstRoute = self._getSwapAmountInViaRouterPool(_routerTokenA, _routerTokenB, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
+        if secondRoute.amountIn != max_value(uint256):
+            firstRoute = self._getSwapAmountInViaRouterPool(_routerTokenA, _routerTokenB, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
 
     # tokenIn -> weth -> usdc
     elif _tokenOut == _routerTokenA:
         secondRoute = self._getSwapAmountInViaRouterPool(_routerTokenB, _routerTokenA, _amountOut, _numLegos, _legoRegistry, _includeLegoIds)
-        firstRoute = self._getBestSwapAmountInSinglePool(_tokenIn, _routerTokenB, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
+        if secondRoute.amountIn != max_value(uint256):
+            firstRoute = self._getBestSwapAmountInSinglePool(_tokenIn, _routerTokenB, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
 
     # weth -> usdc -> tokenOut
     elif _tokenIn == _routerTokenB:
         secondRoute = self._getBestSwapAmountInSinglePool(_routerTokenA, _tokenOut, _amountOut, _numLegos, _legoRegistry, _includeLegoIds)
-        firstRoute = self._getSwapAmountInViaRouterPool(_routerTokenB, _routerTokenA, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
+        if secondRoute.amountIn != max_value(uint256):
+            firstRoute = self._getSwapAmountInViaRouterPool(_routerTokenB, _routerTokenA, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
 
     # tokenIn -> usdc -> weth
     elif _tokenOut == _routerTokenB:
         secondRoute = self._getSwapAmountInViaRouterPool(_routerTokenA, _routerTokenB, _amountOut, _numLegos, _legoRegistry, _includeLegoIds)
-        firstRoute = self._getBestSwapAmountInSinglePool(_tokenIn, _routerTokenA, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
+        if secondRoute.amountIn != max_value(uint256):
+            firstRoute = self._getBestSwapAmountInSinglePool(_tokenIn, _routerTokenA, secondRoute.amountIn, _numLegos, _legoRegistry, _includeLegoIds)
 
     # let's try multi hop routes
     else:

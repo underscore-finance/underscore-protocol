@@ -46,7 +46,7 @@ def lego_tools(
         lego_book.getRegId(lego_curve),
         name="lego_tools",
     )
-    assert lego_book.setLegoTools(h, sender=switchboard_alpha)
+    assert lego_book.setLegoTools(h, sender=switchboard_alpha.address)
     return h
 
 
