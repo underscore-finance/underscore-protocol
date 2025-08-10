@@ -234,7 +234,7 @@ def addCollateral(
         vaultId = convert(_extraData, uint256)
 
     # deposit into Ripe Protocol
-    teller: address = self._getRipeTellerAndApprove(_asset, depositAmount)
+    teller: address = self._getRipeTellerAndApprove(_asset)
     depositAmount = extcall RipeTeller(teller).deposit(_asset, depositAmount, _recipient, empty(address), vaultId)
     self._resetTellerApproval(_asset, teller)
 
@@ -363,7 +363,7 @@ def repayDebt(
     assert extcall IERC20(_paymentAsset).transferFrom(msg.sender, self, paymentAmount, default_return_value=True) # dev: transfer failed
 
     # deposit into Ripe Protocol
-    teller: address = self._getRipeTellerAndApprove(_paymentAsset, paymentAmount)
+    teller: address = self._getRipeTellerAndApprove(_paymentAsset)
     extcall RipeTeller(teller).repay(paymentAmount, _recipient, isPaymentSavingsGreen, True)
     self._resetTellerApproval(_paymentAsset, teller)
 
@@ -389,9 +389,10 @@ def repayDebt(
 
 
 @internal
-def _getRipeTellerAndApprove(_asset: address, _amount: uint256) -> address:
+def _getRipeTellerAndApprove(_asset: address) -> address:
     teller: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
-    assert extcall IERC20(_asset).approve(teller, _amount, default_return_value=True) # dev: approval failed
+    # some vault tokens require max value approval (comp v3)
+    assert extcall IERC20(_asset).approve(teller, max_value(uint256), default_return_value = True) # dev: appr
     return teller
 
 
