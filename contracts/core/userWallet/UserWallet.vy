@@ -590,8 +590,11 @@ def addCollateral(
 ) -> (uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ADD_COLLATERAL, True, [_asset], [_legoId])
 
+    # some vault tokens require max value approval (comp v3)
+    assert extcall IERC20(_asset).approve(ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
     # add collateral
-    amount: uint256 = self._getAmountAndApprove(_asset, _amount, ad.legoAddr) # doing approval here
+    amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
     amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
