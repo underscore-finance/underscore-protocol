@@ -45,7 +45,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | Ledger                   | [0x9e97A2e527890E690c7FA978696A88EFA868c5D0](https://basescan.org/address/0x9e97A2e527890E690c7FA978696A88EFA868c5D0) |
 | MissionControl           | [0x910FE9484540fa21B092eE04a478A30A6B342006](https://basescan.org/address/0x910FE9484540fa21B092eE04a478A30A6B342006) |
 | LegoBook                 | [0xEaf30ef8a98055981a67222E9088b4dE90B0924A](https://basescan.org/address/0xEaf30ef8a98055981a67222E9088b4dE90B0924A) |
-| RipeLego                 | [0xF3F436491e9a0d50F67eBED70D2cE5586F098fB4](https://basescan.org/address/0xF3F436491e9a0d50F67eBED70D2cE5586F098fB4) |
+| RipeLego                 | [0xC402449F5Dd3781d08cb357D9709505fDa8F3696](https://basescan.org/address/0xC402449F5Dd3781d08cb357D9709505fDa8F3696) |
 | AaveV3Lego               | [0xb7401d91f1586474164B6c6Df328E3C3A5f24649](https://basescan.org/address/0xb7401d91f1586474164B6c6Df328E3C3A5f24649) |
 | CompoundV3Lego           | [0x5Dec90961280605Dd9f3BA19dB0ad57459a86A61](https://basescan.org/address/0x5Dec90961280605Dd9f3BA19dB0ad57459a86A61) |
 | EulerLego                | [0x22D16D820c20492597caDb6e36db976Ca16c4156](https://basescan.org/address/0x22D16D820c20492597caDb6e36db976Ca16c4156) |
