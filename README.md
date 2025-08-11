@@ -39,7 +39,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | Contract                 | Address                                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | UndyHq                   | [0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9](https://basescan.org/address/0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9) |
-| UserWalletTemplate       | [0x338ABD3c0316B0a788036A6639FBFc24761b969b](https://basescan.org/address/0x338ABD3c0316B0a788036A6639FBFc24761b969b) |
+| UserWalletTemplate       | [0x4C4D1a888a0b49eA217a8F41f207CFe59Ab03a40](https://basescan.org/address/0x4C4D1a888a0b49eA217a8F41f207CFe59Ab03a40) |
 | UserWalletConfigTemplate | [0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1](https://basescan.org/address/0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1) |
 | AgentWrapperTemplate     | [0x882336D186774FcFaB4812f1B5C81747C4e37aA3](https://basescan.org/address/0x882336D186774FcFaB4812f1B5C81747C4e37aA3) |
 | Ledger                   | [0x9e97A2e527890E690c7FA978696A88EFA868c5D0](https://basescan.org/address/0x9e97A2e527890E690c7FA978696A88EFA868c5D0) |
