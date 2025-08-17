@@ -552,7 +552,7 @@ def getUnderlyingData(_asset: address, _amount: uint256, _legoBook: address = em
 ###############
 
 
-# get routes and swap instructions (amountOut as input)
+# get routes and swap instructions (amountIn as input)
 
 
 @external
@@ -567,7 +567,7 @@ def getRoutesAndSwapInstructionsAmountOut(
     return self._prepareSwapInstructionsAmountOut(_slippage, routes)
 
 
-# get routes and swap instructions (amountIn as input)
+# get routes and swap instructions (amountOut as input)
 
 
 @external
