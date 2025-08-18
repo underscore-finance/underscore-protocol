@@ -486,7 +486,9 @@ def _claimLootForAsset(
 
     # transfer to user
     if _ripeTeller != empty(address) and _asset == RIPE_TOKEN:
+        assert extcall IERC20(_asset).approve(_ripeTeller, transferAmount, default_return_value=True) # dev: approval failed
         extcall RipeTeller(_ripeTeller).depositIntoGovVault(_asset, transferAmount, _ripeLockDuration, _user)
+        assert extcall IERC20(_asset).approve(_ripeTeller, 0, default_return_value=True) # dev: approval failed
     else:
         assert extcall IERC20(_asset).transfer(_user, transferAmount, default_return_value=True) # dev: xfer fail
 
@@ -780,7 +782,9 @@ def _claimDepositRewards(
 
     # transfer to user
     if _ripeTeller != empty(address) and data.asset == RIPE_TOKEN:
+        assert extcall IERC20(data.asset).approve(_ripeTeller, userRewards, default_return_value=True) # dev: approval failed
         extcall RipeTeller(_ripeTeller).depositIntoGovVault(data.asset, userRewards, _ripeLockDuration, _user)
+        assert extcall IERC20(data.asset).approve(_ripeTeller, 0, default_return_value=True) # dev: approval failed
     else:
         assert extcall IERC20(data.asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
 
