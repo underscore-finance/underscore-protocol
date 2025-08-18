@@ -41,6 +41,9 @@ interface MissionControl:
     def userWalletConfig() -> cs.UserWalletConfig: view
     def agentConfig() -> cs.AgentConfig: view
 
+interface LootDistributor:
+    def setRipeLockDuration(_ripeLockDuration: uint256): nonpayable
+
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
 
@@ -286,6 +289,9 @@ event LockedSignerSet:
     signer: address
     isLocked: bool
     caller: address
+
+event RipeLockDurationSetFromSwitchboard:
+    ripeLockDuration: uint256
 
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
@@ -1011,6 +1017,18 @@ def setLockedSigner(_signer: address, _isLocked: bool):
     extcall MissionControl(mc).setLockedSigner(_signer, _isLocked)
 
     log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
+
+
+# ripe lock duration
+
+
+@external
+def setRipeLockDuration(_ripeLockDuration: uint256):
+    assert gov._canGovern(msg.sender) # dev: no perms
+    
+    ld: address = addys._getLootDistributorAddr()
+    extcall LootDistributor(ld).setRipeLockDuration(_ripeLockDuration)
+    log RipeLockDurationSetFromSwitchboard(ripeLockDuration=_ripeLockDuration)
 
 
 ###############
