@@ -277,6 +277,11 @@ def mock_ripe():
 
 
 @pytest.fixture(scope="session")
+def mock_ripe_token(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token", "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
+
+
+@pytest.fixture(scope="session")
 def mock_weth():
     return boa.load("contracts/mock/MockWeth.vy", name="mock_weth")
 

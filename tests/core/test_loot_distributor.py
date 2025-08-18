@@ -2874,7 +2874,7 @@ def test_claim_deposit_rewards_partial_balance(loot_distributor, user_wallet, bo
     assert alpha_token.balanceOf(user_wallet.address) == initial_balance + user_rewards
 
 
-def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wallet, governance, bob, alpha_token, alpha_token_whale, setUserWalletConfig, undy_hq):
+def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wallet, governance, bob, alpha_token, alpha_token_whale, setUserWalletConfig, undy_hq, mock_ripe_token, mock_ripe):
     """ Test claiming fails if not the current loot distributor """
     
     # Setup rewards and points
@@ -2889,7 +2889,7 @@ def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wa
     boa.env.time_travel(blocks=1000)
     
     # Deploy a new loot distributor
-    new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq)
+    new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq, mock_ripe_token, mock_ripe, 100)
 
     # Update undy hq with new loot distributor
     assert undy_hq.startAddressUpdateToRegistry(6, new_loot_distributor, sender=governance.address)

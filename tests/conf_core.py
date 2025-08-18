@@ -285,10 +285,13 @@ def hatchery(undy_hq_deploy, fork, weth):
 
 
 @pytest.fixture(scope="session")
-def loot_distributor(undy_hq_deploy):
+def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
     return boa.load(
         "contracts/core/LootDistributor.vy",
         undy_hq_deploy,
+        mock_ripe_token,
+        mock_ripe,
+        PARAMS[fork]["LOOT_DISTRIBUTOR_RIPE_LOCK_DURATION"],
         name="loot_distributor",
     )
 

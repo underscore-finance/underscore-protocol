@@ -1004,7 +1004,7 @@ def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
 
 @external
 def setLockedSigner(_signer: address, _isLocked: bool):
-    assert self._hasPermsToEnable(msg.sender, not _isLocked) # dev: no perms
+    assert self._hasPermsToEnable(msg.sender, _isLocked) # dev: no perms
 
     assert _signer != empty(address) # dev: invalid creator
     mc: address = addys._getMissionControlAddr()
