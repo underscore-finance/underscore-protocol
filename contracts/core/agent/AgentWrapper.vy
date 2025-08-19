@@ -49,11 +49,12 @@ struct ActionInstruction:
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
 
 event NonceIncremented:
+    userWallet: address
     oldNonce: uint256
     newNonce: uint256
 
 groupId: public(uint256)
-currentNonce: public(uint256)
+currentNonce: public(HashMap[address, uint256])
 
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
@@ -90,7 +91,7 @@ def transferFunds(
     _isCheque: bool = False,
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, _isCheque, False)
 
 
@@ -109,7 +110,7 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData)
 
 
@@ -122,7 +123,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraData, False)
 
 
@@ -137,7 +138,7 @@ def rebalanceYieldPosition(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(12, uint8), _userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(12, uint8), _userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).rebalanceYieldPosition(_fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData)
 
 
@@ -152,7 +153,7 @@ def swapTokens(
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
     _sig: Signature = empty(Signature),
 ) -> (address, uint256, address, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).swapTokens(_swapInstructions)
 
 
@@ -167,7 +168,7 @@ def mintOrRedeemAsset(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, bool, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(21, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(21, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
 
 
@@ -180,7 +181,7 @@ def confirmMintOrRedeemAsset(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(22, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(22, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).confirmMintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _extraData)
 
 
@@ -198,7 +199,7 @@ def addCollateral(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(40, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(40, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).addCollateral(_legoId, _asset, _amount, _extraData)
 
 
@@ -211,7 +212,7 @@ def removeCollateral(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(41, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(41, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).removeCollateral(_legoId, _asset, _amount, _extraData)
 
 
@@ -224,7 +225,7 @@ def borrow(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(42, uint8), _userWallet, _legoId, _borrowAsset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(42, uint8), _userWallet, _legoId, _borrowAsset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).borrow(_legoId, _borrowAsset, _amount, _extraData)
 
 
@@ -237,7 +238,7 @@ def repayDebt(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(43, uint8), _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(43, uint8), _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraData)
 
 
@@ -255,7 +256,7 @@ def claimRewards(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).claimRewards(_legoId, _rewardToken, _rewardAmount, _extraData)
 
 
@@ -266,13 +267,13 @@ def claimRewards(
 
 @external
 def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).convertWethToEth(_amount)
 
 
 @external
 def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).convertEthToWeth(_amount)
 
 
@@ -296,7 +297,7 @@ def addLiquidity(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(30, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(30, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).addLiquidity(_legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
 
 
@@ -314,7 +315,7 @@ def removeLiquidity(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(31, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(31, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).removeLiquidity(_legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
 
 
@@ -336,7 +337,7 @@ def addLiquidityConcentrated(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(32, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(32, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).addLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
 
 
@@ -355,7 +356,7 @@ def removeLiquidityConcentrated(
     _extraData: bytes32 = empty(bytes32),
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
-    self._authenticateAccess(keccak256(abi_encode(convert(33, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(33, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall Wallet(_userWallet).removeLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData)
 
 
@@ -372,7 +373,7 @@ def performBatchActions(
 ) -> bool:
     assert len(_instructions) > 0 # dev: no instructions
     messageHash: bytes32 = keccak256(abi_encode(_userWallet, _instructions, _sig.nonce, _sig.expiration))
-    self._authenticateAccess(messageHash, _sig)   
+    self._authenticateAccess(_userWallet, messageHash, _sig)   
 
     prevAmountReceived: uint256 = 0
     for instruction: ActionInstruction in _instructions:
@@ -525,21 +526,21 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
 
 
 @internal
-def _authenticateAccess(_messageHash: bytes32, _sig: Signature):
+def _authenticateAccess(_userWallet: address, _messageHash: bytes32, _sig: Signature):
     owner: address = ownership.owner
     if msg.sender != owner:
         # check expiration first to prevent DoS
         assert _sig.expiration >= block.timestamp # dev: signature expired
 
         # check nonce is valid
-        assert _sig.nonce == self.currentNonce # dev: invalid nonce
+        assert _sig.nonce == self.currentNonce[_userWallet] # dev: invalid nonce
 
         # verify signature and check it's from owner
         signer: address = self._verify(_messageHash, _sig)
         assert signer == owner # dev: invalid signer
 
         # increment nonce for next use
-        self.currentNonce += 1
+        self.currentNonce[_userWallet] += 1
 
 
 @view
@@ -592,14 +593,14 @@ def _domainSeparator() -> bytes32:
 
 
 @external
-def incrementNonce():
+def incrementNonce(_userWallet: address):
     assert msg.sender == ownership.owner # dev: no perms
-    oldNonce: uint256 = self.currentNonce
-    self.currentNonce += 1
-    log NonceIncremented(oldNonce=oldNonce, newNonce=self.currentNonce)
+    oldNonce: uint256 = self.currentNonce[_userWallet]
+    self.currentNonce[_userWallet] += 1
+    log NonceIncremented(userWallet=_userWallet, oldNonce=oldNonce, newNonce=self.currentNonce[_userWallet])
 
 
 @view
 @external
-def getNonce() -> uint256:
-    return self.currentNonce
+def getNonce(_userWallet: address) -> uint256:
+    return self.currentNonce[_userWallet]

@@ -165,7 +165,7 @@ def test_expired_signature_rejected(
     
     # Create expired signature
     expired_time = boa.env.evm.patch.timestamp - 3600  # 1 hour ago
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     expired_sig = create_signature_struct(b'\x00' * 65, current_nonce, expired_time)
     
     # Should fail with expired signature
@@ -202,7 +202,7 @@ def test_invalid_nonce_rejected(
     )
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Test with future nonce
     future_nonce_sig = create_signature_struct(b'\x00' * 65, current_nonce + 1, valid_time)
@@ -254,7 +254,7 @@ def test_invalid_signer_rejected(
     )
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Create a properly formatted signature (but from wrong signer)
     # In real usage, this would be a valid signature from non-owner
@@ -287,7 +287,7 @@ def test_malformed_signature_rejected(
     """Test that malformed signatures are rejected"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Test with wrong signature length (too short)
     short_sig = create_signature_struct(b'\x00' * 64, current_nonce, valid_time)
@@ -329,7 +329,7 @@ def test_invalid_v_parameter_rejected(
     """Test that invalid v parameter (not 27 or 28) is rejected"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Create signature with invalid v parameter
     r = b'\x00' * 32
@@ -360,7 +360,7 @@ def test_zero_signature_rejected(
     """Test that all-zero signature is rejected"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # All zeros signature typically results in zero address recovery
     zero_sig = create_signature_struct(b'\x00' * 65, current_nonce, valid_time)
@@ -400,20 +400,20 @@ def test_nonce_increments_on_success(
     )
     
     # Record initial nonce
-    initial_nonce = starter_agent.currentNonce()
+    initial_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # First, increment nonce manually as owner to set up test
-    tx = starter_agent.incrementNonce(sender=charlie)
+    tx = starter_agent.incrementNonce(user_wallet.address, sender=charlie)
     log = filter_logs(starter_agent, "NonceIncremented")[0]
     assert log.oldNonce == initial_nonce
     assert log.newNonce == initial_nonce + 1
     
     # Verify nonce was incremented
-    assert starter_agent.currentNonce() == initial_nonce + 1
+    assert starter_agent.currentNonce(user_wallet.address) == initial_nonce + 1
     
     # Non-owner cannot increment nonce
     with boa.reverts("no perms"):
-        starter_agent.incrementNonce(sender=alice)
+        starter_agent.incrementNonce(user_wallet.address, sender=alice)
 
 
 def test_batch_actions_signature_validation(
@@ -480,7 +480,7 @@ def test_different_action_message_hashes(
     # preventing signature reuse across different action types
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Create a signature with non-zero values but still invalid
     # This will pass the s != 0 check but fail at signature recovery or signer check
@@ -589,7 +589,7 @@ def test_v_parameter_normalization(
     """Test that v parameter is normalized correctly (0/1 -> 27/28)"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Test with v=0 (should be normalized to 27)
     r = b'\x00' * 32
@@ -630,16 +630,16 @@ def test_v_parameter_normalization(
         )
 
 
-def test_getNonce_public_function(starter_agent, charlie):
+def test_getNonce_public_function(starter_agent, charlie, user_wallet):
     """Test getNonce public function works correctly"""
     
     # Get initial nonce
-    nonce = starter_agent.currentNonce()
+    nonce = starter_agent.currentNonce(user_wallet.address)
     assert nonce >= 0
     
     # Increment and verify
-    starter_agent.incrementNonce(sender=charlie)
-    new_nonce = starter_agent.currentNonce()
+    starter_agent.incrementNonce(user_wallet.address, sender=charlie)
+    new_nonce = starter_agent.currentNonce(user_wallet.address)
     assert new_nonce == nonce + 1
 
 
@@ -652,7 +652,7 @@ def test_signature_malleability_s_value_check(
     """Test that s values above secp256k1n/2 are rejected"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # secp256k1n/2 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
     # Create signature with s > secp256k1n/2
@@ -699,8 +699,8 @@ def test_signature_reuse_prevented(
     )
     
     # First, manually increment the nonce as owner to simulate a used nonce
-    initial_nonce = starter_agent.currentNonce()
-    starter_agent.incrementNonce(sender=charlie)
+    initial_nonce = starter_agent.currentNonce(user_wallet.address)
+    starter_agent.incrementNonce(user_wallet.address, sender=charlie)
     
     # Now the current nonce is initial_nonce + 1
     # Try to use a signature with the old nonce (which has been "used")
@@ -795,7 +795,7 @@ def test_ecrecover_edge_cases(
     """Test edge cases that might cause ecrecover to fail"""
     
     valid_time = boa.env.evm.patch.timestamp + 3600
-    current_nonce = starter_agent.currentNonce()
+    current_nonce = starter_agent.currentNonce(user_wallet.address)
     
     # Test 1: r = 0 (should fail ecrecover)
     r_zero = b'\x00' * 32
