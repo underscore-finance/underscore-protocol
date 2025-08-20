@@ -41,7 +41,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | UndyHq                   | [0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9](https://basescan.org/address/0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9) |
 | UserWalletTemplate       | [0x4C4D1a888a0b49eA217a8F41f207CFe59Ab03a40](https://basescan.org/address/0x4C4D1a888a0b49eA217a8F41f207CFe59Ab03a40) |
 | UserWalletConfigTemplate | [0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1](https://basescan.org/address/0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1) |
-| AgentWrapperTemplate     | [0x882336D186774FcFaB4812f1B5C81747C4e37aA3](https://basescan.org/address/0x882336D186774FcFaB4812f1B5C81747C4e37aA3) |
+| AgentWrapperTemplate     | [0xe1d877C9160878F83EB8e996428C44e898BF414B](https://basescan.org/address/0xe1d877C9160878F83EB8e996428C44e898BF414B) |
 | Ledger                   | [0x9e97A2e527890E690c7FA978696A88EFA868c5D0](https://basescan.org/address/0x9e97A2e527890E690c7FA978696A88EFA868c5D0) |
 | MissionControl           | [0x910FE9484540fa21B092eE04a478A30A6B342006](https://basescan.org/address/0x910FE9484540fa21B092eE04a478A30A6B342006) |
 | LegoBook                 | [0xEaf30ef8a98055981a67222E9088b4dE90B0924A](https://basescan.org/address/0xEaf30ef8a98055981a67222E9088b4dE90B0924A) |
@@ -59,10 +59,10 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | UniswapV3Lego            | [0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249](https://basescan.org/address/0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249) |
 | LegoTools                | [0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F](https://basescan.org/address/0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F) |
 | Switchboard              | [0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e](https://basescan.org/address/0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e) |
-| SwitchboardAlpha         | [0x2256122FCb6F9789aa356F387435F545c3C52ba5](https://basescan.org/address/0x2256122FCb6F9789aa356F387435F545c3C52ba5) |
+| SwitchboardAlpha         | [0x90B138306ab1fb8d23372d104594e8A6BD7848D4](https://basescan.org/address/0x90B138306ab1fb8d23372d104594e8A6BD7848D4) |
 | SwitchboardBravo         | [0xf1F5938559884D3c54400b417292B93cd81C368c](https://basescan.org/address/0xf1F5938559884D3c54400b417292B93cd81C368c) |
 | Hatchery                 | [0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2](https://basescan.org/address/0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2) |
-| LootDistributor          | [0xEdcA7eD2248928349Fb9c9289B48471BbDDDee87](https://basescan.org/address/0xEdcA7eD2248928349Fb9c9289B48471BbDDDee87) |
+| LootDistributor          | [0x2004c2293f9DeccA292934FA773f56860624B234](https://basescan.org/address/0x2004c2293f9DeccA292934FA773f56860624B234) |
 | Appraiser                | [0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad](https://basescan.org/address/0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad) |
 | WalletBackpack           | [0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD](https://basescan.org/address/0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD) |
 | Kernel                   | [0xcb91C738E301bDf8Ee5354f0Ef2692B41145D217](https://basescan.org/address/0xcb91C738E301bDf8Ee5354f0Ef2692B41145D217) |
@@ -73,3 +73,4 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | Sentinel                 | [0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30](https://basescan.org/address/0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30) |
 | Billing                  | [0x413962eCe8652A0FAfd14d1dC141A421E3DcC73E](https://basescan.org/address/0x413962eCe8652A0FAfd14d1dC141A421E3DcC73E) |
 | DefaultsBase             | [0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6](https://basescan.org/address/0x33DF7433cAa93277F06561b8A3ceE1Fa324FbDe6) |
+| SignatureHelper          | [0x4586793C8a53bdcE44E8726d4eFeDAC35EdAbd4c](https://basescan.org/address/0x4586793C8a53bdcE44E8726d4eFeDAC35EdAbd4c) |
