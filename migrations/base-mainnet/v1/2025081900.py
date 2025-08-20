@@ -2,17 +2,22 @@ from scripts.utils.migration import Migration
 
 
 def migrate(migration: Migration):
-    migration.deploy_bp("AgentWrapper")
+    hq = migration.get_address("UndyHq")
+
+    aw =migration.deploy_bp("AgentWrapper")
     migration.deploy('SignatureHelper')
 
-    hq = migration.get_address("UndyHq")
-    migration.deploy(
+    sb_alpha = migration.deploy(
         'SwitchboardAlpha',
         hq,
-        migration.blueprint.CONSTANTS.ZERO_ADDRESS,
+        migration.account,
         migration.blueprint.PARAMS["GEN_MIN_CONFIG_TIMELOCK"],
         migration.blueprint.PARAMS["GEN_MAX_CONFIG_TIMELOCK"],
     )
+    migration.execute(sb_alpha.setAgentTemplate, aw)
+    migration.execute(sb_alpha.setActionTimeLockAfterSetup)
+    migration.execute(sb_alpha.relinquishGov)
+
     migration.deploy(
         'LootDistributor',
         hq,
