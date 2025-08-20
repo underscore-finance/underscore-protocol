@@ -59,7 +59,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | UniswapV3Lego            | [0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249](https://basescan.org/address/0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249) |
 | LegoTools                | [0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F](https://basescan.org/address/0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F) |
 | Switchboard              | [0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e](https://basescan.org/address/0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e) |
-| SwitchboardAlpha         | [0x6625ED055cBfc9AE7111446DA505883A7f24620A](https://basescan.org/address/0x6625ED055cBfc9AE7111446DA505883A7f24620A) |
+| SwitchboardAlpha         | [0x90B138306ab1fb8d23372d104594e8A6BD7848D4](https://basescan.org/address/0x90B138306ab1fb8d23372d104594e8A6BD7848D4) |
 | SwitchboardBravo         | [0xf1F5938559884D3c54400b417292B93cd81C368c](https://basescan.org/address/0xf1F5938559884D3c54400b417292B93cd81C368c) |
 | Hatchery                 | [0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2](https://basescan.org/address/0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2) |
 | LootDistributor          | [0x2004c2293f9DeccA292934FA773f56860624B234](https://basescan.org/address/0x2004c2293f9DeccA292934FA773f56860624B234) |
