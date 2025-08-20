@@ -11,7 +11,7 @@
 from interfaces import Wallet
 
 interface AgentWrapper:
-    def getNonce() -> uint256: view
+    def getNonce(_userWallet: address) -> uint256: view
 
 struct Signature:
     signature: Bytes[65]
@@ -65,17 +65,17 @@ def _getFullDigest(_agentWrapper: address, _messageHash: bytes32) -> bytes32:
 
 @view
 @internal
-def _getNonce(_agentWrapper: address) -> uint256:
-    return staticcall AgentWrapper(_agentWrapper).getNonce()
+def _getNonce(_agentWrapper: address, _userWallet: address) -> uint256:
+    return staticcall AgentWrapper(_agentWrapper).getNonce(_userWallet)
 
 
 @view
 @internal
-def _getNonceAndExpiration(_agentWrapper: address, _nonce: uint256, _expiration: uint256) -> (uint256, uint256):
+def _getNonceAndExpiration(_agentWrapper: address, _userWallet: address, _nonce: uint256, _expiration: uint256) -> (uint256, uint256):
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
     if _nonce == 0:
-        nonce = self._getNonce(_agentWrapper)
+        nonce = self._getNonce(_agentWrapper, _userWallet)
     if _expiration == 0:
         expiration = block.timestamp + 3600  # 1 hour default
     
@@ -104,7 +104,7 @@ def getTransferFundsHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, nonce, expiration))), nonce, expiration)
 
 
@@ -131,7 +131,7 @@ def getDepositForYieldHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -152,7 +152,7 @@ def getWithdrawFromYieldHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -175,7 +175,7 @@ def getRebalanceYieldPositionHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(12, uint8), _userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -198,7 +198,7 @@ def getSwapTokensHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, nonce, expiration))), nonce, expiration)
 
 
@@ -221,7 +221,7 @@ def getMintOrRedeemAssetHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(21, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -242,7 +242,7 @@ def getConfirmMintOrRedeemAssetHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(22, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -268,7 +268,7 @@ def getAddCollateralHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(40, uint8), _userWallet, _legoId, _asset, _amount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -289,7 +289,7 @@ def getRemoveCollateralHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(41, uint8), _userWallet, _legoId, _asset, _amount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -310,7 +310,7 @@ def getBorrowHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(42, uint8), _userWallet, _legoId, _borrowAsset, _amount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -331,7 +331,7 @@ def getRepayDebtHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(43, uint8), _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -357,7 +357,7 @@ def getClaimRewardsHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -380,7 +380,7 @@ def getConvertWethToEthHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, nonce, expiration))), nonce, expiration)
 
 
@@ -398,7 +398,7 @@ def getConvertEthToWethHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, nonce, expiration))), nonce, expiration)
 
 
@@ -430,7 +430,7 @@ def getAddLiquidityHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(30, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -456,7 +456,7 @@ def getRemoveLiquidityHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(31, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -486,7 +486,7 @@ def getAddLiquidityConcentratedHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(32, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -513,7 +513,7 @@ def getRemoveLiquidityConcentratedHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(33, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData, nonce, expiration))), nonce, expiration)
 
 
@@ -536,6 +536,6 @@ def getBatchActionsHash(
     """
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration
-    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _nonce, _expiration)
+    nonce, expiration = self._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (self._getFullDigest(_agentWrapper, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)
 
