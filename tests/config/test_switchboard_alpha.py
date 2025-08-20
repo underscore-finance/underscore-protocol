@@ -3413,3 +3413,75 @@ def test_creator_whitelist_and_locked_signer_interaction(switchboard_alpha, gove
     assert logs4[0].isLocked == False
     assert logs4[0].caller == bob
     assert mission_control.isLockedSigner(alice) == False
+
+
+######################
+# Ripe Lock Duration #
+######################
+
+
+def test_set_ripe_lock_duration_success(switchboard_alpha, governance, loot_distributor):
+    """Test successful setting of ripe lock duration"""
+    # Set new ripe lock duration (e.g., 50,400 blocks ~ 7 days on Ethereum)
+    new_duration = 50400  # blocks
+    
+    # Call setRipeLockDuration as governance
+    switchboard_alpha.setRipeLockDuration(new_duration, sender=governance.address)
+    
+    # Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "RipeLockDurationSetFromSwitchboard")
+    assert len(logs) == 1
+    assert logs[0].ripeLockDuration == new_duration
+    
+    # Verify the value was set in LootDistributor
+    assert loot_distributor.ripeLockDuration() == new_duration
+
+
+def test_set_ripe_lock_duration_different_values(switchboard_alpha, governance, loot_distributor):
+    """Test setting different ripe lock duration values in blocks"""
+    # Test with ~1 day (7200 blocks at 12s/block)
+    duration_1_day = 7200
+    switchboard_alpha.setRipeLockDuration(duration_1_day, sender=governance.address)
+    assert loot_distributor.ripeLockDuration() == duration_1_day
+    
+    # Test with ~30 days (216,000 blocks)
+    duration_30_days = 216000
+    switchboard_alpha.setRipeLockDuration(duration_30_days, sender=governance.address)
+    assert loot_distributor.ripeLockDuration() == duration_30_days
+    
+    # Test with 0 (immediate unlock)
+    duration_zero = 0
+    switchboard_alpha.setRipeLockDuration(duration_zero, sender=governance.address)
+    assert loot_distributor.ripeLockDuration() == duration_zero
+    
+    # Test with ~1 year (2,628,000 blocks)
+    duration_1_year = 2628000
+    switchboard_alpha.setRipeLockDuration(duration_1_year, sender=governance.address)
+    assert loot_distributor.ripeLockDuration() == duration_1_year
+
+
+def test_set_ripe_lock_duration_non_governance_reverts(switchboard_alpha, alice, loot_distributor):
+    """Test that non-governance addresses cannot set ripe lock duration"""
+    new_duration = 50400  # blocks (~7 days)
+    
+    # Store the current duration before the failed attempt
+    current_duration = loot_distributor.ripeLockDuration()
+    
+    with boa.reverts():
+        switchboard_alpha.setRipeLockDuration(new_duration, sender=alice)
+    
+    # Verify the value was not changed
+    assert loot_distributor.ripeLockDuration() == current_duration  # Should remain at previous value
+
+
+def test_set_ripe_lock_duration_multiple_updates(switchboard_alpha, governance, loot_distributor):
+    """Test multiple consecutive updates to ripe lock duration in blocks"""
+    durations = [100, 500, 1000, 7200, 50400]  # Various block counts
+    
+    for duration in durations:
+        switchboard_alpha.setRipeLockDuration(duration, sender=governance.address)
+        assert loot_distributor.ripeLockDuration() == duration
+        
+        # Verify each update emits an event
+        logs = filter_logs(switchboard_alpha, "RipeLockDurationSetFromSwitchboard")
+        assert logs[-1].ripeLockDuration == duration

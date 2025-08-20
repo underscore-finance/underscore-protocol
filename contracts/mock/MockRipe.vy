@@ -1,6 +1,7 @@
 # @version 0.4.3
 
 from ethereum.ercs import IERC20Detailed
+from ethereum.ercs import IERC20
 
 mockPrices: public(HashMap[address, uint256]) # asset -> price
 addr: public(address)
@@ -45,3 +46,16 @@ def addPriceSnapshot(_asset: address) -> bool:
 @external
 def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256:
     return self.mockPrices[_asset]
+
+
+@external
+def depositIntoGovVault(
+    _asset: address,
+    _amount: uint256,
+    _lockDuration: uint256,
+    _user: address = msg.sender,
+) -> uint256:
+    amount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
+    assert amount != 0 # dev: cannot transfer 0 amount
+    assert extcall IERC20(_asset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
+    return amount

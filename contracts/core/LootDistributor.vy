@@ -63,6 +63,9 @@ interface UserWalletConfig:
     def wallet() -> address: view
     def owner() -> address: view
 
+interface RipeTeller:
+    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
+
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
@@ -138,6 +141,9 @@ event DepositRewardsRecovered:
     recipient: indexed(address)
     amount: uint256
 
+event RipeLockDurationSet:
+    lockDuration: uint256
+
 # claimable loot
 lastClaim: public(HashMap[address, uint256]) # user -> last claim block
 totalClaimableLoot: public(HashMap[address, uint256]) # asset -> amount
@@ -150,16 +156,30 @@ numClaimableAssets: public(HashMap[address, uint256]) # ambassador -> num assets
 
 # deposit rewards
 depositRewards: public(DepositRewards)
+ripeLockDuration: public(uint256)
+
+RIPE_TOKEN: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_DEREGISTER_ASSETS: constant(uint256) = 20
+RIPE_TELLER_ID: constant(uint256) = 17
 
 
 @deploy
-def __init__(_undyHq: address):
+def __init__(
+    _undyHq: address,
+    _ripeToken: address,
+    _ripeRegistry: address,
+    _ripeLockDuration: uint256,
+):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
+
+    RIPE_TOKEN = _ripeToken
+    RIPE_REGISTRY = _ripeRegistry
+    self.ripeLockDuration = _ripeLockDuration
 
 
 #################
@@ -396,8 +416,12 @@ def claimRevShareAndBonusLoot(_user: address) -> uint256:
     # permission check
     assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
 
+    # ripe params
+    ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    ripeLockDuration: uint256 = self.ripeLockDuration
+
     # claim rev share and bonus loot
-    assetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user)
+    assetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user, ripeTeller, ripeLockDuration)
     assert assetsClaimed != 0 # dev: no assets claimed
 
     self.lastClaim[_user] = block.number
@@ -405,7 +429,11 @@ def claimRevShareAndBonusLoot(_user: address) -> uint256:
 
 
 @internal
-def _claimRevShareAndBonusLoot(_user: address) -> uint256:
+def _claimRevShareAndBonusLoot(
+    _user: address,
+    _ripeTeller: address,
+    _ripeLockDuration: uint256,
+) -> uint256:
     numAssets: uint256 = self.numClaimableAssets[_user]
     if numAssets == 0:
         return 0
@@ -421,7 +449,7 @@ def _claimRevShareAndBonusLoot(_user: address) -> uint256:
 
         didClaim: bool = False
         shouldDeregister: bool = False
-        didClaim, shouldDeregister = self._claimLootForAsset(_user, asset)
+        didClaim, shouldDeregister = self._claimLootForAsset(_user, asset, _ripeTeller, _ripeLockDuration)
         if didClaim:
             assetsClaimed += 1
 
@@ -441,7 +469,12 @@ def _claimRevShareAndBonusLoot(_user: address) -> uint256:
 
 
 @internal
-def _claimLootForAsset(_user: address, _asset: address) -> (bool, bool):
+def _claimLootForAsset(
+    _user: address,
+    _asset: address,
+    _ripeTeller: address,
+    _ripeLockDuration: uint256,
+) -> (bool, bool):
     claimableAmount: uint256 = self.claimableLoot[_user][_asset]
     if claimableAmount == 0:
         return False, True
@@ -452,7 +485,12 @@ def _claimLootForAsset(_user: address, _asset: address) -> (bool, bool):
         return False, False
 
     # transfer to user
-    assert extcall IERC20(_asset).transfer(_user, transferAmount, default_return_value=True) # dev: xfer fail
+    if _ripeTeller != empty(address) and _asset == RIPE_TOKEN:
+        assert extcall IERC20(_asset).approve(_ripeTeller, transferAmount, default_return_value=True) # dev: approval failed
+        extcall RipeTeller(_ripeTeller).depositIntoGovVault(_asset, transferAmount, _ripeLockDuration, _user)
+        assert extcall IERC20(_asset).approve(_ripeTeller, 0, default_return_value=True) # dev: approval failed
+    else:
+        assert extcall IERC20(_asset).transfer(_user, transferAmount, default_return_value=True) # dev: xfer fail
 
     # update tracking
     self.totalClaimableLoot[_asset] -= transferAmount
@@ -703,8 +741,12 @@ def claimDepositRewards(_user: address) -> uint256:
     # permission check
     assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
 
+    # ripe params
+    ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    ripeLockDuration: uint256 = self.ripeLockDuration
+
     # claim rewards
-    userRewards: uint256 = self._claimDepositRewards(_user, a.ledger)
+    userRewards: uint256 = self._claimDepositRewards(_user, ripeTeller, ripeLockDuration, a.ledger)
     assert userRewards != 0 # dev: nothing to claim
 
     self.lastClaim[_user] = block.number
@@ -712,7 +754,12 @@ def claimDepositRewards(_user: address) -> uint256:
 
 
 @internal
-def _claimDepositRewards(_user: address, _ledger: address) -> uint256:
+def _claimDepositRewards(
+    _user: address,
+    _ripeTeller: address,
+    _ripeLockDuration: uint256,
+    _ledger: address,
+) -> uint256:
     self._updateDepositPoints(_user, 0, False, _ledger)
 
     # get user and global points
@@ -733,7 +780,13 @@ def _claimDepositRewards(_user: address, _ledger: address) -> uint256:
     if userRewards == 0:
         return 0
 
-    assert extcall IERC20(data.asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
+    # transfer to user
+    if _ripeTeller != empty(address) and data.asset == RIPE_TOKEN:
+        assert extcall IERC20(data.asset).approve(_ripeTeller, userRewards, default_return_value=True) # dev: approval failed
+        extcall RipeTeller(_ripeTeller).depositIntoGovVault(data.asset, userRewards, _ripeLockDuration, _user)
+        assert extcall IERC20(data.asset).approve(_ripeTeller, 0, default_return_value=True) # dev: approval failed
+    else:
+        assert extcall IERC20(data.asset).transfer(_user, userRewards, default_return_value=True) # dev: xfer fail
 
     # save rewards data
     data.amount -= userRewards
@@ -844,12 +897,16 @@ def claimAllLoot(_user: address) -> bool:
     # permission check
     assert self._validateCanClaimLoot(_user, msg.sender, a.ledger, a.missionControl) # dev: no perms
 
+    # ripe params
+    ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    ripeLockDuration: uint256 = self.ripeLockDuration
+
     # claim rev share and bonus loot
-    numAssetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user)
+    numAssetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user, ripeTeller, ripeLockDuration)
 
     # can only claim rewards if this is current loot distributor
     if a.lootDistributor == self:
-        userRewards: uint256 = self._claimDepositRewards(_user, a.ledger)
+        userRewards: uint256 = self._claimDepositRewards(_user, ripeTeller, ripeLockDuration, a.ledger)
         if userRewards != 0:
             numAssetsClaimed += 1
 
@@ -950,3 +1007,14 @@ def _getLootDistroConfig(
         config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
 
     return config
+
+
+# set ripe lock duration
+
+
+@external
+def setRipeLockDuration(_ripeLockDuration: uint256):
+    assert not deptBasics.isPaused # dev: contract paused
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.ripeLockDuration = _ripeLockDuration
+    log RipeLockDurationSet(lockDuration=_ripeLockDuration)
