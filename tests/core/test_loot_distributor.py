@@ -1480,7 +1480,7 @@ def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_w
 
 
 def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
-    """ Test TxFeePaid and YieldBonusPaid event emissions """
+    """ Test TransactionFeePaid, AmbassadorTxFeePaid, YieldPerformanceFeePaid and YieldBonusPaid event emissions """
     
     # Register the vault token first
     yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -1513,7 +1513,7 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
         _yieldConfig=yieldConfig,
     )
     
-    # Test 1: TxFeePaid event from swap fee
+    # Test 1: TransactionFeePaid and AmbassadorTxFeePaid events from swap fee
     swap_fee = 10 * EIGHTEEN_DECIMALS
     yield_vault_token.transfer(user_wallet, swap_fee, sender=yield_underlying_token_whale)
     yield_vault_token.approve(loot_distributor, swap_fee, sender=user_wallet.address)
@@ -1525,16 +1525,27 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
         sender=user_wallet.address
     )
     
-    # Check TxFeePaid event
-    tx_fee_event = filter_logs(loot_distributor, 'TxFeePaid')[0]
+    # Check events immediately after the transaction
+    tx_fee_events = filter_logs(loot_distributor, 'TransactionFeePaid')
+    assert len(tx_fee_events) == 1
+    tx_fee_event = tx_fee_events[0]
+    assert tx_fee_event.user == user_wallet.address
     assert tx_fee_event.asset == yield_vault_token.address
-    assert tx_fee_event.totalFee == swap_fee
-    assert tx_fee_event.ambassadorFeeRatio == 50_00  # 50%
-    assert tx_fee_event.ambassadorFee == swap_fee * 50_00 // 100_00  # 5 tokens
-    assert tx_fee_event.ambassador == ambassador_wallet.address
+    assert tx_fee_event.feeAmount == swap_fee
     assert tx_fee_event.action == ACTION_TYPE.SWAP
     
-    # Test 2: YieldBonusPaid events from yield profit
+    # Check AmbassadorTxFeePaid event
+    ambassador_fee_events = filter_logs(loot_distributor, 'AmbassadorTxFeePaid')
+    assert len(ambassador_fee_events) == 1
+    ambassador_fee_event = ambassador_fee_events[0]
+    assert ambassador_fee_event.asset == yield_vault_token.address
+    assert ambassador_fee_event.totalFee == swap_fee
+    assert ambassador_fee_event.ambassadorFeeRatio == 50_00  # 50%
+    assert ambassador_fee_event.ambassadorFee == swap_fee * 50_00 // 100_00  # 5 tokens
+    assert ambassador_fee_event.ambassador == ambassador_wallet.address
+    assert ambassador_fee_event.action == ACTION_TYPE.SWAP
+    
+    # Test 2: YieldPerformanceFeePaid, AmbassadorTxFeePaid and YieldBonusPaid events from yield profit
     performance_fee = 2 * EIGHTEEN_DECIMALS
     total_yield = 10 * EIGHTEEN_DECIMALS
     
@@ -1548,14 +1559,26 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
         sender=user_wallet.address
     )
     
-    # Check TxFeePaid event for yield fee (performance fee)
-    tx_fee_event = filter_logs(loot_distributor, 'TxFeePaid')[0]
-    assert tx_fee_event.asset == yield_vault_token.address
-    assert tx_fee_event.totalFee == performance_fee
-    assert tx_fee_event.ambassadorFeeRatio == 40_00  # 40% yield fee
-    assert tx_fee_event.ambassadorFee == performance_fee * 40_00 // 100_00  # 0.8 tokens
-    assert tx_fee_event.ambassador == ambassador_wallet.address
-    assert tx_fee_event.action == 0  # empty(ActionType) for yield
+    # Check events immediately after the transaction
+    # YieldPerformanceFeePaid event
+    yield_fee_events = filter_logs(loot_distributor, 'YieldPerformanceFeePaid')
+    assert len(yield_fee_events) == 1
+    yield_fee_event = yield_fee_events[0]
+    assert yield_fee_event.user == user_wallet.address
+    assert yield_fee_event.asset == yield_vault_token.address
+    assert yield_fee_event.feeAmount == performance_fee
+    assert yield_fee_event.yieldRealized == total_yield
+    
+    # AmbassadorTxFeePaid event for yield fee
+    ambassador_fee_events = filter_logs(loot_distributor, 'AmbassadorTxFeePaid')
+    assert len(ambassador_fee_events) == 1
+    ambassador_fee_event = ambassador_fee_events[0]
+    assert ambassador_fee_event.asset == yield_vault_token.address
+    assert ambassador_fee_event.totalFee == performance_fee
+    assert ambassador_fee_event.ambassadorFeeRatio == 40_00  # 40% yield fee
+    assert ambassador_fee_event.ambassadorFee == performance_fee * 40_00 // 100_00  # 0.8 tokens
+    assert ambassador_fee_event.ambassador == ambassador_wallet.address
+    assert ambassador_fee_event.action == 0  # empty(ActionType) for yield
     
     # Check YieldBonusPaid events (should be 2: one for user, one for ambassador)
     yield_events = filter_logs(loot_distributor, 'YieldBonusPaid')
@@ -3791,3 +3814,366 @@ def test_ripe_token_deposit_rewards_with_multiple_users(loot_distributor, user_w
     
     # Verify RIPE tokens went to mock_ripe (RipeTeller)
     assert mock_ripe_token.balanceOf(mock_ripe.address) == user1_rewards + user2_rewards
+
+
+def test_loot_adjusted_event(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, switchboard_alpha, setAssetConfig, createAmbassadorRevShare):
+    """ Test LootAdjusted event emission """
+    
+    # Set up ambassador config with swap fee share
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,      # 30%
+        _rewardsRatio=25_00,   # 25%
+        _yieldRatio=20_00,     # 20%
+    )
+    
+    setAssetConfig(
+        alpha_token,
+        _ambassadorRevShare=ambassadorRevShare,
+    )
+    
+    # First, add some loot for the ambassador
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor, fee_amount, sender=user_wallet.address)
+    
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Get initial claimable amount
+    initial_claimable = loot_distributor.claimableLoot(ambassador_wallet, alpha_token)
+    assert initial_claimable > 0
+    
+    # Adjust loot down (only switchboard can do this)
+    new_claimable = initial_claimable // 2  # Reduce by half
+    loot_distributor.adjustLoot(
+        ambassador_wallet,
+        alpha_token,
+        new_claimable,
+        sender=switchboard_alpha.address
+    )
+    
+    # Check LootAdjusted event
+    event = filter_logs(loot_distributor, 'LootAdjusted')[0]
+    assert event.user == ambassador_wallet.address
+    assert event.asset == alpha_token.address
+    assert event.newClaimable == new_claimable
+    
+    # Verify the adjustment took effect
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == new_claimable
+
+
+def test_loot_claimed_event(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, alice, setAssetConfig, createAmbassadorRevShare):
+    """ Test LootClaimed event emission """
+    
+    # Set up ambassador config with swap fee share
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,      # 30%
+        _rewardsRatio=25_00,   # 25%
+        _yieldRatio=20_00,     # 20%
+    )
+    
+    setAssetConfig(
+        alpha_token,
+        _ambassadorRevShare=ambassadorRevShare,
+    )
+    
+    # Add some loot for the ambassador
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor, fee_amount, sender=user_wallet.address)
+    
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Get claimable amount
+    claimable = loot_distributor.claimableLoot(ambassador_wallet, alpha_token)
+    assert claimable > 0
+    
+    # Claim the loot
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    
+    # Check LootClaimed event
+    event = filter_logs(loot_distributor, 'LootClaimed')[0]
+    assert event.user == ambassador_wallet.address
+    assert event.asset == alpha_token.address
+    assert event.amount > 0  # Should have claimed something
+    
+    # Verify claim was successful
+    assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
+
+
+def test_ripe_lock_duration_set_event(loot_distributor, switchboard_alpha):
+    """ Test RipeLockDurationSet event emission """
+    
+    # Set new ripe lock duration
+    new_duration = 86400  # 1 day in blocks
+    loot_distributor.setRipeLockDuration(new_duration, sender=switchboard_alpha.address)
+    
+    # Check RipeLockDurationSet event
+    event = filter_logs(loot_distributor, 'RipeLockDurationSet')[0]
+    assert event.lockDuration == new_duration
+    
+    # Verify the change took effect
+    assert loot_distributor.ripeLockDuration() == new_duration
+
+
+def test_get_claimable_loot_for_asset(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+    """ Test getClaimableLootForAsset view function """
+    
+    # Initially should be 0
+    assert loot_distributor.getClaimableLootForAsset(ambassador_wallet, alpha_token) == 0
+    
+    # Set up ambassador config with swap fee share
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,      # 30%
+        _rewardsRatio=25_00,   # 25%
+        _yieldRatio=20_00,     # 20%
+    )
+    
+    setAssetConfig(
+        alpha_token,
+        _ambassadorRevShare=ambassadorRevShare,
+    )
+    
+    # Add some loot
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor, fee_amount, sender=user_wallet.address)
+    
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Should now return the claimable amount (limited by balance)
+    claimable = loot_distributor.getClaimableLootForAsset(ambassador_wallet, alpha_token)
+    assert claimable > 0
+    assert claimable <= alpha_token.balanceOf(loot_distributor)
+    
+    # Test when contract has less balance than claimable
+    # Transfer most tokens out, leaving only 1 token
+    current_balance = alpha_token.balanceOf(loot_distributor)
+    assert current_balance > EIGHTEEN_DECIMALS  # Should have more than 1 token from the fee added above
+    alpha_token.transfer(alpha_token_whale, current_balance - EIGHTEEN_DECIMALS, sender=loot_distributor.address)
+    
+    # Should return the limited amount (what's actually in the contract)
+    limited_claimable = loot_distributor.getClaimableLootForAsset(ambassador_wallet, alpha_token)
+    assert limited_claimable == EIGHTEEN_DECIMALS
+
+
+def test_get_claimable_deposit_rewards(loot_distributor, user_wallet, mock_ripe_token, setUserWalletConfig, governance):
+    """ Test getClaimableDepositRewards view function """
+    
+    # Set deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=mock_ripe_token.address)
+    
+    # Initially should be 0
+    assert loot_distributor.getClaimableDepositRewards(user_wallet) == 0
+    
+    # Add deposit rewards (use governance as it's a minter)
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor, rewards_amount, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token, rewards_amount, sender=governance.address)
+    
+    # Update deposit points for the user
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    
+    # Advance blocks to accumulate points
+    boa.env.time_travel(blocks=100)
+    
+    # Should now have claimable rewards
+    claimable = loot_distributor.getClaimableDepositRewards(user_wallet)
+    assert claimable > 0
+
+
+def test_get_swap_fee(loot_distributor, user_wallet, alpha_token, bravo_token, mission_control, setAssetConfig, createTxFees):
+    """ Test getSwapFee view function """
+    
+    # Create tx fees with swap fee
+    txFees = createTxFees(_swapFee=30)  # 0.3%
+    
+    # Set asset config with swap fees for bravo token (tokenOut)
+    setAssetConfig(bravo_token, _txFees=txFees)
+    
+    # Get swap fee through loot distributor (should use bravo token's fee as tokenOut)
+    fee = loot_distributor.getSwapFee(user_wallet, alpha_token, bravo_token)
+    assert fee == 30
+    
+    # Test with explicit mission control address
+    fee_explicit = loot_distributor.getSwapFee(user_wallet, alpha_token, bravo_token, mission_control.address)
+    assert fee_explicit == 30
+    
+    # Test when swapping to alpha (which doesn't have config set)
+    default_fee = loot_distributor.getSwapFee(user_wallet, bravo_token, alpha_token)
+    assert default_fee >= 0  # Should return some default value
+
+
+def test_get_rewards_fee(loot_distributor, user_wallet, alpha_token, mission_control, setAssetConfig, createTxFees):
+    """ Test getRewardsFee view function """
+    
+    # Create tx fees with rewards fee
+    txFees = createTxFees(_rewardsFee=50)  # 0.5%
+    
+    # Set asset config with rewards fee
+    setAssetConfig(alpha_token, _txFees=txFees)
+    
+    # Get rewards fee through loot distributor
+    fee = loot_distributor.getRewardsFee(user_wallet, alpha_token)
+    assert fee == 50
+    
+    # Test with explicit mission control address
+    fee_explicit = loot_distributor.getRewardsFee(user_wallet, alpha_token, mission_control.address)
+    assert fee_explicit == 50
+    
+    # Test default fee for unset asset
+    bravo_token = alpha_token  # Use same token for simplicity
+    default_fee = loot_distributor.getRewardsFee(user_wallet, bravo_token)
+    assert default_fee >= 0  # Should return some default value
+
+
+def test_view_functions_comprehensive(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+    """ Comprehensive test of all new view functions working together """
+    
+    # Set up ambassador config with rewards fee share
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,      # 30%
+        _rewardsRatio=25_00,   # 25%
+        _yieldRatio=20_00,     # 20%
+    )
+    
+    setAssetConfig(
+        alpha_token,
+        _ambassadorRevShare=ambassadorRevShare,
+    )
+    
+    # Add some loot
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor, fee_amount, sender=user_wallet.address)
+    
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.REWARDS,
+        sender=user_wallet.address
+    )
+    
+    # Test all view functions
+    assert loot_distributor.getClaimableLootForAsset(ambassador_wallet, alpha_token) > 0
+    assert loot_distributor.getTotalClaimableAssets(ambassador_wallet) > 0
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, ambassador_wallet.address) == False  # Can't claim for self unless owner
+    
+    # Get latest deposit points
+    points = loot_distributor.getLatestDepositPoints(1000 * EIGHTEEN_DECIMALS, 0)
+    assert points >= 0
+    
+    # Get loot distro config
+    config = loot_distributor.getLootDistroConfig(user_wallet, alpha_token, True)
+    assert config.ambassador == ambassador_wallet.address
+    assert config.decimals > 0
+
+
+
+def test_update_deposit_points_on_ejection(loot_distributor, user_wallet, ledger, switchboard_alpha):
+    """ Test updateDepositPointsOnEjection function """
+    
+    # Set initial deposit points with a specific value
+    initial_value = 1000 * EIGHTEEN_DECIMALS
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet, initial_value, sender=user_wallet.address)
+    
+    # Verify initial state
+    userData, _ = ledger.getUserAndGlobalPoints(user_wallet)
+    assert userData.usdValue == initial_value
+    initial_points = userData.depositPoints
+    
+    # Travel some blocks to accumulate points
+    boa.env.time_travel(blocks=100)
+    
+    # Call updateDepositPointsOnEjection (only switchboard can call)
+    loot_distributor.updateDepositPointsOnEjection(user_wallet, sender=switchboard_alpha.address)
+    
+    # Verify points were updated and user value set to 0
+    userData, _ = ledger.getUserAndGlobalPoints(user_wallet)
+    assert userData.usdValue == 0  # User value should be zeroed on ejection
+    assert userData.depositPoints > initial_points  # Points should have increased from the time travel
+
+
+def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, alice, setAssetConfig, createAmbassadorRevShare, hatchery, charlie):
+    """ Test claimAllLoot with multiple different assets """
+    
+    # Create a fresh ambassador wallet for this test to avoid state from other tests
+    fresh_ambassador = hatchery.createUserWallet(charlie, charlie, False, 0, sender=charlie)
+    fresh_ambassador_wallet = UserWallet.at(fresh_ambassador)
+    
+    # Create a fresh user wallet with the new ambassador
+    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, False, 1, sender=alice)
+    fresh_user_wallet = UserWallet.at(fresh_user)
+    
+    # Set up ambassador config
+    ambassadorRevShare = createAmbassadorRevShare(
+        _swapRatio=30_00,      # 30%
+        _rewardsRatio=25_00,   # 25%
+        _yieldRatio=20_00,     # 20%
+    )
+    
+    # Configure both tokens
+    setAssetConfig(alpha_token, _ambassadorRevShare=ambassadorRevShare)
+    setAssetConfig(bravo_token, _ambassadorRevShare=ambassadorRevShare)
+    
+    # Should start with no claimable assets
+    assert loot_distributor.numClaimableAssets(fresh_ambassador_wallet) == 0
+    
+    # Add loot for alpha token
+    fee_amount = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(fresh_user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor, fee_amount, sender=fresh_user_wallet.address)
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=fresh_user_wallet.address
+    )
+    
+    # Add loot for bravo token
+    bravo_token.transfer(fresh_user_wallet, fee_amount, sender=bravo_token_whale)
+    bravo_token.approve(loot_distributor, fee_amount, sender=fresh_user_wallet.address)
+    loot_distributor.addLootFromSwapOrRewards(
+        bravo_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=fresh_user_wallet.address
+    )
+    
+    # Should now have exactly 2 claimable assets (numClaimableAssets uses 1-based indexing, so 2 assets = 3)
+    assert loot_distributor.numClaimableAssets(fresh_ambassador_wallet) == 3
+    
+    # Should have 30% of fees for each token (30% of 100 = 30)
+    expected_per_token = 30 * EIGHTEEN_DECIMALS
+    assert loot_distributor.claimableLoot(fresh_ambassador_wallet, alpha_token) == expected_per_token
+    assert loot_distributor.claimableLoot(fresh_ambassador_wallet, bravo_token) == expected_per_token
+    
+    # Record initial balances
+    initial_alpha = alpha_token.balanceOf(fresh_ambassador_wallet)
+    initial_bravo = bravo_token.balanceOf(fresh_ambassador_wallet)
+    
+    # Claim all loot at once
+    success = loot_distributor.claimAllLoot(fresh_ambassador_wallet, sender=charlie)
+    assert success == True
+    
+    # Verify exact amounts were transferred
+    assert alpha_token.balanceOf(fresh_ambassador_wallet) == initial_alpha + expected_per_token
+    assert bravo_token.balanceOf(fresh_ambassador_wallet) == initial_bravo + expected_per_token
+    
+    # Should have no claimable loot left (numClaimableAssets might still be non-zero but claimable amounts should be 0)
+    assert loot_distributor.claimableLoot(fresh_ambassador_wallet, alpha_token) == 0
+    assert loot_distributor.claimableLoot(fresh_ambassador_wallet, bravo_token) == 0
