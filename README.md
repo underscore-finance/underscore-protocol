@@ -57,12 +57,13 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | CurveLego                | [0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4](https://basescan.org/address/0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4) |
 | UniswapV2Lego            | [0xadB9aa252dD6163f4958443b414177248435c0EC](https://basescan.org/address/0xadB9aa252dD6163f4958443b414177248435c0EC) |
 | UniswapV3Lego            | [0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249](https://basescan.org/address/0x804EC0b82525DE4EA25Bc777a652e8A5c0A97249) |
+| UndyRewardsLego          | [0xB99D44C321356B24E36542B1BbEE9C549BCc9607](https://basescan.org/address/0xB99D44C321356B24E36542B1BbEE9C549BCc9607) |
 | LegoTools                | [0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F](https://basescan.org/address/0x3F8aE1C72a2Ca223CAe3f3e3312DBee55C4C6d5F) |
 | Switchboard              | [0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e](https://basescan.org/address/0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e) |
 | SwitchboardAlpha         | [0x90B138306ab1fb8d23372d104594e8A6BD7848D4](https://basescan.org/address/0x90B138306ab1fb8d23372d104594e8A6BD7848D4) |
 | SwitchboardBravo         | [0xf1F5938559884D3c54400b417292B93cd81C368c](https://basescan.org/address/0xf1F5938559884D3c54400b417292B93cd81C368c) |
 | Hatchery                 | [0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2](https://basescan.org/address/0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2) |
-| LootDistributor          | [0x2004c2293f9DeccA292934FA773f56860624B234](https://basescan.org/address/0x2004c2293f9DeccA292934FA773f56860624B234) |
+| LootDistributor          | [0xa0A342329D2dDbc1a3b8Fa791223e1eBD61fB30e](https://basescan.org/address/0xa0A342329D2dDbc1a3b8Fa791223e1eBD61fB30e) |
 | Appraiser                | [0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad](https://basescan.org/address/0x50B32Df18452986f35Cb5B3d59B2Ea6C101ab2ad) |
 | WalletBackpack           | [0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD](https://basescan.org/address/0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD) |
 | Kernel                   | [0xcb91C738E301bDf8Ee5354f0Ef2692B41145D217](https://basescan.org/address/0xcb91C738E301bDf8Ee5354f0Ef2692B41145D217) |
