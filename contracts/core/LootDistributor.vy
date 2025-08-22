@@ -987,6 +987,10 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
             if lastClaimBlock + coolOffPeriod > block.number:
                 return False
 
+    # lego check
+    if addys._isLegoBookAddr(_caller):
+        return True
+
     # permission check
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
     if _caller == staticcall UserWalletConfig(walletConfig).owner():
