@@ -122,6 +122,16 @@ def lego_euler(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_yo(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
+    YO_REGISTRY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["YO_REGISTRY"]
+    addr = boa.load("contracts/legos/yield/Yo.vy", undy_hq_deploy, YO_REGISTRY, name="lego_yo")
+    lego_book.startAddNewAddressToRegistry(addr, "Yo", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########

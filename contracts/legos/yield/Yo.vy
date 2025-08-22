@@ -43,6 +43,9 @@ interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
 
+interface YoVault:
+    def requestRedeem(_shares: uint256, _recipient: address, _owner: address) -> uint256: nonpayable
+
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
 
@@ -237,7 +240,7 @@ def withdrawFromYield(
     assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
 
     # withdraw assets from lego partner
-    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
+    assetAmountReceived: uint256 = extcall YoVault(_vaultToken).requestRedeem(vaultTokenAmount, _recipient, self)
     assert assetAmountReceived != 0 # dev: no asset amount received
 
     # refund if full withdrawal didn't happen
@@ -307,7 +310,6 @@ def hasClaimableRewards(_user: address) -> bool:
     return False
 
 
-
 #############
 # Utilities #
 #############
@@ -327,6 +329,12 @@ def isVaultToken(_vaultToken: address) -> bool:
 def _isVaultToken(_vaultToken: address) -> bool:
     if yld.vaultToAsset[_vaultToken] != empty(address):
         return True
+    return self._isValidYoVault(_vaultToken)
+
+
+@view
+@external
+def isValidYoVault(_vaultToken: address) -> bool:
     return self._isValidYoVault(_vaultToken)
 
 
@@ -542,7 +550,7 @@ def mintOrRedeemAsset(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, bool, uint256):
     return 0, 0, False, 0
-    
+
 
 @external
 def confirmMintOrRedeemAsset(

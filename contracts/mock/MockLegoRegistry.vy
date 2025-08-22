@@ -59,3 +59,12 @@ def isProxy(_vault: address) -> bool:
 @external
 def isMetaMorpho(_vault: address) -> bool:
     return True
+
+
+# yo
+
+
+@view
+@external
+def isYoVault(_vault: address) -> bool:
+    return True
