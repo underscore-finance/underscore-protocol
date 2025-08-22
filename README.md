@@ -52,6 +52,7 @@ We acknowledge reports quickly and may offer RIPE token rewards for qualifying d
 | FluidLego                | [0x4719731fC7c8A3e17CB3e1EadD4412692432B404](https://basescan.org/address/0x4719731fC7c8A3e17CB3e1EadD4412692432B404) |
 | MoonwellLego             | [0x9CdE6b17b88432734f64E760B5Dfbba372b4975F](https://basescan.org/address/0x9CdE6b17b88432734f64E760B5Dfbba372b4975F) |
 | MorphoLego               | [0xd7a412C42c7430802e2A60F8145c36A4c6d0bA84](https://basescan.org/address/0xd7a412C42c7430802e2A60F8145c36A4c6d0bA84) |
+| YoLego                   | [0x0E4289498cbc10730F232eC2Ad158D0D562178E6](https://basescan.org/address/0x0E4289498cbc10730F232eC2Ad158D0D562178E6) |
 | AeroClassicLego          | [0x15099c548DDE962ca9Bf520A771fB523818261C3](https://basescan.org/address/0x15099c548DDE962ca9Bf520A771fB523818261C3) |
 | AeroSlipstreamLego       | [0x680D5701F6f328C01eF0dad2B1E6eAD224a51D36](https://basescan.org/address/0x680D5701F6f328C01eF0dad2B1E6eAD224a51D36) |
 | CurveLego                | [0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4](https://basescan.org/address/0x01A8Fa2Dbd240f197C820DE22e279150edE5BCF4) |
