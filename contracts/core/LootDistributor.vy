@@ -98,7 +98,19 @@ struct VaultToken:
     decimals: uint256
     isRebasing: bool
 
-event TxFeePaid:
+event TransactionFeePaid:
+    user: indexed(address)
+    asset: indexed(address)
+    feeAmount: uint256
+    action: ws.ActionType
+
+event YieldPerformanceFeePaid:
+    user: indexed(address)
+    asset: indexed(address)
+    feeAmount: uint256
+    yieldRealized: uint256
+
+event AmbassadorTxFeePaid:
     asset: indexed(address)
     totalFee: uint256
     ambassadorFeeRatio: uint256
@@ -209,6 +221,7 @@ def addLootFromSwapOrRewards(
     if feeAmount == 0:
         return
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, feeAmount, default_return_value=True) # dev: transfer failed
+    log TransactionFeePaid(user = msg.sender, asset = _asset, feeAmount = _feeAmount, action = _action)
 
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
     if ambassador == empty(address):
@@ -237,6 +250,7 @@ def addLootFromYieldProfit(
 
     ledger: address = addys._getLedgerAddr()
     assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: not a user wallet
+    log YieldPerformanceFeePaid(user = msg.sender, asset = _asset, feeAmount = _feeAmount, yieldRealized = _yieldRealized)
 
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
     config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, _legoBook, ledger, True)
@@ -271,7 +285,7 @@ def _handleAmbassadorTxFee(
     fee: uint256 = min(_feeAmount * ambassadorRatio // HUNDRED_PERCENT, staticcall IERC20(_asset).balanceOf(self))
     if fee != 0:
         self._addClaimableLootToUser(_config.ambassador, _asset, fee)
-        log TxFeePaid(asset = _asset, totalFee = _feeAmount, ambassadorFeeRatio = feeRatio, ambassadorFee = fee, ambassador = _config.ambassador, action = _action)
+        log AmbassadorTxFeePaid(asset = _asset, totalFee = _feeAmount, ambassadorFeeRatio = feeRatio, ambassadorFee = fee, ambassador = _config.ambassador, action = _action)
 
 
 ###############
@@ -502,6 +516,13 @@ def _claimLootForAsset(
         amount = transferAmount,
     )
     return True, claimableAmount == transferAmount
+
+
+@view
+@external
+def getClaimableLootForAsset(_user: address, _asset: address) -> uint256:
+    claimableAmount: uint256 = self.claimableLoot[_user][_asset]
+    return min(claimableAmount, staticcall IERC20(_asset).balanceOf(self))
 
 
 # claimable assets
@@ -806,6 +827,30 @@ def _claimDepositRewards(
     return userRewards
 
 
+@view
+@external
+def getClaimableDepositRewards(_user: address) -> uint256:
+    userPoints: PointsData = empty(PointsData)
+    globalPoints: PointsData = empty(PointsData)
+    userPoints, globalPoints = staticcall Ledger(addys._getLedgerAddr()).getUserAndGlobalPoints(_user)
+
+    # get latest points
+    userPoints.depositPoints += self._getLatestDepositPoints(userPoints.usdValue, userPoints.lastUpdate)
+    globalPoints.depositPoints += self._getLatestDepositPoints(globalPoints.usdValue, globalPoints.lastUpdate)
+    if userPoints.depositPoints == 0 or globalPoints.depositPoints == 0:
+        return 0
+
+    # check if there is anything available for rewards
+    data: DepositRewards = self.depositRewards
+    if data.asset == empty(address) or data.amount == 0:
+        return 0
+
+    # calculate user's share
+    availableRewards: uint256 = min(data.amount, staticcall IERC20(data.asset).balanceOf(self))
+    userRewards: uint256 = availableRewards * userPoints.depositPoints // globalPoints.depositPoints
+    return userRewards
+
+
 # add rewards
 
 
@@ -941,6 +986,10 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         if lastClaimBlock != 0 and coolOffPeriod != 0:
             if lastClaimBlock + coolOffPeriod > block.number:
                 return False
+
+    # lego check
+    if addys._isLegoBookAddr(_caller):
+        return True
 
     # permission check
     walletConfig: address = staticcall UserWallet(_user).walletConfig()
