@@ -708,7 +708,7 @@ def _updateRipeSnapshot(_asset: address):
     ripePriceDesk: address = staticcall Registry(RIPE_HQ).getAddr(RIPE_PRICE_DESK_ID)
     if ripePriceDesk == empty(address):
         return
-    # extcall RipePriceDesk(ripePriceDesk).addPriceSnapshot(_asset)
+    extcall RipePriceDesk(ripePriceDesk).addPriceSnapshot(_asset)
 
 
 #########
