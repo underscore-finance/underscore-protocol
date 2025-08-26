@@ -234,6 +234,8 @@ TOKENS = {
         "TOKEMAK_USDC": "0x9c6864105AEC23388C89600046213a44C384c831",
         "TOKEMAK_ETH": "0xAADf01DD90aE0A6Bb9Eb908294658037096E0404",
         "TOKEMAK_EUR": "0xeb042DEE6f7Ff3B45eF0A71686653D168FB02477",
+        # 40 acres
+        "FORTY_ACRES_USDC": "0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5",
     },
     "local": {
         # important tokens / representations
