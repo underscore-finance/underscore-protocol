@@ -132,6 +132,16 @@ def lego_yo(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_tokemak(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
+    TOKEMAK_REGISTRY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["TOKEMAK_REGISTRY"]
+    addr = boa.load("contracts/legos/yield/Tokemak.vy", undy_hq_deploy, TOKEMAK_REGISTRY, name="lego_tokemak")
+    lego_book.startAddNewAddressToRegistry(addr, "Tokemak", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
