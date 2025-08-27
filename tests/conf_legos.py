@@ -142,6 +142,16 @@ def lego_tokemak(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_40_acres(fork, lego_book, undy_hq_deploy, governance):
+    FORTY_ACRES_USDC = ZERO_ADDRESS if fork == "local" else TOKENS[fork]["FORTY_ACRES_USDC"]
+    addr = boa.load("contracts/legos/yield/40Acres.vy", undy_hq_deploy, FORTY_ACRES_USDC, name="lego_40_acres")
+    lego_book.startAddNewAddressToRegistry(addr, "40 Acres", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
