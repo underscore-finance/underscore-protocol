@@ -7,8 +7,8 @@
 #      |___| |___|_______|_______|______|     |_______|_______|_______|_______|
 #                                                                       
 #     ╔═════════════════════════════════════╗
-#     ║  ** Tokemak **                      ║
-#     ║  Integration with Tokemak Protocol. ║
+#     ║  ** Gauntlet **                     ║
+#     ║  Integration with Gauntlet.         ║
 #     ╚═════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
