@@ -152,6 +152,16 @@ def lego_40_acres(fork, lego_book, undy_hq_deploy, governance):
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_gauntlet(fork, lego_book, undy_hq_deploy, governance):
+    GAUNTLET_DEPOSITOR = ZERO_ADDRESS if fork == "local" else INTEGRATION_ADDYS[fork]["GAUNTLET_DEPOSITOR"]
+    addr = boa.load("contracts/legos/yield/Gauntlet.vy", undy_hq_deploy, GAUNTLET_DEPOSITOR, name="lego_gauntlet")
+    lego_book.startAddNewAddressToRegistry(addr, "Gauntlet", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########

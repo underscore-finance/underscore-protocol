@@ -526,3 +526,57 @@ def getTokenAndWhale(fork, env, alpha_token, alpha_token_whale):
         return boa.from_etherscan(token, name=_token_str), aliased(env, whale, _token_str + "_whale")
 
     yield getTokenAndWhale
+
+
+# mint or redeem
+
+
+@pytest.fixture(scope="package")
+def testLegoMintOrRedeem(bob_user_wallet, bob, lego_book, _test):
+    def testLegoMintOrRedeem(
+        _legoId,
+        _tokenIn,
+        _tokenOut,
+        _amountIn = MAX_UINT256,
+    ):
+        # pre balances
+        pre_user_asset_bal = _tokenIn.balanceOf(bob_user_wallet)
+        pre_user_vault_bal = _tokenOut.balanceOf(bob_user_wallet)
+
+        lego_addr = lego_book.getAddr(_legoId)
+        pre_lego_asset_bal = _tokenIn.balanceOf(lego_addr)
+        pre_lego_vault_bal = _tokenOut.balanceOf(lego_addr)
+
+        # mint
+        tokenInAmount, tokenOutAmount, isPending, txUsdValue = bob_user_wallet.mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, 1, sender=bob)
+
+        # event
+        log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
+        assert log_wallet.op == 21
+        assert log_wallet.asset1 == _tokenIn.address
+        assert log_wallet.asset2 == _tokenOut.address
+        assert log_wallet.amount1 == tokenInAmount
+        assert log_wallet.amount2 == tokenOutAmount
+        assert log_wallet.usdValue == txUsdValue
+        assert log_wallet.legoId == _legoId
+        assert log_wallet.signer == bob
+
+        if _amountIn == MAX_UINT256:
+            _test(tokenInAmount, pre_user_asset_bal)
+        else:
+            _test(tokenInAmount, _amountIn)
+
+        # lego addr should not have any leftover
+        assert _tokenIn.balanceOf(lego_addr) == pre_lego_asset_bal
+        assert _tokenOut.balanceOf(lego_addr) == pre_lego_vault_bal
+
+        # vault tokens
+        _test(pre_user_vault_bal + tokenOutAmount, _tokenOut.balanceOf(bob_user_wallet.address))
+
+        if isPending:
+            assert tokenOutAmount == 0
+
+        # asset amounts
+        _test(pre_user_asset_bal - tokenInAmount, _tokenIn.balanceOf(bob_user_wallet.address))
+
+    yield testLegoMintOrRedeem

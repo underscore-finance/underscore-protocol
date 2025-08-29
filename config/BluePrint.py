@@ -97,6 +97,8 @@ INTEGRATION_ADDYS = {
         "YO_REGISTRY": "0x56c3119DC3B1a75763C87D5B0A2C55E489502232",
         # YIELD LEGO: Tokemak
         "TOKEMAK_REGISTRY": "0x4fE7916A10B15DADEFc59D06AC81757112b1feCE",
+        # YIELD LEGO: Gauntlet
+        "GAUNTLET_DEPOSITOR": "0x18cf8d963e1a727f9bbf3aeffa0bd04fb4dbda07",
         # DEX LEGO: uniswap v2
         "UNISWAP_V2_FACTORY": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
         "UNISWAP_V2_ROUTER": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
@@ -236,6 +238,8 @@ TOKENS = {
         "TOKEMAK_EUR": "0xeb042DEE6f7Ff3B45eF0A71686653D168FB02477",
         # 40 acres
         "FORTY_ACRES_USDC": "0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5",
+        # gauntlet
+        "GAUNTLET_USDC": "0x000000000001CdB57E58Fa75Fe420a0f4D6640D5",
     },
     "local": {
         # important tokens / representations
