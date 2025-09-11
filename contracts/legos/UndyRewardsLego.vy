@@ -41,11 +41,12 @@ interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 MAX_TOKEN_PATH: constant(uint256) = 5
-
+RIPE_TOKEN: immutable(address)
 
 @deploy
-def __init__(_undyHq: address):
+def __init__(_undyHq: address, _ripeToken: address):
     addys.__init__(_undyHq)
+    RIPE_TOKEN = _ripeToken
 
 
 ##############
@@ -78,6 +79,8 @@ def claimRewards(
 
     appraiser: address = addys._getAppraiserAddr()
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_rewardToken, depositRewards)
+    if _rewardToken == RIPE_TOKEN:
+        return 0, usdValue
     return depositRewards, usdValue
 
 

@@ -44,6 +44,7 @@ interface RipeTeller:
     def repay(_paymentAmount: uint256 = max_value(uint256), _user: address = msg.sender, _isPaymentSavingsGreen: bool = False, _shouldRefundSavingsGreen: bool = True) -> bool: nonpayable
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
+    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
@@ -72,7 +73,7 @@ event RipeCollateralDeposit:
     sender: indexed(address)
     asset: indexed(address)
     assetAmountDeposited: uint256
-    vaultId: uint256
+    vaultIdOrLock: uint256
     usdValue: uint256
     recipient: address
 
@@ -229,13 +230,16 @@ def addCollateral(
     assert depositAmount != 0 # dev: nothing to transfer
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
 
-    vaultId: uint256 = 0
+    vaultIdOrLock: uint256 = 0
     if _extraData != empty(bytes32):
-        vaultId = convert(_extraData, uint256)
+        vaultIdOrLock = convert(_extraData, uint256)
 
     # deposit into Ripe Protocol
     teller: address = self._getRipeTellerAndApprove(_asset)
-    depositAmount = extcall RipeTeller(teller).deposit(_asset, depositAmount, _recipient, empty(address), vaultId)
+    if _asset == RIPE_TOKEN:
+        depositAmount = extcall RipeTeller(teller).depositIntoGovVault(_asset, depositAmount, vaultIdOrLock, _recipient)
+    else:
+        depositAmount = extcall RipeTeller(teller).deposit(_asset, depositAmount, _recipient, empty(address), vaultIdOrLock)
     self._resetTellerApproval(_asset, teller)
 
     # refund if full deposit didn't get through
@@ -250,7 +254,7 @@ def addCollateral(
         sender = msg.sender,
         asset = _asset,
         assetAmountDeposited = depositAmount,
-        vaultId = vaultId,
+        vaultIdOrLock = vaultIdOrLock,
         usdValue = usdValue,
         recipient = _recipient,
     )
@@ -441,7 +445,7 @@ def claimRewards(
         usdValue = usdValue,
         recipient = _user,
     )
-    return totalRipe, usdValue
+    return 0, usdValue
 
 
 #################
