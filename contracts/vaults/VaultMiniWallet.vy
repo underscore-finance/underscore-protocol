@@ -1,0 +1,897 @@
+#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
+
+# @version 0.4.3
+
+from interfaces import YieldLego as YieldLego
+from interfaces import Wallet as wi
+from interfaces import LegoPartner as Lego
+from interfaces import WalletStructs as ws
+
+from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
+
+interface Ledger:
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
+
+struct LocalVaultTokenData:
+    legoId: uint256
+    isRebasing: bool
+    vaultTokenDecimals: uint256
+    avgPricePerShare: uint256
+
+struct SnapShotData:
+    lastSnapShot: SingleSnapShot
+    nextIndex: uint256
+
+struct SingleSnapShot:
+    totalSupply: uint256
+    pricePerShare: uint256
+    lastUpdate: uint256
+
+struct PriceConfig:
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
+
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
+
+event EarnVaultAction:
+    op: uint8 
+    asset1: indexed(address)
+    asset2: indexed(address)
+    amount1: uint256
+    amount2: uint256
+    usdValue: uint256
+    legoId: uint256
+    signer: indexed(address)
+
+event PricePerShareSnapShotAdded:
+    vaultToken: indexed(address)
+    totalSupply: uint256
+    pricePerShare: uint256
+
+event PriceConfigSet:
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
+
+# asset data
+assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
+assets: public(HashMap[uint256, address]) # index -> asset
+indexOfAsset: public(HashMap[address, uint256]) # asset -> index
+numAssets: public(uint256) # num assets
+
+# price snap shot data
+priceConfig: public(PriceConfig)
+snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
+snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
+
+# constants
+ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
+MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
+MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_ASSETS: constant(uint256) = 10
+MAX_LEGOS: constant(uint256) = 10
+
+LEDGER_ID: constant(uint256) = 1
+LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
+
+UNDY_HQ: immutable(address)
+VAULT_ASSET: immutable(address)
+
+
+@deploy
+def __init__(
+    _undyHq: address,
+    _vaultAsset: address,
+    _minSnapshotDelay: uint256,
+    _maxNumSnapshots: uint256,
+    _maxUpsideDeviation: uint256,
+    _staleTime: uint256,
+):
+    self.numAssets = 1
+
+    assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
+    UNDY_HQ = _undyHq
+    VAULT_ASSET = _vaultAsset
+
+    # set price config
+    config: PriceConfig = PriceConfig(
+        minSnapshotDelay = _minSnapshotDelay,
+        maxNumSnapshots = _maxNumSnapshots,
+        maxUpsideDeviation = _maxUpsideDeviation,
+        staleTime = _staleTime,
+    )
+    assert self._isValidPriceConfig(config) # dev: invalid config
+    self.priceConfig = config
+
+
+#########
+# Yield #
+#########
+
+
+# deposit
+
+
+@external
+def depositForYield(
+    _legoId: uint256,
+    _asset: address,
+    _vaultAddr: address = empty(address),
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, address, uint256, uint256):
+    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_DEPOSIT, [_asset], [_legoId])
+    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, ad)
+
+
+@internal
+def _depositForYield(
+    _asset: address,
+    _vaultAddr: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _shouldGenerateEvent: bool,
+    _ad: ws.ActionData,
+) -> (uint256, address, uint256, uint256):
+    amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
+
+    # deposit for yield
+    assetAmount: uint256 = 0
+    vaultToken: address = empty(address)
+    vaultTokenAmountReceived: uint256 = 0
+    txUsdValue: uint256 = 0
+    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+
+    # update yield position
+    if _asset == VAULT_ASSET:
+        assert vaultToken != empty(address) # dev: must have vault token
+        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
+
+    if _shouldGenerateEvent:
+        log EarnVaultAction(
+            op = 10,
+            asset1 = _asset,
+            asset2 = vaultToken,
+            amount1 = assetAmount,
+            amount2 = vaultTokenAmountReceived,
+            usdValue = txUsdValue,
+            legoId = _ad.legoId,
+            signer = _ad.signer,
+        )
+    return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
+
+
+# withdraw
+
+
+@external
+def withdrawFromYield(
+    _legoId: uint256,
+    _vaultToken: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+    _isSpecialTx: bool = False,
+) -> (uint256, address, uint256, uint256):
+    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_WITHDRAW, [_vaultToken], [_legoId])
+    return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, ad)
+
+
+@internal
+def _withdrawFromYield(
+    _vaultToken: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _shouldGenerateEvent: bool,
+    _ad: ws.ActionData,
+) -> (uint256, address, uint256, uint256):
+    assert _vaultToken != empty(address) # dev: invalid vault token
+    amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
+
+    # some vault tokens require max value approval (comp v3)
+    assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
+    # withdraw from yield
+    vaultTokenAmountBurned: uint256 = 0
+    underlyingAsset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+
+    # update yield position
+    if underlyingAsset == VAULT_ASSET:
+        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr)
+
+    if _shouldGenerateEvent:
+        log EarnVaultAction(
+            op = 11,
+            asset1 = _vaultToken,
+            asset2 = underlyingAsset,
+            amount1 = vaultTokenAmountBurned,
+            amount2 = underlyingAmount,
+            usdValue = txUsdValue,
+            legoId = _ad.legoId,
+            signer = _ad.signer,
+        )
+    return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue
+
+
+# rebalance position
+
+
+@external
+def rebalanceYieldPosition(
+    _fromLegoId: uint256,
+    _fromVaultToken: address,
+    _toLegoId: uint256,
+    _toVaultAddr: address = empty(address),
+    _fromVaultAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, address, uint256, uint256):
+    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_REBALANCE, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
+
+    # withdraw
+    vaultTokenAmountBurned: uint256 = 0
+    underlyingAsset: address = empty(address)
+    underlyingAmount: uint256 = 0
+    withdrawTxUsdValue: uint256 = 0
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraData, False, ad)
+
+    # deposit
+    toVaultToken: address = empty(address)
+    toVaultTokenAmountReceived: uint256 = 0
+    depositTxUsdValue: uint256 = 0
+    ad.legoId = _toLegoId
+    ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(_toLegoId)
+    underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, ad)
+
+    maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
+    log EarnVaultAction(
+        op = 12,
+        asset1 = _fromVaultToken,
+        asset2 = toVaultToken,
+        amount1 = vaultTokenAmountBurned,
+        amount2 = toVaultTokenAmountReceived,
+        usdValue = maxUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return underlyingAmount, toVaultToken, toVaultTokenAmountReceived, maxUsdValue
+
+
+###################
+# Swap / Exchange #
+###################
+
+
+@external
+def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
+    tokenIn: address = empty(address)
+    tokenOut: address = empty(address)
+    legoIds: DynArray[uint256, MAX_LEGOS] = []
+    tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+
+    # important check!
+    assert tokenIn != VAULT_ASSET # dev: cannot swap out of vault asset
+    assert self.assetData[tokenIn].legoId == 0 # dev: cannot swap out of vault token
+
+    # action data bundle
+    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.SWAP, [tokenIn, tokenOut], legoIds)
+    origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
+
+    amountIn: uint256 = origAmountIn
+    lastTokenOut: address = empty(address)
+    lastTokenOutAmount: uint256 = 0
+    maxTxUsdValue: uint256 = 0
+
+    # perform swaps
+    for i: wi.SwapInstruction in _instructions:
+        if lastTokenOut != empty(address):
+            newTokenIn: address = i.tokenPath[0]
+            assert lastTokenOut == newTokenIn # dev: path
+            amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
+        
+        thisTxUsdValue: uint256 = 0
+        lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
+        maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+
+    log EarnVaultAction(
+        op = 20,
+        asset1 = tokenIn,
+        asset2 = lastTokenOut,
+        amount1 = origAmountIn,
+        amount2 = lastTokenOutAmount,
+        usdValue = maxTxUsdValue,
+        legoId = ad.legoId, # using just the first lego used
+        signer = ad.signer,
+    )
+    return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
+
+
+@internal
+def _performSwapInstruction(
+    _amountIn: uint256,
+    _i: wi.SwapInstruction,
+    _ad: ws.ActionData,
+) -> (address, uint256, uint256):
+    legoAddr: address = staticcall Registry(_ad.legoBook).getAddr(_i.legoId)
+    assert legoAddr != empty(address) # dev: lego
+
+    # tokens
+    tokenIn: address = _i.tokenPath[0]
+    tokenOut: address = _i.tokenPath[len(_i.tokenPath) - 1]
+    tokenInAmount: uint256 = 0
+    tokenOutAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+
+    assert extcall IERC20(tokenIn).approve(legoAddr, _amountIn, default_return_value = True) # dev: appr
+    tokenInAmount, tokenOutAmount, txUsdValue = extcall Lego(legoAddr).swapTokens(_amountIn, _i.minAmountOut, _i.tokenPath, _i.poolPath, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(tokenIn).approve(legoAddr, 0, default_return_value = True) # dev: appr
+    return tokenOut, tokenOutAmount, txUsdValue
+
+
+@internal
+def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, address, DynArray[uint256, MAX_LEGOS]):
+    numSwapInstructions: uint256 = len(_instructions)
+    assert numSwapInstructions != 0 # dev: swaps
+
+    # lego ids, make sure token paths are valid
+    legoIds: DynArray[uint256, MAX_LEGOS] = []
+    for i: wi.SwapInstruction in _instructions:
+        assert len(i.tokenPath) >= 2 # dev: path
+        if i.legoId not in legoIds:
+            legoIds.append(i.legoId)
+
+    # finalize tokens
+    firstRoutePath: DynArray[address, MAX_TOKEN_PATH] = _instructions[0].tokenPath
+    tokenIn: address = firstRoutePath[0]
+    tokenOut: address = empty(address)
+
+    if numSwapInstructions == 1:
+        tokenOut = firstRoutePath[len(firstRoutePath) - 1]
+    else:
+        lastRoutePath: DynArray[address, MAX_TOKEN_PATH] = _instructions[numSwapInstructions - 1].tokenPath
+        tokenOut = lastRoutePath[len(lastRoutePath) - 1]
+
+    assert empty(address) not in [tokenIn, tokenOut] # dev: path
+    return tokenIn, tokenOut, legoIds
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _legoId: uint256,
+    _rewardToken: address = empty(address),
+    _rewardAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.REWARDS, [_rewardToken], [_legoId])
+
+    # make sure can access
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
+
+    # claim rewards
+    rewardAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    log EarnVaultAction(
+        op = 50,
+        asset1 = _rewardToken,
+        asset2 = ad.legoAddr,
+        amount1 = rewardAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return rewardAmount, txUsdValue
+
+
+################
+# Total Assets #
+################
+
+
+# total assets - safe (weighted share price)
+
+
+@view
+@external
+def getTotalAssets(_shouldGetMax: bool) -> uint256:
+    return self._getTotalAssets(_shouldGetMax)
+
+
+@view
+@internal
+def _getTotalAssets(_shouldGetMax: bool) -> uint256:
+    totalAssets: uint256 = staticcall IERC20(VAULT_ASSET).balanceOf(self)
+
+    # get num assets
+    numAssets: uint256 = self.numAssets
+    if numAssets == 0:
+        return totalAssets
+
+    # iterate over each asset
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+
+        # get asset addr
+        vaultToken: address = self.assets[i]
+        if vaultToken == empty(address):
+            continue
+
+        vaultTokenBalance: uint256 = staticcall IERC20(vaultToken).balanceOf(self)
+        data: LocalVaultTokenData = self.assetData[vaultToken]
+
+        # add to total assets
+        if data.isRebasing:
+            totalAssets += vaultTokenBalance # TODO: check that decimals match up with underlying asset !!
+
+        else:
+            legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
+            pricePerShare: uint256 = staticcall Lego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
+            trueBalance: uint256 = vaultTokenBalance * pricePerShare // (10 ** data.vaultTokenDecimals)
+
+            if _shouldGetMax:
+                totalAssets += trueBalance
+            else:
+                avgBalance: uint256 = vaultTokenBalance * data.avgPricePerShare // (10 ** data.vaultTokenDecimals)
+                totalAssets += min(avgBalance, trueBalance)
+
+    return totalAssets
+
+
+###################
+# Yield Positions #
+###################
+
+
+# update yield position
+
+
+@external
+def updateYieldPosition(_vaultToken: address):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    legoId: uint256 = 0
+    legoAddr: address = empty(address)
+    legoId, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
+    if legoId != 0 and legoAddr != empty(address):
+        self._updateYieldPosition(_vaultToken, legoId, legoAddr)
+
+
+@internal
+def _updateYieldPosition(_vaultToken: address, _legoId: uint256, _legoAddr: address):
+    if _vaultToken == empty(address):
+        return
+
+    # no balance, deregister asset
+    currentBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
+    if currentBalance == 0:
+        self._deregisterYieldPosition(_vaultToken)
+        return
+
+    data: LocalVaultTokenData = self.assetData[_vaultToken]
+    needsSave: bool = False
+
+    # first time, need to save data
+    if data.legoId == 0:
+        data.legoId = _legoId
+        data.isRebasing = staticcall YieldLego(_legoAddr).isRebasing()
+        data.vaultTokenDecimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+        needsSave = True
+
+    # non-rebase assets use weighted average share prices
+    if not data.isRebasing:
+        config: PriceConfig = self.priceConfig
+        self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, config)
+        data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, config)
+        if data.avgPricePerShare != 0:
+            needsSave = True
+
+    # save data
+    if needsSave:
+        self.assetData[_vaultToken] = data
+
+    # register asset (if necessary)
+    if self.indexOfAsset[_vaultToken] == 0:
+        self._registerYieldPosition(_vaultToken)
+
+
+# register yield position
+
+
+@internal
+def _registerYieldPosition(_vaultToken: address):
+    aid: uint256 = self.numAssets
+    self.assets[aid] = _vaultToken
+    self.indexOfAsset[_vaultToken] = aid
+    self.numAssets = aid + 1
+
+
+# deregister yield position
+
+
+@internal
+def _deregisterYieldPosition(_vaultToken: address) -> bool:
+    numAssets: uint256 = self.numAssets
+    if numAssets == 1:
+        return False
+
+    targetIndex: uint256 = self.indexOfAsset[_vaultToken]
+    if targetIndex == 0:
+        return False
+
+    # update data
+    lastIndex: uint256 = numAssets - 1
+    self.numAssets = lastIndex
+    self.indexOfAsset[_vaultToken] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.assets[lastIndex]
+        self.assets[targetIndex] = lastItem
+        self.indexOfAsset[lastItem] = targetIndex
+
+    return True
+
+
+###################
+# Price Snapshots #
+###################
+
+
+# get weighted price
+
+
+@view
+@external
+def getWeightedPrice(_vaultToken: address) -> uint256:
+    return self._getWeightedPricePerShare(_vaultToken, self.priceConfig)
+
+
+@view
+@internal
+def _getWeightedPricePerShare(_vaultToken: address, _config: PriceConfig) -> uint256:
+    if _config.maxNumSnapshots == 0:
+        return 0
+
+    # calculate weighted average price using all valid snapshots
+    numerator: uint256 = 0
+    denominator: uint256 = 0
+    for i: uint256 in range(_config.maxNumSnapshots, bound=max_value(uint256)):
+
+        snapShot: SingleSnapShot = self.snapShots[_vaultToken][i]
+        if snapShot.pricePerShare == 0 or snapShot.totalSupply == 0 or snapShot.lastUpdate == 0:
+            continue
+
+        # too stale, skip
+        if _config.staleTime != 0 and block.timestamp > snapShot.lastUpdate + _config.staleTime:
+            continue
+
+        numerator += (snapShot.totalSupply * snapShot.pricePerShare)
+        denominator += snapShot.totalSupply
+
+    # weighted price per share
+    weightedPricePerShare: uint256 = 0
+    if numerator != 0:
+        weightedPricePerShare = numerator // denominator
+    else:
+        data: SnapShotData = self.snapShotData[_vaultToken]
+        weightedPricePerShare = data.lastSnapShot.pricePerShare
+
+    return weightedPricePerShare
+
+
+# add price snapshot
+
+
+@external 
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    legoAddr: address = self._getLegoAddrFromVaultToken(_vaultToken)
+    if legoAddr == empty(address):
+        return False
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, self.priceConfig)
+
+
+@internal 
+def _addPriceSnapshot(
+    _vaultToken: address,
+    _legoAddr: address,
+    _vaultTokenDecimals: uint256,
+    _config: PriceConfig,
+) -> bool:
+    data: SnapShotData = self.snapShotData[_vaultToken]
+
+    # already have snapshot for this time
+    if data.lastSnapShot.lastUpdate == block.timestamp:
+        return False
+
+    # check if snapshot is too recent
+    if data.lastSnapShot.lastUpdate + _config.minSnapshotDelay > block.timestamp:
+        return False
+
+    # create and store new snapshot
+    newSnapshot: SingleSnapShot = self._getLatestSnapshot(_vaultToken, _legoAddr, _vaultTokenDecimals, data.lastSnapShot, _config)
+    data.lastSnapShot = newSnapshot
+    self.snapShots[_vaultToken][data.nextIndex] = newSnapshot
+
+    # update index
+    data.nextIndex += 1
+    if data.nextIndex >= _config.maxNumSnapshots:
+        data.nextIndex = 0
+
+    # save snap shot data
+    self.snapShotData[_vaultToken] = data
+
+    log PricePerShareSnapShotAdded(
+        vaultToken = _vaultToken,
+        totalSupply = newSnapshot.totalSupply,
+        pricePerShare = newSnapshot.pricePerShare,
+    )
+    return True
+
+
+# latest snapshot
+
+
+@view
+@external
+def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
+    legoAddr: address = self._getLegoAddrFromVaultToken(_vaultToken)
+    if legoAddr == empty(address):
+        return empty(SingleSnapShot)
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    data: SnapShotData = self.snapShotData[_vaultToken]
+    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, self.priceConfig)
+
+
+@view
+@internal
+def _getLatestSnapshot(
+    _vaultToken: address,
+    _legoAddr: address,
+    _vaultTokenDecimals: uint256,
+    _lastSnapShot: SingleSnapShot,
+    _config: PriceConfig,
+) -> SingleSnapShot:
+
+    # total supply (adjusted)
+    totalSupply: uint256 = staticcall IERC20(_vaultToken).totalSupply() // (10 ** _vaultTokenDecimals)
+
+    # get current price per share
+    pricePerShare: uint256 = staticcall Lego(_legoAddr).getPricePerShare(_vaultToken, _vaultTokenDecimals)
+
+    # throttle upside (extra safety check)
+    pricePerShare = self._throttleUpside(pricePerShare, _lastSnapShot.pricePerShare, _config.maxUpsideDeviation)
+
+    return SingleSnapShot(
+        totalSupply = totalSupply,
+        pricePerShare = pricePerShare,
+        lastUpdate = block.timestamp,
+    )
+
+
+@view
+@internal
+def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256) -> uint256:
+    if _maxUpside == 0 or _prevValue == 0 or _newValue == 0:
+        return _newValue
+    maxPricePerShare: uint256 = _prevValue + (_prevValue * _maxUpside // HUNDRED_PERCENT)
+    return min(_newValue, maxPricePerShare)
+
+
+###############
+# Permissions #
+###############
+
+
+@internal
+def _canPerformAction(
+    _signer: address,
+    _action: ws.ActionType,
+    _assets: DynArray[address, MAX_ASSETS],
+    _legoIds: DynArray[uint256, MAX_LEGOS] = [],
+) -> ws.ActionData:
+
+    # TODO: implement permission checks here
+
+    return empty(ws.ActionData)
+
+
+################
+# Price Config #
+################
+
+
+@external
+def setPriceConfig(_config: PriceConfig):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._isValidPriceConfig(_config) # dev: invalid config
+
+    self.priceConfig = _config
+    log PriceConfigSet(minSnapshotDelay = _config.minSnapshotDelay, maxNumSnapshots = _config.maxNumSnapshots, maxUpsideDeviation = _config.maxUpsideDeviation, staleTime = _config.staleTime)
+
+
+# validation
+
+
+@view
+@external
+def isValidPriceConfig(_config: PriceConfig) -> bool:
+    return self._isValidPriceConfig(_config)
+
+
+@view
+@internal
+def _isValidPriceConfig(_config: PriceConfig) -> bool:
+    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
+        return False
+    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
+        return False
+    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
+        return False
+    return _config.staleTime < ONE_WEEK_SECONDS
+
+
+#############
+# Utilities #
+#############
+
+
+# approve
+
+
+@internal
+def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) -> uint256:
+    amount: uint256 = min(_amount, staticcall IERC20(_token).balanceOf(self))
+    assert amount != 0 # dev: no balance for _token
+    if _legoAddr != empty(address):
+        assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value = True) # dev: appr
+    return amount
+
+
+# lego access
+
+
+@internal
+def _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
+    if _legoAddr == empty(address):
+        return False
+
+    targetAddr: address = empty(address)
+    accessAbi: String[64] = empty(String[64])
+    numInputs: uint256 = 0
+    targetAddr, accessAbi, numInputs = staticcall Lego(_legoAddr).getAccessForLego(self, _action)
+
+    # nothing to do here
+    if targetAddr == empty(address):
+        return False
+
+    method_abi: bytes4 = convert(slice(keccak256(accessAbi), 0, 4), bytes4)
+    success: bool = False
+    response: Bytes[32] = b""
+
+    # assumes input is: lego addr (operator)
+    if numInputs == 1:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(_legoAddr, bytes32),
+            ),
+            revert_on_failure = False,
+            max_outsize = 32,
+        )
+    
+    # assumes input (and order) is: user (self), lego addr (operator)
+    elif numInputs == 2:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(self, bytes32),
+                convert(_legoAddr, bytes32),
+            ),
+            revert_on_failure = False,
+            max_outsize = 32,
+        )
+
+    # assumes input (and order) is: user (self), lego addr (operator), allowed bool
+    elif numInputs == 3:
+        success, response = raw_call(
+            targetAddr,
+            concat(
+                method_abi,
+                convert(self, bytes32),
+                convert(_legoAddr, bytes32),
+                convert(True, bytes32),
+            ),
+            revert_on_failure = False,
+            max_outsize = 32,
+        )
+
+    assert success # dev: failed to set operator
+    return True
+
+
+# mini addys
+
+
+@view
+@internal
+def _packMiniAddys(
+    _ledger: address,
+    _missionControl: address,
+    _legoBook: address,
+    _appraiser: address,
+) -> ws.MiniAddys:
+    return ws.MiniAddys(
+        ledger = _ledger,
+        missionControl = _missionControl,
+        legoBook = _legoBook,
+        appraiser = _appraiser,
+    )
+
+
+# get lego data from vault token
+
+
+@view
+@internal
+def _getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
+    unyHq: address = UNDY_HQ
+    ledger: address = staticcall Registry(unyHq).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return 0, empty(address)
+    data: VaultToken = staticcall Ledger(ledger).vaultTokens(_vaultToken)
+    if data.legoId == 0:
+        return 0, empty(address)
+    legoBook: address = staticcall Registry(unyHq).getAddr(LEGO_BOOK_ID)
+    if legoBook == empty(address):
+        return 0, empty(address)
+    return data.legoId, staticcall Registry(legoBook).getAddr(data.legoId)
+
+
+@view
+@internal
+def _getLegoAddrFromVaultToken(_vaultToken: address) -> address:
+    na: uint256 = 0
+    legoAddr: address = empty(address)
+    na, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
+    return legoAddr
+
+
+# is signer switchboard
+
+
+@view
+@internal
+def _isSwitchboardAddr(_signer: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
