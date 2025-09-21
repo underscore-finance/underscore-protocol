@@ -150,19 +150,25 @@ def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: ad
 @view
 @external
 def maxWithdraw(_owner: address) -> uint256:
-    return vaultWallet._getTotalAssets(False)
+    ownerShares: uint256 = token.balanceOf[_owner]
+    if ownerShares == 0:
+        return 0
+    availableAssets: uint256 = vaultWallet._getTotalAssets(False)
+    ownerAssets: uint256 = self._sharesToAmount(ownerShares, token.totalSupply, availableAssets, False)
+    return min(ownerAssets, availableAssets)
 
 
 @view
 @external
 def previewWithdraw(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), True)
 
 
+@nonreentrant
 @external
 def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
     asset: address = ASSET
-    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)
+    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), True)
     self._redeem(asset, _assets, shares, msg.sender, _receiver, _owner)
     return shares
 
@@ -182,6 +188,7 @@ def previewRedeem(_shares: uint256) -> uint256:
     return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)
 
 
+@nonreentrant
 @external
 def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
     asset: address = ASSET
@@ -215,10 +222,9 @@ def _redeem(
     if _sender != _owner:
         token._spendAllowance(_owner, _sender, _shares)
 
-    # TODO: withdraw from yield opportunity
-    # always get 1-3% extra to make sure we have enough 
-    # leave leftovers here
-    # assert amount available in wallet >= _amount
+    # withdraw from yield opportunity
+    availAmount: uint256 = vaultWallet._prepareRedemption(_amount)
+    assert availAmount >= _amount # dev: not enough available
 
     token._burn(_owner, _shares)
     assert extcall IERC20(_asset).transfer(_recipient, _amount, default_return_value=True) # dev: withdrawal failed

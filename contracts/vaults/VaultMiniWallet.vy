@@ -67,6 +67,9 @@ event PriceConfigSet:
     maxUpsideDeviation: uint256
     staleTime: uint256
 
+event RedemptionBufferSet:
+    buffer: uint256
+
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -78,6 +81,9 @@ priceConfig: public(PriceConfig)
 snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
 snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
 
+# redemption config
+redemptionBuffer: public(uint256) # buffer in basis points (e.g. 200 = 2%)
+
 # constants
 ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
@@ -85,6 +91,7 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
 LEDGER_ID: constant(uint256) = 1
 LEGO_BOOK_ID: constant(uint256) = 3
@@ -118,6 +125,9 @@ def __init__(
     )
     assert self._isValidPriceConfig(config) # dev: invalid config
     self.priceConfig = config
+
+    # set default redemption buffer to 2% (200 basis points)
+    self.redemptionBuffer = 2_00
 
 
 #########
@@ -414,9 +424,6 @@ def claimRewards(
 ################
 
 
-# total assets - safe (weighted share price)
-
-
 @view
 @external
 def getTotalAssets(_shouldGetMax: bool) -> uint256:
@@ -482,8 +489,10 @@ def _prepareRedemption(_amount: uint256) -> uint256:
     if withdrawnAmount >= _amount:
         return withdrawnAmount
 
-    # add 2% buffer to make sure we pull out enough for redemption
-    targetWithdrawAmount: uint256 = _amount * 102_00 // HUNDRED_PERCENT
+    # buffer to make sure we pull out enough for redemption
+    bufferMultiplier: uint256 = HUNDRED_PERCENT + self.redemptionBuffer
+    targetWithdrawAmount: uint256 = _amount * bufferMultiplier // HUNDRED_PERCENT
+    assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     numAssets: uint256 = self.numAssets
     if numAssets == 0:
@@ -526,11 +535,18 @@ def _prepareRedemption(_amount: uint256) -> uint256:
         na3: uint256 = 0
         na1, na2, underlyingAmount, na3 = self._withdrawFromYield(vaultToken, vaultTokensNeeded, empty(bytes32), True, ad)
 
+        # add to withdrawn amount
         withdrawnAmount += underlyingAmount
 
-        # TODO: save to deregister later
-        if vaultTokensNeeded > vaultTokenBalance:
-            pass
+        # add to deregister list
+        if vaultTokensNeeded > vaultTokenBalance and len(assetsToDeregister) < MAX_DEREGISTER_ASSETS:
+            assetsToDeregister.append(vaultToken)
+
+    # deregister vault positions
+    for asset: address in assetsToDeregister:
+        self._deregisterYieldPosition(asset)
+
+    return withdrawnAmount
 
 
 ###################
@@ -825,6 +841,19 @@ def _isValidPriceConfig(_config: PriceConfig) -> bool:
     if _config.maxUpsideDeviation > HUNDRED_PERCENT:
         return False
     return _config.staleTime < ONE_WEEK_SECONDS
+
+
+#####################
+# Redemption Buffer #
+#####################
+
+
+@external
+def setRedemptionBuffer(_buffer: uint256):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
+    self.redemptionBuffer = _buffer
+    log RedemptionBufferSet(buffer = _buffer)
 
 
 #############
