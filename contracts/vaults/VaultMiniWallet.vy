@@ -443,7 +443,12 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
             continue
 
         vaultTokenBalance: uint256 = staticcall IERC20(vaultToken).balanceOf(self)
+        if vaultTokenBalance == 0:
+            continue
+
         data: LocalVaultTokenData = self.assetData[vaultToken]
+        if data.legoId == 0 or data.vaultTokenDecimals == 0:
+            continue
 
         # add to total assets
         if data.isRebasing:
@@ -461,6 +466,71 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
                 totalAssets += min(avgBalance, trueBalance)
 
     return totalAssets
+
+
+###################
+# Redemption Prep #
+###################
+
+
+@internal
+def _prepareRedemption(_amount: uint256) -> uint256:
+    vaultAsset: address = VAULT_ASSET
+    ad: ws.ActionData = empty(ws.ActionData) # TODO: get this
+
+    withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
+    if withdrawnAmount >= _amount:
+        return withdrawnAmount
+
+    # add 2% buffer to make sure we pull out enough for redemption
+    targetWithdrawAmount: uint256 = _amount * 102_00 // HUNDRED_PERCENT
+
+    numAssets: uint256 = self.numAssets
+    if numAssets == 0:
+        return withdrawnAmount
+
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
+        if withdrawnAmount >= targetWithdrawAmount:
+            break
+
+        # get asset addr
+        vaultToken: address = self.assets[i]
+        if vaultToken == empty(address):
+            continue
+
+        vaultTokenBalance: uint256 = staticcall IERC20(vaultToken).balanceOf(self)
+        if vaultTokenBalance == 0:
+            continue
+
+        data: LocalVaultTokenData = self.assetData[vaultToken]
+        if data.legoId == 0 or data.vaultTokenDecimals == 0:
+            continue
+
+        # get price per share
+        pricePerShare: uint256 = 0
+        if data.isRebasing:
+            pricePerShare = 10 ** data.vaultTokenDecimals
+        else:
+            legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
+            pricePerShare = staticcall Lego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
+
+        # calculate how many vault tokens we need to withdraw
+        amountStillNeeded: uint256 = targetWithdrawAmount - withdrawnAmount
+        vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** data.vaultTokenDecimals) // pricePerShare
+
+        # withdraw from yield opportunity
+        na1: uint256 = 0
+        na2: address = empty(address)
+        underlyingAmount: uint256 = 0
+        na3: uint256 = 0
+        na1, na2, underlyingAmount, na3 = self._withdrawFromYield(vaultToken, vaultTokensNeeded, empty(bytes32), True, ad)
+
+        withdrawnAmount += underlyingAmount
+
+        # TODO: save to deregister later
+        if vaultTokensNeeded > vaultTokenBalance:
+            pass
 
 
 ###################
