@@ -44,6 +44,9 @@ interface Registry:
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
 
+interface VaultRegistry:
+    def hasBeenEarnVault(_vaultAddr: address) -> bool: view
+
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
 
@@ -140,6 +143,7 @@ LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
+VAULT_REGISTRY_ID: constant(uint256) = 10
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
@@ -1017,10 +1021,8 @@ def removeVaultManager(_vault: address, _manager: address) -> bool:
 @view
 @internal
 def _isValidVault(_vault: address) -> bool:
-
-    # TODO: add validation
-
-    return True
+    vaultRegistry: address = staticcall Registry(UNDY_HQ).getAddr(VAULT_REGISTRY_ID)
+    return staticcall VaultRegistry(vaultRegistry).hasBeenEarnVault(_vault)
 
 
 # switchboard validation

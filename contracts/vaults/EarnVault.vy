@@ -140,6 +140,8 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
 
 @internal
 def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: address):
+    assert vaultWallet.canDeposit # dev: cannot deposit
+
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
@@ -199,6 +201,7 @@ def previewRedeem(_shares: uint256) -> uint256:
 @nonreentrant
 @external
 def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
+    assert vaultWallet.canWithdraw # dev: cannot withdraw
     asset: address = ASSET
 
     shares: uint256 = _shares

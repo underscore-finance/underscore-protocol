@@ -82,6 +82,14 @@ event FrozenSet:
     isFrozen: bool
     caller: indexed(address)
 
+event CanDepositSet:
+    canDeposit: bool
+    caller: indexed(address)
+
+event CanWithdrawSet:
+    canWithdraw: bool
+    caller: indexed(address)
+
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -96,6 +104,8 @@ snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset ->
 # other config
 redemptionBuffer: public(uint256) # buffer in basis points (e.g. 200 = 2%)
 isFrozen: public(bool)
+canDeposit: public(bool)
+canWithdraw: public(bool)
 
 # wallet backpack contracts
 sentinel: public(address)
@@ -532,7 +542,6 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
     ad: ws.ActionData = self._getActionDataBundle(0, _sender)
-    assert not ad.isFrozen # dev: frozen vault
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
@@ -950,20 +959,6 @@ def setRedemptionBuffer(_buffer: uint256):
     log RedemptionBufferSet(buffer = _buffer)
 
 
-################
-# Freeze Vault #
-################
-
-
-@external
-def setFrozen(_isFrozen: bool):
-    if not self._isSwitchboardAddr(msg.sender):
-        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
-    assert _isFrozen != self.isFrozen # dev: nothing to change
-    self.isFrozen = _isFrozen
-    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
-
-
 ####################
 # Manager Settings #
 ####################
@@ -1028,6 +1023,38 @@ def removeManager(_manager: address):
         lastItem: address = self.managers[lastIndex]
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
+
+
+#####################
+# Security Features #
+#####################
+
+
+@external
+def setFrozen(_isFrozen: bool):
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) and _isFrozen # dev: no perms
+    assert _isFrozen != self.isFrozen # dev: nothing to change
+    self.isFrozen = _isFrozen
+    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
+
+
+@external
+def setCanDeposit(_canDeposit: bool):
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) and not _canDeposit # dev: no perms
+    assert _canDeposit != self.canDeposit # dev: nothing to change
+    self.canDeposit = _canDeposit
+    log CanDepositSet(canDeposit=_canDeposit, caller=msg.sender)
+
+
+@external
+def setCanWithdraw(_canWithdraw: bool):
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) and not _canWithdraw # dev: no perms
+    assert _canWithdraw != self.canWithdraw # dev: nothing to change
+    self.canWithdraw = _canWithdraw
+    log CanWithdrawSet(canWithdraw=_canWithdraw, caller=msg.sender)
 
 
 #############
