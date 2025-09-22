@@ -219,6 +219,15 @@ def _checkTransactionLimits(
     return True
 
 
+# vault manager validation
+
+
+@view
+@external
+def canSignerManageVault(_config: wcs.ManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS]) -> bool:
+    return self._checkManagerPermsAndLimitsPreAction(empty(wcs.ManagerData), _action, _assets, _legoIds, empty(address), empty(wcs.ManagerLimits), _config.legoPerms, empty(wcs.TransferPerms), _config.allowedAssets)
+
+
 ####################################
 # Manager Validation - Post Action #
 ####################################

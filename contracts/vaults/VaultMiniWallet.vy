@@ -6,9 +6,17 @@ from interfaces import YieldLego as YieldLego
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
+from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
+
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
+    def isLockedSigner(_signer: address) -> bool: view
+
+interface Sentinel:
+    def canSignerManageVault(_config: wcs.ManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = []) -> bool: view
 
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
@@ -70,6 +78,10 @@ event PriceConfigSet:
 event RedemptionBufferSet:
     buffer: uint256
 
+event FrozenSet:
+    isFrozen: bool
+    caller: indexed(address)
+
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -81,8 +93,19 @@ priceConfig: public(PriceConfig)
 snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
 snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
 
-# redemption config
+# other config
 redemptionBuffer: public(uint256) # buffer in basis points (e.g. 200 = 2%)
+isFrozen: public(bool)
+
+# wallet backpack contracts
+sentinel: public(address)
+highCommand: public(address)
+
+# managers
+managerSettings: public(HashMap[address, wcs.ManagerSettings])
+managers: public(HashMap[uint256, address]) # index -> manager
+indexOfManager: public(HashMap[address, uint256]) # manager -> index
+numManagers: public(uint256) # num managers
 
 # constants
 ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
@@ -93,9 +116,15 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
+# registry ids
 LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
+HATCHERY_ID: constant(uint256) = 5
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
+APPRAISER_ID: constant(uint256) = 7
+BILLING_ID: constant(uint256) = 9
 
 UNDY_HQ: immutable(address)
 VAULT_ASSET: immutable(address)
@@ -105,16 +134,35 @@ VAULT_ASSET: immutable(address)
 def __init__(
     _undyHq: address,
     _vaultAsset: address,
+    # managers
+    _startingAgent: address,
+    _starterAgentSettings: wcs.ManagerSettings,
+    # wallet backpack addrs
+    _sentinel: address,
+    _highCommand: address,
+    # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
     _maxUpsideDeviation: uint256,
     _staleTime: uint256,
 ):
+    # not using 0 index
+    self.numManagers = 1
     self.numAssets = 1
 
     assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
     UNDY_HQ = _undyHq
     VAULT_ASSET = _vaultAsset
+
+    # initial agent
+    if _startingAgent != empty(address):
+        self.managerSettings[_startingAgent] = _starterAgentSettings
+        self._registerManager(_startingAgent)
+
+    # wallet backpack addrs
+    assert empty(address) not in [_sentinel, _highCommand] # dev: invalid addrs
+    self.sentinel = _sentinel
+    self.highCommand = _highCommand
 
     # set price config
     config: PriceConfig = PriceConfig(
@@ -481,9 +529,9 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 
 
 @internal
-def _prepareRedemption(_amount: uint256) -> uint256:
+def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
-    ad: ws.ActionData = empty(ws.ActionData) # TODO: get this
+    ad: ws.ActionData = self._getActionDataBundle(0, _sender)
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
@@ -498,12 +546,10 @@ def _prepareRedemption(_amount: uint256) -> uint256:
     if numAssets == 0:
         return withdrawnAmount
 
-    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
         if withdrawnAmount >= targetWithdrawAmount:
             break
 
-        # get asset addr
         vaultToken: address = self.assets[i]
         if vaultToken == empty(address):
             continue
@@ -516,13 +562,15 @@ def _prepareRedemption(_amount: uint256) -> uint256:
         if data.legoId == 0 or data.vaultTokenDecimals == 0:
             continue
 
+        ad.legoId = data.legoId
+        ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(data.legoId)
+
         # get price per share
         pricePerShare: uint256 = 0
         if data.isRebasing:
             pricePerShare = 10 ** data.vaultTokenDecimals
         else:
-            legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
-            pricePerShare = staticcall Lego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
+            pricePerShare = staticcall Lego(ad.legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
 
         # calculate how many vault tokens we need to withdraw
         amountStillNeeded: uint256 = targetWithdrawAmount - withdrawnAmount
@@ -800,12 +848,57 @@ def _canPerformAction(
     _signer: address,
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS] = [],
+    _legoIds: DynArray[uint256, MAX_LEGOS],
 ) -> ws.ActionData:
+    legoId: uint256 = 0
+    if len(_legoIds) != 0:
+        legoId = _legoIds[0]
 
-    # TODO: implement permission checks here
+    # main data for this transaction
+    ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
 
-    return empty(ws.ActionData)
+    # cannot perform any actions if vault is frozen
+    assert not ad.isFrozen # dev: frozen vault
+
+    # make sure signer is not locked
+    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
+
+    # main validation
+    hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerManageVault(
+        self.managerSettings[_signer],
+        _action,
+        _assets,
+        _legoIds,
+    )
+
+    # IMPORTANT -- checks if the signer is allowed to perform the action
+    assert hasPermission # dev: no permission
+
+    return ad
+
+
+# is signer switchboard
+
+
+@view
+@internal
+def _isSwitchboardAddr(_signer: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
+
+
+# can perform security action
+
+
+@view
+@internal
+def _canPerformSecurityAction(_addr: address) -> bool:
+    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
+    if missionControl == empty(address):
+        return False
+    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
 
 
 ################
@@ -854,6 +947,86 @@ def setRedemptionBuffer(_buffer: uint256):
     assert _buffer <= 10_00 # dev: buffer too high (max 10%)
     self.redemptionBuffer = _buffer
     log RedemptionBufferSet(buffer = _buffer)
+
+
+################
+# Freeze Vault #
+################
+
+
+@external
+def setFrozen(_isFrozen: bool):
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+    assert _isFrozen != self.isFrozen # dev: nothing to change
+    self.isFrozen = _isFrozen
+    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
+
+
+####################
+# Manager Settings #
+####################
+
+
+# add manager
+
+
+@external
+def addManager(_manager: address, _config: wcs.ManagerSettings):
+    assert msg.sender == self.highCommand # dev: no perms
+    self.managerSettings[_manager] = _config
+    self._registerManager(_manager)
+
+
+# update manager
+
+
+@external
+def updateManager(_manager: address, _config: wcs.ManagerSettings):
+    assert msg.sender == self.highCommand # dev: no perms
+    self.managerSettings[_manager] = _config
+
+
+# register manager
+
+
+@internal
+def _registerManager(_manager: address):
+    if self.indexOfManager[_manager] != 0:
+        return
+    mid: uint256 = self.numManagers
+    self.managers[mid] = _manager
+    self.indexOfManager[_manager] = mid
+    self.numManagers = mid + 1
+
+
+# remove manager
+
+
+@external
+def removeManager(_manager: address):
+    assert msg.sender == self.highCommand # dev: no perms
+
+    numManagers: uint256 = self.numManagers
+    if numManagers == 1:
+        return
+
+    targetIndex: uint256 = self.indexOfManager[_manager]
+    if targetIndex == 0:
+        return
+
+    self.managerSettings[_manager] = empty(wcs.ManagerSettings)
+
+    # update data
+    lastIndex: uint256 = numManagers - 1
+    self.numManagers = lastIndex
+    self.indexOfManager[_manager] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.managers[lastIndex]
+        self.managers[targetIndex] = lastItem
+        self.indexOfManager[lastItem] = targetIndex
 
 
 #############
@@ -956,6 +1129,50 @@ def _packMiniAddys(
     )
 
 
+# action data bundle
+
+
+@view
+@external
+def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+    return self._getActionDataBundle(_legoId, _signer)
+
+
+@view
+@internal
+def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+    hq: address = UNDY_HQ
+
+    # lego details
+    legoBook: address = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
+    legoAddr: address = empty(address)
+    if _legoId != 0 and legoBook != empty(address):
+        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
+
+    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
+    return ws.ActionData(
+        ledger = ledger,
+        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID),
+        legoBook = legoBook,
+        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID),
+        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
+        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
+        billing = staticcall Registry(hq).getAddr(BILLING_ID),
+        wallet = empty(address),
+        walletConfig = self,
+        walletOwner = empty(address),
+        inEjectMode = False,
+        isFrozen = self.isFrozen,
+        lastTotalUsdValue = 0,
+        signer = _signer,
+        isManager = True,
+        legoId = _legoId,
+        legoAddr = legoAddr,
+        eth = empty(address),
+        weth = empty(address),
+    )
+
+
 # get lego data from vault token
 
 
@@ -982,15 +1199,3 @@ def _getLegoAddrFromVaultToken(_vaultToken: address) -> address:
     legoAddr: address = empty(address)
     na, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
     return legoAddr
-
-
-# is signer switchboard
-
-
-@view
-@internal
-def _isSwitchboardAddr(_signer: address) -> bool:
-    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
-    if switchboard == empty(address):
-        return False
-    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)

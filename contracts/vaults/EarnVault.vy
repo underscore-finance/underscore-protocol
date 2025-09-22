@@ -16,6 +16,7 @@ from contracts.vaults import VaultMiniWallet as vaultWallet
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
+from interfaces import WalletConfigStructs as wcs
 
 event Deposit:
     sender: indexed(address)
@@ -42,6 +43,13 @@ def __init__(
     _initialGov: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
+    # managers
+    _startingAgent: address,
+    _starterAgentSettings: wcs.ManagerSettings,
+    # wallet backpack addrs
+    _sentinel: address,
+    _highCommand: address,
+    # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
     _maxUpsideDeviation: uint256,
@@ -51,7 +59,7 @@ def __init__(
     ASSET = _asset
 
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _initialGov, _minHqTimeLock, _maxHqTimeLock, 0, empty(address))
-    vaultWallet.__init__(_undyHq, _asset, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
+    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _starterAgentSettings, _sentinel, _highCommand, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
 
 
 @view
@@ -223,7 +231,7 @@ def _redeem(
         token._spendAllowance(_owner, _sender, _shares)
 
     # withdraw from yield opportunity
-    availAmount: uint256 = vaultWallet._prepareRedemption(_amount)
+    availAmount: uint256 = vaultWallet._prepareRedemption(_amount, _sender)
     assert availAmount >= _amount # dev: not enough available
 
     token._burn(_owner, _shares)
