@@ -174,7 +174,7 @@ def test_permit_signature_malleability(undy_token, special_signer, bob, signPerm
     amount = 100 * EIGHTEEN_DECIMALS
     signature, deadline = signPermit(undy_token, special_signer, bob, amount)
     malleable_signature = signature[:-1] + bytes([signature[-1] ^ 1])
-    with boa.reverts("invalid ecrecover response length"):
+    with boa.reverts("invalid v parameter"):
         undy_token.permit(special_signer, bob, amount, deadline, malleable_signature)
 
 
