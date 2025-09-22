@@ -532,6 +532,7 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
     ad: ws.ActionData = self._getActionDataBundle(0, _sender)
+    assert not ad.isFrozen # dev: frozen vault
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:

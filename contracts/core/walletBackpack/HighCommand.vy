@@ -30,6 +30,13 @@ interface UserWalletConfig:
     def timeLock() -> uint256: view
     def owner() -> address: view
 
+interface EarnVault:
+    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def managerSettings(_manager: address) -> wcs.ManagerSettings: view
+    def indexOfManager(_addr: address) -> uint256: view
+    def removeManager(_manager: address): nonpayable
+
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
@@ -37,11 +44,15 @@ interface Registry:
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
 
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
+
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
+
 
 event GlobalManagerSettingsModified:
     user: indexed(address)
@@ -109,10 +120,26 @@ event ManagerActivationLengthAdjusted:
     activationLength: uint256
     didRestart: bool
 
+event VaultManagerSettingsModified:
+    vault: indexed(address)
+    manager: indexed(address)
+    canManageYield: bool
+    canBuyAndSell: bool
+    canClaimRewards: bool
+    numAllowedLegos: uint256
+    numAllowedAssets: uint256
+    isNew: bool
+
+event VaultManagerRemoved:
+    vault: indexed(address)
+    manager: indexed(address)
+    caller: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
@@ -872,3 +899,137 @@ def _getManagerSettingsBundle(_userWallet: address, _manager: address) -> wcs.Ma
         legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),
         globalManagerSettings = staticcall UserWalletConfig(walletConfig).globalManagerSettings(),
     )
+
+
+##########################
+# Vault Manager Settings #
+##########################
+
+
+# add vault manager
+
+
+@external
+def addVaultManager(
+    _vault: address,
+    _manager: address,
+    _legoPerms: wcs.LegoPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: only switchboard
+    assert self._isValidVault(_vault) # dev: invalid vault
+    assert _manager != empty(address) # dev: invalid manager
+    assert staticcall EarnVault(_vault).indexOfManager(_manager) == 0 # dev: manager already exists
+
+    # validate inputs
+    assert self._validateLegoPerms(_legoPerms, staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)) # dev: invalid lego perms
+    assert self._validateAllowedAssets(_allowedAssets) # dev: invalid allowed assets
+
+    # create config with default start/expiry
+    config: wcs.ManagerSettings = wcs.ManagerSettings(
+        startBlock = 0,
+        expiryBlock = 0, # not relevant for vault managers
+        limits = empty(wcs.ManagerLimits),
+        legoPerms = _legoPerms,
+        whitelistPerms = empty(wcs.WhitelistPerms),
+        transferPerms = empty(wcs.TransferPerms),
+        allowedAssets = _allowedAssets,
+        canClaimLoot = True,
+    )
+
+    extcall EarnVault(_vault).addManager(_manager, config)
+    log VaultManagerSettingsModified(
+        vault = _vault,
+        manager = _manager,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        numAllowedAssets = len(_allowedAssets),
+        isNew = True,
+    )
+    return True
+
+
+# update vault manager
+
+
+@external
+def updateVaultManager(
+    _vault: address,
+    _manager: address,
+    _legoPerms: wcs.LegoPerms,
+    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: only switchboard
+    assert self._isValidVault(_vault) # dev: invalid vault
+    assert staticcall EarnVault(_vault).indexOfManager(_manager) != 0 # dev: manager not found
+
+    # validate inputs
+    assert self._validateLegoPerms(_legoPerms, staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)) # dev: invalid lego perms
+    assert self._validateAllowedAssets(_allowedAssets) # dev: invalid allowed assets
+
+    # create updated config
+    config: wcs.ManagerSettings = wcs.ManagerSettings(
+        startBlock = 0,
+        expiryBlock = 0, # not relevant for vault managers
+        limits = empty(wcs.ManagerLimits),
+        legoPerms = _legoPerms,
+        whitelistPerms = empty(wcs.WhitelistPerms),
+        transferPerms = empty(wcs.TransferPerms),
+        allowedAssets = _allowedAssets,
+        canClaimLoot = True,
+    )
+
+    extcall EarnVault(_vault).updateManager(_manager, config)
+    log VaultManagerSettingsModified(
+        vault = _vault,
+        manager = _manager,
+        canManageYield = _legoPerms.canManageYield,
+        canBuyAndSell = _legoPerms.canBuyAndSell,
+        canClaimRewards = _legoPerms.canClaimRewards,
+        numAllowedLegos = len(_legoPerms.allowedLegos),
+        numAllowedAssets = len(_allowedAssets),
+        isNew = False,
+    )
+    return True
+
+
+# remove vault manager
+
+
+@external
+def removeVaultManager(_vault: address, _manager: address) -> bool:
+    assert self._isValidVault(_vault) # dev: invalid vault
+
+    # allow switchboard or security action
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    extcall EarnVault(_vault).removeManager(_manager)
+    log VaultManagerRemoved(vault = _vault, manager = _manager, caller = msg.sender)
+    return True
+
+
+# vault validation
+
+
+@view
+@internal
+def _isValidVault(_vault: address) -> bool:
+
+    # TODO: add validation
+
+    return True
+
+
+# switchboard validation
+
+
+@view
+@internal
+def _isSwitchboardAddr(_addr: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
