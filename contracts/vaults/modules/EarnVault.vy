@@ -11,7 +11,7 @@ from contracts.modules import Erc20Token as token
 
 exports: vaultWallet.__interface__
 initializes: vaultWallet
-from contracts.vaults import VaultMiniWallet as vaultWallet
+from contracts.vaults.modules import VaultMiniWallet as vaultWallet
 
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
@@ -43,9 +43,7 @@ def __init__(
     _initialGov: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
-    # managers
     _startingAgent: address,
-    _starterAgentSettings: wcs.ManagerSettings,
     # wallet backpack addrs
     _sentinel: address,
     _highCommand: address,
@@ -59,7 +57,7 @@ def __init__(
     ASSET = _asset
 
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _initialGov, _minHqTimeLock, _maxHqTimeLock, 0, empty(address))
-    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _starterAgentSettings, _sentinel, _highCommand, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
+    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _sentinel, _highCommand, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
 
 
 @view

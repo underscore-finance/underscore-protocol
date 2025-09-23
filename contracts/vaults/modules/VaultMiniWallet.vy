@@ -18,6 +18,9 @@ interface MissionControl:
 interface Sentinel:
     def canSignerManageVault(_config: wcs.ManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = []) -> bool: view
 
+interface HighCommand:
+    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
+
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
 
@@ -144,9 +147,7 @@ VAULT_ASSET: immutable(address)
 def __init__(
     _undyHq: address,
     _vaultAsset: address,
-    # managers
     _startingAgent: address,
-    _starterAgentSettings: wcs.ManagerSettings,
     # wallet backpack addrs
     _sentinel: address,
     _highCommand: address,
@@ -159,6 +160,8 @@ def __init__(
     # not using 0 index
     self.numManagers = 1
     self.numAssets = 1
+    self.canDeposit = True
+    self.canWithdraw = True
 
     assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
     UNDY_HQ = _undyHq
@@ -166,7 +169,7 @@ def __init__(
 
     # initial agent
     if _startingAgent != empty(address):
-        self.managerSettings[_startingAgent] = _starterAgentSettings
+        self.managerSettings[_startingAgent] = staticcall HighCommand(_highCommand).createStarterAgentSettings(0)
         self._registerManager(_startingAgent)
 
     # wallet backpack addrs

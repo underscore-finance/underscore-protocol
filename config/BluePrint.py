@@ -36,6 +36,11 @@ PARAMS = {
         "CHEQUE_MIN_EXPENSIVE_DELAY": 12 * HOUR_IN_BLOCKS,
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 3 * MONTH_IN_BLOCKS,
+        # earn vault params
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24, # 1 day
     },
     "local": {
         # undy hq - gov changes (blocks)
@@ -67,6 +72,11 @@ PARAMS = {
         "CHEQUE_MIN_EXPENSIVE_DELAY": 1 * DAY_IN_BLOCKS,
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 7 * DAY_IN_BLOCKS,
+        # earn vault params
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24 * 3, # 3 days
     },
 }
 

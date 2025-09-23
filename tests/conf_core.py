@@ -80,6 +80,10 @@ def undy_hq(
     assert undy_hq_deploy.startAddNewAddressToRegistry(billing, "Billing", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(billing, sender=deploy3r) == 9
 
+    # 10
+    assert undy_hq_deploy.startAddNewAddressToRegistry(vault_registry, "Vault Registry", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(vault_registry, sender=deploy3r) == 10
+
     # special permission setup
 
     # switchboard can set token blacklists
@@ -327,6 +331,21 @@ def billing(undy_hq_deploy, fork):
     )
 
 
+# vault registry
+
+
+@pytest.fixture(scope="session")
+def vault_registry(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/VaultRegistry.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="vault_registry",
+    )
+
+
 ###################
 # Wallet Backpack #
 ###################
@@ -487,3 +506,28 @@ def user_wallet_config_template():
 @pytest.fixture(scope="session")
 def agent_template():
     return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
+
+
+###############
+# Earn Vaults #
+###############
+
+
+@pytest.fixture(scope="session")
+def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command):
+    return boa.load(
+        "contracts/vaults/UndyUsd.vy",
+        TOKENS[fork]["USDC"],
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        sentinel,
+        high_command,
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        name="undy_usd_vault",
+    )
