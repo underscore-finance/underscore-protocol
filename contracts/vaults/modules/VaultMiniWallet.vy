@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 from interfaces import YieldLego as YieldLego
 from interfaces import Wallet as wi

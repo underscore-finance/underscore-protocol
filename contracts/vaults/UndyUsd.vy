@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 exports: earnVault.__interface__
 initializes: earnVault
@@ -13,7 +14,6 @@ from interfaces import WalletConfigStructs as wcs
 def __init__(
     _asset: address,
     _undyHq: address,
-    _initialGov: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
@@ -31,7 +31,6 @@ def __init__(
         "Underscore Blue Chip USD",
         "undyUSD",
         _undyHq,
-        _initialGov,
         _minHqTimeLock,
         _maxHqTimeLock,
         _startingAgent,

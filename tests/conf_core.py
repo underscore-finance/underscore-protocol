@@ -37,6 +37,7 @@ def undy_hq(
     wallet_backpack_deploy,
     loot_distributor,
     billing,
+    vault_registry,
 ):
     # data
 
@@ -513,13 +514,16 @@ def agent_template():
 ###############
 
 
+# usdc vault
+
+
 @pytest.fixture(scope="session")
-def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command):
+def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command, alpha_token):
+    asset = alpha_token.address if fork == "local" else TOKENS[fork]["USDC"]
     return boa.load(
         "contracts/vaults/UndyUsd.vy",
-        TOKENS[fork]["USDC"],
+        asset,
         undy_hq_deploy,
-        ZERO_ADDRESS,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
         starter_agent,

@@ -1,13 +1,14 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 implements: IERC4626
 implements: IERC20
 
 exports: token.__interface__
 initializes: token
-from contracts.modules import Erc20Token as token
+from contracts.vaults.modules import VaultErc20Token as token
 
 exports: vaultWallet.__interface__
 initializes: vaultWallet
@@ -40,7 +41,6 @@ def __init__(
     _tokenName: String[64],
     _tokenSymbol: String[32],
     _undyHq: address,
-    _initialGov: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
@@ -56,7 +56,7 @@ def __init__(
     assert _asset != empty(address) # dev: invalid asset
     ASSET = _asset
 
-    token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _initialGov, _minHqTimeLock, _maxHqTimeLock, 0, empty(address))
+    token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _minHqTimeLock, _maxHqTimeLock)
     vaultWallet.__init__(_undyHq, _asset, _startingAgent, _sentinel, _highCommand, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
 
 
