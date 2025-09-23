@@ -518,8 +518,8 @@ def agent_template():
 
 
 @pytest.fixture(scope="session")
-def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command, alpha_token):
-    asset = alpha_token.address if fork == "local" else TOKENS[fork]["USDC"]
+def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command, yield_underlying_token):
+    asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
     return boa.load(
         "contracts/vaults/UndyUsd.vy",
         asset,

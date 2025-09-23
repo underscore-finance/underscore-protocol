@@ -6,24 +6,24 @@ from conf_utils import filter_logs
 from config.BluePrint import PARAMS
 
 
-def test_erc4626_initialization(undy_usd_vault, alpha_token):
+def test_erc4626_initialization(undy_usd_vault, yield_underlying_token):
     """Test ERC4626 initialization"""
-    assert undy_usd_vault.asset() == alpha_token.address
+    assert undy_usd_vault.asset() == yield_underlying_token.address
     assert undy_usd_vault.totalAssets() == 0
 
 
 def test_erc4626_deposit(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test basic deposit functionality"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Check balances
     assert undy_usd_vault.balanceOf(bob) == shares
@@ -34,7 +34,7 @@ def test_erc4626_deposit(
 
 def test_erc4626_deposit_max_value(
     undy_usd_vault,
-    alpha_token,
+    yield_underlying_token,
     sally,
     bob,
     governance,
@@ -42,27 +42,27 @@ def test_erc4626_deposit_max_value(
     """Test deposit with max_value(uint256)"""
     # First mint enough tokens to the sally
     mint_amount = 1000 * EIGHTEEN_DECIMALS
-    alpha_token.mint(sally, mint_amount, sender=governance.address)
+    yield_underlying_token.mint(sally, mint_amount, sender=governance.address)
     
     # Approve the contract to spend tokens
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=sally)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=sally)
     
     # Deposit max value - this should use all available tokens
     shares = undy_usd_vault.deposit(MAX_UINT256, bob, sender=sally)
     assert shares > 0
     assert undy_usd_vault.balanceOf(bob) == shares
     assert undy_usd_vault.totalAssets() == mint_amount
-    assert alpha_token.balanceOf(sally) == 0  # All tokens should be used
+    assert yield_underlying_token.balanceOf(sally) == 0  # All tokens should be used
 
 
 def test_erc4626_deposit_zero_amount(
     undy_usd_vault,
-    alpha_token,
+    yield_underlying_token,
     sally,
     bob,
 ):
     """Test deposit with zero amount"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=sally)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=sally)
 
     with boa.reverts("cannot deposit 0 amount"):
         undy_usd_vault.deposit(0, bob, sender=sally)
@@ -70,32 +70,32 @@ def test_erc4626_deposit_zero_amount(
 
 def test_erc4626_deposit_invalid_receiver(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
 ):
     """Test deposit with invalid receiver"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     with boa.reverts("invalid recipient"):
-        undy_usd_vault.deposit(100 * EIGHTEEN_DECIMALS, ZERO_ADDRESS, sender=alpha_token_whale)
+        undy_usd_vault.deposit(100 * EIGHTEEN_DECIMALS, ZERO_ADDRESS, sender=yield_underlying_token_whale)
 
 
 def test_erc4626_mint(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test mint functionality"""
     # Initial deposit
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     
     # Calculate how many assets we need for desired shares
     desired_shares = 100 * EIGHTEEN_DECIMALS
     required_assets = undy_usd_vault.previewMint(desired_shares)
     
     # Mint the shares
-    assets = undy_usd_vault.mint(desired_shares, bob, sender=alpha_token_whale)
+    assets = undy_usd_vault.mint(desired_shares, bob, sender=yield_underlying_token_whale)
     
     # Check balances
     assert undy_usd_vault.balanceOf(bob) == desired_shares
@@ -105,29 +105,29 @@ def test_erc4626_mint(
 
 def test_erc4626_mint_max_value(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test mint with max_value(uint256)"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     with boa.reverts("deposit failed"):
-        undy_usd_vault.mint(MAX_UINT256, bob, sender=alpha_token_whale)
+        undy_usd_vault.mint(MAX_UINT256, bob, sender=yield_underlying_token_whale)
 
 
 def test_erc4626_withdraw(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test withdraw functionality"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Withdraw half
     withdraw_amount = deposit_amount // 2
@@ -136,21 +136,21 @@ def test_erc4626_withdraw(
     # Check balances
     assert undy_usd_vault.balanceOf(bob) == shares - withdrawn_shares
     assert undy_usd_vault.totalAssets() == deposit_amount - withdraw_amount
-    assert alpha_token.balanceOf(bob) == withdraw_amount
+    assert yield_underlying_token.balanceOf(bob) == withdraw_amount
 
 
 def test_erc4626_withdraw_zero_amount(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test withdraw with zero amount"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     with boa.reverts("cannot withdraw 0 amount"):
         undy_usd_vault.withdraw(0, bob, bob, sender=bob)
@@ -167,16 +167,16 @@ def test_erc4626_withdraw_insufficient_balance(
 
 def test_erc4626_redeem(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test redeem functionality"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Redeem half
     redeem_shares = shares // 2
@@ -185,21 +185,21 @@ def test_erc4626_redeem(
     # Check balances
     assert undy_usd_vault.balanceOf(bob) == shares - redeem_shares
     assert undy_usd_vault.totalAssets() == deposit_amount - redeemed_amount
-    assert alpha_token.balanceOf(bob) == redeemed_amount
+    assert yield_underlying_token.balanceOf(bob) == redeemed_amount
 
 
 def test_erc4626_redeem_max_value(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test redeem with max_value(uint256)"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Redeem all shares
     redeemed_amount = undy_usd_vault.redeem(MAX_UINT256, bob, bob, sender=bob)
@@ -209,16 +209,16 @@ def test_erc4626_redeem_max_value(
 
 def test_erc4626_redeem_zero_shares(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test redeem with zero shares"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     with boa.reverts("cannot withdraw 0 amount"):
         undy_usd_vault.redeem(0, bob, bob, sender=bob)
@@ -226,21 +226,21 @@ def test_erc4626_redeem_zero_shares(
 
 def test_erc4626_share_calculations(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
 ):
     """Test share calculations with multiple deposits"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # First deposit
     deposit1 = 100 * EIGHTEEN_DECIMALS
-    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=alpha_token_whale)
+    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=yield_underlying_token_whale)
     
     # Second deposit
     deposit2 = 200 * EIGHTEEN_DECIMALS
-    shares2 = undy_usd_vault.deposit(deposit2, sally, sender=alpha_token_whale)
+    shares2 = undy_usd_vault.deposit(deposit2, sally, sender=yield_underlying_token_whale)
     
     # Check share ratios
     assert shares2 > shares1  # More assets should give more shares
@@ -250,16 +250,16 @@ def test_erc4626_share_calculations(
 
 def test_erc4626_rounding_behavior(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test rounding behavior in share calculations"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Test rounding up
     shares_up = undy_usd_vault.previewDeposit(deposit_amount)
@@ -272,17 +272,17 @@ def test_erc4626_rounding_behavior(
 
 def test_erc4626_allowance(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
 ):
     """Test allowance functionality"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Approve Sally to spend Bob's shares
     undy_usd_vault.approve(sally, shares, sender=bob)
@@ -291,22 +291,22 @@ def test_erc4626_allowance(
     redeemed_amount = undy_usd_vault.redeem(shares, sally, bob, sender=sally)
     assert redeemed_amount == deposit_amount
     assert undy_usd_vault.balanceOf(bob) == 0
-    assert alpha_token.balanceOf(sally) == deposit_amount
+    assert yield_underlying_token.balanceOf(sally) == deposit_amount
 
 
 def test_erc4626_insufficient_allowance(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
 ):
     """Test insufficient allowance"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Approve Sally for less than total shares
     undy_usd_vault.approve(sally, shares // 2, sender=bob)
@@ -318,21 +318,21 @@ def test_erc4626_insufficient_allowance(
 
 def test_erc4626_proportional_shares(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test proportional share distribution for different deposit sizes"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares1 = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares1 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Try to manipulate share price with tiny deposit
     tiny_amount = 1
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
-    shares2 = undy_usd_vault.deposit(tiny_amount, bob, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+    shares2 = undy_usd_vault.deposit(tiny_amount, bob, sender=yield_underlying_token_whale)
     
     # Check that share price wasn't significantly affected
     assert shares2 < shares1 // 100  # Tiny deposit should give proportionally tiny shares
@@ -340,16 +340,16 @@ def test_erc4626_proportional_shares(
 
 def test_erc4626_preview_functions(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test preview functions accuracy"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Test previewDeposit
     preview_shares = undy_usd_vault.previewDeposit(deposit_amount)
@@ -370,8 +370,8 @@ def test_erc4626_preview_functions(
 
 def test_erc4626_max_functions(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test max functions"""
@@ -386,9 +386,9 @@ def test_erc4626_max_functions(
     assert undy_usd_vault.maxRedeem(bob) == 0
     
     # Make a deposit
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Test maxWithdraw and maxRedeem after deposit
     assert undy_usd_vault.maxWithdraw(bob) == deposit_amount
@@ -397,29 +397,29 @@ def test_erc4626_max_functions(
 
 def test_erc4626_rounding_edge_cases(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     governance,
     bob,
 ):
     """Test rounding edge cases"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Test tiny amounts
     tiny_amount = 1
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
-    tiny_shares = undy_usd_vault.deposit(tiny_amount, bob, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+    tiny_shares = undy_usd_vault.deposit(tiny_amount, bob, sender=yield_underlying_token_whale)
     assert tiny_shares > 0  # Should still get some shares
     
     # Test large amounts (but not so large as to cause overflow)
     large_amount = 1000000 * EIGHTEEN_DECIMALS  # 1 million tokens
-    alpha_token.mint(alpha_token_whale, large_amount, sender=governance.address)  # Mint enough tokens for the large deposit
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
-    large_shares = undy_usd_vault.deposit(large_amount, bob, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, large_amount, sender=governance.address)  # Mint enough tokens for the large deposit
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+    large_shares = undy_usd_vault.deposit(large_amount, bob, sender=yield_underlying_token_whale)
     assert large_shares > shares  # Should get more shares than initial deposit
     
     # Verify share price consistency
@@ -430,23 +430,23 @@ def test_erc4626_rounding_edge_cases(
 
 def test_erc4626_share_price_manipulation(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     governance,
 ):
     """Test share price manipulation resistance"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares1 = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares1 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Try to manipulate share price with large deposit
     large_amount = deposit_amount * 1000
-    alpha_token.mint(alpha_token_whale, large_amount, sender=governance.address)  # Mint enough tokens for the large deposit
-    shares2 = undy_usd_vault.deposit(large_amount, sally, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, large_amount, sender=governance.address)  # Mint enough tokens for the large deposit
+    shares2 = undy_usd_vault.deposit(large_amount, sally, sender=yield_underlying_token_whale)
     
     # Check that share price wasn't significantly affected
     assert shares2 / large_amount == shares1 / deposit_amount  # Share price should be consistent
@@ -454,16 +454,16 @@ def test_erc4626_share_price_manipulation(
 
 def test_erc4626_convert_functions(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test convert functions accuracy"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Test convertToShares
     converted_shares = undy_usd_vault.convertToShares(deposit_amount)
@@ -480,23 +480,23 @@ def test_erc4626_convert_functions(
 
 def test_erc4626_multiple_operations(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test multiple operations in sequence"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Withdraw half
     withdraw_amount = deposit_amount // 2
     withdrawn_shares = undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
     
     # Deposit again
-    new_shares = undy_usd_vault.deposit(withdraw_amount, bob, sender=alpha_token_whale)
+    new_shares = undy_usd_vault.deposit(withdraw_amount, bob, sender=yield_underlying_token_whale)
     
     # Redeem some shares
     redeem_shares = new_shares // 2
@@ -505,7 +505,7 @@ def test_erc4626_multiple_operations(
     # Check final balances
     assert undy_usd_vault.balanceOf(bob) == shares - withdrawn_shares + new_shares - redeem_shares
     assert undy_usd_vault.totalAssets() == deposit_amount - withdraw_amount + withdraw_amount - redeemed_amount
-    assert alpha_token.balanceOf(bob) == withdraw_amount + redeemed_amount
+    assert yield_underlying_token.balanceOf(bob) == withdraw_amount + redeemed_amount
 
 
 @given(
@@ -514,8 +514,8 @@ def test_erc4626_multiple_operations(
 )
 def test_erc4626_fuzz_deposit(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     amount,
@@ -523,19 +523,19 @@ def test_erc4626_fuzz_deposit(
 ):
     """Fuzz test deposit functionality"""
     receiver_addr = bob if receiver == "bob" else sally
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     
     # Calculate expected shares
     expected_shares = undy_usd_vault.previewDeposit(amount)
     
     # Perform deposit
-    shares = undy_usd_vault.deposit(amount, receiver_addr, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(amount, receiver_addr, sender=yield_underlying_token_whale)
     
     # Verify results
     assert shares == expected_shares
     assert undy_usd_vault.balanceOf(receiver_addr) == shares
     assert undy_usd_vault.totalAssets() == amount
-    assert alpha_token.balanceOf(undy_usd_vault) == amount
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == amount
 
 
 @given(
@@ -544,8 +544,8 @@ def test_erc4626_fuzz_deposit(
 )
 def test_erc4626_fuzz_mint(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     shares,
@@ -553,13 +553,13 @@ def test_erc4626_fuzz_mint(
 ):
     """Fuzz test mint functionality"""
     receiver_addr = bob if receiver == "bob" else sally
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     
     # Calculate expected assets
     expected_assets = undy_usd_vault.previewMint(shares)
     
     # Perform mint
-    assets = undy_usd_vault.mint(shares, receiver_addr, sender=alpha_token_whale)
+    assets = undy_usd_vault.mint(shares, receiver_addr, sender=yield_underlying_token_whale)
     
     # Verify results
     assert assets == expected_assets
@@ -569,43 +569,43 @@ def test_erc4626_fuzz_mint(
 
 def test_erc4626_integration_different_decimals(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test integration with tokens of different decimals"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Test with 6 decimals
     six_decimals = 10 ** 6
-    shares = undy_usd_vault.deposit(100 * six_decimals, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(100 * six_decimals, bob, sender=yield_underlying_token_whale)
     assert shares > 0
     
     # Test with 8 decimals
     eight_decimals = 10 ** 8
-    shares = undy_usd_vault.deposit(100 * eight_decimals, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(100 * eight_decimals, bob, sender=yield_underlying_token_whale)
     assert shares > 0
     
     # Test with 18 decimals (standard)
-    shares = undy_usd_vault.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=yield_underlying_token_whale)
     assert shares > 0
 
 
 def test_erc4626_events(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test event emissions"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     
     # Test Deposit event
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     log = filter_logs(undy_usd_vault, "Deposit")[0]
 
-    assert log.sender == alpha_token_whale
+    assert log.sender == yield_underlying_token_whale
     assert log.owner == bob
     assert log.assets == deposit_amount
     assert log.shares == shares
@@ -624,20 +624,20 @@ def test_erc4626_events(
 
 def test_erc4626_sequential_operations(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
 ):
     """Test sequential operations with different users"""
     # First user deposits
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     deposit1 = 100 * EIGHTEEN_DECIMALS
-    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=alpha_token_whale)
+    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=yield_underlying_token_whale)
     
     # Second user deposits
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
     deposit2 = 200 * EIGHTEEN_DECIMALS
-    shares2 = undy_usd_vault.deposit(deposit2, bob, sender=alpha_token_whale)
+    shares2 = undy_usd_vault.deposit(deposit2, bob, sender=yield_underlying_token_whale)
     
     # First user withdraws
     withdraw1 = deposit1 // 2
@@ -650,30 +650,30 @@ def test_erc4626_sequential_operations(
     # Verify final state
     assert undy_usd_vault.balanceOf(bob) == shares1 + shares2 - withdrawn_shares1 - withdrawn_shares2
     assert undy_usd_vault.totalAssets() == deposit1 + deposit2 - withdraw1 - withdraw2
-    assert alpha_token.balanceOf(bob) == withdraw1 + withdraw2
+    assert yield_underlying_token.balanceOf(bob) == withdraw1 + withdraw2
 
 
 def test_erc4626_share_value_changes_with_asset_balance(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     governance,
 ):
     """Test how share values change when underlying asset balance changes"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Record initial share value
     initial_share_value = undy_usd_vault.convertToAssets(shares) / shares
     
     # Direct transfer of green tokens to undy_usd_vault (simulating yield/profit)
     profit_amount = 50 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, profit_amount, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit_amount, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit_amount, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit_amount, sender=yield_underlying_token_whale)
     
     # Share value should increase
     new_share_value = undy_usd_vault.convertToAssets(shares) / shares
@@ -683,24 +683,24 @@ def test_erc4626_share_value_changes_with_asset_balance(
 
 def test_erc4626_share_value_changes_with_asset_loss(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
 ):
     """Test how share values change when underlying asset balance decreases"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Record initial share value
     initial_share_value = undy_usd_vault.convertToAssets(shares) / shares
     
     # Direct transfer of green tokens out of undy_usd_vault (simulating loss)
     loss_amount = 25 * EIGHTEEN_DECIMALS
-    alpha_token.transfer(sally, loss_amount, sender=undy_usd_vault.address)
+    yield_underlying_token.transfer(sally, loss_amount, sender=undy_usd_vault.address)
     
     # Share value should decrease
     new_share_value = undy_usd_vault.convertToAssets(shares) / shares
@@ -710,27 +710,27 @@ def test_erc4626_share_value_changes_with_asset_loss(
 
 def test_erc4626_share_value_with_multiple_deposits_and_balance_changes(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     governance,
 ):
     """Test share values with multiple deposits and balance changes"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # First deposit
     deposit1 = 100 * EIGHTEEN_DECIMALS
-    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=alpha_token_whale)
+    shares1 = undy_usd_vault.deposit(deposit1, bob, sender=yield_underlying_token_whale)
     
     # Add some profit
     profit = 20 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, profit, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
     
     # Second deposit after profit
     deposit2 = 200 * EIGHTEEN_DECIMALS
-    shares2 = undy_usd_vault.deposit(deposit2, sally, sender=alpha_token_whale)
+    shares2 = undy_usd_vault.deposit(deposit2, sally, sender=yield_underlying_token_whale)
     
     # Verify share values
     bob_share_value = undy_usd_vault.convertToAssets(shares1) / shares1
@@ -741,8 +741,8 @@ def test_erc4626_share_value_with_multiple_deposits_and_balance_changes(
     
     # Add more profit
     profit2 = 30 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, profit2, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit2, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit2, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit2, sender=yield_underlying_token_whale)
     
     # Verify share values increased proportionally
     new_bob_share_value = undy_usd_vault.convertToAssets(shares1) / shares1
@@ -755,22 +755,22 @@ def test_erc4626_share_value_with_multiple_deposits_and_balance_changes(
 
 def test_erc4626_share_value_with_withdrawals_and_balance_changes(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     governance,
 ):
     """Test share values with withdrawals and balance changes"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Add some profit
     profit = 20 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, profit, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
     
     # Record share value after profit
     share_value_after_profit = undy_usd_vault.convertToAssets(shares) / shares
@@ -781,8 +781,8 @@ def test_erc4626_share_value_with_withdrawals_and_balance_changes(
     
     # Add more profit after withdrawal
     profit2 = 10 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, profit2, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit2, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit2, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit2, sender=yield_underlying_token_whale)
     
     # Verify remaining shares increased in value
     remaining_shares = shares - withdrawn_shares
@@ -792,22 +792,22 @@ def test_erc4626_share_value_with_withdrawals_and_balance_changes(
 
 def test_erc4626_share_value_with_extreme_balance_changes(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     governance,
 ):
     """Test share values with extreme balance changes"""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit
     deposit_amount = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
     
     # Add massive profit (10x)
     profit = deposit_amount * 10
-    alpha_token.mint(alpha_token_whale, profit, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, profit, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
     
     # Verify share value increased proportionally
     new_share_value = undy_usd_vault.convertToAssets(shares) / shares
@@ -815,8 +815,8 @@ def test_erc4626_share_value_with_extreme_balance_changes(
     
     # Add tiny profit (0.1%)
     tiny_profit = deposit_amount // 1000
-    alpha_token.mint(alpha_token_whale, tiny_profit, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, tiny_profit, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, tiny_profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, tiny_profit, sender=yield_underlying_token_whale)
     
     # Verify share value still updates correctly
     final_share_value = undy_usd_vault.convertToAssets(shares) / shares
@@ -826,10 +826,9 @@ def test_erc4626_share_value_with_extreme_balance_changes(
 
 def test_erc4626_first_depositor_attack_prevention(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
-    sally,
     governance,
 ):
     """Test that demonstrates first depositor share price manipulation attack vulnerability.
@@ -839,7 +838,7 @@ def test_erc4626_first_depositor_attack_prevention(
     2. Admin seeding with 10+ tokens prevents the attack
     """
     # Approve the vault for testing
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # PART 1: Demonstrate the vulnerability with actual execution
     # ---------------------------------------------------
@@ -858,14 +857,14 @@ def test_erc4626_first_depositor_attack_prevention(
 
     # First depositor deposits minimal amount (1 wei)
     first_deposit = 1  # 1 wei
-    shares_first = undy_usd_vault.deposit(first_deposit, bob, sender=alpha_token_whale)
+    shares_first = undy_usd_vault.deposit(first_deposit, bob, sender=yield_underlying_token_whale)
     assert shares_first == 1, "First deposit of 1 wei should mint exactly 1 share"
     print(f"First depositor deposited {first_deposit} wei, got {shares_first} shares")
 
     # Attacker donates large amount to inflate share price
     donation = 1000 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, donation, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, donation, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, donation, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, donation, sender=yield_underlying_token_whale)
     print(f"Attacker donated {donation // EIGHTEEN_DECIMALS} tokens directly to vault")
 
     # Now the vault has 1000 tokens + 1 wei backing only 1 share
@@ -920,18 +919,18 @@ def test_erc4626_first_depositor_attack_prevention(
 
 def test_erc4626_rapid_price_fluctuations(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     governance,
 ):
     """Test vault behavior under rapid price changes (profits and losses).
     Ensures share accounting remains consistent through volatile conditions."""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Initial deposit to establish baseline
     deposit = 100 * EIGHTEEN_DECIMALS
-    shares = undy_usd_vault.deposit(deposit, bob, sender=alpha_token_whale)
+    shares = undy_usd_vault.deposit(deposit, bob, sender=yield_underlying_token_whale)
     initial_value = undy_usd_vault.convertToAssets(shares)
     assert initial_value == deposit, "Initial conversion should be 1:1"
 
@@ -946,12 +945,12 @@ def test_erc4626_rapid_price_fluctuations(
 
         if is_profit:
             # Simulate profit by adding tokens to vault
-            alpha_token.mint(alpha_token_whale, amount, sender=governance.address)
-            alpha_token.transfer(undy_usd_vault, amount, sender=alpha_token_whale)
+            yield_underlying_token.mint(yield_underlying_token_whale, amount, sender=governance.address)
+            yield_underlying_token.transfer(undy_usd_vault, amount, sender=yield_underlying_token_whale)
             cumulative_change += amount
         else:
             # Simulate loss by removing tokens from vault
-            alpha_token.transfer(alpha_token_whale, amount, sender=undy_usd_vault.address)
+            yield_underlying_token.transfer(yield_underlying_token_whale, amount, sender=undy_usd_vault.address)
             cumulative_change -= amount
 
         # After each change, verify share accounting is consistent
@@ -965,43 +964,43 @@ def test_erc4626_rapid_price_fluctuations(
     assert abs(final_value - final_expected) <= 1, f"Final value incorrect: {final_value} != {final_expected}"
 
     # Verify withdrawal works correctly after fluctuations
-    bob_balance_before = alpha_token.balanceOf(bob)
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
     undy_usd_vault.redeem(shares, bob, bob, sender=bob)
-    bob_balance_after = alpha_token.balanceOf(bob)
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
     withdrawn = bob_balance_after - bob_balance_before
     assert abs(withdrawn - final_value) <= 1, f"Withdrawal amount incorrect: {withdrawn} != {final_value}"
 
 
 def test_erc4626_sandwich_attack_scenario(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     governance,
 ):
     """Test vault behavior in sandwich attack scenario where an attacker
     tries to manipulate share price before and after a victim's transaction."""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     # Setup: Bob is the attacker, Sally is the victim
     # Initial state with some deposits
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
-    attacker_shares = undy_usd_vault.deposit(initial_deposit, bob, sender=alpha_token_whale)
+    attacker_shares = undy_usd_vault.deposit(initial_deposit, bob, sender=yield_underlying_token_whale)
 
     # Step 1: Attacker front-runs by inflating share price
     frontrun_amount = 500 * EIGHTEEN_DECIMALS
-    alpha_token.mint(alpha_token_whale, frontrun_amount, sender=governance.address)
-    alpha_token.transfer(undy_usd_vault, frontrun_amount, sender=alpha_token_whale)
+    yield_underlying_token.mint(yield_underlying_token_whale, frontrun_amount, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, frontrun_amount, sender=yield_underlying_token_whale)
 
     # Step 2: Victim deposits (at inflated price)
     victim_deposit = 200 * EIGHTEEN_DECIMALS
-    victim_shares = undy_usd_vault.deposit(victim_deposit, sally, sender=alpha_token_whale)
+    victim_shares = undy_usd_vault.deposit(victim_deposit, sally, sender=yield_underlying_token_whale)
 
     # Step 3: Attacker back-runs by withdrawing
-    attacker_assets_before = alpha_token.balanceOf(bob)
+    attacker_assets_before = yield_underlying_token.balanceOf(bob)
     undy_usd_vault.redeem(attacker_shares, bob, bob, sender=bob)
-    attacker_assets_after = alpha_token.balanceOf(bob)
+    attacker_assets_after = yield_underlying_token.balanceOf(bob)
     attacker_profit = attacker_assets_after - attacker_assets_before - initial_deposit
 
     # Verify victim didn't lose significant value
@@ -1018,15 +1017,15 @@ def test_erc4626_sandwich_attack_scenario(
 
 def test_erc4626_multiple_depositors_share_price_consistency(
     undy_usd_vault,
-    alpha_token,
-    alpha_token_whale,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     bob,
     sally,
     governance,
 ):
     """Test that share price remains consistent across multiple depositors
     even with asset balance changes between deposits."""
-    alpha_token.approve(undy_usd_vault, MAX_UINT256, sender=alpha_token_whale)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
     depositors = [bob, sally]
     deposits = []
@@ -1036,15 +1035,15 @@ def test_erc4626_multiple_depositors_share_price_consistency(
     for round_num in range(3):
         for i, depositor in enumerate(depositors):
             deposit_amount = (100 + round_num * 50) * EIGHTEEN_DECIMALS
-            depositor_shares = undy_usd_vault.deposit(deposit_amount, depositor, sender=alpha_token_whale)
+            depositor_shares = undy_usd_vault.deposit(deposit_amount, depositor, sender=yield_underlying_token_whale)
             deposits.append((depositor, deposit_amount))
             shares.append((depositor, depositor_shares))
 
         # Add profit between rounds (except after last round)
         if round_num < 2:
             profit = 30 * EIGHTEEN_DECIMALS
-            alpha_token.mint(alpha_token_whale, profit, sender=governance.address)
-            alpha_token.transfer(undy_usd_vault, profit, sender=alpha_token_whale)
+            yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+            yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
 
     # Verify all depositors have correct share values
     total_deposits_by_user = {}
