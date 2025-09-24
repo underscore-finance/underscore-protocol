@@ -215,7 +215,6 @@ def previewRedeem(_shares: uint256) -> uint256:
 @nonreentrant
 @external
 def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-    assert self.canWithdraw # dev: cannot withdraw
     asset: address = ASSET
 
     shares: uint256 = _shares
@@ -238,6 +237,8 @@ def _redeem(
     _recipient: address, 
     _owner: address,
 ) -> uint256:
+    assert self.canWithdraw # dev: cannot withdraw
+
     assert _amount != 0 # dev: cannot withdraw 0 amount
     assert _shares != 0 # dev: cannot redeem 0 shares
     assert _recipient != empty(address) # dev: invalid recipient

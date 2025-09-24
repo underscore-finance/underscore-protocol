@@ -3,7 +3,6 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS, MAX_UINT256
 from conf_utils import filter_logs
-from config.BluePrint import PARAMS
 
 
 def test_erc4626_initialization(undy_usd_vault, yield_underlying_token):
@@ -1069,3 +1068,394 @@ def test_erc4626_multiple_depositors_share_price_consistency(
         user_ownership_ratio = user_shares / total_shares_minted
         user_asset_ratio = user_value / total_assets
         assert abs(user_ownership_ratio - user_asset_ratio) < 0.0001, "Ownership ratio doesn't match asset ratio"
+
+
+# Test canDeposit and canWithdraw functionality
+
+def test_can_deposit_flag_blocks_deposits(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    bob,
+):
+    """Test that deposits are blocked when canDeposit is False"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Initially canDeposit should be True (from fixture)
+    assert undy_usd_vault.canDeposit() == True
+
+    # Make a successful deposit first
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+    assert shares > 0
+
+    # Disable deposits
+    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canDeposit() == False
+
+    # Try to deposit - should fail
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Try to mint - should also fail (uses _deposit internally)
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.mint(shares, bob, sender=yield_underlying_token_whale)
+
+    # Re-enable deposits
+    undy_usd_vault.setCanDeposit(True, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canDeposit() == True
+
+    # Should be able to deposit again
+    shares2 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+    assert shares2 > 0
+
+
+def test_can_withdraw_flag_blocks_withdrawals(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    bob,
+):
+    """Test that withdrawals are blocked when canWithdraw is False"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Initially canWithdraw should be True (from fixture)
+    assert undy_usd_vault.canWithdraw() == True
+
+    # First deposit some funds
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+    assert shares > 0
+
+    # Disable withdrawals
+    undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canWithdraw() == False
+
+    # Try to redeem - should fail
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.redeem(shares, bob, bob, sender=bob)
+
+    # Try to withdraw - should also fail (calls _redeem internally which has the check)
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.withdraw(deposit_amount, bob, bob, sender=bob)
+
+    # Re-enable withdrawals
+    undy_usd_vault.setCanWithdraw(True, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canWithdraw() == True
+
+    # Should be able to withdraw again
+    assets_received = undy_usd_vault.redeem(shares, bob, bob, sender=bob)
+    assert assets_received > 0
+
+
+def test_set_can_deposit_permissions(
+    undy_usd_vault,
+    switchboard_alpha,
+    bob,
+    starter_agent,
+):
+    """Test that only authorized addresses can set canDeposit"""
+
+    # Initially should be True
+    assert undy_usd_vault.canDeposit() == True
+
+    # Switchboard can change it
+    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canDeposit() == False
+
+    # Bob (unauthorized) cannot change it
+    with boa.reverts("no perms"):
+        undy_usd_vault.setCanDeposit(True, sender=bob)
+
+    # Manager cannot change it either
+    with boa.reverts("no perms"):
+        undy_usd_vault.setCanDeposit(True, sender=starter_agent.address)
+
+    # Switchboard can change it back
+    undy_usd_vault.setCanDeposit(True, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canDeposit() == True
+
+
+def test_set_can_withdraw_permissions(
+    undy_usd_vault,
+    switchboard_alpha,
+    bob,
+    starter_agent,
+):
+    """Test that only authorized addresses can set canWithdraw"""
+
+    # Initially should be True
+    assert undy_usd_vault.canWithdraw() == True
+
+    # Switchboard can change it
+    undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canWithdraw() == False
+
+    # Bob (unauthorized) cannot change it
+    with boa.reverts("no perms"):
+        undy_usd_vault.setCanWithdraw(True, sender=bob)
+
+    # Manager cannot change it either
+    with boa.reverts("no perms"):
+        undy_usd_vault.setCanWithdraw(True, sender=starter_agent.address)
+
+    # Switchboard can change it back
+    undy_usd_vault.setCanWithdraw(True, sender=switchboard_alpha.address)
+    assert undy_usd_vault.canWithdraw() == True
+
+
+def test_set_can_deposit_no_change_reverts(
+    undy_usd_vault,
+    switchboard_alpha,
+):
+    """Test that setting canDeposit to same value reverts"""
+
+    # Initially should be True
+    assert undy_usd_vault.canDeposit() == True
+
+    # Try to set to same value - should revert
+    with boa.reverts("nothing to change"):
+        undy_usd_vault.setCanDeposit(True, sender=switchboard_alpha.address)
+
+    # Change to False
+    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+
+    # Try to set to same value again - should revert
+    with boa.reverts("nothing to change"):
+        undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+
+
+def test_set_can_withdraw_no_change_reverts(
+    undy_usd_vault,
+    switchboard_alpha,
+):
+    """Test that setting canWithdraw to same value reverts"""
+
+    # Initially should be True
+    assert undy_usd_vault.canWithdraw() == True
+
+    # Try to set to same value - should revert
+    with boa.reverts("nothing to change"):
+        undy_usd_vault.setCanWithdraw(True, sender=switchboard_alpha.address)
+
+    # Change to False
+    undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+
+    # Try to set to same value again - should revert
+    with boa.reverts("nothing to change"):
+        undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+
+
+def test_can_deposit_and_withdraw_events(
+    undy_usd_vault,
+    switchboard_alpha,
+):
+    """Test that setting canDeposit and canWithdraw emit correct events"""
+
+    # Set canDeposit to False and check event
+    tx = undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+
+    # Use filter_logs to get the CanDepositSet event
+    deposit_events = filter_logs(undy_usd_vault, "CanDepositSet")
+    assert len(deposit_events) > 0
+
+    deposit_event = deposit_events[-1]  # Get the most recent event
+    assert deposit_event.canDeposit == False
+    assert deposit_event.caller == switchboard_alpha.address
+
+    # Set canWithdraw to False and check event
+    tx2 = undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+
+    # Use filter_logs to get the CanWithdrawSet event
+    withdraw_events = filter_logs(undy_usd_vault, "CanWithdrawSet")
+    assert len(withdraw_events) > 0
+
+    withdraw_event = withdraw_events[-1]  # Get the most recent event
+    assert withdraw_event.canWithdraw == False
+    assert withdraw_event.caller == switchboard_alpha.address
+
+
+def test_deposits_blocked_affects_all_deposit_methods(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    bob,
+):
+    """Test that disabling deposits blocks all deposit-related methods"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Disable deposits
+    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    mint_shares = 100 * EIGHTEEN_DECIMALS
+
+    # Test deposit() method
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Test mint() method
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.mint(mint_shares, bob, sender=yield_underlying_token_whale)
+
+    # Preview methods should still work (they're view functions)
+    preview_deposit = undy_usd_vault.previewDeposit(deposit_amount)
+    assert preview_deposit >= 0  # Should return a value, not revert
+
+    preview_mint = undy_usd_vault.previewMint(mint_shares)
+    assert preview_mint >= 0  # Should return a value, not revert
+
+
+def test_withdrawals_blocked_affects_all_withdraw_methods(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    bob,
+):
+    """Test that disabling withdrawals blocks all withdrawal-related methods"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit some funds
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Disable withdrawals
+    undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+
+    # Test redeem() method
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.redeem(shares, bob, bob, sender=bob)
+
+    # Test withdraw() method
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.withdraw(deposit_amount, bob, bob, sender=bob)
+
+    # Preview methods should still work (they're view functions)
+    preview_redeem = undy_usd_vault.previewRedeem(shares)
+    assert preview_redeem >= 0  # Should return a value, not revert
+
+    preview_withdraw = undy_usd_vault.previewWithdraw(deposit_amount)
+    assert preview_withdraw >= 0  # Should return a value, not revert
+
+
+def test_multiple_flag_changes(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    bob,
+):
+    """Test multiple changes to canDeposit and canWithdraw flags"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    deposit_amount = 50 * EIGHTEEN_DECIMALS
+
+    # Deposit when allowed
+    shares1 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Disable deposits
+    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+
+    # Can't deposit
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # But can still withdraw
+    withdrawn = undy_usd_vault.redeem(shares1 // 2, bob, bob, sender=bob)
+    assert withdrawn > 0
+
+    # Enable deposits, disable withdrawals
+    undy_usd_vault.setCanDeposit(True, sender=switchboard_alpha.address)
+    undy_usd_vault.setCanWithdraw(False, sender=switchboard_alpha.address)
+
+    # Can deposit again
+    shares2 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+    assert shares2 > 0
+
+    # But can't withdraw
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.redeem(shares2, bob, bob, sender=bob)
+
+    # Enable both
+    undy_usd_vault.setCanWithdraw(True, sender=switchboard_alpha.address)
+
+    # Both operations should work
+    shares3 = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+    assert shares3 > 0
+
+    total_shares = undy_usd_vault.balanceOf(bob)
+    assets_received = undy_usd_vault.redeem(total_shares, bob, bob, sender=bob)
+    assert assets_received > 0
+
+    # Should have no shares left
+    assert undy_usd_vault.balanceOf(bob) == 0
+
+
+def test_vault_initialization_with_flags_disabled(
+    undy_hq_deploy,
+    fork,
+    starter_agent,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test vault initialization with canDeposit and canWithdraw set to False"""
+    from config.BluePrint import PARAMS
+
+    # Create vault with deposits and withdrawals disabled
+    vault_no_deposits = boa.load(
+        "contracts/vaults/UndyUsd.vy",
+        yield_underlying_token.address,
+        undy_hq_deploy,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        False,  # canDeposit = False
+        True,   # canWithdraw = True
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+    )
+
+    # Check initial state
+    assert vault_no_deposits.canDeposit() == False
+    assert vault_no_deposits.canWithdraw() == True
+
+    # Can't deposit
+    yield_underlying_token.approve(vault_no_deposits, MAX_UINT256, sender=yield_underlying_token_whale)
+    with boa.reverts("cannot deposit"):
+        vault_no_deposits.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=yield_underlying_token_whale)
+
+    # Create vault with withdrawals disabled
+    vault_no_withdrawals = boa.load(
+        "contracts/vaults/UndyUsd.vy",
+        yield_underlying_token.address,
+        undy_hq_deploy,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        True,   # canDeposit = True
+        False,  # canWithdraw = False
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+    )
+
+    # Check initial state
+    assert vault_no_withdrawals.canDeposit() == True
+    assert vault_no_withdrawals.canWithdraw() == False
+
+    # Can deposit
+    yield_underlying_token.approve(vault_no_withdrawals, MAX_UINT256, sender=yield_underlying_token_whale)
+    shares = vault_no_withdrawals.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=yield_underlying_token_whale)
+    assert shares > 0
+
+    # But can't withdraw
+    with boa.reverts("cannot withdraw"):
+        vault_no_withdrawals.redeem(shares, bob, bob, sender=bob)
