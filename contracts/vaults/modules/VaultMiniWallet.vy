@@ -58,6 +58,17 @@ struct VaultToken:
     decimals: uint256
     isRebasing: bool
 
+struct VaultActionData:
+    ledger: address
+    missionControl: address
+    legoBook: address
+    appraiser: address
+    vaultRegistry: address
+    isFrozen: bool
+    signer: address
+    legoId: uint256
+    legoAddr: address
+
 event EarnVaultAction:
     op: uint8 
     asset1: indexed(address)
@@ -135,10 +146,8 @@ LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
-HATCHERY_ID: constant(uint256) = 5
-LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 APPRAISER_ID: constant(uint256) = 7
-BILLING_ID: constant(uint256) = 9
+VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: immutable(address)
 VAULT_ASSET: immutable(address)
@@ -208,7 +217,7 @@ def depositForYield(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
-    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_DEPOSIT, [_asset], [_legoId])
+    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_DEPOSIT, [_asset], [_legoId])
     return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, ad)
 
 
@@ -219,7 +228,7 @@ def _depositForYield(
     _amount: uint256,
     _extraData: bytes32,
     _shouldGenerateEvent: bool,
-    _ad: ws.ActionData,
+    _ad: VaultActionData,
 ) -> (uint256, address, uint256, uint256):
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
 
@@ -261,7 +270,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
     _isSpecialTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
-    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_WITHDRAW, [_vaultToken], [_legoId])
+    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_WITHDRAW, [_vaultToken], [_legoId])
     return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, ad)
 
 
@@ -271,7 +280,7 @@ def _withdrawFromYield(
     _amount: uint256,
     _extraData: bytes32,
     _shouldGenerateEvent: bool,
-    _ad: ws.ActionData,
+    _ad: VaultActionData,
 ) -> (uint256, address, uint256, uint256):
     assert _vaultToken != empty(address) # dev: invalid vault token
     amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
@@ -317,7 +326,7 @@ def rebalanceYieldPosition(
     _fromVaultAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
-    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_REBALANCE, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
+    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_REBALANCE, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
 
     # withdraw
     vaultTokenAmountBurned: uint256 = 0
@@ -365,7 +374,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     assert self.assetData[tokenIn].legoId == 0 # dev: cannot swap out of vault token
 
     # action data bundle
-    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.SWAP, [tokenIn, tokenOut], legoIds)
+    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.SWAP, [tokenIn, tokenOut], legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
 
     amountIn: uint256 = origAmountIn
@@ -401,7 +410,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
 def _performSwapInstruction(
     _amountIn: uint256,
     _i: wi.SwapInstruction,
-    _ad: ws.ActionData,
+    _ad: VaultActionData,
 ) -> (address, uint256, uint256):
     legoAddr: address = staticcall Registry(_ad.legoBook).getAddr(_i.legoId)
     assert legoAddr != empty(address) # dev: lego
@@ -458,7 +467,7 @@ def claimRewards(
     _rewardAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
-    ad: ws.ActionData = self._canPerformAction(msg.sender, ws.ActionType.REWARDS, [_rewardToken], [_legoId])
+    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.REWARDS, [_rewardToken], [_legoId])
 
     # make sure can access
     self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
@@ -545,7 +554,7 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 @internal
 def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
-    ad: ws.ActionData = self._getActionDataBundle(0, _sender)
+    ad: VaultActionData = self._getActionDataBundle(0, _sender)
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
@@ -863,13 +872,13 @@ def _canPerformAction(
     _action: ws.ActionType,
     _assets: DynArray[address, MAX_ASSETS],
     _legoIds: DynArray[uint256, MAX_LEGOS],
-) -> ws.ActionData:
+) -> VaultActionData:
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
     # main data for this transaction
-    ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
+    ad: VaultActionData = self._getActionDataBundle(legoId, _signer)
 
     # cannot perform any actions if vault is frozen
     assert not ad.isFrozen # dev: frozen vault
@@ -1166,13 +1175,13 @@ def _packMiniAddys(
 
 @view
 @external
-def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+def getActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
     return self._getActionDataBundle(_legoId, _signer)
 
 
 @view
 @internal
-def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
+def _getActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
     hq: address = UNDY_HQ
 
     # lego details
@@ -1181,27 +1190,16 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
     if _legoId != 0 and legoBook != empty(address):
         legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
 
-    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
-    return ws.ActionData(
-        ledger = ledger,
+    return VaultActionData(
+        ledger = staticcall Registry(hq).getAddr(LEDGER_ID),
         missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID),
         legoBook = legoBook,
-        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID),
-        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
-        billing = staticcall Registry(hq).getAddr(BILLING_ID),
-        wallet = empty(address),
-        walletConfig = self,
-        walletOwner = empty(address),
-        inEjectMode = False,
+        vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
         isFrozen = self.isFrozen,
-        lastTotalUsdValue = 0,
         signer = _signer,
-        isManager = True,
         legoId = _legoId,
         legoAddr = legoAddr,
-        eth = empty(address),
-        weth = empty(address),
     )
 
 
