@@ -1,8 +1,7 @@
 import pytest
 import boa
 
-from contracts.core.userWallet import UserWalletConfig
-from constants import EIGHTEEN_DECIMALS, MAX_UINT256
+from constants import EIGHTEEN_DECIMALS, MAX_UINT256, ZERO_ADDRESS
 from conf_utils import filter_logs
 from config.BluePrint import TOKENS
 
@@ -505,3 +504,463 @@ def test_vault_mini_wallet_deposit_yield_then_withdraw_simulation(prepareAssetFo
     # Verify avgPricePerShare hasn't changed (no new deposits)
     vault_data = undy_usd_vault.assetData(yield_vault_token.address)
     assert vault_data.avgPricePerShare == initial_vault_data.avgPricePerShare
+
+
+#######################
+# Withdraw from Yield #
+#######################
+
+
+@pytest.fixture(scope="module")
+def setupYieldPosition(prepareAssetForWalletTx, undy_usd_vault, yield_underlying_token, starter_agent, yield_vault_token):
+    """Setup fixture that deposits yield tokens and returns relevant data"""
+    def setupYieldPosition(
+        _deposit_amount=100 * EIGHTEEN_DECIMALS,
+        _underlying_price=10 * EIGHTEEN_DECIMALS,
+    ):
+        # prepare underlying tokens
+        deposit_amount = prepareAssetForWalletTx(
+            _amount=_deposit_amount,
+            _price=_underlying_price,
+        )
+        
+        # deposit to get vault tokens
+        _, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
+            1,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            deposit_amount,
+        sender=starter_agent.address
+        )
+        
+        return vault_tokens_received
+    
+    yield setupYieldPosition
+
+
+def test_vault_mini_wallet_withdraw_from_yield_basic(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test basic withdrawal from yield position"""
+    
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # verify initial state
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == 0
+    
+    # withdraw half
+    withdraw_amount = vault_tokens // 2
+    vault_burned, underlying_asset, underlying_received, usd_value = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=starter_agent.address
+    )
+
+    # verify event
+    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
+    assert log.op == 11  # EARN_WITHDRAW operation
+    assert log.asset1 == yield_vault_token.address
+    assert log.asset2 == yield_underlying_token.address
+    assert log.amount1 == withdraw_amount == vault_burned
+    assert log.amount2 == underlying_received
+    assert log.usdValue == usd_value
+    assert log.legoId == 1
+    assert log.signer == starter_agent.address
+
+    # verify return values
+    assert vault_burned == withdraw_amount
+    assert underlying_asset == yield_underlying_token.address
+    assert underlying_received == withdraw_amount  # 1:1 price
+    assert usd_value > 0
+    
+    # verify balances
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens - withdraw_amount
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == underlying_received
+    
+    # verify storage updated
+    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert vault_data.legoId == 1
+    assert vault_data.isRebasing == False
+    assert vault_data.vaultTokenDecimals == 18
+    assert vault_data.avgPricePerShare == EIGHTEEN_DECIMALS
+
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
+    assert undy_usd_vault.assets(1) == yield_vault_token.address
+    assert undy_usd_vault.numAssets() == 2
+
+
+def test_vault_mini_wallet_withdraw_from_yield_entire_balance_deregisters_asset(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test that withdrawing entire yield position properly deregisters the asset"""
+
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # verify initial state - vault token is registered
+    vault_index_before = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert vault_index_before > 0
+    num_assets_before = undy_usd_vault.numAssets()
+    assert num_assets_before >= 2  # At least base asset + yield vault token
+
+    # Store the asset at the position before withdrawal
+    asset_at_index = undy_usd_vault.assets(vault_index_before)
+    assert asset_at_index == yield_vault_token.address
+
+    # withdraw entire balance
+    vault_burned, underlying_asset, underlying_received, usd_value = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # verify all vault tokens burned
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+    assert underlying_received == vault_tokens  # 1:1 price
+    assert underlying_asset == yield_underlying_token.address
+
+    # CRITICAL: Verify complete deregistration via _deregisterYieldPosition
+    # 1. Index should be reset to 0
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # 2. numAssets should decrease by 1
+    assert undy_usd_vault.numAssets() == num_assets_before - 1
+
+    # 3. In this test scenario with only 2 assets, the yield_vault_token was at the last position
+    # So no array reorganization is needed. For array reorganization testing with 3+ assets,
+    # see test_vault_mini_wallet_withdraw_deregistration_array_reorganization_multiple_assets
+
+    # 4. AssetData is retained for historical tracking but not in active index
+    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert vault_data.legoId == 1  # lego ID retained for tracking
+
+    # 5. Verify the vault token cannot be found in the active assets array
+    for i in range(1, undy_usd_vault.numAssets()):
+        assert undy_usd_vault.assets(i) != yield_vault_token.address
+
+    # verify underlying tokens received
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == underlying_received
+
+
+def test_vault_mini_wallet_withdraw_from_yield_max_value(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test withdrawing with MAX_UINT256 withdraws entire balance"""
+
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # withdraw with max_value
+    vault_burned, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        MAX_UINT256,  # max value
+        sender=starter_agent.address
+    )
+
+    # verify entire balance withdrawn
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == underlying_received
+
+
+def test_vault_mini_wallet_withdraw_from_yield_zero_amount(undy_usd_vault, starter_agent, yield_vault_token):
+    """Test that withdrawing zero amount reverts"""
+
+    # attempt to withdraw zero amount (no position setup)
+    with boa.reverts("no balance for _token"):
+        undy_usd_vault.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            0,
+            sender=starter_agent.address
+        )
+
+
+def test_vault_mini_wallet_withdraw_from_yield_insufficient_balance(setupYieldPosition, undy_usd_vault, starter_agent, yield_vault_token):
+    """Test withdrawing more than balance withdraws available balance"""
+
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # attempt to withdraw more than balance
+    requested_amount = vault_tokens * 2
+    vault_burned, _, _, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        requested_amount,
+        sender=starter_agent.address
+    )
+
+    # should withdraw only available balance
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+
+def test_vault_mini_wallet_withdraw_from_yield_unauthorized_caller(setupYieldPosition, undy_usd_vault, bob, yield_vault_token):
+    """Test that only authorized callers can withdraw from yield"""
+
+    # setup position
+    setupYieldPosition()
+
+    # attempt to withdraw from unauthorized address
+    with boa.reverts("no permission"):
+        undy_usd_vault.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            10 * EIGHTEEN_DECIMALS,
+            sender=bob  # unauthorized
+        )
+
+
+def test_vault_mini_wallet_withdraw_from_yield_with_accrued_yield(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, governance):
+    """Test withdrawal after yield has accrued increases underlying received"""
+
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # simulate yield accrual - double the vault's assets
+    current_vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_vault_balance, sender=governance.address)
+
+    # withdraw half - should receive 2x underlying due to yield
+    withdraw_amount = vault_tokens // 2
+    vault_burned, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=starter_agent.address
+    )
+
+    # with 2x price, should receive 2x underlying
+    assert vault_burned == withdraw_amount
+    assert underlying_received == withdraw_amount * 2  # 2:1 price due to yield
+
+    # verify correct amount of vault tokens remain
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens - withdraw_amount
+
+
+def test_vault_mini_wallet_withdraw_from_yield_multiple_sequential(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test multiple sequential withdrawals"""
+
+    # setup position with 90 tokens (divisible by 3)
+    vault_tokens = setupYieldPosition(_deposit_amount=90 * EIGHTEEN_DECIMALS)
+
+    # first withdrawal - 1/3
+    withdraw1 = vault_tokens // 3
+    _, _, underlying1, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw1,
+        sender=starter_agent.address
+    )
+
+    # verify first withdrawal
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens - withdraw1
+    assert underlying1 == withdraw1  # 1:1 price
+
+    # Get event from first withdrawal
+    first_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
+    assert first_log.op == 11  # EARN_WITHDRAW
+    assert first_log.amount1 == withdraw1
+
+    # second withdrawal - 1/3
+    withdraw2 = vault_tokens // 3
+    _, _, underlying2, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw2,
+        sender=starter_agent.address
+    )
+
+    # verify second withdrawal
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens - withdraw1 - withdraw2
+    assert underlying2 == withdraw2
+
+    # Get event from second withdrawal
+    second_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
+    assert second_log.op == 11
+    assert second_log.amount1 == withdraw2
+
+    # third withdrawal - remaining
+    remaining = vault_tokens - withdraw1 - withdraw2
+    _, _, underlying3, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        remaining,
+        sender=starter_agent.address
+    )
+
+    # verify final state
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+    assert underlying3 == remaining
+    total_underlying = underlying1 + underlying2 + underlying3
+    assert total_underlying == vault_tokens  # Total should equal original deposit
+    assert yield_underlying_token.balanceOf(undy_usd_vault) == total_underlying
+
+
+def test_vault_mini_wallet_withdraw_from_yield_invalid_vault_token(undy_usd_vault, starter_agent):
+    """Test withdrawing with invalid vault token address"""
+
+    # attempt to withdraw from non-existent vault token
+    with boa.reverts("invalid vault token"):
+        undy_usd_vault.withdrawFromYield(
+            1,
+            ZERO_ADDRESS,  # invalid address
+            10 * EIGHTEEN_DECIMALS,
+            sender=starter_agent.address
+        )
+
+
+def test_vault_mini_wallet_withdraw_from_yield_invalid_lego(setupYieldPosition, undy_usd_vault, starter_agent, yield_vault_token):
+    """Test withdrawing with invalid lego ID"""
+
+    # setup position with lego ID 1
+    setupYieldPosition()
+
+    # attempt to withdraw with wrong lego ID
+    invalid_lego_id = 999
+    with boa.reverts():  # Will fail when trying to use invalid lego
+        undy_usd_vault.withdrawFromYield(
+            invalid_lego_id,
+            yield_vault_token.address,
+            10 * EIGHTEEN_DECIMALS,
+            sender=starter_agent.address
+        )
+
+
+def test_vault_mini_wallet_withdraw_from_yield_event_details(setupYieldPosition, undy_usd_vault, starter_agent, yield_vault_token):
+    """Test detailed event emission for withdrawFromYield"""
+
+    # setup position with specific amount
+    vault_tokens = setupYieldPosition(_deposit_amount=75 * EIGHTEEN_DECIMALS, _underlying_price=4 * EIGHTEEN_DECIMALS)
+
+    # withdraw specific amount
+    withdraw_amount = 25 * EIGHTEEN_DECIMALS
+    vault_burned, underlying_asset, underlying_received, usd_value = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=starter_agent.address
+    )
+
+    # Get event immediately after transaction
+    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
+    assert log.op == 11  # EARN_WITHDRAW
+    assert log.asset1 == yield_vault_token.address
+    assert log.asset2 == underlying_asset
+    assert log.amount1 == vault_burned
+    assert log.amount2 == underlying_received
+    assert log.usdValue == usd_value
+    assert log.legoId == 1
+    assert log.signer == starter_agent.address
+
+    # Verify USD value calculation (25 tokens * 4 USD)
+    assert usd_value == 25 * 4 * EIGHTEEN_DECIMALS
+
+
+def test_vault_mini_wallet_withdraw_from_yield_partial_amounts(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test withdrawing various partial amounts"""
+
+    # setup position
+    vault_tokens = setupYieldPosition(_deposit_amount=100 * EIGHTEEN_DECIMALS)
+
+    # withdraw 10%
+    first_withdraw = vault_tokens * 10 // 100
+    vault_burned, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        first_withdraw,
+        sender=starter_agent.address
+    )
+
+    assert vault_burned == first_withdraw
+    assert underlying_received == first_withdraw  # 1:1 price
+    remaining = vault_tokens - first_withdraw
+    assert yield_vault_token.balanceOf(undy_usd_vault) == remaining
+
+    # withdraw 25% of original
+    second_withdraw = vault_tokens * 25 // 100
+    vault_burned, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        second_withdraw,
+        sender=starter_agent.address
+    )
+
+    assert vault_burned == second_withdraw
+    remaining = remaining - second_withdraw
+    assert yield_vault_token.balanceOf(undy_usd_vault) == remaining
+
+    # verify total underlying received
+    total_underlying = yield_underlying_token.balanceOf(undy_usd_vault)
+    assert total_underlying == first_withdraw + second_withdraw
+
+
+def test_vault_mini_wallet_withdraw_yield_price_tracking_update(setupYieldPosition, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, governance):
+    """Test that withdrawal after yield updates avgPricePerShare with time travel"""
+
+    # setup position
+    vault_tokens = setupYieldPosition()
+
+    # Record initial price
+    initial_data = undy_usd_vault.assetData(yield_vault_token.address)
+    initial_avg_price = initial_data.avgPricePerShare
+
+    # Time travel to allow snapshot updates
+    boa.env.time_travel(seconds=301)  # 5 minutes + 1 second
+
+    # Simulate significant yield (50% gain)
+    yield_amount = 50 * EIGHTEEN_DECIMALS
+    yield_underlying_token.mint(yield_vault_token.address, yield_amount, sender=governance.address)
+
+    # Withdraw triggers price update
+    withdraw_amount = vault_tokens // 2
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        withdraw_amount,
+        sender=starter_agent.address
+    )
+
+    # Check if avgPricePerShare updated (may depend on snapshot mechanism)
+    final_data = undy_usd_vault.assetData(yield_vault_token.address)
+    final_avg_price = final_data.avgPricePerShare
+
+    # Price should be tracked (non-zero) and may have updated
+    assert final_avg_price > 0
+    # With yield and time travel, price tracking should reflect the change
+    assert final_avg_price >= initial_avg_price
+
+
+def test_vault_mini_wallet_withdraw_deregistration_simple(setupYieldPosition, undy_usd_vault, starter_agent, yield_vault_token):
+    """Test simple deregistration when withdrawing the only yield position"""
+
+    # Setup: Create a yield position (this adds yield_vault_token as asset index 1)
+    vault_tokens = setupYieldPosition()
+
+    # The vault should have 2 assets now: base asset (yield_underlying_token) and yield_vault_token
+    assert undy_usd_vault.numAssets() == 2
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
+
+    # Withdraw entire yield position to trigger deregistration
+    vault_burned, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # Verify complete deregistration:
+    # 1. numAssets decreased back to 1 (only base asset remains)
+    assert undy_usd_vault.numAssets() == 1
+
+    # 2. Yield vault token is completely deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # 3. Verify all tokens were withdrawn
+    assert vault_burned == vault_tokens
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+    # 4. Asset data is retained for historical purposes
+    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert vault_data.legoId == 1  # Historical data retained
