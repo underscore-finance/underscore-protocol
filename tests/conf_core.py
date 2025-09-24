@@ -518,20 +518,32 @@ def agent_template():
 
 
 @pytest.fixture(scope="session")
-def undy_usd_vault(undy_hq_deploy, fork, starter_agent, sentinel, high_command, yield_underlying_token):
+def undy_usd_vault(undy_hq_deploy, fork, starter_agent, yield_underlying_token, switchboard_alpha,
+                   yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
     asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
-    return boa.load(
+    vault = boa.load(
         "contracts/vaults/UndyUsd.vy",
         asset,
         undy_hq_deploy,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
         starter_agent,
-        sentinel,
-        high_command,
+        True,
+        True,
         PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
         PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
         PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
         PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         name="undy_usd_vault",
     )
+
+    # Approve yield lego ID 1 (used in tests)
+    vault.setApprovedYieldLego(1, True, sender=switchboard_alpha.address)
+
+    # Approve all test vault tokens
+    vault.setApprovedVaultToken(yield_vault_token.address, True, sender=switchboard_alpha.address)
+    vault.setApprovedVaultToken(yield_vault_token_2.address, True, sender=switchboard_alpha.address)
+    vault.setApprovedVaultToken(yield_vault_token_3.address, True, sender=switchboard_alpha.address)
+    vault.setApprovedVaultToken(yield_vault_token_4.address, True, sender=switchboard_alpha.address)
+
+    return vault

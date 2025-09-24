@@ -32,7 +32,19 @@ event Withdraw:
     assets: uint256
     shares: uint256
 
+event CanDepositSet:
+    canDeposit: bool
+    caller: indexed(address)
+
+event CanWithdrawSet:
+    canWithdraw: bool
+    caller: indexed(address)
+
 ASSET: immutable(address)
+
+# vault config
+canDeposit: public(bool)
+canWithdraw: public(bool)
 
 
 @deploy
@@ -44,9 +56,9 @@ def __init__(
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
-    # wallet backpack addrs
-    _sentinel: address,
-    _highCommand: address,
+    # main config
+    _canDeposit: bool,
+    _canWithdraw: bool,
     # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
@@ -57,7 +69,11 @@ def __init__(
     ASSET = _asset
 
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _minHqTimeLock, _maxHqTimeLock)
-    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _sentinel, _highCommand, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
+    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
+
+    # vault config
+    self.canDeposit = _canDeposit
+    self.canWithdraw = _canWithdraw
 
 
 @view
@@ -138,7 +154,7 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
 
 @internal
 def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: address):
-    assert vaultWallet.canDeposit # dev: cannot deposit
+    assert self.canDeposit # dev: cannot deposit
 
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
@@ -199,7 +215,7 @@ def previewRedeem(_shares: uint256) -> uint256:
 @nonreentrant
 @external
 def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-    assert vaultWallet.canWithdraw # dev: cannot withdraw
+    assert self.canWithdraw # dev: cannot withdraw
     asset: address = ASSET
 
     shares: uint256 = _shares
@@ -319,3 +335,26 @@ def _sharesToAmount(
         amount += 1
 
     return amount
+
+
+#####################
+# Security / Safety #
+#####################
+
+
+@external
+def setCanDeposit(_canDeposit: bool):
+    if not vaultWallet._isSwitchboardAddr(msg.sender):
+        assert vaultWallet._canPerformSecurityAction(msg.sender) and not _canDeposit # dev: no perms
+    assert _canDeposit != self.canDeposit # dev: nothing to change
+    self.canDeposit = _canDeposit
+    log CanDepositSet(canDeposit=_canDeposit, caller=msg.sender)
+
+
+@external
+def setCanWithdraw(_canWithdraw: bool):
+    if not vaultWallet._isSwitchboardAddr(msg.sender):
+        assert vaultWallet._canPerformSecurityAction(msg.sender) and not _canWithdraw # dev: no perms
+    assert _canWithdraw != self.canWithdraw # dev: nothing to change
+    self.canWithdraw = _canWithdraw
+    log CanWithdrawSet(canWithdraw=_canWithdraw, caller=msg.sender)

@@ -17,9 +17,9 @@ def __init__(
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
-    # wallet backpack addrs
-    _sentinel: address,
-    _highCommand: address,
+    # main config
+    _canDeposit: bool,
+    _canWithdraw: bool,
     # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
@@ -34,8 +34,8 @@ def __init__(
         _minHqTimeLock,
         _maxHqTimeLock,
         _startingAgent,
-        _sentinel,
-        _highCommand,
+        _canDeposit,
+        _canWithdraw,
         _minSnapshotDelay,
         _maxNumSnapshots,
         _maxUpsideDeviation,

@@ -7,7 +7,6 @@ from interfaces import YieldLego as YieldLego
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
-from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -15,12 +14,6 @@ from ethereum.ercs import IERC20Detailed
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
     def isLockedSigner(_signer: address) -> bool: view
-
-interface Sentinel:
-    def canSignerManageVault(_config: wcs.ManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = []) -> bool: view
-
-interface HighCommand:
-    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
@@ -46,7 +39,7 @@ struct SingleSnapShot:
     pricePerShare: uint256
     lastUpdate: uint256
 
-struct PriceConfig:
+struct SnapShotPriceConfig:
     minSnapshotDelay: uint256
     maxNumSnapshots: uint256
     maxUpsideDeviation: uint256
@@ -64,7 +57,6 @@ struct VaultActionData:
     legoBook: address
     appraiser: address
     vaultRegistry: address
-    isFrozen: bool
     signer: address
     legoId: uint256
     legoAddr: address
@@ -93,17 +85,17 @@ event PriceConfigSet:
 event RedemptionBufferSet:
     buffer: uint256
 
-event FrozenSet:
+event VaultOpsFrozenSet:
     isFrozen: bool
     caller: indexed(address)
 
-event CanDepositSet:
-    canDeposit: bool
-    caller: indexed(address)
+event ApprovedVaultTokenSet:
+    vaultToken: indexed(address)
+    isApproved: bool
 
-event CanWithdrawSet:
-    canWithdraw: bool
-    caller: indexed(address)
+event ApprovedYieldLegoSet:
+    legoId: indexed(uint256)
+    isApproved: bool
 
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
@@ -112,22 +104,19 @@ indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
 # price snap shot data
-priceConfig: public(PriceConfig)
 snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
 snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
+snapShotPriceConfig: public(SnapShotPriceConfig)
+
+# yield config
+isApprovedVaultToken: public(HashMap[address, bool]) # asset -> is approved
+isApprovedYieldLego: public(HashMap[uint256, bool]) # lego id -> is approved
 
 # other config
-redemptionBuffer: public(uint256) # buffer in basis points (e.g. 200 = 2%)
-isFrozen: public(bool)
-canDeposit: public(bool)
-canWithdraw: public(bool)
-
-# wallet backpack contracts
-sentinel: public(address)
-highCommand: public(address)
+isVaultOpsFrozen: public(bool)
+redemptionBuffer: public(uint256)
 
 # managers
-managerSettings: public(HashMap[address, wcs.ManagerSettings])
 managers: public(HashMap[uint256, address]) # index -> manager
 indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
@@ -137,7 +126,6 @@ ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
-MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
@@ -158,9 +146,6 @@ def __init__(
     _undyHq: address,
     _vaultAsset: address,
     _startingAgent: address,
-    # wallet backpack addrs
-    _sentinel: address,
-    _highCommand: address,
     # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
@@ -170,8 +155,6 @@ def __init__(
     # not using 0 index
     self.numManagers = 1
     self.numAssets = 1
-    self.canDeposit = True
-    self.canWithdraw = True
 
     assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
     UNDY_HQ = _undyHq
@@ -179,23 +162,17 @@ def __init__(
 
     # initial agent
     if _startingAgent != empty(address):
-        self.managerSettings[_startingAgent] = staticcall HighCommand(_highCommand).createStarterAgentSettings(0)
         self._registerManager(_startingAgent)
 
-    # wallet backpack addrs
-    assert empty(address) not in [_sentinel, _highCommand] # dev: invalid addrs
-    self.sentinel = _sentinel
-    self.highCommand = _highCommand
-
     # set price config
-    config: PriceConfig = PriceConfig(
+    config: SnapShotPriceConfig = SnapShotPriceConfig(
         minSnapshotDelay = _minSnapshotDelay,
         maxNumSnapshots = _maxNumSnapshots,
         maxUpsideDeviation = _maxUpsideDeviation,
         staleTime = _staleTime,
     )
     assert self._isValidPriceConfig(config) # dev: invalid config
-    self.priceConfig = config
+    self.snapShotPriceConfig = config
 
     # set default redemption buffer to 2% (200 basis points)
     self.redemptionBuffer = 2_00
@@ -217,7 +194,7 @@ def depositForYield(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
-    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_DEPOSIT, [_asset], [_legoId])
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
     return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, ad)
 
 
@@ -242,7 +219,8 @@ def _depositForYield(
 
     # update yield position
     if _asset == VAULT_ASSET:
-        assert vaultToken != empty(address) # dev: must have vault token
+        assert self.isApprovedYieldLego[_ad.legoId] # dev: not approved lego id
+        assert self.isApprovedVaultToken[vaultToken] # dev: not approved vault token
         self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
 
     if _shouldGenerateEvent:
@@ -270,7 +248,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
     _isSpecialTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
-    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_WITHDRAW, [_vaultToken], [_legoId])
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
     return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, ad)
 
 
@@ -326,7 +304,7 @@ def rebalanceYieldPosition(
     _fromVaultAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
-    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.EARN_REBALANCE, [_fromVaultToken, _toVaultAddr], [_fromLegoId, _toLegoId])
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_fromLegoId, _toLegoId])
 
     # withdraw
     vaultTokenAmountBurned: uint256 = 0
@@ -369,12 +347,13 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     legoIds: DynArray[uint256, MAX_LEGOS] = []
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
 
-    # important check!
+    # important checks!
     assert tokenIn != VAULT_ASSET # dev: cannot swap out of vault asset
     assert self.assetData[tokenIn].legoId == 0 # dev: cannot swap out of vault token
+    assert tokenOut == VAULT_ASSET # dev: must swap into vault asset
 
     # action data bundle
-    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.SWAP, [tokenIn, tokenOut], legoIds)
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
 
     amountIn: uint256 = origAmountIn
@@ -467,7 +446,7 @@ def claimRewards(
     _rewardAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
-    ad: VaultActionData = self._canPerformAction(msg.sender, ws.ActionType.REWARDS, [_rewardToken], [_legoId])
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
 
     # make sure can access
     self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
@@ -554,7 +533,7 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 @internal
 def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
-    ad: VaultActionData = self._getActionDataBundle(0, _sender)
+    ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
@@ -661,7 +640,7 @@ def _updateYieldPosition(_vaultToken: address, _legoId: uint256, _legoAddr: addr
 
     # non-rebase assets use weighted average share prices
     if not data.isRebasing:
-        config: PriceConfig = self.priceConfig
+        config: SnapShotPriceConfig = self.snapShotPriceConfig
         self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, config)
         data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, config)
         if data.avgPricePerShare != 0:
@@ -725,12 +704,12 @@ def _deregisterYieldPosition(_vaultToken: address) -> bool:
 @view
 @external
 def getWeightedPrice(_vaultToken: address) -> uint256:
-    return self._getWeightedPricePerShare(_vaultToken, self.priceConfig)
+    return self._getWeightedPricePerShare(_vaultToken, self.snapShotPriceConfig)
 
 
 @view
 @internal
-def _getWeightedPricePerShare(_vaultToken: address, _config: PriceConfig) -> uint256:
+def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig) -> uint256:
     if _config.maxNumSnapshots == 0:
         return 0
 
@@ -771,7 +750,7 @@ def addPriceSnapshot(_vaultToken: address) -> bool:
     if legoAddr == empty(address):
         return False
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, self.priceConfig)
+    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, self.snapShotPriceConfig)
 
 
 @internal 
@@ -779,7 +758,7 @@ def _addPriceSnapshot(
     _vaultToken: address,
     _legoAddr: address,
     _vaultTokenDecimals: uint256,
-    _config: PriceConfig,
+    _config: SnapShotPriceConfig,
 ) -> bool:
     data: SnapShotData = self.snapShotData[_vaultToken]
 
@@ -823,7 +802,7 @@ def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
         return empty(SingleSnapShot)
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     data: SnapShotData = self.snapShotData[_vaultToken]
-    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, self.priceConfig)
+    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, self.snapShotPriceConfig)
 
 
 @view
@@ -833,7 +812,7 @@ def _getLatestSnapshot(
     _legoAddr: address,
     _vaultTokenDecimals: uint256,
     _lastSnapShot: SingleSnapShot,
-    _config: PriceConfig,
+    _config: SnapShotPriceConfig,
 ) -> SingleSnapShot:
 
     # total supply (adjusted)
@@ -861,43 +840,168 @@ def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256
     return min(_newValue, maxPricePerShare)
 
 
-###############
-# Permissions #
-###############
+####################
+# Manager Settings #
+####################
+
+
+# can manage
 
 
 @internal
-def _canPerformAction(
-    _signer: address,
-    _action: ws.ActionType,
-    _assets: DynArray[address, MAX_ASSETS],
-    _legoIds: DynArray[uint256, MAX_LEGOS],
-) -> VaultActionData:
+def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
+    assert self.indexOfManager[_signer] != 0 # dev: not manager
+
+    # main data for this transaction
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
-
-    # main data for this transaction
-    ad: VaultActionData = self._getActionDataBundle(legoId, _signer)
+    ad: VaultActionData = self._getVaultActionDataBundle(legoId, _signer)
 
     # cannot perform any actions if vault is frozen
-    assert not ad.isFrozen # dev: frozen vault
+    assert not self.isVaultOpsFrozen # dev: frozen vault
 
-    # make sure signer is not locked
-    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
-
-    # main validation
-    hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerManageVault(
-        self.managerSettings[_signer],
-        _action,
-        _assets,
-        _legoIds,
-    )
-
-    # IMPORTANT -- checks if the signer is allowed to perform the action
-    assert hasPermission # dev: no permission
+    # make sure manager is not locked
+    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: manager is locked
 
     return ad
+
+
+# add manager
+
+
+@external
+def addManager(_manager: address):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self._registerManager(_manager)
+
+
+# register manager
+
+
+@internal
+def _registerManager(_manager: address):
+    if self.indexOfManager[_manager] != 0:
+        return
+    mid: uint256 = self.numManagers
+    self.managers[mid] = _manager
+    self.indexOfManager[_manager] = mid
+    self.numManagers = mid + 1
+
+
+# remove manager
+
+
+@external
+def removeManager(_manager: address):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+
+    numManagers: uint256 = self.numManagers
+    if numManagers == 1:
+        return
+
+    targetIndex: uint256 = self.indexOfManager[_manager]
+    if targetIndex == 0:
+        return
+
+    # update data
+    lastIndex: uint256 = numManagers - 1
+    self.numManagers = lastIndex
+    self.indexOfManager[_manager] = 0
+
+    # get last item, replace the removed item
+    if targetIndex != lastIndex:
+        lastItem: address = self.managers[lastIndex]
+        self.managers[targetIndex] = lastItem
+        self.indexOfManager[lastItem] = targetIndex
+
+
+# freeze vault ops
+
+
+@external
+def setVaultOpsFrozen(_isFrozen: bool):
+    if not self._isSwitchboardAddr(msg.sender):
+        assert self._canPerformSecurityAction(msg.sender) and _isFrozen # dev: no perms
+    assert _isFrozen != self.isVaultOpsFrozen # dev: nothing to change
+    self.isVaultOpsFrozen = _isFrozen
+    log VaultOpsFrozenSet(isFrozen=_isFrozen, caller=msg.sender)
+
+
+###########################
+# Approved Legos / Vaults #
+###########################
+
+
+@external
+def setApprovedVaultToken(_vaultToken: address, _isApproved: bool):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _vaultToken != empty(address) # dev: invalid vault token
+    assert _isApproved != self.isApprovedVaultToken[_vaultToken] # dev: nothing to change
+    self.isApprovedVaultToken[_vaultToken] = _isApproved
+    log ApprovedVaultTokenSet(vaultToken=_vaultToken, isApproved=_isApproved)
+
+
+@external
+def setApprovedYieldLego(_legoId: uint256, _isApproved: bool):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _legoId != 0 # dev: invalid lego id
+    assert _isApproved != self.isApprovedYieldLego[_legoId] # dev: nothing to change
+    self.isApprovedYieldLego[_legoId] = _isApproved
+    log ApprovedYieldLegoSet(legoId=_legoId, isApproved=_isApproved)
+
+
+################
+# Price Config #
+################
+
+
+@external
+def setPriceConfig(_config: SnapShotPriceConfig):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._isValidPriceConfig(_config) # dev: invalid config
+
+    self.snapShotPriceConfig = _config
+    log PriceConfigSet(minSnapshotDelay = _config.minSnapshotDelay, maxNumSnapshots = _config.maxNumSnapshots, maxUpsideDeviation = _config.maxUpsideDeviation, staleTime = _config.staleTime)
+
+
+# validation
+
+
+@view
+@external
+def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+    return self._isValidPriceConfig(_config)
+
+
+@view
+@internal
+def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
+        return False
+    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
+        return False
+    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
+        return False
+    return _config.staleTime < ONE_WEEK_SECONDS
+
+
+#####################
+# Redemption Buffer #
+#####################
+
+
+@external
+def setRedemptionBuffer(_buffer: uint256):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
+    self.redemptionBuffer = _buffer
+    log RedemptionBufferSet(buffer = _buffer)
+
+
+#############
+# Utilities #
+#############
 
 
 # is signer switchboard
@@ -922,157 +1026,6 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
-
-
-################
-# Price Config #
-################
-
-
-@external
-def setPriceConfig(_config: PriceConfig):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._isValidPriceConfig(_config) # dev: invalid config
-
-    self.priceConfig = _config
-    log PriceConfigSet(minSnapshotDelay = _config.minSnapshotDelay, maxNumSnapshots = _config.maxNumSnapshots, maxUpsideDeviation = _config.maxUpsideDeviation, staleTime = _config.staleTime)
-
-
-# validation
-
-
-@view
-@external
-def isValidPriceConfig(_config: PriceConfig) -> bool:
-    return self._isValidPriceConfig(_config)
-
-
-@view
-@internal
-def _isValidPriceConfig(_config: PriceConfig) -> bool:
-    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
-        return False
-    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
-        return False
-    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
-        return False
-    return _config.staleTime < ONE_WEEK_SECONDS
-
-
-#####################
-# Redemption Buffer #
-#####################
-
-
-@external
-def setRedemptionBuffer(_buffer: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
-    self.redemptionBuffer = _buffer
-    log RedemptionBufferSet(buffer = _buffer)
-
-
-####################
-# Manager Settings #
-####################
-
-
-# add manager
-
-
-@external
-def addManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender == self.highCommand # dev: no perms
-    self.managerSettings[_manager] = _config
-    self._registerManager(_manager)
-
-
-# update manager
-
-
-@external
-def updateManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender == self.highCommand # dev: no perms
-    self.managerSettings[_manager] = _config
-
-
-# register manager
-
-
-@internal
-def _registerManager(_manager: address):
-    if self.indexOfManager[_manager] != 0:
-        return
-    mid: uint256 = self.numManagers
-    self.managers[mid] = _manager
-    self.indexOfManager[_manager] = mid
-    self.numManagers = mid + 1
-
-
-# remove manager
-
-
-@external
-def removeManager(_manager: address):
-    assert msg.sender == self.highCommand # dev: no perms
-
-    numManagers: uint256 = self.numManagers
-    if numManagers == 1:
-        return
-
-    targetIndex: uint256 = self.indexOfManager[_manager]
-    if targetIndex == 0:
-        return
-
-    self.managerSettings[_manager] = empty(wcs.ManagerSettings)
-
-    # update data
-    lastIndex: uint256 = numManagers - 1
-    self.numManagers = lastIndex
-    self.indexOfManager[_manager] = 0
-
-    # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.managers[lastIndex]
-        self.managers[targetIndex] = lastItem
-        self.indexOfManager[lastItem] = targetIndex
-
-
-#####################
-# Security Features #
-#####################
-
-
-@external
-def setFrozen(_isFrozen: bool):
-    if not self._isSwitchboardAddr(msg.sender):
-        assert self._canPerformSecurityAction(msg.sender) and _isFrozen # dev: no perms
-    assert _isFrozen != self.isFrozen # dev: nothing to change
-    self.isFrozen = _isFrozen
-    log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
-
-
-@external
-def setCanDeposit(_canDeposit: bool):
-    if not self._isSwitchboardAddr(msg.sender):
-        assert self._canPerformSecurityAction(msg.sender) and not _canDeposit # dev: no perms
-    assert _canDeposit != self.canDeposit # dev: nothing to change
-    self.canDeposit = _canDeposit
-    log CanDepositSet(canDeposit=_canDeposit, caller=msg.sender)
-
-
-@external
-def setCanWithdraw(_canWithdraw: bool):
-    if not self._isSwitchboardAddr(msg.sender):
-        assert self._canPerformSecurityAction(msg.sender) and not _canWithdraw # dev: no perms
-    assert _canWithdraw != self.canWithdraw # dev: nothing to change
-    self.canWithdraw = _canWithdraw
-    log CanWithdrawSet(canWithdraw=_canWithdraw, caller=msg.sender)
-
-
-#############
-# Utilities #
-#############
 
 
 # approve
@@ -1175,13 +1128,13 @@ def _packMiniAddys(
 
 @view
 @external
-def getActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
-    return self._getActionDataBundle(_legoId, _signer)
+def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
+    return self._getVaultActionDataBundle(_legoId, _signer)
 
 
 @view
 @internal
-def _getActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
+def _getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
     hq: address = UNDY_HQ
 
     # lego details
@@ -1196,7 +1149,6 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
         legoBook = legoBook,
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
         vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
-        isFrozen = self.isFrozen,
         signer = _signer,
         legoId = _legoId,
         legoAddr = legoAddr,

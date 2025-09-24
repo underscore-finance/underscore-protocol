@@ -127,7 +127,7 @@ def test_vault_mini_wallet_deposit_for_yield_unauthorized_caller(prepareAssetFor
 
     # attempt to deposit from unauthorized address (bob instead of starter_agent)
     lego_id = 1
-    with boa.reverts("no permission"):  # Should fail due to no permission
+    with boa.reverts("not manager"):  # Should fail due to not being a manager
         undy_usd_vault.depositForYield(
             lego_id,
             yield_underlying_token.address,
@@ -702,7 +702,7 @@ def test_vault_mini_wallet_withdraw_from_yield_unauthorized_caller(setupYieldPos
     setupYieldPosition()
 
     # attempt to withdraw from unauthorized address
-    with boa.reverts("no permission"):
+    with boa.reverts("not manager"):
         undy_usd_vault.withdrawFromYield(
             1,
             yield_vault_token.address,

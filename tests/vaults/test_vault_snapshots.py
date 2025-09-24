@@ -130,7 +130,7 @@ def test_add_price_snapshot_circular_buffer(undy_usd_vault, yield_vault_token, y
     )
 
     # Get the max number of snapshots and initial state
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_snapshots = price_config.maxNumSnapshots
 
     # Get initial index (deposit adds first snapshot)
@@ -178,7 +178,7 @@ def test_add_price_snapshot_respects_min_delay(undy_usd_vault, yield_vault_token
     )
 
     # Get min delay from config and initial state
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     min_delay = price_config.minSnapshotDelay
     initial_data = undy_usd_vault.snapShotData(yield_vault_token.address)
     initial_index = initial_data.nextIndex
@@ -324,7 +324,7 @@ def test_add_price_snapshot_with_yield_accrual(undy_usd_vault, yield_vault_token
     new_price = new_snapshot.pricePerShare
 
     # Price should have increased but may be throttled by max upside
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_upside = price_config.maxUpsideDeviation
     max_allowed_price = initial_price + (initial_price * max_upside // 10000)
 
@@ -461,7 +461,7 @@ def test_add_price_snapshot_throttles_upside(undy_usd_vault, yield_vault_token, 
     initial_price = initial_snapshot.pricePerShare
 
     # Get max upside deviation from config
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_upside = price_config.maxUpsideDeviation
 
     # Simulate massive yield accrual (10x)
@@ -612,7 +612,7 @@ def test_stale_snapshots_excluded(undy_usd_vault, yield_vault_token, yield_under
     )
 
     # Get stale time from config
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     stale_time = price_config.staleTime
 
     # Add first snapshot
@@ -705,7 +705,7 @@ def test_config_change_effects(undy_usd_vault, yield_vault_token, yield_underlyi
     initial_snapshot = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
 
     # Get current config
-    old_config = undy_usd_vault.priceConfig()
+    old_config = undy_usd_vault.snapShotPriceConfig()
 
     # Create new config with different max upside (5% instead of 10%)
     new_max_upside = 500  # 5%
@@ -767,7 +767,7 @@ def test_max_snapshots_zero_config(undy_usd_vault):
     """Test behavior when maxNumSnapshots is set to zero"""
 
     # Get current config
-    current_config = undy_usd_vault.priceConfig()
+    current_config = undy_usd_vault.snapShotPriceConfig()
 
     # Try to set maxNumSnapshots to 0 - should fail validation
     zero_snapshots_config = (current_config.minSnapshotDelay, 0, current_config.maxUpsideDeviation, current_config.staleTime)
@@ -796,7 +796,7 @@ def test_rapid_price_changes_with_throttling(undy_usd_vault, yield_vault_token, 
     )
 
     # Get max upside from config
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_upside = price_config.maxUpsideDeviation
 
     prices = []
@@ -852,7 +852,7 @@ def test_get_latest_snapshot_throttles_independently(undy_usd_vault, yield_vault
     initial_price = initial_snapshot.pricePerShare
 
     # Get config for max upside
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_upside = price_config.maxUpsideDeviation
 
     # Simulate massive yield (10x) - much more than max upside allows
@@ -1006,7 +1006,7 @@ def test_get_weighted_price_excludes_stale(undy_usd_vault, yield_vault_token, yi
     )
 
     # Get config to know stale time
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     stale_time = price_config.staleTime
 
     # Add first snapshot - this will become stale
@@ -1108,7 +1108,7 @@ def test_get_weighted_price_circular_buffer_full(undy_usd_vault, yield_vault_tok
     )
 
     # Get max snapshots from config
-    price_config = undy_usd_vault.priceConfig()
+    price_config = undy_usd_vault.snapShotPriceConfig()
     max_snapshots = price_config.maxNumSnapshots
 
     # Fill the buffer completely
