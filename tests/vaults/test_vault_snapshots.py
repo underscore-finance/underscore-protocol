@@ -1216,3 +1216,602 @@ def test_get_weighted_price_with_price_variations(undy_usd_vault, yield_vault_to
     # With higher supply on the higher price snapshot, weighted should tend toward higher value
     # Due to throttling and averaging, just verify it's reasonable
     assert weighted_price > snap1.pricePerShare  # Should be above the base price
+
+
+###########################
+# _getTotalAssets() Tests #
+###########################
+
+
+def test_get_total_assets_basic(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale):
+    """Test basic getTotalAssets with only vault asset balance"""
+
+    initial_balance = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, initial_balance, sender=yield_underlying_token_whale)
+
+    total_assets_max = undy_usd_vault.getTotalAssets(True)
+    total_assets_avg = undy_usd_vault.getTotalAssets(False)
+
+    assert total_assets_max == initial_balance
+    assert total_assets_avg == initial_balance
+
+
+def test_get_total_assets_with_vault_position(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets includes vault token positions"""
+
+    vault_balance = 500 * EIGHTEEN_DECIMALS
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+
+    yield_underlying_token.transfer(undy_usd_vault.address, vault_balance + deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    total_assets_max = undy_usd_vault.getTotalAssets(True)
+    total_assets_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_total = vault_balance + deposit_amount
+    assert total_assets_max == expected_total
+    assert total_assets_avg == expected_total
+
+
+def test_get_total_assets_with_yield_accrual(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, governance):
+    """Test getTotalAssets reflects yield accrual in vault positions"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    initial_total = undy_usd_vault.getTotalAssets(True)
+    assert initial_total == deposit_amount
+
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance // 10, sender=governance.address)
+
+    new_total_max = undy_usd_vault.getTotalAssets(True)
+
+    expected_total = deposit_amount * 11 // 10
+    assert new_total_max == expected_total
+
+
+def test_get_total_assets_max_vs_avg(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test difference between max (shouldGetMax=True) and avg (shouldGetMax=False)"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance // 10, sender=governance.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 11 // 10
+    expected_avg = deposit_amount
+
+    assert total_max == expected_max
+    assert total_avg == expected_avg
+
+
+def test_get_total_assets_multiple_positions(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets correctly aggregates multiple vault positions"""
+
+    vault_balance = 200 * EIGHTEEN_DECIMALS
+    deposit_1 = 500 * EIGHTEEN_DECIMALS
+    deposit_2 = 300 * EIGHTEEN_DECIMALS
+
+    total_transfer = vault_balance + deposit_1 + deposit_2
+    yield_underlying_token.transfer(undy_usd_vault.address, total_transfer, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_1,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_2,
+        sender=starter_agent.address
+    )
+
+    total_assets = undy_usd_vault.getTotalAssets(True)
+
+    expected_total = vault_balance + deposit_1 + deposit_2
+    assert total_assets == expected_total
+
+
+def test_get_total_assets_empty_vault(undy_usd_vault):
+    """Test getTotalAssets when vault is completely empty"""
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    assert total_max == 0
+    assert total_avg == 0
+
+
+def test_get_total_assets_after_withdrawal(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets after partial and full withdrawal"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    initial_total = undy_usd_vault.getTotalAssets(True)
+    assert initial_total == deposit_amount
+
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens // 2,
+        sender=starter_agent.address
+    )
+
+    partial_total = undy_usd_vault.getTotalAssets(True)
+    assert partial_total == deposit_amount
+
+    remaining_balance = yield_vault_token.balanceOf(undy_usd_vault.address)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        remaining_balance,
+        sender=starter_agent.address
+    )
+
+    final_total = undy_usd_vault.getTotalAssets(True)
+    assert final_total == deposit_amount
+
+
+def test_get_total_assets_with_zero_balance_position(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets skips positions with zero balance"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    total_assets = undy_usd_vault.getTotalAssets(True)
+
+    vault_asset_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert total_assets == vault_asset_balance
+
+
+def test_get_total_assets_price_precision(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test getTotalAssets handles price per share precision correctly"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance // 100, sender=governance.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 101 // 100
+    expected_avg = deposit_amount
+
+    assert total_max == expected_max
+    assert total_avg == expected_avg
+
+
+def test_get_total_assets_throttled_price(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test getTotalAssets avg mode uses throttled avgPricePerShare vs max mode uses raw price"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance * 9, sender=governance.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 10
+    expected_avg = deposit_amount
+
+    assert total_max == expected_max
+    assert total_avg == expected_avg
+
+
+def test_get_total_assets_consistency(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets is consistent and deterministic"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    total_1 = undy_usd_vault.getTotalAssets(True)
+    total_2 = undy_usd_vault.getTotalAssets(True)
+    total_3 = undy_usd_vault.getTotalAssets(True)
+
+    assert total_1 == total_2 == total_3
+
+
+def test_get_total_assets_used_in_earn_vault(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test that _getTotalAssets integrates correctly with EarnVault calculations"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    total_assets_max = undy_usd_vault.getTotalAssets(True)
+    total_assets_avg = undy_usd_vault.getTotalAssets(False)
+
+    assert total_assets_max == deposit_amount
+    assert total_assets_avg == deposit_amount
+
+
+def test_get_total_assets_avg_uses_min_of_avg_and_true(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test avg mode uses min(avgBalance, trueBalance)"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, vault_balance // 10, sender=governance.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 11 // 10
+    expected_avg = deposit_amount
+
+    assert total_max == expected_max
+    assert total_avg == expected_avg
+
+
+def test_get_total_assets_with_asset_gaps(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets correctly handles gaps in assets array after deregistration"""
+
+    vault_balance = 100 * EIGHTEEN_DECIMALS
+    deposit_1 = 300 * EIGHTEEN_DECIMALS
+    deposit_2 = 200 * EIGHTEEN_DECIMALS
+    deposit_3 = 400 * EIGHTEEN_DECIMALS
+
+    total_transfer = vault_balance + deposit_1 + deposit_2 + deposit_3
+    yield_underlying_token.transfer(undy_usd_vault.address, total_transfer, sender=yield_underlying_token_whale)
+
+    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_1,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_2,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_3.address,
+        deposit_3,
+        sender=starter_agent.address
+    )
+
+    initial_total = undy_usd_vault.getTotalAssets(True)
+    expected_initial = vault_balance + deposit_1 + deposit_2 + deposit_3
+    assert initial_total == expected_initial
+
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens_1,
+        sender=starter_agent.address
+    )
+
+    total_after_gap = undy_usd_vault.getTotalAssets(True)
+    expected_after = vault_balance + deposit_1 + deposit_2 + deposit_3
+    assert total_after_gap == expected_after
+
+
+def test_get_total_assets_mixed_price_movements(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent, governance):
+    """Test getTotalAssets with multiple positions having different price changes"""
+
+    vault_balance = 100 * EIGHTEEN_DECIMALS
+    deposit_1 = 500 * EIGHTEEN_DECIMALS
+    deposit_2 = 500 * EIGHTEEN_DECIMALS
+
+    total_transfer = vault_balance + deposit_1 + deposit_2
+    yield_underlying_token.transfer(undy_usd_vault.address, total_transfer, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_1,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_2,
+        sender=starter_agent.address
+    )
+
+    vault_1_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, vault_1_balance // 10, sender=governance.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+
+    expected_vault_1 = deposit_1 * 11 // 10
+    expected_vault_2 = deposit_2
+    expected_total = vault_balance + expected_vault_1 + expected_vault_2
+
+    assert total_max == expected_total
+
+
+def test_get_total_assets_position_size_imbalance(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets with extreme position size imbalance"""
+
+    vault_balance = 10 * EIGHTEEN_DECIMALS
+    large_deposit = 9900 * EIGHTEEN_DECIMALS
+    tiny_deposit = 1 * EIGHTEEN_DECIMALS
+
+    total_transfer = vault_balance + large_deposit + tiny_deposit
+    yield_underlying_token.transfer(undy_usd_vault.address, total_transfer, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        large_deposit,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        tiny_deposit,
+        sender=starter_agent.address
+    )
+
+    total_assets = undy_usd_vault.getTotalAssets(True)
+
+    expected_total = vault_balance + large_deposit + tiny_deposit
+    assert total_assets == expected_total
+
+
+def test_get_total_assets_small_amounts(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets with small token amounts"""
+
+    vault_balance = 1 * EIGHTEEN_DECIMALS
+    deposit_amount = 10 * EIGHTEEN_DECIMALS
+
+    yield_underlying_token.transfer(undy_usd_vault.address, vault_balance + deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_total = vault_balance + deposit_amount
+    assert total_max == expected_total
+    assert total_avg == expected_total
+
+
+def test_get_total_assets_with_updated_snapshots(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test getTotalAssets reflects updated avgPricePerShare after new snapshots"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, vault_balance // 10, sender=governance.address)
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 11 // 10
+    assert total_max == expected_max
+    assert total_avg < total_max
+
+
+def test_get_total_assets_after_rebalance(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets accuracy after rebalancing between vaults"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    initial_total = undy_usd_vault.getTotalAssets(True)
+    assert initial_total == deposit_amount
+
+    vault_token_balance = yield_vault_token.balanceOf(undy_usd_vault.address)
+    undy_usd_vault.rebalanceYieldPosition(
+        1,
+        yield_vault_token.address,
+        1,
+        yield_vault_token_2.address,
+        vault_token_balance,
+        sender=starter_agent.address
+    )
+
+    total_after_rebalance = undy_usd_vault.getTotalAssets(True)
+    assert total_after_rebalance == deposit_amount
+
+
+def test_get_total_assets_extreme_throttling(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test getTotalAssets with extreme price increase (1000x) getting throttled"""
+
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, vault_balance * 999, sender=governance.address)
+
+    price_config = undy_usd_vault.snapShotPriceConfig()
+    max_upside = price_config.maxUpsideDeviation
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    expected_max = deposit_amount * 1000
+    expected_avg = deposit_amount
+
+    assert total_max == expected_max
+    assert total_avg == expected_avg
+
+
+def test_get_total_assets_large_balances(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent):
+    """Test getTotalAssets with large token balances"""
+
+    large_amount = 50_000_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, large_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        large_amount,
+        sender=starter_agent.address
+    )
+
+    total_max = undy_usd_vault.getTotalAssets(True)
+    total_avg = undy_usd_vault.getTotalAssets(False)
+
+    assert total_max == large_amount
+    assert total_avg == large_amount
