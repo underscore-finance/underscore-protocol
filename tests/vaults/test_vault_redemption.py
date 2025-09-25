@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import EIGHTEEN_DECIMALS, MAX_UINT256, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS
 from conf_utils import filter_logs
 
 
@@ -75,9 +75,9 @@ def test_set_redemption_buffer_updates_state(undy_usd_vault, switchboard_alpha):
     assert undy_usd_vault.redemptionBuffer() == 7_50
 
 
-#########################
+##########################
 # Basic Redemption Tests #
-#########################
+##########################
 
 
 def test_redemption_with_sufficient_vault_balance(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob):
@@ -185,9 +185,9 @@ def test_redemption_empty_vault_numAssets_zero(undy_usd_vault, yield_underlying_
     assert final_balance == initial_balance + withdraw_amount
 
 
-##########################
-# Buffer Impact Tests    #
-##########################
+#######################
+# Buffer Impact Tests #
+#######################
 
 
 def test_redemption_zero_percent_buffer(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
@@ -253,9 +253,9 @@ def test_redemption_ten_percent_buffer(prepareVaultWithYield, undy_usd_vault, yi
     assert final_balance == initial_balance + withdraw_amount
 
 
-################################
-# Multi-Position Withdrawal    #
-################################
+#############################
+# Multi-Position Withdrawal #
+#############################
 
 
 def test_redemption_multiple_positions_sequential(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, starter_agent, bob):
@@ -443,9 +443,9 @@ def test_redemption_deregister_multiple_positions(undy_usd_vault, yield_underlyi
     assert undy_usd_vault.indexOfAsset(yield_vault_token_3.address) == 0
 
 
-###########################
-# Precision & Edge Cases  #
-###########################
+##########################
+# Precision & Edge Cases #
+##########################
 
 
 def test_redemption_large_amount_multiple_positions(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, yield_vault_token_3, starter_agent, bob):
@@ -531,9 +531,9 @@ def test_redemption_insufficient_liquidity(prepareVaultWithYield, undy_usd_vault
         undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
 
 
-#########################
-# Integration Tests     #
-#########################
+#####################
+# Integration Tests #
+#####################
 
 
 def test_redemption_via_erc4626_withdraw(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob):

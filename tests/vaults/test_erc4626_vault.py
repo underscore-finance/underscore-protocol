@@ -1416,6 +1416,7 @@ def test_vault_initialization_with_flags_disabled(
         starter_agent,
         False,  # canDeposit = False
         True,   # canWithdraw = True
+        0,      # maxDepositAmount = 0 (unlimited)
         PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
         PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
         PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
@@ -1441,6 +1442,7 @@ def test_vault_initialization_with_flags_disabled(
         starter_agent,
         True,   # canDeposit = True
         False,  # canWithdraw = False
+        0,      # maxDepositAmount = 0 (unlimited)
         PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
         PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
         PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],

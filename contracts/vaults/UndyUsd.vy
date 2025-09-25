@@ -20,6 +20,7 @@ def __init__(
     # main config
     _canDeposit: bool,
     _canWithdraw: bool,
+    _maxDepositAmount: uint256,
     # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
@@ -36,6 +37,7 @@ def __init__(
         _startingAgent,
         _canDeposit,
         _canWithdraw,
+        _maxDepositAmount,
         _minSnapshotDelay,
         _maxNumSnapshots,
         _maxUpsideDeviation,

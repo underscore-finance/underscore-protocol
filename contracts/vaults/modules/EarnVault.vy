@@ -40,11 +40,16 @@ event CanWithdrawSet:
     canWithdraw: bool
     caller: indexed(address)
 
+event MaxDepositAmountSet:
+    maxDepositAmount: uint256
+    caller: indexed(address)
+
 ASSET: immutable(address)
 
 # vault config
 canDeposit: public(bool)
 canWithdraw: public(bool)
+maxDepositAmount: public(uint256)
 
 
 @deploy
@@ -59,6 +64,7 @@ def __init__(
     # main config
     _canDeposit: bool,
     _canWithdraw: bool,
+    _maxDepositAmount: uint256,
     # price config
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
@@ -74,6 +80,7 @@ def __init__(
     # vault config
     self.canDeposit = _canDeposit
     self.canWithdraw = _canWithdraw
+    self.maxDepositAmount = _maxDepositAmount
 
 
 @view
@@ -96,10 +103,18 @@ def totalAssets() -> uint256:
 @view
 @external
 def maxDeposit(_receiver: address) -> uint256:
+    if not self.canDeposit:
+        return 0
 
-    # TODO: have limits?
+    maxAmount: uint256 = self.maxDepositAmount
+    if maxAmount == 0:
+        return max_value(uint256)
 
-    return max_value(uint256)
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
+    if totalAssets >= maxAmount:
+        return 0
+
+    return maxAmount - totalAssets
 
 
 @view
@@ -117,8 +132,9 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     if amount == max_value(uint256):
         amount = staticcall IERC20(asset).balanceOf(msg.sender)
 
-    shares: uint256 = self._amountToShares(amount, token.totalSupply, vaultWallet._getTotalAssets(True), False)
-    self._deposit(asset, amount, shares, _receiver)
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
+    shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
+    self._deposit(asset, amount, shares, _receiver, totalAssets)
     return shares
 
 
@@ -128,10 +144,19 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 @view
 @external
 def maxMint(_receiver: address) -> uint256:
+    if not self.canDeposit:
+        return 0
 
-    # TODO: have limits?
+    maxAmount: uint256 = self.maxDepositAmount
+    if maxAmount == 0:
+        return max_value(uint256)
 
-    return max_value(uint256)
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
+    if totalAssets >= maxAmount:
+        return 0
+
+    maxDepositAmt: uint256 = maxAmount - totalAssets
+    return self._amountToShares(maxDepositAmt, token.totalSupply, totalAssets, False)
 
 
 @view
@@ -144,8 +169,9 @@ def previewMint(_shares: uint256) -> uint256:
 @external
 def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     asset: address = ASSET
-    amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(True), True)
-    self._deposit(asset, amount, _shares, _receiver)
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
+    amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
+    self._deposit(asset, amount, _shares, _receiver, totalAssets)
     return amount
 
 
@@ -153,12 +179,16 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
 
 
 @internal
-def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: address):
+def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: address, _totalAssets: uint256):
     assert self.canDeposit # dev: cannot deposit
 
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
+
+    maxAmount: uint256 = self.maxDepositAmount
+    if maxAmount != 0:
+        assert _totalAssets + _amount <= maxAmount # dev: exceeds max deposit
 
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed
     token._mint(_recipient, _shares)
@@ -359,3 +389,11 @@ def setCanWithdraw(_canWithdraw: bool):
     assert _canWithdraw != self.canWithdraw # dev: nothing to change
     self.canWithdraw = _canWithdraw
     log CanWithdrawSet(canWithdraw=_canWithdraw, caller=msg.sender)
+
+
+@external
+def setMaxDepositAmount(_maxDepositAmount: uint256):
+    assert vaultWallet._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _maxDepositAmount != self.maxDepositAmount # dev: nothing to change
+    self.maxDepositAmount = _maxDepositAmount
+    log MaxDepositAmountSet(maxDepositAmount=_maxDepositAmount, caller=msg.sender)
