@@ -430,6 +430,17 @@ def test_set_approved_vault_token_disapprove(switchboard_charlie, vault_registry
     # Verify disapproved
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == False
 
+    # Re-approve to avoid polluting other tests
+    aid2 = switchboard_charlie.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        True,
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    switchboard_charlie.executePendingAction(aid2, sender=governance.address)
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
+
 
 def test_set_approved_vault_token_zero_address_fails(switchboard_charlie, undy_usd_vault, governance):
     """Test that zero address vault token is rejected"""
@@ -530,6 +541,17 @@ def test_set_approved_yield_lego_disapprove(switchboard_charlie, vault_registry,
 
     # Verify disapproved
     assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1) == False
+
+    # Re-approve to avoid polluting other tests
+    aid2 = switchboard_charlie.setApprovedYieldLego(
+        undy_usd_vault.address,
+        1,
+        True,
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    switchboard_charlie.executePendingAction(aid2, sender=governance.address)
+    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1) == True
 
 
 def test_set_approved_yield_lego_zero_id_fails(switchboard_charlie, undy_usd_vault, governance):
