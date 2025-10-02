@@ -211,6 +211,7 @@ def getVaultConfigByAddr(_vaultAddr: address) -> VaultConfig:
 @external
 def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     assert _canDeposit != config.canDeposit # dev: nothing to change
     config.canDeposit = _canDeposit
@@ -221,6 +222,7 @@ def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
 @external
 def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     assert _canWithdraw != config.canWithdraw # dev: nothing to change
     config.canWithdraw = _canWithdraw
@@ -231,6 +233,7 @@ def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
 @external
 def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     assert _maxDepositAmount != config.maxDepositAmount # dev: nothing to change
     config.maxDepositAmount = _maxDepositAmount
@@ -241,6 +244,7 @@ def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
 @external
 def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     assert _isFrozen != config.isVaultOpsFrozen # dev: nothing to change
     config.isVaultOpsFrozen = _isFrozen
@@ -251,6 +255,7 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
 @external
 def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     assert _buffer <= 10_00 # dev: buffer too high (max 10%)
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.redemptionBuffer = _buffer
@@ -261,6 +266,7 @@ def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
 @external
 def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     assert self._isValidPriceConfig(_config) # dev: invalid config
     vaultConfig: VaultConfig = self.vaultConfigs[_vaultAddr]
     vaultConfig.snapShotPriceConfig = _config
@@ -271,6 +277,7 @@ def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
 @external
 def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     assert _vaultToken != empty(address) # dev: invalid vault token
     assert _isApproved != self.isApprovedVaultToken[_vaultAddr][_vaultToken] # dev: nothing to change
     self.isApprovedVaultToken[_vaultAddr][_vaultToken] = _isApproved
@@ -280,6 +287,7 @@ def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved
 @external
 def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
     assert _legoId != 0 # dev: invalid lego id
     assert _isApproved != self.isApprovedYieldLego[_vaultAddr][_legoId] # dev: nothing to change
     self.isApprovedYieldLego[_vaultAddr][_legoId] = _isApproved

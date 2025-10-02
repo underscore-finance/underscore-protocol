@@ -164,7 +164,7 @@ def switchboard_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bravo):
+def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bravo, switchboard_charlie):
 
     # alpha
     assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_alpha, "Alpha", sender=deploy3r)
@@ -174,12 +174,17 @@ def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bra
     assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_bravo, "Bravo", sender=deploy3r)
     assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_bravo, sender=deploy3r) == 2
 
+    # charlie
+    assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_charlie, "Charlie", sender=deploy3r)
+    assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_charlie, sender=deploy3r) == 3
+
     # finish setup
     assert switchboard_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
 
     # finish setup on switchboard config contracts
     assert switchboard_alpha.setActionTimeLockAfterSetup(sender=deploy3r)
     assert switchboard_bravo.setActionTimeLockAfterSetup(sender=deploy3r)
+    assert switchboard_charlie.setActionTimeLockAfterSetup(sender=deploy3r)
 
     return switchboard_deploy
 
@@ -211,6 +216,21 @@ def switchboard_bravo(undy_hq_deploy, fork):
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
         PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
         name="switchboard_bravo",
+    )
+
+
+# switchboard charlie
+
+
+@pytest.fixture(scope="session")
+def switchboard_charlie(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/config/SwitchboardCharlie.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="switchboard_charlie",
     )
 
 
