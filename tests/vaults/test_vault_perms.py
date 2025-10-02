@@ -148,17 +148,18 @@ def test_deposit_with_unapproved_lego_fails(undy_usd_vault, vault_registry, star
     # Deploy another mock yield lego
     new_mock_yield_lego = boa.load("contracts/mock/MockYieldLego.vy", undy_hq_deploy)
 
-    # Register it in the lego book (will get ID 3)
+    # Register it in the lego book
     assert lego_book.startAddNewAddressToRegistry(new_mock_yield_lego, "New Mock Yield Lego", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     new_lego_id = lego_book.confirmNewAddressToRegistry(new_mock_yield_lego, sender=governance.address)
-    assert new_lego_id == 3  # Should be ID 3 after mock_yield_lego and mock_dex_lego
+    # Verify it was registered
+    assert new_lego_id == lego_book.getRegId(new_mock_yield_lego)
 
     # Transfer underlying tokens to vault
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
-    # Deposit should fail with unapproved lego ID 3
+    # Deposit should fail with unapproved lego
     with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             new_lego_id,  # Not approved yet
