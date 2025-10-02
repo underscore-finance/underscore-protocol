@@ -123,26 +123,6 @@ def lego_euler(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
 
 
 @pytest.fixture(scope="session")
-def lego_yo(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
-    YO_REGISTRY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["YO_REGISTRY"]
-    addr = boa.load("contracts/legos/yield/Yo.vy", undy_hq_deploy, YO_REGISTRY, name="lego_yo")
-    lego_book.startAddNewAddressToRegistry(addr, "Yo", sender=governance.address)
-    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
-    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
-    return addr
-
-
-@pytest.fixture(scope="session")
-def lego_tokemak(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
-    TOKEMAK_REGISTRY = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["TOKEMAK_REGISTRY"]
-    addr = boa.load("contracts/legos/yield/Tokemak.vy", undy_hq_deploy, TOKEMAK_REGISTRY, name="lego_tokemak")
-    lego_book.startAddNewAddressToRegistry(addr, "Tokemak", sender=governance.address)
-    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
-    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
-    return addr
-
-
-@pytest.fixture(scope="session")
 def lego_40_acres(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     FORTY_ACRES_USDC = mock_lego_registry if fork == "local" else TOKENS[fork]["FORTY_ACRES_USDC"]
     addr = boa.load("contracts/legos/yield/40Acres.vy", undy_hq_deploy, FORTY_ACRES_USDC, name="lego_40_acres")
