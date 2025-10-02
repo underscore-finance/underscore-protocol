@@ -19,6 +19,14 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 from interfaces import WalletConfigStructs as wcs
 
+interface VaultRegistry:
+    def maxDepositAmount(_vaultAddr: address) -> uint256: view
+    def canWithdraw(_vaultAddr: address) -> bool: view
+    def canDeposit(_vaultAddr: address) -> bool: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
+
 event Deposit:
     sender: indexed(address)
     owner: indexed(address)
@@ -32,24 +40,9 @@ event Withdraw:
     assets: uint256
     shares: uint256
 
-event CanDepositSet:
-    canDeposit: bool
-    caller: indexed(address)
-
-event CanWithdrawSet:
-    canWithdraw: bool
-    caller: indexed(address)
-
-event MaxDepositAmountSet:
-    maxDepositAmount: uint256
-    caller: indexed(address)
-
 ASSET: immutable(address)
-
-# vault config
-canDeposit: public(bool)
-canWithdraw: public(bool)
-maxDepositAmount: public(uint256)
+VAULT_REGISTRY_ID: constant(uint256) = 10
+UNDY_HQ: immutable(address)
 
 
 @deploy
@@ -61,26 +54,19 @@ def __init__(
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
-    # main config
-    _canDeposit: bool,
-    _canWithdraw: bool,
-    _maxDepositAmount: uint256,
-    # price config
-    _minSnapshotDelay: uint256,
-    _maxNumSnapshots: uint256,
-    _maxUpsideDeviation: uint256,
-    _staleTime: uint256,
 ):
     assert _asset != empty(address) # dev: invalid asset
     ASSET = _asset
+    UNDY_HQ = _undyHq
 
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _minHqTimeLock, _maxHqTimeLock)
-    vaultWallet.__init__(_undyHq, _asset, _startingAgent, _minSnapshotDelay, _maxNumSnapshots, _maxUpsideDeviation, _staleTime)
+    vaultWallet.__init__(_undyHq, _asset, _startingAgent)
 
-    # vault config
-    self.canDeposit = _canDeposit
-    self.canWithdraw = _canWithdraw
-    self.maxDepositAmount = _maxDepositAmount
+
+@view
+@internal
+def _getVaultRegistry() -> address:
+    return staticcall Registry(UNDY_HQ).getAddr(VAULT_REGISTRY_ID)
 
 
 @view
@@ -103,10 +89,11 @@ def totalAssets() -> uint256:
 @view
 @external
 def maxDeposit(_receiver: address) -> uint256:
-    if not self.canDeposit:
+    vaultRegistry: address = self._getVaultRegistry()
+    if not staticcall VaultRegistry(vaultRegistry).canDeposit(self):
         return 0
 
-    maxAmount: uint256 = self.maxDepositAmount
+    maxAmount: uint256 = staticcall VaultRegistry(vaultRegistry).maxDepositAmount(self)
     if maxAmount == 0:
         return max_value(uint256)
 
@@ -144,10 +131,11 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 @view
 @external
 def maxMint(_receiver: address) -> uint256:
-    if not self.canDeposit:
+    vaultRegistry: address = self._getVaultRegistry()
+    if not staticcall VaultRegistry(vaultRegistry).canDeposit(self):
         return 0
 
-    maxAmount: uint256 = self.maxDepositAmount
+    maxAmount: uint256 = staticcall VaultRegistry(vaultRegistry).maxDepositAmount(self)
     if maxAmount == 0:
         return max_value(uint256)
 
@@ -180,13 +168,14 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
 
 @internal
 def _deposit(_asset: address, _amount: uint256, _shares: uint256, _recipient: address, _totalAssets: uint256):
-    assert self.canDeposit # dev: cannot deposit
+    vaultRegistry: address = self._getVaultRegistry()
+    assert staticcall VaultRegistry(vaultRegistry).canDeposit(self) # dev: cannot deposit
 
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
 
-    maxAmount: uint256 = self.maxDepositAmount
+    maxAmount: uint256 = staticcall VaultRegistry(vaultRegistry).maxDepositAmount(self)
     if maxAmount != 0:
         assert _totalAssets + _amount <= maxAmount # dev: exceeds max deposit
 
@@ -262,12 +251,13 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
 def _redeem(
     _asset: address,
     _amount: uint256,
-    _shares: uint256, 
-    _sender: address, 
-    _recipient: address, 
+    _shares: uint256,
+    _sender: address,
+    _recipient: address,
     _owner: address,
 ) -> uint256:
-    assert self.canWithdraw # dev: cannot withdraw
+    vaultRegistry: address = self._getVaultRegistry()
+    assert staticcall VaultRegistry(vaultRegistry).canWithdraw(self) # dev: cannot withdraw
 
     assert _amount != 0 # dev: cannot withdraw 0 amount
     assert _shares != 0 # dev: cannot redeem 0 shares
@@ -279,7 +269,7 @@ def _redeem(
         token._spendAllowance(_owner, _sender, _shares)
 
     # withdraw from yield opportunity
-    availAmount: uint256 = vaultWallet._prepareRedemption(_amount, _sender)
+    availAmount: uint256 = vaultWallet._prepareRedemption(_amount, _sender, vaultRegistry)
     assert availAmount >= _amount # dev: not enough available
 
     token._burn(_owner, _shares)
@@ -366,34 +356,3 @@ def _sharesToAmount(
         amount += 1
 
     return amount
-
-
-#####################
-# Security / Safety #
-#####################
-
-
-@external
-def setCanDeposit(_canDeposit: bool):
-    if not vaultWallet._isSwitchboardAddr(msg.sender):
-        assert vaultWallet._canPerformSecurityAction(msg.sender) and not _canDeposit # dev: no perms
-    assert _canDeposit != self.canDeposit # dev: nothing to change
-    self.canDeposit = _canDeposit
-    log CanDepositSet(canDeposit=_canDeposit, caller=msg.sender)
-
-
-@external
-def setCanWithdraw(_canWithdraw: bool):
-    if not vaultWallet._isSwitchboardAddr(msg.sender):
-        assert vaultWallet._canPerformSecurityAction(msg.sender) and not _canWithdraw # dev: no perms
-    assert _canWithdraw != self.canWithdraw # dev: nothing to change
-    self.canWithdraw = _canWithdraw
-    log CanWithdrawSet(canWithdraw=_canWithdraw, caller=msg.sender)
-
-
-@external
-def setMaxDepositAmount(_maxDepositAmount: uint256):
-    assert vaultWallet._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _maxDepositAmount != self.maxDepositAmount # dev: nothing to change
-    self.maxDepositAmount = _maxDepositAmount
-    log MaxDepositAmountSet(maxDepositAmount=_maxDepositAmount, caller=msg.sender)

@@ -11,6 +11,12 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
+interface VaultRegistry:
+    def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
+    def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
+    def redemptionBuffer(_vaultAddr: address) -> uint256: view
+    def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
+
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
     def isLockedSigner(_signer: address) -> bool: view
@@ -39,17 +45,17 @@ struct SingleSnapShot:
     pricePerShare: uint256
     lastUpdate: uint256
 
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
 struct VaultToken:
     legoId: uint256
     underlyingAsset: address
     decimals: uint256
     isRebasing: bool
+
+struct SnapShotPriceConfig:
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
 
 struct VaultActionData:
     ledger: address
@@ -76,27 +82,6 @@ event PricePerShareSnapShotAdded:
     totalSupply: uint256
     pricePerShare: uint256
 
-event PriceConfigSet:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
-event RedemptionBufferSet:
-    buffer: uint256
-
-event VaultOpsFrozenSet:
-    isFrozen: bool
-    caller: indexed(address)
-
-event ApprovedVaultTokenSet:
-    vaultToken: indexed(address)
-    isApproved: bool
-
-event ApprovedYieldLegoSet:
-    legoId: indexed(uint256)
-    isApproved: bool
-
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -106,15 +91,6 @@ numAssets: public(uint256) # num assets
 # price snap shot data
 snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
 snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
-snapShotPriceConfig: public(SnapShotPriceConfig)
-
-# yield config
-isApprovedVaultToken: public(HashMap[address, bool]) # asset -> is approved
-isApprovedYieldLego: public(HashMap[uint256, bool]) # lego id -> is approved
-
-# other config
-isVaultOpsFrozen: public(bool)
-redemptionBuffer: public(uint256)
 
 # managers
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -146,11 +122,6 @@ def __init__(
     _undyHq: address,
     _vaultAsset: address,
     _startingAgent: address,
-    # price config
-    _minSnapshotDelay: uint256,
-    _maxNumSnapshots: uint256,
-    _maxUpsideDeviation: uint256,
-    _staleTime: uint256,
 ):
     # not using 0 index
     self.numManagers = 1
@@ -163,19 +134,6 @@ def __init__(
     # initial agent
     if _startingAgent != empty(address):
         self._registerManager(_startingAgent)
-
-    # set price config
-    config: SnapShotPriceConfig = SnapShotPriceConfig(
-        minSnapshotDelay = _minSnapshotDelay,
-        maxNumSnapshots = _maxNumSnapshots,
-        maxUpsideDeviation = _maxUpsideDeviation,
-        staleTime = _staleTime,
-    )
-    assert self._isValidPriceConfig(config) # dev: invalid config
-    self.snapShotPriceConfig = config
-
-    # set default redemption buffer to 2% (200 basis points)
-    self.redemptionBuffer = 2_00
 
 
 #########
@@ -219,8 +177,7 @@ def _depositForYield(
 
     # update yield position
     if _asset == VAULT_ASSET:
-        assert self.isApprovedYieldLego[_ad.legoId] # dev: not approved lego id
-        assert self.isApprovedVaultToken[vaultToken] # dev: not approved vault token
+        assert staticcall VaultRegistry(self._getVaultRegistry()).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
         self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
 
     if _shouldGenerateEvent:
@@ -531,7 +488,7 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 
 
 @internal
-def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
+def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
     ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
 
@@ -540,7 +497,7 @@ def _prepareRedemption(_amount: uint256, _sender: address) -> uint256:
         return withdrawnAmount
 
     # buffer to make sure we pull out enough for redemption
-    bufferMultiplier: uint256 = HUNDRED_PERCENT + self.redemptionBuffer
+    bufferMultiplier: uint256 = HUNDRED_PERCENT + staticcall VaultRegistry(_vaultRegistry).redemptionBuffer(self)
     targetWithdrawAmount: uint256 = _amount * bufferMultiplier // HUNDRED_PERCENT
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
@@ -640,9 +597,9 @@ def _updateYieldPosition(_vaultToken: address, _legoId: uint256, _legoAddr: addr
 
     # non-rebase assets use weighted average share prices
     if not data.isRebasing:
-        config: SnapShotPriceConfig = self.snapShotPriceConfig
-        self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, config)
-        data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, config)
+        snapConfig: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+        self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, snapConfig)
+        data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, snapConfig)
         if data.avgPricePerShare != 0:
             needsSave = True
 
@@ -704,7 +661,8 @@ def _deregisterYieldPosition(_vaultToken: address) -> bool:
 @view
 @external
 def getWeightedPrice(_vaultToken: address) -> uint256:
-    return self._getWeightedPricePerShare(_vaultToken, self.snapShotPriceConfig)
+    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+    return self._getWeightedPricePerShare(_vaultToken, config)
 
 
 @view
@@ -743,14 +701,15 @@ def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig
 # add price snapshot
 
 
-@external 
+@external
 def addPriceSnapshot(_vaultToken: address) -> bool:
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     legoAddr: address = self._getLegoAddrFromVaultToken(_vaultToken)
     if legoAddr == empty(address):
         return False
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, self.snapShotPriceConfig)
+    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, config)
 
 
 @internal 
@@ -802,7 +761,8 @@ def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
         return empty(SingleSnapShot)
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     data: SnapShotData = self.snapShotData[_vaultToken]
-    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, self.snapShotPriceConfig)
+    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, config)
 
 
 @view
@@ -859,7 +819,8 @@ def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_L
     ad: VaultActionData = self._getVaultActionDataBundle(legoId, _signer)
 
     # cannot perform any actions if vault is frozen
-    assert not self.isVaultOpsFrozen # dev: frozen vault
+    isVaultOpsFrozen: bool = staticcall VaultRegistry(self._getVaultRegistry()).isVaultOpsFrozen(self)
+    assert not isVaultOpsFrozen # dev: frozen vault
 
     # make sure manager is not locked
     assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: manager is locked
@@ -916,92 +877,18 @@ def removeManager(_manager: address):
         self.indexOfManager[lastItem] = targetIndex
 
 
-# freeze vault ops
+#############
+# Utilities #
+#############
 
 
-@external
-def setVaultOpsFrozen(_isFrozen: bool):
-    if not self._isSwitchboardAddr(msg.sender):
-        assert self._canPerformSecurityAction(msg.sender) and _isFrozen # dev: no perms
-    assert _isFrozen != self.isVaultOpsFrozen # dev: nothing to change
-    self.isVaultOpsFrozen = _isFrozen
-    log VaultOpsFrozenSet(isFrozen=_isFrozen, caller=msg.sender)
-
-
-###########################
-# Approved Legos / Vaults #
-###########################
-
-
-@external
-def setApprovedVaultToken(_vaultToken: address, _isApproved: bool):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _vaultToken != empty(address) # dev: invalid vault token
-    assert _isApproved != self.isApprovedVaultToken[_vaultToken] # dev: nothing to change
-    self.isApprovedVaultToken[_vaultToken] = _isApproved
-    log ApprovedVaultTokenSet(vaultToken=_vaultToken, isApproved=_isApproved)
-
-
-@external
-def setApprovedYieldLego(_legoId: uint256, _isApproved: bool):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _legoId != 0 # dev: invalid lego id
-    assert _isApproved != self.isApprovedYieldLego[_legoId] # dev: nothing to change
-    self.isApprovedYieldLego[_legoId] = _isApproved
-    log ApprovedYieldLegoSet(legoId=_legoId, isApproved=_isApproved)
-
-
-################
-# Price Config #
-################
-
-
-@external
-def setPriceConfig(_config: SnapShotPriceConfig):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._isValidPriceConfig(_config) # dev: invalid config
-
-    self.snapShotPriceConfig = _config
-    log PriceConfigSet(minSnapshotDelay = _config.minSnapshotDelay, maxNumSnapshots = _config.maxNumSnapshots, maxUpsideDeviation = _config.maxUpsideDeviation, staleTime = _config.staleTime)
-
-
-# validation
-
-
-@view
-@external
-def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
-    return self._isValidPriceConfig(_config)
+# get vault registry
 
 
 @view
 @internal
-def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
-    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
-        return False
-    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
-        return False
-    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
-        return False
-    return _config.staleTime < ONE_WEEK_SECONDS
-
-
-#####################
-# Redemption Buffer #
-#####################
-
-
-@external
-def setRedemptionBuffer(_buffer: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
-    self.redemptionBuffer = _buffer
-    log RedemptionBufferSet(buffer = _buffer)
-
-
-#############
-# Utilities #
-#############
+def _getVaultRegistry() -> address:
+    return staticcall Registry(UNDY_HQ).getAddr(VAULT_REGISTRY_ID)
 
 
 # is signer switchboard

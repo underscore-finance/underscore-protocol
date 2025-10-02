@@ -3,39 +3,40 @@ import boa
 from constants import EIGHTEEN_DECIMALS, MAX_UINT256
 
 
-def test_max_deposit_amount_initialization(undy_usd_vault):
-    assert undy_usd_vault.maxDepositAmount() == 0
+def test_max_deposit_amount_initialization(undy_usd_vault, vault_registry):
+    assert vault_registry.maxDepositAmount(undy_usd_vault.address) == 0
 
 
-def test_set_max_deposit_amount(undy_usd_vault, switchboard_alpha, mission_control):
+def test_set_max_deposit_amount(undy_usd_vault, vault_registry, switchboard_alpha, mission_control):
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
 
     mission_control.setCanPerformSecurityAction(
         switchboard_alpha.address, True, sender=switchboard_alpha.address
     )
 
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
-    assert undy_usd_vault.maxDepositAmount() == max_amount
+    assert vault_registry.maxDepositAmount(undy_usd_vault.address) == max_amount
 
 
-def test_set_max_deposit_amount_no_perms(undy_usd_vault, bob):
+def test_set_max_deposit_amount_no_perms(undy_usd_vault, vault_registry, bob):
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
 
     with boa.reverts("no perms"):
-        undy_usd_vault.setMaxDepositAmount(max_amount, sender=bob)
+        vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=bob)
 
 
-def test_set_max_deposit_amount_no_change(undy_usd_vault, switchboard_alpha, mission_control):
+def test_set_max_deposit_amount_no_change(undy_usd_vault, vault_registry, switchboard_alpha, mission_control):
     mission_control.setCanPerformSecurityAction(
         switchboard_alpha.address, True, sender=switchboard_alpha.address
     )
     with boa.reverts("nothing to change"):
-        undy_usd_vault.setMaxDepositAmount(0, sender=switchboard_alpha.address)
+        vault_registry.setMaxDepositAmount(undy_usd_vault.address, 0, sender=switchboard_alpha.address)
 
 
 def test_max_deposit_with_limit(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -47,7 +48,7 @@ def test_max_deposit_with_limit(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     assert undy_usd_vault.maxDeposit(bob) == max_amount
 
@@ -64,6 +65,7 @@ def test_max_deposit_zero_limit(undy_usd_vault, bob):
 
 def test_max_deposit_deposits_disabled(
     undy_usd_vault,
+    vault_registry,
     switchboard_alpha,
     mission_control,
     bob,
@@ -73,15 +75,16 @@ def test_max_deposit_deposits_disabled(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
-    undy_usd_vault.setCanDeposit(False, sender=switchboard_alpha.address)
+    vault_registry.setCanDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
 
     assert undy_usd_vault.maxDeposit(bob) == 0
 
 
 def test_deposit_exceeds_max_deposit_amount(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -93,7 +96,7 @@ def test_deposit_exceeds_max_deposit_amount(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
@@ -103,6 +106,7 @@ def test_deposit_exceeds_max_deposit_amount(
 
 def test_deposit_at_max_limit(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -114,7 +118,7 @@ def test_deposit_at_max_limit(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
@@ -126,6 +130,7 @@ def test_deposit_at_max_limit(
 
 def test_max_mint_with_limit(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -137,7 +142,7 @@ def test_max_mint_with_limit(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     max_shares = undy_usd_vault.maxMint(bob)
     assert max_shares == max_amount
@@ -157,6 +162,7 @@ def test_max_mint_zero_limit(undy_usd_vault, bob):
 
 def test_mint_respects_max_deposit_amount(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -168,7 +174,7 @@ def test_mint_respects_max_deposit_amount(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
@@ -180,6 +186,7 @@ def test_mint_respects_max_deposit_amount(
 
 def test_max_deposit_actually_works(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -191,7 +198,7 @@ def test_max_deposit_actually_works(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
@@ -205,6 +212,7 @@ def test_max_deposit_actually_works(
 
 def test_max_mint_actually_works(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -216,7 +224,7 @@ def test_max_mint_actually_works(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 
@@ -230,6 +238,7 @@ def test_max_mint_actually_works(
 
 def test_max_mint_with_existing_deposits(
     undy_usd_vault,
+    vault_registry,
     yield_underlying_token,
     yield_underlying_token_whale,
     switchboard_alpha,
@@ -242,7 +251,7 @@ def test_max_mint_with_existing_deposits(
     )
 
     max_amount = 1_000_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.setMaxDepositAmount(max_amount, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=switchboard_alpha.address)
 
     yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
 

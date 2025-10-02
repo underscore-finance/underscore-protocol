@@ -19,30 +19,63 @@ import contracts.modules.AddressRegistry as registry
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 
-from interfaces import LegoPartner as Lego
 from interfaces import Department
-
-interface EarnVault:
-    def totalAssets() -> uint256: view
-    def asset() -> address: view
-
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-
-interface Switchboard:
-    def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface UndyHq:
     def getAddr(_regId: uint256) -> address: view
 
-event LockedMinVaultValueSet:
-    minValue: uint256
+struct SnapShotPriceConfig:
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
 
-hasBeenEarnVault: public(HashMap[address, bool]) # vault addr -> is earn vault
-lockedMinVaultValue: public(uint256)
+struct VaultConfig:
+    canDeposit: bool
+    canWithdraw: bool
+    maxDepositAmount: uint256
+    isVaultOpsFrozen: bool
+    redemptionBuffer: uint256
+    snapShotPriceConfig: SnapShotPriceConfig
 
-EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
-SWITCHBOARD_ID: constant(uint256) = 4
+event VaultConfigSet:
+    vaultAddr: indexed(address)
+    canDeposit: bool
+    canWithdraw: bool
+    maxDepositAmount: uint256
+
+event VaultOpsFrozenSet:
+    vaultAddr: indexed(address)
+    isFrozen: bool
+
+event RedemptionBufferSet:
+    vaultAddr: indexed(address)
+    buffer: uint256
+
+event SnapShotPriceConfigSet:
+    vaultAddr: indexed(address)
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
+
+event ApprovedVaultTokenSet:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    isApproved: bool
+
+event ApprovedYieldLegoSet:
+    vaultAddr: indexed(address)
+    legoId: indexed(uint256)
+    isApproved: bool
+
+# vault configs
+vaultConfigs: public(HashMap[address, VaultConfig]) # vault addr -> vault config
+isApprovedVaultToken: public(HashMap[address, HashMap[address, bool]]) # vault addr -> vault token -> is approved
+isApprovedYieldLego: public(HashMap[address, HashMap[uint256, bool]]) # vault addr -> lego id -> is approved
+
+ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -55,17 +88,18 @@ def __init__(
     gov.__init__(_undyHq, _tempGov, 0, 0, 0)
     registry.__init__(_minRegistryTimeLock, _maxRegistryTimeLock, 0, "VaultRegistry.vy")
     addys.__init__(_undyHq)
-    deptBasics.__init__(False, False)
+    deptBasics.__init__(False, False) # no minting
 
-    self.lockedMinVaultValue = 100 * EIGHTEEN_DECIMALS
+
+@view
+@external
+def isEarnVault(_vaultAddr: address) -> bool:
+    return registry._isValidAddr(_vaultAddr)
 
 
 ############
 # Registry #
 ############
-
-
-# new address
 
 
 @external
@@ -77,71 +111,13 @@ def startAddNewAddressToRegistry(_vaultAddr: address, _description: String[64]) 
 @external
 def confirmNewAddressToRegistry(_vaultAddr: address) -> uint256:
     assert self._canPerformAction(msg.sender) # dev: no perms
-    regId: uint256 = registry._confirmNewAddressToRegistry(_vaultAddr)
-    if regId != 0:
-        self.hasBeenEarnVault[_vaultAddr] = True
-    return regId
+    return registry._confirmNewAddressToRegistry(_vaultAddr)
 
 
 @external
 def cancelNewAddressToRegistry(_vaultAddr: address) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return registry._cancelNewAddressToRegistry(_vaultAddr)
-
-
-# address update
-
-
-@external
-def startAddressUpdateToRegistry(_regId: uint256, _newAddr: address) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    assert self._canReplaceOrDisableVault(_regId) # dev: cannot update vault
-    return registry._startAddressUpdateToRegistry(_regId, _newAddr)
-
-
-@external
-def confirmAddressUpdateToRegistry(_regId: uint256) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    assert self._canReplaceOrDisableVault(_regId) # dev: cannot update vault
-    isConfirmed: bool = registry._confirmAddressUpdateToRegistry(_regId)
-    if isConfirmed:
-        vaultAddr: address = registry._getAddr(_regId)
-        self.hasBeenEarnVault[vaultAddr] = True
-    return isConfirmed
-
-
-@external
-def cancelAddressUpdateToRegistry(_regId: uint256) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    return registry._cancelAddressUpdateToRegistry(_regId)
-
-
-# address disable
-
-
-@external
-def startAddressDisableInRegistry(_regId: uint256) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    assert self._canReplaceOrDisableVault(_regId) # dev: cannot disable vault
-    return registry._startAddressDisableInRegistry(_regId)
-
-
-@external
-def confirmAddressDisableInRegistry(_regId: uint256) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    assert self._canReplaceOrDisableVault(_regId) # dev: cannot disable vault
-    return registry._confirmAddressDisableInRegistry(_regId)
-
-
-@external
-def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
-    assert self._canPerformAction(msg.sender) # dev: no perms
-    return registry._cancelAddressDisableInRegistry(_regId)
-
-
-#############
-# Utilities #
-#############
 
 
 # gov access
@@ -153,38 +129,229 @@ def _canPerformAction(_caller: address) -> bool:
     return gov._canGovern(_caller) and not deptBasics.isPaused
 
 
-# is signer switchboard
+######################
+# Vault Config Views #
+######################
 
 
 @view
-@internal
-def _isSwitchboardAddr(_signer: address) -> bool:
-    switchboard: address = staticcall UndyHq(addys._getUndyHq()).getAddr(SWITCHBOARD_ID)
-    if switchboard == empty(address):
+@external
+def canDeposit(_vaultAddr: address) -> bool:
+    return self.vaultConfigs[_vaultAddr].canDeposit
+
+
+@view
+@external
+def canWithdraw(_vaultAddr: address) -> bool:
+    return self.vaultConfigs[_vaultAddr].canWithdraw
+
+
+@view
+@external
+def maxDepositAmount(_vaultAddr: address) -> uint256:
+    return self.vaultConfigs[_vaultAddr].maxDepositAmount
+
+
+@view
+@external
+def isVaultOpsFrozen(_vaultAddr: address) -> bool:
+    return self.vaultConfigs[_vaultAddr].isVaultOpsFrozen
+
+
+@view
+@external
+def redemptionBuffer(_vaultAddr: address) -> uint256:
+    return self.vaultConfigs[_vaultAddr].redemptionBuffer
+
+
+@view
+@external
+def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig:
+    return self.vaultConfigs[_vaultAddr].snapShotPriceConfig
+
+
+@view
+@external
+def isApprovedVaultTokenByAddr(_vaultAddr: address, _vaultToken: address) -> bool:
+    return self.isApprovedVaultToken[_vaultAddr][_vaultToken]
+
+
+@view
+@external
+def isApprovedYieldLegoByAddr(_vaultAddr: address, _legoId: uint256) -> bool:
+    return self.isApprovedYieldLego[_vaultAddr][_legoId]
+
+
+@view
+@external
+def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool:
+    if not self.isApprovedYieldLego[_vaultAddr][_legoId]:
         return False
-    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
-
-
-# can replace or disable vault
+    return self.isApprovedVaultToken[_vaultAddr][_vaultToken]
 
 
 @view
-@internal
-def _canReplaceOrDisableVault(_regId: uint256) -> bool:
+@external
+def getVaultConfig(_regId: uint256) -> VaultConfig:
     vaultAddr: address = registry._getAddr(_regId)
-    totalAssets: uint256 = staticcall EarnVault(vaultAddr).totalAssets()
-    if totalAssets == 0:
-        return True
-    asset: address = staticcall EarnVault(vaultAddr).asset()
-    usdValue: uint256 = staticcall Appraiser(addys._getAppraiserAddr()).getUsdValue(asset, totalAssets)
-    return usdValue != 0 and usdValue < self.lockedMinVaultValue
+    return self.vaultConfigs[vaultAddr]
 
 
-# locked min vault value
+@view
+@external
+def getVaultConfigByAddr(_vaultAddr: address) -> VaultConfig:
+    return self.vaultConfigs[_vaultAddr]
+
+
+################
+# Vault Config #
+################
 
 
 @external
-def setLockedMinVaultValue(_minValue: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    self.lockedMinVaultValue = _minValue
-    log LockedMinVaultValueSet(minValue = _minValue)
+def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    assert _canDeposit != config.canDeposit # dev: nothing to change
+    config.canDeposit = _canDeposit
+    self.vaultConfigs[_vaultAddr] = config
+    log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=config.canDeposit, canWithdraw=config.canWithdraw, maxDepositAmount=config.maxDepositAmount)
+
+
+@external
+def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    assert _canWithdraw != config.canWithdraw # dev: nothing to change
+    config.canWithdraw = _canWithdraw
+    self.vaultConfigs[_vaultAddr] = config
+    log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=config.canDeposit, canWithdraw=config.canWithdraw, maxDepositAmount=config.maxDepositAmount)
+
+
+@external
+def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    assert _maxDepositAmount != config.maxDepositAmount # dev: nothing to change
+    config.maxDepositAmount = _maxDepositAmount
+    self.vaultConfigs[_vaultAddr] = config
+    log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=config.canDeposit, canWithdraw=config.canWithdraw, maxDepositAmount=config.maxDepositAmount)
+
+
+@external
+def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    assert _isFrozen != config.isVaultOpsFrozen # dev: nothing to change
+    config.isVaultOpsFrozen = _isFrozen
+    self.vaultConfigs[_vaultAddr] = config
+    log VaultOpsFrozenSet(vaultAddr=_vaultAddr, isFrozen=_isFrozen)
+
+
+@external
+def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.redemptionBuffer = _buffer
+    self.vaultConfigs[_vaultAddr] = config
+    log RedemptionBufferSet(vaultAddr=_vaultAddr, buffer=_buffer)
+
+
+@external
+def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._isValidPriceConfig(_config) # dev: invalid config
+    vaultConfig: VaultConfig = self.vaultConfigs[_vaultAddr]
+    vaultConfig.snapShotPriceConfig = _config
+    self.vaultConfigs[_vaultAddr] = vaultConfig
+    log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_config.minSnapshotDelay, maxNumSnapshots=_config.maxNumSnapshots, maxUpsideDeviation=_config.maxUpsideDeviation, staleTime=_config.staleTime)
+
+
+@external
+def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _vaultToken != empty(address) # dev: invalid vault token
+    assert _isApproved != self.isApprovedVaultToken[_vaultAddr][_vaultToken] # dev: nothing to change
+    self.isApprovedVaultToken[_vaultAddr][_vaultToken] = _isApproved
+    log ApprovedVaultTokenSet(vaultAddr=_vaultAddr, vaultToken=_vaultToken, isApproved=_isApproved)
+
+
+@external
+def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _legoId != 0 # dev: invalid lego id
+    assert _isApproved != self.isApprovedYieldLego[_vaultAddr][_legoId] # dev: nothing to change
+    self.isApprovedYieldLego[_vaultAddr][_legoId] = _isApproved
+    log ApprovedYieldLegoSet(vaultAddr=_vaultAddr, legoId=_legoId, isApproved=_isApproved)
+
+
+# initialize vault config
+
+
+@external
+def initializeVaultConfig(
+    _vaultAddr: address,
+    _canDeposit: bool,
+    _canWithdraw: bool,
+    _maxDepositAmount: uint256,
+    _redemptionBuffer: uint256,
+    _snapShotPriceConfig: SnapShotPriceConfig,
+    _approvedVaultTokens: DynArray[address, 25] = [],
+    _approvedYieldLegos: DynArray[uint256, 25] = [],
+):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+
+    # validation
+    assert registry._isValidAddr(_vaultAddr) or registry.pendingNewAddr[_vaultAddr].confirmBlock != 0 # dev: invalid vault addr
+    assert self._isValidPriceConfig(_snapShotPriceConfig) # dev: invalid price config
+    assert _redemptionBuffer <= 10_00 # dev: buffer too high (max 10%)
+
+    # set main vault config
+    config: VaultConfig = VaultConfig(
+        canDeposit = _canDeposit,
+        canWithdraw = _canWithdraw,
+        maxDepositAmount = _maxDepositAmount,
+        isVaultOpsFrozen = False,
+        redemptionBuffer = _redemptionBuffer,
+        snapShotPriceConfig = _snapShotPriceConfig,
+    )
+    self.vaultConfigs[_vaultAddr] = config
+
+    # approve vault tokens
+    for vaultToken: address in _approvedVaultTokens:
+        if vaultToken != empty(address):
+            self.isApprovedVaultToken[_vaultAddr][vaultToken] = True
+            log ApprovedVaultTokenSet(vaultAddr=_vaultAddr, vaultToken=vaultToken, isApproved=True)
+
+    # approve yield legos
+    for legoId: uint256 in _approvedYieldLegos:
+        if legoId != 0:
+            self.isApprovedYieldLego[_vaultAddr][legoId] = True
+            log ApprovedYieldLegoSet(vaultAddr=_vaultAddr, legoId=legoId, isApproved=True)
+
+    # log config events
+    log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit, canWithdraw=_canWithdraw, maxDepositAmount=_maxDepositAmount)
+    log RedemptionBufferSet(vaultAddr=_vaultAddr, buffer=_redemptionBuffer)
+    log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_snapShotPriceConfig.minSnapshotDelay, maxNumSnapshots=_snapShotPriceConfig.maxNumSnapshots, maxUpsideDeviation=_snapShotPriceConfig.maxUpsideDeviation, staleTime=_snapShotPriceConfig.staleTime)
+
+
+# validation on snap shot price config
+
+
+@view
+@external
+def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+    return self._isValidPriceConfig(_config)
+
+
+@view
+@internal
+def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
+        return False
+    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
+        return False
+    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
+        return False
+    return _config.staleTime < ONE_WEEK_SECONDS

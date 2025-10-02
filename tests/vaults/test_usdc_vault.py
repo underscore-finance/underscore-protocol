@@ -55,6 +55,7 @@ def getLegoId(lego_book, lego_aave_v3, lego_compound_v3, lego_euler, lego_fluid,
 def prepareYieldDeposit(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     mock_ripe,
     bob,
     fork,
@@ -78,9 +79,9 @@ def prepareYieldDeposit(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        # approve lego and vault
-        undy_usd_vault.setApprovedYieldLego(lego_id, True, sender=switchboard_alpha.address)
-        undy_usd_vault.setApprovedVaultToken(vault_addr, True, sender=switchboard_alpha.address)
+        # approve lego and vault via VaultRegistry
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         return lego_id, lego, vault_addr, asset, amount
 
@@ -402,6 +403,7 @@ def test_usdc_vault_avg_price_tracking(
 def test_usdc_vault_deposit_multiple_protocols(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     starter_agent,
     bob,
     fork,
@@ -427,9 +429,9 @@ def test_usdc_vault_deposit_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        # approve lego and vault
-        undy_usd_vault.setApprovedYieldLego(lego_id, True, sender=switchboard_alpha.address)
-        undy_usd_vault.setApprovedVaultToken(vault_addr, True, sender=switchboard_alpha.address)
+        # approve lego and vault via VaultRegistry
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit for yield
         asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -453,6 +455,7 @@ def test_usdc_vault_deposit_multiple_protocols(
 def test_usdc_vault_rebalance_between_protocols(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     starter_agent,
     bob,
     fork,
@@ -473,8 +476,8 @@ def test_usdc_vault_rebalance_between_protocols(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    undy_usd_vault.setApprovedYieldLego(lego_id_1, True, sender=switchboard_alpha.address)
-    undy_usd_vault.setApprovedVaultToken(vault_addr_1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id_1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr_1, True, sender=switchboard_alpha.address)
 
     # deposit to Aave
     _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
@@ -489,8 +492,8 @@ def test_usdc_vault_rebalance_between_protocols(
     lego_id_2, lego_2 = getLegoId("COMPOUND_USDC")
     vault_addr_2 = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["COMPOUND_USDC"])
 
-    undy_usd_vault.setApprovedYieldLego(lego_id_2, True, sender=switchboard_alpha.address)
-    undy_usd_vault.setApprovedVaultToken(vault_addr_2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id_2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr_2, True, sender=switchboard_alpha.address)
 
     # rebalance from Aave to Compound
     underlying_amount, to_vault_token, to_vault_tokens_received, usd_value = undy_usd_vault.rebalanceYieldPosition(
@@ -513,6 +516,7 @@ def test_usdc_vault_rebalance_between_protocols(
 def test_usdc_vault_withdraw_from_multiple_protocols(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     starter_agent,
     bob,
     fork,
@@ -538,8 +542,8 @@ def test_usdc_vault_withdraw_from_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        undy_usd_vault.setApprovedYieldLego(lego_id, True, sender=switchboard_alpha.address)
-        undy_usd_vault.setApprovedVaultToken(vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
             lego_id,
@@ -605,6 +609,7 @@ def test_usdc_vault_conversion_accuracy(
 def test_usdc_vault_small_deposit(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     starter_agent,
     bob,
     fork,
@@ -626,8 +631,8 @@ def test_usdc_vault_small_deposit(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    undy_usd_vault.setApprovedYieldLego(lego_id, True, sender=switchboard_alpha.address)
-    undy_usd_vault.setApprovedVaultToken(vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit small amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -648,6 +653,7 @@ def test_usdc_vault_small_deposit(
 def test_usdc_vault_large_deposit(
     getLegoId,
     undy_usd_vault,
+    vault_registry,
     starter_agent,
     bob,
     fork,
@@ -669,8 +675,8 @@ def test_usdc_vault_large_deposit(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    undy_usd_vault.setApprovedYieldLego(lego_id, True, sender=switchboard_alpha.address)
-    undy_usd_vault.setApprovedVaultToken(vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit large amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(

@@ -5,106 +5,107 @@ from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 
 # Test setApprovedVaultToken functionality
 
-def test_set_approved_vault_token_by_switchboard(undy_usd_vault, switchboard_alpha, mock_yield_lego, lego_book):
+def test_set_approved_vault_token_by_switchboard(undy_usd_vault, vault_registry, switchboard_alpha, mock_yield_lego, lego_book):
     """Test that switchboard can approve/disapprove vault tokens"""
+
 
     # Create a new mock vault token that's not pre-approved
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", boa.load("contracts/mock/MockErc20.vy", boa.env.generate_address(), "Test", "TST", 18, 1_000_000))
 
     # Initially not approved
-    assert not undy_usd_vault.isApprovedVaultToken(new_vault_token.address)
+    assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Approve the vault token
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=switchboard_alpha.address)
-    assert undy_usd_vault.isApprovedVaultToken(new_vault_token.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Disapprove the vault token
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, False, sender=switchboard_alpha.address)
-    assert not undy_usd_vault.isApprovedVaultToken(new_vault_token.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, False, sender=switchboard_alpha.address)
+    assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
 
-def test_set_approved_vault_token_non_switchboard_fails(undy_usd_vault, bob, starter_agent):
+def test_set_approved_vault_token_non_switchboard_fails(undy_usd_vault, vault_registry, bob, starter_agent):
     """Test that non-switchboard addresses cannot approve vault tokens"""
 
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", boa.load("contracts/mock/MockErc20.vy", boa.env.generate_address(), "Test", "TST", 18, 1_000_000))
 
     # Bob (non-switchboard) cannot approve
     with boa.reverts("no perms"):
-        undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=bob)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=bob)
 
     # Even starter_agent (manager) cannot approve vault tokens
     with boa.reverts("no perms"):
-        undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=starter_agent.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=starter_agent.address)
 
 
-def test_set_approved_vault_token_invalid_address(undy_usd_vault, switchboard_alpha):
+def test_set_approved_vault_token_invalid_address(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that empty address cannot be approved as vault token"""
 
     with boa.reverts("invalid vault token"):
-        undy_usd_vault.setApprovedVaultToken(ZERO_ADDRESS, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, sender=switchboard_alpha.address)
 
 
-def test_set_approved_vault_token_no_change(undy_usd_vault, switchboard_alpha, yield_vault_token):
+def test_set_approved_vault_token_no_change(undy_usd_vault, vault_registry, switchboard_alpha, yield_vault_token):
     """Test that setting the same approval state reverts"""
 
     # yield_vault_token is already approved in fixture
-    assert undy_usd_vault.isApprovedVaultToken(yield_vault_token.address)
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address)
 
     # Try to approve again (no change)
     with boa.reverts("nothing to change"):
-        undy_usd_vault.setApprovedVaultToken(yield_vault_token.address, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, True, sender=switchboard_alpha.address)
 
 
 # Test setApprovedYieldLego functionality
 
-def test_set_approved_yield_lego_by_switchboard(undy_usd_vault, switchboard_alpha):
+def test_set_approved_yield_lego_by_switchboard(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that switchboard can approve/disapprove yield legos"""
 
     # Lego ID 2 should not be approved initially
-    assert not undy_usd_vault.isApprovedYieldLego(2)
+    assert not vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 2)
 
     # Approve lego ID 2
-    undy_usd_vault.setApprovedYieldLego(2, True, sender=switchboard_alpha.address)
-    assert undy_usd_vault.isApprovedYieldLego(2)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, 2, True, sender=switchboard_alpha.address)
+    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 2)
 
     # Disapprove lego ID 2
-    undy_usd_vault.setApprovedYieldLego(2, False, sender=switchboard_alpha.address)
-    assert not undy_usd_vault.isApprovedYieldLego(2)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, 2, False, sender=switchboard_alpha.address)
+    assert not vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 2)
 
 
-def test_set_approved_yield_lego_non_switchboard_fails(undy_usd_vault, bob, starter_agent):
+def test_set_approved_yield_lego_non_switchboard_fails(undy_usd_vault, vault_registry, bob, starter_agent):
     """Test that non-switchboard addresses cannot approve yield legos"""
 
     # Bob cannot approve
     with boa.reverts("no perms"):
-        undy_usd_vault.setApprovedYieldLego(2, True, sender=bob)
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, 2, True, sender=bob)
 
     # Even starter_agent (manager) cannot approve
     with boa.reverts("no perms"):
-        undy_usd_vault.setApprovedYieldLego(2, True, sender=starter_agent.address)
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, 2, True, sender=starter_agent.address)
 
 
-def test_set_approved_yield_lego_invalid_id(undy_usd_vault, switchboard_alpha):
+def test_set_approved_yield_lego_invalid_id(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that lego ID 0 cannot be approved"""
 
     with boa.reverts("invalid lego id"):
-        undy_usd_vault.setApprovedYieldLego(0, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, 0, True, sender=switchboard_alpha.address)
 
 
-def test_set_approved_yield_lego_no_change(undy_usd_vault, switchboard_alpha):
+def test_set_approved_yield_lego_no_change(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that setting the same approval state reverts"""
 
     # Lego ID 1 is already approved in fixture
-    assert undy_usd_vault.isApprovedYieldLego(1)
+    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1)
 
     # Try to approve again (no change)
     with boa.reverts("nothing to change"):
-        undy_usd_vault.setApprovedYieldLego(1, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, 1, True, sender=switchboard_alpha.address)
 
 
 # Test deposit restrictions with unapproved tokens/legos
 
-def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha):
+def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha):
     """Test that deposits fail when vault token is not approved"""
 
     # Create a new unapproved vault token
@@ -115,7 +116,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, starter_agent
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     # Deposit should fail with unapproved vault token
-    with boa.reverts("not approved vault token"):
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             1,  # Lego ID 1 is approved
             yield_underlying_token.address,
@@ -125,7 +126,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, starter_agent
         )
 
     # Now approve the vault token
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
 
     # Deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -141,7 +142,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, starter_agent
     assert vault_tokens_received > 0
 
 
-def test_deposit_with_unapproved_lego_fails(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, switchboard_alpha, lego_book, undy_hq_deploy, governance):
+def test_deposit_with_unapproved_lego_fails(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, switchboard_alpha, lego_book, undy_hq_deploy, governance):
     """Test that deposits fail when yield lego is not approved, then succeed when approved"""
 
     # Deploy another mock yield lego
@@ -158,7 +159,7 @@ def test_deposit_with_unapproved_lego_fails(undy_usd_vault, starter_agent, yield
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     # Deposit should fail with unapproved lego ID 3
-    with boa.reverts("not approved lego id"):
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             new_lego_id,  # Not approved yet
             yield_underlying_token.address,
@@ -168,7 +169,7 @@ def test_deposit_with_unapproved_lego_fails(undy_usd_vault, starter_agent, yield
         )
 
     # Approve the new lego
-    undy_usd_vault.setApprovedYieldLego(new_lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, new_lego_id, True, sender=switchboard_alpha.address)
 
     # Now deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -184,7 +185,7 @@ def test_deposit_with_unapproved_lego_fails(undy_usd_vault, starter_agent, yield
     assert vault_tokens_received > 0
 
 
-def test_deposit_both_unapproved_fails(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha, lego_book, undy_hq_deploy, governance):
+def test_deposit_both_unapproved_fails(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha, lego_book, undy_hq_deploy, governance):
     """Test that deposits fail when both vault token AND lego are unapproved"""
 
     # Create unapproved vault token
@@ -200,8 +201,8 @@ def test_deposit_both_unapproved_fails(undy_usd_vault, starter_agent, yield_unde
     deposit_amount = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
-    # Should fail on lego check first (lego is registered but not approved)
-    with boa.reverts("not approved lego id"):
+    # Should fail on combined check (lego is registered but not approved)
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             another_lego_id,  # Registered but not approved lego
             yield_underlying_token.address,
@@ -211,10 +212,10 @@ def test_deposit_both_unapproved_fails(undy_usd_vault, starter_agent, yield_unde
         )
 
     # Approve the lego only
-    undy_usd_vault.setApprovedYieldLego(another_lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, another_lego_id, True, sender=switchboard_alpha.address)
 
     # Should now fail on vault token check
-    with boa.reverts("not approved vault token"):
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             another_lego_id,  # Now approved lego
             yield_underlying_token.address,
@@ -224,7 +225,7 @@ def test_deposit_both_unapproved_fails(undy_usd_vault, starter_agent, yield_unde
         )
 
     # Approve the vault token too
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
 
     # Now it should succeed with both approved
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -239,7 +240,7 @@ def test_deposit_both_unapproved_fails(undy_usd_vault, starter_agent, yield_unde
     assert vault_tokens_received > 0
 
 
-def test_withdrawals_work_regardless_of_approval(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, switchboard_alpha):
+def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, switchboard_alpha):
     """Test that withdrawals still work even after vault token is disapproved"""
 
     # First deposit with approved token
@@ -258,8 +259,8 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, starter_agent, 
     assert vault_balance > 0
 
     # Now disapprove the vault token
-    undy_usd_vault.setApprovedVaultToken(yield_vault_token.address, False, sender=switchboard_alpha.address)
-    assert not undy_usd_vault.isApprovedVaultToken(yield_vault_token.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, False, sender=switchboard_alpha.address)
+    assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address)
 
     # Withdrawals should still work (no approval check on withdrawals)
     vault_burned, underlying_asset, underlying_received, usd_value = undy_usd_vault.withdrawFromYield(
@@ -277,7 +278,7 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, starter_agent, 
     assert yield_vault_token.balanceOf(undy_usd_vault.address) == 0
 
 
-def test_rebalance_checks_destination_approvals(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, switchboard_alpha):
+def test_rebalance_checks_destination_approvals(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, switchboard_alpha):
     """Test that rebalance checks approvals for the destination lego/vault"""
 
     # Setup: deposit into yield_vault_token with lego 1 (both approved)
@@ -296,7 +297,7 @@ def test_rebalance_checks_destination_approvals(undy_usd_vault, starter_agent, y
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token)
 
     # Rebalance should fail when destination vault token is not approved
-    with boa.reverts("not approved vault token"):
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.rebalanceYieldPosition(
             1,  # From lego (approved)
             yield_vault_token.address,  # From vault (approved)
@@ -306,7 +307,7 @@ def test_rebalance_checks_destination_approvals(undy_usd_vault, starter_agent, y
         )
 
     # Approve the destination vault token
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
 
     # Now rebalance should succeed
     vault_burned, new_vault, new_vault_received, usd_value = undy_usd_vault.rebalanceYieldPosition(
@@ -322,17 +323,17 @@ def test_rebalance_checks_destination_approvals(undy_usd_vault, starter_agent, y
     assert new_vault_received > 0
 
 
-def test_approval_events(undy_usd_vault, switchboard_alpha):
+def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that approval changes emit the correct events"""
 
     # Create new vault token
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", boa.load("contracts/mock/MockErc20.vy", boa.env.generate_address(), "Test", "TST", 18, 1_000_000))
 
     # Test vault token approval event
-    undy_usd_vault.setApprovedVaultToken(new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
 
-    # Check event was emitted
-    events = undy_usd_vault.get_logs()
+    # Check event was emitted on VaultRegistry
+    events = vault_registry.get_logs()
     assert len(events) > 0
 
     # Find the ApprovedVaultTokenSet event
@@ -343,13 +344,14 @@ def test_approval_events(undy_usd_vault, switchboard_alpha):
             break
 
     assert vault_token_event is not None
+    assert vault_token_event.vaultAddr == undy_usd_vault.address
     assert vault_token_event.vaultToken == new_vault_token.address
     assert vault_token_event.isApproved == True
 
     # Test lego approval event
-    undy_usd_vault.setApprovedYieldLego(5, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedYieldLego(undy_usd_vault.address, 5, True, sender=switchboard_alpha.address)
 
-    events = undy_usd_vault.get_logs()
+    events = vault_registry.get_logs()
 
     # Find the ApprovedYieldLegoSet event
     lego_event = None
@@ -359,11 +361,12 @@ def test_approval_events(undy_usd_vault, switchboard_alpha):
             break
 
     assert lego_event is not None
+    assert lego_event.vaultAddr == undy_usd_vault.address
     assert lego_event.legoId == 5
     assert lego_event.isApproved == True
 
 
-def test_multiple_approved_vault_tokens(undy_usd_vault, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha):
+def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, switchboard_alpha):
     """Test managing multiple approved vault tokens"""
 
     # Create multiple vault tokens
@@ -372,11 +375,11 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, starter_agent, yield_und
         vt = boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token)
         vault_tokens.append(vt)
         # Approve each one
-        undy_usd_vault.setApprovedVaultToken(vt.address, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vt.address, True, sender=switchboard_alpha.address)
 
     # All should be approved
     for vt in vault_tokens:
-        assert undy_usd_vault.isApprovedVaultToken(vt.address)
+        assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, vt.address)
 
     # Should be able to deposit to any of them
     for i, vt in enumerate(vault_tokens):
@@ -395,7 +398,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, starter_agent, yield_und
         assert vault_tokens_received > 0
 
     # Disapprove the middle one
-    undy_usd_vault.setApprovedVaultToken(vault_tokens[1].address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_tokens[1].address, False, sender=switchboard_alpha.address)
 
     # Can still deposit to first and third
     for vt in [vault_tokens[0], vault_tokens[2]]:
@@ -415,7 +418,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, starter_agent, yield_und
     deposit_amount = 5 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
-    with boa.reverts("not approved vault token"):
+    with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
             1,
             yield_underlying_token.address,

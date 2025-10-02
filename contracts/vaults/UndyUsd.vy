@@ -17,15 +17,6 @@ def __init__(
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
-    # main config
-    _canDeposit: bool,
-    _canWithdraw: bool,
-    _maxDepositAmount: uint256,
-    # price config
-    _minSnapshotDelay: uint256,
-    _maxNumSnapshots: uint256,
-    _maxUpsideDeviation: uint256,
-    _staleTime: uint256,
 ):
     earnVault.__init__(
         _asset,
@@ -35,11 +26,4 @@ def __init__(
         _minHqTimeLock,
         _maxHqTimeLock,
         _startingAgent,
-        _canDeposit,
-        _canWithdraw,
-        _maxDepositAmount,
-        _minSnapshotDelay,
-        _maxNumSnapshots,
-        _maxUpsideDeviation,
-        _staleTime,
     )

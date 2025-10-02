@@ -337,6 +337,8 @@ def billing(undy_hq_deploy, fork):
 
 @pytest.fixture(scope="session")
 def vault_registry(undy_hq_deploy, fork):
+    # Note: VaultRegistry doesn't use temp gov (ZERO_ADDRESS) because it relies on undyHq governance
+    # Registration in UndyHq is done by the undy_hq fixture
     return boa.load(
         "contracts/registries/VaultRegistry.vy",
         undy_hq_deploy,
@@ -518,33 +520,45 @@ def agent_template():
 
 
 @pytest.fixture(scope="session")
-def undy_usd_vault(undy_hq_deploy, fork, starter_agent, yield_underlying_token, switchboard_alpha,
+def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yield_underlying_token, switchboard_alpha,
                    yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
     asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
     vault = boa.load(
         "contracts/vaults/UndyUsd.vy",
         asset,
-        undy_hq_deploy,
+        undy_hq,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
         starter_agent,
-        True,
-        True,
-        0,
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         name="undy_usd_vault",
     )
 
-    # Approve yield lego ID 1 (used in tests)
-    vault.setApprovedYieldLego(1, True, sender=switchboard_alpha.address)
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "UndyUSD Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
 
-    # Approve all test vault tokens
-    vault.setApprovedVaultToken(yield_vault_token.address, True, sender=switchboard_alpha.address)
-    vault.setApprovedVaultToken(yield_vault_token_2.address, True, sender=switchboard_alpha.address)
-    vault.setApprovedVaultToken(yield_vault_token_3.address, True, sender=switchboard_alpha.address)
-    vault.setApprovedVaultToken(yield_vault_token_4.address, True, sender=switchboard_alpha.address)
+    # Initialize vault config in VaultRegistry (including approvals)
+    vault_registry.initializeVaultConfig(
+        vault.address,
+        True,  # canDeposit
+        True,  # canWithdraw
+        0,  # maxDepositAmount
+        2_00,  # redemptionBuffer (2%)
+        (
+            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        ),  # snapShotPriceConfig
+        [  # approvedVaultTokens
+            yield_vault_token.address,
+            yield_vault_token_2.address,
+            yield_vault_token_3.address,
+            yield_vault_token_4.address,
+        ],
+        [1],  # approvedYieldLegos (lego ID 1 used in tests)
+        sender=switchboard_alpha.address
+    )
 
     return vault

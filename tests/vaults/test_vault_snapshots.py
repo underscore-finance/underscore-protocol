@@ -115,7 +115,7 @@ def test_add_price_snapshot_updates_next_index(undy_usd_vault, yield_vault_token
     assert latest.lastUpdate > snapshot_data.lastSnapShot.lastUpdate - 10  # Within 10 seconds
 
 
-def test_add_price_snapshot_circular_buffer(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+def test_add_price_snapshot_circular_buffer(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
     """Test that snapshot storage wraps around when max snapshots reached"""
 
     # Setup: deposit to create a vault position
@@ -130,7 +130,7 @@ def test_add_price_snapshot_circular_buffer(undy_usd_vault, yield_vault_token, y
     )
 
     # Get the max number of snapshots and initial state
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_snapshots = price_config.maxNumSnapshots
 
     # Get initial index (deposit adds first snapshot)
@@ -163,7 +163,7 @@ def test_add_price_snapshot_circular_buffer(undy_usd_vault, yield_vault_token, y
     assert latest.lastUpdate == snapshot_data.lastSnapShot.lastUpdate
 
 
-def test_add_price_snapshot_respects_min_delay(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+def test_add_price_snapshot_respects_min_delay(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
     """Test that snapshots respect the minimum delay between additions"""
 
     # Setup: deposit to create a vault position
@@ -178,7 +178,7 @@ def test_add_price_snapshot_respects_min_delay(undy_usd_vault, yield_vault_token
     )
 
     # Get min delay from config and initial state
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     min_delay = price_config.minSnapshotDelay
     initial_data = undy_usd_vault.snapShotData(yield_vault_token.address)
     initial_index = initial_data.nextIndex
@@ -291,7 +291,7 @@ def test_add_price_snapshot_invalid_vault_token(undy_usd_vault, switchboard_alph
     assert latest.lastUpdate == 0
 
 
-def test_add_price_snapshot_with_yield_accrual(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_add_price_snapshot_with_yield_accrual(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test snapshot captures accurate price after yield accrual"""
 
     # Setup: deposit to create a vault position
@@ -324,7 +324,7 @@ def test_add_price_snapshot_with_yield_accrual(undy_usd_vault, yield_vault_token
     new_price = new_snapshot.pricePerShare
 
     # Price should have increased but may be throttled by max upside
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_upside = price_config.maxUpsideDeviation
     max_allowed_price = initial_price + (initial_price * max_upside // 10000)
 
@@ -439,7 +439,7 @@ def test_add_price_snapshot_updates_last_snapshot(undy_usd_vault, yield_vault_to
     assert latest.totalSupply == 100
 
 
-def test_add_price_snapshot_throttles_upside(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_add_price_snapshot_throttles_upside(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test that price snapshots respect max upside deviation"""
 
     # Setup: deposit to create a vault position
@@ -461,7 +461,7 @@ def test_add_price_snapshot_throttles_upside(undy_usd_vault, yield_vault_token, 
     initial_price = initial_snapshot.pricePerShare
 
     # Get max upside deviation from config
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_upside = price_config.maxUpsideDeviation
 
     # Simulate massive yield accrual (10x)
@@ -597,7 +597,7 @@ def test_get_weighted_price_multiple_snapshots(undy_usd_vault, yield_vault_token
     assert weighted_price <= EIGHTEEN_DECIMALS * 11 // 10  # At most 10% increase (throttled)
 
 
-def test_stale_snapshots_excluded(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+def test_stale_snapshots_excluded(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
     """Test that stale snapshots are excluded from weighted price calculation"""
 
     # Setup: deposit to create a vault position
@@ -612,7 +612,7 @@ def test_stale_snapshots_excluded(undy_usd_vault, yield_vault_token, yield_under
     )
 
     # Get stale time from config
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     stale_time = price_config.staleTime
 
     # Add first snapshot
@@ -685,7 +685,7 @@ def test_zero_total_supply_snapshot(undy_usd_vault, yield_vault_token, yield_und
     assert latest.lastUpdate > 0
 
 
-def test_config_change_effects(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_config_change_effects(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test how configuration changes affect existing and new snapshots"""
 
     # Setup: deposit to create a vault position
@@ -705,14 +705,14 @@ def test_config_change_effects(undy_usd_vault, yield_vault_token, yield_underlyi
     initial_snapshot = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
 
     # Get current config
-    old_config = undy_usd_vault.snapShotPriceConfig()
+    old_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
 
     # Create new config with different max upside (5% instead of 10%)
     new_max_upside = 500  # 5%
     new_config = (old_config.minSnapshotDelay, old_config.maxNumSnapshots, new_max_upside, old_config.staleTime)
 
     # Change config (only switchboard can do this)
-    undy_usd_vault.setPriceConfig(new_config, sender=switchboard_alpha.address)
+    vault_registry.setSnapShotPriceConfig(undy_usd_vault.address, new_config, sender=switchboard_alpha.address)
 
     # Simulate large yield accrual
     current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
@@ -763,17 +763,17 @@ def test_snapshot_with_no_prior_data(undy_usd_vault, yield_vault_token, yield_un
     assert first_snapshot.totalSupply > 0
 
 
-def test_max_snapshots_zero_config(undy_usd_vault):
+def test_max_snapshots_zero_config(undy_usd_vault, vault_registry):
     """Test behavior when maxNumSnapshots is set to zero"""
 
     # Get current config
-    current_config = undy_usd_vault.snapShotPriceConfig()
+    current_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
 
     # Try to set maxNumSnapshots to 0 - should fail validation
     zero_snapshots_config = (current_config.minSnapshotDelay, 0, current_config.maxUpsideDeviation, current_config.staleTime)
 
     # This should fail because maxNumSnapshots must be > 0
-    is_valid = undy_usd_vault.isValidPriceConfig(zero_snapshots_config)
+    is_valid = vault_registry.isValidPriceConfig(zero_snapshots_config)
     assert is_valid == False
 
     # Verify weighted price returns 0 when no snapshots allowed
@@ -781,7 +781,7 @@ def test_max_snapshots_zero_config(undy_usd_vault):
     # The contract prevents this, but we verify the safety check
 
 
-def test_rapid_price_changes_with_throttling(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_rapid_price_changes_with_throttling(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test multiple rapid price increases with cumulative throttling"""
 
     # Setup position
@@ -796,7 +796,7 @@ def test_rapid_price_changes_with_throttling(undy_usd_vault, yield_vault_token, 
     )
 
     # Get max upside from config
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_upside = price_config.maxUpsideDeviation
 
     prices = []
@@ -830,7 +830,7 @@ def test_rapid_price_changes_with_throttling(undy_usd_vault, yield_vault_token, 
     assert final_price <= max_cumulative
 
 
-def test_get_latest_snapshot_throttles_independently(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_get_latest_snapshot_throttles_independently(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test that getLatestSnapshot applies its own throttling on top of stored snapshot"""
 
     # Setup: deposit to create a vault position
@@ -852,7 +852,7 @@ def test_get_latest_snapshot_throttles_independently(undy_usd_vault, yield_vault
     initial_price = initial_snapshot.pricePerShare
 
     # Get config for max upside
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_upside = price_config.maxUpsideDeviation
 
     # Simulate massive yield (10x) - much more than max upside allows
@@ -991,7 +991,7 @@ def test_get_weighted_price_with_different_supplies(undy_usd_vault, yield_vault_
     assert snap1.pricePerShare == snap2.pricePerShare == snap3.pricePerShare
 
 
-def test_get_weighted_price_excludes_stale(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_get_weighted_price_excludes_stale(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test that stale snapshots are properly excluded from weighted price"""
 
     # Setup: deposit to create a vault position
@@ -1006,7 +1006,7 @@ def test_get_weighted_price_excludes_stale(undy_usd_vault, yield_vault_token, yi
     )
 
     # Get config to know stale time
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     stale_time = price_config.staleTime
 
     # Add first snapshot - this will become stale
@@ -1093,7 +1093,7 @@ def test_get_weighted_price_no_snapshots(undy_usd_vault, yield_vault_token_3):
     assert snapshot_data.lastSnapShot.lastUpdate == 0
 
 
-def test_get_weighted_price_circular_buffer_full(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_get_weighted_price_circular_buffer_full(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test weighted price calculation when circular buffer wraps around"""
 
     # Setup: deposit to create a vault position
@@ -1108,7 +1108,7 @@ def test_get_weighted_price_circular_buffer_full(undy_usd_vault, yield_vault_tok
     )
 
     # Get max snapshots from config
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_snapshots = price_config.maxNumSnapshots
 
     # Fill the buffer completely
@@ -1763,7 +1763,7 @@ def test_get_total_assets_after_rebalance(undy_usd_vault, yield_vault_token, yie
     assert total_after_rebalance == deposit_amount
 
 
-def test_get_total_assets_extreme_throttling(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+def test_get_total_assets_extreme_throttling(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
     """Test getTotalAssets with extreme price increase (1000x) getting throttled"""
 
     deposit_amount = 1000 * EIGHTEEN_DECIMALS
@@ -1783,7 +1783,7 @@ def test_get_total_assets_extreme_throttling(undy_usd_vault, yield_vault_token, 
     vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
     yield_underlying_token.mint(yield_vault_token.address, vault_balance * 999, sender=governance.address)
 
-    price_config = undy_usd_vault.snapShotPriceConfig()
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
     max_upside = price_config.maxUpsideDeviation
 
     total_max = undy_usd_vault.getTotalAssets(True)

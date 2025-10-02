@@ -27,52 +27,52 @@ def prepareVaultWithYield(undy_usd_vault, yield_underlying_token, yield_underlyi
 ###########################
 
 
-def test_set_redemption_buffer_by_switchboard(undy_usd_vault, switchboard_alpha):
+def test_set_redemption_buffer_by_switchboard(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test setting redemption buffer by switchboard"""
 
-    initial_buffer = undy_usd_vault.redemptionBuffer()
+    initial_buffer = vault_registry.redemptionBuffer(undy_usd_vault.address)
     assert initial_buffer == 2_00
 
-    undy_usd_vault.setRedemptionBuffer(5_00, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 5_00, sender=switchboard_alpha.address)
 
-    new_buffer = undy_usd_vault.redemptionBuffer()
+    new_buffer = vault_registry.redemptionBuffer(undy_usd_vault.address)
     assert new_buffer == 5_00
 
 
-def test_set_redemption_buffer_multiple_values(undy_usd_vault, switchboard_alpha):
+def test_set_redemption_buffer_multiple_values(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test setting different valid redemption buffer values"""
 
     for buffer_value in [0, 1_00, 2_50, 5_00, 10_00]:
-        undy_usd_vault.setRedemptionBuffer(buffer_value, sender=switchboard_alpha.address)
-        assert undy_usd_vault.redemptionBuffer() == buffer_value
+        vault_registry.setRedemptionBuffer(undy_usd_vault.address, buffer_value, sender=switchboard_alpha.address)
+        assert vault_registry.redemptionBuffer(undy_usd_vault.address) == buffer_value
 
 
-def test_set_redemption_buffer_max_validation(undy_usd_vault, switchboard_alpha):
+def test_set_redemption_buffer_max_validation(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test redemption buffer cannot exceed 10%"""
 
     with boa.reverts("buffer too high (max 10%)"):
-        undy_usd_vault.setRedemptionBuffer(10_01, sender=switchboard_alpha.address)
+        vault_registry.setRedemptionBuffer(undy_usd_vault.address, 10_01, sender=switchboard_alpha.address)
 
     with boa.reverts("buffer too high (max 10%)"):
-        undy_usd_vault.setRedemptionBuffer(20_00, sender=switchboard_alpha.address)
+        vault_registry.setRedemptionBuffer(undy_usd_vault.address, 20_00, sender=switchboard_alpha.address)
 
 
-def test_set_redemption_buffer_permission_check(undy_usd_vault, bob, starter_agent):
+def test_set_redemption_buffer_permission_check(undy_usd_vault, vault_registry, bob, starter_agent):
     """Test only switchboard can set redemption buffer"""
 
     with boa.reverts("no perms"):
-        undy_usd_vault.setRedemptionBuffer(5_00, sender=bob)
+        vault_registry.setRedemptionBuffer(undy_usd_vault.address, 5_00, sender=bob)
 
     with boa.reverts("no perms"):
-        undy_usd_vault.setRedemptionBuffer(5_00, sender=starter_agent.address)
+        vault_registry.setRedemptionBuffer(undy_usd_vault.address, 5_00, sender=starter_agent.address)
 
 
-def test_set_redemption_buffer_updates_state(undy_usd_vault, switchboard_alpha):
+def test_set_redemption_buffer_updates_state(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test redemption buffer updates state correctly"""
 
-    undy_usd_vault.setRedemptionBuffer(7_50, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 7_50, sender=switchboard_alpha.address)
 
-    assert undy_usd_vault.redemptionBuffer() == 7_50
+    assert vault_registry.redemptionBuffer(undy_usd_vault.address) == 7_50
 
 
 ##########################
@@ -139,10 +139,10 @@ def test_redemption_single_position_full_withdrawal(prepareVaultWithYield, undy_
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
 
 
-def test_redemption_buffer_calculation_2_percent(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, bob, switchboard_alpha):
+def test_redemption_buffer_calculation_2_percent(prepareVaultWithYield, undy_usd_vault, vault_registry, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, bob, switchboard_alpha):
     """Test 2% buffer causes 102% withdrawal from yield positions"""
 
-    undy_usd_vault.setRedemptionBuffer(2_00, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 2_00, sender=switchboard_alpha.address)
 
     deposit_amount = prepareVaultWithYield(1000 * EIGHTEEN_DECIMALS)
 
@@ -190,10 +190,10 @@ def test_redemption_empty_vault_numAssets_zero(undy_usd_vault, yield_underlying_
 #######################
 
 
-def test_redemption_zero_percent_buffer(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
+def test_redemption_zero_percent_buffer(prepareVaultWithYield, undy_usd_vault, vault_registry, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
     """Test 0% buffer withdraws exactly what's needed"""
 
-    undy_usd_vault.setRedemptionBuffer(0, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 0, sender=switchboard_alpha.address)
 
     prepareVaultWithYield(1000 * EIGHTEEN_DECIMALS)
 
@@ -211,10 +211,10 @@ def test_redemption_zero_percent_buffer(prepareVaultWithYield, undy_usd_vault, y
     assert final_balance == initial_balance + withdraw_amount
 
 
-def test_redemption_five_percent_buffer(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
+def test_redemption_five_percent_buffer(prepareVaultWithYield, undy_usd_vault, vault_registry, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
     """Test 5% buffer withdraws 105% of requested"""
 
-    undy_usd_vault.setRedemptionBuffer(5_00, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 5_00, sender=switchboard_alpha.address)
 
     prepareVaultWithYield(1000 * EIGHTEEN_DECIMALS)
 
@@ -232,10 +232,10 @@ def test_redemption_five_percent_buffer(prepareVaultWithYield, undy_usd_vault, y
     assert final_balance == initial_balance + withdraw_amount
 
 
-def test_redemption_ten_percent_buffer(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
+def test_redemption_ten_percent_buffer(prepareVaultWithYield, undy_usd_vault, vault_registry, yield_underlying_token, yield_underlying_token_whale, bob, switchboard_alpha):
     """Test 10% buffer (max) withdraws 110% of requested"""
 
-    undy_usd_vault.setRedemptionBuffer(10_00, sender=switchboard_alpha.address)
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 10_00, sender=switchboard_alpha.address)
 
     prepareVaultWithYield(1000 * EIGHTEEN_DECIMALS)
 
