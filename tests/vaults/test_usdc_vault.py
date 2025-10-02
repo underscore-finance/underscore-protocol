@@ -1709,3 +1709,394 @@ def test_usdc_vault_avg_price_throttling_across_protocols(
 
         # Avg should be <= max (since it uses conservative pricing)
         assert total_assets_avg <= total_assets_max
+
+
+@pytest.base
+def test_usdc_vault_random_deposits_total_assets_accuracy(
+    getLegoId,
+    undy_usd_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    _test,
+):
+    """Test random deposits across multiple protocols and verify totalAssets() matches exactly"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
+    whale = WHALES[fork]["USDC"]
+    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
+
+    # Test with all 7 protocols
+    random_amounts = {}
+    total_expected = 0
+
+    for protocol in TEST_TOKENS:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Generate random amount between 100 and 10,000 USDC
+        random_usdc = random.randint(100, 10_000)
+        amount = random_usdc * (10 ** asset.decimals())
+        random_amounts[protocol] = amount
+        total_expected += amount
+
+        # Prepare deposit
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
+        undy_usd_vault.deposit(amount, bob, sender=bob)
+
+        # Approve lego and vault
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Deposit for yield
+        asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        # Verify deposit matches exactly what we sent
+        assert asset_deposited == amount, f"{protocol}: deposited {asset_deposited} != expected {amount}"
+
+    # Now verify totalAssets() equals sum of all deposits
+    total_assets = undy_usd_vault.totalAssets()
+
+    # Allow for minimal rounding across all protocols (< 0.01% total)
+    max_rounding_error = total_expected // 10000
+    assert abs(total_assets - total_expected) <= max_rounding_error, \
+        f"totalAssets {total_assets} != expected {total_expected} (diff: {abs(total_assets - total_expected)})"
+
+    # Verify share price accounting is correct
+    # Bob deposited total_expected, so convertToAssets should match
+    bob_shares = undy_usd_vault.balanceOf(bob)
+    bob_assets = undy_usd_vault.convertToAssets(bob_shares)
+
+    # Bob's assets should equal total_expected (he's the only depositor)
+    _test(bob_assets, total_expected)
+
+    # Verify each vault token is tracked correctly
+    for protocol in TEST_TOKENS:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Check vault token is registered
+        assert undy_usd_vault.indexOfAsset(vault_addr.address) > 0, f"{protocol} not registered"
+
+        # Get vault token balance
+        vault_balance = vault_addr.balanceOf(undy_usd_vault)
+        assert vault_balance > 0, f"{protocol} has 0 vault tokens"
+
+        # Convert vault tokens back to underlying
+        underlying = lego.getUnderlyingAmount(vault_addr, vault_balance)
+
+        # Should match what we deposited (within rounding)
+        expected_amount = random_amounts[protocol]
+        rounding_tolerance = max(expected_amount // 10000, 1)  # 0.01% or 1 wei
+        assert abs(underlying - expected_amount) <= rounding_tolerance, \
+            f"{protocol}: underlying {underlying} != expected {expected_amount} (diff: {abs(underlying - expected_amount)})"
+
+
+@pytest.base
+def test_usdc_vault_total_assets_after_partial_withdrawals(
+    getLegoId,
+    undy_usd_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    _test,
+):
+    """Test totalAssets() remains accurate after partial withdrawals from various protocols"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
+    whale = WHALES[fork]["USDC"]
+    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
+
+    # Use 5 protocols for this test
+    test_protocols = ["AAVE_USDC", "COMPOUND_USDC", "EULER_USDC", "MOONWELL_USDC", "MORPHO_MOONWELL_USDC"]
+    protocol_data = {}
+    total_deposited = 0
+
+    # Deposit random amounts to each protocol
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Random amount between 1000 and 5000 USDC
+        random_usdc = random.randint(1000, 5000)
+        amount = random_usdc * (10 ** asset.decimals())
+
+        # Prepare deposit
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
+        undy_usd_vault.deposit(amount, bob, sender=bob)
+
+        # Approve lego and vault
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Deposit for yield
+        asset_deposited, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        protocol_data[protocol] = {
+            "lego_id": lego_id,
+            "lego": lego,
+            "vault_addr": vault_addr,
+            "deposited": amount,
+            "vault_tokens": vault_tokens_received,
+            "original_vault_tokens": vault_tokens_received,  # Save original for comparison
+        }
+        total_deposited += amount
+
+    # Verify initial totalAssets
+    initial_total_assets = undy_usd_vault.totalAssets()
+    _test(initial_total_assets, total_deposited)
+
+    # Now perform partial withdrawals from random protocols
+    protocols_to_withdraw = random.sample(test_protocols, 3)  # Withdraw from 3 out of 5
+    total_withdrawn = 0
+
+    for protocol in protocols_to_withdraw:
+        data = protocol_data[protocol]
+
+        # Withdraw a random percentage (30% to 70%)
+        withdraw_percentage = random.randint(30, 70)
+        vault_tokens_to_withdraw = data["vault_tokens"] * withdraw_percentage // 100
+
+        # Perform withdrawal
+        vault_burned, underlying_asset, underlying_received, _ = undy_usd_vault.withdrawFromYield(
+            data["lego_id"],
+            data["vault_addr"],
+            vault_tokens_to_withdraw,
+            sender=starter_agent.address
+        )
+
+        total_withdrawn += underlying_received
+
+        # Update protocol data
+        data["vault_tokens"] -= vault_burned
+        data["withdrawn"] = underlying_received
+
+    # Calculate expected total assets after withdrawals
+    # Note: withdrawFromYield moves assets from yield back to idle USDC in the vault
+    # So totalAssets should still equal total_deposited (not reduced)
+    expected_total_after_withdrawal = total_deposited
+
+    # Verify totalAssets is still accurate (should not have changed)
+    total_assets_after_withdrawal = undy_usd_vault.totalAssets()
+
+    # Allow for small rounding (< 0.1%)
+    max_rounding = expected_total_after_withdrawal // 1000
+    assert abs(total_assets_after_withdrawal - expected_total_after_withdrawal) <= max_rounding, \
+        f"totalAssets {total_assets_after_withdrawal} != expected {expected_total_after_withdrawal} after partial withdrawals"
+
+    # Verify each protocol's balance is tracked correctly
+    for protocol in test_protocols:
+        data = protocol_data[protocol]
+        current_vault_balance = data["vault_addr"].balanceOf(undy_usd_vault)
+        original_vault_tokens = data["original_vault_tokens"]
+
+        if protocol in protocols_to_withdraw:
+            # After withdrawal, balance should be less than original
+            assert current_vault_balance < original_vault_tokens, f"{protocol} balance should have decreased from {original_vault_tokens} to {current_vault_balance}"
+            # But still > 0 (partial withdrawal)
+            assert current_vault_balance > 0, f"{protocol} should still have balance after partial withdrawal"
+        else:
+            # Should have same balance as before (no withdrawal happened)
+            assert current_vault_balance == original_vault_tokens, f"{protocol} balance should be unchanged"
+
+    # Verify user shares are still correct
+    bob_shares = undy_usd_vault.balanceOf(bob)
+    bob_assets = undy_usd_vault.convertToAssets(bob_shares)
+
+    # Bob's convertToAssets should match expected total
+    _test(bob_assets, expected_total_after_withdrawal)
+
+
+@pytest.base
+def test_usdc_vault_multiple_users_random_operations(
+    getLegoId,
+    undy_usd_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    alice,
+    charlie,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test multiple users depositing and withdrawing randomly, verify share accounting remains accurate"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
+    whale = WHALES[fork]["USDC"]
+    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
+
+    users = [bob, alice, charlie]
+    user_deposits = {bob: 0, alice: 0, charlie: 0}
+
+    # Use 4 protocols
+    test_protocols = ["AAVE_USDC", "COMPOUND_USDC", "EULER_USDC", "MOONWELL_USDC"]
+    protocol_info = {}
+
+    # Setup all protocols
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        protocol_info[protocol] = {
+            "lego_id": lego_id,
+            "lego": lego,
+            "vault_addr": vault_addr,
+        }
+
+    # Simulate 15 random user deposits
+    for i in range(15):
+        user = random.choice(users)
+        protocol = random.choice(test_protocols)
+        info = protocol_info[protocol]
+
+        # Random deposit amount (100 to 2000 USDC)
+        amount = random.randint(100, 2000) * (10 ** asset.decimals())
+
+        # User deposits to vault
+        asset.transfer(user, amount, sender=whale)
+        asset.approve(undy_usd_vault, MAX_UINT256, sender=user)
+        undy_usd_vault.deposit(amount, user, sender=user)
+
+        # Deposit to yield protocol
+        undy_usd_vault.depositForYield(
+            info["lego_id"],
+            asset,
+            info["vault_addr"],
+            amount,
+            sender=starter_agent.address
+        )
+
+        user_deposits[user] += amount
+
+    # Record each user's shares and expected assets
+    user_shares = {}
+    for user in users:
+        shares = undy_usd_vault.balanceOf(user)
+        user_shares[user] = shares
+
+        # Verify convertToAssets matches what they deposited (within rounding)
+        assets = undy_usd_vault.convertToAssets(shares)
+        expected = user_deposits[user]
+
+        # Allow 0.1% rounding
+        tolerance = max(expected // 1000, 1)
+        assert abs(assets - expected) <= tolerance, \
+            f"User assets {assets} != expected {expected} (deposited)"
+
+    # Verify totalAssets matches sum of all deposits
+    total_deposited = sum(user_deposits.values())
+    total_assets = undy_usd_vault.totalAssets()
+
+    tolerance = total_deposited // 1000
+    assert abs(total_assets - total_deposited) <= tolerance, \
+        f"totalAssets {total_assets} != expected {total_deposited}"
+
+    # Now simulate random withdrawals
+    # Alice withdraws 50% of her shares
+    alice_withdraw_shares = user_shares[alice] // 2
+    alice_initial_balance = asset.balanceOf(alice)
+
+    alice_withdrawn_assets = undy_usd_vault.redeem(alice_withdraw_shares, alice, alice, sender=alice)
+    alice_final_balance = asset.balanceOf(alice)
+
+    # Verify Alice received assets
+    assert alice_final_balance > alice_initial_balance
+    assert alice_withdrawn_assets == alice_final_balance - alice_initial_balance
+
+    # Update Alice's expected deposits
+    user_deposits[alice] -= alice_withdrawn_assets
+    user_shares[alice] = undy_usd_vault.balanceOf(alice)
+
+    # Bob withdraws 30% of his shares
+    bob_withdraw_shares = user_shares[bob] * 30 // 100
+    bob_initial_balance = asset.balanceOf(bob)
+
+    bob_withdrawn_assets = undy_usd_vault.redeem(bob_withdraw_shares, bob, bob, sender=bob)
+    bob_final_balance = asset.balanceOf(bob)
+
+    assert bob_final_balance > bob_initial_balance
+    user_deposits[bob] -= bob_withdrawn_assets
+    user_shares[bob] = undy_usd_vault.balanceOf(bob)
+
+    # Verify totalAssets decreased correctly
+    total_remaining = sum(user_deposits.values())
+    total_assets_after = undy_usd_vault.totalAssets()
+
+    tolerance = total_remaining // 1000
+    assert abs(total_assets_after - total_remaining) <= tolerance, \
+        f"totalAssets after withdrawals {total_assets_after} != expected {total_remaining}"
+
+    # Verify remaining shares for each user are accurate
+    for user in users:
+        shares = undy_usd_vault.balanceOf(user)
+        if shares > 0:
+            assets = undy_usd_vault.convertToAssets(shares)
+            expected = user_deposits[user]
+
+            tolerance = max(expected // 1000, 1)
+            assert abs(assets - expected) <= tolerance, \
+                f"User final assets {assets} != expected {expected}"
+
+    # Charlie deposits more after others withdrew
+    additional_amount = 1000 * (10 ** asset.decimals())
+    protocol = random.choice(test_protocols)
+    info = protocol_info[protocol]
+
+    asset.transfer(charlie, additional_amount, sender=whale)
+    undy_usd_vault.deposit(additional_amount, charlie, sender=charlie)
+
+    undy_usd_vault.depositForYield(
+        info["lego_id"],
+        asset,
+        info["vault_addr"],
+        additional_amount,
+        sender=starter_agent.address
+    )
+
+    user_deposits[charlie] += additional_amount
+
+    # Final verification: totalAssets should match all remaining deposits
+    final_total = sum(user_deposits.values())
+    final_total_assets = undy_usd_vault.totalAssets()
+
+    tolerance = final_total // 1000
+    assert abs(final_total_assets - final_total) <= tolerance, \
+        f"Final totalAssets {final_total_assets} != expected {final_total}"
+
+    # Verify all users can fully withdraw their remaining shares
+    for user in users:
+        shares = undy_usd_vault.balanceOf(user)
+        if shares > 0:
+            expected_assets = user_deposits[user]
+            convertable_assets = undy_usd_vault.convertToAssets(shares)
+
+            tolerance = max(expected_assets // 1000, 1)
+            assert abs(convertable_assets - expected_assets) <= tolerance, \
+                f"User {user} final convertToAssets {convertable_assets} != expected {expected_assets}"
