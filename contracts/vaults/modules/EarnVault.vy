@@ -41,8 +41,11 @@ event Withdraw:
     shares: uint256
 
 ASSET: immutable(address)
-VAULT_REGISTRY_ID: constant(uint256) = 10
 UNDY_HQ: immutable(address)
+
+VAULT_REGISTRY_ID: constant(uint256) = 10
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
+ONE_PERCENT: constant(uint256) = 1_00 # 1%
 
 
 @deploy
@@ -269,14 +272,27 @@ def _redeem(
         token._spendAllowance(_owner, _sender, _shares)
 
     # withdraw from yield opportunity
-    availAmount: uint256 = vaultWallet._prepareRedemption(_amount, _sender, vaultRegistry)
-    assert availAmount >= _amount # dev: not enough available
+    actualAmount: uint256 = vaultWallet._prepareRedemption(_amount, _sender, vaultRegistry)
+    assert self._isCloseEnough(_amount, actualAmount) # dev: insufficient funds
 
+    # burn shares, transfer assets
     token._burn(_owner, _shares)
-    assert extcall IERC20(_asset).transfer(_recipient, _amount, default_return_value=True) # dev: withdrawal failed
+    assert extcall IERC20(_asset).transfer(_recipient, actualAmount, default_return_value=True) # dev: withdrawal failed
 
-    log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=_amount, shares=_shares)
-    return _amount
+    log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)
+    return actualAmount
+
+
+# is close enough
+
+
+@pure
+@internal
+def _isCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:
+    # extra safety check to make sure what was redeemed was actually close-ish to what was requested
+    buffer: uint256 = _requestedAmount * ONE_PERCENT // HUNDRED_PERCENT
+    lowerBound: uint256 = _requestedAmount - buffer
+    return _actualAmount >= lowerBound
 
 
 ##########

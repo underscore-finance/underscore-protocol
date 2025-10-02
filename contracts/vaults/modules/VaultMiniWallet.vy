@@ -494,7 +494,7 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
-        return withdrawnAmount
+        return _amount
 
     # buffer to make sure we pull out enough for redemption
     bufferMultiplier: uint256 = HUNDRED_PERCENT + staticcall VaultRegistry(_vaultRegistry).redemptionBuffer(self)
@@ -553,7 +553,7 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
     for asset: address in assetsToDeregister:
         self._deregisterYieldPosition(asset)
 
-    return withdrawnAmount
+    return min(withdrawnAmount, _amount)
 
 
 ###################
