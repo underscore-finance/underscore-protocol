@@ -337,8 +337,6 @@ def billing(undy_hq_deploy, fork):
 
 @pytest.fixture(scope="session")
 def vault_registry(undy_hq_deploy, fork):
-    # Note: VaultRegistry doesn't use temp gov (ZERO_ADDRESS) because it relies on undyHq governance
-    # Registration in UndyHq is done by the undy_hq fixture
     return boa.load(
         "contracts/registries/VaultRegistry.vy",
         undy_hq_deploy,
