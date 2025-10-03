@@ -14,7 +14,7 @@ from ethereum.ercs import IERC20Detailed
 interface VaultRegistry:
     def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
-    def redemptionBuffer(_vaultAddr: address) -> uint256: view
+    def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
     def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
 
 interface MissionControl:
@@ -496,8 +496,13 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
     if withdrawnAmount >= _amount:
         return _amount
 
+    # get redemption config (buffer and min withdraw amount)
+    redemptionBuffer: uint256 = 0
+    minWithdrawAmount: uint256 = 0
+    redemptionBuffer, minWithdrawAmount = staticcall VaultRegistry(_vaultRegistry).redemptionConfig(self)
+
     # buffer to make sure we pull out enough for redemption
-    bufferMultiplier: uint256 = HUNDRED_PERCENT + staticcall VaultRegistry(_vaultRegistry).redemptionBuffer(self)
+    bufferMultiplier: uint256 = HUNDRED_PERCENT + redemptionBuffer
     targetWithdrawAmount: uint256 = _amount * bufferMultiplier // HUNDRED_PERCENT
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
@@ -533,7 +538,15 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
 
         # calculate how many vault tokens we need to withdraw
         amountStillNeeded: uint256 = targetWithdrawAmount - withdrawnAmount
+
+        # skip if amount still needed is below minimum (dust protection)
+        if minWithdrawAmount != 0 and amountStillNeeded < minWithdrawAmount:
+            continue
+
+        # skip if vault tokens needed rounds to 0 (dust)
         vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** data.vaultTokenDecimals) // pricePerShare
+        if vaultTokensNeeded == 0:
+            continue
 
         # withdraw from yield opportunity
         na1: uint256 = 0

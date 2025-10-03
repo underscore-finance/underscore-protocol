@@ -865,6 +865,7 @@ def test_initialize_vault_config(vault_registry, governance, switchboard_alpha, 
         True,  # canWithdraw
         1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         300,  # redemptionBuffer (3%)
+        0,  # minYieldWithdrawAmount
         snap_config,
         [vault_token_1, vault_token_2],  # approvedVaultTokens
         [1, 2],  # approvedYieldLegos
@@ -903,6 +904,7 @@ def test_initialize_vault_config_non_switchboard_fails(vault_registry, bob, depl
             True,
             0,
             200,
+            0,  # minYieldWithdrawAmount
             snap_config,
             [],
             [],
@@ -923,6 +925,7 @@ def test_initialize_vault_config_invalid_vault_addr(vault_registry, switchboard_
             True,
             0,
             200,
+            0,  # minYieldWithdrawAmount
             snap_config,
             [],
             [],
@@ -959,6 +962,7 @@ def test_initialize_vault_config_invalid_price_config(vault_registry, governance
             True,
             0,
             200,
+            0,  # minYieldWithdrawAmount
             invalid_snap_config,
             [],
             [],
@@ -994,6 +998,7 @@ def test_initialize_vault_config_buffer_too_high(vault_registry, governance, swi
             True,
             0,
             1001,  # 10.01%
+            0,  # minYieldWithdrawAmount
             snap_config,
             [],
             [],
@@ -1031,6 +1036,7 @@ def test_initialize_vault_config_skips_empty_vault_tokens(vault_registry, govern
         True,
         0,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         [vault_token_1, ZERO_ADDRESS],  # Should skip empty address
         [],
@@ -1070,6 +1076,7 @@ def test_initialize_vault_config_skips_zero_lego_ids(vault_registry, governance,
         True,
         0,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         [],
         [1, 0, 2],  # Should skip 0
@@ -1111,6 +1118,7 @@ def test_initialize_vault_config_emits_all_events(vault_registry, governance, sw
         True,
         1_000_000 * EIGHTEEN_DECIMALS,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         [vault_token_1],
         [1],
@@ -1203,6 +1211,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, switchb
         False,  # canWithdraw
         500_000 * EIGHTEEN_DECIMALS,
         100,  # 1% buffer
+        0,  # minYieldWithdrawAmount
         snap_config_1,
         [vault_token_1],
         [1],
@@ -1215,6 +1224,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, switchb
         True,  # canWithdraw
         1_000_000 * EIGHTEEN_DECIMALS,
         500,  # 5% buffer
+        0,  # minYieldWithdrawAmount
         snap_config_2,
         [vault_token_2],
         [2],
@@ -1408,6 +1418,7 @@ def test_initialize_vault_config_pending_vault(vault_registry, governance, switc
         True,
         1_000_000 * EIGHTEEN_DECIMALS,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         [vault_token],
         [1],
@@ -1450,6 +1461,7 @@ def test_initialize_vault_config_overwrite(vault_registry, governance, switchboa
         False,
         500_000 * EIGHTEEN_DECIMALS,
         100,
+        0,  # minYieldWithdrawAmount
         snap_config_1,
         [vault_token_1],
         [1],
@@ -1473,6 +1485,7 @@ def test_initialize_vault_config_overwrite(vault_registry, governance, switchboa
         True,
         2_000_000 * EIGHTEEN_DECIMALS,
         500,
+        0,  # minYieldWithdrawAmount
         snap_config_2,
         [vault_token_2],
         [2],
@@ -1529,6 +1542,7 @@ def test_initialize_vault_config_max_arrays(vault_registry, governance, switchbo
         True,
         1_000_000 * EIGHTEEN_DECIMALS,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         vault_tokens,
         lego_ids,

@@ -36,6 +36,7 @@ struct VaultConfig:
     maxDepositAmount: uint256
     isVaultOpsFrozen: bool
     redemptionBuffer: uint256
+    minYieldWithdrawAmount: uint256
     snapShotPriceConfig: SnapShotPriceConfig
 
 event VaultConfigSet:
@@ -51,6 +52,10 @@ event VaultOpsFrozenSet:
 event RedemptionBufferSet:
     vaultAddr: indexed(address)
     buffer: uint256
+
+event MinYieldWithdrawAmountSet:
+    vaultAddr: indexed(address)
+    amount: uint256
 
 event SnapShotPriceConfigSet:
     vaultAddr: indexed(address)
@@ -166,6 +171,19 @@ def redemptionBuffer(_vaultAddr: address) -> uint256:
 
 @view
 @external
+def minYieldWithdrawAmount(_vaultAddr: address) -> uint256:
+    return self.vaultConfigs[_vaultAddr].minYieldWithdrawAmount
+
+
+@view
+@external
+def redemptionConfig(_vaultAddr: address) -> (uint256, uint256):
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    return config.redemptionBuffer, config.minYieldWithdrawAmount
+
+
+@view
+@external
 def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig:
     return self.vaultConfigs[_vaultAddr].snapShotPriceConfig
 
@@ -264,6 +282,16 @@ def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
 
 
 @external
+def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.minYieldWithdrawAmount = _amount
+    self.vaultConfigs[_vaultAddr] = config
+    log MinYieldWithdrawAmountSet(vaultAddr=_vaultAddr, amount=_amount)
+
+
+@external
 def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
@@ -304,6 +332,7 @@ def initializeVaultConfig(
     _canWithdraw: bool,
     _maxDepositAmount: uint256,
     _redemptionBuffer: uint256,
+    _minYieldWithdrawAmount: uint256,
     _snapShotPriceConfig: SnapShotPriceConfig,
     _approvedVaultTokens: DynArray[address, 25] = [],
     _approvedYieldLegos: DynArray[uint256, 25] = [],
@@ -322,6 +351,7 @@ def initializeVaultConfig(
         maxDepositAmount = _maxDepositAmount,
         isVaultOpsFrozen = False,
         redemptionBuffer = _redemptionBuffer,
+        minYieldWithdrawAmount = _minYieldWithdrawAmount,
         snapShotPriceConfig = _snapShotPriceConfig,
     )
     self.vaultConfigs[_vaultAddr] = config
@@ -341,6 +371,7 @@ def initializeVaultConfig(
     # log config events
     log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit, canWithdraw=_canWithdraw, maxDepositAmount=_maxDepositAmount)
     log RedemptionBufferSet(vaultAddr=_vaultAddr, buffer=_redemptionBuffer)
+    log MinYieldWithdrawAmountSet(vaultAddr=_vaultAddr, amount=_minYieldWithdrawAmount)
     log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_snapShotPriceConfig.minSnapshotDelay, maxNumSnapshots=_snapShotPriceConfig.maxNumSnapshots, maxUpsideDeviation=_snapShotPriceConfig.maxUpsideDeviation, staleTime=_snapShotPriceConfig.staleTime)
 
 

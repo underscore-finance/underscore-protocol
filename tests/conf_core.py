@@ -563,6 +563,7 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
         True,  # canWithdraw
         0,  # maxDepositAmount
         2_00,  # redemptionBuffer (2%)
+        10000,  # minYieldWithdrawAmount (0.01 USDC with 6 decimals)
         (
             PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
             PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],

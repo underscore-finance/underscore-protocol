@@ -1441,6 +1441,7 @@ def test_vault_initialization_with_flags_disabled(
         True,   # canWithdraw = True
         0,      # maxDepositAmount = 0 (unlimited)
         2_00,   # redemptionBuffer = 2%
+        0,      # minYieldWithdrawAmount
         (
             PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
             PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
@@ -1483,6 +1484,7 @@ def test_vault_initialization_with_flags_disabled(
         False,  # canWithdraw = False
         0,      # maxDepositAmount = 0 (unlimited)
         2_00,   # redemptionBuffer = 2%
+        0,      # minYieldWithdrawAmount
         (
             PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
             PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
