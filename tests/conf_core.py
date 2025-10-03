@@ -624,3 +624,46 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
     )
 
     return vault
+
+
+# cbbtc vault
+
+
+@pytest.fixture(scope="session")
+def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, switchboard_alpha):
+    asset = TOKENS[fork]["CBBTC"]
+    vault = boa.load(
+        "contracts/vaults/UndyBtc.vy",
+        asset,
+        undy_hq,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="undy_btc_vault",
+    )
+
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "UndyBTC Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
+
+    # Initialize vault config in VaultRegistry (including approvals)
+    vault_registry.initializeVaultConfig(
+        vault.address,
+        True,  # canDeposit
+        True,  # canWithdraw
+        0,  # maxDepositAmount
+        2_00,  # redemptionBuffer (2%)
+        1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
+        (
+            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        ),  # snapShotPriceConfig
+        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
+        [],  # approvedYieldLegos (empty for now, tests will add them as needed)
+        sender=switchboard_alpha.address
+    )
+
+    return vault
