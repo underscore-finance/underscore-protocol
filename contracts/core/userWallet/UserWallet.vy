@@ -575,7 +575,7 @@ def confirmMintOrRedeemAsset(
 
 
 # NOTE: these functions assume there is no vault token involved (i.e. Ripe Protocol)
-# You can also use `depositIntoProtocol` and `withdrawFromProtocol` if a vault token is involved
+# You can also use `depositForYield` and `withdrawFromYield` if a vault token is involved
 
 
 # add collateral

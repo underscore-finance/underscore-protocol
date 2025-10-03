@@ -67,7 +67,7 @@ struct VaultActionData:
     legoId: uint256
     legoAddr: address
 
-event EarnVaultAction:
+event LeverageVaultAction:
     op: uint8 
     asset1: indexed(address)
     asset2: indexed(address)
@@ -181,7 +181,7 @@ def _depositForYield(
         self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
 
     if _shouldGenerateEvent:
-        log EarnVaultAction(
+        log LeverageVaultAction(
             op = 10,
             asset1 = _asset,
             asset2 = vaultToken,
@@ -236,7 +236,7 @@ def _withdrawFromYield(
         self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr)
 
     if _shouldGenerateEvent:
-        log EarnVaultAction(
+        log LeverageVaultAction(
             op = 11,
             asset1 = _vaultToken,
             asset2 = underlyingAsset,
@@ -279,7 +279,7 @@ def rebalanceYieldPosition(
     underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, ad)
 
     maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
-    log EarnVaultAction(
+    log LeverageVaultAction(
         op = 12,
         asset1 = _fromVaultToken,
         asset2 = toVaultToken,
@@ -329,7 +329,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
-    log EarnVaultAction(
+    log LeverageVaultAction(
         op = 20,
         asset1 = tokenIn,
         asset2 = lastTokenOut,
@@ -413,7 +413,7 @@ def claimRewards(
     txUsdValue: uint256 = 0
     rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    log EarnVaultAction(
+    log LeverageVaultAction(
         op = 50,
         asset1 = _rewardToken,
         asset2 = ad.legoAddr,
@@ -424,6 +424,152 @@ def claimRewards(
         signer = ad.signer,
     )
     return rewardAmount, txUsdValue
+
+
+###################
+# Debt Management #
+###################
+
+
+# NOTE: these functions assume there is no vault token involved (i.e. Ripe Protocol)
+# You can also use `depositForYield` and `withdrawFromYield` if a vault token is involved
+
+
+# add collateral
+
+
+@external
+def addCollateral(
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # some vault tokens require max value approval (comp v3)
+    assert extcall IERC20(_asset).approve(ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
+    # add collateral
+    amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
+    amountDeposited: uint256 = 0
+    txUsdValue: uint256 = 0
+    amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    assert extcall IERC20(_asset).approve(ad.legoAddr, 0, default_return_value = True) # dev: appr
+
+    # TODO: update yield position (reduce balance)
+    # TODO: new tracking of collateral position ??
+
+    log LeverageVaultAction(
+        op = 40,
+        asset1 = _asset,
+        asset2 = empty(address),
+        amount1 = amountDeposited,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return amountDeposited, txUsdValue
+
+
+# remove collateral
+
+
+@external
+def removeCollateral(
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # remove collateral
+    amountRemoved: uint256 = 0
+    txUsdValue: uint256 = 0   
+    amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    # TODO: update yield position (add balance)
+    # TODO: new tracking of collateral position ??
+
+    log LeverageVaultAction(
+        op = 41,
+        asset1 = _asset,
+        asset2 = empty(address),
+        amount1 = amountRemoved,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return amountRemoved, txUsdValue
+
+
+# borrow
+
+
+@external
+def borrow(
+    _legoId: uint256,
+    _borrowAsset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # borrow
+    borrowAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    # TODO: update debt position
+
+    log LeverageVaultAction(
+        op = 42,
+        asset1 = _borrowAsset,
+        asset2 = empty(address),
+        amount1 = borrowAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return borrowAmount, txUsdValue
+
+
+# repay debt
+
+
+@external
+def repayDebt(
+    _legoId: uint256,
+    _paymentAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # repay debt
+    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, ad.legoAddr) # doing approval here
+    repaidAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    assert extcall IERC20(_paymentAsset).approve(ad.legoAddr, 0, default_return_value = True) # dev: appr
+
+    # TODO: update debt position
+
+    log LeverageVaultAction(
+        op = 43,
+        asset1 = _paymentAsset,
+        asset2 = empty(address),
+        amount1 = repaidAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return repaidAmount, txUsdValue
 
 
 ################
