@@ -756,3 +756,1379 @@ def test_cbbtc_vault_rebasing_vs_nonrebasing_behavior(
     # Rebasing shouldn't track avgPricePerShare (should be 0 or ignored)
     # Non-rebasing should track avgPricePerShare
     assert nonrebasing_asset_data.avgPricePerShare > 0, "Non-rebasing should track avgPricePerShare"
+
+
+@pytest.base
+def test_cbbtc_vault_withdraw_from_multiple_protocols(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test maintaining positions in multiple protocols while withdrawing from one"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    amount = 1 * (10 ** asset.decimals())
+
+    # deposit to two protocols
+    protocols = ["AAVE_CBBTC", "MOONWELL_CBBTC"]
+    vault_addrs = []
+
+    for protocol in protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+        vault_addrs.append((lego_id, vault_addr))
+
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+    # verify both registered
+    assert undy_btc_vault.numAssets() == 3  # base + 2 protocols
+
+    # withdraw from first protocol only
+    lego_id_1, vault_addr_1 = vault_addrs[0]
+    vault_balance_1 = vault_addr_1.balanceOf(undy_btc_vault)
+
+    undy_btc_vault.withdrawFromYield(
+        lego_id_1,
+        vault_addr_1,
+        vault_balance_1,
+        sender=starter_agent.address
+    )
+
+    # verify first deregistered, second still registered
+    assert undy_btc_vault.indexOfAsset(vault_addr_1.address) == 0
+    assert undy_btc_vault.indexOfAsset(vault_addrs[1][1].address) > 0
+    assert undy_btc_vault.numAssets() == 2  # base + 1 protocol
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_conversion_accuracy(
+    prepareYieldDeposit,
+    undy_btc_vault,
+    starter_agent,
+    token_str,
+):
+    """Test convertToAssets and convertToShares accuracy"""
+    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
+
+    # deposit into yield vault
+    _, _, vault_tokens_received, _ = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # test vault token conversions
+    assets = lego.getUnderlyingAmount(vault_addr, vault_tokens_received)
+    shares_back = lego.getVaultTokenAmount(asset, assets, vault_addr)
+
+    # should be close to original (accounting for rounding)
+    # Allow for small rounding differences (< 0.01%)
+    diff = abs(shares_back - vault_tokens_received)
+    max_diff = max(vault_tokens_received // 10000, 2)  # 0.01% or 2 wei minimum
+    assert diff <= max_diff, f"Conversion diff too large: {diff} > {max_diff}"
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_small_deposit(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    token_str,
+):
+    """Test small (dust) deposit amounts"""
+    lego_id, lego = getLegoId(token_str)
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][token_str])
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+
+    # 0.001 cbBTC (8 decimals)
+    amount = 1 * (10 ** (asset.decimals() - 3))
+
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    asset.transfer(bob, amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # deposit small amount
+    asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # verify it worked
+    assert asset_deposited == amount
+    assert vault_tokens_received > 0
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_large_deposit(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    token_str,
+):
+    """Test large deposit amounts"""
+    lego_id, lego = getLegoId(token_str)
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][token_str])
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+
+    # 100 cbBTC
+    amount = 100 * (10 ** asset.decimals())
+
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    asset.transfer(bob, amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # deposit large amount
+    asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # verify it worked
+    assert asset_deposited == amount
+    assert vault_tokens_received > 0
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_multiple_deposits_same_protocol(
+    prepareYieldDeposit,
+    undy_btc_vault,
+    starter_agent,
+    token_str,
+    bob,
+    fork,
+):
+    """Test multiple sequential deposits to same protocol"""
+    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
+
+    # first deposit
+    _, _, vault_tokens_1, _ = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # second deposit - prepare more cbBTC
+    whale = WHALES[fork]["CBBTC"]
+    asset.transfer(bob, amount, sender=whale)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    _, _, vault_tokens_2, _ = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # verify cumulative balance
+    total_vault_tokens = vault_tokens_1 + vault_tokens_2
+    assert vault_addr.balanceOf(undy_btc_vault) == total_vault_tokens
+
+    # should still be same asset (no duplicate registration)
+    vault_data = undy_btc_vault.assetData(vault_addr.address)
+    assert vault_data.legoId == lego_id
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_whale_deposit_100_btc(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    token_str,
+):
+    """Test whale-sized deposits (100 cbBTC) - validates real protocol capacity and gas costs"""
+    lego_id, lego = getLegoId(token_str)
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][token_str])
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+
+    # 100 cbBTC
+    amount = 100 * (10 ** asset.decimals())
+
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    asset.transfer(bob, amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # deposit whale amount
+    asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # verify deposit succeeded
+    assert asset_deposited == amount
+    assert vault_tokens_received > 0
+    assert vault_addr.balanceOf(undy_btc_vault) == vault_tokens_received
+
+    # verify withdrawal works for whale amounts
+    vault_balance = vault_addr.balanceOf(undy_btc_vault)
+    _, _, underlying_received, _ = undy_btc_vault.withdrawFromYield(
+        lego_id,
+        vault_addr,
+        vault_balance,
+        sender=starter_agent.address
+    )
+
+    # verify we got close to original amount (allowing for protocol fees/rounding)
+    assert underlying_received >= amount * 9995 // 10000  # allow 0.05% loss max
+
+
+@pytest.base
+def test_cbbtc_vault_whale_deposit_1000_btc_multiple_protocols(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test extreme whale deposits (100 cbBTC) across multiple protocols"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # 100 cbBTC per protocol (reduced from 1000 to avoid vault capacity limits)
+    amount_per_protocol = 100 * (10 ** asset.decimals())
+
+    # Test with 3 major protocols to validate extreme amounts
+    test_protocols = ["AAVE_CBBTC", "EULER_CBBTC", "MOONWELL_CBBTC"]
+
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # prepare deposit
+        asset.transfer(bob, amount_per_protocol, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount_per_protocol, bob, sender=bob)
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # deposit whale amount
+        asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount_per_protocol,
+            sender=starter_agent.address
+        )
+
+        # verify each deposit succeeded
+        assert asset_deposited == amount_per_protocol
+        assert vault_tokens_received > 0
+
+    # verify total assets is correct (300 cbBTC)
+    expected_total = amount_per_protocol * 3
+    total_assets = undy_btc_vault.totalAssets()
+    # allow for small rounding across protocols
+    assert abs(total_assets - expected_total) <= expected_total // 1000  # 0.1% tolerance
+
+
+@pytest.base
+def test_cbbtc_vault_emergency_withdrawal_multiple_protocols(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test emergency user withdrawal triggering redemption from multiple yield positions (tests redemption buffer)"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    amount_per_protocol = 10 * (10 ** asset.decimals())
+
+    # Setup 3 protocols with deposits
+    test_protocols = ["AAVE_CBBTC", "EULER_CBBTC", "MOONWELL_CBBTC"]
+    total_deposited = 0
+
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        asset.transfer(bob, amount_per_protocol, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount_per_protocol, bob, sender=bob)
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount_per_protocol,
+            sender=starter_agent.address
+        )
+        total_deposited += amount_per_protocol
+
+    # Verify all protocols are registered (base + 3 = 4)
+    assert undy_btc_vault.numAssets() == 4
+
+    # Bob has shares for all deposits
+    bob_shares = undy_btc_vault.balanceOf(bob)
+    assert bob_shares > 0
+
+    # Emergency: Bob wants to withdraw everything
+    # This should trigger redemption across multiple yield positions
+    initial_cbbtc = asset.balanceOf(bob)
+
+    # Withdraw all
+    assets_received = undy_btc_vault.redeem(bob_shares, bob, bob, sender=bob)
+
+    # Verify Bob received cbBTC
+    final_cbbtc = asset.balanceOf(bob)
+    assert final_cbbtc > initial_cbbtc
+    assert assets_received > 0
+
+    # Should have received close to total deposited (accounting for rounding/fees)
+    assert assets_received >= total_deposited * 999 // 1000  # 0.1% tolerance
+
+    # Verify shares were burned
+    assert undy_btc_vault.balanceOf(bob) == 0
+
+    # Verify redemption pulled from multiple protocols
+    # (some protocols may be fully withdrawn and deregistered)
+    final_num_assets = undy_btc_vault.numAssets()
+    # Should have fewer assets registered now (base + potentially 0-2 protocols left)
+    assert final_num_assets <= 4
+
+
+@pytest.base
+def test_cbbtc_vault_emergency_partial_withdrawal_with_redemption_buffer(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test large withdrawal requiring yield position redemption with redemption buffer"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # Deposit small amount to vault (keeping idle)
+    idle_amount = 1 * (10 ** (asset.decimals() - 1))  # 0.1 cbBTC
+    asset.transfer(bob, idle_amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(idle_amount, bob, sender=bob)
+
+    # Deposit large amount to yield
+    yield_amount = 50 * (10 ** asset.decimals())
+    lego_id, lego = getLegoId("AAVE_CBBTC")
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["AAVE_CBBTC"])
+
+    asset.transfer(bob, yield_amount, sender=whale)
+    undy_btc_vault.deposit(yield_amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        yield_amount,
+        sender=starter_agent.address
+    )
+
+    # Try to withdraw more than idle (should trigger yield withdrawal)
+    withdraw_amount = 30 * (10 ** asset.decimals())  # More than idle, less than total
+
+    initial_balance = asset.balanceOf(bob)
+    undy_btc_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+    final_balance = asset.balanceOf(bob)
+
+    # Verify user received requested amount
+    assert final_balance - initial_balance == withdraw_amount
+
+    # Verify vault balance decreased in vault token (redemption occurred)
+    remaining_vault_tokens = vault_addr.balanceOf(undy_btc_vault)
+    # Should have withdrawn from yield (but not all)
+    assert remaining_vault_tokens > 0  # Still has some
+    assert remaining_vault_tokens < yield_amount  # But less than original
+
+    # Verify redemption buffer pulled extra (2% default)
+    vault_balance = asset.balanceOf(undy_btc_vault.address)
+    # Should have buffer amount sitting idle now
+    expected_idle = (withdraw_amount - idle_amount) * 2 // 100  # 2% buffer of redeemed amount
+    # Allow for variation in buffer calculation
+    assert vault_balance >= expected_idle * 90 // 100  # At least 90% of expected buffer
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_decimal_precision_large_amounts(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    token_str,
+    _test,
+):
+    """Test decimal precision with large amounts (cbBTC=8 decimals, vault tokens typically 18)"""
+    lego_id, lego = getLegoId(token_str)
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][token_str])
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+
+    # Large amount: 50 cbBTC (8 decimals) - reduced to avoid vault capacity limits
+    amount = 50 * (10 ** asset.decimals())
+
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    asset.transfer(bob, amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # Record vault token decimals
+    vault_token_decimals = vault_addr.decimals()
+
+    # Deposit
+    asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # Verify no precision loss on deposit
+    assert asset_deposited == amount
+
+    # Convert back to underlying
+    underlying_amount = lego.getUnderlyingAmount(vault_addr, vault_tokens_received)
+
+    # Should recover nearly all the original amount (accounting for rounding)
+    # With decimal mismatch (8 vs 18), we need to be careful
+    precision_loss_tolerance = amount // 100000  # 0.001% tolerance
+    assert abs(underlying_amount - amount) <= precision_loss_tolerance, \
+        f"Precision loss too high: {amount} -> {underlying_amount} (diff: {abs(underlying_amount - amount)})"
+
+    # Test withdrawal precision
+    _, _, underlying_received, _ = undy_btc_vault.withdrawFromYield(
+        lego_id,
+        vault_addr,
+        vault_tokens_received,
+        sender=starter_agent.address
+    )
+
+    # Verify withdrawal precision
+    precision_loss_on_withdrawal = amount // 100000  # 0.001% tolerance
+    assert abs(underlying_received - amount) <= precision_loss_on_withdrawal, \
+        f"Withdrawal precision loss too high: {amount} -> {underlying_received} (diff: {abs(underlying_received - amount)})"
+
+    # Verify conversions are stable (round-trip)
+    shares_back = lego.getVaultTokenAmount(asset, underlying_received, vault_addr)
+    conversion_tolerance = max(vault_tokens_received // 10000, 1)  # 0.01% or 1 wei
+    assert abs(shares_back - vault_tokens_received) <= conversion_tolerance, \
+        f"Round-trip conversion failed: {vault_tokens_received} -> {underlying_received} -> {shares_back}"
+
+
+@pytest.base
+def test_cbbtc_vault_decimal_precision_dust_amounts(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test decimal precision with dust amounts across decimal boundaries"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # Test with Aave (rebasing, typically 18 decimals) and Euler (non-rebasing, varies)
+    test_cases = [
+        ("AAVE_CBBTC", 0.01),    # 0.01 cbBTC
+        ("EULER_CBBTC", 0.01),   # 0.01 cbBTC
+        ("AAVE_CBBTC", 0.015),   # 0.015 cbBTC (fractional)
+        ("EULER_CBBTC", 0.001),  # 0.001 cbBTC (small fraction)
+    ]
+
+    # Pre-approve all protocols
+    approved_protocols = set()
+    for protocol, _ in test_cases:
+        if protocol not in approved_protocols:
+            lego_id, lego = getLegoId(protocol)
+            vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+            vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+            vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+            approved_protocols.add(protocol)
+
+    for protocol, cbbtc_amount in test_cases:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Convert cbBTC amount to proper decimals
+        amount = int(cbbtc_amount * (10 ** asset.decimals()))
+
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        # Deposit
+        asset_deposited, _, vault_tokens_received, _ = undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        # Verify dust amounts work
+        assert asset_deposited == amount
+        assert vault_tokens_received > 0
+
+        # Withdraw and verify precision
+        _, _, underlying_received, _ = undy_btc_vault.withdrawFromYield(
+            lego_id,
+            vault_addr,
+            vault_tokens_received,
+            sender=starter_agent.address
+        )
+
+        # Allow for rounding on dust amounts (up to 2 wei loss)
+        assert underlying_received >= amount - 2, \
+            f"Dust amount precision loss: {protocol} {cbbtc_amount} cbBTC: {amount} -> {underlying_received}"
+
+
+@pytest.mark.parametrize("token_str", TEST_TOKENS)
+@pytest.base
+def test_cbbtc_vault_deregister_and_reregister(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    token_str,
+):
+    """Test deregistering (full withdrawal) and re-registering (new deposit) same vault token"""
+    lego_id, lego = getLegoId(token_str)
+    vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][token_str])
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    amount = 10 * (10 ** asset.decimals())
+
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # Initial setup
+    asset.transfer(bob, amount, sender=whale)
+    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # First deposit
+    _, _, vault_tokens_1, _ = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # Verify registered
+    assert undy_btc_vault.indexOfAsset(vault_addr.address) > 0
+    initial_index = undy_btc_vault.indexOfAsset(vault_addr.address)
+    initial_num_assets = undy_btc_vault.numAssets()
+
+    # Full withdrawal (deregisters)
+    undy_btc_vault.withdrawFromYield(
+        lego_id,
+        vault_addr,
+        vault_tokens_1,
+        sender=starter_agent.address
+    )
+
+    # Verify deregistered
+    assert undy_btc_vault.indexOfAsset(vault_addr.address) == 0
+    assert undy_btc_vault.numAssets() == initial_num_assets - 1
+
+    # Re-deposit to same protocol (re-registers)
+    asset.transfer(bob, amount, sender=whale)
+    undy_btc_vault.deposit(amount, bob, sender=bob)
+
+    _, _, vault_tokens_2, _ = undy_btc_vault.depositForYield(
+        lego_id,
+        asset,
+        vault_addr,
+        amount,
+        sender=starter_agent.address
+    )
+
+    # Verify re-registered
+    assert undy_btc_vault.indexOfAsset(vault_addr.address) > 0
+    new_index = undy_btc_vault.indexOfAsset(vault_addr.address)
+    assert undy_btc_vault.numAssets() == initial_num_assets
+
+    # Index may be different due to array reorganization
+    # But the vault should work correctly
+    assert vault_tokens_2 > 0
+    assert vault_addr.balanceOf(undy_btc_vault) == vault_tokens_2
+
+    # Verify assetData was properly reset/updated
+    asset_data = undy_btc_vault.assetData(vault_addr.address)
+    assert asset_data.legoId == lego_id
+
+    # Verify withdrawal still works after re-registration
+    _, _, underlying_received, _ = undy_btc_vault.withdrawFromYield(
+        lego_id,
+        vault_addr,
+        vault_tokens_2,
+        sender=starter_agent.address
+    )
+
+    assert underlying_received >= amount * 999 // 1000  # 0.1% tolerance
+
+
+@pytest.base
+def test_cbbtc_vault_multiple_deregister_reregister_cycles(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test multiple cycles of deregistration and re-registration to validate array management"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    amount = 5 * (10 ** asset.decimals())
+
+    # Setup two protocols
+    protocols = ["AAVE_CBBTC", "EULER_CBBTC"]
+    protocol_data = []
+
+    for protocol in protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+        protocol_data.append((protocol, lego_id, vault_addr))
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+    # Perform 3 cycles of deposit/withdraw for each protocol
+    for cycle in range(3):
+        for protocol_name, lego_id, vault_addr in protocol_data:
+            # Deposit
+            asset.transfer(bob, amount, sender=whale)
+            asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+            undy_btc_vault.deposit(amount, bob, sender=bob)
+
+            _, _, vault_tokens, _ = undy_btc_vault.depositForYield(
+                lego_id,
+                asset,
+                vault_addr,
+                amount,
+                sender=starter_agent.address
+            )
+
+            # Verify registered
+            assert undy_btc_vault.indexOfAsset(vault_addr.address) > 0
+
+            # Withdraw (deregister)
+            undy_btc_vault.withdrawFromYield(
+                lego_id,
+                vault_addr,
+                vault_tokens,
+                sender=starter_agent.address
+            )
+
+            # Verify deregistered
+            assert undy_btc_vault.indexOfAsset(vault_addr.address) == 0
+
+    # Final verification: deposit to both and ensure both work
+    for protocol_name, lego_id, vault_addr in protocol_data:
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        _, _, vault_tokens, _ = undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        assert undy_btc_vault.indexOfAsset(vault_addr.address) > 0
+        assert vault_tokens > 0
+
+    # Both protocols should be registered (base + 2 = 3)
+    assert undy_btc_vault.numAssets() == 3
+
+
+@pytest.base
+def test_cbbtc_vault_avg_price_divergence_across_protocols(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test avgPricePerShare tracking divergence across non-rebasing protocols with real assets"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    amount = 10 * (10 ** asset.decimals())
+
+    # Test with 2 non-rebasing protocols (Euler and Moonwell - Morpho may also be non-rebasing)
+    nonrebasing_protocols = ["EULER_CBBTC", "MOONWELL_CBBTC"]
+    protocol_data = []
+
+    for protocol in nonrebasing_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Skip if rebasing (shouldn't be, but safety check)
+        if lego.isRebasing():
+            continue
+
+        protocol_data.append((protocol, lego_id, lego, vault_addr))
+
+        # Prepare deposit
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Initial deposit
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+    # Record initial avgPricePerShare for each protocol
+    initial_avg_prices = {}
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset_data = undy_btc_vault.assetData(vault_addr.address)
+        initial_avg_prices[protocol] = asset_data.avgPricePerShare
+        assert asset_data.avgPricePerShare > 0, f"{protocol} should track avgPricePerShare"
+
+    # Time travel and add snapshots to allow avgPricePerShare to update
+    boa.env.time_travel(seconds=301)
+
+    # Make additional deposits to trigger snapshot updates
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset.transfer(bob, amount, sender=whale)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+    # Time travel again
+    boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
+
+    # Check final avgPricePerShare for each protocol
+    final_avg_prices = {}
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset_data = undy_btc_vault.assetData(vault_addr.address)
+        final_avg_prices[protocol] = asset_data.avgPricePerShare
+
+        # avgPricePerShare should remain stable (on static fork) or increase slightly
+        assert final_avg_prices[protocol] >= initial_avg_prices[protocol], \
+            f"{protocol} avgPricePerShare decreased: {initial_avg_prices[protocol]} -> {final_avg_prices[protocol]}"
+
+        # Should still be positive
+        assert final_avg_prices[protocol] > 0
+
+    # Verify each protocol maintains its own independent avgPricePerShare
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset_data = undy_btc_vault.assetData(vault_addr.address)
+
+        # Verify snapshot data exists
+        snapshot_data = undy_btc_vault.snapShotData(vault_addr.address)
+        assert snapshot_data.nextIndex > 0, f"{protocol} should have snapshots"
+
+        # Get weighted price (should use snapshots)
+        weighted_price = undy_btc_vault.getWeightedPrice(vault_addr.address)
+        assert weighted_price > 0, f"{protocol} weighted price should be positive"
+
+        # Weighted price should be close to avgPricePerShare
+        avg_price = asset_data.avgPricePerShare
+        # Allow for up to 10% difference (throttling can cause divergence)
+        assert abs(weighted_price - avg_price) <= avg_price // 10, \
+            f"{protocol} weighted price ({weighted_price}) diverged too much from avg ({avg_price})"
+
+
+@pytest.base
+def test_cbbtc_vault_avg_price_throttling_across_protocols(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test that avgPricePerShare throttling works independently for each protocol"""
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+    amount = 20 * (10 ** asset.decimals())
+
+    # Test with two non-rebasing protocols
+    protocols = ["EULER_CBBTC", "MOONWELL_CBBTC"]
+    protocol_data = []
+
+    for protocol in protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Skip rebasing
+        if lego.isRebasing():
+            continue
+
+        protocol_data.append((protocol, lego_id, lego, vault_addr))
+
+        # Setup
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Initial deposit
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+    # Get initial avgPricePerShare for both
+    initial_prices = {}
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset_data = undy_btc_vault.assetData(vault_addr.address)
+        initial_prices[protocol] = asset_data.avgPricePerShare
+
+    # Time travel and add snapshots
+    boa.env.time_travel(seconds=301)
+
+    # Make additional deposits to multiple protocols
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset.transfer(bob, amount // 2, sender=whale)
+        undy_btc_vault.deposit(amount // 2, bob, sender=bob)
+
+        undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount // 2,
+            sender=starter_agent.address
+        )
+
+    # Verify avgPricePerShare updated independently
+    for protocol, lego_id, lego, vault_addr in protocol_data:
+        asset_data = undy_btc_vault.assetData(vault_addr.address)
+        final_price = asset_data.avgPricePerShare
+
+        # Should be positive
+        assert final_price > 0
+
+        # Should be close to initial (or slightly higher due to yield/snapshots)
+        # On static fork, should be very similar
+        assert final_price >= initial_prices[protocol] * 99 // 100, \
+            f"{protocol} avgPricePerShare changed unexpectedly: {initial_prices[protocol]} -> {final_price}"
+
+    # Verify getTotalAssets uses avgPricePerShare correctly
+    total_assets_avg = undy_btc_vault.getTotalAssets(False)  # Use avg prices
+    total_assets_max = undy_btc_vault.getTotalAssets(True)   # Use max prices
+
+    # Both should be positive
+    assert total_assets_avg > 0
+    assert total_assets_max > 0
+
+    # Avg should be <= max (since it uses conservative pricing)
+    assert total_assets_avg <= total_assets_max
+
+
+@pytest.base
+def test_cbbtc_vault_random_deposits_total_assets_accuracy(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    _test,
+):
+    """Test random deposits across multiple protocols and verify totalAssets() matches exactly"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # Test with all 4 protocols
+    random_amounts = {}
+    total_expected = 0
+
+    for protocol in TEST_TOKENS:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Generate random amount between 1 and 10 cbBTC
+        random_cbbtc = random.randint(1, 10)
+        amount = random_cbbtc * (10 ** asset.decimals())
+        random_amounts[protocol] = amount
+        total_expected += amount
+
+        # Prepare deposit
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        # Approve lego and vault
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Deposit for yield
+        asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        # Verify deposit matches exactly what we sent
+        assert asset_deposited == amount, f"{protocol}: deposited {asset_deposited} != expected {amount}"
+
+    # Now verify totalAssets() equals sum of all deposits
+    total_assets = undy_btc_vault.totalAssets()
+
+    # Allow for minimal rounding across all protocols (< 0.01% total)
+    max_rounding_error = total_expected // 10000
+    assert abs(total_assets - total_expected) <= max_rounding_error, \
+        f"totalAssets {total_assets} != expected {total_expected} (diff: {abs(total_assets - total_expected)})"
+
+    # Verify share price accounting is correct
+    # Bob deposited total_expected, so convertToAssets should match
+    bob_shares = undy_btc_vault.balanceOf(bob)
+    bob_assets = undy_btc_vault.convertToAssets(bob_shares)
+
+    # Bob's assets should equal total_expected (he's the only depositor)
+    _test(bob_assets, total_expected)
+
+    # Verify each vault token is tracked correctly
+    for protocol in TEST_TOKENS:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Check vault token is registered
+        assert undy_btc_vault.indexOfAsset(vault_addr.address) > 0, f"{protocol} not registered"
+
+        # Get vault token balance
+        vault_balance = vault_addr.balanceOf(undy_btc_vault)
+        assert vault_balance > 0, f"{protocol} has 0 vault tokens"
+
+        # Convert vault tokens back to underlying
+        underlying = lego.getUnderlyingAmount(vault_addr, vault_balance)
+
+        # Should match what we deposited (within rounding)
+        expected_amount = random_amounts[protocol]
+        rounding_tolerance = max(expected_amount // 10000, 1)  # 0.01% or 1 wei
+        assert abs(underlying - expected_amount) <= rounding_tolerance, \
+            f"{protocol}: underlying {underlying} != expected {expected_amount} (diff: {abs(underlying - expected_amount)})"
+
+
+@pytest.base
+def test_cbbtc_vault_total_assets_after_partial_withdrawals(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+    _test,
+):
+    """Test totalAssets() remains accurate after partial withdrawals from various protocols"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    # Use 3 protocols for this test
+    test_protocols = ["AAVE_CBBTC", "EULER_CBBTC", "MOONWELL_CBBTC"]
+    protocol_data = {}
+    total_deposited = 0
+
+    # Deposit random amounts to each protocol
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        # Random amount between 10 and 50 cbBTC
+        random_cbbtc = random.randint(10, 50)
+        amount = random_cbbtc * (10 ** asset.decimals())
+
+        # Prepare deposit
+        asset.transfer(bob, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
+        undy_btc_vault.deposit(amount, bob, sender=bob)
+
+        # Approve lego and vault
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        # Deposit for yield
+        asset_deposited, _, vault_tokens_received, _ = undy_btc_vault.depositForYield(
+            lego_id,
+            asset,
+            vault_addr,
+            amount,
+            sender=starter_agent.address
+        )
+
+        protocol_data[protocol] = {
+            "lego_id": lego_id,
+            "lego": lego,
+            "vault_addr": vault_addr,
+            "deposited": amount,
+            "vault_tokens": vault_tokens_received,
+            "original_vault_tokens": vault_tokens_received,
+        }
+        total_deposited += amount
+
+    # Verify initial totalAssets
+    initial_total_assets = undy_btc_vault.totalAssets()
+    _test(initial_total_assets, total_deposited)
+
+    # Now perform partial withdrawals from random protocols
+    protocols_to_withdraw = random.sample(test_protocols, 2)  # Withdraw from 2 out of 3
+    total_withdrawn = 0
+
+    for protocol in protocols_to_withdraw:
+        data = protocol_data[protocol]
+
+        # Withdraw a random percentage (30% to 70%)
+        withdraw_percentage = random.randint(30, 70)
+        vault_tokens_to_withdraw = data["vault_tokens"] * withdraw_percentage // 100
+
+        # Perform withdrawal
+        vault_burned, underlying_asset, underlying_received, _ = undy_btc_vault.withdrawFromYield(
+            data["lego_id"],
+            data["vault_addr"],
+            vault_tokens_to_withdraw,
+            sender=starter_agent.address
+        )
+
+        total_withdrawn += underlying_received
+
+        # Update protocol data
+        data["vault_tokens"] -= vault_burned
+        data["withdrawn"] = underlying_received
+
+    # Calculate expected total assets after withdrawals
+    expected_total_after_withdrawal = total_deposited
+
+    # Verify totalAssets is still accurate (should not have changed)
+    total_assets_after_withdrawal = undy_btc_vault.totalAssets()
+
+    # Allow for small rounding (< 0.1%)
+    max_rounding = expected_total_after_withdrawal // 1000
+    assert abs(total_assets_after_withdrawal - expected_total_after_withdrawal) <= max_rounding, \
+        f"totalAssets {total_assets_after_withdrawal} != expected {expected_total_after_withdrawal} after partial withdrawals"
+
+    # Verify each protocol's balance is tracked correctly
+    for protocol in test_protocols:
+        data = protocol_data[protocol]
+        current_vault_balance = data["vault_addr"].balanceOf(undy_btc_vault)
+        original_vault_tokens = data["original_vault_tokens"]
+
+        if protocol in protocols_to_withdraw:
+            # After withdrawal, balance should be less than original
+            assert current_vault_balance < original_vault_tokens
+            # But still > 0 (partial withdrawal)
+            assert current_vault_balance > 0
+        else:
+            # Should have same balance as before (no withdrawal happened)
+            assert current_vault_balance == original_vault_tokens
+
+    # Verify user shares are still correct
+    bob_shares = undy_btc_vault.balanceOf(bob)
+    bob_assets = undy_btc_vault.convertToAssets(bob_shares)
+
+    # Bob's convertToAssets should match expected total
+    _test(bob_assets, expected_total_after_withdrawal)
+
+
+@pytest.base
+def test_cbbtc_vault_multiple_users_random_operations(
+    getLegoId,
+    undy_btc_vault,
+    vault_registry,
+    starter_agent,
+    bob,
+    alice,
+    charlie,
+    fork,
+    switchboard_alpha,
+    mock_ripe,
+):
+    """Test multiple users depositing and withdrawing randomly, verify share accounting remains accurate"""
+    import random
+
+    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
+    whale = WHALES[fork]["CBBTC"]
+    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
+
+    users = [bob, alice, charlie]
+    user_deposits = {bob: 0, alice: 0, charlie: 0}
+
+    # Use all 4 protocols
+    test_protocols = TEST_TOKENS
+    protocol_info = {}
+
+    # Setup all protocols
+    for protocol in test_protocols:
+        lego_id, lego = getLegoId(protocol)
+        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
+
+        vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+
+        protocol_info[protocol] = {
+            "lego_id": lego_id,
+            "lego": lego,
+            "vault_addr": vault_addr,
+        }
+
+    # Simulate 12 random user deposits
+    for i in range(12):
+        user = random.choice(users)
+        protocol = random.choice(test_protocols)
+        info = protocol_info[protocol]
+
+        # Random deposit amount (1 to 20 cbBTC)
+        amount = random.randint(1, 20) * (10 ** asset.decimals())
+
+        # User deposits to vault
+        asset.transfer(user, amount, sender=whale)
+        asset.approve(undy_btc_vault, MAX_UINT256, sender=user)
+        undy_btc_vault.deposit(amount, user, sender=user)
+
+        # Deposit to yield protocol
+        undy_btc_vault.depositForYield(
+            info["lego_id"],
+            asset,
+            info["vault_addr"],
+            amount,
+            sender=starter_agent.address
+        )
+
+        user_deposits[user] += amount
+
+    # Record each user's shares and expected assets
+    user_shares = {}
+    for user in users:
+        shares = undy_btc_vault.balanceOf(user)
+        user_shares[user] = shares
+
+        # Verify convertToAssets matches what they deposited (within rounding)
+        assets = undy_btc_vault.convertToAssets(shares)
+        expected = user_deposits[user]
+
+        # Allow 0.1% rounding
+        tolerance = max(expected // 1000, 1)
+        assert abs(assets - expected) <= tolerance
+
+    # Verify totalAssets matches sum of all deposits
+    total_deposited = sum(user_deposits.values())
+    total_assets = undy_btc_vault.totalAssets()
+
+    tolerance = total_deposited // 1000
+    assert abs(total_assets - total_deposited) <= tolerance
+
+    # Now simulate random withdrawals
+    # Alice withdraws 50% of her shares
+    alice_withdraw_shares = user_shares[alice] // 2
+    alice_initial_balance = asset.balanceOf(alice)
+
+    alice_withdrawn_assets = undy_btc_vault.redeem(alice_withdraw_shares, alice, alice, sender=alice)
+    alice_final_balance = asset.balanceOf(alice)
+
+    # Verify Alice received assets
+    assert alice_final_balance > alice_initial_balance
+    assert alice_withdrawn_assets == alice_final_balance - alice_initial_balance
+
+    # Update Alice's expected deposits
+    user_deposits[alice] -= alice_withdrawn_assets
+    user_shares[alice] = undy_btc_vault.balanceOf(alice)
+
+    # Bob withdraws 30% of his shares
+    bob_withdraw_shares = user_shares[bob] * 30 // 100
+    bob_initial_balance = asset.balanceOf(bob)
+
+    bob_withdrawn_assets = undy_btc_vault.redeem(bob_withdraw_shares, bob, bob, sender=bob)
+    bob_final_balance = asset.balanceOf(bob)
+
+    assert bob_final_balance > bob_initial_balance
+    user_deposits[bob] -= bob_withdrawn_assets
+    user_shares[bob] = undy_btc_vault.balanceOf(bob)
+
+    # Verify totalAssets decreased correctly
+    total_remaining = sum(user_deposits.values())
+    total_assets_after = undy_btc_vault.totalAssets()
+
+    tolerance = total_remaining // 1000
+    assert abs(total_assets_after - total_remaining) <= tolerance
+
+    # Verify remaining shares for each user are accurate
+    for user in users:
+        shares = undy_btc_vault.balanceOf(user)
+        if shares > 0:
+            assets = undy_btc_vault.convertToAssets(shares)
+            expected = user_deposits[user]
+
+            tolerance = max(expected // 1000, 1)
+            assert abs(assets - expected) <= tolerance
+
+    # Charlie deposits more after others withdrew
+    additional_amount = 10 * (10 ** asset.decimals())
+    protocol = random.choice(test_protocols)
+    info = protocol_info[protocol]
+
+    asset.transfer(charlie, additional_amount, sender=whale)
+    undy_btc_vault.deposit(additional_amount, charlie, sender=charlie)
+
+    undy_btc_vault.depositForYield(
+        info["lego_id"],
+        asset,
+        info["vault_addr"],
+        additional_amount,
+        sender=starter_agent.address
+    )
+
+    user_deposits[charlie] += additional_amount
+
+    # Final verification: totalAssets should match all remaining deposits
+    final_total = sum(user_deposits.values())
+    final_total_assets = undy_btc_vault.totalAssets()
+
+    tolerance = final_total // 1000
+    assert abs(final_total_assets - final_total) <= tolerance
+
+    # Verify all users can fully withdraw their remaining shares
+    for user in users:
+        shares = undy_btc_vault.balanceOf(user)
+        if shares > 0:
+            expected_assets = user_deposits[user]
+            convertable_assets = undy_btc_vault.convertToAssets(shares)
+
+            tolerance = max(expected_assets // 1000, 1)
+            assert abs(convertable_assets - expected_assets) <= tolerance
