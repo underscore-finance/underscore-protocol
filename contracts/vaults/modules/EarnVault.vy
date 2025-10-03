@@ -12,7 +12,7 @@ from contracts.vaults.modules import VaultErc20Token as token
 
 exports: vaultWallet.__interface__
 initializes: vaultWallet
-from contracts.vaults.modules import VaultMiniWallet as vaultWallet
+from contracts.vaults.modules import EarnVaultWallet as vaultWallet
 
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
