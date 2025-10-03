@@ -17,8 +17,8 @@ def __init__(
 ):
     earnVault.__init__(
         _asset,
-        "Underscore Blue Chip USD",
-        "undyUSD",
+        "Underscore Blue Chip ETH",
+        "undyETH",
         _undyHq,
         _minHqTimeLock,
         _maxHqTimeLock,
