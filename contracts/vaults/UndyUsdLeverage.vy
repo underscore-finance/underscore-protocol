@@ -12,6 +12,7 @@ from contracts.vaults.modules import LeverageVault as levgVault
 def __init__(
     _asset: address,
     _yieldVaultAsset: address,
+    _yieldVaultLegoId: uint256,
     _undyHq: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
@@ -20,7 +21,7 @@ def __init__(
     levgVault.__init__(
         _asset,
         _yieldVaultAsset,
-        _borrowLegoId,
+        _yieldVaultLegoId,
         "Underscore Blue Chip USD Leverage",
         "undyUSD-L",
         _undyHq,

@@ -37,6 +37,7 @@ struct VaultConfig:
     isVaultOpsFrozen: bool
     redemptionBuffer: uint256
     minYieldWithdrawAmount: uint256
+    targetCollateralizationRatio: uint256
     snapShotPriceConfig: SnapShotPriceConfig
 
 event VaultConfigSet:
@@ -56,6 +57,10 @@ event RedemptionBufferSet:
 event MinYieldWithdrawAmountSet:
     vaultAddr: indexed(address)
     amount: uint256
+
+event TargetCollateralizationRatioSet:
+    vaultAddr: indexed(address)
+    ratio: uint256
 
 event SnapShotPriceConfigSet:
     vaultAddr: indexed(address)
@@ -184,6 +189,12 @@ def redemptionConfig(_vaultAddr: address) -> (uint256, uint256):
 
 @view
 @external
+def targetCollateralizationRatio(_vaultAddr: address) -> uint256:
+    return self.vaultConfigs[_vaultAddr].targetCollateralizationRatio
+
+
+@view
+@external
 def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig:
     return self.vaultConfigs[_vaultAddr].snapShotPriceConfig
 
@@ -292,6 +303,18 @@ def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256):
 
 
 @external
+def setTargetCollateralizationRatio(_vaultAddr: address, _ratio: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert _ratio >= 100_00 # dev: ratio must be >= 100%
+    assert _ratio <= 500_00 # dev: ratio too high (max 500%)
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.targetCollateralizationRatio = _ratio
+    self.vaultConfigs[_vaultAddr] = config
+    log TargetCollateralizationRatioSet(vaultAddr=_vaultAddr, ratio=_ratio)
+
+
+@external
 def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
@@ -336,6 +359,7 @@ def initializeVaultConfig(
     _snapShotPriceConfig: SnapShotPriceConfig,
     _approvedVaultTokens: DynArray[address, 25] = [],
     _approvedYieldLegos: DynArray[uint256, 25] = [],
+    _targetCollateralizationRatio: uint256 = 0,
 ):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
@@ -343,6 +367,9 @@ def initializeVaultConfig(
     assert registry._isValidAddr(_vaultAddr) or registry.pendingNewAddr[_vaultAddr].confirmBlock != 0 # dev: invalid vault addr
     assert self._isValidPriceConfig(_snapShotPriceConfig) # dev: invalid price config
     assert _redemptionBuffer <= 10_00 # dev: buffer too high (max 10%)
+    if _targetCollateralizationRatio != 0:
+        assert _targetCollateralizationRatio >= 100_00 # dev: ratio must be >= 100%
+        assert _targetCollateralizationRatio <= 500_00 # dev: ratio too high (max 500%)
 
     # set main vault config
     config: VaultConfig = VaultConfig(
@@ -352,6 +379,7 @@ def initializeVaultConfig(
         isVaultOpsFrozen = False,
         redemptionBuffer = _redemptionBuffer,
         minYieldWithdrawAmount = _minYieldWithdrawAmount,
+        targetCollateralizationRatio = _targetCollateralizationRatio,
         snapShotPriceConfig = _snapShotPriceConfig,
     )
     self.vaultConfigs[_vaultAddr] = config
@@ -372,6 +400,8 @@ def initializeVaultConfig(
     log VaultConfigSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit, canWithdraw=_canWithdraw, maxDepositAmount=_maxDepositAmount)
     log RedemptionBufferSet(vaultAddr=_vaultAddr, buffer=_redemptionBuffer)
     log MinYieldWithdrawAmountSet(vaultAddr=_vaultAddr, amount=_minYieldWithdrawAmount)
+    if _targetCollateralizationRatio != 0:
+        log TargetCollateralizationRatioSet(vaultAddr=_vaultAddr, ratio=_targetCollateralizationRatio)
     log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_snapShotPriceConfig.minSnapshotDelay, maxNumSnapshots=_snapShotPriceConfig.maxNumSnapshots, maxUpsideDeviation=_snapShotPriceConfig.maxUpsideDeviation, staleTime=_snapShotPriceConfig.staleTime)
 
 

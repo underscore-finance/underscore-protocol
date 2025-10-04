@@ -19,10 +19,12 @@ interface RipeLego:
     def getCollateralBalance(_user: address, _asset: address) -> uint256: view
     def getCollateralValue(_user: address) -> uint256: view
     def getUserDebtAmount(_user: address) -> uint256: view
+    def RIPE_GREEN_TOKEN() -> address: view
 
 interface VaultRegistry:
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
     def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
+    def targetCollateralizationRatio(_vaultAddr: address) -> uint256: view
 
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
@@ -64,6 +66,9 @@ RIPE_LEGO_ID: constant(uint256) = 1
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_LEGOS: constant(uint256) = 10
+MAX_DELEVERAGE_ITERATIONS: constant(uint256) = 10
+DEFAULT_TARGET_COLLATERALIZATION: constant(uint256) = 200_00  # 200%
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 # registry ids
 LEDGER_ID: constant(uint256) = 1
@@ -76,6 +81,8 @@ VAULT_REGISTRY_ID: constant(uint256) = 10
 UNDY_HQ: immutable(address)
 UNDERLYING_ASSET: immutable(address)
 YIELD_VAULT_ASSET: immutable(address)
+YIELD_VAULT_LEGO_ID: immutable(uint256)
+GREEN_TOKEN: immutable(address)
 
 
 @deploy
@@ -83,6 +90,7 @@ def __init__(
     _undyHq: address,
     _asset: address,
     _yieldVaultAsset: address,
+    _yieldVaultLegoId: uint256,
     _startingAgent: address,
 ):
     # not using 0 index
@@ -92,6 +100,12 @@ def __init__(
     UNDY_HQ = _undyHq
     UNDERLYING_ASSET = _asset
     YIELD_VAULT_ASSET = _yieldVaultAsset
+    YIELD_VAULT_LEGO_ID = _yieldVaultLegoId
+
+    # get GREEN token from RipeLego
+    legoBook: address = staticcall Registry(_undyHq).getAddr(LEGO_BOOK_ID)
+    ripeLego: address = staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
+    GREEN_TOKEN = staticcall RipeLego(ripeLego).RIPE_GREEN_TOKEN()
 
     # initial agent
     if _startingAgent != empty(address):
@@ -304,6 +318,18 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
     return tokenIn, tokenOut, legoIds
 
 
+@internal
+def _deleverageSwap(_instruction: wi.SwapInstruction, _ad: VaultActionData) -> (address, uint256, address, uint256):
+    tokenIn: address = _instruction.tokenPath[0]
+    amountIn: uint256 = self._getAmountAndApprove(tokenIn, _instruction.amountIn, empty(address)) # not approving here
+
+    tokenOut: address = empty(address)
+    tokenOutAmount: uint256 = 0
+    na: uint256 = 0
+    tokenOut, tokenOutAmount, na = self._performSwapInstruction(amountIn, _instruction, _ad)
+    return tokenIn, amountIn, tokenOut, tokenOutAmount
+
+
 #################
 # Claim Rewards #
 #################
@@ -359,20 +385,28 @@ def addCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._addCollateral(ad, _asset, _amount, _extraData)
 
-    # can only use yield vault asset as collateral
-    assert _legoId == RIPE_LEGO_ID # dev: invalid lego id
+
+@internal
+def _addCollateral(
+    _ad: VaultActionData,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _asset == YIELD_VAULT_ASSET # dev: asset mismatch
 
     # some vault tokens require max value approval (comp v3)
-    assert extcall IERC20(_asset).approve(ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
-    amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-    assert extcall IERC20(_asset).approve(ad.legoAddr, 0, default_return_value = True) # dev: appr
+    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     log LeverageVaultAction(
         op = 40,
@@ -381,8 +415,8 @@ def addCollateral(
         amount1 = amountDeposited,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return amountDeposited, txUsdValue
 
@@ -398,15 +432,23 @@ def removeCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._removeCollateral(ad, _asset, _amount, _extraData)
 
-    # can only use yield vault asset as collateral
-    assert _legoId == RIPE_LEGO_ID # dev: invalid lego id
+
+@internal
+def _removeCollateral(
+    _ad: VaultActionData,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _asset == YIELD_VAULT_ASSET # dev: asset mismatch
 
     # remove collateral
     amountRemoved: uint256 = 0
     txUsdValue: uint256 = 0
-    amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
     log LeverageVaultAction(
         op = 41,
@@ -415,8 +457,8 @@ def removeCollateral(
         amount1 = amountRemoved,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return amountRemoved, txUsdValue
 
@@ -432,11 +474,19 @@ def borrow(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._borrow(ad, _borrowAsset, _amount, _extraData)
 
-    # borrow
+
+@internal
+def _borrow(
+    _ad: VaultActionData,
+    _borrowAsset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
     borrowAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    borrowAmount, txUsdValue = extcall Lego(_ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
     log LeverageVaultAction(
         op = 42,
@@ -445,8 +495,8 @@ def borrow(
         amount1 = borrowAmount,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return borrowAmount, txUsdValue
 
@@ -462,13 +512,21 @@ def repayDebt(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._repayDebt(ad, _paymentAsset, _paymentAmount, _extraData)
 
-    # repay debt
-    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, ad.legoAddr) # doing approval here
+
+@internal
+def _repayDebt(
+    _ad: VaultActionData,
+    _paymentAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, _ad.legoAddr) # doing approval here
     repaidAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-    assert extcall IERC20(_paymentAsset).approve(ad.legoAddr, 0, default_return_value = True) # dev: appr
+    repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_paymentAsset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     log LeverageVaultAction(
         op = 43,
@@ -477,8 +535,8 @@ def repayDebt(
         amount1 = repaidAmount,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return repaidAmount, txUsdValue
 
@@ -530,11 +588,115 @@ def _getTotalAssets() -> uint256:
 ###################
 
 
+@view
+@internal
+def _calculateDebtRepayment(
+    _collateralValue: uint256,
+    _debtAmount: uint256,
+    _withdrawnCollateral: uint256,
+    _targetRatio: uint256,
+) -> uint256:
+    # After withdrawing collateral, calculate how much debt to repay
+    # to maintain target collateralization ratio
+
+    # Convert withdrawn collateral to USD value
+    withdrawnValue: uint256 = staticcall IERC4626(YIELD_VAULT_ASSET).convertToAssets(_withdrawnCollateral)
+    newCollateralValue: uint256 = _collateralValue - withdrawnValue
+
+    # Target: newCollateralValue / newDebt = targetRatio
+    # newDebt = newCollateralValue * HUNDRED_PERCENT / targetRatio
+    targetDebt: uint256 = newCollateralValue * HUNDRED_PERCENT // _targetRatio
+
+    if _debtAmount <= targetDebt:
+        return 0  # already at or below target
+
+    return _debtAmount - targetDebt
+
+
 @internal
 def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: address) -> uint256:
-    
-    # TODO: implement redemption logic
+    underlyingAsset: address = UNDERLYING_ASSET
+    yieldVaultAsset: address = YIELD_VAULT_ASSET
+    greenToken: address = GREEN_TOKEN
 
+    # Get target collateralization ratio from registry
+    targetRatio: uint256 = staticcall VaultRegistry(_vaultRegistry).targetCollateralizationRatio(self)
+    if targetRatio == 0:
+        targetRatio = DEFAULT_TARGET_COLLATERALIZATION  # fallback to 200%
+
+    # Get lego addresses
+    ripeAd: VaultActionData = self._getVaultActionDataBundle(RIPE_LEGO_ID, _sender)
+
+    yieldAd: VaultActionData = ripeAd
+    yieldAd.legoAddr = staticcall Registry(ripeAd.legoBook).getAddr(YIELD_VAULT_LEGO_ID)
+    yieldAd.legoId = YIELD_VAULT_LEGO_ID
+
+
+    # De-leverage loop - MUST get the full amount
+    for i: uint256 in range(MAX_DELEVERAGE_ITERATIONS):
+        freedAmount: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
+
+        # Success: we have enough
+        if freedAmount >= _amount:
+            return _amount
+
+        # Get current position
+        collateralValue: uint256 = staticcall RipeLego(ripeAd.legoAddr).getCollateralValue(self)
+        debtAmount: uint256 = staticcall RipeLego(ripeAd.legoAddr).getUserDebtAmount(self)
+
+        # Check if position is fully unwound
+        if collateralValue == 0 and debtAmount == 0:
+            # This should never happen - means vault is insolvent
+            # But we've extracted everything possible
+            assert False  # dev: insufficient liquidity
+
+        # Calculate withdrawal maintaining target ratio
+        maxWithdrawable: uint256 = staticcall RipeLego(ripeAd.legoAddr).getMaxWithdrawableForAsset(self, yieldVaultAsset)
+
+        # # If we can't withdraw anything, position is at liquidation risk
+        # # We need to repay debt first without withdrawing
+        # if maxWithdrawable == 0:
+        #     # Emergency: repay debt with whatever underlying we have
+        #     underlyingBalance: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
+        #     if underlyingBalance > 0:
+        #         extcall self.repayDebt(RIPE_LEGO_ID, underlyingAsset, underlyingBalance, empty(bytes32))
+        #         continue
+        #     else:
+        #         assert False  # dev: cannot deleverage
+
+        # Step 1: Remove max collateral
+        self._removeCollateral(yieldAd, yieldVaultAsset, maxWithdrawable, empty(bytes32))
+
+        # Step 2: Withdraw from yield vault to get underlying asset
+        self._withdrawFromYield(yieldVaultAsset, max_value(uint256), empty(bytes32), False, yieldAd)
+
+        # Step 3: Calculate how much debt to repay to maintain target ratio
+        newDebtToRepay: uint256 = self._calculateDebtRepayment(
+            collateralValue,
+            debtAmount,
+            maxWithdrawable,
+            targetRatio,
+        )
+
+        if newDebtToRepay > 0:
+            # Swap underlying (USDC) → GREEN to get GREEN for debt repayment
+            underlyingBalance: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
+
+            # Only swap what we need for debt repayment (keep rest for redemption)
+            amountToSwap: uint256 = min(newDebtToRepay, underlyingBalance)
+
+            if amountToSwap > 0:
+                swapInstruction: wi.SwapInstruction = staticcall RipeLego(ripeAd.legoAddr).prepareUsdcToGreenSwap(amountToSwap)
+                self._deleverageSwap(swapInstruction, ripeAd)
+
+                # Repay GREEN debt with GREEN we just swapped
+                greenBalance: uint256 = staticcall IERC20(greenToken).balanceOf(self)
+                if greenBalance > 0:
+                    self._repayDebt(ripeAd, greenToken, greenBalance, empty(bytes32))
+
+    # If we exit the loop without returning, we hit max iterations
+    # This should never happen with proper target ratio
+    assert False  # dev: max deleverage iterations reached
     return 0
 
 
