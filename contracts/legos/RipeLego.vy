@@ -54,6 +54,12 @@ interface RipeRegistry:
     def greenToken() -> address: view
     def ripeToken() -> address: view
 
+interface CreditEngine:
+    def getMaxWithdrawableForAsset(_user: address, _vaultId: uint256, _asset: address) -> uint256: view
+    def getUserCollateralValueAndDebtAmount(_user: address) -> (uint256, uint256): view
+    def getCollateralValue(_user: address) -> uint256: view
+    def getUserDebtAmount(_user: address) -> uint256: view
+
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
@@ -63,11 +69,20 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
+interface RipePriceDesk:
+    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
+
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
 
 interface UndyRegistry:
     def getRegId(_addr: address) -> uint256: view
+    def getAddr(_regId: uint256) -> address: view
+
+interface RipeDepositVault:
+    def getTotalAmountForUser(_user: address, _asset: address) -> uint256: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -131,6 +146,9 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
+RIPE_PRICE_DESK_ID: constant(uint256) = 7
+RIPE_VAULT_BOOK_ID: constant(uint256) = 8
+RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_LOOTBOX_ID: constant(uint256) = 16
 RIPE_TELLER_ID: constant(uint256) = 17
 
@@ -786,6 +804,81 @@ def _updateLedgerVaultToken(
         legoId: uint256 = staticcall UndyRegistry(_legoBook).getRegId(self)
         decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
         extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
+
+
+##################
+# Debt Utilities #
+##################
+
+
+# NOTE: many of these functions take the first vault id for the asset
+# If leverage vaults uses yield assets that are in multiple Ripe deposit vaults, this needs to be updated!
+
+
+@view
+@external
+def getCollateralBalance(_user: address, _asset: address) -> uint256:
+    ripeHq: address = RIPE_REGISTRY
+    mc: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
+    vaultBook: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    vaultAddr: address = staticcall RipeRegistry(vaultBook).getAddr(vaultId)
+    return staticcall RipeDepositVault(vaultAddr).getTotalAmountForUser(_user, _asset)
+
+
+@view
+@external
+def getMaxWithdrawableForAsset(_user: address, _asset: address) -> uint256:
+    ripeHq: address = RIPE_REGISTRY
+    mc: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
+    creditEngine: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall CreditEngine(creditEngine).getMaxWithdrawableForAsset(_user, vaultId, _asset)
+
+
+@view
+@external
+def getCollateralValue(_user: address) -> uint256:
+    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall CreditEngine(creditEngine).getCollateralValue(_user)
+
+
+@view
+@external
+def getUserDebtAmount(_user: address) -> uint256:
+    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall CreditEngine(creditEngine).getUserDebtAmount(_user)
+
+
+@view
+@external
+def getUserCollateralValueAndDebtAmount(_user: address) -> (uint256, uint256):
+    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall CreditEngine(creditEngine).getUserCollateralValueAndDebtAmount(_user)
+
+
+@view
+@external
+def getRipePrice(_asset: address) -> uint256:
+    return self._getRipePrice(_asset)
+
+
+@view
+@internal
+def _getRipePrice(_asset: address) -> uint256:
+    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    if ripePriceDesk == empty(address):
+        return 0
+    return staticcall RipePriceDesk(ripePriceDesk).getPrice(_asset, False)
+
+
+@view
+@external
+def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256:
+    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    if ripePriceDesk == empty(address):
+        return 0
+    return staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(_asset, _usdValue, _shouldRaise)
 
 
 #########
