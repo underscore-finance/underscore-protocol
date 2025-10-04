@@ -12,7 +12,6 @@ from contracts.vaults.modules import LeverageVault as levgVault
 def __init__(
     _asset: address,
     _yieldVaultAsset: address,
-    _borrowLegoId: uint256,
     _undyHq: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,

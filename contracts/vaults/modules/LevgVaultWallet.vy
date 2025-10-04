@@ -11,9 +11,11 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC4626
 
-interface BorrowLego:
+interface RipeLego:
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getMaxWithdrawableForAsset(_user: address, _asset: address) -> uint256: view
+    def prepareGreenToUsdcSwap(_greenAmount: uint256) -> wi.SwapInstruction: view
+    def prepareUsdcToGreenSwap(_usdcAmount: uint256) -> wi.SwapInstruction: view
     def getCollateralBalance(_user: address, _asset: address) -> uint256: view
     def getCollateralValue(_user: address) -> uint256: view
     def getUserDebtAmount(_user: address) -> uint256: view
@@ -58,6 +60,7 @@ indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
 
 # constants
+RIPE_LEGO_ID: constant(uint256) = 1
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_LEGOS: constant(uint256) = 10
@@ -73,7 +76,6 @@ VAULT_REGISTRY_ID: constant(uint256) = 10
 UNDY_HQ: immutable(address)
 UNDERLYING_ASSET: immutable(address)
 YIELD_VAULT_ASSET: immutable(address)
-BORROW_LEGO_ID: immutable(uint256)
 
 
 @deploy
@@ -81,7 +83,6 @@ def __init__(
     _undyHq: address,
     _asset: address,
     _yieldVaultAsset: address,
-    _borrowLegoId: uint256,
     _startingAgent: address,
 ):
     # not using 0 index
@@ -91,9 +92,6 @@ def __init__(
     UNDY_HQ = _undyHq
     UNDERLYING_ASSET = _asset
     YIELD_VAULT_ASSET = _yieldVaultAsset
-
-    assert _borrowLegoId != 0 # dev: invalid borrow lego id
-    BORROW_LEGO_ID = _borrowLegoId
 
     # initial agent
     if _startingAgent != empty(address):
@@ -363,7 +361,7 @@ def addCollateral(
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
 
     # can only use yield vault asset as collateral
-    assert _legoId == BORROW_LEGO_ID # dev: invalid borrow lego id
+    assert _legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _asset == YIELD_VAULT_ASSET # dev: asset mismatch
 
     # some vault tokens require max value approval (comp v3)
@@ -402,7 +400,7 @@ def removeCollateral(
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
 
     # can only use yield vault asset as collateral
-    assert _legoId == BORROW_LEGO_ID # dev: invalid borrow lego id
+    assert _legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _asset == YIELD_VAULT_ASSET # dev: asset mismatch
 
     # remove collateral
@@ -510,17 +508,17 @@ def _getTotalAssets() -> uint256:
 
     # 3. collateral position (vault tokens deposited as collateral)
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-    legoAddr: address = staticcall Registry(legoBook).getAddr(BORROW_LEGO_ID)
-    vaultTokenBalance += staticcall BorrowLego(legoAddr).getCollateralBalance(self, vaultToken)
+    legoAddr: address = staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
+    vaultTokenBalance += staticcall RipeLego(legoAddr).getCollateralBalance(self, vaultToken)
 
     # calculate total assets
     if vaultTokenBalance != 0:
         totalAssets += staticcall IERC4626(vaultToken).convertToAssets(vaultTokenBalance)
 
     # NOTE: GREEN is treated as $1 in Ripe, so we don't need to normalize anything
-    debtAmount: uint256 = staticcall BorrowLego(legoAddr).getUserDebtAmount(self)
+    debtAmount: uint256 = staticcall RipeLego(legoAddr).getUserDebtAmount(self)
     if debtAmount != 0:
-        underlyingDebtAmount: uint256 = staticcall BorrowLego(legoAddr).getAssetAmount(underlyingAsset, debtAmount, True)
+        underlyingDebtAmount: uint256 = staticcall RipeLego(legoAddr).getAssetAmount(underlyingAsset, debtAmount, True)
         assert underlyingDebtAmount != 0 # dev: invalid debt amount
         totalAssets -= min(underlyingDebtAmount, totalAssets)
 

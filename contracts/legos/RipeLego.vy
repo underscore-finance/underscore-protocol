@@ -32,6 +32,7 @@ initializes: yld[addys := addys]
 from interfaces import LegoPartner as Lego
 from interfaces import YieldLego as YieldLego
 from interfaces import WalletStructs as ws
+from interfaces import Wallet as wi
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
@@ -60,6 +61,11 @@ interface CreditEngine:
     def getCollateralValue(_user: address) -> uint256: view
     def getUserDebtAmount(_user: address) -> uint256: view
 
+interface RipePriceDesk:
+    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
+
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
@@ -68,10 +74,6 @@ interface Ledger:
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
-interface RipePriceDesk:
-    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
@@ -139,6 +141,11 @@ event RipeSavingsGreenWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+
+GREEN_USDC_POOL: public(immutable(address))
+USDC: public(immutable(address))
+CURVE_DEX_LEGO_ID: public(immutable(uint256))
+
 # ripe addrs
 RIPE_REGISTRY: public(immutable(address))
 RIPE_GREEN_TOKEN: public(immutable(address))
@@ -154,12 +161,16 @@ RIPE_TELLER_ID: constant(uint256) = 17
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
+HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
 
 @deploy
 def __init__(
     _undyHq: address,
     _ripeRegistry: address,
+    _greenUsdcPool: address,
+    _usdc: address,
+    _curveDexLegoId: uint256,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
@@ -169,6 +180,13 @@ def __init__(
     RIPE_GREEN_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).greenToken()
     RIPE_SAVINGS_GREEN = staticcall RipeRegistry(RIPE_REGISTRY).savingsGreen()
     RIPE_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).ripeToken()
+
+    assert empty(address) not in [_greenUsdcPool, _usdc] # dev: invalid addrs
+    GREEN_USDC_POOL = _greenUsdcPool
+    USDC = _usdc
+
+    assert _curveDexLegoId != 0 # dev: invalid curve dex lego id
+    CURVE_DEX_LEGO_ID = _curveDexLegoId
 
 
 @view
@@ -879,6 +897,44 @@ def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = Fal
     if ripePriceDesk == empty(address):
         return 0
     return staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(_asset, _usdValue, _shouldRaise)
+
+
+@view
+@external
+def prepareGreenToUsdcSwap(_greenAmount: uint256) -> wi.SwapInstruction:
+    allowedSlippage: uint256 = 2_00 # 2% # TODO: make this a param
+
+    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    usdc: address = USDC
+    usdcAmount: uint256 = staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(usdc, _greenAmount, True)
+    minUsdcAmount: uint256 = usdcAmount * (HUNDRED_PERCENT - allowedSlippage) // HUNDRED_PERCENT
+
+    return wi.SwapInstruction(
+        legoId=CURVE_DEX_LEGO_ID,
+        amountIn=_greenAmount,
+        minAmountOut=minUsdcAmount,
+        tokenPath=[RIPE_GREEN_TOKEN, usdc],
+        poolPath=[GREEN_USDC_POOL],
+    )
+
+
+@view
+@external
+def prepareUsdcToGreenSwap(_usdcAmount: uint256) -> wi.SwapInstruction:
+    allowedSlippage: uint256 = 50 # 0.5% # TODO: make this a param
+
+    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    usdc: address = USDC
+    usdValue: uint256 = staticcall RipePriceDesk(ripePriceDesk).getUsdValue(usdc, _usdcAmount, True)
+    minGreenAmount: uint256 = usdValue * (HUNDRED_PERCENT - allowedSlippage) // HUNDRED_PERCENT
+
+    return wi.SwapInstruction(
+        legoId=CURVE_DEX_LEGO_ID,
+        amountIn=_usdcAmount,
+        minAmountOut=minGreenAmount,
+        tokenPath=[USDC, RIPE_GREEN_TOKEN],
+        poolPath=[GREEN_USDC_POOL],
+    )
 
 
 #########

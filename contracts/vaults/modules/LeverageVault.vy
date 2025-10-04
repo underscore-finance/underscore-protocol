@@ -52,7 +52,6 @@ ONE_PERCENT: constant(uint256) = 1_00 # 1%
 def __init__(
     _asset: address,
     _yieldVaultAsset: address,
-    _borrowLegoId: uint256,
     _tokenName: String[64],
     _tokenSymbol: String[32],
     _undyHq: address,
@@ -69,7 +68,7 @@ def __init__(
     assert staticcall IERC4626(_yieldVaultAsset).asset() == _asset # dev: invalid yield vault asset
 
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _minHqTimeLock, _maxHqTimeLock)
-    vaultWallet.__init__(_undyHq, _asset, _yieldVaultAsset, _borrowLegoId, _startingAgent)
+    vaultWallet.__init__(_undyHq, _asset, _yieldVaultAsset, _startingAgent)
 
 
 @view
