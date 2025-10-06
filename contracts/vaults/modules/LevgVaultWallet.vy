@@ -22,9 +22,9 @@ interface RipeLego:
     def RIPE_GREEN_TOKEN() -> address: view
 
 interface VaultRegistry:
+    def targetCollateralizationRatio(_vaultAddr: address) -> uint256: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
     def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
-    def targetCollateralizationRatio(_vaultAddr: address) -> uint256: view
 
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
@@ -81,6 +81,7 @@ VAULT_REGISTRY_ID: constant(uint256) = 10
 UNDY_HQ: immutable(address)
 UNDERLYING_ASSET: immutable(address)
 YIELD_VAULT_ASSET: immutable(address)
+YIELD_VAULT_DECIMALS: immutable(uint256)
 YIELD_VAULT_LEGO_ID: immutable(uint256)
 GREEN_TOKEN: immutable(address)
 
@@ -100,6 +101,7 @@ def __init__(
     UNDY_HQ = _undyHq
     UNDERLYING_ASSET = _asset
     YIELD_VAULT_ASSET = _yieldVaultAsset
+    YIELD_VAULT_DECIMALS = convert(staticcall IERC20Detailed(_yieldVaultAsset).decimals(), uint256)
     YIELD_VAULT_LEGO_ID = _yieldVaultLegoId
 
     # get GREEN token from RipeLego
@@ -619,18 +621,55 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
     yieldVaultAsset: address = YIELD_VAULT_ASSET
     greenToken: address = GREEN_TOKEN
 
-    # Get target collateralization ratio from registry
-    targetRatio: uint256 = staticcall VaultRegistry(_vaultRegistry).targetCollateralizationRatio(self)
-    if targetRatio == 0:
-        targetRatio = DEFAULT_TARGET_COLLATERALIZATION  # fallback to 200%
+    withdrawnAmount: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
+    if withdrawnAmount >= _amount:
+        return _amount
 
-    # Get lego addresses
+    # get redemption config (buffer and min withdraw amount)
+    redemptionBuffer: uint256 = 0
+    minWithdrawAmount: uint256 = 0
+    redemptionBuffer, minWithdrawAmount = staticcall VaultRegistry(_vaultRegistry).redemptionConfig(self)
+
+    # buffer to make sure we pull out enough for redemption
+    bufferMultiplier: uint256 = HUNDRED_PERCENT + redemptionBuffer
+    targetWithdrawAmount: uint256 = _amount * bufferMultiplier // HUNDRED_PERCENT
+
+    # addrs
     ripeAd: VaultActionData = self._getVaultActionDataBundle(RIPE_LEGO_ID, _sender)
-
     yieldAd: VaultActionData = ripeAd
     yieldAd.legoAddr = staticcall Registry(ripeAd.legoBook).getAddr(YIELD_VAULT_LEGO_ID)
     yieldAd.legoId = YIELD_VAULT_LEGO_ID
 
+    # withdraw from yield vault -- if applicable
+    vaultTokenBalance: uint256 = staticcall IERC20(yieldVaultAsset).balanceOf(self)
+    if vaultTokenBalance != 0:
+        amountStillNeeded: uint256 = targetWithdrawAmount - withdrawnAmount
+        pricePerShare: uint256 = staticcall IERC4626(yieldVaultAsset).convertToAssets(10 ** YIELD_VAULT_DECIMALS)
+        vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** YIELD_VAULT_DECIMALS) // pricePerShare
+
+        # withdraw from yield opportunity
+        na1: uint256 = 0
+        na2: address = empty(address)
+        underlyingAmount: uint256 = 0
+        na3: uint256 = 0
+        if vaultTokensNeeded != 0:
+            na1, na2, underlyingAmount, na3 = self._withdrawFromYield(yieldVaultAsset, vaultTokensNeeded, empty(bytes32), True, yieldAd)
+
+        # add to withdrawn amount
+        withdrawnAmount += underlyingAmount
+        if withdrawnAmount >= _amount:
+            return _amount
+
+
+
+
+
+
+
+    # Get target collateralization ratio from registry
+    targetRatio: uint256 = staticcall VaultRegistry(_vaultRegistry).targetCollateralizationRatio(self)
+    if targetRatio == 0:
+        targetRatio = DEFAULT_TARGET_COLLATERALIZATION  # fallback to 200%
 
     # De-leverage loop - MUST get the full amount
     for i: uint256 in range(MAX_DELEVERAGE_ITERATIONS):

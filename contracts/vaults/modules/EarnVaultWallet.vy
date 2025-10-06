@@ -490,7 +490,6 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 @internal
 def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: address) -> uint256:
     vaultAsset: address = VAULT_ASSET
-    ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
 
     withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
     if withdrawnAmount >= _amount:
@@ -510,6 +509,7 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
     if numAssets == 0:
         return withdrawnAmount
 
+    ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
         if withdrawnAmount >= targetWithdrawAmount:
             break
