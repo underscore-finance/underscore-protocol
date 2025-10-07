@@ -30,13 +30,6 @@ interface UserWalletConfig:
     def timeLock() -> uint256: view
     def owner() -> address: view
 
-interface EarnVault:
-    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def managerSettings(_manager: address) -> wcs.ManagerSettings: view
-    def indexOfManager(_addr: address) -> uint256: view
-    def removeManager(_manager: address): nonpayable
-
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
     def getAddr(_regId: uint256) -> address: view
@@ -44,15 +37,11 @@ interface Registry:
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
 
-interface Switchboard:
-    def isSwitchboardAddr(_addr: address) -> bool: view
-
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
-
 
 event GlobalManagerSettingsModified:
     user: indexed(address)
@@ -120,26 +109,10 @@ event ManagerActivationLengthAdjusted:
     activationLength: uint256
     didRestart: bool
 
-event VaultManagerSettingsModified:
-    vault: indexed(address)
-    manager: indexed(address)
-    canManageYield: bool
-    canBuyAndSell: bool
-    canClaimRewards: bool
-    numAllowedLegos: uint256
-    numAllowedAssets: uint256
-    isNew: bool
-
-event VaultManagerRemoved:
-    vault: indexed(address)
-    manager: indexed(address)
-    caller: indexed(address)
-
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
-SWITCHBOARD_ID: constant(uint256) = 4
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
