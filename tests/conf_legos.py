@@ -132,6 +132,16 @@ def lego_40_acres(fork, lego_book, undy_hq_deploy, governance, mock_lego_registr
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_underscore(fork, lego_book, undy_hq_deploy, governance, alpha_token):
+    RIPE_TOKEN = alpha_token if fork == "local" else TOKENS[fork]["RIPE"]
+    addr = boa.load("contracts/legos/UnderscoreLego.vy", undy_hq_deploy, RIPE_TOKEN, name="lego_underscore")
+    lego_book.startAddNewAddressToRegistry(addr, "Underscore Lego", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
