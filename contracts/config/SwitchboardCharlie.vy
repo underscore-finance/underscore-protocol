@@ -29,6 +29,7 @@ interface VaultRegistry:
     def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool): nonpayable
     def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig): nonpayable
     def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256): nonpayable
+    def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256): nonpayable
     def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool): nonpayable
     def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool): nonpayable
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
@@ -40,6 +41,7 @@ interface MissionControl:
 
 flag ActionType:
     REDEMPTION_BUFFER
+    MIN_YIELD_WITHDRAW_AMOUNT
     SNAPSHOT_PRICE_CONFIG
     APPROVED_VAULT_TOKEN
     APPROVED_YIELD_LEGO
@@ -54,6 +56,10 @@ struct SnapShotPriceConfig:
 struct PendingRedemptionBuffer:
     vaultAddr: address
     buffer: uint256
+
+struct PendingMinYieldWithdrawAmount:
+    vaultAddr: address
+    amount: uint256
 
 struct PendingSnapShotPriceConfig:
     vaultAddr: address
@@ -89,6 +95,16 @@ event PendingRedemptionBufferChange:
 event RedemptionBufferSet:
     vaultAddr: indexed(address)
     buffer: uint256
+
+event PendingMinYieldWithdrawAmountChange:
+    vaultAddr: indexed(address)
+    amount: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event MinYieldWithdrawAmountSet:
+    vaultAddr: indexed(address)
+    amount: uint256
 
 event PendingSnapShotPriceConfigChange:
     vaultAddr: indexed(address)
@@ -166,6 +182,7 @@ event VaultOpsFrozenSet:
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
+pendingMinYieldWithdrawAmount: public(HashMap[uint256, PendingMinYieldWithdrawAmount]) # aid -> config
 pendingSnapShotPriceConfig: public(HashMap[uint256, PendingSnapShotPriceConfig]) # aid -> config
 pendingApprovedVaultToken: public(HashMap[uint256, PendingApprovedVaultToken]) # aid -> config
 pendingApprovedYieldLego: public(HashMap[uint256, PendingApprovedYieldLego]) # aid -> config
@@ -256,6 +273,30 @@ def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256) -> uint256:
     log PendingRedemptionBufferChange(
         vaultAddr=_vaultAddr,
         buffer=_buffer,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# min yield withdraw amount
+
+
+@external
+def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.MIN_YIELD_WITHDRAW_AMOUNT
+    self.pendingMinYieldWithdrawAmount[aid] = PendingMinYieldWithdrawAmount(
+        vaultAddr=_vaultAddr,
+        amount=_amount
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingMinYieldWithdrawAmountChange(
+        vaultAddr=_vaultAddr,
+        amount=_amount,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -420,6 +461,11 @@ def executePendingAction(_aid: uint256) -> bool:
         p: PendingRedemptionBuffer = self.pendingRedemptionBuffer[_aid]
         extcall VaultRegistry(vr).setRedemptionBuffer(p.vaultAddr, p.buffer)
         log RedemptionBufferSet(vaultAddr=p.vaultAddr, buffer=p.buffer)
+
+    elif actionType == ActionType.MIN_YIELD_WITHDRAW_AMOUNT:
+        p: PendingMinYieldWithdrawAmount = self.pendingMinYieldWithdrawAmount[_aid]
+        extcall VaultRegistry(vr).setMinYieldWithdrawAmount(p.vaultAddr, p.amount)
+        log MinYieldWithdrawAmountSet(vaultAddr=p.vaultAddr, amount=p.amount)
 
     elif actionType == ActionType.SNAPSHOT_PRICE_CONFIG:
         p: PendingSnapShotPriceConfig = self.pendingSnapShotPriceConfig[_aid]

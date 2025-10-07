@@ -284,6 +284,83 @@ def test_set_redemption_buffer_non_governance_fails(switchboard_charlie, undy_us
         )
 
 
+def test_set_min_yield_withdraw_amount_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+    """Test successful min yield withdraw amount update through full lifecycle"""
+    # Get initial amount
+    initial_amount = vault_registry.minYieldWithdrawAmount(undy_usd_vault.address)
+
+    # Step 1: Initiate amount change
+    new_amount = 1000 * EIGHTEEN_DECIMALS
+    aid = switchboard_charlie.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        new_amount,
+        sender=governance.address
+    )
+
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "PendingMinYieldWithdrawAmountChange")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].amount == new_amount
+    assert logs[-1].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_charlie.actionTimeLock()
+    assert logs[-1].confirmationBlock == expected_confirmation_block
+
+    # Step 3: Verify pending state
+    assert switchboard_charlie.actionType(aid) == 2  # MIN_YIELD_WITHDRAW_AMOUNT (2^1)
+    pending = switchboard_charlie.pendingMinYieldWithdrawAmount(aid)
+    assert pending.vaultAddr == undy_usd_vault.address
+    assert pending.amount == new_amount
+
+    # Step 4: Try to execute before timelock - should fail
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Verify no state change
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == initial_amount
+
+    # Step 5: Time travel to timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+
+    # Step 6: Execute should succeed
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_charlie, "MinYieldWithdrawAmountSet")
+    assert len(exec_logs) >= 1
+    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
+    assert exec_logs[-1].amount == new_amount
+
+    # Step 8: Verify state changes in VaultRegistry
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == new_amount
+
+    # Step 9: Verify action is cleared
+    assert switchboard_charlie.actionType(aid) == 0
+
+
+def test_set_min_yield_withdraw_amount_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.setMinYieldWithdrawAmount(
+            invalid_vault,
+            1000 * EIGHTEEN_DECIMALS,
+            sender=governance.address
+        )
+
+
+def test_set_min_yield_withdraw_amount_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that non-governance cannot set min yield withdraw amount"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.setMinYieldWithdrawAmount(
+            undy_usd_vault.address,
+            1000 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
+
+
 def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
     """Test successful snapshot price config update"""
     # Get initial config
@@ -309,7 +386,7 @@ def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, 
     assert logs[-1].staleTime == 86400
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 2  # SNAPSHOT_PRICE_CONFIG (2^1)
+    assert switchboard_charlie.actionType(aid) == 4  # SNAPSHOT_PRICE_CONFIG (2^2)
 
     # Execute after timelock
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -391,7 +468,7 @@ def test_set_approved_vault_token_success(switchboard_charlie, vault_registry, u
     assert logs[-1].isApproved == True
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 4  # APPROVED_VAULT_TOKEN (2^2)
+    assert switchboard_charlie.actionType(aid) == 8  # APPROVED_VAULT_TOKEN (2^3)
 
     # Execute after timelock
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -492,7 +569,7 @@ def test_set_approved_yield_lego_success(switchboard_charlie, vault_registry, un
     assert logs[-1].isApproved == True
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 8  # APPROVED_YIELD_LEGO (2^3)
+    assert switchboard_charlie.actionType(aid) == 16  # APPROVED_YIELD_LEGO (2^4)
 
     # Execute after timelock
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -620,7 +697,7 @@ def test_initialize_vault_config_success(switchboard_charlie, vault_registry, go
     assert logs[-1].numApprovedYieldLegos == 2
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 16  # INITIALIZE_VAULT_CONFIG (2^4)
+    assert switchboard_charlie.actionType(aid) == 32  # INITIALIZE_VAULT_CONFIG (2^5)
 
     # Execute after timelock
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -875,7 +952,7 @@ def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_
 
     # Verify both are pending
     assert switchboard_charlie.actionType(aid1) == 1  # REDEMPTION_BUFFER
-    assert switchboard_charlie.actionType(aid2) == 2  # SNAPSHOT_PRICE_CONFIG
+    assert switchboard_charlie.actionType(aid2) == 4  # SNAPSHOT_PRICE_CONFIG
 
     # Execute second action first
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
