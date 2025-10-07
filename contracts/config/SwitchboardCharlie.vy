@@ -24,7 +24,7 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 interface VaultRegistry:
-    def initializeVaultConfig(_vaultAddr: address, _canDeposit: bool, _canWithdraw: bool, _maxDepositAmount: uint256, _redemptionBuffer: uint256, _snapShotPriceConfig: SnapShotPriceConfig, _approvedVaultTokens: DynArray[address, 25], _approvedYieldLegos: DynArray[uint256, 25]): nonpayable
+    def initializeVaultConfig(_vaultAddr: address, _canDeposit: bool, _canWithdraw: bool, _maxDepositAmount: uint256, _redemptionBuffer: uint256, _minYieldWithdrawAmount: uint256, _snapShotPriceConfig: SnapShotPriceConfig, _approvedVaultTokens: DynArray[address, 25], _approvedYieldLegos: DynArray[uint256, 25]): nonpayable
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
     def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool): nonpayable
     def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig): nonpayable
@@ -75,6 +75,7 @@ struct PendingInitializeVaultConfig:
     canWithdraw: bool
     maxDepositAmount: uint256
     redemptionBuffer: uint256
+    minYieldWithdrawAmount: uint256
     snapShotPriceConfig: SnapShotPriceConfig
     approvedVaultTokens: DynArray[address, 25]
     approvedYieldLegos: DynArray[uint256, 25]
@@ -356,6 +357,7 @@ def initializeVaultConfig(
     _canWithdraw: bool,
     _maxDepositAmount: uint256,
     _redemptionBuffer: uint256,
+    _minYieldWithdrawAmount: uint256,
     _snapShotPriceConfig: SnapShotPriceConfig,
     _approvedVaultTokens: DynArray[address, 25] = [],
     _approvedYieldLegos: DynArray[uint256, 25] = [],
@@ -376,6 +378,7 @@ def initializeVaultConfig(
         canWithdraw=_canWithdraw,
         maxDepositAmount=_maxDepositAmount,
         redemptionBuffer=_redemptionBuffer,
+        minYieldWithdrawAmount=_minYieldWithdrawAmount,
         snapShotPriceConfig=_snapShotPriceConfig,
         approvedVaultTokens=_approvedVaultTokens,
         approvedYieldLegos=_approvedYieldLegos,
@@ -447,6 +450,7 @@ def executePendingAction(_aid: uint256) -> bool:
             p.canWithdraw,
             p.maxDepositAmount,
             p.redemptionBuffer,
+            p.minYieldWithdrawAmount,
             p.snapShotPriceConfig,
             p.approvedVaultTokens,
             p.approvedYieldLegos,

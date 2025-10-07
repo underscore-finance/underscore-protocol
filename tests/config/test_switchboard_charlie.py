@@ -601,6 +601,7 @@ def test_initialize_vault_config_success(switchboard_charlie, vault_registry, go
         True,  # canWithdraw
         1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         300,  # redemptionBuffer (3%)
+        0,  # minYieldWithdrawAmount
         snap_config,
         [vault_token_1, vault_token_2],  # approvedVaultTokens
         [1, 2],  # approvedYieldLegos
@@ -678,6 +679,7 @@ def test_initialize_vault_config_buffer_too_high_fails(switchboard_charlie, gove
             True,
             0,
             1001,  # 10.01%
+            0,  # minYieldWithdrawAmount
             snap_config,
             [],
             [],
@@ -714,6 +716,7 @@ def test_initialize_vault_config_invalid_price_config_fails(switchboard_charlie,
             True,
             0,
             200,
+            0,  # minYieldWithdrawAmount
             invalid_snap_config,
             [],
             [],
@@ -733,6 +736,7 @@ def test_initialize_vault_config_invalid_vault_fails(switchboard_charlie, govern
         True,
         0,
         200,
+        0,  # minYieldWithdrawAmount
         snap_config,
         [],
         [],
@@ -759,6 +763,7 @@ def test_initialize_vault_config_non_governance_fails(switchboard_charlie, alice
             True,
             0,
             200,
+            0,  # minYieldWithdrawAmount
             snap_config,
             [],
             [],
