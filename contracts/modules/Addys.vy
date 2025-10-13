@@ -25,6 +25,7 @@ struct Addys:
     appraiser: address
     walletBackpack: address
     billing: address
+    vaultRegistry: address
 
 # hq
 UNDY_HQ_FOR_ADDYS: immutable(address)
@@ -39,6 +40,7 @@ LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 APPRAISER_ID: constant(uint256) = 7
 WALLET_BACKPACK_ID: constant(uint256) = 8
 BILLING_ID: constant(uint256) = 9
+VAULT_REGISTRY_ID: constant(uint256) = 10
 
 
 @deploy
@@ -82,6 +84,7 @@ def _generateAddys() -> Addys:
         appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),
         walletBackpack = staticcall UndyHq(hq).getAddr(WALLET_BACKPACK_ID),
         billing = staticcall UndyHq(hq).getAddr(BILLING_ID),
+        vaultRegistry = staticcall UndyHq(hq).getAddr(VAULT_REGISTRY_ID),
     )
 
 
@@ -299,3 +302,18 @@ def _getBillingId() -> uint256:
 @internal
 def _getBillingAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BILLING_ID)
+
+
+# vault registry
+
+
+@view
+@internal
+def _getVaultRegistryId() -> uint256:
+    return VAULT_REGISTRY_ID
+
+
+@view
+@internal
+def _getVaultRegistryAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(VAULT_REGISTRY_ID)

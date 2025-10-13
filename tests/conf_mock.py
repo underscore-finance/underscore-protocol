@@ -260,6 +260,21 @@ def yield_vault_token(yield_underlying_token):
 
 
 @pytest.fixture(scope="session")
+def yield_vault_token_2(yield_underlying_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token, name="yield_vault_token_2")
+
+
+@pytest.fixture(scope="session")
+def yield_vault_token_3(yield_underlying_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token, name="yield_vault_token_3")
+
+
+@pytest.fixture(scope="session")
+def yield_vault_token_4(yield_underlying_token):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token, name="yield_vault_token_4")
+
+
+@pytest.fixture(scope="session")
 def yield_underlying_token_whale(env, yield_underlying_token, governance):
     whale = env.generate_address("yield_underlying_token_whale")
     yield_underlying_token.mint(whale, 100_000_000 * (10 ** yield_underlying_token.decimals()), sender=governance.address)

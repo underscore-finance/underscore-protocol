@@ -37,6 +37,7 @@ def undy_hq(
     wallet_backpack_deploy,
     loot_distributor,
     billing,
+    vault_registry,
 ):
     # data
 
@@ -79,6 +80,10 @@ def undy_hq(
     # 9
     assert undy_hq_deploy.startAddNewAddressToRegistry(billing, "Billing", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(billing, sender=deploy3r) == 9
+
+    # 10
+    assert undy_hq_deploy.startAddNewAddressToRegistry(vault_registry, "Vault Registry", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(vault_registry, sender=deploy3r) == 10
 
     # special permission setup
 
@@ -159,7 +164,7 @@ def switchboard_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bravo):
+def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bravo, switchboard_charlie):
 
     # alpha
     assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_alpha, "Alpha", sender=deploy3r)
@@ -169,12 +174,17 @@ def switchboard(switchboard_deploy, deploy3r, switchboard_alpha, switchboard_bra
     assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_bravo, "Bravo", sender=deploy3r)
     assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_bravo, sender=deploy3r) == 2
 
+    # charlie
+    assert switchboard_deploy.startAddNewAddressToRegistry(switchboard_charlie, "Charlie", sender=deploy3r)
+    assert switchboard_deploy.confirmNewAddressToRegistry(switchboard_charlie, sender=deploy3r) == 3
+
     # finish setup
     assert switchboard_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
 
     # finish setup on switchboard config contracts
     assert switchboard_alpha.setActionTimeLockAfterSetup(sender=deploy3r)
     assert switchboard_bravo.setActionTimeLockAfterSetup(sender=deploy3r)
+    assert switchboard_charlie.setActionTimeLockAfterSetup(sender=deploy3r)
 
     return switchboard_deploy
 
@@ -206,6 +216,21 @@ def switchboard_bravo(undy_hq_deploy, fork):
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
         PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
         name="switchboard_bravo",
+    )
+
+
+# switchboard charlie
+
+
+@pytest.fixture(scope="session")
+def switchboard_charlie(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/config/SwitchboardCharlie.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="switchboard_charlie",
     )
 
 
@@ -324,6 +349,21 @@ def billing(undy_hq_deploy, fork):
         TOKENS[fork]["WETH"],
         TOKENS[fork]["ETH"],
         name="billing",
+    )
+
+
+# vault registry
+
+
+@pytest.fixture(scope="session")
+def vault_registry(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/VaultRegistry.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="vault_registry",
     )
 
 
@@ -487,3 +527,143 @@ def user_wallet_config_template():
 @pytest.fixture(scope="session")
 def agent_template():
     return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
+
+
+###############
+# Earn Vaults #
+###############
+
+
+# usdc vault
+
+
+@pytest.fixture(scope="session")
+def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yield_underlying_token, switchboard_alpha,
+                   yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
+    asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
+    vault = boa.load(
+        "contracts/vaults/UndyUsd.vy",
+        asset,
+        undy_hq,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="undy_usd_vault",
+    )
+
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "UndyUSD Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
+
+    # Initialize vault config in VaultRegistry (including approvals)
+    vault_registry.initializeVaultConfig(
+        vault.address,
+        True,  # canDeposit
+        True,  # canWithdraw
+        0,  # maxDepositAmount
+        2_00,  # redemptionBuffer (2%)
+        10000,  # minYieldWithdrawAmount (0.01 USDC with 6 decimals)
+        (
+            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        ),  # snapShotPriceConfig
+        [  # approvedVaultTokens
+            yield_vault_token.address,
+            yield_vault_token_2.address,
+            yield_vault_token_3.address,
+            yield_vault_token_4.address,
+        ],
+        [1],  # approvedYieldLegos (lego ID 1 used in tests)
+        sender=switchboard_alpha.address
+    )
+
+    return vault
+
+
+# weth vault
+
+
+@pytest.fixture(scope="session")
+def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, weth, switchboard_alpha):
+    asset = weth.address if fork == "local" else TOKENS[fork]["WETH"]
+    vault = boa.load(
+        "contracts/vaults/UndyEth.vy",
+        asset,
+        undy_hq,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="undy_eth_vault",
+    )
+
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "UndyETH Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
+
+    # Initialize vault config in VaultRegistry (including approvals)
+    vault_registry.initializeVaultConfig(
+        vault.address,
+        True,  # canDeposit
+        True,  # canWithdraw
+        0,  # maxDepositAmount
+        2_00,  # redemptionBuffer (2%)
+        10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
+        (
+            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        ),  # snapShotPriceConfig
+        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
+        [],  # approvedYieldLegos (empty for now, tests will add them as needed)
+        sender=switchboard_alpha.address
+    )
+
+    return vault
+
+
+# cbbtc vault
+
+
+@pytest.fixture(scope="session")
+def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, switchboard_alpha):
+    asset = TOKENS[fork]["CBBTC"]
+    vault = boa.load(
+        "contracts/vaults/UndyBtc.vy",
+        asset,
+        undy_hq,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="undy_btc_vault",
+    )
+
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "UndyBTC Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
+
+    # Initialize vault config in VaultRegistry (including approvals)
+    vault_registry.initializeVaultConfig(
+        vault.address,
+        True,  # canDeposit
+        True,  # canWithdraw
+        0,  # maxDepositAmount
+        2_00,  # redemptionBuffer (2%)
+        1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
+        (
+            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        ),  # snapShotPriceConfig
+        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
+        [],  # approvedYieldLegos (empty for now, tests will add them as needed)
+        sender=switchboard_alpha.address
+    )
+
+    return vault
