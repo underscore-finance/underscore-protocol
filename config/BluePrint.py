@@ -103,6 +103,8 @@ INTEGRATION_ADDYS = {
         "MORPHO_FACTORY": "0xFf62A7c278C62eD665133147129245053Bbf5918",
         "MORPHO_FACTORY_LEGACY": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
         "MORPHO_REWARDS": "0x330eefa8a787552dc5cad3c3ca644844b1e61ddb",
+        # YIELD LEGO: extrafi
+        "EXTRAFI_POOL": "0xbb505c54d71e9e599cb8435b4f0ceec05fc71cbd",
         # DEX LEGO: uniswap v2
         "UNISWAP_V2_FACTORY": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
         "UNISWAP_V2_ROUTER": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
@@ -236,6 +238,10 @@ TOKENS = {
         "MORPHO_IONIC_USDC": "0x23479229e52Ab6aaD312D0B03DF9F33B46753B5e",  # ionic
         # 40 acres
         "FORTY_ACRES_USDC": "0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5",
+        # extrafi
+        "EXTRAFI_USDC": "0x559756d476d5ed4533edc3ac98e5a9468176378c",
+        "EXTRAFI_AERO": "0xbECA3916Ea9cab70265D936729c446669dC12Bb1",
+        "EXTRAFI_WETH": "0x3d2673a5a253052bf2b46ebb70da77876cd085ac",
     },
     "local": {
         # important tokens / representations

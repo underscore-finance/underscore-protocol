@@ -142,6 +142,16 @@ def lego_underscore(fork, lego_book, undy_hq_deploy, governance, alpha_token):
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_extrafi(fork, lego_book, undy_hq_deploy, governance, alpha_token):
+    EXTRAFI_POOL = alpha_token if fork == "local" else INTEGRATION_ADDYS[fork]["EXTRAFI_POOL"]
+    addr = boa.load("contracts/legos/yield/ExtraFi.vy", undy_hq_deploy, EXTRAFI_POOL, name="lego_extrafi")
+    lego_book.startAddNewAddressToRegistry(addr, "ExtraFi Lego", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
