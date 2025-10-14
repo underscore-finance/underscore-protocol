@@ -142,6 +142,17 @@ def lego_underscore(fork, lego_book, undy_hq_deploy, governance, alpha_token):
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_wasabi(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
+    WASABI_LONG_POOL = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["WASABI_LONG_POOL"]
+    WASABI_SHORT_POOL = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["WASABI_SHORT_POOL"]
+    addr = boa.load("contracts/legos/yield/Wasabi.vy", undy_hq_deploy, WASABI_LONG_POOL, WASABI_SHORT_POOL, name="lego_wasabi")
+    lego_book.startAddNewAddressToRegistry(addr, "Wasabi", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
