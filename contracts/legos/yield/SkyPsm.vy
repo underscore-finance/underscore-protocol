@@ -90,7 +90,7 @@ def __init__(_undyHq: address, _skyPsm: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    self.slippage = 20 # 0.20%
+    self.slippage = 50 # 0.50%
 
     assert _skyPsm != empty(address) # dev: invalid addrs
     SKY_PSM = _skyPsm
@@ -522,7 +522,9 @@ def _registerAsset(_asset: address, _vaultAddr: address):
 @external
 def removeAssetOpportunity(_asset: address, _vaultAddr: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert extcall IERC20(_asset).approve(_vaultAddr, 0, default_return_value=True) # dev: max approval failed
+    skyPsm: address = SKY_PSM
+    assert extcall IERC20(_asset).approve(skyPsm, 0, default_return_value=True) # dev: max approval failed
+    assert extcall IERC20(_vaultAddr).approve(skyPsm, 0, default_return_value=True) # dev: max approval failed
     yld._removeAssetOpportunity(_asset, _vaultAddr)
 
 
