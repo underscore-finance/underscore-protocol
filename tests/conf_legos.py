@@ -133,6 +133,16 @@ def lego_40_acres(fork, lego_book, undy_hq_deploy, governance, mock_lego_registr
 
 
 @pytest.fixture(scope="session")
+def lego_sky_psm(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
+    SKY_PSM = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["SKY_PSM"]
+    addr = boa.load("contracts/legos/yield/SkyPsm.vy", undy_hq_deploy, SKY_PSM, name="lego_sky_psm")
+    lego_book.startAddNewAddressToRegistry(addr, "Sky Psm", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
+@pytest.fixture(scope="session")
 def lego_underscore(fork, lego_book, undy_hq_deploy, governance, alpha_token):
     RIPE_TOKEN = alpha_token if fork == "local" else TOKENS[fork]["RIPE"]
     addr = boa.load("contracts/legos/UnderscoreLego.vy", undy_hq_deploy, RIPE_TOKEN, name="lego_underscore")
