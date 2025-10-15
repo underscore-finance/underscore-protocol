@@ -103,6 +103,9 @@ INTEGRATION_ADDYS = {
         "MORPHO_FACTORY": "0xFf62A7c278C62eD665133147129245053Bbf5918",
         "MORPHO_FACTORY_LEGACY": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
         "MORPHO_REWARDS": "0x330eefa8a787552dc5cad3c3ca644844b1e61ddb",
+        # YIELD LEGO: wasabi
+        "WASABI_LONG_POOL": "0xbDaE5dF498A45C5f058E3A09afE9ba4da7b248aa",
+        "WASABI_SHORT_POOL": "0xA456c77d358C9c89f4DFB294fA2a47470b7dA37c",
         # DEX LEGO: uniswap v2
         "UNISWAP_V2_FACTORY": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
         "UNISWAP_V2_ROUTER": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
@@ -236,6 +239,8 @@ TOKENS = {
         "MORPHO_IONIC_USDC": "0x23479229e52Ab6aaD312D0B03DF9F33B46753B5e",  # ionic
         # 40 acres
         "FORTY_ACRES_USDC": "0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5",
+        # wasabi
+        "WASABI_USDC": "0x1c4a802fd6b591bb71daa01d8335e43719048b24",
     },
     "local": {
         # important tokens / representations
