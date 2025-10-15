@@ -37,10 +37,10 @@ PARAMS = {
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 3 * MONTH_IN_BLOCKS,
         # earn vault params
-        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
-        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
-        "EARN_VAULT_STALE_TIME": 60 * 60 * 24, # 1 day
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24,  # 1 day
     },
     "local": {
         # undy hq - gov changes (blocks)
@@ -73,10 +73,10 @@ PARAMS = {
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 7 * DAY_IN_BLOCKS,
         # earn vault params
-        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
-        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
-        "EARN_VAULT_STALE_TIME": 60 * 60 * 24 * 3, # 3 days
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24 * 3,  # 3 days
     },
 }
 
@@ -103,6 +103,8 @@ INTEGRATION_ADDYS = {
         "MORPHO_FACTORY": "0xFf62A7c278C62eD665133147129245053Bbf5918",
         "MORPHO_FACTORY_LEGACY": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
         "MORPHO_REWARDS": "0x330eefa8a787552dc5cad3c3ca644844b1e61ddb",
+        # YIELD LEGO: sky psm
+        "SKY_PSM": "0x1601843c5e9bc251a3272907010afa41fa18347e",
         # YIELD LEGO: wasabi
         "WASABI_LONG_POOL": "0xbDaE5dF498A45C5f058E3A09afE9ba4da7b248aa",
         "WASABI_SHORT_POOL": "0xA456c77d358C9c89f4DFB294fA2a47470b7dA37c",
