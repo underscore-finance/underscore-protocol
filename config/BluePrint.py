@@ -37,10 +37,10 @@ PARAMS = {
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 3 * MONTH_IN_BLOCKS,
         # earn vault params
-        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
-        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
-        "EARN_VAULT_STALE_TIME": 60 * 60 * 24, # 1 day
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24,  # 1 day
     },
     "local": {
         # undy hq - gov changes (blocks)
@@ -73,10 +73,10 @@ PARAMS = {
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 7 * DAY_IN_BLOCKS,
         # earn vault params
-        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5, # 5 mins
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
-        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00, # 10%
-        "EARN_VAULT_STALE_TIME": 60 * 60 * 24 * 3, # 3 days
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24 * 3,  # 3 days
     },
 }
 
@@ -105,6 +105,9 @@ INTEGRATION_ADDYS = {
         "MORPHO_REWARDS": "0x330eefa8a787552dc5cad3c3ca644844b1e61ddb",
         # YIELD LEGO: sky psm
         "SKY_PSM": "0x1601843c5e9bc251a3272907010afa41fa18347e",
+        # YIELD LEGO: wasabi
+        "WASABI_LONG_POOL": "0xbDaE5dF498A45C5f058E3A09afE9ba4da7b248aa",
+        "WASABI_SHORT_POOL": "0xA456c77d358C9c89f4DFB294fA2a47470b7dA37c",
         # DEX LEGO: uniswap v2
         "UNISWAP_V2_FACTORY": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
         "UNISWAP_V2_ROUTER": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
@@ -238,6 +241,8 @@ TOKENS = {
         "MORPHO_IONIC_USDC": "0x23479229e52Ab6aaD312D0B03DF9F33B46753B5e",  # ionic
         # 40 acres
         "FORTY_ACRES_USDC": "0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5",
+        # wasabi
+        "WASABI_USDC": "0x1c4a802fd6b591bb71daa01d8335e43719048b24",
     },
     "local": {
         # important tokens / representations
