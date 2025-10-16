@@ -573,6 +573,8 @@ def _prepareRedemption(
                     break
 
                 vaultToken: address = self.assets[i]
+                if _maxBalVaultToken != empty(address) and vaultToken == _maxBalVaultToken:
+                    continue
 
                 # withdraw from yield opportunity
                 underlyingAmount: uint256 = 0
@@ -582,7 +584,7 @@ def _prepareRedemption(
                 withdrawnAmount += underlyingAmount
 
                 # add to deregister list
-                if needsDeregister:
+                if needsDeregister and vaultToken not in assetsToDeregister:
                     assetsToDeregister.append(vaultToken)
 
     # deregister vault positions
