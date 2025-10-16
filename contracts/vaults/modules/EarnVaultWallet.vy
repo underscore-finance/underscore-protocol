@@ -15,6 +15,7 @@ interface VaultRegistry:
     def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
+    def getPerformanceFee(_vaultAddr: address) -> uint256: view
     def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
 
 interface MissionControl:
@@ -29,6 +30,9 @@ interface Switchboard:
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+
+interface UndyHq:
+    def governance() -> address: view
 
 struct LocalVaultTokenData:
     legoId: uint256
@@ -82,6 +86,17 @@ event PricePerShareSnapShotAdded:
     totalSupply: uint256
     pricePerShare: uint256
 
+event PerformanceFeeUpdated:
+    performanceFee: uint256
+
+event PerformanceFeesWithdrawn:
+    pendingFees: uint256
+
+# yield tracking
+lastUnderlyingBal: public(uint256)
+pendingYieldRealized: public(uint256)
+performanceFee: public(uint256)
+
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -131,6 +146,8 @@ def __init__(
     UNDY_HQ = _undyHq
     VAULT_ASSET = _vaultAsset
 
+    self.performanceFee = 20_00 # 20.00%
+
     # initial agent
     if _startingAgent != empty(address):
         self._registerManager(_startingAgent)
@@ -153,7 +170,7 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, True, ad)
+    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, self._getUnderlyingAndUpdatePendingYield(), False, True, ad)
 
 
 @internal
@@ -162,10 +179,13 @@ def _depositForYield(
     _vaultAddr: address,
     _amount: uint256,
     _extraData: bytes32,
-    _shouldGenerateEvent: bool,
+    _currentUnderlying: uint256,
+    _isRebalance: bool,
+    _shouldSaveUnderlying: bool,
     _ad: VaultActionData,
 ) -> (uint256, address, uint256, uint256):
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
+    currentUnderlying: uint256 = _currentUnderlying
 
     # deposit for yield
     assetAmount: uint256 = 0
@@ -177,10 +197,15 @@ def _depositForYield(
 
     # update yield position
     if _asset == VAULT_ASSET:
+        assert _vaultAddr == vaultToken # dev: vault token mismatch
         assert staticcall VaultRegistry(self._getVaultRegistry()).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
         self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
+        currentUnderlying += assetAmount
 
-    if _shouldGenerateEvent:
+    if _shouldSaveUnderlying:
+        self.lastUnderlyingBal = currentUnderlying
+
+    if not _isRebalance:
         log EarnVaultAction(
             op = 10,
             asset1 = _asset,
@@ -206,7 +231,7 @@ def withdrawFromYield(
     _isSpecialTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._withdrawFromYield(_vaultToken, _amount, _extraData, True, ad)
+    return self._withdrawFromYield(_vaultToken, _amount, _extraData, self._getUnderlyingAndUpdatePendingYield(), False, True, ad)
 
 
 @internal
@@ -214,11 +239,14 @@ def _withdrawFromYield(
     _vaultToken: address,
     _amount: uint256,
     _extraData: bytes32,
-    _shouldGenerateEvent: bool,
+    _currentUnderlying: uint256,
+    _isRebalance: bool,
+    _shouldSaveUnderlying: bool,
     _ad: VaultActionData,
 ) -> (uint256, address, uint256, uint256):
     assert _vaultToken != empty(address) # dev: invalid vault token
     amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
+    currentUnderlying: uint256 = _currentUnderlying
 
     # some vault tokens require max value approval (comp v3)
     assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
@@ -234,8 +262,12 @@ def _withdrawFromYield(
     # update yield position
     if underlyingAsset == VAULT_ASSET:
         self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr)
+        currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
-    if _shouldGenerateEvent:
+    if _shouldSaveUnderlying:
+        self.lastUnderlyingBal = currentUnderlying
+
+    if not _isRebalance:
         log EarnVaultAction(
             op = 11,
             asset1 = _vaultToken,
@@ -262,13 +294,18 @@ def rebalanceYieldPosition(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_fromLegoId, _toLegoId])
+    currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
+    vaultAsset: address = VAULT_ASSET
 
     # withdraw
     vaultTokenAmountBurned: uint256 = 0
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     withdrawTxUsdValue: uint256 = 0
-    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraData, False, ad)
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, withdrawTxUsdValue = self._withdrawFromYield(_fromVaultToken, _fromVaultAmount, _extraData, currentUnderlying, True, False, ad)
+
+    if underlyingAsset == vaultAsset:
+        currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
     # deposit
     toVaultToken: address = empty(address)
@@ -276,7 +313,11 @@ def rebalanceYieldPosition(
     depositTxUsdValue: uint256 = 0
     ad.legoId = _toLegoId
     ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(_toLegoId)
-    underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, ad)
+    underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, currentUnderlying, True, False, ad)
+
+    if underlyingAsset == vaultAsset:
+        currentUnderlying += underlyingAmount
+    self.lastUnderlyingBal = currentUnderlying
 
     maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
     log EarnVaultAction(
@@ -426,26 +467,130 @@ def claimRewards(
     return rewardAmount, txUsdValue
 
 
-################
-# Total Assets #
-################
+#############################
+# Overall Yield Calculation #
+#############################
 
 
-@view
-@external
-def getTotalAssets(_shouldGetMax: bool) -> uint256:
-    return self._getTotalAssets(_shouldGetMax)
+# calculate yield realized
 
 
 @view
 @internal
-def _getTotalAssets(_shouldGetMax: bool) -> uint256:
-    totalAssets: uint256 = staticcall IERC20(VAULT_ASSET).balanceOf(self)
+def _calcNewYieldAndGetUnderlying(_currentUnderlying: uint256 = 0) -> (uint256, uint256):
+    currentUnderlying: uint256 = _currentUnderlying
+    if currentUnderlying == 0:
+        currentUnderlying = self._getMaxUnderlyingYieldBalance()
 
-    # get num assets
+    newYield: uint256 = 0
+    lastUnderlyingBal: uint256 = self.lastUnderlyingBal
+    if lastUnderlyingBal != 0 and currentUnderlying > lastUnderlyingBal:
+        newYield = currentUnderlying - lastUnderlyingBal
+
+    return currentUnderlying, newYield
+
+
+# update pending yield realized
+
+
+@internal
+def _getUnderlyingAndUpdatePendingYield() -> uint256:
+    currentUnderlying: uint256 = 0
+    newYield: uint256 = 0
+    currentUnderlying, newYield = self._calcNewYieldAndGetUnderlying()
+    self.pendingYieldRealized += newYield
+    return currentUnderlying
+
+
+# refresh performance fee
+
+
+@external
+def refreshPerformanceFee():
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    performanceFee: uint256 = staticcall VaultRegistry(self._getVaultRegistry()).getPerformanceFee(self)
+    self.performanceFee = min(performanceFee, 25_00) # max 25.00%
+    log PerformanceFeeUpdated(performanceFee=performanceFee)
+
+
+# get performance fee
+
+
+@external
+def getPerformanceFees() -> uint256:
+    governance: address = staticcall UndyHq(UNDY_HQ).governance()
+    assert governance == msg.sender # dev: no perms
+
+    currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
+    pendingFees: uint256 = self._calcPendingPerformanceFees()
+
+    # make withdrawals from yield positions
+    availAmount: uint256 = 0
+    withdrawnAmount: uint256 = 0
+    availAmount, withdrawnAmount = self._prepareRedemption(pendingFees, governance, self._getVaultRegistry())
+    assert availAmount >= pendingFees # dev: insufficient funds
+
+    # transfer pending fees to governance
+    assert extcall IERC20(VAULT_ASSET).transfer(governance, pendingFees, default_return_value=True) # dev: withdrawal failed
+
+    # update data
+    self.pendingYieldRealized = 0
+    self.lastUnderlyingBal = currentUnderlying - min(currentUnderlying, withdrawnAmount)
+
+    log PerformanceFeesWithdrawn(pendingFees=pendingFees)
+    return pendingFees
+
+
+# calculate pending performance fees
+
+
+@view
+@internal
+def _calcPendingPerformanceFees(_pendingYieldRealized: uint256 = 0) -> uint256:
+    pendingYieldRealized: uint256 = _pendingYieldRealized
+    if pendingYieldRealized == 0:
+        pendingYieldRealized = self.pendingYieldRealized
+    return pendingYieldRealized * self.performanceFee // HUNDRED_PERCENT
+
+
+# set yield data
+
+
+@internal
+def _setYieldData(_currentBalance: uint256, _pendingYieldRealized: uint256):
+    self.lastUnderlyingBal = _currentBalance
+    self.pendingYieldRealized = _pendingYieldRealized
+
+
+#####################
+# Underlying Assets #
+#####################
+
+
+# calculate underlying yield balances
+
+
+@view
+@internal
+def _getMaxUnderlyingYieldBalance() -> uint256:
+    maxTotalAssets: uint256 = 0
+    safeTotalAssets: uint256 = 0
+    maxTotalAssets, safeTotalAssets = self._getUnderlyingYieldBalances()
+    return maxTotalAssets
+
+
+# max and safe underlying yield balances
+
+
+@view
+@internal
+def _getUnderlyingYieldBalances() -> (uint256, uint256):
     numAssets: uint256 = self.numAssets
     if numAssets == 0:
-        return totalAssets
+        return 0, 0
+
+    maxTotalAssets: uint256 = 0
+    safeTotalAssets: uint256 = 0
 
     # iterate over each asset
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
@@ -466,20 +611,22 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 
         # add to total assets
         if data.isRebasing:
-            totalAssets += vaultTokenBalance # TODO: check that decimals match up with underlying asset !!
+            maxTotalAssets += vaultTokenBalance # TODO: check that decimals match up with underlying asset !!
+            safeTotalAssets += vaultTokenBalance
 
         else:
             legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
+
+            # max possible balance
             pricePerShare: uint256 = staticcall Lego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
             trueBalance: uint256 = vaultTokenBalance * pricePerShare // (10 ** data.vaultTokenDecimals)
+            maxTotalAssets += trueBalance
 
-            if _shouldGetMax:
-                totalAssets += trueBalance
-            else:
-                avgBalance: uint256 = vaultTokenBalance * data.avgPricePerShare // (10 ** data.vaultTokenDecimals)
-                totalAssets += min(avgBalance, trueBalance)
+            # safe balance
+            avgBalance: uint256 = vaultTokenBalance * data.avgPricePerShare // (10 ** data.vaultTokenDecimals)
+            safeTotalAssets += min(avgBalance, trueBalance)
 
-    return totalAssets
+    return maxTotalAssets, safeTotalAssets
 
 
 ###################
@@ -488,12 +635,16 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 
 
 @internal
-def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: address) -> uint256:
+def _prepareRedemption(
+    _amount: uint256,
+    _sender: address,
+    _vaultRegistry: address,
+) -> (uint256, uint256):
     vaultAsset: address = VAULT_ASSET
 
-    withdrawnAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
-    if withdrawnAmount >= _amount:
-        return _amount
+    availAmount: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
+    if availAmount >= _amount:
+        return availAmount, 0
 
     # get redemption config (buffer and min withdraw amount)
     redemptionBuffer: uint256 = 0
@@ -507,11 +658,12 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
 
     numAssets: uint256 = self.numAssets
     if numAssets == 0:
-        return withdrawnAmount
+        return availAmount, 0
 
+    withdrawnAmount: uint256 = 0
     ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
-        if withdrawnAmount >= targetWithdrawAmount:
+        if availAmount >= targetWithdrawAmount:
             break
 
         vaultToken: address = self.assets[i]
@@ -537,7 +689,7 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
             pricePerShare = staticcall Lego(ad.legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
 
         # calculate how many vault tokens we need to withdraw
-        amountStillNeeded: uint256 = targetWithdrawAmount - withdrawnAmount
+        amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
 
         # skip if amount still needed is below minimum (dust protection)
         if minWithdrawAmount != 0 and amountStillNeeded < minWithdrawAmount:
@@ -553,9 +705,10 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
         na2: address = empty(address)
         underlyingAmount: uint256 = 0
         na3: uint256 = 0
-        na1, na2, underlyingAmount, na3 = self._withdrawFromYield(vaultToken, vaultTokensNeeded, empty(bytes32), True, ad)
+        na1, na2, underlyingAmount, na3 = self._withdrawFromYield(vaultToken, vaultTokensNeeded, empty(bytes32), 0, False, False, ad)
 
         # add to withdrawn amount
+        availAmount += underlyingAmount
         withdrawnAmount += underlyingAmount
 
         # add to deregister list
@@ -566,7 +719,7 @@ def _prepareRedemption(_amount: uint256, _sender: address, _vaultRegistry: addre
     for asset: address in assetsToDeregister:
         self._deregisterYieldPosition(asset)
 
-    return min(withdrawnAmount, _amount)
+    return availAmount, withdrawnAmount
 
 
 ###################
