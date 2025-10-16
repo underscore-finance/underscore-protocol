@@ -13,20 +13,19 @@ from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
+    def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
+    def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address): view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
+    def getLegoAddrFromVaultToken(_vaultToken: address) -> address: view
     def getPerformanceFee(_vaultAddr: address) -> uint256: view
     def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
 
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
-    def isLockedSigner(_signer: address) -> bool: view
-
-interface Ledger:
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
+
+interface MissionControl:
+    def isLockedSigner(_signer: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -48,12 +47,6 @@ struct SingleSnapShot:
     totalSupply: uint256
     pricePerShare: uint256
     lastUpdate: uint256
-
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
 
 struct SnapShotPriceConfig:
     minSnapshotDelay: uint256
@@ -86,16 +79,12 @@ event PricePerShareSnapShotAdded:
     totalSupply: uint256
     pricePerShare: uint256
 
-event PerformanceFeeUpdated:
-    performanceFee: uint256
-
-event PerformanceFeesWithdrawn:
+event PerformanceFeesClaimed:
     pendingFees: uint256
 
 # yield tracking
 lastUnderlyingBal: public(uint256)
 pendingYieldRealized: public(uint256)
-performanceFee: public(uint256)
 
 # asset data
 assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
@@ -120,11 +109,8 @@ MAX_LEGOS: constant(uint256) = 10
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
 # registry ids
-LEDGER_ID: constant(uint256) = 1
-MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
-APPRAISER_ID: constant(uint256) = 7
 VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: immutable(address)
@@ -144,8 +130,6 @@ def __init__(
     assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
     UNDY_HQ = _undyHq
     VAULT_ASSET = _vaultAsset
-
-    self.performanceFee = 20_00 # 20.00%
 
     # initial agent
     if _startingAgent != empty(address):
@@ -197,8 +181,9 @@ def _depositForYield(
     # update yield position
     if _asset == VAULT_ASSET:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
-        assert staticcall VaultRegistry(self._getVaultRegistry()).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
-        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr)
+        vaultRegistry: address = self._getVaultRegistry()
+        assert staticcall VaultRegistry(vaultRegistry).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
+        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, vaultRegistry)
         currentUnderlying += assetAmount
 
     if _shouldSaveUnderlying:
@@ -260,7 +245,7 @@ def _withdrawFromYield(
 
     # update yield position
     if underlyingAsset == VAULT_ASSET:
-        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr)
+        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr, self._getVaultRegistry())
         currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
     if _shouldSaveUnderlying:
@@ -502,31 +487,22 @@ def _getUnderlyingAndUpdatePendingYield() -> uint256:
     return currentUnderlying
 
 
-# refresh performance fee
+# claim performance fees
 
 
 @external
-def updatePerformanceFee(_performanceFee: uint256):
-    assert msg.sender == self._getVaultRegistry() # dev: only vault registry can update
-    self.performanceFee = _performanceFee
-    log PerformanceFeeUpdated(performanceFee=_performanceFee)
-
-
-# get performance fees
-
-
-@external
-def getPerformanceFees() -> uint256:
+def claimPerformanceFees() -> uint256:
     governance: address = staticcall UndyHq(UNDY_HQ).governance()
     assert governance == msg.sender # dev: no perms
 
+    vaultRegistry: address = self._getVaultRegistry()
     currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
-    pendingFees: uint256 = self.pendingYieldRealized * self.performanceFee // HUNDRED_PERCENT
+    pendingFees: uint256 = self.pendingYieldRealized * self._getPerformanceFeeRatio(vaultRegistry) // HUNDRED_PERCENT
 
     # make withdrawals from yield positions
     availAmount: uint256 = 0
     withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = self._prepareRedemption(pendingFees, governance, self._getVaultRegistry())
+    availAmount, withdrawnAmount = self._prepareRedemption(pendingFees, governance, vaultRegistry)
     assert availAmount >= pendingFees # dev: insufficient funds
 
     # transfer pending fees to governance
@@ -536,25 +512,37 @@ def getPerformanceFees() -> uint256:
     self.pendingYieldRealized = 0
     self.lastUnderlyingBal = currentUnderlying - min(currentUnderlying, withdrawnAmount)
 
-    log PerformanceFeesWithdrawn(pendingFees=pendingFees)
+    log PerformanceFeesClaimed(pendingFees=pendingFees)
     return pendingFees
+
+
+# claimable performance fees
 
 
 @view
 @external
-def calculatePerformanceFees() -> uint256:
+def getClaimablePerformanceFees() -> uint256:
     na: uint256 = 0
     newYield: uint256 = 0
     na, newYield = self._calcNewYieldAndGetUnderlying()
-    return (self.pendingYieldRealized + newYield) * self.performanceFee // HUNDRED_PERCENT
+    return (self.pendingYieldRealized + newYield) * self._getPerformanceFeeRatio() // HUNDRED_PERCENT
+
+
+# get performance fee %
+
+
+@view
+@internal
+def _getPerformanceFeeRatio(_vaultRegistry: address = empty(address)) -> uint256:
+    vaultRegistry: address = _vaultRegistry
+    if vaultRegistry == empty(address):
+        vaultRegistry = self._getVaultRegistry()
+    return staticcall VaultRegistry(vaultRegistry).getPerformanceFee(self)
 
 
 #####################
 # Underlying Assets #
 #####################
-
-
-# max and safe underlying yield balances
 
 
 @view
@@ -636,7 +624,7 @@ def _prepareRedemption(
         return availAmount, 0
 
     withdrawnAmount: uint256 = 0
-    ad: VaultActionData = self._getVaultActionDataBundle(0, _sender)
+    ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(0, _sender)
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
         if availAmount >= targetWithdrawAmount:
             break
@@ -708,15 +696,21 @@ def _prepareRedemption(
 @external
 def updateYieldPosition(_vaultToken: address):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    vaultRegistry: address = self._getVaultRegistry()
     legoId: uint256 = 0
     legoAddr: address = empty(address)
-    legoId, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
+    legoId, legoAddr = staticcall VaultRegistry(vaultRegistry).getLegoDataFromVaultToken(_vaultToken)
     if legoId != 0 and legoAddr != empty(address):
-        self._updateYieldPosition(_vaultToken, legoId, legoAddr)
+        self._updateYieldPosition(_vaultToken, legoId, legoAddr, vaultRegistry)
 
 
 @internal
-def _updateYieldPosition(_vaultToken: address, _legoId: uint256, _legoAddr: address):
+def _updateYieldPosition(
+    _vaultToken: address,
+    _legoId: uint256,
+    _legoAddr: address,
+    _vaultRegistry: address,
+):
     if _vaultToken == empty(address):
         return
 
@@ -738,7 +732,7 @@ def _updateYieldPosition(_vaultToken: address, _legoId: uint256, _legoAddr: addr
 
     # non-rebase assets use weighted average share prices
     if not data.isRebasing:
-        snapConfig: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+        snapConfig: SnapShotPriceConfig = staticcall VaultRegistry(_vaultRegistry).snapShotPriceConfig(self)
         self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, snapConfig)
         data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, snapConfig)
         if data.avgPricePerShare != 0:
@@ -844,12 +838,13 @@ def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig
 
 @external
 def addPriceSnapshot(_vaultToken: address) -> bool:
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    legoAddr: address = self._getLegoAddrFromVaultToken(_vaultToken)
+    assert self._isSwitchboardAddr(msg.sender) # dev: no 
+    vaultRegistry: address = self._getVaultRegistry()
+    legoAddr: address = staticcall VaultRegistry(vaultRegistry).getLegoAddrFromVaultToken(_vaultToken)
     if legoAddr == empty(address):
         return False
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+    config: SnapShotPriceConfig = staticcall VaultRegistry(vaultRegistry).snapShotPriceConfig(self)
     return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, config)
 
 
@@ -897,12 +892,13 @@ def _addPriceSnapshot(
 @view
 @external
 def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
-    legoAddr: address = self._getLegoAddrFromVaultToken(_vaultToken)
+    vaultRegistry: address = self._getVaultRegistry()
+    legoAddr: address = staticcall VaultRegistry(vaultRegistry).getLegoAddrFromVaultToken(_vaultToken)
     if legoAddr == empty(address):
         return empty(SingleSnapShot)
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     data: SnapShotData = self.snapShotData[_vaultToken]
-    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
+    config: SnapShotPriceConfig = staticcall VaultRegistry(vaultRegistry).snapShotPriceConfig(self)
     return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, config)
 
 
@@ -952,15 +948,16 @@ def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256
 @internal
 def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
     assert self.indexOfManager[_signer] != 0 # dev: not manager
+    vaultRegistry: address = self._getVaultRegistry()
 
     # main data for this transaction
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
-    ad: VaultActionData = self._getVaultActionDataBundle(legoId, _signer)
+    ad: VaultActionData = staticcall VaultRegistry(vaultRegistry).getVaultActionDataBundle(legoId, _signer)
 
     # cannot perform any actions if vault is frozen
-    isVaultOpsFrozen: bool = staticcall VaultRegistry(self._getVaultRegistry()).isVaultOpsFrozen(self)
+    isVaultOpsFrozen: bool = staticcall VaultRegistry(vaultRegistry).isVaultOpsFrozen(self)
     assert not isVaultOpsFrozen # dev: frozen vault
 
     # make sure manager is not locked
@@ -1138,62 +1135,3 @@ def _packMiniAddys(
         appraiser = _appraiser,
     )
 
-
-# action data bundle
-
-
-@view
-@external
-def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
-    return self._getVaultActionDataBundle(_legoId, _signer)
-
-
-@view
-@internal
-def _getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData:
-    hq: address = UNDY_HQ
-
-    # lego details
-    legoBook: address = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
-    legoAddr: address = empty(address)
-    if _legoId != 0 and legoBook != empty(address):
-        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
-
-    return VaultActionData(
-        ledger = staticcall Registry(hq).getAddr(LEDGER_ID),
-        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID),
-        legoBook = legoBook,
-        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
-        vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
-        signer = _signer,
-        legoId = _legoId,
-        legoAddr = legoAddr,
-    )
-
-
-# get lego data from vault token
-
-
-@view
-@internal
-def _getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
-    unyHq: address = UNDY_HQ
-    ledger: address = staticcall Registry(unyHq).getAddr(LEDGER_ID)
-    if ledger == empty(address):
-        return 0, empty(address)
-    data: VaultToken = staticcall Ledger(ledger).vaultTokens(_vaultToken)
-    if data.legoId == 0:
-        return 0, empty(address)
-    legoBook: address = staticcall Registry(unyHq).getAddr(LEGO_BOOK_ID)
-    if legoBook == empty(address):
-        return 0, empty(address)
-    return data.legoId, staticcall Registry(legoBook).getAddr(data.legoId)
-
-
-@view
-@internal
-def _getLegoAddrFromVaultToken(_vaultToken: address) -> address:
-    na: uint256 = 0
-    legoAddr: address = empty(address)
-    na, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
-    return legoAddr

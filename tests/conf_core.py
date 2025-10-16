@@ -580,6 +580,9 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
         sender=switchboard_alpha.address
     )
 
+    # Set performance fee to 0 for snapshot tests (after initialization)
+    vault_registry.setPerformanceFee(vault.address, 0, sender=switchboard_alpha.address)
+
     return vault
 
 
@@ -623,6 +626,9 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
         sender=switchboard_alpha.address
     )
 
+    # Set performance fee to 0 for snapshot tests (after initialization)
+    vault_registry.setPerformanceFee(vault.address, 0, sender=switchboard_alpha.address)
+
     return vault
 
 
@@ -665,5 +671,8 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
         [],  # approvedYieldLegos (empty for now, tests will add them as needed)
         sender=switchboard_alpha.address
     )
+
+    # Set performance fee to 0 for snapshot tests (after initialization)
+    vault_registry.setPerformanceFee(vault.address, 0, sender=switchboard_alpha.address)
 
     return vault

@@ -831,7 +831,7 @@ def test_check_vault_approvals(vault_registry, undy_usd_vault, yield_vault_token
     ) == False
 
 
-def test_initialize_vault_config(vault_registry, governance, switchboard_alpha, deploy_test_vault):
+def test_initialize_vault_config_basic(vault_registry, governance, switchboard_alpha, deploy_test_vault):
     """Test initializing vault config for a new vault"""
     # Deploy a real vault contract
     new_vault = deploy_test_vault()
