@@ -506,14 +506,13 @@ def _getUnderlyingAndUpdatePendingYield() -> uint256:
 
 
 @external
-def refreshPerformanceFee():
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    performanceFee: uint256 = staticcall VaultRegistry(self._getVaultRegistry()).getPerformanceFee(self)
-    self.performanceFee = min(performanceFee, 25_00) # max 25.00%
-    log PerformanceFeeUpdated(performanceFee=performanceFee)
+def updatePerformanceFee(_performanceFee: uint256):
+    assert msg.sender == self._getVaultRegistry() # dev: only vault registry can update
+    self.performanceFee = _performanceFee
+    log PerformanceFeeUpdated(performanceFee=_performanceFee)
 
 
-# get performance fee
+# get performance fees
 
 
 @external
@@ -539,6 +538,15 @@ def getPerformanceFees() -> uint256:
 
     log PerformanceFeesWithdrawn(pendingFees=pendingFees)
     return pendingFees
+
+
+@view
+@external
+def calculatePerformanceFees() -> uint256:
+    na: uint256 = 0
+    newYield: uint256 = 0
+    na, newYield = self._calcNewYieldAndGetUnderlying()
+    return (self.pendingYieldRealized + newYield) * self.performanceFee // HUNDRED_PERCENT
 
 
 #####################

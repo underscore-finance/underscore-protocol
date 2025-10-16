@@ -21,6 +21,9 @@ import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
 
+interface EarnVault:
+    def updatePerformanceFee(_performanceFee: uint256): nonpayable
+
 interface UndyHq:
     def getAddr(_regId: uint256) -> address: view
 
@@ -38,6 +41,7 @@ struct VaultConfig:
     redemptionBuffer: uint256
     minYieldWithdrawAmount: uint256
     targetCollateralizationRatio: uint256
+    performanceFee: uint256
     snapShotPriceConfig: SnapShotPriceConfig
 
 event VaultConfigSet:
@@ -61,6 +65,10 @@ event MinYieldWithdrawAmountSet:
 event TargetCollateralizationRatioSet:
     vaultAddr: indexed(address)
     ratio: uint256
+
+event PerformanceFeeSet:
+    vaultAddr: indexed(address)
+    performanceFee: uint256
 
 event SnapShotPriceConfigSet:
     vaultAddr: indexed(address)
@@ -195,6 +203,12 @@ def targetCollateralizationRatio(_vaultAddr: address) -> uint256:
 
 @view
 @external
+def getPerformanceFee(_vaultAddr: address) -> uint256:
+    return self.vaultConfigs[_vaultAddr].performanceFee
+
+
+@view
+@external
 def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig:
     return self.vaultConfigs[_vaultAddr].snapShotPriceConfig
 
@@ -315,6 +329,18 @@ def setTargetCollateralizationRatio(_vaultAddr: address, _ratio: uint256):
 
 
 @external
+def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert _performanceFee <= HUNDRED_PERCENT # dev: performance fee too high (max 100%)
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.performanceFee = _performanceFee
+    self.vaultConfigs[_vaultAddr] = config
+    extcall EarnVault(_vaultAddr).updatePerformanceFee(_performanceFee)
+    log PerformanceFeeSet(vaultAddr=_vaultAddr, performanceFee=_performanceFee)
+
+
+@external
 def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
@@ -360,6 +386,7 @@ def initializeVaultConfig(
     _approvedVaultTokens: DynArray[address, 25] = [],
     _approvedYieldLegos: DynArray[uint256, 25] = [],
     _targetCollateralizationRatio: uint256 = 0,
+    _performanceFee: uint256 = 20_00, # 20.00%
 ):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
@@ -367,6 +394,7 @@ def initializeVaultConfig(
     assert registry._isValidAddr(_vaultAddr) or registry.pendingNewAddr[_vaultAddr].confirmBlock != 0 # dev: invalid vault addr
     assert self._isValidPriceConfig(_snapShotPriceConfig) # dev: invalid price config
     assert _redemptionBuffer <= 10_00 # dev: buffer too high (max 10%)
+    assert _performanceFee <= HUNDRED_PERCENT # dev: performance fee too high (max 100%)
     if _targetCollateralizationRatio != 0:
         assert _targetCollateralizationRatio >= 100_00 # dev: ratio must be >= 100%
         assert _targetCollateralizationRatio <= 500_00 # dev: ratio too high (max 500%)
@@ -380,6 +408,7 @@ def initializeVaultConfig(
         redemptionBuffer = _redemptionBuffer,
         minYieldWithdrawAmount = _minYieldWithdrawAmount,
         targetCollateralizationRatio = _targetCollateralizationRatio,
+        performanceFee = _performanceFee,
         snapShotPriceConfig = _snapShotPriceConfig,
     )
     self.vaultConfigs[_vaultAddr] = config
@@ -402,6 +431,8 @@ def initializeVaultConfig(
     log MinYieldWithdrawAmountSet(vaultAddr=_vaultAddr, amount=_minYieldWithdrawAmount)
     if _targetCollateralizationRatio != 0:
         log TargetCollateralizationRatioSet(vaultAddr=_vaultAddr, ratio=_targetCollateralizationRatio)
+    if _performanceFee != 0:
+        log PerformanceFeeSet(vaultAddr=_vaultAddr, performanceFee=_performanceFee)
     log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_snapShotPriceConfig.minSnapshotDelay, maxNumSnapshots=_snapShotPriceConfig.maxNumSnapshots, maxUpsideDeviation=_snapShotPriceConfig.maxUpsideDeviation, staleTime=_snapShotPriceConfig.staleTime)
 
 
