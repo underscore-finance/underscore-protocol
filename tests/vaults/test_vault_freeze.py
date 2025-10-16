@@ -84,42 +84,6 @@ def test_freeze_vault_prevents_withdraw_from_yield(
         )
 
 
-def test_freeze_vault_prevents_rebalance(
-    undy_usd_vault,
-    vault_registry,
-    starter_agent,
-    switchboard_alpha,
-    yield_underlying_token,
-    yield_underlying_token_whale,
-    yield_vault_token,
-    yield_vault_token_2,
-):
-    """Test that freezing vault prevents manager from rebalancing"""
-
-    # Setup: deposit to first vault
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    # Freeze the vault
-    vault_registry.setVaultOpsFrozen(undy_usd_vault.address, True, sender=switchboard_alpha.address)
-
-    # Rebalance should fail
-    with boa.reverts("frozen vault"):
-        undy_usd_vault.rebalanceYieldPosition(
-            1,  # from lego
-            yield_vault_token.address,  # from vault
-            1,  # to lego
-            yield_vault_token_2.address,  # to vault
-            sender=starter_agent.address
-        )
 
 
 def test_freeze_vault_prevents_claim_rewards(

@@ -1732,35 +1732,6 @@ def test_get_total_assets_with_updated_snapshots(undy_usd_vault, yield_vault_tok
     assert total_avg < total_max
 
 
-def test_get_total_assets_after_rebalance(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent):
-    """Test getTotalAssets accuracy after rebalancing between vaults"""
-
-    deposit_amount = 1000 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    initial_total = undy_usd_vault.getTotalAssets(True)
-    assert initial_total == deposit_amount
-
-    vault_token_balance = yield_vault_token.balanceOf(undy_usd_vault.address)
-    undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        vault_token_balance,
-        sender=starter_agent.address
-    )
-
-    total_after_rebalance = undy_usd_vault.getTotalAssets(True)
-    assert total_after_rebalance == deposit_amount
 
 
 def test_get_total_assets_extreme_throttling(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):

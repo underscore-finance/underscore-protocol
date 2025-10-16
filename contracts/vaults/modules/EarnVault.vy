@@ -37,7 +37,6 @@ event Withdraw:
     shares: uint256
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
-ONE_PERCENT: constant(uint256) = 1_00 # 1%
 
 
 @deploy
@@ -83,12 +82,7 @@ def _getTotalAssets(_shouldGetMax: bool, _vaultRegistry: address = empty(address
     vaultRegistry: address = _vaultRegistry
     if vaultRegistry == empty(address):
         vaultRegistry = vaultWallet._getVaultRegistry()
-    totalAssets: uint256 = 0
-    na1: uint256 = 0
-    na2: uint256 = 0
-    na3: address = empty(address)
-    totalAssets, na1, na2, na3 = self._getUnderlyingData(_shouldGetMax, vaultRegistry)
-    return totalAssets
+    return self._getUnderlyingData(_shouldGetMax, vaultRegistry)[0]
 
 
 @view
@@ -359,7 +353,7 @@ def _redeem(
     withdrawnAmount: uint256 = 0
     availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
-    assert self._isCloseEnough(_amount, actualAmount) # dev: insufficient funds
+    assert actualAmount >= _amount - (_amount // 100) # dev: insufficient funds (1% tolerance)
 
     # save data
     currentBalance: uint256 = _currentBalance - min(_currentBalance, withdrawnAmount)
@@ -372,18 +366,6 @@ def _redeem(
 
     log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)
     return actualAmount
-
-
-# is close enough
-
-
-@pure
-@internal
-def _isCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:
-    # extra safety check to make sure what was redeemed was actually close-ish to what was requested
-    buffer: uint256 = _requestedAmount * ONE_PERCENT // HUNDRED_PERCENT
-    lowerBound: uint256 = _requestedAmount - buffer
-    return _actualAmount >= lowerBound
 
 
 ##########

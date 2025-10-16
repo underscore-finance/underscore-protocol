@@ -279,49 +279,6 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry,
     assert yield_vault_token.balanceOf(undy_usd_vault.address) == 0
 
 
-def test_rebalance_checks_destination_approvals(undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, switchboard_alpha):
-    """Test that rebalance checks approvals for the destination lego/vault"""
-
-    # Setup: deposit into yield_vault_token with lego 1 (both approved)
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    # Create an unapproved vault token for destination
-    new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token)
-
-    # Rebalance should fail when destination vault token is not approved
-    with boa.reverts("lego or vault token not approved"):
-        undy_usd_vault.rebalanceYieldPosition(
-            1,  # From lego (approved)
-            yield_vault_token.address,  # From vault (approved)
-            1,  # To lego (approved)
-            new_vault_token.address,  # To vault (NOT approved)
-            sender=starter_agent.address
-        )
-
-    # Approve the destination vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
-
-    # Now rebalance should succeed
-    vault_burned, new_vault, new_vault_received, usd_value = undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        new_vault_token.address,
-        sender=starter_agent.address
-    )
-
-    assert vault_burned > 0
-    assert new_vault == new_vault_token.address
-    assert new_vault_received > 0
 
 
 def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
@@ -671,30 +628,6 @@ def test_non_manager_cannot_withdraw(undy_usd_vault, starter_agent, alice, yield
         )
 
 
-def test_non_manager_cannot_rebalance(undy_usd_vault, starter_agent, alice, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2):
-    """Test that non-managers cannot perform rebalance actions"""
-
-    # First have a manager deposit
-    deposit_amount = 10 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    # alice is not a manager and should not be able to rebalance
-    with boa.reverts("not manager"):
-        undy_usd_vault.rebalanceYieldPosition(
-            1,
-            yield_vault_token.address,
-            1,
-            yield_vault_token_2.address,
-            sender=alice
-        )
 
 
 def test_removed_manager_loses_permissions(undy_usd_vault, switchboard_alpha, alice, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
