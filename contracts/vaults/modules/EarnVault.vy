@@ -80,22 +80,27 @@ def getTotalAssets(_shouldGetMax: bool) -> uint256:
 @view
 @internal
 def _getTotalAssets(_shouldGetMax: bool, _vaultRegistry: address = empty(address)) -> uint256:
+    vaultRegistry: address = _vaultRegistry
+    if vaultRegistry == empty(address):
+        vaultRegistry = vaultWallet._getVaultRegistry()
     totalAssets: uint256 = 0
     na1: uint256 = 0
     na2: uint256 = 0
-    totalAssets, na1, na2 = self._getUnderlyingData(_shouldGetMax, _vaultRegistry)
+    na3: address = empty(address)
+    totalAssets, na1, na2, na3 = self._getUnderlyingData(_shouldGetMax, vaultRegistry)
     return totalAssets
 
 
 @view
 @internal
-def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256, uint256, uint256):
+def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256, uint256, uint256, address):
     totalAssets: uint256 = staticcall IERC20(vaultWallet.VAULT_ASSET).balanceOf(self)
 
     # all underlying assets
     maxTotalAssets: uint256 = 0
     safeTotalAssets: uint256 = 0
-    maxTotalAssets, safeTotalAssets = vaultWallet._getUnderlyingYieldBalances()
+    maxBalVaultToken: address = empty(address)
+    maxTotalAssets, safeTotalAssets, maxBalVaultToken = vaultWallet._getUnderlyingYieldBalances()
 
     # new yield
     currentBalance: uint256 = 0
@@ -113,7 +118,7 @@ def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256
         totalAssets += safeTotalAssets
     totalAssets -= min(pendingFees, totalAssets)
 
-    return totalAssets, currentBalance, pendingYieldRealized
+    return totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken
 
 
 ############
@@ -159,7 +164,8 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     totalAssets: uint256 = 0
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
-    totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(True, vaultRegistry)
+    maxBalVaultToken: address = empty(address)
+    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
     # save data
     vaultWallet.lastUnderlyingBal = currentBalance
@@ -207,7 +213,8 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     totalAssets: uint256 = 0
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
-    totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(True, vaultRegistry)
+    maxBalVaultToken: address = empty(address)
+    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
     # save data
     vaultWallet.lastUnderlyingBal = currentBalance
@@ -277,10 +284,11 @@ def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address 
     totalAssets: uint256 = 0
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
-    totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(True, vaultRegistry)
+    maxBalVaultToken: address = empty(address)
+    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
     shares: uint256 = self._amountToShares(_assets, token.totalSupply, totalAssets, True)
-    self._redeem(vaultWallet.VAULT_ASSET, _assets, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, vaultRegistry)
+    self._redeem(vaultWallet.VAULT_ASSET, _assets, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -312,10 +320,11 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
     totalAssets: uint256 = 0
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
-    totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(False, vaultRegistry)
+    maxBalVaultToken: address = empty(address)
+    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(False, vaultRegistry)
 
     amount: uint256 = self._sharesToAmount(shares, token.totalSupply, totalAssets, False)
-    return self._redeem(vaultWallet.VAULT_ASSET, amount, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, vaultRegistry)
+    return self._redeem(vaultWallet.VAULT_ASSET, amount, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
 
 
 # shared redeem logic
@@ -331,6 +340,7 @@ def _redeem(
     _owner: address,
     _currentBalance: uint256,
     _pendingYieldRealized: uint256,
+    _maxBalVaultToken: address,
     _vaultRegistry: address,
 ) -> uint256:
     assert staticcall VaultRegistry(_vaultRegistry).canWithdraw(self) # dev: cannot withdraw
@@ -347,7 +357,7 @@ def _redeem(
     # withdraw from yield opportunity
     availAmount: uint256 = 0
     withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_amount, _sender, _vaultRegistry)
+    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
     assert self._isCloseEnough(_amount, actualAmount) # dev: insufficient funds
 
