@@ -181,9 +181,8 @@ def _depositForYield(
     # update yield position
     if _asset == VAULT_ASSET:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
-        vaultRegistry: address = self._getVaultRegistry()
-        assert staticcall VaultRegistry(vaultRegistry).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
-        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, vaultRegistry)
+        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
+        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
         currentUnderlying += assetAmount
 
     if _shouldSaveUnderlying:
@@ -245,7 +244,7 @@ def _withdrawFromYield(
 
     # update yield position
     if underlyingAsset == VAULT_ASSET:
-        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr, self._getVaultRegistry())
+        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
         currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
     if _shouldSaveUnderlying:
@@ -493,7 +492,7 @@ def _getUnderlyingAndUpdatePendingYield() -> uint256:
 @external
 def claimPerformanceFees() -> uint256:
     governance: address = staticcall UndyHq(UNDY_HQ).governance()
-    assert governance == msg.sender # dev: no perms
+    assert self._isSwitchboardAddr(msg.sender) or governance == msg.sender # dev: no perms
 
     vaultRegistry: address = self._getVaultRegistry()
     currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
@@ -525,7 +524,7 @@ def getClaimablePerformanceFees() -> uint256:
     na: uint256 = 0
     newYield: uint256 = 0
     na, newYield = self._calcNewYieldAndGetUnderlying()
-    return (self.pendingYieldRealized + newYield) * self._getPerformanceFeeRatio() // HUNDRED_PERCENT
+    return (self.pendingYieldRealized + newYield) * self._getPerformanceFeeRatio(self._getVaultRegistry()) // HUNDRED_PERCENT
 
 
 # get performance fee %
@@ -533,11 +532,8 @@ def getClaimablePerformanceFees() -> uint256:
 
 @view
 @internal
-def _getPerformanceFeeRatio(_vaultRegistry: address = empty(address)) -> uint256:
-    vaultRegistry: address = _vaultRegistry
-    if vaultRegistry == empty(address):
-        vaultRegistry = self._getVaultRegistry()
-    return staticcall VaultRegistry(vaultRegistry).getPerformanceFee(self)
+def _getPerformanceFeeRatio(_vaultRegistry: address) -> uint256:
+    return staticcall VaultRegistry(_vaultRegistry).getPerformanceFee(self)
 
 
 #####################
@@ -838,7 +834,7 @@ def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig
 
 @external
 def addPriceSnapshot(_vaultToken: address) -> bool:
-    assert self._isSwitchboardAddr(msg.sender) # dev: no 
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     vaultRegistry: address = self._getVaultRegistry()
     legoAddr: address = staticcall VaultRegistry(vaultRegistry).getLegoAddrFromVaultToken(_vaultToken)
     if legoAddr == empty(address):
