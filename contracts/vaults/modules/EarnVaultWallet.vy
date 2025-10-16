@@ -113,7 +113,6 @@ indexOfManager: public(HashMap[address, uint256]) # manager -> index
 numManagers: public(uint256) # num managers
 
 # constants
-ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
@@ -480,7 +479,8 @@ def claimRewards(
 def _calcNewYieldAndGetUnderlying(_currentUnderlying: uint256 = 0) -> (uint256, uint256):
     currentUnderlying: uint256 = _currentUnderlying
     if currentUnderlying == 0:
-        currentUnderlying = self._getMaxUnderlyingYieldBalance()
+        na: uint256 = 0
+        currentUnderlying, na = self._getUnderlyingYieldBalances()
 
     newYield: uint256 = 0
     lastUnderlyingBal: uint256 = self.lastUnderlyingBal
@@ -522,7 +522,7 @@ def getPerformanceFees() -> uint256:
     assert governance == msg.sender # dev: no perms
 
     currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
-    pendingFees: uint256 = self._calcPendingPerformanceFees()
+    pendingFees: uint256 = self.pendingYieldRealized * self.performanceFee // HUNDRED_PERCENT
 
     # make withdrawals from yield positions
     availAmount: uint256 = 0
@@ -541,42 +541,9 @@ def getPerformanceFees() -> uint256:
     return pendingFees
 
 
-# calculate pending performance fees
-
-
-@view
-@internal
-def _calcPendingPerformanceFees(_pendingYieldRealized: uint256 = 0) -> uint256:
-    pendingYieldRealized: uint256 = _pendingYieldRealized
-    if pendingYieldRealized == 0:
-        pendingYieldRealized = self.pendingYieldRealized
-    return pendingYieldRealized * self.performanceFee // HUNDRED_PERCENT
-
-
-# set yield data
-
-
-@internal
-def _setYieldData(_currentBalance: uint256, _pendingYieldRealized: uint256):
-    self.lastUnderlyingBal = _currentBalance
-    self.pendingYieldRealized = _pendingYieldRealized
-
-
 #####################
 # Underlying Assets #
 #####################
-
-
-# calculate underlying yield balances
-
-
-@view
-@internal
-def _getMaxUnderlyingYieldBalance() -> uint256:
-    maxTotalAssets: uint256 = 0
-    safeTotalAssets: uint256 = 0
-    maxTotalAssets, safeTotalAssets = self._getUnderlyingYieldBalances()
-    return maxTotalAssets
 
 
 # max and safe underlying yield balances
@@ -1067,18 +1034,6 @@ def _isSwitchboardAddr(_signer: address) -> bool:
     if switchboard == empty(address):
         return False
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
-
-
-# can perform security action
-
-
-@view
-@internal
-def _canPerformSecurityAction(_addr: address) -> bool:
-    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
-    if missionControl == empty(address):
-        return False
-    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
 
 
 # approve

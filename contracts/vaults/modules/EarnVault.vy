@@ -54,7 +54,7 @@ def __init__(
     _maxHqTimeLock: uint256,
     _startingAgent: address,
 ):
-    token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq, _minHqTimeLock, _maxHqTimeLock)
+    token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)
     vaultWallet.__init__(_undyHq, _asset, _startingAgent)
 
 
@@ -108,7 +108,7 @@ def _getUnderlyingData(_shouldGetMax: bool) -> (uint256, uint256, uint256):
 
     # pending fees
     pendingYieldRealized: uint256 = vaultWallet.pendingYieldRealized + newYield
-    pendingFees: uint256 = vaultWallet._calcPendingPerformanceFees(pendingYieldRealized)
+    pendingFees: uint256 = pendingYieldRealized * vaultWallet.performanceFee // HUNDRED_PERCENT
 
     # add total assets
     if _shouldGetMax:
@@ -163,7 +163,8 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
     totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(True)
-    vaultWallet._setYieldData(currentBalance, pendingYieldRealized)
+    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.pendingYieldRealized = pendingYieldRealized
 
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
     self._deposit(asset, amount, shares, _receiver, totalAssets)
@@ -205,7 +206,8 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     currentBalance: uint256 = 0
     pendingYieldRealized: uint256 = 0
     totalAssets, currentBalance, pendingYieldRealized = self._getUnderlyingData(True)
-    vaultWallet._setYieldData(currentBalance, pendingYieldRealized)
+    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.pendingYieldRealized = pendingYieldRealized
 
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
     self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets)
@@ -336,7 +338,8 @@ def _redeem(
 
     # update yield data
     currentBalance: uint256 = _currentBalance - min(_currentBalance, withdrawnAmount)
-    vaultWallet._setYieldData(currentBalance, _pendingYieldRealized)
+    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.pendingYieldRealized = _pendingYieldRealized
 
     # burn shares, transfer assets
     token._burn(_owner, _shares)
