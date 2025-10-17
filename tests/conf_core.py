@@ -554,30 +554,30 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
     # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
     vault_registry.startAddNewAddressToRegistry(vault.address, "UndyUSD Vault", sender=governance.address)
     boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
-    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
 
-    # Initialize vault config in VaultRegistry (including approvals)
-    vault_registry.initializeVaultConfig(
+    # confirmNewAddressToRegistry now auto-initializes vault config
+    vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        True,  # canDeposit
-        True,  # canWithdraw
-        0,  # maxDepositAmount
-        2_00,  # redemptionBuffer (2%)
-        10000,  # minYieldWithdrawAmount (0.01 USDC with 6 decimals)
-        (
-            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
-        ),  # snapShotPriceConfig
         [  # approvedVaultTokens
             yield_vault_token.address,
             yield_vault_token_2.address,
             yield_vault_token_3.address,
             yield_vault_token_4.address,
         ],
-        [1],  # approvedYieldLegos (lego ID 1 used in tests)
-        sender=switchboard_alpha.address
+        0,  # maxDepositAmount (0 = unlimited)
+        10000,  # minYieldWithdrawAmount (0.01 USDC with 6 decimals)
+        20_00,  # performanceFee (20%) - will be set to 0 below for tests
+        ZERO_ADDRESS,  # defaultTargetVaultToken
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        sender=governance.address
     )
 
     # Set performance fee to 0 for snapshot tests (after initialization)
@@ -605,25 +605,25 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
     # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
     vault_registry.startAddNewAddressToRegistry(vault.address, "UndyETH Vault", sender=governance.address)
     boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
-    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
 
-    # Initialize vault config in VaultRegistry (including approvals)
-    vault_registry.initializeVaultConfig(
+    # confirmNewAddressToRegistry now auto-initializes vault config
+    vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
+        0,  # maxDepositAmount (0 = unlimited)
+        10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
+        20_00,  # performanceFee (20%) - will be set to 0 below for tests
+        ZERO_ADDRESS,  # defaultTargetVaultToken
+        True,  # shouldAutoDeposit
         True,  # canDeposit
         True,  # canWithdraw
-        0,  # maxDepositAmount
+        False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
-        (
-            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
-        ),  # snapShotPriceConfig
-        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
-        [],  # approvedYieldLegos (empty for now, tests will add them as needed)
-        sender=switchboard_alpha.address
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        sender=governance.address
     )
 
     # Set performance fee to 0 for snapshot tests (after initialization)
@@ -651,25 +651,25 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
     # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
     vault_registry.startAddNewAddressToRegistry(vault.address, "UndyBTC Vault", sender=governance.address)
     boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
-    vault_registry.confirmNewAddressToRegistry(vault.address, sender=governance.address)
 
-    # Initialize vault config in VaultRegistry (including approvals)
-    vault_registry.initializeVaultConfig(
+    # confirmNewAddressToRegistry now auto-initializes vault config
+    vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
+        0,  # maxDepositAmount (0 = unlimited)
+        1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
+        20_00,  # performanceFee (20%) - will be set to 0 below for tests
+        ZERO_ADDRESS,  # defaultTargetVaultToken
+        True,  # shouldAutoDeposit
         True,  # canDeposit
         True,  # canWithdraw
-        0,  # maxDepositAmount
+        False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
-        (
-            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
-        ),  # snapShotPriceConfig
-        [],  # approvedVaultTokens (empty for now, tests will add them as needed)
-        [],  # approvedYieldLegos (empty for now, tests will add them as needed)
-        sender=switchboard_alpha.address
+        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
+        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
+        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
+        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
+        sender=governance.address
     )
 
     # Set performance fee to 0 for snapshot tests (after initialization)

@@ -192,29 +192,15 @@ def test_set_can_deposit_non_switchboard_fails(vault_registry, undy_usd_vault, b
         )
 
 
-def test_set_can_deposit_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setting same value reverts"""
-    # Initially True
-    assert vault_registry.canDeposit(undy_usd_vault.address) == True
-
-    # Try to set to True again
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanDeposit(
-            undy_usd_vault.address,
-            True,
-            sender=switchboard_alpha.address
-        )
-
-
 def test_set_can_deposit_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setCanDeposit emits VaultConfigSet event"""
+    """Test that setCanDeposit emits CanDepositSet event"""
     vault_registry.setCanDeposit(
         undy_usd_vault.address,
         False,
         sender=switchboard_alpha.address
     )
 
-    events = filter_logs(vault_registry, "VaultConfigSet")
+    events = filter_logs(vault_registry, "CanDepositSet")
     assert len(events) > 0
 
     latest_event = events[-1]
@@ -256,20 +242,6 @@ def test_set_can_withdraw_non_switchboard_fails(vault_registry, undy_usd_vault, 
         )
 
 
-def test_set_can_withdraw_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setting same value reverts"""
-    # Initially True
-    assert vault_registry.canWithdraw(undy_usd_vault.address) == True
-
-    # Try to set to True again
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanWithdraw(
-            undy_usd_vault.address,
-            True,
-            sender=switchboard_alpha.address
-        )
-
-
 def test_set_max_deposit_amount(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test setting maxDepositAmount"""
     # Initially 0 (unlimited)
@@ -306,20 +278,6 @@ def test_set_max_deposit_amount_non_switchboard_fails(vault_registry, undy_usd_v
         )
 
 
-def test_set_max_deposit_amount_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setting same value reverts"""
-    # Initially 0
-    assert vault_registry.maxDepositAmount(undy_usd_vault.address) == 0
-
-    # Try to set to 0 again
-    with boa.reverts("nothing to change"):
-        vault_registry.setMaxDepositAmount(
-            undy_usd_vault.address,
-            0,
-            sender=switchboard_alpha.address
-        )
-
-
 def test_set_vault_ops_frozen(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test setting vault ops frozen flag"""
     # Initially False
@@ -351,20 +309,6 @@ def test_set_vault_ops_frozen_non_switchboard_fails(vault_registry, undy_usd_vau
             undy_usd_vault.address,
             True,
             sender=bob
-        )
-
-
-def test_set_vault_ops_frozen_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setting same value reverts"""
-    # Initially False
-    assert vault_registry.isVaultOpsFrozen(undy_usd_vault.address) == False
-
-    # Try to set to False again
-    with boa.reverts("nothing to change"):
-        vault_registry.setVaultOpsFrozen(
-            undy_usd_vault.address,
-            False,
-            sender=switchboard_alpha.address
         )
 
 
@@ -421,7 +365,7 @@ def test_set_redemption_buffer_non_switchboard_fails(vault_registry, undy_usd_va
 def test_set_redemption_buffer_too_high_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test that buffer > 10% reverts"""
     # Max is 10% (1000)
-    with boa.reverts("buffer too high (max 10%)"):
+    with boa.reverts("invalid redemption buffer"):
         vault_registry.setRedemptionBuffer(
             undy_usd_vault.address,
             1001,  # 10.01%
@@ -452,6 +396,364 @@ def test_set_redemption_buffer_emits_event(vault_registry, undy_usd_vault, switc
     latest_event = events[-1]
     assert latest_event.vaultAddr == undy_usd_vault.address
     assert latest_event.buffer == 500
+
+
+def test_set_performance_fee(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setting performance fee"""
+    # Initial fee should be 0 (set by fixture to 0, default in contract is 20%)
+    initial_fee = vault_registry.getPerformanceFee(undy_usd_vault.address)
+
+    # Set to 15%
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        15_00,  # 15%
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 15_00
+
+    # Set to 0%
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        0,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 0
+
+    # Set to 100%
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        100_00,  # 100%
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 100_00
+
+
+def test_set_performance_fee_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot set performance fee"""
+    with boa.reverts("no perms"):
+        vault_registry.setPerformanceFee(
+            undy_usd_vault.address,
+            15_00,
+            sender=bob
+        )
+
+
+def test_set_performance_fee_invalid_vault_fails(vault_registry, switchboard_alpha):
+    """Test that setting fee for invalid vault fails"""
+    random_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setPerformanceFee(
+            random_vault,
+            15_00,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_performance_fee_too_high_fails(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that performance fee > 100% fails"""
+    # Max is 100% (10000)
+    with boa.reverts("invalid performance fee"):
+        vault_registry.setPerformanceFee(
+            undy_usd_vault.address,
+            100_01,  # 100.01%
+            sender=switchboard_alpha.address
+        )
+
+    # 100% should work
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        100_00,  # 100%
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 100_00
+
+
+def test_set_performance_fee_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that setPerformanceFee emits event"""
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        25_00,  # 25%
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "PerformanceFeeSet")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.performanceFee == 25_00
+
+
+def test_is_valid_performance_fee_view(vault_registry):
+    """Test isValidPerformanceFee view function"""
+    # Valid fees
+    assert vault_registry.isValidPerformanceFee(0) == True  # 0%
+    assert vault_registry.isValidPerformanceFee(50_00) == True  # 50%
+    assert vault_registry.isValidPerformanceFee(100_00) == True  # 100%
+
+    # Invalid fees (> 100%)
+    assert vault_registry.isValidPerformanceFee(100_01) == False  # 100.01%
+    assert vault_registry.isValidPerformanceFee(200_00) == False  # 200%
+
+
+def test_get_performance_fee_view(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getPerformanceFee view returns correct value"""
+    # Set fee to 20%
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        20_00,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify view returns correct value
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 20_00
+
+    # Change to 30%
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        30_00,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 30_00
+
+
+def test_set_min_yield_withdraw_amount(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setting minYieldWithdrawAmount"""
+    # Initially set to 10000 in fixtures
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == 10000
+
+    # Set to 5000
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        5000,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == 5000
+
+    # Set to 0
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        0,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == 0
+
+    # Set to large value
+    large_amount = 1_000_000 * EIGHTEEN_DECIMALS
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        large_amount,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == large_amount
+
+
+def test_set_min_yield_withdraw_amount_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot set minYieldWithdrawAmount"""
+    with boa.reverts("no perms"):
+        vault_registry.setMinYieldWithdrawAmount(
+            undy_usd_vault.address,
+            5000,
+            sender=bob
+        )
+
+
+def test_set_min_yield_withdraw_amount_invalid_vault_fails(vault_registry, switchboard_alpha):
+    """Test that setting minYieldWithdrawAmount for invalid vault fails"""
+    random_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setMinYieldWithdrawAmount(
+            random_vault,
+            5000,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_min_yield_withdraw_amount_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that setMinYieldWithdrawAmount emits event"""
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        7500,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "MinYieldWithdrawAmountSet")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.amount == 7500
+
+
+def test_min_yield_withdraw_amount_view(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test minYieldWithdrawAmount view returns correct value"""
+    # Set to specific value
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        12345,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify view returns correct value
+    assert vault_registry.minYieldWithdrawAmount(undy_usd_vault.address) == 12345
+
+
+def test_redemption_config_view(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test redemptionConfig view returns correct tuple"""
+    # Set redemption buffer to 300 (3%)
+    vault_registry.setRedemptionBuffer(
+        undy_usd_vault.address,
+        300,
+        sender=switchboard_alpha.address
+    )
+
+    # Set minYieldWithdrawAmount to 8000
+    vault_registry.setMinYieldWithdrawAmount(
+        undy_usd_vault.address,
+        8000,
+        sender=switchboard_alpha.address
+    )
+
+    # Get redemption config tuple
+    buffer, min_yield = vault_registry.redemptionConfig(undy_usd_vault.address)
+
+    # Verify both values
+    assert buffer == 300
+    assert min_yield == 8000
+
+    # Verify matches individual view functions
+    assert buffer == vault_registry.redemptionBuffer(undy_usd_vault.address)
+    assert min_yield == vault_registry.minYieldWithdrawAmount(undy_usd_vault.address)
+
+
+def test_is_valid_redemption_buffer_view(vault_registry):
+    """Test isValidRedemptionBuffer view function"""
+    # Valid buffers (0-10%)
+    assert vault_registry.isValidRedemptionBuffer(0) == True  # 0%
+    assert vault_registry.isValidRedemptionBuffer(5_00) == True  # 5%
+    assert vault_registry.isValidRedemptionBuffer(10_00) == True  # 10%
+
+    # Invalid buffers (> 10%)
+    assert vault_registry.isValidRedemptionBuffer(10_01) == False  # 10.01%
+    assert vault_registry.isValidRedemptionBuffer(20_00) == False  # 20%
+
+
+def test_multiple_vaults_different_performance_fees(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test that different vaults have independent performance fees"""
+    # Create two vaults
+    vault_1 = deploy_test_vault()
+    vault_2 = deploy_test_vault()
+
+    # Register both vaults
+    for vault in [vault_1, vault_2]:
+        vault_registry.startAddNewAddressToRegistry(
+            vault.address,
+            f"Test Vault {vault.address}",
+            sender=governance.address
+        )
+
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm both with default fees
+    for vault in [vault_1, vault_2]:
+        vault_registry.confirmNewAddressToRegistry(
+            vault.address,
+            sender=governance.address
+        )
+
+    # Set vault 1 to 10% fee
+    vault_registry.setPerformanceFee(
+        vault_1.address,
+        10_00,
+        sender=switchboard_alpha.address
+    )
+
+    # Set vault 2 to 25% fee
+    vault_registry.setPerformanceFee(
+        vault_2.address,
+        25_00,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify independence
+    assert vault_registry.getPerformanceFee(vault_1.address) == 10_00
+    assert vault_registry.getPerformanceFee(vault_2.address) == 25_00
+
+    # Change vault 1 fee
+    vault_registry.setPerformanceFee(
+        vault_1.address,
+        15_00,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify vault 2 unchanged
+    assert vault_registry.getPerformanceFee(vault_1.address) == 15_00
+    assert vault_registry.getPerformanceFee(vault_2.address) == 25_00
+
+
+def test_multiple_vaults_different_min_yield_amounts(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test that different vaults have independent minYieldWithdrawAmount"""
+    # Create two vaults
+    vault_1 = deploy_test_vault()
+    vault_2 = deploy_test_vault()
+
+    # Register both vaults
+    for vault in [vault_1, vault_2]:
+        vault_registry.startAddNewAddressToRegistry(
+            vault.address,
+            f"Test Vault {vault.address}",
+            sender=governance.address
+        )
+
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm both
+    for vault in [vault_1, vault_2]:
+        vault_registry.confirmNewAddressToRegistry(
+            vault.address,
+            sender=governance.address
+        )
+
+    # Set vault 1 to 5000
+    vault_registry.setMinYieldWithdrawAmount(
+        vault_1.address,
+        5000,
+        sender=switchboard_alpha.address
+    )
+
+    # Set vault 2 to 15000
+    vault_registry.setMinYieldWithdrawAmount(
+        vault_2.address,
+        15000,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify independence
+    assert vault_registry.minYieldWithdrawAmount(vault_1.address) == 5000
+    assert vault_registry.minYieldWithdrawAmount(vault_2.address) == 15000
+
+    # Change vault 1
+    vault_registry.setMinYieldWithdrawAmount(
+        vault_1.address,
+        8000,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify vault 2 unchanged
+    assert vault_registry.minYieldWithdrawAmount(vault_1.address) == 8000
+    assert vault_registry.minYieldWithdrawAmount(vault_2.address) == 15000
 
 
 def test_set_snapshot_price_config(vault_registry, undy_usd_vault, switchboard_alpha):
@@ -685,20 +987,6 @@ def test_set_approved_vault_token_zero_address_fails(vault_registry, undy_usd_va
         )
 
 
-def test_set_approved_vault_token_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha, yield_vault_token):
-    """Test that setting same approval state reverts"""
-    # yield_vault_token is already approved in fixtures
-    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
-
-    with boa.reverts("nothing to change"):
-        vault_registry.setApprovedVaultToken(
-            undy_usd_vault.address,
-            yield_vault_token.address,
-            True,
-            sender=switchboard_alpha.address
-        )
-
-
 def test_set_approved_vault_token_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test that setApprovedVaultToken emits event"""
     new_vault_token = boa.env.generate_address()
@@ -719,434 +1007,20 @@ def test_set_approved_vault_token_emits_event(vault_registry, undy_usd_vault, sw
     assert latest_event.isApproved == True
 
 
-def test_set_approved_yield_lego(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test approving and disapproving yield legos"""
-    # Lego ID 5 not approved initially
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 5) == False
-
-    # Approve
-    vault_registry.setApprovedYieldLego(
-        undy_usd_vault.address,
-        5,
-        True,
-        sender=switchboard_alpha.address
-    )
-
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 5) == True
-
-    # Disapprove
-    vault_registry.setApprovedYieldLego(
-        undy_usd_vault.address,
-        5,
-        False,
-        sender=switchboard_alpha.address
-    )
-
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 5) == False
-
-
-def test_set_approved_yield_lego_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
-    """Test that non-switchboard cannot approve yield legos"""
-    with boa.reverts("no perms"):
-        vault_registry.setApprovedYieldLego(
-            undy_usd_vault.address,
-            5,
-            True,
-            sender=bob
-        )
-
-
-def test_set_approved_yield_lego_zero_id_fails(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that lego ID 0 cannot be approved"""
-    with boa.reverts("invalid lego id"):
-        vault_registry.setApprovedYieldLego(
-            undy_usd_vault.address,
-            0,
-            True,
-            sender=switchboard_alpha.address
-        )
-
-
-def test_set_approved_yield_lego_no_change_reverts(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setting same approval state reverts"""
-    # Lego ID 1 is already approved in fixtures
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1) == True
-
-    with boa.reverts("nothing to change"):
-        vault_registry.setApprovedYieldLego(
-            undy_usd_vault.address,
-            1,
-            True,
-            sender=switchboard_alpha.address
-        )
-
-
-def test_set_approved_yield_lego_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setApprovedYieldLego emits event"""
-    vault_registry.setApprovedYieldLego(
-        undy_usd_vault.address,
-        5,
-        True,
-        sender=switchboard_alpha.address
-    )
-
-    events = filter_logs(vault_registry, "ApprovedYieldLegoSet")
-    assert len(events) > 0
-
-    latest_event = events[-1]
-    assert latest_event.vaultAddr == undy_usd_vault.address
-    assert latest_event.legoId == 5
-    assert latest_event.isApproved == True
-
-
 def test_check_vault_approvals(vault_registry, undy_usd_vault, yield_vault_token, switchboard_alpha):
-    """Test checkVaultApprovals combined check"""
-    # Both approved (from fixtures)
+    """Test checkVaultApprovals checks vault token approval"""
+    # Approved vault token (from fixtures)
     assert vault_registry.checkVaultApprovals(
         undy_usd_vault.address,
-        1,  # Approved lego
-        yield_vault_token.address  # Approved vault token
+        yield_vault_token.address
     ) == True
 
-    # Approved lego, unapproved vault token
+    # Unapproved vault token
     new_vault_token = boa.env.generate_address()
     assert vault_registry.checkVaultApprovals(
         undy_usd_vault.address,
-        1,  # Approved lego
-        new_vault_token  # Not approved vault token
+        new_vault_token
     ) == False
-
-    # Unapproved lego, approved vault token
-    assert vault_registry.checkVaultApprovals(
-        undy_usd_vault.address,
-        99,  # Not approved lego
-        yield_vault_token.address  # Approved vault token
-    ) == False
-
-    # Both unapproved
-    assert vault_registry.checkVaultApprovals(
-        undy_usd_vault.address,
-        99,  # Not approved lego
-        new_vault_token  # Not approved vault token
-    ) == False
-
-
-def test_initialize_vault_config_basic(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test initializing vault config for a new vault"""
-    # Deploy a real vault contract
-    new_vault = deploy_test_vault()
-
-    # First register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Create vault tokens to approve
-    vault_token_1 = boa.env.generate_address()
-    vault_token_2 = boa.env.generate_address()
-
-    # Initialize vault config
-    # Snapshot config: (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation, staleTime)
-    snap_config = (300, 20, 1000, 259200)
-
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,  # canDeposit
-        True,  # canWithdraw
-        1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
-        300,  # redemptionBuffer (3%)
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [vault_token_1, vault_token_2],  # approvedVaultTokens
-        [1, 2],  # approvedYieldLegos
-        sender=switchboard_alpha.address
-    )
-
-    # Verify config was set
-    config = vault_registry.getVaultConfigByAddr(new_vault.address)
-    assert config.canDeposit == True
-    assert config.canWithdraw == True
-    assert config.maxDepositAmount == 1_000_000 * EIGHTEEN_DECIMALS
-    assert config.redemptionBuffer == 300
-    assert config.isVaultOpsFrozen == False
-
-    # Verify snapshot config
-    assert config.snapShotPriceConfig.minSnapshotDelay == 300
-    assert config.snapShotPriceConfig.maxNumSnapshots == 20
-
-    # Verify approvals
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_1) == True
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_2) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 1) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 2) == True
-
-
-def test_initialize_vault_config_non_switchboard_fails(vault_registry, bob, deploy_test_vault):
-    """Test that non-switchboard cannot initialize vault config"""
-    new_vault = deploy_test_vault()
-
-    snap_config = (300, 20, 1000, 259200)
-
-    with boa.reverts("no perms"):
-        vault_registry.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            200,
-            0,  # minYieldWithdrawAmount
-            snap_config,
-            [],
-            [],
-            sender=bob
-        )
-
-
-def test_initialize_vault_config_invalid_vault_addr(vault_registry, switchboard_alpha):
-    """Test that unregistered vault cannot be initialized"""
-    random_vault = boa.env.generate_address()
-
-    snap_config = (300, 20, 1000, 259200)
-
-    with boa.reverts("invalid vault addr"):
-        vault_registry.initializeVaultConfig(
-            random_vault,
-            True,
-            True,
-            0,
-            200,
-            0,  # minYieldWithdrawAmount
-            snap_config,
-            [],
-            [],
-            sender=switchboard_alpha.address
-        )
-
-
-def test_initialize_vault_config_invalid_price_config(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that invalid price config is rejected"""
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Invalid config: maxNumSnapshots = 0
-    invalid_snap_config = (300, 0, 1000, 259200)
-
-    with boa.reverts("invalid price config"):
-        vault_registry.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            200,
-            0,  # minYieldWithdrawAmount
-            invalid_snap_config,
-            [],
-            [],
-            sender=switchboard_alpha.address
-        )
-
-
-def test_initialize_vault_config_buffer_too_high(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that buffer > 10% is rejected"""
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    snap_config = (300, 20, 1000, 259200)
-
-    with boa.reverts("buffer too high (max 10%)"):
-        vault_registry.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            1001,  # 10.01%
-            0,  # minYieldWithdrawAmount
-            snap_config,
-            [],
-            [],
-            sender=switchboard_alpha.address
-        )
-
-
-def test_initialize_vault_config_skips_empty_vault_tokens(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that empty addresses in vault tokens are skipped"""
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    vault_token_1 = boa.env.generate_address()
-
-    snap_config = (300, 20, 1000, 259200)
-
-    # Include ZERO_ADDRESS in the list
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        True,
-        0,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [vault_token_1, ZERO_ADDRESS],  # Should skip empty address
-        [],
-        sender=switchboard_alpha.address
-    )
-
-    # Only vault_token_1 should be approved
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_1) == True
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, ZERO_ADDRESS) == False
-
-
-def test_initialize_vault_config_skips_zero_lego_ids(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that lego ID 0 in list is skipped"""
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    snap_config = (300, 20, 1000, 259200)
-
-    # Include 0 in the lego IDs
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        True,
-        0,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [],
-        [1, 0, 2],  # Should skip 0
-        sender=switchboard_alpha.address
-    )
-
-    # Only 1 and 2 should be approved
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 1) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 2) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 0) == False
-
-
-def test_initialize_vault_config_emits_all_events(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that initializeVaultConfig emits all required events"""
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    vault_token_1 = boa.env.generate_address()
-
-    snap_config = (300, 20, 1000, 259200)
-
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        True,
-        1_000_000 * EIGHTEEN_DECIMALS,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [vault_token_1],
-        [1],
-        sender=switchboard_alpha.address
-    )
-
-    # Should have VaultConfigSet event
-    config_events = filter_logs(vault_registry, "VaultConfigSet")
-    assert len(config_events) > 0
-    assert config_events[-1].vaultAddr == new_vault.address
-
-    # Should have RedemptionBufferSet event
-    buffer_events = filter_logs(vault_registry, "RedemptionBufferSet")
-    assert len(buffer_events) > 0
-    assert buffer_events[-1].vaultAddr == new_vault.address
-
-    # Should have SnapShotPriceConfigSet event
-    snapshot_events = filter_logs(vault_registry, "SnapShotPriceConfigSet")
-    assert len(snapshot_events) > 0
-    assert snapshot_events[-1].vaultAddr == new_vault.address
-
-    # Should have ApprovedVaultTokenSet event
-    token_events = filter_logs(vault_registry, "ApprovedVaultTokenSet")
-    assert len(token_events) > 0
-
-    # Should have ApprovedYieldLegoSet event
-    lego_events = filter_logs(vault_registry, "ApprovedYieldLegoSet")
-    assert len(lego_events) > 0
 
 
 def test_get_vault_config_by_reg_id(vault_registry, undy_usd_vault):
@@ -1175,60 +1049,72 @@ def test_get_vault_config_by_addr(vault_registry, undy_usd_vault):
     assert config.snapShotPriceConfig.maxNumSnapshots == 20
 
 
-def test_multiple_vaults_independent_configs(vault_registry, governance, switchboard_alpha, deploy_test_vault):
+def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_test_vault):
     """Test that different vaults have independent configurations"""
     # Create two new vaults
     vault_1 = deploy_test_vault()
     vault_2 = deploy_test_vault()
 
-    # Register both
-    for vault in [vault_1, vault_2]:
-        vault_registry.startAddNewAddressToRegistry(
-            vault.address,
-            f"Vault {vault.address}",
-            sender=governance.address
-        )
+    vault_token_1 = boa.env.generate_address()
+    vault_token_2 = boa.env.generate_address()
+
+    # Register vault 1
+    vault_registry.startAddNewAddressToRegistry(
+        vault_1.address,
+        f"Vault {vault_1.address}",
+        sender=governance.address
+    )
 
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
 
-    for vault in [vault_1, vault_2]:
-        vault_registry.confirmNewAddressToRegistry(
-            vault.address,
-            sender=governance.address
-        )
-
-    # Initialize with different configs
-    snap_config_1 = (300, 20, 1000, 259200)
-    snap_config_2 = (600, 15, 500, 86400)
-
-    vault_token_1 = boa.env.generate_address()
-    vault_token_2 = boa.env.generate_address()
-
-    vault_registry.initializeVaultConfig(
+    # Confirm and initialize vault 1 with custom config
+    vault_registry.confirmNewAddressToRegistry(
         vault_1.address,
+        [vault_token_1],  # approvedVaultTokens
+        500_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
+        10000,  # minYieldWithdrawAmount
+        20_00,  # performanceFee (20%)
+        vault_token_1,  # defaultTargetVaultToken
+        True,  # shouldAutoDeposit
         True,  # canDeposit
         False,  # canWithdraw
-        500_000 * EIGHTEEN_DECIMALS,
-        100,  # 1% buffer
-        0,  # minYieldWithdrawAmount
-        snap_config_1,
-        [vault_token_1],
-        [1],
-        sender=switchboard_alpha.address
+        False,  # isVaultOpsFrozen
+        100,  # redemptionBuffer (1%)
+        300,  # minSnapshotDelay
+        20,  # maxNumSnapshots
+        1000,  # maxUpsideDeviation (10%)
+        259200,  # staleTime (3 days)
+        sender=governance.address
     )
 
-    vault_registry.initializeVaultConfig(
+    # Register vault 2
+    vault_registry.startAddNewAddressToRegistry(
         vault_2.address,
+        f"Vault {vault_2.address}",
+        sender=governance.address
+    )
+
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm and initialize vault 2 with different config
+    vault_registry.confirmNewAddressToRegistry(
+        vault_2.address,
+        [vault_token_2],  # approvedVaultTokens
+        1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
+        20000,  # minYieldWithdrawAmount
+        15_00,  # performanceFee (15%)
+        ZERO_ADDRESS,  # defaultTargetVaultToken (none)
+        False,  # shouldAutoDeposit
         False,  # canDeposit
         True,  # canWithdraw
-        1_000_000 * EIGHTEEN_DECIMALS,
-        500,  # 5% buffer
-        0,  # minYieldWithdrawAmount
-        snap_config_2,
-        [vault_token_2],
-        [2],
-        sender=switchboard_alpha.address
+        False,  # isVaultOpsFrozen
+        500,  # redemptionBuffer (5%)
+        600,  # minSnapshotDelay
+        15,  # maxNumSnapshots
+        500,  # maxUpsideDeviation (5%)
+        86400,  # staleTime (1 day)
+        sender=governance.address
     )
 
     # Verify vault 1 config
@@ -1239,7 +1125,6 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, switchb
     assert config_1.redemptionBuffer == 100
     assert config_1.snapShotPriceConfig.minSnapshotDelay == 300
     assert vault_registry.isApprovedVaultTokenByAddr(vault_1.address, vault_token_1) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(vault_1.address, 1) == True
 
     # Verify vault 2 config
     config_2 = vault_registry.getVaultConfigByAddr(vault_2.address)
@@ -1249,13 +1134,10 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, switchb
     assert config_2.redemptionBuffer == 500
     assert config_2.snapShotPriceConfig.minSnapshotDelay == 600
     assert vault_registry.isApprovedVaultTokenByAddr(vault_2.address, vault_token_2) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(vault_2.address, 2) == True
 
     # Verify isolation - vault 1 approvals don't affect vault 2
     assert vault_registry.isApprovedVaultTokenByAddr(vault_1.address, vault_token_2) == False
     assert vault_registry.isApprovedVaultTokenByAddr(vault_2.address, vault_token_1) == False
-    assert vault_registry.isApprovedYieldLegoByAddr(vault_1.address, 2) == False
-    assert vault_registry.isApprovedYieldLegoByAddr(vault_2.address, 1) == False
 
 
 def test_pause_department(vault_registry, switchboard_alpha):
@@ -1334,14 +1216,14 @@ def test_pause_blocks_registry_operations(vault_registry, governance, switchboar
 
 
 def test_set_can_withdraw_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setCanWithdraw emits VaultConfigSet event"""
+    """Test that setCanWithdraw emits CanWithdrawSet event"""
     vault_registry.setCanWithdraw(
         undy_usd_vault.address,
         False,
         sender=switchboard_alpha.address
     )
 
-    events = filter_logs(vault_registry, "VaultConfigSet")
+    events = filter_logs(vault_registry, "CanWithdrawSet")
     assert len(events) > 0
 
     latest_event = events[-1]
@@ -1350,7 +1232,7 @@ def test_set_can_withdraw_emits_event(vault_registry, undy_usd_vault, switchboar
 
 
 def test_set_max_deposit_amount_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setMaxDepositAmount emits VaultConfigSet event"""
+    """Test that setMaxDepositAmount emits MaxDepositAmountSet event"""
     new_max = 5_000_000 * EIGHTEEN_DECIMALS
 
     vault_registry.setMaxDepositAmount(
@@ -1359,203 +1241,12 @@ def test_set_max_deposit_amount_emits_event(vault_registry, undy_usd_vault, swit
         sender=switchboard_alpha.address
     )
 
-    events = filter_logs(vault_registry, "VaultConfigSet")
+    events = filter_logs(vault_registry, "MaxDepositAmountSet")
     assert len(events) > 0
 
     latest_event = events[-1]
     assert latest_event.vaultAddr == undy_usd_vault.address
     assert latest_event.maxDepositAmount == new_max
-
-
-def test_vault_config_set_event_all_fields(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that VaultConfigSet event contains all expected fields"""
-    # Change canDeposit to trigger event
-    vault_registry.setCanDeposit(
-        undy_usd_vault.address,
-        False,
-        sender=switchboard_alpha.address
-    )
-
-    events = filter_logs(vault_registry, "VaultConfigSet")
-    assert len(events) > 0
-
-    latest_event = events[-1]
-    # Verify all fields are present
-    assert hasattr(latest_event, 'vaultAddr')
-    assert hasattr(latest_event, 'canDeposit')
-    assert hasattr(latest_event, 'canWithdraw')
-    assert hasattr(latest_event, 'maxDepositAmount')
-
-    # Verify field values
-    assert latest_event.vaultAddr == undy_usd_vault.address
-    assert latest_event.canDeposit == False
-    assert latest_event.canWithdraw == True  # unchanged
-    assert latest_event.maxDepositAmount == 0  # unchanged from fixture
-
-
-def test_initialize_vault_config_pending_vault(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test initializing vault config for a vault in pending state (not yet confirmed)"""
-    new_vault = deploy_test_vault()
-
-    # Start registration but DON'T confirm yet
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "Pending Vault",
-        sender=governance.address
-    )
-
-    # Verify it's pending
-    pending = vault_registry.pendingNewAddr(new_vault.address)
-    assert pending.confirmBlock > 0
-
-    # Should be able to initialize config even when pending
-    snap_config = (300, 20, 1000, 259200)
-    vault_token = boa.env.generate_address()
-
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        True,
-        1_000_000 * EIGHTEEN_DECIMALS,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [vault_token],
-        [1],
-        sender=switchboard_alpha.address
-    )
-
-    # Verify config was set
-    config = vault_registry.getVaultConfigByAddr(new_vault.address)
-    assert config.canDeposit == True
-    assert config.maxDepositAmount == 1_000_000 * EIGHTEEN_DECIMALS
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token) == True
-
-
-def test_initialize_vault_config_overwrite(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test that re-initializing an already initialized vault overwrites the config"""
-    new_vault = deploy_test_vault()
-
-    # Register vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Initialize with first config
-    snap_config_1 = (300, 20, 1000, 259200)
-    vault_token_1 = boa.env.generate_address()
-
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        False,
-        500_000 * EIGHTEEN_DECIMALS,
-        100,
-        0,  # minYieldWithdrawAmount
-        snap_config_1,
-        [vault_token_1],
-        [1],
-        sender=switchboard_alpha.address
-    )
-
-    # Verify first config
-    config_1 = vault_registry.getVaultConfigByAddr(new_vault.address)
-    assert config_1.canDeposit == True
-    assert config_1.canWithdraw == False
-    assert config_1.maxDepositAmount == 500_000 * EIGHTEEN_DECIMALS
-    assert config_1.redemptionBuffer == 100
-
-    # Re-initialize with different config (should overwrite)
-    snap_config_2 = (600, 15, 500, 86400)
-    vault_token_2 = boa.env.generate_address()
-
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        False,
-        True,
-        2_000_000 * EIGHTEEN_DECIMALS,
-        500,
-        0,  # minYieldWithdrawAmount
-        snap_config_2,
-        [vault_token_2],
-        [2],
-        sender=switchboard_alpha.address
-    )
-
-    # Verify config was overwritten
-    config_2 = vault_registry.getVaultConfigByAddr(new_vault.address)
-    assert config_2.canDeposit == False  # Changed
-    assert config_2.canWithdraw == True  # Changed
-    assert config_2.maxDepositAmount == 2_000_000 * EIGHTEEN_DECIMALS  # Changed
-    assert config_2.redemptionBuffer == 500  # Changed
-    assert config_2.snapShotPriceConfig.minSnapshotDelay == 600  # Changed
-
-    # Old approvals should still exist (not cleared)
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_1) == True
-    # New approvals should be added
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_2) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 1) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 2) == True
-
-
-def test_initialize_vault_config_max_arrays(vault_registry, governance, switchboard_alpha, deploy_test_vault):
-    """Test initializing vault config with maximum DynArray sizes (25 tokens, 25 legos)"""
-    new_vault = deploy_test_vault()
-
-    # Register vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "Max Arrays Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Create 25 vault tokens (max DynArray size)
-    vault_tokens = [boa.env.generate_address() for _ in range(25)]
-
-    # Create 25 lego IDs (max DynArray size)
-    lego_ids = list(range(1, 26))  # IDs 1-25
-
-    snap_config = (300, 20, 1000, 259200)
-
-    # Should succeed with max arrays
-    vault_registry.initializeVaultConfig(
-        new_vault.address,
-        True,
-        True,
-        1_000_000 * EIGHTEEN_DECIMALS,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        vault_tokens,
-        lego_ids,
-        sender=switchboard_alpha.address
-    )
-
-    # Verify all tokens were approved
-    for token in vault_tokens:
-        assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, token) == True
-
-    # Verify all legos were approved
-    for lego_id in lego_ids:
-        assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, lego_id) == True
 
 
 def test_registry_change_timelock_view(vault_registry):

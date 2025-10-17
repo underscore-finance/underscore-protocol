@@ -14,8 +14,8 @@ from ethereum.ercs import IERC20Detailed
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
     def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig): view
-    def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
     def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
+    def checkVaultApprovals(_vaultAddr: address, _vaultToken: address) -> bool: view
     def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address): view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
@@ -194,7 +194,7 @@ def _depositForYield(
     # update yield position
     if _asset == VAULT_ASSET:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
-        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
+        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: lego or vault token not approved
         self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
         currentUnderlying += assetAmount
 
