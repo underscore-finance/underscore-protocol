@@ -126,12 +126,12 @@ def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256
 def maxDeposit(_receiver: address) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
 
-    # get all deposit config in a single call
+    # deposit config
     canDeposit: bool = False
     maxDepositAmount: uint256 = 0
-    shouldAutoDeposit: bool = False
-    defaultTargetVaultToken: address = empty(address)
-    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+    na1: bool = False
+    na2: address = empty(address)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
 
     if not canDeposit:
         return 0
@@ -182,12 +182,12 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 def maxMint(_receiver: address) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
 
-    # get all deposit config in a single call
+    # deposit config
     canDeposit: bool = False
     maxDepositAmount: uint256 = 0
-    shouldAutoDeposit: bool = False
-    defaultTargetVaultToken: address = empty(address)
-    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+    na1: bool = False
+    na2: address = empty(address)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
 
     if not canDeposit:
         return 0
@@ -255,6 +255,7 @@ def _deposit(
     if maxDepositAmount != 0:
         assert _totalAssets + _amount <= maxDepositAmount # dev: exceeds max deposit
 
+    # transfer assets to vault
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed
 
     # put the deposit to work -- start earning

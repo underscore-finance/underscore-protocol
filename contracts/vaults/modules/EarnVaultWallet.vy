@@ -12,16 +12,14 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
+    def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
+    def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig): view
     def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
     def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
-    def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
     def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address): view
-    def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig): view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
-    def getLegoAddrFromVaultToken(_vaultToken: address) -> address: view
     def getPerformanceFee(_vaultAddr: address) -> uint256: view
-    def isVaultOpsFrozen(_vaultAddr: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -291,9 +289,10 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
 
     # important checks!
-    assert tokenIn != VAULT_ASSET # dev: cannot swap out of vault asset
+    vaultAsset: address = VAULT_ASSET
+    assert tokenIn != vaultAsset # dev: cannot swap out of vault asset
     assert self.assetData[tokenIn].legoId == 0 # dev: cannot swap out of vault token
-    assert tokenOut == VAULT_ASSET # dev: must swap into vault asset
+    assert tokenOut == vaultAsset # dev: must swap into vault asset
 
     # action data bundle
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
@@ -833,10 +832,9 @@ def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig
 @external
 def addPriceSnapshot(_vaultToken: address) -> bool:
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    vaultRegistry: address = self._getVaultRegistry()
     legoAddr: address = empty(address)
     config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
-    legoAddr, config = staticcall VaultRegistry(vaultRegistry).getLegoAndSnapshotConfig(_vaultToken, self)
+    legoAddr, config = staticcall VaultRegistry(self._getVaultRegistry()).getLegoAndSnapshotConfig(_vaultToken, self)
     if legoAddr == empty(address):
         return False
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
@@ -887,10 +885,9 @@ def _addPriceSnapshot(
 @view
 @external
 def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
-    vaultRegistry: address = self._getVaultRegistry()
     legoAddr: address = empty(address)
     config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
-    legoAddr, config = staticcall VaultRegistry(vaultRegistry).getLegoAndSnapshotConfig(_vaultToken, self)
+    legoAddr, config = staticcall VaultRegistry(self._getVaultRegistry()).getLegoAndSnapshotConfig(_vaultToken, self)
     if legoAddr == empty(address):
         return empty(SingleSnapShot)
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
@@ -944,13 +941,13 @@ def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256
 @internal
 def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
     assert self.indexOfManager[_signer] != 0 # dev: not manager
-    vaultRegistry: address = self._getVaultRegistry()
 
     # main data for this transaction - get action data and frozen status in single call
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
+    vaultRegistry: address = self._getVaultRegistry()
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
