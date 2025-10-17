@@ -4,7 +4,7 @@ import boa
 from constants import EIGHTEEN_DECIMALS, MAX_UINT256
 
 
-###########
+############
 # Fixtures #
 ############
 
@@ -69,9 +69,9 @@ def verify_auto_deposit_executed():
     yield _verify
 
 
-######################################
+###################################
 # 1. Basic Auto-Deposit Tests (5) #
-######################################
+###################################
 
 
 def test_auto_deposit_with_default_target_set(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
@@ -301,9 +301,9 @@ def test_config_persists_across_deposits(undy_usd_vault, yield_underlying_token,
     assert new_vault_token_bal > initial_vault_token_bal
 
 
-###############################################
+##########################################
 # 3. MaxBalVaultToken Fallback Logic (6) #
-###############################################
+##########################################
 
 
 def test_zero_default_with_single_position(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, vault_registry, switchboard_alpha, setup_multiple_yield_positions):
@@ -434,9 +434,9 @@ def test_zero_default_equal_balances(undy_usd_vault, yield_underlying_token, yie
     assert shares > 0
 
 
-##############################################
+#######################################
 # 4. State & Balance Verification (7) #
-##############################################
+#######################################
 
 
 def test_auto_deposit_on_minimal_idle_balance(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
@@ -547,9 +547,9 @@ def test_pending_yield_not_affected_by_auto_deposit(undy_usd_vault, yield_underl
     assert pending_after == pending_before
 
 
-#######################################
+################################
 # 5. Integration Scenarios (8) #
-#######################################
+################################
 
 
 def test_auto_deposit_with_yield_and_fees(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, governance, vault_registry, switchboard_alpha, setup_auto_deposit_config):
@@ -734,9 +734,9 @@ def test_auto_deposit_with_existing_pending_fees(undy_usd_vault, yield_underlyin
     assert abs(pending_fees_after - pending_fees_before) < 100  # Allow small variance
 
 
-###########################################
+#################################
 # 6. Edge Cases & Precision (4) #
-###########################################
+#################################
 
 
 def test_very_small_deposit_with_auto_deposit(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
@@ -809,9 +809,9 @@ def test_auto_deposit_multiple_times_precision_accumulation(undy_usd_vault, yiel
     assert abs(increase - total_deposited) < total_deposited // 100
 
 
-###################################
+##########################
 # 7. Error Scenarios (5) #
-###################################
+##########################
 
 
 def test_auto_deposit_cannot_set_if_not_switchboard(undy_usd_vault, vault_registry, bob):
@@ -870,3 +870,117 @@ def test_set_invalid_vault_address_fails(vault_registry, switchboard_alpha, bob)
 
     with boa.reverts():
         vault_registry.setShouldAutoDeposit(invalid_vault_addr, True, sender=switchboard_alpha.address)
+
+
+##############################
+# 8. Dust Sweeping Tests (3) #
+##############################
+
+
+def test_auto_deposit_sweeps_idle_dust(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
+    """Test that auto-deposit sweeps up idle dust sitting in vault from previous operations"""
+    # Setup auto-deposit
+    setup_auto_deposit_config(undy_usd_vault, yield_vault_token)
+
+    # Create some dust by transferring directly to vault (simulating withdrawal leftover)
+    dust_amount = 50 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, dust_amount, sender=yield_underlying_token_whale)
+
+    # Verify dust is sitting idle
+    idle_before = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert idle_before == dust_amount
+
+    # Get initial vault token balance
+    initial_vault_token_bal = yield_vault_token.balanceOf(undy_usd_vault.address)
+
+    # User deposit - should sweep both the deposit AND the dust
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
+    undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Verify idle balance is now minimal (both deposit and dust were swept)
+    idle_after = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert idle_after < 100  # Minimal dust
+
+    # Verify vault token balance increased by approximately deposit_amount + dust_amount
+    new_vault_token_bal = yield_vault_token.balanceOf(undy_usd_vault.address)
+    vault_token_increase = new_vault_token_bal - initial_vault_token_bal
+    total_expected = deposit_amount + dust_amount
+    assert abs(vault_token_increase - total_expected) < total_expected // 100  # Within 1%
+
+
+def test_auto_deposit_sweeps_withdrawal_dust(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, sally, starter_agent, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
+    """Test that auto-deposit sweeps dust left over from withdrawals that pulled out extra"""
+    # Setup auto-deposit
+    setup_auto_deposit_config(undy_usd_vault, yield_vault_token)
+
+    # User deposits
+    deposit_amount = 2000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # User redeems half, which might pull out more than needed due to buffer
+    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 5_00, sender=switchboard_alpha.address)  # 5% buffer
+    half_shares = shares // 2
+    undy_usd_vault.redeem(half_shares, bob, bob, sender=bob)
+
+    # Check if there's any dust sitting idle (from the redemption buffer)
+    idle_after_withdrawal = yield_underlying_token.balanceOf(undy_usd_vault.address)
+
+    # Get vault token balance before new deposit
+    vault_token_bal_before = yield_vault_token.balanceOf(undy_usd_vault.address)
+
+    # Another user deposits - should sweep any idle dust
+    new_deposit = 500 * EIGHTEEN_DECIMALS
+    undy_usd_vault.deposit(new_deposit, sally, sender=yield_underlying_token_whale)
+
+    # Verify idle balance is minimal
+    idle_after_deposit = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert idle_after_deposit < 100
+
+    # Verify vault token balance increased by new_deposit + any dust that was idle
+    vault_token_bal_after = yield_vault_token.balanceOf(undy_usd_vault.address)
+    increase = vault_token_bal_after - vault_token_bal_before
+    expected_increase = new_deposit + idle_after_withdrawal
+    assert abs(increase - expected_increase) < expected_increase // 100  # Within 1%
+
+
+def test_auto_deposit_sweeps_multiple_dust_accumulations(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, vault_registry, switchboard_alpha, setup_auto_deposit_config):
+    """Test that auto-deposit sweeps accumulated dust from multiple small transfers"""
+    # Setup auto-deposit
+    setup_auto_deposit_config(undy_usd_vault, yield_vault_token)
+
+    # Disable auto-deposit temporarily to accumulate dust
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
+    # Create multiple small deposits that will stay idle
+    dust_amounts = [10 * EIGHTEEN_DECIMALS, 25 * EIGHTEEN_DECIMALS, 15 * EIGHTEEN_DECIMALS]
+    total_dust = sum(dust_amounts)
+
+    yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
+    for dust in dust_amounts:
+        undy_usd_vault.deposit(dust, bob, sender=yield_underlying_token_whale)
+
+    # Verify dust accumulated
+    idle_dust = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert idle_dust >= total_dust
+
+    # Re-enable auto-deposit
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+
+    # Get initial vault token balance
+    initial_vault_token_bal = yield_vault_token.balanceOf(undy_usd_vault.address)
+
+    # New deposit should sweep all accumulated dust
+    new_deposit = 1000 * EIGHTEEN_DECIMALS
+    undy_usd_vault.deposit(new_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Verify all dust was swept
+    idle_after = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    assert idle_after < 100  # Minimal
+
+    # Verify vault token balance increased by new_deposit + total_dust
+    new_vault_token_bal = yield_vault_token.balanceOf(undy_usd_vault.address)
+    total_increase = new_vault_token_bal - initial_vault_token_bal
+    total_expected = new_deposit + idle_dust
+    assert abs(total_increase - total_expected) < total_expected // 100  # Within 1%

@@ -159,7 +159,6 @@ def depositForYield(
 @internal
 def _onReceiveVaultFunds(
     _vaultAddr: address,
-    _amount: uint256,
     _depositor: address,
     _vaultRegistry: address,
 ) -> uint256:
@@ -167,7 +166,7 @@ def _onReceiveVaultFunds(
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
-    return self._depositForYield(ad.legoId, VAULT_ASSET, _vaultAddr, _amount, empty(bytes32), 0, False, ad)[0]
+    return self._depositForYield(ad.legoId, VAULT_ASSET, _vaultAddr, max_value(uint256), empty(bytes32), 0, False, ad)[0]
 
 
 @internal

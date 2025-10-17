@@ -264,7 +264,7 @@ def _deposit(
         targetVaultToken: address = defaultTargetVaultToken
         if targetVaultToken == empty(address):
             targetVaultToken = _maxBalVaultToken
-        amountDeposited = vaultWallet._onReceiveVaultFunds(targetVaultToken, _amount, _recipient, _vaultRegistry)
+        amountDeposited = vaultWallet._onReceiveVaultFunds(targetVaultToken, _recipient, _vaultRegistry)
 
     # save data
     currentBalance: uint256 = _currentBalance + amountDeposited
