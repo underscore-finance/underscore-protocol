@@ -18,12 +18,8 @@ def prepareAssetForWalletTx(undy_usd_vault, bob, yield_underlying_token, yield_u
         # set price
         mock_ripe.setPrice(_asset, _price)
 
-        # transfer asset to user
-        _asset.transfer(_user, _amount, sender=_whale)
-
-        # deposit into earn vault
-        _asset.approve(_vault, MAX_UINT256, sender=_user)
-        _vault.deposit(_amount, _user, sender=_user)
+        # transfer asset directly to vault (not via deposit to avoid auto-deposit)
+        _asset.transfer(_vault, _amount, sender=_whale)
 
         return _amount
 
@@ -1303,199 +1299,185 @@ def test_vault_partial_withdrawals_no_deregistration(prepareAssetForWalletTx, un
 ##################################
 
 
-def test_vault_rebalance_yield_position_basic(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
-    """Test basic rebalancing from one vault to another"""
+########################################################
+# P0 Security Tests - Multi-Position Edge Cases  #
+########################################################
 
-    # Setup: deposit to first vault
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
-    deposit1 = prepareAssetForWalletTx(_amount=deposit_amount)
 
-    _, vault_token_1, vault_tokens_received_1, _ = undy_usd_vault.depositForYield(
+def test_deregister_position_that_is_default_target(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_vault_token, switchboard_alpha):
+    """Test deregistering the defaultTargetVaultToken for auto-deposit"""
+
+    # Setup: Create yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
         yield_vault_token.address,
-        deposit1,
+        deposit_amount,
         sender=starter_agent.address
     )
 
-    # Verify initial state
-    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens_received_1
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == 0
+    # Set this vault token as the default target for auto-deposit
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_vault_token.address, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+
+    # Verify it's set as default
+    config = vault_registry.getDepositConfig(undy_usd_vault.address)
+    assert config[3] == yield_vault_token.address  # defaultTargetVaultToken
+
+    # Now deregister it by withdrawing all
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # Verify deregistration
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+    # The default target remains set in registry (registry doesn't auto-clear on deregistration)
+    config = vault_registry.getDepositConfig(undy_usd_vault.address)
+    assert config[3] == yield_vault_token.address
+
+    # This creates a dangling reference: registry points to deregistered position
+    # Vault must handle this gracefully when auto-deposit attempts to use missing target
+
+
+def test_deregister_last_remaining_yield_position(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test removing the final yield position returns vault to base state"""
+
+    # Setup: Create single yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Verify we have a yield position
+    assert undy_usd_vault.numAssets() == 2  # base + yield vault token
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
-    assert undy_usd_vault.numAssets() == 2  # base + vault token 1
 
-    # Rebalance entire position to second vault
-    underlying_amount, to_vault_token, to_vault_tokens_received, max_usd_value = undy_usd_vault.rebalanceYieldPosition(
-        1,  # from lego ID
-        yield_vault_token.address,  # from vault
-        1,  # to lego ID (same lego)
-        yield_vault_token_2.address,  # to vault
-        vault_tokens_received_1,  # rebalance all
+    # Withdraw everything
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
         sender=starter_agent.address
     )
 
-    # Verify event
-    logs = filter_logs(undy_usd_vault, "EarnVaultAction")
-    assert len(logs) == 1
-    rebalance_log = logs[0]
-    assert rebalance_log.op == 12  # REBALANCE operation
-    assert rebalance_log.asset1 == yield_vault_token.address  # from vault
-    assert rebalance_log.asset2 == yield_vault_token_2.address  # to vault
-    assert rebalance_log.amount1 == vault_tokens_received_1  # amount rebalanced from
-    assert rebalance_log.amount2 == to_vault_tokens_received  # amount received in new vault
-    assert rebalance_log.legoId == 1
-    assert rebalance_log.signer == starter_agent.address
-
-    # Verify return values
-    assert underlying_amount == deposit_amount  # 1:1 exchange rate
-    assert to_vault_token == yield_vault_token_2.address
-    assert to_vault_tokens_received == deposit_amount  # 1:1 rate for mock vault
-
-    # Verify balances
-    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == to_vault_tokens_received
-
-    # Verify storage - vault 1 should be deregistered
+    # Verify we're back to base state (only base asset)
+    assert undy_usd_vault.numAssets() == 1
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
-    assert undy_usd_vault.numAssets() == 2  # base + vault token 2
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
 
-    # Verify storage - vault 2 should be registered
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 1
-    data2 = undy_usd_vault.assetData(yield_vault_token_2.address)
-    assert data2.legoId == 1
-    assert data2.avgPricePerShare > 0
+    # Underlying tokens should be back in vault
+    assert yield_underlying_token.balanceOf(undy_usd_vault) > 0
 
 
-def test_vault_rebalance_yield_position_partial(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
-    """Test partial rebalancing from one vault to another"""
+def test_max_number_of_positions_registration(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
+    """Test registering maximum number of vault token positions"""
 
-    # Setup: deposit to first vault
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
-    deposit1 = prepareAssetForWalletTx(_amount=deposit_amount)
+    # Register 4 different vault tokens (testing with 4, real limit may be higher)
+    vault_tokens_list = [yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4]
 
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
+    for i, vault_token in enumerate(vault_tokens_list):
+        deposit_amount = prepareAssetForWalletTx(_amount=(100 - i*10) * EIGHTEEN_DECIMALS)
+        _, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
+            1,
+            yield_underlying_token.address,
+            vault_token.address,
+            deposit_amount,
+            sender=starter_agent.address
+        )
+
+        # Verify each registration
+        expected_num_assets = 2 + i  # base + i vault tokens
+        assert undy_usd_vault.numAssets() == expected_num_assets
+        assert undy_usd_vault.indexOfAsset(vault_token.address) == i + 1
+
+    # Verify all are registered correctly
+    assert undy_usd_vault.numAssets() == 5  # base + 4 vault tokens
+
+    # Verify we can still operate with all positions
+    for i, vault_token in enumerate(vault_tokens_list):
+        balance = vault_token.balanceOf(undy_usd_vault)
+        assert balance > 0
+        asset_data = undy_usd_vault.assetData(vault_token.address)
+        assert asset_data.legoId == 1
+
+
+def test_withdrawal_from_position_with_zero_balance(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test withdrawal handling when position has zero balance"""
+
+    # Setup: Create yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
         yield_vault_token.address,
-        deposit1,
+        deposit_amount,
         sender=starter_agent.address
     )
 
-    # Rebalance half to second vault
-    rebalance_amount = vault_tokens_1 // 2
-    underlying_amount, to_vault_token, to_vault_tokens_received, _ = undy_usd_vault.rebalanceYieldPosition(
+    # Withdraw everything first
+    undy_usd_vault.withdrawFromYield(
         1,
         yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        rebalance_amount,
+        vault_tokens,
         sender=starter_agent.address
     )
 
-    # Verify amounts
-    assert underlying_amount == rebalance_amount  # 1:1 rate
-    assert to_vault_tokens_received == rebalance_amount  # 1:1 rate
-
-    # Verify balances - should have half in each vault
-    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens_1 - rebalance_amount
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == to_vault_tokens_received
-
-    # Verify both vaults are tracked in storage
-    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) > 0
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) > 0
-    assert undy_usd_vault.numAssets() == 3  # base + 2 vault tokens
-
-    # Verify asset data for both
-    data1 = undy_usd_vault.assetData(yield_vault_token.address)
-    assert data1.legoId == 1
-
-    data2 = undy_usd_vault.assetData(yield_vault_token_2.address)
-    assert data2.legoId == 1
-
-
-def test_vault_rebalance_yield_position_with_max_value(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
-    """Test rebalancing with max_value to move entire position"""
-
-    # Setup: deposit to first vault
-    deposit_amount = 75 * EIGHTEEN_DECIMALS
-    deposit1 = prepareAssetForWalletTx(_amount=deposit_amount)
-
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit1,
-        sender=starter_agent.address
-    )
-
-    # Rebalance with max_value
-    underlying_amount, to_vault_token, to_vault_tokens_received, _ = undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        MAX_UINT256,  # max value to rebalance all
-        sender=starter_agent.address
-    )
-
-    # Verify entire position moved
-    assert underlying_amount == deposit_amount
-    assert to_vault_tokens_received == deposit_amount  # 1:1 rate
-
-    # Verify vault 1 empty and deregistered
+    # Position should be deregistered
     assert yield_vault_token.balanceOf(undy_usd_vault) == 0
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
 
-    # Verify vault 2 has all tokens
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == to_vault_tokens_received
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) > 0
+    # Try to withdraw from empty position - should revert with "no balance for _token"
+    with boa.reverts("no balance for _token"):
+        undy_usd_vault.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            10 * EIGHTEEN_DECIMALS,
+            sender=starter_agent.address
+        )
 
 
-def test_vault_rebalance_yield_position_after_yield_accrual(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, governance):
-    """Test rebalancing after yield has accrued in the source vault"""
+def test_deposit_to_unapproved_vault_token_via_registry(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_vault_token, switchboard_alpha):
+    """Test that depositing to unapproved vault token fails"""
 
-    # Setup: deposit to first vault
-    deposit_amount = 100 * EIGHTEEN_DECIMALS
-    deposit1 = prepareAssetForWalletTx(_amount=deposit_amount)
-
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
+    # Disapprove the yield vault token
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
         yield_vault_token.address,
-        deposit1,
-        sender=starter_agent.address
+        False,  # Disapprove
+        sender=switchboard_alpha.address
     )
 
-    # Time travel to allow snapshot
-    boa.env.time_travel(seconds=301)  # 5 minutes + 1 second
+    # Verify it's not approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == False
 
-    # Simulate yield accrual by doubling vault's assets
-    current_vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
-    yield_underlying_token.mint(yield_vault_token.address, current_vault_balance, sender=governance.address)
+    # Prepare tokens
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
 
-    # Rebalance - should detect yield and handle increased value
-    underlying_amount, to_vault_token, to_vault_tokens_received, _ = undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        vault_tokens_1,
-        sender=starter_agent.address
-    )
-
-    # With 2x price per share, should get 2x underlying
-    assert underlying_amount == deposit_amount * 2  # 2x due to yield
-    assert to_vault_tokens_received == deposit_amount * 2  # deposited 2x underlying
-
-    # Verify all value transferred
-    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == to_vault_tokens_received
+    # Attempt to deposit to unapproved vault token must fail
+    with boa.reverts():  # Must revert - cannot deposit to unapproved vault token
+        undy_usd_vault.depositForYield(
+            1,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            deposit_amount,
+            sender=starter_agent.address
+        )
 
 
-def test_vault_rebalance_yield_position_between_multiple_vaults(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, yield_vault_token_3):
-    """Test rebalancing when multiple vault positions exist"""
+def test_multiple_positions_withdrawal_when_one_empty(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
+    """Test operations with multiple positions where one is empty"""
 
-    # Setup: deposit to three different vaults
+    # Create two yield positions
     deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
     _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
         1,
@@ -1514,80 +1496,155 @@ def test_vault_rebalance_yield_position_between_multiple_vaults(prepareAssetForW
         sender=starter_agent.address
     )
 
-    deposit3 = prepareAssetForWalletTx(_amount=60 * EIGHTEEN_DECIMALS)
-    _, _, vault3_tokens, _ = undy_usd_vault.depositForYield(
+    # Verify both registered
+    assert undy_usd_vault.numAssets() == 3
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 2
+
+    # Empty the first position completely
+    undy_usd_vault.withdrawFromYield(
         1,
-        yield_underlying_token.address,
-        yield_vault_token_3.address,
-        deposit3,
+        yield_vault_token.address,
+        vault1_tokens,
         sender=starter_agent.address
     )
 
-    # Verify initial state: 3 vault positions
-    assert undy_usd_vault.numAssets() == 4  # base + 3 vaults
+    # First position should be deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
 
-    # Rebalance vault 2 entirely into vault 3
-    underlying_amount, to_vault_token, to_vault_tokens_received, _ = undy_usd_vault.rebalanceYieldPosition(
+    # Second position should now be at index 1 (moved)
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 1
+    assert undy_usd_vault.numAssets() == 2
+
+    # Operations on second position should still work normally
+    partial_withdraw = vault2_tokens // 2
+    undy_usd_vault.withdrawFromYield(
         1,
         yield_vault_token_2.address,
-        1,
-        yield_vault_token_3.address,
-        vault2_tokens,
+        partial_withdraw,
         sender=starter_agent.address
     )
 
-    # Verify vault 2 deregistered
-    assert yield_vault_token_2.balanceOf(undy_usd_vault) == 0
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 0
-
-    # Verify vault 3 has combined amount
-    assert yield_vault_token_3.balanceOf(undy_usd_vault) == vault3_tokens + to_vault_tokens_received
-
-    # Should now have 2 vault positions (vault 1 and vault 3)
-    assert undy_usd_vault.numAssets() == 3  # base + 2 vaults
-    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) > 0
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_3.address) > 0
+    # Verify partial withdrawal worked
+    assert yield_vault_token_2.balanceOf(undy_usd_vault) == vault2_tokens - partial_withdraw
 
 
-def test_vault_rebalance_yield_position_same_vault_allowed(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
-    """Test that rebalancing to the same vault is allowed (though inefficient)"""
+def test_auto_deposit_after_default_target_deregistered(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, switchboard_alpha, bob):
+    """Test auto-deposit behavior after defaultTargetVaultToken is deregistered"""
 
-    # Setup: deposit to vault
+    # Setup: Create first position and set as default target
     deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit1,
+        sender=starter_agent.address
+    )
+
+    # Set as default target for auto-deposit
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_vault_token.address, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+
+    # Create second position (alternative)
+    deposit2 = prepareAssetForWalletTx(_amount=80 * EIGHTEEN_DECIMALS)
+    _, _, vault2_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit2,
+        sender=starter_agent.address
+    )
+
+    # Verify both positions exist
+    assert undy_usd_vault.numAssets() == 3  # base + 2 vault tokens
+
+    # Deregister the default target (vault token 1)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault1_tokens,
+        sender=starter_agent.address
+    )
+
+    # Default target is now deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # Record total assets before deposit
+    assets_before = undy_usd_vault.totalAssets()
+
+    # User deposits should still work - vault should handle missing defaultTargetVaultToken gracefully
+    yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
+    user_deposit = 50 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(user_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Deposit must succeed despite deregistered default target
+    assert shares > 0
+
+    # Total assets must have increased by deposit amount
+    assets_after = undy_usd_vault.totalAssets()
+    assert assets_after >= assets_before + user_deposit
+
+    # Vault must handle missing defaultTargetVaultToken gracefully
+    # Funds are accounted for and user received shares
+
+
+def test_position_with_invalid_lego_data_retrieval(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test handling of vault token with stored lego data after operations"""
+
+    # Create position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
     _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
         yield_vault_token.address,
-        deposit1,
+        deposit_amount,
         sender=starter_agent.address
     )
 
-    initial_balance = yield_vault_token.balanceOf(undy_usd_vault)
+    # Verify asset data is stored correctly
+    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data.legoId == 1
+    assert asset_data.avgPricePerShare > 0
+    assert asset_data.vaultTokenDecimals == 18
 
-    # Rebalancing to same vault is allowed but inefficient (withdraw then deposit back)
-    underlying_amount, to_vault_token, to_vault_tokens_received, _ = undy_usd_vault.rebalanceYieldPosition(
+    # Perform withdrawal
+    undy_usd_vault.withdrawFromYield(
         1,
         yield_vault_token.address,
-        1,
-        yield_vault_token.address,  # same vault
-        vault_tokens,
+        vault_tokens // 2,
         sender=starter_agent.address
     )
 
-    # Should end up with same balance (minus any potential fees/slippage)
-    final_balance = yield_vault_token.balanceOf(undy_usd_vault)
-    assert final_balance == to_vault_tokens_received
-    assert to_vault_token == yield_vault_token.address
-    # For mock vault with 1:1 rate, should be same amount
-    assert to_vault_tokens_received == vault_tokens
+    # Asset data should still be accessible and valid after partial withdrawal
+    asset_data_after = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data_after.legoId == 1  # Lego ID persists
+    assert asset_data_after.avgPricePerShare > 0  # Price tracking continues
+
+    # Even after full withdrawal and deregistration, data should be retained
+    remaining = yield_vault_token.balanceOf(undy_usd_vault)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        remaining,
+        sender=starter_agent.address
+    )
+
+    # Position is deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # But historical data is retained
+    asset_data_final = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data_final.legoId == 1  # Historical data preserved
 
 
-def test_vault_rebalance_yield_position_zero_amount(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
-    """Test that rebalancing zero amount fails"""
+def test_sequential_position_operations_with_reregistration(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test registering, deregistering, and re-registering the same vault token"""
 
-    # Setup: deposit to first vault
+    # First registration
     deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
-    undy_usd_vault.depositForYield(
+    _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
         yield_vault_token.address,
@@ -1595,99 +1652,55 @@ def test_vault_rebalance_yield_position_zero_amount(prepareAssetForWalletTx, und
         sender=starter_agent.address
     )
 
-    # Attempt to rebalance zero amount
-    with boa.reverts("no balance for _token"):
-        undy_usd_vault.rebalanceYieldPosition(
-            1,
-            yield_vault_token.address,
-            1,
-            yield_vault_token_2.address,
-            0,  # zero amount
-            sender=starter_agent.address
-        )
+    first_index = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert first_index == 1
+    assert undy_usd_vault.numAssets() == 2
 
+    # Deregister by withdrawing all
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault1_tokens,
+        sender=starter_agent.address
+    )
 
-def test_vault_rebalance_yield_position_updates_snapshots(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
-    """Test that rebalancing updates price snapshots for both vaults"""
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert undy_usd_vault.numAssets() == 1
 
-    # Setup: deposit to first vault
-    deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
+    # Re-register the same vault token
+    deposit2 = prepareAssetForWalletTx(_amount=150 * EIGHTEEN_DECIMALS)
+    _, _, vault2_tokens, _ = undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
         yield_vault_token.address,
-        deposit1,
+        deposit2,
         sender=starter_agent.address
     )
 
-    # Time travel to allow new snapshot
-    boa.env.time_travel(seconds=301)
+    # Should be re-registered at index 1 again
+    second_index = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert second_index == 1
+    assert undy_usd_vault.numAssets() == 2
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault2_tokens
 
-    # Get initial snapshot data
-    initial_snapshot_data_1 = undy_usd_vault.snapShotData(yield_vault_token.address)
-    initial_next_index_1 = initial_snapshot_data_1.nextIndex
-
-    # Rebalance to second vault
-    undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        vault_tokens_1,
-        sender=starter_agent.address
-    )
-
-    # Check snapshot was added for vault 2 during deposit
-    snapshot_data_2 = undy_usd_vault.snapShotData(yield_vault_token_2.address)
-    assert snapshot_data_2.nextIndex > 0  # Should have at least one snapshot
-    assert snapshot_data_2.lastSnapShot.pricePerShare > 0
-    assert snapshot_data_2.lastSnapShot.totalSupply > 0
-
-    # Verify vault 2 has proper avgPricePerShare
-    data2 = undy_usd_vault.assetData(yield_vault_token_2.address)
-    assert data2.avgPricePerShare > 0
+    # Historical data should reflect the re-registration
+    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data.legoId == 1
 
 
-def test_vault_rebalance_with_array_reorganization(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
-    """Test that rebalancing properly handles array reorganization when deregistering"""
 
-    # Setup: register 4 vault positions
-    deposits = []
-    tokens = [yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4]
 
-    for i, vault_token in enumerate(tokens):
-        deposit = prepareAssetForWalletTx(_amount=(100 - i*20) * EIGHTEEN_DECIMALS)
-        _, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
-            1,
-            yield_underlying_token.address,
-            vault_token.address,
-            deposit,
-            sender=starter_agent.address
-        )
-        deposits.append(vault_tokens_received)
 
-    assert undy_usd_vault.numAssets() == 5  # base + 4 vaults
 
-    # Rebalance vault 2 (middle position) entirely to vault 4
-    undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token_2.address,
-        1,
-        yield_vault_token_4.address,
-        deposits[1],  # all of vault 2
-        sender=starter_agent.address
-    )
 
-    # Verify vault 2 deregistered and array reorganized
-    assert undy_usd_vault.numAssets() == 4  # base + 3 vaults
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 0  # deregistered
 
-    # Check that the last vault (vault 4) moved to position 2
-    # Since vault 4 was at position 4, and vault 2 at position 2 was removed,
-    # vault 4 should have moved to position 2
-    assert undy_usd_vault.assets(1) == yield_vault_token.address  # unchanged
-    assert undy_usd_vault.assets(2) == yield_vault_token_4.address  # moved from position 4
-    assert undy_usd_vault.assets(3) == yield_vault_token_3.address  # unchanged
 
-    # Verify index mapping is correct
-    assert undy_usd_vault.indexOfAsset(yield_vault_token_4.address) == 2
+
+
+
+
+
+
+
+
+

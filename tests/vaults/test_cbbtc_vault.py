@@ -440,67 +440,6 @@ def test_cbbtc_vault_deposit_multiple_protocols(
 
 
 @pytest.base
-def test_cbbtc_vault_rebalance_between_protocols(
-    getLegoId,
-    undy_btc_vault,
-    vault_registry,
-    starter_agent,
-    bob,
-    fork,
-    switchboard_alpha,
-    mock_ripe,
-):
-    """Test rebalancing from one protocol to another"""
-    asset = boa.from_etherscan(TOKENS[fork]["CBBTC"])
-    whale = WHALES[fork]["CBBTC"]
-    mock_ripe.setPrice(asset, 100000 * EIGHTEEN_DECIMALS)
-    amount = 1 * (10 ** asset.decimals())
-
-    # setup first protocol (Aave)
-    lego_id_1, lego_1 = getLegoId("AAVE_CBBTC")
-    vault_addr_1 = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["AAVE_CBBTC"])
-
-    asset.transfer(bob, amount, sender=whale)
-    asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
-    undy_btc_vault.deposit(amount, bob, sender=bob)
-
-    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id_1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr_1, True, sender=switchboard_alpha.address)
-
-    # deposit to Aave
-    _, _, vault_tokens_1, _ = undy_btc_vault.depositForYield(
-        lego_id_1,
-        asset,
-        vault_addr_1,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # setup second protocol (Euler)
-    lego_id_2, lego_2 = getLegoId("EULER_CBBTC")
-    vault_addr_2 = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["EULER_CBBTC"])
-
-    vault_registry.setApprovedYieldLego(undy_btc_vault.address, lego_id_2, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr_2, True, sender=switchboard_alpha.address)
-
-    # rebalance from Aave to Euler
-    underlying_amount, to_vault_token, to_vault_tokens_received, usd_value = undy_btc_vault.rebalanceYieldPosition(
-        lego_id_1,
-        vault_addr_1,
-        lego_id_2,
-        vault_addr_2,
-        vault_tokens_1,
-        sender=starter_agent.address
-    )
-
-    # verify rebalance
-    assert vault_addr_1.balanceOf(undy_btc_vault) == 0  # Aave empty
-    assert vault_addr_2.balanceOf(undy_btc_vault) == to_vault_tokens_received  # Euler has tokens
-    assert undy_btc_vault.indexOfAsset(vault_addr_1.address) == 0  # Aave deregistered
-    assert undy_btc_vault.indexOfAsset(vault_addr_2.address) > 0  # Euler registered
-
-
-@pytest.base
 def test_cbbtc_vault_full_cycle(
     prepareYieldDeposit,
     undy_btc_vault,

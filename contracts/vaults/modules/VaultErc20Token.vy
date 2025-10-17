@@ -17,11 +17,6 @@ interface ERC1271:
 
 # erc20
 
-struct PendingHq:
-    newHq: address
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
 event Transfer:
     sender: indexed(address)
     recipient: indexed(address)
@@ -38,28 +33,8 @@ event BlacklistModified:
     addr: indexed(address)
     isBlacklisted: bool
 
-event HqChangeInitiated:
-    prevHq: indexed(address)
-    newHq: indexed(address)
-    confirmBlock: uint256
-
-event HqChangeConfirmed:
-    prevHq: indexed(address)
-    newHq: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
-event HqChangeCancelled:
-    cancelledHq: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-
 event TokenPauseModified:
     isPaused: bool
-
-event HqChangeTimeLockModified:
-    prevTimeLock: uint256
-    newTimeLock: uint256
 
 # undy hq
 undyHq: public(address)
@@ -67,11 +42,6 @@ undyHq: public(address)
 # config
 blacklisted: public(HashMap[address, bool])
 isPaused: public(bool)
-pendingHq: public(PendingHq)
-hqChangeTimeLock: public(uint256)
-
-MIN_HQ_TIME_LOCK: immutable(uint256)
-MAX_HQ_TIME_LOCK: immutable(uint256)
 
 # erc20
 balanceOf: public(HashMap[address, uint256])
@@ -103,19 +73,14 @@ def __init__(
     _tokenSymbol: String[32],
     _tokenDecimals: uint8,
     _undyHq: address,
-    _minHqTimeLock: uint256,
-    _maxHqTimeLock: uint256,
 ):
     # token info
     TOKEN_NAME = _tokenName
     TOKEN_SYMBOL = _tokenSymbol
     TOKEN_DECIMALS = _tokenDecimals
 
-    MIN_HQ_TIME_LOCK = _minHqTimeLock
-    MAX_HQ_TIME_LOCK = _maxHqTimeLock
-
     # set undy hq
-    assert self._isValidNewUndyHq(_undyHq, empty(address)) # dev: invalid undy hq
+    assert _undyHq != empty(address) # dev: invalid undy hq
     self.undyHq = _undyHq
 
     # domain separator
@@ -396,158 +361,6 @@ def burnBlacklistTokens(_addr: address, _amount: uint256 = max_value(uint256)) -
     assert amount != 0 # dev: cannot burn 0 tokens
     self._burn(_addr, amount)
     return True
-
-
-###################
-# Undy Hq Changes #
-###################
-
-
-@view
-@external
-def hasPendingHqChange() -> bool:
-    return self.pendingHq.confirmBlock != 0
-
-
-# initiate hq change
-
-
-@external
-def initiateHqChange(_newHq: address):
-    prevHq: address = self.undyHq
-    assert msg.sender == staticcall UndyHq(prevHq).governance() # dev: no perms
-
-    # validate new hq
-    assert self._isValidNewUndyHq(_newHq, prevHq) # dev: invalid new hq
-
-    confirmBlock: uint256 = block.number + self.hqChangeTimeLock
-    self.pendingHq = PendingHq(
-        newHq= _newHq,
-        initiatedBlock= block.number,
-        confirmBlock= confirmBlock,
-    )
-    log HqChangeInitiated(prevHq=prevHq, newHq=_newHq, confirmBlock=confirmBlock)
-
-
-# confirm hq change
-
-
-@external
-def confirmHqChange() -> bool:
-    prevHq: address = self.undyHq
-    assert msg.sender == staticcall UndyHq(prevHq).governance() # dev: no perms
-
-    data: PendingHq = self.pendingHq
-    assert data.confirmBlock != 0 and block.number >= data.confirmBlock # dev: time lock not reached
-
-    # validate new hq one more time
-    if not self._isValidNewUndyHq(data.newHq, prevHq):
-        self.pendingHq = empty(PendingHq)
-        return False
-
-    # set new undy hq
-    self.undyHq = data.newHq
-    self.pendingHq = empty(PendingHq)
-    log HqChangeConfirmed(prevHq=prevHq, newHq=data.newHq, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
-    return True
-
-
-# cancel hq change
-
-
-@external
-def cancelHqChange():
-    assert msg.sender == staticcall UndyHq(self.undyHq).governance() # dev: no perms
-
-    data: PendingHq = self.pendingHq
-    assert data.confirmBlock != 0 # dev: no pending change
-    self.pendingHq = empty(PendingHq)
-    log HqChangeCancelled(cancelledHq=data.newHq, initiatedBlock=data.initiatedBlock, confirmBlock=data.confirmBlock)
-
-
-# validation
-
-
-@view
-@external
-def isValidNewUndyHq(_newHq: address) -> bool:
-    return self._isValidNewUndyHq(_newHq, self.undyHq)
-
-
-@view
-@internal
-def _isValidNewUndyHq(_newHq: address, _prevHq: address) -> bool:
-
-    # same hq, or invalid new hq
-    if _newHq == _prevHq or _newHq == empty(address) or not _newHq.is_contract:
-        return False
-
-    # if current hq has pending gov change, cannot change undy hq now
-    if _prevHq != empty(address) and staticcall UndyHq(_prevHq).hasPendingGovChange():
-        return False
-
-    # if new hq has pending gov change, or is not set, cannot change undy hq now
-    if staticcall UndyHq(_newHq).hasPendingGovChange() or staticcall UndyHq(_newHq).governance() == empty(address):
-        return False
-
-    # make sure it has the necessary interfaces
-    assert not staticcall UndyHq(_newHq).canSetTokenBlacklist(empty(address)) # dev: invalid interface
-    assert not staticcall UndyHq(_newHq).canMintUndy(empty(address)) # dev: invalid interface
-
-    return True
-
-
-####################
-# Time Lock Config #
-####################
-
-
-@external
-def setHqChangeTimeLock(_newTimeLock: uint256) -> bool:
-    undyHq: address = self.undyHq
-    assert msg.sender == staticcall UndyHq(undyHq).governance() # dev: no perms
-    assert not staticcall UndyHq(undyHq).hasPendingGovChange() # dev: pending gov change
-    return self._setHqChangeTimeLock(_newTimeLock, self.hqChangeTimeLock)
-
-
-@internal
-def _setHqChangeTimeLock(_newTimeLock: uint256, _prevTimeLock: uint256) -> bool:
-    assert self._isValidHqChangeTimeLock(_newTimeLock, _prevTimeLock) # dev: invalid time lock
-    self.hqChangeTimeLock = _newTimeLock
-    log HqChangeTimeLockModified(prevTimeLock=_prevTimeLock, newTimeLock=_newTimeLock)
-    return True
-
-
-# validation
-
-
-@view
-@external
-def isValidHqChangeTimeLock(_newTimeLock: uint256) -> bool:
-    return self._isValidHqChangeTimeLock(_newTimeLock, self.hqChangeTimeLock)
-
-
-@view
-@internal
-def _isValidHqChangeTimeLock(_newTimeLock: uint256, _prevTimeLock: uint256) -> bool:
-    if _newTimeLock == _prevTimeLock:
-        return False
-    return _newTimeLock >= MIN_HQ_TIME_LOCK and _newTimeLock <= MAX_HQ_TIME_LOCK
-
-
-# views
-
-
-@view
-@external
-def minHqTimeLock() -> uint256:
-    return MIN_HQ_TIME_LOCK
-
-
-@view
-@external
-def maxHqTimeLock() -> uint256:
-    return MAX_HQ_TIME_LOCK
 
 
 #########

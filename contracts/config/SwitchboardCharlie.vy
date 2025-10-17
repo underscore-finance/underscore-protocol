@@ -24,16 +24,22 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 interface VaultRegistry:
-    def initializeVaultConfig(_vaultAddr: address, _canDeposit: bool, _canWithdraw: bool, _maxDepositAmount: uint256, _redemptionBuffer: uint256, _minYieldWithdrawAmount: uint256, _snapShotPriceConfig: SnapShotPriceConfig, _approvedVaultTokens: DynArray[address, 25], _approvedYieldLegos: DynArray[uint256, 25]): nonpayable
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
-    def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool): nonpayable
+    def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
     def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig): nonpayable
-    def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256): nonpayable
+    def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
+    def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
+    def isApprovedVaultToken(_vaultAddr: address, _vaultToken: address) -> bool: view
+    def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256): nonpayable
     def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256): nonpayable
+    def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256): nonpayable
     def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool): nonpayable
     def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool): nonpayable
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
     def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool: view
+    def isValidPerformanceFee(_performanceFee: uint256) -> bool: view
+    def isValidRedemptionBuffer(_buffer: uint256) -> bool: view
+    def isValidVaultToken(_vaultToken: address) -> bool: view
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface MissionControl:
@@ -44,8 +50,9 @@ flag ActionType:
     MIN_YIELD_WITHDRAW_AMOUNT
     SNAPSHOT_PRICE_CONFIG
     APPROVED_VAULT_TOKEN
-    APPROVED_YIELD_LEGO
-    INITIALIZE_VAULT_CONFIG
+    PERFORMANCE_FEE
+    DEFAULT_TARGET_VAULT_TOKEN
+    MAX_DEPOSIT_AMOUNT
 
 struct SnapShotPriceConfig:
     minSnapshotDelay: uint256
@@ -70,21 +77,17 @@ struct PendingApprovedVaultToken:
     vaultToken: address
     isApproved: bool
 
-struct PendingApprovedYieldLego:
+struct PendingPerformanceFee:
     vaultAddr: address
-    legoId: uint256
-    isApproved: bool
+    performanceFee: uint256
 
-struct PendingInitializeVaultConfig:
+struct PendingDefaultTargetVaultToken:
     vaultAddr: address
-    canDeposit: bool
-    canWithdraw: bool
+    targetVaultToken: address
+
+struct PendingMaxDepositAmount:
+    vaultAddr: address
     maxDepositAmount: uint256
-    redemptionBuffer: uint256
-    minYieldWithdrawAmount: uint256
-    snapShotPriceConfig: SnapShotPriceConfig
-    approvedVaultTokens: DynArray[address, 25]
-    approvedYieldLegos: DynArray[uint256, 25]
 
 event PendingRedemptionBufferChange:
     vaultAddr: indexed(address)
@@ -134,35 +137,35 @@ event ApprovedVaultTokenSet:
     vaultToken: indexed(address)
     isApproved: bool
 
-event PendingApprovedYieldLegoChange:
+event PendingPerformanceFeeChange:
     vaultAddr: indexed(address)
-    legoId: indexed(uint256)
-    isApproved: bool
+    performanceFee: uint256
     confirmationBlock: uint256
     actionId: uint256
 
-event ApprovedYieldLegoSet:
+event PerformanceFeeSet:
     vaultAddr: indexed(address)
-    legoId: indexed(uint256)
-    isApproved: bool
+    performanceFee: uint256
 
-event PendingInitializeVaultConfigChange:
+event PendingDefaultTargetVaultTokenChange:
     vaultAddr: indexed(address)
-    canDeposit: bool
-    canWithdraw: bool
-    maxDepositAmount: uint256
-    redemptionBuffer: uint256
-    numApprovedVaultTokens: uint256
-    numApprovedYieldLegos: uint256
+    targetVaultToken: indexed(address)
     confirmationBlock: uint256
     actionId: uint256
 
-event VaultConfigInitialized:
+event DefaultTargetVaultTokenSet:
     vaultAddr: indexed(address)
-    canDeposit: bool
-    canWithdraw: bool
+    targetVaultToken: indexed(address)
+
+event PendingMaxDepositAmountChange:
+    vaultAddr: indexed(address)
     maxDepositAmount: uint256
-    redemptionBuffer: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event MaxDepositAmountSet:
+    vaultAddr: indexed(address)
+    maxDepositAmount: uint256
 
 event CanDepositSet:
     vaultAddr: indexed(address)
@@ -179,14 +182,20 @@ event VaultOpsFrozenSet:
     isFrozen: bool
     caller: indexed(address)
 
+event ShouldAutoDepositSet:
+    vaultAddr: indexed(address)
+    shouldAutoDeposit: bool
+    caller: indexed(address)
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
 pendingMinYieldWithdrawAmount: public(HashMap[uint256, PendingMinYieldWithdrawAmount]) # aid -> config
 pendingSnapShotPriceConfig: public(HashMap[uint256, PendingSnapShotPriceConfig]) # aid -> config
 pendingApprovedVaultToken: public(HashMap[uint256, PendingApprovedVaultToken]) # aid -> config
-pendingApprovedYieldLego: public(HashMap[uint256, PendingApprovedYieldLego]) # aid -> config
-pendingInitializeVaultConfig: public(HashMap[uint256, PendingInitializeVaultConfig]) # aid -> config
+pendingPerformanceFee: public(HashMap[uint256, PendingPerformanceFee]) # aid -> config
+pendingDefaultTargetVaultToken: public(HashMap[uint256, PendingDefaultTargetVaultToken]) # aid -> config
+pendingMaxDepositAmount: public(HashMap[uint256, PendingMaxDepositAmount]) # aid -> config
 
 
 @deploy
@@ -249,6 +258,16 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
     log VaultOpsFrozenSet(vaultAddr=_vaultAddr, isFrozen=_isFrozen, caller=msg.sender)
 
 
+# should auto deposit
+
+
+@external
+def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
+    assert self._hasPermsToFreeze(msg.sender, not _shouldAutoDeposit) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldAutoDeposit(_vaultAddr, _shouldAutoDeposit)
+    log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit, caller=msg.sender)
+
+
 ##############
 # Timelocked #
 ##############
@@ -260,8 +279,9 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
 @external
 def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _buffer <= 10_00 # dev: buffer too high (max 10%)
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert staticcall VaultRegistry(vr).isValidRedemptionBuffer(_buffer) # dev: invalid redemption buffer
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.REDEMPTION_BUFFER
@@ -307,27 +327,40 @@ def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256) -> uint256:
 
 
 @external
-def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig) -> uint256:
+def setSnapShotPriceConfig(
+    _vaultAddr: address,
+    _minSnapshotDelay: uint256,
+    _maxNumSnapshots: uint256,
+    _maxUpsideDeviation: uint256,
+    _staleTime: uint256,
+) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
     # validation
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert staticcall VaultRegistry(vr).isValidPriceConfig(_config) # dev: invalid price config
+
+    config: SnapShotPriceConfig = SnapShotPriceConfig(
+        minSnapshotDelay=_minSnapshotDelay,
+        maxNumSnapshots=_maxNumSnapshots,
+        maxUpsideDeviation=_maxUpsideDeviation,
+        staleTime=_staleTime,
+    )
+    assert staticcall VaultRegistry(vr).isValidPriceConfig(config) # dev: invalid price config
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.SNAPSHOT_PRICE_CONFIG
     self.pendingSnapShotPriceConfig[aid] = PendingSnapShotPriceConfig(
         vaultAddr=_vaultAddr,
-        config=_config
+        config=config
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingSnapShotPriceConfigChange(
         vaultAddr=_vaultAddr,
-        minSnapshotDelay=_config.minSnapshotDelay,
-        maxNumSnapshots=_config.maxNumSnapshots,
-        maxUpsideDeviation=_config.maxUpsideDeviation,
-        staleTime=_config.staleTime,
+        minSnapshotDelay=config.minSnapshotDelay,
+        maxNumSnapshots=config.maxNumSnapshots,
+        maxUpsideDeviation=config.maxUpsideDeviation,
+        staleTime=config.staleTime,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -340,8 +373,9 @@ def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig) ->
 @external
 def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _vaultToken != empty(address) # dev: invalid vault token
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert staticcall VaultRegistry(vr).isValidVaultToken(_vaultToken) # dev: invalid vault token
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.APPROVED_VAULT_TOKEN
@@ -361,78 +395,77 @@ def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved
     return aid
 
 
-# approved yield lego
+# performance fee
 
 
 @external
-def setApprovedYieldLego(_vaultAddr: address, _legoId: uint256, _isApproved: bool) -> uint256:
+def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _legoId != 0 # dev: invalid lego id
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert staticcall VaultRegistry(vr).isValidPerformanceFee(_performanceFee) # dev: invalid performance fee
 
     aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.APPROVED_YIELD_LEGO
-    self.pendingApprovedYieldLego[aid] = PendingApprovedYieldLego(
+    self.actionType[aid] = ActionType.PERFORMANCE_FEE
+    self.pendingPerformanceFee[aid] = PendingPerformanceFee(
         vaultAddr=_vaultAddr,
-        legoId=_legoId,
-        isApproved=_isApproved
+        performanceFee=_performanceFee
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingApprovedYieldLegoChange(
+    log PendingPerformanceFeeChange(
         vaultAddr=_vaultAddr,
-        legoId=_legoId,
-        isApproved=_isApproved,
+        performanceFee=_performanceFee,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
     return aid
 
 
-# initialize vault config
+# default target vault token
 
 
 @external
-def initializeVaultConfig(
-    _vaultAddr: address,
-    _canDeposit: bool,
-    _canWithdraw: bool,
-    _maxDepositAmount: uint256,
-    _redemptionBuffer: uint256,
-    _minYieldWithdrawAmount: uint256,
-    _snapShotPriceConfig: SnapShotPriceConfig,
-    _approvedVaultTokens: DynArray[address, 25] = [],
-    _approvedYieldLegos: DynArray[uint256, 25] = [],
-) -> uint256:
+def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    assert _vaultAddr != empty(address) # dev: invalid vault addr
-    assert _redemptionBuffer <= 10_00 # dev: buffer too high (max 10%)
-
-    # validate config via VaultRegistry
     vr: address = addys._getVaultRegistryAddr()
-    assert staticcall VaultRegistry(vr).isValidPriceConfig(_snapShotPriceConfig) # dev: invalid price config
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert not staticcall VaultRegistry(vr).isApprovedVaultToken(_vaultAddr, _targetVaultToken) # dev: vault token already approved
 
     aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.INITIALIZE_VAULT_CONFIG
-    self.pendingInitializeVaultConfig[aid] = PendingInitializeVaultConfig(
+    self.actionType[aid] = ActionType.DEFAULT_TARGET_VAULT_TOKEN
+    self.pendingDefaultTargetVaultToken[aid] = PendingDefaultTargetVaultToken(
         vaultAddr=_vaultAddr,
-        canDeposit=_canDeposit,
-        canWithdraw=_canWithdraw,
-        maxDepositAmount=_maxDepositAmount,
-        redemptionBuffer=_redemptionBuffer,
-        minYieldWithdrawAmount=_minYieldWithdrawAmount,
-        snapShotPriceConfig=_snapShotPriceConfig,
-        approvedVaultTokens=_approvedVaultTokens,
-        approvedYieldLegos=_approvedYieldLegos,
+        targetVaultToken=_targetVaultToken
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingInitializeVaultConfigChange(
+    log PendingDefaultTargetVaultTokenChange(
         vaultAddr=_vaultAddr,
-        canDeposit=_canDeposit,
-        canWithdraw=_canWithdraw,
+        targetVaultToken=_targetVaultToken,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# max deposit amount
+
+
+@external
+def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.MAX_DEPOSIT_AMOUNT
+    self.pendingMaxDepositAmount[aid] = PendingMaxDepositAmount(
+        vaultAddr=_vaultAddr,
+        maxDepositAmount=_maxDepositAmount
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingMaxDepositAmountChange(
+        vaultAddr=_vaultAddr,
         maxDepositAmount=_maxDepositAmount,
-        redemptionBuffer=_redemptionBuffer,
-        numApprovedVaultTokens=len(_approvedVaultTokens),
-        numApprovedYieldLegos=len(_approvedYieldLegos),
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -483,31 +516,20 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved)
         log ApprovedVaultTokenSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, isApproved=p.isApproved)
 
-    elif actionType == ActionType.APPROVED_YIELD_LEGO:
-        p: PendingApprovedYieldLego = self.pendingApprovedYieldLego[_aid]
-        extcall VaultRegistry(vr).setApprovedYieldLego(p.vaultAddr, p.legoId, p.isApproved)
-        log ApprovedYieldLegoSet(vaultAddr=p.vaultAddr, legoId=p.legoId, isApproved=p.isApproved)
+    elif actionType == ActionType.PERFORMANCE_FEE:
+        p: PendingPerformanceFee = self.pendingPerformanceFee[_aid]
+        extcall VaultRegistry(vr).setPerformanceFee(p.vaultAddr, p.performanceFee)
+        log PerformanceFeeSet(vaultAddr=p.vaultAddr, performanceFee=p.performanceFee)
 
-    elif actionType == ActionType.INITIALIZE_VAULT_CONFIG:
-        p: PendingInitializeVaultConfig = self.pendingInitializeVaultConfig[_aid]
-        extcall VaultRegistry(vr).initializeVaultConfig(
-            p.vaultAddr,
-            p.canDeposit,
-            p.canWithdraw,
-            p.maxDepositAmount,
-            p.redemptionBuffer,
-            p.minYieldWithdrawAmount,
-            p.snapShotPriceConfig,
-            p.approvedVaultTokens,
-            p.approvedYieldLegos,
-        )
-        log VaultConfigInitialized(
-            vaultAddr=p.vaultAddr,
-            canDeposit=p.canDeposit,
-            canWithdraw=p.canWithdraw,
-            maxDepositAmount=p.maxDepositAmount,
-            redemptionBuffer=p.redemptionBuffer
-        )
+    elif actionType == ActionType.DEFAULT_TARGET_VAULT_TOKEN:
+        p: PendingDefaultTargetVaultToken = self.pendingDefaultTargetVaultToken[_aid]
+        extcall VaultRegistry(vr).setDefaultTargetVaultToken(p.vaultAddr, p.targetVaultToken)
+        log DefaultTargetVaultTokenSet(vaultAddr=p.vaultAddr, targetVaultToken=p.targetVaultToken)
+
+    elif actionType == ActionType.MAX_DEPOSIT_AMOUNT:
+        p: PendingMaxDepositAmount = self.pendingMaxDepositAmount[_aid]
+        extcall VaultRegistry(vr).setMaxDepositAmount(p.vaultAddr, p.maxDepositAmount)
+        log MaxDepositAmountSet(vaultAddr=p.vaultAddr, maxDepositAmount=p.maxDepositAmount)
 
     self.actionType[_aid] = empty(ActionType)
     return True

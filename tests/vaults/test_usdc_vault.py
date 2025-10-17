@@ -452,67 +452,6 @@ def test_usdc_vault_deposit_multiple_protocols(
 
 
 @pytest.base
-def test_usdc_vault_rebalance_between_protocols(
-    getLegoId,
-    undy_usd_vault,
-    vault_registry,
-    starter_agent,
-    bob,
-    fork,
-    switchboard_alpha,
-    mock_ripe,
-):
-    """Test rebalancing from one protocol to another"""
-    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
-    whale = WHALES[fork]["USDC"]
-    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
-    amount = 100 * (10 ** asset.decimals())
-
-    # setup first protocol (Aave)
-    lego_id_1, lego_1 = getLegoId("AAVE_USDC")
-    vault_addr_1 = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["AAVE_USDC"])
-
-    asset.transfer(bob, amount, sender=whale)
-    asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
-    undy_usd_vault.deposit(amount, bob, sender=bob)
-
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id_1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr_1, True, sender=switchboard_alpha.address)
-
-    # deposit to Aave
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
-        lego_id_1,
-        asset,
-        vault_addr_1,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # setup second protocol (Compound)
-    lego_id_2, lego_2 = getLegoId("COMPOUND_USDC")
-    vault_addr_2 = boa.from_etherscan(ALL_VAULT_TOKENS[fork]["COMPOUND_USDC"])
-
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id_2, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr_2, True, sender=switchboard_alpha.address)
-
-    # rebalance from Aave to Compound
-    underlying_amount, to_vault_token, to_vault_tokens_received, usd_value = undy_usd_vault.rebalanceYieldPosition(
-        lego_id_1,
-        vault_addr_1,
-        lego_id_2,
-        vault_addr_2,
-        vault_tokens_1,
-        sender=starter_agent.address
-    )
-
-    # verify rebalance
-    assert vault_addr_1.balanceOf(undy_usd_vault) == 0  # Aave empty
-    assert vault_addr_2.balanceOf(undy_usd_vault) == to_vault_tokens_received  # Compound has tokens
-    assert undy_usd_vault.indexOfAsset(vault_addr_1.address) == 0  # Aave deregistered
-    assert undy_usd_vault.indexOfAsset(vault_addr_2.address) > 0  # Compound registered
-
-
-@pytest.base
 def test_usdc_vault_withdraw_from_multiple_protocols(
     getLegoId,
     undy_usd_vault,

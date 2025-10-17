@@ -1732,35 +1732,6 @@ def test_get_total_assets_with_updated_snapshots(undy_usd_vault, yield_vault_tok
     assert total_avg < total_max
 
 
-def test_get_total_assets_after_rebalance(undy_usd_vault, yield_vault_token, yield_vault_token_2, yield_underlying_token, yield_underlying_token_whale, starter_agent):
-    """Test getTotalAssets accuracy after rebalancing between vaults"""
-
-    deposit_amount = 1000 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    initial_total = undy_usd_vault.getTotalAssets(True)
-    assert initial_total == deposit_amount
-
-    vault_token_balance = yield_vault_token.balanceOf(undy_usd_vault.address)
-    undy_usd_vault.rebalanceYieldPosition(
-        1,
-        yield_vault_token.address,
-        1,
-        yield_vault_token_2.address,
-        vault_token_balance,
-        sender=starter_agent.address
-    )
-
-    total_after_rebalance = undy_usd_vault.getTotalAssets(True)
-    assert total_after_rebalance == deposit_amount
 
 
 def test_get_total_assets_extreme_throttling(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
@@ -1815,3 +1786,421 @@ def test_get_total_assets_large_balances(undy_usd_vault, yield_vault_token, yiel
 
     assert total_max == large_amount
     assert total_avg == large_amount
+
+
+#############################################
+# P0 Security Tests - Snapshot Manipulation #
+#############################################
+
+
+def test_rapid_deposit_withdraw_cannot_manipulate_price(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, bob, starter_agent, switchboard_alpha):
+    """Test that rapid deposit/withdrawal cycles cannot manipulate weighted price before snapshots update"""
+
+    # Setup: Create initial position and snapshot
+    initial_deposit = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, initial_deposit, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        initial_deposit,
+        sender=starter_agent.address
+    )
+
+    # Add first snapshot
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    initial_weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+
+    # Attacker attempts rapid deposit/withdraw cycles to manipulate price
+    # This should not work because:
+    # 1. Snapshots have minDelay protection
+    # 2. Weighted price uses historical snapshots, not instant price
+
+    # Give bob some tokens for the attack attempt
+    yield_underlying_token.approve(undy_usd_vault.address, 10000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+
+    # Attempt 1: Large deposit
+    large_deposit = 5000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, large_deposit, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        large_deposit,
+        sender=starter_agent.address
+    )
+
+    # Try to add snapshot immediately (should fail due to minDelay)
+    snapshot_added = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    assert snapshot_added == False  # Cannot add snapshot immediately
+
+    # Weighted price should still be based on old snapshots
+    manipulated_price_attempt = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+    assert manipulated_price_attempt == initial_weighted_price  # Price unchanged without new snapshot
+
+    # Attempt 2: Withdraw half
+    vault_tokens = yield_vault_token.balanceOf(undy_usd_vault.address)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens // 2,
+        sender=starter_agent.address
+    )
+
+    # Weighted price still unchanged (no new snapshot possible)
+    price_after_withdraw = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+    assert price_after_withdraw == initial_weighted_price
+
+    # Even after waiting for minDelay and adding snapshot, the weighted average
+    # includes historical data, preventing instant manipulation
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    final_weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+    # The weighted price should be a weighted average including the old snapshot
+    # Not just the new manipulated value
+    assert final_weighted_price > 0
+
+    # Verify the attack didn't cause extreme price deviation
+    # Price should not have changed dramatically from initial
+    price_change_ratio = final_weighted_price * 1000 // initial_weighted_price
+    assert 900 <= price_change_ratio <= 1100  # Within 10% of original
+
+
+def test_all_snapshots_stale_behavior(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+    """Test behavior when ALL snapshots exceed staleTime"""
+
+    # Setup: deposit to create position
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Add first snapshot
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    first_snapshot = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+
+    # Add second snapshot
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    # Get staleTime from config - it must be configured
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    stale_time = price_config.staleTime
+    assert stale_time > 0  # Stale time must be configured for this security feature
+
+    # Time travel beyond stale time to make ALL snapshots stale
+    boa.env.time_travel(seconds=stale_time + 1000)
+
+    # Now ALL snapshots are stale
+    # getWeightedPrice must still return a value (uses the most recent stale snapshot)
+    weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+    assert weighted_price > 0  # Must not fail, uses most recent even if stale
+
+    # getLatestSnapshot must return the most recent snapshot even if stale
+    latest = undy_usd_vault.getLatestSnapshot(yield_vault_token.address)
+    assert latest.pricePerShare > 0
+    assert latest.totalSupply > 0
+    assert latest.lastUpdate > 0
+
+    # The system must be resilient and not break when all snapshots are stale
+    # It uses the most recent data available
+
+    # getTotalAssets must still work
+    total_assets_avg = undy_usd_vault.getTotalAssets(False)
+    assert total_assets_avg > 0
+
+
+def test_weighted_price_accuracy_with_various_snapshot_ages(undy_usd_vault, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test weighted price calculation accuracy with snapshots of varying ages and supplies"""
+
+    # Setup: initial position
+    initial_deposit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, initial_deposit, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        initial_deposit,
+        sender=starter_agent.address
+    )
+
+    # Snapshot 1: Old, small supply (100), price 1.0
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    snap1 = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+
+    # Wait longer, add more deposits
+    boa.env.time_travel(seconds=1200)  # 20 minutes later
+    yield_underlying_token.transfer(undy_usd_vault.address, 400 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        400 * EIGHTEEN_DECIMALS,
+        sender=starter_agent.address
+    )
+
+    # Snapshot 2: Medium age, large supply (500), price 1.0
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    snap2 = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+
+    # Add some yield
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance // 20, sender=governance.address)  # 5% yield
+
+    # Snapshot 3: Recent, large supply (500), price 1.05
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    snap3 = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+
+    # Get weighted price
+    weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+
+    # Verify weighted price calculation
+    # Weight = totalSupply of each snapshot
+    # Expected: (100*1.0 + 500*1.0 + 500*1.05) / (100 + 500 + 500)
+    # = (100 + 500 + 525) / 1100 = 1125/1100 ≈ 1.0227
+
+    assert weighted_price > snap1.pricePerShare  # Should be higher than base
+    assert weighted_price <= snap3.pricePerShare  # Should not exceed the highest
+
+    # The larger supply snapshots should have more weight
+    # So weighted price should be closer to the recent snapshots with high supply
+    # Verify it's above the base price (shows yield is reflected)
+    assert weighted_price > EIGHTEEN_DECIMALS
+
+
+def test_get_latest_snapshot_with_zero_snapshots(undy_usd_vault, yield_vault_token_3):
+    """Test getLatestSnapshot when no snapshots exist (unregistered vault token)"""
+
+    # Try to get latest snapshot for a token that was never registered
+    latest = undy_usd_vault.getLatestSnapshot(yield_vault_token_3.address)
+
+    # Should return empty/zero snapshot
+    assert latest.pricePerShare == 0
+    assert latest.totalSupply == 0
+    assert latest.lastUpdate == 0
+
+    # Verify snapshot data shows no snapshots
+    snapshot_data = undy_usd_vault.snapShotData(yield_vault_token_3.address)
+    assert snapshot_data.nextIndex == 0
+    assert snapshot_data.lastSnapShot.lastUpdate == 0
+
+
+def test_snapshot_index_wraparound_at_exact_max(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+    """Test snapshot index wraparound behavior when hitting exact maxNumSnapshots"""
+
+    # Setup: deposit to create position
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Get max snapshots
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    max_snapshots = price_config.maxNumSnapshots
+
+    # Get initial state (deposit adds first snapshot)
+    initial_data = undy_usd_vault.snapShotData(yield_vault_token.address)
+    initial_index = initial_data.nextIndex
+
+    # Fill buffer to exactly max capacity
+    snapshots_to_add = max_snapshots - initial_index
+    for i in range(snapshots_to_add):
+        boa.env.time_travel(seconds=301)
+        result = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+        assert result == True
+
+    # Verify we're at max capacity (index should wrap to 0 on next add)
+    snapshot_data = undy_usd_vault.snapShotData(yield_vault_token.address)
+    expected_next = (initial_index + snapshots_to_add) % max_snapshots
+    assert snapshot_data.nextIndex == expected_next
+
+    # Store the snapshot at index 0 before it gets overwritten
+    snapshot_at_zero_before = undy_usd_vault.snapShots(yield_vault_token.address, 0)
+    old_price_at_zero = snapshot_at_zero_before.pricePerShare
+    old_timestamp_at_zero = snapshot_at_zero_before.lastUpdate
+
+    # Add one more snapshot - should overwrite index 0
+    boa.env.time_travel(seconds=301)
+    result = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    assert result == True
+
+    # Verify index wrapped around - buffer must be full at this point
+    snapshot_data = undy_usd_vault.snapShotData(yield_vault_token.address)
+
+    # After adding exactly one more than max capacity, we must have wrapped
+    # The index should have wrapped to position 1 (after overwriting 0)
+    assert snapshot_data.nextIndex == 1
+
+    # Index 0 must have been updated with the new snapshot (overwritten)
+    snapshot_at_zero_after = undy_usd_vault.snapShots(yield_vault_token.address, 0)
+    new_timestamp_at_zero = snapshot_at_zero_after.lastUpdate
+
+    # Timestamp must be newer than the original at index 0
+    assert new_timestamp_at_zero > old_timestamp_at_zero
+
+    # Weighted price must still work correctly after wraparound
+    weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+    assert weighted_price > 0
+
+
+def test_snapshot_price_manipulation_via_flash_loan_scenario(undy_usd_vault, vault_registry, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, starter_agent, switchboard_alpha, governance):
+    """Test that snapshot throttling prevents flash-loan style price manipulation"""
+
+    # Setup: Create initial position
+    initial_deposit = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, initial_deposit, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        initial_deposit,
+        sender=starter_agent.address
+    )
+
+    # Add initial snapshot
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    initial_price = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot.pricePerShare
+
+    # Get the throttling config
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    max_upside = price_config.maxUpsideDeviation
+
+    # Simulate flash loan attack: Attacker dumps huge amount to inflate price
+    vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    attack_amount = vault_balance * 100  # 100x increase
+    yield_underlying_token.mint(yield_vault_token.address, attack_amount, sender=governance.address)
+
+    # Attacker tries to snapshot the inflated price immediately
+    boa.env.time_travel(seconds=301)
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    # Get the stored snapshot - should be throttled
+    snapshot_after_attack = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+    stored_price = snapshot_after_attack.pricePerShare
+
+    # Verify throttling occurred - price should NOT be 100x
+    # Should be throttled by maxUpsideDeviation (basis points out of 10000)
+    max_allowed = initial_price + (initial_price * max_upside // 10000)
+    assert stored_price <= max_allowed
+    assert stored_price < initial_price * 2  # Definitely not 100x
+
+    # Even if attacker waits and adds multiple snapshots, cumulative throttling limits damage
+    for i in range(3):
+        boa.env.time_travel(seconds=301)
+        undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    # After 3 more snapshots, verify price hasn't reached 100x
+    final_snapshot = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot
+
+    # With throttling, even after multiple snapshots, price increase is bounded
+    # Each snapshot can increase by at most max_upside percentage
+    assert final_snapshot.pricePerShare < initial_price * 2  # Still nowhere near 100x
+    # Attacker cannot achieve 100x price increase even with the actual 100x asset increase
+
+
+def test_snapshot_timing_boundary_conditions(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha):
+    """Test snapshot addition at exact timing boundaries (exactly at minSnapshotDelay)"""
+
+    # Setup: deposit to create position
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Get min delay
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    min_delay = price_config.minSnapshotDelay
+
+    # Add first snapshot
+    boa.env.time_travel(seconds=min_delay + 1)
+    result1 = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    assert result1 == True
+    first_timestamp = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot.lastUpdate
+
+    # Try at exactly min_delay - 1 (should fail)
+    boa.env.time_travel(seconds=min_delay - 1)
+    result2 = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    assert result2 == False  # Too early
+
+    # Try at exactly min_delay (should succeed)
+    boa.env.time_travel(seconds=1)  # Now exactly at min_delay boundary
+    result3 = undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    assert result3 == True  # At boundary is OK
+
+    second_timestamp = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot.lastUpdate
+    time_diff = second_timestamp - first_timestamp
+
+    # Verify exactly min_delay elapsed
+    assert time_diff == min_delay
+
+
+def test_weighted_price_with_single_fresh_snapshot_among_stale(undy_usd_vault, vault_registry, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, starter_agent, switchboard_alpha, governance):
+    """Test weighted price when only one snapshot is fresh and rest are stale"""
+
+    # Setup: deposit to create position
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Add multiple snapshots that will become stale
+    for i in range(3):
+        boa.env.time_travel(seconds=301)
+        undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+
+    old_price = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot.pricePerShare
+
+    # Get stale time - must be configured
+    price_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    stale_time = price_config.staleTime
+    assert stale_time > 0  # Stale time must be configured for this security feature
+
+    # Time travel to make all existing snapshots stale
+    boa.env.time_travel(seconds=stale_time + 100)
+
+    # Add yield to change price
+    current_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
+    yield_underlying_token.mint(yield_vault_token.address, current_balance // 10, sender=governance.address)  # 10% yield
+
+    # Add ONE fresh snapshot with new price
+    undy_usd_vault.addPriceSnapshot(yield_vault_token.address, sender=switchboard_alpha.address)
+    new_price = undy_usd_vault.snapShotData(yield_vault_token.address).lastSnapShot.pricePerShare
+
+    # Get weighted price - must properly weight fresh vs stale
+    weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token.address)
+
+    # Verify weighted price is reasonable
+    assert weighted_price > 0
+    assert weighted_price >= old_price  # Must at least be old price
+    assert weighted_price <= new_price  # Must not exceed new price
+
+    # Stale snapshots are properly downweighted/excluded,
+    # so weighted price must be closer to the fresh snapshot and reflect the new yield
+    assert weighted_price > old_price  # Must show increase from yield

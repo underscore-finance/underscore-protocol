@@ -32,13 +32,16 @@ def getVaultToken(fork):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setupConfig(lego_extrafi, switchboard_alpha):
+def setupConfig(lego_extrafi, fork, switchboard_alpha):
     usdc = TOKENS["base"]["USDC"]
     extrafi_usdc = TOKENS["base"]["EXTRAFI_USDC"]
     aero = TOKENS["base"]["AERO"]
     extrafi_aero = TOKENS["base"]["EXTRAFI_AERO"]
     weth = TOKENS["base"]["WETH"]
     extrafi_weth = TOKENS["base"]["EXTRAFI_WETH"]
+
+    if fork == "local":
+        pytest.skip("asset not relevant on this fork")
 
     if not lego_extrafi.isAssetOpportunity(usdc, extrafi_usdc):
         lego_extrafi.addAssetOpportunityWithReserveId(usdc, extrafi_usdc, 25, sender=switchboard_alpha.address)

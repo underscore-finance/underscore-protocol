@@ -246,7 +246,7 @@ def test_set_redemption_buffer_success(switchboard_charlie, vault_registry, undy
 
 def test_set_redemption_buffer_too_high_fails(switchboard_charlie, undy_usd_vault, governance):
     """Test that buffer > 10% is rejected"""
-    with boa.reverts("buffer too high (max 10%)"):
+    with boa.reverts("invalid redemption buffer"):
         switchboard_charlie.setRedemptionBuffer(
             undy_usd_vault.address,
             1001,  # 10.01%
@@ -366,13 +366,13 @@ def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, 
     # Get initial config
     initial_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
 
-    # New config: (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation, staleTime)
-    new_config = (600, 15, 2000, 86400)
-
     # Initiate config change
     aid = switchboard_charlie.setSnapShotPriceConfig(
         undy_usd_vault.address,
-        new_config,
+        600,    # _minSnapshotDelay
+        15,     # _maxNumSnapshots
+        2000,   # _maxUpsideDeviation
+        86400,  # _staleTime
         sender=governance.address
     )
 
@@ -410,12 +410,13 @@ def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, 
 def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, undy_usd_vault, governance):
     """Test that invalid price config is rejected"""
     # Invalid: maxNumSnapshots = 0
-    invalid_config = (300, 0, 1000, 259200)
-
     with boa.reverts("invalid price config"):
         switchboard_charlie.setSnapShotPriceConfig(
             undy_usd_vault.address,
-            invalid_config,
+            300,     # _minSnapshotDelay
+            0,       # _maxNumSnapshots (invalid)
+            1000,    # _maxUpsideDeviation
+            259200,  # _staleTime
             sender=governance.address
         )
 
@@ -423,24 +424,27 @@ def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, und
 def test_set_snapshot_price_config_invalid_vault_fails(switchboard_charlie, governance):
     """Test that invalid vault address is rejected"""
     invalid_vault = boa.env.generate_address()
-    valid_config = (300, 20, 1000, 259200)
 
     with boa.reverts("invalid vault addr"):
         switchboard_charlie.setSnapShotPriceConfig(
             invalid_vault,
-            valid_config,
+            300,     # _minSnapshotDelay
+            20,      # _maxNumSnapshots
+            1000,    # _maxUpsideDeviation
+            259200,  # _staleTime
             sender=governance.address
         )
 
 
 def test_set_snapshot_price_config_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
     """Test that non-governance cannot set snapshot config"""
-    config = (600, 15, 2000, 86400)
-
     with boa.reverts("no perms"):
         switchboard_charlie.setSnapShotPriceConfig(
             undy_usd_vault.address,
-            config,
+            600,    # _minSnapshotDelay
+            15,     # _maxNumSnapshots
+            2000,   # _maxUpsideDeviation
+            86400,  # _staleTime
             sender=alice
         )
 
@@ -546,308 +550,6 @@ def test_set_approved_vault_token_non_governance_fails(switchboard_charlie, undy
         )
 
 
-def test_set_approved_yield_lego_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
-    """Test successful yield lego approval"""
-    lego_id = 5
-
-    # Initially not approved
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, lego_id) == False
-
-    # Initiate approval
-    aid = switchboard_charlie.setApprovedYieldLego(
-        undy_usd_vault.address,
-        lego_id,
-        True,
-        sender=governance.address
-    )
-
-    # Verify event
-    logs = filter_logs(switchboard_charlie, "PendingApprovedYieldLegoChange")
-    assert len(logs) >= 1
-    assert logs[-1].vaultAddr == undy_usd_vault.address
-    assert logs[-1].legoId == lego_id
-    assert logs[-1].isApproved == True
-
-    # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 16  # APPROVED_YIELD_LEGO (2^4)
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify execution event
-    exec_logs = filter_logs(switchboard_charlie, "ApprovedYieldLegoSet")
-    assert len(exec_logs) >= 1
-    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
-    assert exec_logs[-1].legoId == lego_id
-    assert exec_logs[-1].isApproved == True
-
-    # Verify state changes
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, lego_id) == True
-
-
-def test_set_approved_yield_lego_disapprove(switchboard_charlie, vault_registry, undy_usd_vault, governance):
-    """Test disapproving a yield lego"""
-    # Lego ID 1 is already approved in fixtures
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1) == True
-
-    # Initiate disapproval
-    aid = switchboard_charlie.setApprovedYieldLego(
-        undy_usd_vault.address,
-        1,
-        False,
-        sender=governance.address
-    )
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify disapproved
-    assert vault_registry.isApprovedYieldLegoByAddr(undy_usd_vault.address, 1) == False
-
-
-def test_set_approved_yield_lego_zero_id_fails(switchboard_charlie, undy_usd_vault, governance):
-    """Test that lego ID 0 is rejected"""
-    with boa.reverts("invalid lego id"):
-        switchboard_charlie.setApprovedYieldLego(
-            undy_usd_vault.address,
-            0,
-            True,
-            sender=governance.address
-        )
-
-
-def test_set_approved_yield_lego_invalid_vault_fails(switchboard_charlie, governance):
-    """Test that invalid vault address is rejected"""
-    invalid_vault = boa.env.generate_address()
-
-    with boa.reverts("invalid vault addr"):
-        switchboard_charlie.setApprovedYieldLego(
-            invalid_vault,
-            5,
-            True,
-            sender=governance.address
-        )
-
-
-def test_set_approved_yield_lego_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
-    """Test that non-governance cannot approve yield legos"""
-    with boa.reverts("no perms"):
-        switchboard_charlie.setApprovedYieldLego(
-            undy_usd_vault.address,
-            5,
-            True,
-            sender=alice
-        )
-
-
-def test_initialize_vault_config_success(switchboard_charlie, vault_registry, governance, deploy_test_vault):
-    """Test successful vault config initialization"""
-    # Deploy a new vault
-    new_vault = deploy_test_vault()
-
-    # Register the vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Test Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Create vault tokens and lego IDs
-    vault_token_1 = boa.env.generate_address()
-    vault_token_2 = boa.env.generate_address()
-
-    # Snapshot config: (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation, staleTime)
-    snap_config = (300, 20, 1000, 259200)
-
-    # Initiate config initialization
-    aid = switchboard_charlie.initializeVaultConfig(
-        new_vault.address,
-        True,  # canDeposit
-        True,  # canWithdraw
-        1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
-        300,  # redemptionBuffer (3%)
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [vault_token_1, vault_token_2],  # approvedVaultTokens
-        [1, 2],  # approvedYieldLegos
-        sender=governance.address
-    )
-
-    # Verify event
-    logs = filter_logs(switchboard_charlie, "PendingInitializeVaultConfigChange")
-    assert len(logs) >= 1
-    assert logs[-1].vaultAddr == new_vault.address
-    assert logs[-1].canDeposit == True
-    assert logs[-1].canWithdraw == True
-    assert logs[-1].maxDepositAmount == 1_000_000 * EIGHTEEN_DECIMALS
-    assert logs[-1].redemptionBuffer == 300
-    assert logs[-1].numApprovedVaultTokens == 2
-    assert logs[-1].numApprovedYieldLegos == 2
-
-    # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 32  # INITIALIZE_VAULT_CONFIG (2^5)
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify execution event
-    exec_logs = filter_logs(switchboard_charlie, "VaultConfigInitialized")
-    assert len(exec_logs) >= 1
-    assert exec_logs[-1].vaultAddr == new_vault.address
-    assert exec_logs[-1].canDeposit == True
-    assert exec_logs[-1].canWithdraw == True
-
-    # Verify config was set in VaultRegistry
-    config = vault_registry.getVaultConfigByAddr(new_vault.address)
-    assert config.canDeposit == True
-    assert config.canWithdraw == True
-    assert config.maxDepositAmount == 1_000_000 * EIGHTEEN_DECIMALS
-    assert config.redemptionBuffer == 300
-    assert config.isVaultOpsFrozen == False
-    assert config.snapShotPriceConfig.minSnapshotDelay == 300
-    assert config.snapShotPriceConfig.maxNumSnapshots == 20
-
-    # Verify approvals
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_1) == True
-    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, vault_token_2) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 1) == True
-    assert vault_registry.isApprovedYieldLegoByAddr(new_vault.address, 2) == True
-
-
-def test_initialize_vault_config_buffer_too_high_fails(switchboard_charlie, governance, deploy_test_vault, vault_registry):
-    """Test that buffer > 10% is rejected"""
-    new_vault = deploy_test_vault()
-
-    # Register vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    snap_config = (300, 20, 1000, 259200)
-
-    with boa.reverts("buffer too high (max 10%)"):
-        switchboard_charlie.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            1001,  # 10.01%
-            0,  # minYieldWithdrawAmount
-            snap_config,
-            [],
-            [],
-            sender=governance.address
-        )
-
-
-def test_initialize_vault_config_invalid_price_config_fails(switchboard_charlie, governance, deploy_test_vault, vault_registry):
-    """Test that invalid price config is rejected"""
-    new_vault = deploy_test_vault()
-
-    # Register vault
-    vault_registry.startAddNewAddressToRegistry(
-        new_vault.address,
-        "New Vault",
-        sender=governance.address
-    )
-
-    timelock = vault_registry.registryChangeTimeLock()
-    boa.env.time_travel(blocks=timelock + 1)
-
-    vault_registry.confirmNewAddressToRegistry(
-        new_vault.address,
-        sender=governance.address
-    )
-
-    # Invalid config: maxNumSnapshots = 0
-    invalid_snap_config = (300, 0, 1000, 259200)
-
-    with boa.reverts("invalid price config"):
-        switchboard_charlie.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            200,
-            0,  # minYieldWithdrawAmount
-            invalid_snap_config,
-            [],
-            [],
-            sender=governance.address
-        )
-
-
-def test_initialize_vault_config_invalid_vault_fails(switchboard_charlie, governance):
-    """Test that unregistered vault cannot be initialized"""
-    random_vault = boa.env.generate_address()
-    snap_config = (300, 20, 1000, 259200)
-
-    # Create pending action
-    aid = switchboard_charlie.initializeVaultConfig(
-        random_vault,
-        True,
-        True,
-        0,
-        200,
-        0,  # minYieldWithdrawAmount
-        snap_config,
-        [],
-        [],
-        sender=governance.address
-    )
-
-    # Time travel to after timelock
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-
-    # Execution should fail because vault is not registered
-    with boa.reverts("invalid vault addr"):
-        switchboard_charlie.executePendingAction(aid, sender=governance.address)
-
-
-def test_initialize_vault_config_non_governance_fails(switchboard_charlie, alice, deploy_test_vault):
-    """Test that non-governance cannot initialize vault config"""
-    new_vault = deploy_test_vault()
-    snap_config = (300, 20, 1000, 259200)
-
-    with boa.reverts("no perms"):
-        switchboard_charlie.initializeVaultConfig(
-            new_vault.address,
-            True,
-            True,
-            0,
-            200,
-            0,  # minYieldWithdrawAmount
-            snap_config,
-            [],
-            [],
-            sender=alice
-        )
-
-
 def test_cancel_pending_action(switchboard_charlie, undy_usd_vault, governance):
     """Test canceling a pending action"""
     # Create a pending action
@@ -940,10 +642,12 @@ def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_
     )
 
     # Create second pending action (snapshot config)
-    snap_config = (600, 15, 2000, 86400)
     aid2 = switchboard_charlie.setSnapShotPriceConfig(
         undy_usd_vault.address,
-        snap_config,
+        600,    # _minSnapshotDelay
+        15,     # _maxNumSnapshots
+        2000,   # _maxUpsideDeviation
+        86400,  # _staleTime
         sender=governance.address
     )
 
@@ -1009,3 +713,271 @@ def test_multiple_vaults_independent_configs(switchboard_charlie, vault_registry
     # Verify independent configs
     assert vault_registry.redemptionBuffer(vault_1.address) == 100
     assert vault_registry.redemptionBuffer(vault_2.address) == 500
+
+
+# setShouldAutoDeposit tests
+
+
+def test_set_should_auto_deposit_disable_by_security_action(switchboard_charlie, vault_registry, undy_usd_vault, mission_control, switchboard_alpha, alice):
+    """Test that security action users can disable auto deposit"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Initially auto deposit is enabled
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == True
+
+    # Alice (security action user) disables auto deposit
+    switchboard_charlie.setShouldAutoDeposit(undy_usd_vault.address, False, sender=alice)
+
+    # Verify auto deposit is disabled
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == False
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "ShouldAutoDepositSet")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].shouldAutoDeposit == False
+    assert logs[-1].caller == alice
+
+
+def test_set_should_auto_deposit_enable_requires_governance(switchboard_charlie, vault_registry, undy_usd_vault, mission_control, switchboard_alpha, alice, governance):
+    """Test that enabling auto deposit requires governance"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Disable auto deposit first
+    switchboard_charlie.setShouldAutoDeposit(undy_usd_vault.address, False, sender=governance.address)
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == False
+
+    # Alice tries to enable - should fail
+    with boa.reverts("no perms"):
+        switchboard_charlie.setShouldAutoDeposit(undy_usd_vault.address, True, sender=alice)
+
+    # Governance can enable
+    switchboard_charlie.setShouldAutoDeposit(undy_usd_vault.address, True, sender=governance.address)
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == True
+
+
+def test_set_should_auto_deposit_unauthorized_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that unauthorized users cannot set should auto deposit"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.setShouldAutoDeposit(undy_usd_vault.address, False, sender=alice)
+
+
+# setPerformanceFee tests
+
+
+def test_set_performance_fee_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+    """Test successful performance fee update through full lifecycle"""
+    # Get initial fee
+    initial_fee = vault_registry.getPerformanceFee(undy_usd_vault.address)
+
+    # Initiate fee change to 15%
+    new_fee = 15_00  # 15%
+    aid = switchboard_charlie.setPerformanceFee(
+        undy_usd_vault.address,
+        new_fee,
+        sender=governance.address
+    )
+
+    # Verify event
+    logs = filter_logs(switchboard_charlie, "PendingPerformanceFeeChange")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].performanceFee == new_fee
+    assert logs[-1].actionId == aid
+
+    # Verify pending state
+    assert switchboard_charlie.actionType(aid) == 16  # PERFORMANCE_FEE (2^4)
+    pending = switchboard_charlie.pendingPerformanceFee(aid)
+    assert pending.vaultAddr == undy_usd_vault.address
+    assert pending.performanceFee == new_fee
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_charlie, "PerformanceFeeSet")
+    assert len(exec_logs) >= 1
+    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
+    assert exec_logs[-1].performanceFee == new_fee
+
+    # Verify state changes in VaultRegistry
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == new_fee
+
+
+def test_set_performance_fee_too_high_fails(switchboard_charlie, undy_usd_vault, governance):
+    """Test that performance fee > 100% is rejected"""
+    with boa.reverts("invalid performance fee"):
+        switchboard_charlie.setPerformanceFee(
+            undy_usd_vault.address,
+            10001,  # 100.01%
+            sender=governance.address
+        )
+
+
+def test_set_performance_fee_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.setPerformanceFee(
+            invalid_vault,
+            15_00,
+            sender=governance.address
+        )
+
+
+def test_set_performance_fee_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that non-governance cannot set performance fee"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.setPerformanceFee(
+            undy_usd_vault.address,
+            15_00,
+            sender=alice
+        )
+
+
+# setDefaultTargetVaultToken tests
+
+
+def test_set_default_target_vault_token_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+    """Test successful default target vault token update to zero address"""
+    # Set to zero address (the only valid non-approved option)
+    target_token = ZERO_ADDRESS
+
+    # Initiate change
+    aid = switchboard_charlie.setDefaultTargetVaultToken(
+        undy_usd_vault.address,
+        target_token,
+        sender=governance.address
+    )
+
+    # Verify event
+    logs = filter_logs(switchboard_charlie, "PendingDefaultTargetVaultTokenChange")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].targetVaultToken == target_token
+    assert logs[-1].actionId == aid
+
+    # Verify pending state
+    assert switchboard_charlie.actionType(aid) == 32  # DEFAULT_TARGET_VAULT_TOKEN (2^5)
+    pending = switchboard_charlie.pendingDefaultTargetVaultToken(aid)
+    assert pending.vaultAddr == undy_usd_vault.address
+    assert pending.targetVaultToken == target_token
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_charlie, "DefaultTargetVaultTokenSet")
+    assert len(exec_logs) >= 1
+    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
+    assert exec_logs[-1].targetVaultToken == target_token
+
+
+def test_set_default_target_vault_token_already_approved_fails(switchboard_charlie, undy_usd_vault, governance, yield_vault_token):
+    """Test that setting an already approved vault token as default fails"""
+    # yield_vault_token is already approved
+    with boa.reverts("vault token already approved"):
+        switchboard_charlie.setDefaultTargetVaultToken(
+            undy_usd_vault.address,
+            yield_vault_token.address,
+            sender=governance.address
+        )
+
+
+def test_set_default_target_vault_token_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+    target_token = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.setDefaultTargetVaultToken(
+            invalid_vault,
+            target_token,
+            sender=governance.address
+        )
+
+
+def test_set_default_target_vault_token_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that non-governance cannot set default target vault token"""
+    target_token = boa.env.generate_address()
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setDefaultTargetVaultToken(
+            undy_usd_vault.address,
+            target_token,
+            sender=alice
+        )
+
+
+# setMaxDepositAmount tests
+
+
+def test_set_max_deposit_amount_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+    """Test successful max deposit amount update through full lifecycle"""
+    # Get initial max deposit
+    initial_max = vault_registry.getVaultConfigByAddr(undy_usd_vault.address).maxDepositAmount
+
+    # Initiate change
+    new_max = 5_000_000 * EIGHTEEN_DECIMALS
+    aid = switchboard_charlie.setMaxDepositAmount(
+        undy_usd_vault.address,
+        new_max,
+        sender=governance.address
+    )
+
+    # Verify event
+    logs = filter_logs(switchboard_charlie, "PendingMaxDepositAmountChange")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].maxDepositAmount == new_max
+    assert logs[-1].actionId == aid
+
+    # Verify pending state
+    assert switchboard_charlie.actionType(aid) == 64  # MAX_DEPOSIT_AMOUNT (2^6)
+    pending = switchboard_charlie.pendingMaxDepositAmount(aid)
+    assert pending.vaultAddr == undy_usd_vault.address
+    assert pending.maxDepositAmount == new_max
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_charlie, "MaxDepositAmountSet")
+    assert len(exec_logs) >= 1
+    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
+    assert exec_logs[-1].maxDepositAmount == new_max
+
+    # Verify state changes in VaultRegistry
+    updated_config = vault_registry.getVaultConfigByAddr(undy_usd_vault.address)
+    assert updated_config.maxDepositAmount == new_max
+
+
+def test_set_max_deposit_amount_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.setMaxDepositAmount(
+            invalid_vault,
+            1_000_000 * EIGHTEEN_DECIMALS,
+            sender=governance.address
+        )
+
+
+def test_set_max_deposit_amount_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that non-governance cannot set max deposit amount"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.setMaxDepositAmount(
+            undy_usd_vault.address,
+            1_000_000 * EIGHTEEN_DECIMALS,
+            sender=alice
+        )
