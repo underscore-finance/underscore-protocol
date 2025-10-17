@@ -42,6 +42,8 @@ struct VaultConfig:
     minYieldWithdrawAmount: uint256
     targetCollateralizationRatio: uint256
     performanceFee: uint256
+    shouldAutoDeposit: bool
+    defaultTargetVaultToken: address
     snapShotPriceConfig: SnapShotPriceConfig
 
 struct VaultToken:
@@ -85,6 +87,14 @@ event TargetCollateralizationRatioSet:
 event PerformanceFeeSet:
     vaultAddr: indexed(address)
     performanceFee: uint256
+
+event DefaultTargetVaultTokenSet:
+    vaultAddr: indexed(address)
+    targetVaultToken: indexed(address)
+
+event ShouldAutoDepositSet:
+    vaultAddr: indexed(address)
+    shouldAutoDeposit: bool
 
 event SnapShotPriceConfigSet:
     vaultAddr: indexed(address)
@@ -257,6 +267,27 @@ def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256):
 
 
 @external
+def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self.isApprovedVaultToken[_vaultAddr][_targetVaultToken] or _targetVaultToken == empty(address) # dev: vault token not approved
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.defaultTargetVaultToken = _targetVaultToken
+    self.vaultConfigs[_vaultAddr] = config
+    log DefaultTargetVaultTokenSet(vaultAddr=_vaultAddr, targetVaultToken=_targetVaultToken)
+
+
+@external
+def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config.shouldAutoDeposit = _shouldAutoDeposit
+    self.vaultConfigs[_vaultAddr] = config
+    log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit)
+
+
+@external
 def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
@@ -303,6 +334,8 @@ def initializeVaultConfig(
     _approvedYieldLegos: DynArray[uint256, 25] = [],
     _targetCollateralizationRatio: uint256 = 0,
     _performanceFee: uint256 = 20_00, # 20.00%
+    _shouldAutoDeposit: bool = False,
+    _defaultTargetVaultToken: address = empty(address),
 ):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
 
@@ -314,6 +347,13 @@ def initializeVaultConfig(
     if _targetCollateralizationRatio != 0:
         assert _targetCollateralizationRatio >= 100_00 # dev: ratio must be >= 100%
         assert _targetCollateralizationRatio <= 500_00 # dev: ratio too high (max 500%)
+    if _defaultTargetVaultToken != empty(address):
+        isApproved: bool = False
+        for vaultToken: address in _approvedVaultTokens:
+            if vaultToken == _defaultTargetVaultToken:
+                isApproved = True
+                break
+        assert isApproved # dev: default target vault token not in approved list
 
     # set main vault config
     config: VaultConfig = VaultConfig(
@@ -325,6 +365,8 @@ def initializeVaultConfig(
         minYieldWithdrawAmount = _minYieldWithdrawAmount,
         targetCollateralizationRatio = _targetCollateralizationRatio,
         performanceFee = _performanceFee,
+        shouldAutoDeposit = _shouldAutoDeposit,
+        defaultTargetVaultToken = _defaultTargetVaultToken,
         snapShotPriceConfig = _snapShotPriceConfig,
     )
     self.vaultConfigs[_vaultAddr] = config
@@ -348,6 +390,9 @@ def initializeVaultConfig(
     if _targetCollateralizationRatio != 0:
         log TargetCollateralizationRatioSet(vaultAddr=_vaultAddr, ratio=_targetCollateralizationRatio)
     log PerformanceFeeSet(vaultAddr=_vaultAddr, performanceFee=_performanceFee)
+    log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit)
+    if _defaultTargetVaultToken != empty(address):
+        log DefaultTargetVaultTokenSet(vaultAddr=_vaultAddr, targetVaultToken=_defaultTargetVaultToken)
     log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_snapShotPriceConfig.minSnapshotDelay, maxNumSnapshots=_snapShotPriceConfig.maxNumSnapshots, maxUpsideDeviation=_snapShotPriceConfig.maxUpsideDeviation, staleTime=_snapShotPriceConfig.staleTime)
 
 
@@ -375,6 +420,57 @@ def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
 ######################
 # Vault Config Views #
 ######################
+
+
+@view
+@external
+def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address):
+    """
+    Returns all deposit-related config values in a single call for efficiency.
+    Returns: (canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken)
+    """
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    return config.canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
+
+
+@view
+@external
+def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool):
+    """
+    Returns VaultActionData and isVaultOpsFrozen in a single call for efficiency.
+    Returns: (VaultActionData, isVaultOpsFrozen)
+    """
+    a: addys.Addys = addys._getAddys()
+
+    # lego details
+    legoAddr: address = empty(address)
+    if _legoId != 0:
+        legoAddr = staticcall Registry(a.legoBook).getAddr(_legoId)
+
+    ad: VaultActionData = VaultActionData(
+        ledger = a.ledger,
+        missionControl = a.missionControl,
+        legoBook = a.legoBook,
+        appraiser = a.appraiser,
+        vaultRegistry = self,
+        signer = _signer,
+        legoId = _legoId,
+        legoAddr = legoAddr,
+    )
+    isVaultOpsFrozen: bool = self.vaultConfigs[_vaultAddr].isVaultOpsFrozen
+    return ad, isVaultOpsFrozen
+
+
+@view
+@external
+def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig):
+    """
+    Returns lego address and snapshot config in a single call for efficiency.
+    Returns: (legoAddr, SnapShotPriceConfig)
+    """
+    legoAddr: address = self._getLegoDataFromVaultToken(_vaultToken)[1]
+    config: SnapShotPriceConfig = self.vaultConfigs[_vaultAddr].snapShotPriceConfig
+    return legoAddr, config
 
 
 @view
@@ -430,6 +526,18 @@ def targetCollateralizationRatio(_vaultAddr: address) -> uint256:
 @external
 def getPerformanceFee(_vaultAddr: address) -> uint256:
     return self.vaultConfigs[_vaultAddr].performanceFee
+
+
+@view
+@external
+def getDefaultTargetVaultToken(_vaultAddr: address) -> address:
+    return self.vaultConfigs[_vaultAddr].defaultTargetVaultToken
+
+
+@view
+@external
+def shouldAutoDeposit(_vaultAddr: address) -> bool:
+    return self.vaultConfigs[_vaultAddr].shouldAutoDeposit
 
 
 @view

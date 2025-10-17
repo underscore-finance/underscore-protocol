@@ -14,7 +14,9 @@ from ethereum.ercs import IERC20Detailed
 interface VaultRegistry:
     def checkVaultApprovals(_vaultAddr: address, _legoId: uint256, _vaultToken: address) -> bool: view
     def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
+    def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
     def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address): view
+    def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig): view
     def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
     def getLegoAddrFromVaultToken(_vaultToken: address) -> address: view
@@ -153,26 +155,55 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    amount: uint256 = self._getAmountAndApprove(_asset, _amount, ad.legoAddr) # doing approval here
-    currentUnderlying: uint256 = self._getUnderlyingAndUpdatePendingYield()
+    return self._depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData, self._getUnderlyingAndUpdatePendingYield(), True, ad)
+
+
+@internal
+def _onReceiveVaultFunds(
+    _vaultAddr: address,
+    _amount: uint256,
+    _depositor: address,
+    _vaultRegistry: address,
+) -> uint256:
+    legoId: uint256 = self.assetData[_vaultAddr].legoId
+    ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
+    if ad.legoId == 0 or ad.legoAddr == empty(address):
+        return 0
+    return self._depositForYield(ad.legoId, VAULT_ASSET, _vaultAddr, _amount, empty(bytes32), 0, False, ad)[0]
+
+
+@internal
+def _depositForYield(
+    _legoId: uint256,
+    _asset: address,
+    _vaultAddr: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _currentUnderlying: uint256,
+    _shouldSaveUnderlying: bool,
+    _ad: VaultActionData,
+) -> (uint256, address, uint256, uint256):
+    amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
+    currentUnderlying: uint256 = _currentUnderlying
 
     # deposit for yield
     assetAmount: uint256 = 0
     vaultToken: address = empty(address)
     vaultTokenAmountReceived: uint256 = 0
     txUsdValue: uint256 = 0
-    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-    assert extcall IERC20(_asset).approve(ad.legoAddr, 0, default_return_value = True) # dev: appr
+    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     # update yield position
     if _asset == VAULT_ASSET:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
-        assert staticcall VaultRegistry(ad.vaultRegistry).checkVaultApprovals(self, ad.legoId, vaultToken) # dev: lego or vault token not approved
-        self._updateYieldPosition(vaultToken, ad.legoId, ad.legoAddr, ad.vaultRegistry)
+        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, _ad.legoId, vaultToken) # dev: lego or vault token not approved
+        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
         currentUnderlying += assetAmount
 
     # save underlying balance
-    self.lastUnderlyingBal = currentUnderlying
+    if _shouldSaveUnderlying:
+        self.lastUnderlyingBal = currentUnderlying
 
     log EarnVaultAction(
         op = 10,
@@ -181,8 +212,8 @@ def depositForYield(
         amount1 = assetAmount,
         amount2 = vaultTokenAmountReceived,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
 
@@ -803,11 +834,12 @@ def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig
 def addPriceSnapshot(_vaultToken: address) -> bool:
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     vaultRegistry: address = self._getVaultRegistry()
-    legoAddr: address = staticcall VaultRegistry(vaultRegistry).getLegoAddrFromVaultToken(_vaultToken)
+    legoAddr: address = empty(address)
+    config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
+    legoAddr, config = staticcall VaultRegistry(vaultRegistry).getLegoAndSnapshotConfig(_vaultToken, self)
     if legoAddr == empty(address):
         return False
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    config: SnapShotPriceConfig = staticcall VaultRegistry(vaultRegistry).snapShotPriceConfig(self)
     return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, config)
 
 
@@ -856,12 +888,13 @@ def _addPriceSnapshot(
 @external
 def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
     vaultRegistry: address = self._getVaultRegistry()
-    legoAddr: address = staticcall VaultRegistry(vaultRegistry).getLegoAddrFromVaultToken(_vaultToken)
+    legoAddr: address = empty(address)
+    config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
+    legoAddr, config = staticcall VaultRegistry(vaultRegistry).getLegoAndSnapshotConfig(_vaultToken, self)
     if legoAddr == empty(address):
         return empty(SingleSnapShot)
     vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     data: SnapShotData = self.snapShotData[_vaultToken]
-    config: SnapShotPriceConfig = staticcall VaultRegistry(vaultRegistry).snapShotPriceConfig(self)
     return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, config)
 
 
@@ -913,14 +946,16 @@ def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_L
     assert self.indexOfManager[_signer] != 0 # dev: not manager
     vaultRegistry: address = self._getVaultRegistry()
 
-    # main data for this transaction
+    # main data for this transaction - get action data and frozen status in single call
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
-    ad: VaultActionData = staticcall VaultRegistry(vaultRegistry).getVaultActionDataBundle(legoId, _signer)
+
+    ad: VaultActionData = empty(VaultActionData)
+    isVaultOpsFrozen: bool = False
+    ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
 
     # cannot perform any actions if vault is frozen
-    isVaultOpsFrozen: bool = staticcall VaultRegistry(vaultRegistry).isVaultOpsFrozen(self)
     assert not isVaultOpsFrozen # dev: frozen vault
 
     # make sure manager is not locked

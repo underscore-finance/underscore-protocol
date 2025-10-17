@@ -19,6 +19,7 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
+    def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address): view
     def maxDepositAmount(_vaultAddr: address) -> uint256: view
     def canWithdraw(_vaultAddr: address) -> bool: view
     def canDeposit(_vaultAddr: address) -> bool: view
@@ -124,18 +125,25 @@ def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256
 @external
 def maxDeposit(_receiver: address) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
-    if not staticcall VaultRegistry(vaultRegistry).canDeposit(self):
+
+    # get all deposit config in a single call
+    canDeposit: bool = False
+    maxDepositAmount: uint256 = 0
+    shouldAutoDeposit: bool = False
+    defaultTargetVaultToken: address = empty(address)
+    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+
+    if not canDeposit:
         return 0
 
-    maxAmount: uint256 = staticcall VaultRegistry(vaultRegistry).maxDepositAmount(self)
-    if maxAmount == 0:
+    if maxDepositAmount == 0:
         return max_value(uint256)
 
     totalAssets: uint256 = self._getTotalAssets(True, vaultRegistry)
-    if totalAssets >= maxAmount:
+    if totalAssets >= maxDepositAmount:
         return 0
 
-    return maxAmount - totalAssets
+    return maxDepositAmount - totalAssets
 
 
 @view
@@ -161,12 +169,8 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     maxBalVaultToken: address = empty(address)
     totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
-    # save data
-    vaultWallet.lastUnderlyingBal = currentBalance
-    vaultWallet.pendingYieldRealized = pendingYieldRealized
-
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
-    self._deposit(asset, amount, shares, _receiver, totalAssets, vaultRegistry)
+    self._deposit(asset, amount, shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -177,18 +181,25 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 @external
 def maxMint(_receiver: address) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
-    if not staticcall VaultRegistry(vaultRegistry).canDeposit(self):
+
+    # get all deposit config in a single call
+    canDeposit: bool = False
+    maxDepositAmount: uint256 = 0
+    shouldAutoDeposit: bool = False
+    defaultTargetVaultToken: address = empty(address)
+    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+
+    if not canDeposit:
         return 0
 
-    maxAmount: uint256 = staticcall VaultRegistry(vaultRegistry).maxDepositAmount(self)
-    if maxAmount == 0:
+    if maxDepositAmount == 0:
         return max_value(uint256)
 
     totalAssets: uint256 = self._getTotalAssets(True, vaultRegistry)
-    if totalAssets >= maxAmount:
+    if totalAssets >= maxDepositAmount:
         return 0
 
-    maxDepositAmt: uint256 = maxAmount - totalAssets
+    maxDepositAmt: uint256 = maxDepositAmount - totalAssets
     return self._amountToShares(maxDepositAmt, token.totalSupply, totalAssets, False)
 
 
@@ -210,12 +221,8 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     maxBalVaultToken: address = empty(address)
     totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
-    # save data
-    vaultWallet.lastUnderlyingBal = currentBalance
-    vaultWallet.pendingYieldRealized = pendingYieldRealized
-
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, vaultRegistry)
+    self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
     return amount
 
 
@@ -229,21 +236,41 @@ def _deposit(
     _shares: uint256,
     _recipient: address,
     _totalAssets: uint256,
+    _currentBalance: uint256,
+    _pendingYieldRealized: uint256,
+    _maxBalVaultToken: address,
     _vaultRegistry: address,
 ):
-    assert staticcall VaultRegistry(_vaultRegistry).canDeposit(self) # dev: cannot deposit
+    # get all deposit config
+    canDeposit: bool = False
+    maxDepositAmount: uint256 = 0
+    shouldAutoDeposit: bool = False
+    defaultTargetVaultToken: address = empty(address)
+    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self)
 
+    assert canDeposit # dev: cannot deposit
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
-
-    maxAmount: uint256 = staticcall VaultRegistry(_vaultRegistry).maxDepositAmount(self)
-    if maxAmount != 0:
-        assert _totalAssets + _amount <= maxAmount # dev: exceeds max deposit
+    if maxDepositAmount != 0:
+        assert _totalAssets + _amount <= maxDepositAmount # dev: exceeds max deposit
 
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed
-    token._mint(_recipient, _shares)
 
+    # put the deposit to work -- start earning
+    amountDeposited: uint256 = 0
+    if shouldAutoDeposit:
+        targetVaultToken: address = defaultTargetVaultToken
+        if targetVaultToken == empty(address):
+            targetVaultToken = _maxBalVaultToken
+        amountDeposited = vaultWallet._onReceiveVaultFunds(targetVaultToken, _amount, _recipient, _vaultRegistry)
+
+    # save data
+    currentBalance: uint256 = _currentBalance + amountDeposited
+    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.pendingYieldRealized = _pendingYieldRealized
+
+    token._mint(_recipient, _shares)
     log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)
 
 
