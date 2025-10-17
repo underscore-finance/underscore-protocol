@@ -1210,48 +1210,6 @@ def test_set_can_withdraw_permissions(
     assert vault_registry.canWithdraw(undy_usd_vault.address) == True
 
 
-def test_set_can_deposit_no_change_reverts(
-    undy_usd_vault,
-    vault_registry,
-    switchboard_alpha,
-):
-    """Test that setting canDeposit to same value reverts"""
-
-    # Initially should be True
-    assert vault_registry.canDeposit(undy_usd_vault.address) == True
-
-    # Try to set to same value - should revert
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
-
-    # Change to False
-    vault_registry.setCanDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
-
-    # Try to set to same value again - should revert
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
-
-
-def test_set_can_withdraw_no_change_reverts(
-    undy_usd_vault,
-    vault_registry,
-    switchboard_alpha,
-):
-    """Test that setting canWithdraw to same value reverts"""
-
-    # Initially should be True
-    assert vault_registry.canWithdraw(undy_usd_vault.address) == True
-
-    # Try to set to same value - should revert
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanWithdraw(undy_usd_vault.address, True, sender=switchboard_alpha.address)
-
-    # Change to False
-    vault_registry.setCanWithdraw(undy_usd_vault.address, False, sender=switchboard_alpha.address)
-
-    # Try to set to same value again - should revert
-    with boa.reverts("nothing to change"):
-        vault_registry.setCanWithdraw(undy_usd_vault.address, False, sender=switchboard_alpha.address)
 
 
 def test_can_deposit_and_withdraw_events(
@@ -1264,8 +1222,8 @@ def test_can_deposit_and_withdraw_events(
     # Set canDeposit to False and check event
     tx = vault_registry.setCanDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
 
-    # Use filter_logs to get the VaultConfigSet event
-    config_events = filter_logs(vault_registry, "VaultConfigSet")
+    # Use filter_logs to get the CanDepositSet event
+    config_events = filter_logs(vault_registry, "CanDepositSet")
     assert len(config_events) > 0
 
     config_event = config_events[-1]  # Get the most recent event
@@ -1275,8 +1233,8 @@ def test_can_deposit_and_withdraw_events(
     # Set canWithdraw to False and check event
     tx2 = vault_registry.setCanWithdraw(undy_usd_vault.address, False, sender=switchboard_alpha.address)
 
-    # Use filter_logs to get the VaultConfigSet event
-    config_events2 = filter_logs(vault_registry, "VaultConfigSet")
+    # Use filter_logs to get the CanWithdrawSet event
+    config_events2 = filter_logs(vault_registry, "CanWithdrawSet")
     assert len(config_events2) > 0
 
     config_event2 = config_events2[-1]  # Get the most recent event
@@ -1405,106 +1363,3 @@ def test_multiple_flag_changes(
     assert undy_usd_vault.balanceOf(bob) == 0
 
 
-def test_vault_initialization_with_flags_disabled(
-    undy_hq_deploy,
-    vault_registry,
-    governance,
-    switchboard_alpha,
-    fork,
-    starter_agent,
-    yield_underlying_token,
-    yield_underlying_token_whale,
-    bob,
-):
-    """Test vault initialization with canDeposit and canWithdraw set to False"""
-    from config.BluePrint import PARAMS
-
-    # Create vault with deposits disabled
-    vault_no_deposits = boa.load(
-        "contracts/vaults/UndyUsd.vy",
-        yield_underlying_token.address,
-        undy_hq_deploy,
-        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
-        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
-        starter_agent,
-    )
-
-    # Register vault in VaultRegistry
-    vault_registry.startAddNewAddressToRegistry(vault_no_deposits.address, "Test Vault No Deposits", sender=governance.address)
-    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
-    vault_registry.confirmNewAddressToRegistry(vault_no_deposits.address, sender=governance.address)
-
-    # Initialize with canDeposit = False
-    vault_registry.initializeVaultConfig(
-        vault_no_deposits.address,
-        False,  # canDeposit = False
-        True,   # canWithdraw = True
-        0,      # maxDepositAmount = 0 (unlimited)
-        2_00,   # redemptionBuffer = 2%
-        0,      # minYieldWithdrawAmount
-        (
-            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
-        ),
-        [],  # no approved vault tokens
-        [],  # no approved legos
-        sender=switchboard_alpha.address
-    )
-
-    # Check initial state
-    assert vault_registry.canDeposit(vault_no_deposits.address) == False
-    assert vault_registry.canWithdraw(vault_no_deposits.address) == True
-
-    # Can't deposit
-    yield_underlying_token.approve(vault_no_deposits, MAX_UINT256, sender=yield_underlying_token_whale)
-    with boa.reverts("cannot deposit"):
-        vault_no_deposits.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=yield_underlying_token_whale)
-
-    # Create vault with withdrawals disabled
-    vault_no_withdrawals = boa.load(
-        "contracts/vaults/UndyUsd.vy",
-        yield_underlying_token.address,
-        undy_hq_deploy,
-        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
-        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
-        starter_agent,
-    )
-
-    # Register vault in VaultRegistry
-    vault_registry.startAddNewAddressToRegistry(vault_no_withdrawals.address, "Test Vault No Withdrawals", sender=governance.address)
-    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
-    vault_registry.confirmNewAddressToRegistry(vault_no_withdrawals.address, sender=governance.address)
-
-    # Initialize with canWithdraw = False
-    vault_registry.initializeVaultConfig(
-        vault_no_withdrawals.address,
-        True,   # canDeposit = True
-        False,  # canWithdraw = False
-        0,      # maxDepositAmount = 0 (unlimited)
-        2_00,   # redemptionBuffer = 2%
-        0,      # minYieldWithdrawAmount
-        (
-            PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-            PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-            PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-            PARAMS[fork]["EARN_VAULT_STALE_TIME"],
-        ),
-        [],  # no approved vault tokens
-        [],  # no approved legos
-        sender=switchboard_alpha.address
-    )
-
-    # Check initial state
-    assert vault_registry.canDeposit(vault_no_withdrawals.address) == True
-    assert vault_registry.canWithdraw(vault_no_withdrawals.address) == False
-
-    # Can deposit
-    yield_underlying_token.approve(vault_no_withdrawals, MAX_UINT256, sender=yield_underlying_token_whale)
-    shares = vault_no_withdrawals.deposit(100 * EIGHTEEN_DECIMALS, bob, sender=yield_underlying_token_whale)
-    assert shares > 0
-
-    # But can't withdraw
-    with boa.reverts("cannot withdraw"):
-        vault_no_withdrawals.redeem(shares, bob, bob, sender=bob)

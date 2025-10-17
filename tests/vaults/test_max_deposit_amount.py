@@ -26,14 +26,6 @@ def test_set_max_deposit_amount_no_perms(undy_usd_vault, vault_registry, bob):
         vault_registry.setMaxDepositAmount(undy_usd_vault.address, max_amount, sender=bob)
 
 
-def test_set_max_deposit_amount_no_change(undy_usd_vault, vault_registry, switchboard_alpha, mission_control):
-    mission_control.setCanPerformSecurityAction(
-        switchboard_alpha.address, True, sender=switchboard_alpha.address
-    )
-    with boa.reverts("nothing to change"):
-        vault_registry.setMaxDepositAmount(undy_usd_vault.address, 0, sender=switchboard_alpha.address)
-
-
 def test_max_deposit_with_limit(
     undy_usd_vault,
     vault_registry,

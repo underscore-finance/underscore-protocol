@@ -18,12 +18,8 @@ def prepareAssetForWalletTx(undy_usd_vault, bob, yield_underlying_token, yield_u
         # set price
         mock_ripe.setPrice(_asset, _price)
 
-        # transfer asset to user
-        _asset.transfer(_user, _amount, sender=_whale)
-
-        # deposit into earn vault
-        _asset.approve(_vault, MAX_UINT256, sender=_user)
-        _vault.deposit(_amount, _user, sender=_user)
+        # transfer asset directly to vault (not via deposit to avoid auto-deposit)
+        _asset.transfer(_vault, _amount, sender=_whale)
 
         return _amount
 

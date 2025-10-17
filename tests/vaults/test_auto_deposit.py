@@ -13,6 +13,9 @@ from constants import EIGHTEEN_DECIMALS, MAX_UINT256
 def setup_auto_deposit_config(vault_registry, switchboard_alpha, yield_underlying_token, yield_underlying_token_whale, starter_agent, sally):
     """Fixture to enable auto-deposit with a specific target vault token"""
     def _setup(_vault, _targetVaultToken):
+        # Ensure auto-deposit is disabled during setup
+        vault_registry.setShouldAutoDeposit(_vault.address, False, sender=switchboard_alpha.address)
+
         # First, have a user deposit to mint shares, so we avoid the empty vault issue
         # Then create a small position in the target vault token to register it
         small_amount = 10 * EIGHTEEN_DECIMALS
@@ -261,7 +264,7 @@ def test_set_default_target_to_zero_address(undy_usd_vault, vault_registry, swit
 def test_set_default_target_to_unapproved_token_fails(undy_usd_vault, vault_registry, switchboard_alpha, yield_underlying_token):
     """Test setting defaultTargetVaultToken to unapproved token should fail"""
     # Try to set to an unapproved vault token (using underlying token as example)
-    with boa.reverts("vault token not approved"):
+    with boa.reverts("invalid default target vault token"):
         vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_underlying_token.address, sender=switchboard_alpha.address)
 
 

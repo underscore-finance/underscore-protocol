@@ -167,6 +167,7 @@ def lego_extrafi(fork, lego_book, undy_hq_deploy, governance, alpha_token):
     lego_book.startAddNewAddressToRegistry(addr, "ExtraFi Lego", sender=governance.address)
 
 
+@pytest.fixture(scope="session")
 def lego_wasabi(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
     WASABI_LONG_POOL = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["WASABI_LONG_POOL"]
     WASABI_SHORT_POOL = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["WASABI_SHORT_POOL"]
