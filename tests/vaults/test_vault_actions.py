@@ -1299,6 +1299,395 @@ def test_vault_partial_withdrawals_no_deregistration(prepareAssetForWalletTx, un
 ##################################
 
 
+########################################################
+# P0 Security Tests - Multi-Position Edge Cases  #
+########################################################
+
+
+def test_deregister_position_that_is_default_target(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_vault_token, switchboard_alpha):
+    """Test deregistering the defaultTargetVaultToken for auto-deposit"""
+
+    # Setup: Create yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Set this vault token as the default target for auto-deposit
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_vault_token.address, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+
+    # Verify it's set as default
+    config = vault_registry.getDepositConfig(undy_usd_vault.address)
+    assert config[3] == yield_vault_token.address  # defaultTargetVaultToken
+
+    # Now deregister it by withdrawing all
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # Verify deregistration
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+    # The default target remains set in registry (registry doesn't auto-clear on deregistration)
+    config = vault_registry.getDepositConfig(undy_usd_vault.address)
+    assert config[3] == yield_vault_token.address
+
+    # This creates a dangling reference: registry points to deregistered position
+    # Vault must handle this gracefully when auto-deposit attempts to use missing target
+
+
+def test_deregister_last_remaining_yield_position(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test removing the final yield position returns vault to base state"""
+
+    # Setup: Create single yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Verify we have a yield position
+    assert undy_usd_vault.numAssets() == 2  # base + yield vault token
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
+
+    # Withdraw everything
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # Verify we're back to base state (only base asset)
+    assert undy_usd_vault.numAssets() == 1
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+    # Underlying tokens should be back in vault
+    assert yield_underlying_token.balanceOf(undy_usd_vault) > 0
+
+
+def test_max_number_of_positions_registration(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
+    """Test registering maximum number of vault token positions"""
+
+    # Register 4 different vault tokens (testing with 4, real limit may be higher)
+    vault_tokens_list = [yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4]
+
+    for i, vault_token in enumerate(vault_tokens_list):
+        deposit_amount = prepareAssetForWalletTx(_amount=(100 - i*10) * EIGHTEEN_DECIMALS)
+        _, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
+            1,
+            yield_underlying_token.address,
+            vault_token.address,
+            deposit_amount,
+            sender=starter_agent.address
+        )
+
+        # Verify each registration
+        expected_num_assets = 2 + i  # base + i vault tokens
+        assert undy_usd_vault.numAssets() == expected_num_assets
+        assert undy_usd_vault.indexOfAsset(vault_token.address) == i + 1
+
+    # Verify all are registered correctly
+    assert undy_usd_vault.numAssets() == 5  # base + 4 vault tokens
+
+    # Verify we can still operate with all positions
+    for i, vault_token in enumerate(vault_tokens_list):
+        balance = vault_token.balanceOf(undy_usd_vault)
+        assert balance > 0
+        asset_data = undy_usd_vault.assetData(vault_token.address)
+        assert asset_data.legoId == 1
+
+
+def test_withdrawal_from_position_with_zero_balance(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test withdrawal handling when position has zero balance"""
+
+    # Setup: Create yield position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Withdraw everything first
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens,
+        sender=starter_agent.address
+    )
+
+    # Position should be deregistered
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # Try to withdraw from empty position - should revert with "no balance for _token"
+    with boa.reverts("no balance for _token"):
+        undy_usd_vault.withdrawFromYield(
+            1,
+            yield_vault_token.address,
+            10 * EIGHTEEN_DECIMALS,
+            sender=starter_agent.address
+        )
+
+
+def test_deposit_to_unapproved_vault_token_via_registry(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_vault_token, switchboard_alpha):
+    """Test that depositing to unapproved vault token fails"""
+
+    # Disapprove the yield vault token
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        False,  # Disapprove
+        sender=switchboard_alpha.address
+    )
+
+    # Verify it's not approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == False
+
+    # Prepare tokens
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+
+    # Attempt to deposit to unapproved vault token must fail
+    with boa.reverts():  # Must revert - cannot deposit to unapproved vault token
+        undy_usd_vault.depositForYield(
+            1,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            deposit_amount,
+            sender=starter_agent.address
+        )
+
+
+def test_multiple_positions_withdrawal_when_one_empty(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2):
+    """Test operations with multiple positions where one is empty"""
+
+    # Create two yield positions
+    deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit1,
+        sender=starter_agent.address
+    )
+
+    deposit2 = prepareAssetForWalletTx(_amount=80 * EIGHTEEN_DECIMALS)
+    _, _, vault2_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit2,
+        sender=starter_agent.address
+    )
+
+    # Verify both registered
+    assert undy_usd_vault.numAssets() == 3
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 2
+
+    # Empty the first position completely
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault1_tokens,
+        sender=starter_agent.address
+    )
+
+    # First position should be deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert yield_vault_token.balanceOf(undy_usd_vault) == 0
+
+    # Second position should now be at index 1 (moved)
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 1
+    assert undy_usd_vault.numAssets() == 2
+
+    # Operations on second position should still work normally
+    partial_withdraw = vault2_tokens // 2
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token_2.address,
+        partial_withdraw,
+        sender=starter_agent.address
+    )
+
+    # Verify partial withdrawal worked
+    assert yield_vault_token_2.balanceOf(undy_usd_vault) == vault2_tokens - partial_withdraw
+
+
+def test_auto_deposit_after_default_target_deregistered(prepareAssetForWalletTx, undy_usd_vault, vault_registry, starter_agent, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, switchboard_alpha, bob):
+    """Test auto-deposit behavior after defaultTargetVaultToken is deregistered"""
+
+    # Setup: Create first position and set as default target
+    deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit1,
+        sender=starter_agent.address
+    )
+
+    # Set as default target for auto-deposit
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_vault_token.address, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+
+    # Create second position (alternative)
+    deposit2 = prepareAssetForWalletTx(_amount=80 * EIGHTEEN_DECIMALS)
+    _, _, vault2_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit2,
+        sender=starter_agent.address
+    )
+
+    # Verify both positions exist
+    assert undy_usd_vault.numAssets() == 3  # base + 2 vault tokens
+
+    # Deregister the default target (vault token 1)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault1_tokens,
+        sender=starter_agent.address
+    )
+
+    # Default target is now deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # Record total assets before deposit
+    assets_before = undy_usd_vault.totalAssets()
+
+    # User deposits should still work - vault should handle missing defaultTargetVaultToken gracefully
+    yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
+    user_deposit = 50 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(user_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Deposit must succeed despite deregistered default target
+    assert shares > 0
+
+    # Total assets must have increased by deposit amount
+    assets_after = undy_usd_vault.totalAssets()
+    assert assets_after >= assets_before + user_deposit
+
+    # Vault must handle missing defaultTargetVaultToken gracefully
+    # Funds are accounted for and user received shares
+
+
+def test_position_with_invalid_lego_data_retrieval(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test handling of vault token with stored lego data after operations"""
+
+    # Create position
+    deposit_amount = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Verify asset data is stored correctly
+    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data.legoId == 1
+    assert asset_data.avgPricePerShare > 0
+    assert asset_data.vaultTokenDecimals == 18
+
+    # Perform withdrawal
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault_tokens // 2,
+        sender=starter_agent.address
+    )
+
+    # Asset data should still be accessible and valid after partial withdrawal
+    asset_data_after = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data_after.legoId == 1  # Lego ID persists
+    assert asset_data_after.avgPricePerShare > 0  # Price tracking continues
+
+    # Even after full withdrawal and deregistration, data should be retained
+    remaining = yield_vault_token.balanceOf(undy_usd_vault)
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        remaining,
+        sender=starter_agent.address
+    )
+
+    # Position is deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+
+    # But historical data is retained
+    asset_data_final = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data_final.legoId == 1  # Historical data preserved
+
+
+def test_sequential_position_operations_with_reregistration(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
+    """Test registering, deregistering, and re-registering the same vault token"""
+
+    # First registration
+    deposit1 = prepareAssetForWalletTx(_amount=100 * EIGHTEEN_DECIMALS)
+    _, _, vault1_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit1,
+        sender=starter_agent.address
+    )
+
+    first_index = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert first_index == 1
+    assert undy_usd_vault.numAssets() == 2
+
+    # Deregister by withdrawing all
+    undy_usd_vault.withdrawFromYield(
+        1,
+        yield_vault_token.address,
+        vault1_tokens,
+        sender=starter_agent.address
+    )
+
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert undy_usd_vault.numAssets() == 1
+
+    # Re-register the same vault token
+    deposit2 = prepareAssetForWalletTx(_amount=150 * EIGHTEEN_DECIMALS)
+    _, _, vault2_tokens, _ = undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit2,
+        sender=starter_agent.address
+    )
+
+    # Should be re-registered at index 1 again
+    second_index = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert second_index == 1
+    assert undy_usd_vault.numAssets() == 2
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault2_tokens
+
+    # Historical data should reflect the re-registration
+    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
+    assert asset_data.legoId == 1
+
+
 
 
 
