@@ -140,13 +140,13 @@ def _isRebasing() -> bool:
 @view
 @external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] == _underlyingAsset
+    return yld.vaultToAsset[_vaultToken].underlyingAsset == _underlyingAsset
 
 
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
-    return yld.vaultToAsset[_asset] != empty(address)
+    return yld.vaultToAsset[_asset].underlyingAsset != empty(address)
 
 
 #########
@@ -219,7 +219,7 @@ def depositForYield(
 
 @internal
 def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultAddr]
+    asset: address = yld.vaultToAsset[_vaultAddr].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call sky psm directly to get usds
@@ -302,7 +302,7 @@ def withdrawFromYield(
 
 @internal
 def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call sky psm directly to get usds
@@ -372,7 +372,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    if yld.vaultToAsset[_vaultToken] != empty(address):
+    if yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address):
         return True
     return self._isValidSkyVault(_vaultToken)
 
@@ -398,7 +398,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     if asset == empty(address) and self._isValidSkyVault(_vaultToken):
         asset = USDS
     return asset

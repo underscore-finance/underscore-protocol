@@ -162,7 +162,7 @@ def _isRebasing() -> bool:
 @view
 @external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     if asset != _underlyingAsset:
         return False
     return self._hasSufficientAssets(_vaultToken, _underlyingAsset)
@@ -171,7 +171,7 @@ def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
-    underlyingAsset: address = yld.vaultToAsset[_asset]
+    underlyingAsset: address = yld.vaultToAsset[_asset].underlyingAsset
     if underlyingAsset == empty(address):
         return False
     return self._hasSufficientAssets(_asset, underlyingAsset)
@@ -255,7 +255,7 @@ def depositForYield(
 
 @internal
 def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultAddr]
+    asset: address = yld.vaultToAsset[_vaultAddr].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call euler directly to get asset
@@ -335,7 +335,7 @@ def withdrawFromYield(
 
 @internal
 def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call euler directly to get asset
@@ -418,7 +418,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    if yld.vaultToAsset[_vaultToken] != empty(address):
+    if yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address):
         return True
     return self._isValidEulerVault(_vaultToken)
 
@@ -438,7 +438,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     if asset == empty(address) and self._isValidEulerVault(_vaultToken):
         asset = staticcall IERC4626(_vaultToken).asset()
     return asset

@@ -162,7 +162,7 @@ def depositForYield(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify asset and vault token are registered
-    assert yld.vaultToAsset[_vaultAddr] == _asset # dev: asset mismatch
+    assert yld.vaultToAsset[_vaultAddr].underlyingAsset == _asset # dev: asset mismatch
     assert _asset != empty(address) # dev: invalid asset
     reserveId: uint256 = self.vaultTokenToReserveId[_vaultAddr]
     assert reserveId != 0 # dev: invalid vault token
@@ -221,7 +221,7 @@ def withdrawFromYield(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # verify asset and vault token are registered
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     assert asset != empty(address) # dev: invalid asset
     reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
     assert reserveId != 0 # dev: invalid vault token
@@ -304,7 +304,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] != empty(address)
+    return yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address)
 
 
 @view
@@ -316,7 +316,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken]
+    return yld.vaultToAsset[_vaultToken].underlyingAsset
 
 
 # underlying amount
@@ -325,7 +325,7 @@ def _getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @external
 def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    if yld.vaultToAsset[_vaultToken] == empty(address) or _vaultTokenAmount == 0:
+    if yld.vaultToAsset[_vaultToken].underlyingAsset == empty(address) or _vaultTokenAmount == 0:
         return 0 # invalid vault token or amount
     return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
 

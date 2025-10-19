@@ -549,7 +549,7 @@ def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: addre
     assert _asset == RIPE_GREEN_TOKEN # dev: must be green token
 
     # register if necessary
-    if yld.vaultToAsset[_vaultAddr] == empty(address):
+    if yld.vaultToAsset[_vaultAddr].underlyingAsset == empty(address):
         self._registerAsset(_asset, _vaultAddr)
         self._updateLedgerVaultToken(_asset, _vaultAddr, _ledger, _legoBook)
 
@@ -615,7 +615,7 @@ def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: addre
     asset: address = RIPE_GREEN_TOKEN
 
     # register if necessary
-    if yld.vaultToAsset[_vaultToken] == empty(address):
+    if yld.vaultToAsset[_vaultToken].underlyingAsset == empty(address):
         self._registerAsset(asset, _vaultToken)
         self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
 

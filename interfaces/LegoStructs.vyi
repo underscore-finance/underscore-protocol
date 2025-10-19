@@ -1,0 +1,20 @@
+# @version 0.4.3
+
+struct VaultTokenInfo:
+    underlyingAsset: address
+    decimals: uint256
+
+struct SnapShotPriceConfig:
+    minSnapshotDelay: uint256
+    maxNumSnapshots: uint256
+    maxUpsideDeviation: uint256
+    staleTime: uint256
+
+struct SingleSnapShot:
+    totalSupply: uint256
+    pricePerShare: uint256
+    lastUpdate: uint256
+
+struct SnapShotData:
+    lastSnapShot: SingleSnapShot
+    nextIndex: uint256

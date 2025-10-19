@@ -1,5 +1,7 @@
 # @version 0.4.3
 
+from interfaces import LegoStructs as ls
+
 @view
 @external
 def isRebasing() -> bool:
@@ -105,7 +107,7 @@ def numAssetOpportunities(_asset: address) -> uint256:
 
 @view
 @external
-def vaultToAsset(_vaultAddr: address) -> address:
+def vaultToAsset(_vaultAddr: address) -> ls.VaultTokenInfo:
     ...
 
 

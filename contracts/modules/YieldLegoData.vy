@@ -7,26 +7,9 @@ uses: addys
 import contracts.modules.Addys as addys
 
 from interfaces import WalletStructs as ws
+from interfaces import LegoStructs as ls
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
-
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
-struct SingleSnapShot:
-    totalSupply: uint256
-    pricePerShare: uint256
-    lastUpdate: uint256
-
-struct SnapShotData:
-    lastSnapShot: SingleSnapShot
-    nextIndex: uint256
-
-interface YieldLego:
-    def getPricePerShare(_asset: address, _decimals: uint256) -> uint256: view
 
 event AssetOpportunityAdded:
     asset: indexed(address)
@@ -59,11 +42,11 @@ event SnapShotPriceConfigSet:
 isPaused: public(bool)
 
 # price snapshot config
-snapShotPriceConfig: public(SnapShotPriceConfig)
+snapShotPriceConfig: public(ls.SnapShotPriceConfig)
 
 # price snapshot data
-snapShotData: public(HashMap[address, SnapShotData]) # vault token -> data
-snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # vault token -> index -> snapshot
+snapShotData: public(HashMap[address, ls.SnapShotData]) # vault token -> data
+snapShots: public(HashMap[address, HashMap[uint256, ls.SingleSnapShot]]) # vault token -> index -> snapshot
 
 # asset opportunities
 assetOpportunities: public(HashMap[address, HashMap[uint256, address]]) # asset -> index -> vault addr
@@ -71,7 +54,7 @@ indexOfAssetOpportunity: public(HashMap[address, HashMap[address, uint256]]) # a
 numAssetOpportunities: public(HashMap[address, uint256]) # asset -> number of opportunities
 
 # mapping
-vaultToAsset: public(HashMap[address, address]) # vault addr -> underlying asset
+vaultToAsset: public(HashMap[address, ls.VaultTokenInfo]) # vault addr -> underlying asset
 
 # lego assets (iterable)
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -177,7 +160,10 @@ def _addAssetOpportunity(_asset: address, _vaultAddr: address):
     self.numAssetOpportunities[_asset] = aid + 1
 
     # add mapping
-    self.vaultToAsset[_vaultAddr] = _asset
+    self.vaultToAsset[_vaultAddr] = ls.VaultTokenInfo(
+        underlyingAsset = _asset,
+        decimals = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256),
+    )
 
     # add asset
     self._addAsset(_asset)
@@ -203,7 +189,7 @@ def _removeAssetOpportunity(_asset: address, _vaultAddr: address):
     self.numAssetOpportunities[_asset] = lastIndex
     self.indexOfAssetOpportunity[_asset][_vaultAddr] = 0
 
-    self.vaultToAsset[_vaultAddr] = empty(address)
+    self.vaultToAsset[_vaultAddr] = empty(ls.VaultTokenInfo)
 
     # shift to replace the removed one
     if targetIndex != lastIndex:
@@ -341,7 +327,7 @@ def _recoverFunds(_recipient: address, _asset: address):
 
 
 @external
-def setSnapShotPriceConfig(_config: SnapShotPriceConfig):
+def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert self._isValidPriceConfig(_config) # dev: invalid config
     self.snapShotPriceConfig = _config
@@ -355,13 +341,13 @@ def setSnapShotPriceConfig(_config: SnapShotPriceConfig):
 
 @view
 @external
-def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
     return self._isValidPriceConfig(_config)
 
 
 @view
 @internal
-def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
+def _isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
     if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
         return False
     if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
@@ -387,11 +373,11 @@ def addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenD
 
 @internal
 def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenDecimals: uint256) -> bool:
-    config: SnapShotPriceConfig = self.snapShotPriceConfig
+    config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
     if config.maxNumSnapshots == 0:
         return False
 
-    data: SnapShotData = self.snapShotData[_vaultToken]
+    data: ls.SnapShotData = self.snapShotData[_vaultToken]
 
     # already have snapshot for this time
     if data.lastSnapShot.lastUpdate == block.timestamp:
@@ -402,7 +388,7 @@ def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultToken
         return False
 
     # create and store new snapshot
-    newSnapshot: SingleSnapShot = self._getLatestSnapshot(_vaultToken, _pricePerShare, _vaultTokenDecimals, data.lastSnapShot, config)
+    newSnapshot: ls.SingleSnapShot = self._getLatestSnapshot(_vaultToken, _pricePerShare, _vaultTokenDecimals, data.lastSnapShot, config)
     data.lastSnapShot = newSnapshot
     self.snapShots[_vaultToken][data.nextIndex] = newSnapshot
 
@@ -434,7 +420,7 @@ def getWeightedPricePerShare(_vaultToken: address) -> uint256:
 @view
 @internal
 def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
-    config: SnapShotPriceConfig = self.snapShotPriceConfig
+    config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
     if config.maxNumSnapshots == 0:
         return 0
 
@@ -443,7 +429,7 @@ def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
     denominator: uint256 = 0
     for i: uint256 in range(config.maxNumSnapshots, bound=max_value(uint256)):
 
-        snapShot: SingleSnapShot = self.snapShots[_vaultToken][i]
+        snapShot: ls.SingleSnapShot = self.snapShots[_vaultToken][i]
         if snapShot.pricePerShare == 0 or snapShot.totalSupply == 0 or snapShot.lastUpdate == 0:
             continue
 
@@ -459,7 +445,7 @@ def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
     if numerator != 0:
         weightedPricePerShare = numerator // denominator
     else:
-        data: SnapShotData = self.snapShotData[_vaultToken]
+        data: ls.SnapShotData = self.snapShotData[_vaultToken]
         weightedPricePerShare = data.lastSnapShot.pricePerShare
 
     return weightedPricePerShare
@@ -470,9 +456,9 @@ def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
 
 @view
 @external
-def getLatestSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenDecimals: uint256) -> SingleSnapShot:
-    data: SnapShotData = self.snapShotData[_vaultToken]
-    config: SnapShotPriceConfig = self.snapShotPriceConfig
+def getLatestSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenDecimals: uint256) -> ls.SingleSnapShot:
+    data: ls.SnapShotData = self.snapShotData[_vaultToken]
+    config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
     return self._getLatestSnapshot(_vaultToken, _pricePerShare, _vaultTokenDecimals, data.lastSnapShot, config)
 
 
@@ -482,9 +468,9 @@ def _getLatestSnapshot(
     _vaultToken: address,
     _pricePerShare: uint256,
     _vaultTokenDecimals: uint256,
-    _lastSnapShot: SingleSnapShot,
-    _config: SnapShotPriceConfig,
-) -> SingleSnapShot:
+    _lastSnapShot: ls.SingleSnapShot,
+    _config: ls.SnapShotPriceConfig,
+) -> ls.SingleSnapShot:
 
     # total supply (adjusted)
     totalSupply: uint256 = staticcall IERC20(_vaultToken).totalSupply() // (10 ** _vaultTokenDecimals)
@@ -492,7 +478,7 @@ def _getLatestSnapshot(
     # throttle upside (extra safety check)
     pricePerShare: uint256 = self._throttleUpside(_pricePerShare, _lastSnapShot.pricePerShare, _config.maxUpsideDeviation)
 
-    return SingleSnapShot(
+    return ls.SingleSnapShot(
         totalSupply = totalSupply,
         pricePerShare = pricePerShare,
         lastUpdate = block.timestamp,

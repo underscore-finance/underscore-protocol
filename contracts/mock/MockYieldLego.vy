@@ -89,7 +89,7 @@ def _isRebasing() -> bool:
 @view
 @external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     if asset != _underlyingAsset:
         return False
     return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
@@ -234,7 +234,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] != empty(address)
+    return yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address)
 
 
 @view
@@ -246,7 +246,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken]
+    return yld.vaultToAsset[_vaultToken].underlyingAsset
 
 
 # underlying amount

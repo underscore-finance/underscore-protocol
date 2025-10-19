@@ -201,7 +201,7 @@ def depositForYield(
 
 @internal
 def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultAddr]
+    asset: address = yld.vaultToAsset[_vaultAddr].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call wasabi directly to get asset
@@ -282,7 +282,7 @@ def withdrawFromYield(
 
 @internal
 def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call wasabi directly to get asset
@@ -341,7 +341,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] != empty(address)
+    return yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address)
 
 
 @view
@@ -366,7 +366,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken]
+    return yld.vaultToAsset[_vaultToken].underlyingAsset
 
 
 # underlying amount

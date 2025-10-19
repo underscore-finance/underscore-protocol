@@ -135,7 +135,7 @@ def isDexLego() -> bool:
 @view
 @external
 def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return yld.vaultToAsset[_vaultToken] == _underlyingAsset
+    return yld.vaultToAsset[_vaultToken].underlyingAsset == _underlyingAsset
 
 
 @view
@@ -303,7 +303,7 @@ def withdrawFromYield(
 
 @internal
 def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     isRegistered: bool = True
 
     # not yet registered, call aave directly to get data
@@ -343,7 +343,7 @@ def isVaultToken(_vaultToken: address) -> bool:
 @view
 @internal
 def _isVaultToken(_vaultToken: address) -> bool:
-    if yld.vaultToAsset[_vaultToken] != empty(address):
+    if yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address):
         return True
     return self._isValidAToken(_vaultToken, self._getPoolDataProvider())
 
@@ -373,7 +373,7 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address, _dataProvider: address = empty(address)) -> address:
-    asset: address = yld.vaultToAsset[_vaultToken]
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
     if asset != empty(address):
         return asset
 

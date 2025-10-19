@@ -27,12 +27,6 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
 struct VaultConfig:
     canDeposit: bool
     canWithdraw: bool
