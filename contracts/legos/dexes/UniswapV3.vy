@@ -1196,9 +1196,3 @@ def removeLiquidity(
 @external
 def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
     return empty(address), empty(String[64]), 0
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return 0

@@ -3,7 +3,6 @@
 # @version 0.4.3
 # pragma optimize codesize
 
-from interfaces import YieldLego as YieldLego
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
@@ -13,13 +12,16 @@ from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
-    def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig): view
     def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
     def checkVaultApprovals(_vaultAddr: address, _vaultToken: address) -> bool: view
     def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address): view
-    def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig: view
     def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
     def getPerformanceFee(_vaultAddr: address) -> uint256: view
+
+interface YieldLego:
+    def getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256: view
+    def getWeightedPricePerShare(_vaultToken: address) -> uint256: view
+    def isRebasing() -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -39,21 +41,6 @@ struct LocalVaultTokenData:
     vaultTokenDecimals: uint256
     avgPricePerShare: uint256
 
-struct SnapShotData:
-    lastSnapShot: SingleSnapShot
-    nextIndex: uint256
-
-struct SingleSnapShot:
-    totalSupply: uint256
-    pricePerShare: uint256
-    lastUpdate: uint256
-
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
 struct VaultActionData:
     ledger: address
     missionControl: address
@@ -65,7 +52,7 @@ struct VaultActionData:
     legoAddr: address
 
 event EarnVaultAction:
-    op: uint8 
+    op: uint8
     asset1: indexed(address)
     asset2: indexed(address)
     amount1: uint256
@@ -73,11 +60,6 @@ event EarnVaultAction:
     usdValue: uint256
     legoId: uint256
     signer: indexed(address)
-
-event PricePerShareSnapShotAdded:
-    vaultToken: indexed(address)
-    totalSupply: uint256
-    pricePerShare: uint256
 
 event PerformanceFeesClaimed:
     pendingFees: uint256
@@ -91,10 +73,6 @@ assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
 assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
-
-# price snap shot data
-snapShotData: public(HashMap[address, SnapShotData]) # asset -> data
-snapShots: public(HashMap[address, HashMap[uint256, SingleSnapShot]]) # asset -> index -> snapshot
 
 # managers
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -537,7 +515,7 @@ def _getUnderlyingYieldBalances() -> (uint256, uint256, address):
             legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
 
             # max possible balance
-            pricePerShare: uint256 = staticcall Lego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
+            pricePerShare: uint256 = staticcall YieldLego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
             underlyingBalance = vaultTokenBalance * pricePerShare // (10 ** data.vaultTokenDecimals)
 
             # safe balance
@@ -652,7 +630,7 @@ def _withdrawDuringRedemption(
     if data.isRebasing:
         pricePerShare = 10 ** data.vaultTokenDecimals
     else:
-        pricePerShare = staticcall Lego(ad.legoAddr).getPricePerShare(_vaultToken, data.vaultTokenDecimals)
+        pricePerShare = staticcall YieldLego(ad.legoAddr).getPricePerShare(_vaultToken, data.vaultTokenDecimals)
 
     # calculate how many vault tokens we need to withdraw
     amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount
@@ -722,11 +700,9 @@ def _updateYieldPosition(
         data.vaultTokenDecimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
         needsSave = True
 
-    # non-rebase assets use weighted average share prices
+    # non-rebase assets use weighted average share prices from lego
     if not data.isRebasing:
-        snapConfig: SnapShotPriceConfig = staticcall VaultRegistry(_vaultRegistry).snapShotPriceConfig(self)
-        self._addPriceSnapshot(_vaultToken, _legoAddr, data.vaultTokenDecimals, snapConfig)
-        data.avgPricePerShare = self._getWeightedPricePerShare(_vaultToken, snapConfig)
+        data.avgPricePerShare = staticcall YieldLego(_legoAddr).getWeightedPricePerShare(_vaultToken)
         if data.avgPricePerShare != 0:
             needsSave = True
 
@@ -775,158 +751,6 @@ def _deregisterYieldPosition(_vaultToken: address) -> bool:
         self.indexOfAsset[lastItem] = targetIndex
 
     return True
-
-
-###################
-# Price Snapshots #
-###################
-
-
-# get weighted price
-
-
-@view
-@external
-def getWeightedPrice(_vaultToken: address) -> uint256:
-    config: SnapShotPriceConfig = staticcall VaultRegistry(self._getVaultRegistry()).snapShotPriceConfig(self)
-    return self._getWeightedPricePerShare(_vaultToken, config)
-
-
-@view
-@internal
-def _getWeightedPricePerShare(_vaultToken: address, _config: SnapShotPriceConfig) -> uint256:
-    if _config.maxNumSnapshots == 0:
-        return 0
-
-    # calculate weighted average price using all valid snapshots
-    numerator: uint256 = 0
-    denominator: uint256 = 0
-    for i: uint256 in range(_config.maxNumSnapshots, bound=max_value(uint256)):
-
-        snapShot: SingleSnapShot = self.snapShots[_vaultToken][i]
-        if snapShot.pricePerShare == 0 or snapShot.totalSupply == 0 or snapShot.lastUpdate == 0:
-            continue
-
-        # too stale, skip
-        if _config.staleTime != 0 and block.timestamp > snapShot.lastUpdate + _config.staleTime:
-            continue
-
-        numerator += (snapShot.totalSupply * snapShot.pricePerShare)
-        denominator += snapShot.totalSupply
-
-    # weighted price per share
-    weightedPricePerShare: uint256 = 0
-    if numerator != 0:
-        weightedPricePerShare = numerator // denominator
-    else:
-        data: SnapShotData = self.snapShotData[_vaultToken]
-        weightedPricePerShare = data.lastSnapShot.pricePerShare
-
-    return weightedPricePerShare
-
-
-# add price snapshot
-
-
-@external
-def addPriceSnapshot(_vaultToken: address) -> bool:
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    legoAddr: address = empty(address)
-    config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
-    legoAddr, config = staticcall VaultRegistry(self._getVaultRegistry()).getLegoAndSnapshotConfig(_vaultToken, self)
-    if legoAddr == empty(address):
-        return False
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    return self._addPriceSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, config)
-
-
-@internal 
-def _addPriceSnapshot(
-    _vaultToken: address,
-    _legoAddr: address,
-    _vaultTokenDecimals: uint256,
-    _config: SnapShotPriceConfig,
-) -> bool:
-    data: SnapShotData = self.snapShotData[_vaultToken]
-
-    # already have snapshot for this time
-    if data.lastSnapShot.lastUpdate == block.timestamp:
-        return False
-
-    # check if snapshot is too recent
-    if data.lastSnapShot.lastUpdate + _config.minSnapshotDelay > block.timestamp:
-        return False
-
-    # create and store new snapshot
-    newSnapshot: SingleSnapShot = self._getLatestSnapshot(_vaultToken, _legoAddr, _vaultTokenDecimals, data.lastSnapShot, _config)
-    data.lastSnapShot = newSnapshot
-    self.snapShots[_vaultToken][data.nextIndex] = newSnapshot
-
-    # update index
-    data.nextIndex += 1
-    if data.nextIndex >= _config.maxNumSnapshots:
-        data.nextIndex = 0
-
-    # save snap shot data
-    self.snapShotData[_vaultToken] = data
-
-    log PricePerShareSnapShotAdded(
-        vaultToken = _vaultToken,
-        totalSupply = newSnapshot.totalSupply,
-        pricePerShare = newSnapshot.pricePerShare,
-    )
-    return True
-
-
-# latest snapshot
-
-
-@view
-@external
-def getLatestSnapshot(_vaultToken: address) -> SingleSnapShot:
-    legoAddr: address = empty(address)
-    config: SnapShotPriceConfig = empty(SnapShotPriceConfig)
-    legoAddr, config = staticcall VaultRegistry(self._getVaultRegistry()).getLegoAndSnapshotConfig(_vaultToken, self)
-    if legoAddr == empty(address):
-        return empty(SingleSnapShot)
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-    data: SnapShotData = self.snapShotData[_vaultToken]
-    return self._getLatestSnapshot(_vaultToken, legoAddr, vaultTokenDecimals, data.lastSnapShot, config)
-
-
-@view
-@internal
-def _getLatestSnapshot(
-    _vaultToken: address,
-    _legoAddr: address,
-    _vaultTokenDecimals: uint256,
-    _lastSnapShot: SingleSnapShot,
-    _config: SnapShotPriceConfig,
-) -> SingleSnapShot:
-
-    # total supply (adjusted)
-    totalSupply: uint256 = staticcall IERC20(_vaultToken).totalSupply() // (10 ** _vaultTokenDecimals)
-
-    # get current price per share
-    pricePerShare: uint256 = staticcall Lego(_legoAddr).getPricePerShare(_vaultToken, _vaultTokenDecimals)
-
-    # throttle upside (extra safety check)
-    pricePerShare = self._throttleUpside(pricePerShare, _lastSnapShot.pricePerShare, _config.maxUpsideDeviation)
-
-    return SingleSnapShot(
-        totalSupply = totalSupply,
-        pricePerShare = pricePerShare,
-        lastUpdate = block.timestamp,
-    )
-
-
-@view
-@internal
-def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256) -> uint256:
-    if _maxUpside == 0 or _prevValue == 0 or _newValue == 0:
-        return _newValue
-    maxPricePerShare: uint256 = _prevValue + (_prevValue * _maxUpside // HUNDRED_PERCENT)
-    return min(_newValue, maxPricePerShare)
 
 
 ####################

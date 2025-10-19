@@ -573,10 +573,6 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 
@@ -619,10 +615,6 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 
@@ -665,10 +657,6 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 

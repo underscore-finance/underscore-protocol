@@ -86,16 +86,6 @@ def isYieldLego() -> bool:
 def isDexLego() -> bool:
     ...
 
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    ...
-
-@view
-@external
-def getPrice(_asset: address, _decimals: uint256) -> uint256:
-    ...
-
 
 # common
 

@@ -81,6 +81,12 @@ def removeAssetOpportunity(_asset: address, _vaultAddr: address):
 
 @view
 @external
+def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
+    ...
+
+
+@view
+@external
 def assetOpportunities(_asset: address, _index: uint256) -> address:
     ...
 

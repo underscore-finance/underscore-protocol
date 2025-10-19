@@ -197,6 +197,12 @@ def depositForYield(
         vaultTokenAmountReceived = vaultTokenAmountReceived,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256)
+    pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultTokenDecimals)
+    yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultTokenDecimals)
+
     return depositAmount, _vaultAddr, vaultTokenAmountReceived, usdValue
 
 
@@ -250,6 +256,12 @@ def withdrawFromYield(
         vaultTokenAmountBurned = vaultTokenAmount,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultTokenDecimals)
+    yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
+
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
 
 
@@ -413,6 +425,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
+    return self._getPricePerShare(_asset, _decimals)
+
+
+@view
+@internal
+def _getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     reserveId: uint256 = self.vaultTokenToReserveId[_asset]
     if reserveId == 0:
         return 0
@@ -651,9 +669,3 @@ def removeLiquidityConcentrated(
 @external
 def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
     return empty(address), empty(String[64]), 0
-
-
-@view
-@external
-def getPrice(_asset: address, _decimals: uint256) -> uint256:
-    return 0

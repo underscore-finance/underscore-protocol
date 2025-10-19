@@ -147,6 +147,12 @@ def depositForYield(
     vaultTokenAmountReceived: uint256 = extcall IERC4626(_vaultAddr).deposit(depositAmount, _recipient)
     assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
 
+    # add price snapshot for non-rebasing asset
+    if not self._isRebasing():
+        vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256)
+        pricePerShare: uint256 = staticcall IERC4626(_vaultAddr).convertToAssets(10 ** vaultTokenDecimals)
+        yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultTokenDecimals)
+
     # refund if full deposit didn't get through
     currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
     refundAssetAmount: uint256 = 0
@@ -191,6 +197,12 @@ def withdrawFromYield(
     # withdraw assets from lego partner
     assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
     assert assetAmountReceived != 0 # dev: no asset amount received
+
+    # add price snapshot for non-rebasing asset
+    if not self._isRebasing():
+        vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+        pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultTokenDecimals)
+        yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
 
     # refund if full withdrawal didn't happen
     currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)

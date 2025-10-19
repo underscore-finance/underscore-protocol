@@ -26,7 +26,8 @@ initializes: deptBasics[addys := addys]
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
-from interfaces import LegoPartner as Lego
+from interfaces import DexLego as DexLego
+from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20Detailed
 
@@ -45,6 +46,9 @@ interface RipePriceDesk:
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+
+interface Lego:
+    def isDexLego() -> bool: view
 
 struct LastPrice:
     price: uint256
@@ -480,8 +484,8 @@ def _getNormalAssetPriceAndDidUpdate(
     data.price = self._getRipePrice(_asset)
 
     # back up plan, check with Lego
-    if data.price == 0 and _legoAddr != empty(address):
-        data.price = staticcall Lego(_legoAddr).getPrice(_asset, _decimals)
+    if data.price == 0 and _legoAddr != empty(address) and staticcall Lego(_legoAddr).isDexLego():
+        data.price = staticcall DexLego(_legoAddr).getPrice(_asset, _decimals)
 
     # check if changed
     didPriceChange: bool = False
@@ -618,7 +622,7 @@ def _getPricePerShareAndDidUpdate(
 
     # first, check with Lego
     if _legoAddr != empty(address):
-        data.pricePerShare = staticcall Lego(_legoAddr).getPricePerShare(_asset, _decimals)
+        data.pricePerShare = staticcall YieldLego(_legoAddr).getPricePerShare(_asset, _decimals)
     
     # back up plan, check with Ripe
     if data.pricePerShare == 0:

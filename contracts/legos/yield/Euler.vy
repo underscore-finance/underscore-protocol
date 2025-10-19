@@ -241,6 +241,12 @@ def depositForYield(
         vaultTokenAmountReceived = vaultTokenAmountReceived,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(vaultToken).decimals(), uint256)
+    pricePerShare: uint256 = self._getPricePerShare(vaultToken, vaultTokenDecimals)
+    yld._addPriceSnapshot(vaultToken, pricePerShare, vaultTokenDecimals)
+
     return depositAmount, vaultToken, vaultTokenAmountReceived, usdValue
 
 
@@ -315,6 +321,12 @@ def withdrawFromYield(
         vaultTokenAmountBurned = vaultTokenAmount,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultTokenDecimals)
+    yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
+
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
 
 
@@ -534,6 +546,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
+    return self._getPricePerShare(_asset, _decimals)
+
+
+@view
+@internal
+def _getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
 
 
@@ -748,9 +766,3 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
-
-
-@view
-@external
-def getPrice(_asset: address, _decimals: uint256) -> uint256:
-    return 0

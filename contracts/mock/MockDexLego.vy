@@ -654,9 +654,3 @@ def withdrawFromYield(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
     return 0, empty(address), 0, 0
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return 0
