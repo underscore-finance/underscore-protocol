@@ -82,23 +82,23 @@ def test_appraiser_normal_asset_price_ripe_returns_valid_price(appraiser, alpha_
     assert price == original_price
 
 
-def test_appraiser_normal_asset_price_ripe_zero_lego_fallback(appraiser, alpha_token, mock_ripe, mock_yield_lego, setAssetConfig):
+def test_appraiser_normal_asset_price_ripe_zero_lego_fallback(appraiser, alpha_token, mock_ripe, mock_dex_lego, setAssetConfig):
     """ Test that _getNormalAssetPriceAndDidUpdate falls back to lego when Ripe returns zero """
 
     boa.env.time_travel(blocks=5)
 
-    # need to add lego id so this works
+    # need to add lego id so this works (legoId 2 is mock_dex_lego)
     setAssetConfig(
         alpha_token,
-        _legoId = 1,
+        _legoId = 2,
     )
 
     # Set Ripe to return 0
     mock_ripe.setPrice(alpha_token, 0)
-    
+
     # Set lego to return $30
     orig_price = 30 * EIGHTEEN_DECIMALS
-    mock_yield_lego.setPrice(alpha_token, orig_price)
+    mock_dex_lego.setPrice(alpha_token, orig_price)
     
     # Get price should return lego price since Ripe returned 0
     price = appraiser.getNormalAssetPrice(alpha_token)
@@ -706,18 +706,18 @@ def test_appraiser_get_usd_value_zero_amount(appraiser, alpha_token, mock_ripe):
     assert usd_value == 0
 
 
-def test_appraiser_get_usd_value_price_fallback_to_lego(appraiser, alpha_token, mock_ripe, mock_yield_lego, setAssetConfig):
+def test_appraiser_get_usd_value_price_fallback_to_lego(appraiser, alpha_token, mock_ripe, mock_dex_lego, setAssetConfig):
     """ Test getUsdValue falls back to lego price when Ripe returns zero """
-    
-    # Configure asset with lego
-    setAssetConfig(alpha_token, _legoId=1)
-    
+
+    # Configure asset with lego (legoId 2 is mock_dex_lego)
+    setAssetConfig(alpha_token, _legoId=2)
+
     # Ripe returns 0
     mock_ripe.setPrice(alpha_token, 0)
-    
+
     # Lego returns $75
     lego_price = 75 * EIGHTEEN_DECIMALS
-    mock_yield_lego.setPrice(alpha_token, lego_price)
+    mock_dex_lego.setPrice(alpha_token, lego_price)
     
     # Test with 20 tokens
     amount = 20 * EIGHTEEN_DECIMALS

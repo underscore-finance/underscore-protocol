@@ -1484,7 +1484,7 @@ def test_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token, yi
     assert fees == expected_fees
 
 
-def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token_3, governance, vault_registry, switchboard_alpha):
+def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token_3, governance, vault_registry, switchboard_alpha, mock_yield_lego):
     """Test yield tracking with only non-rebasing tokens"""
     # Testing with snapshot-based price tracking
     vault_registry.setPerformanceFee(undy_usd_vault.address, 10_00, sender=switchboard_alpha.address)
@@ -1499,7 +1499,8 @@ def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token
     boa.env.time_travel(seconds=301)
 
     # Update snapshot
-    undy_usd_vault.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
+    price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
+    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
 
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
@@ -1510,7 +1511,7 @@ def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token
     assert undy_usd_vault.pendingYieldRealized() > 0
 
 
-def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, yield_vault_token_3, governance, vault_registry, switchboard_alpha):
+def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, yield_vault_token_3, governance, vault_registry, switchboard_alpha, mock_yield_lego):
     """Test yield tracking with both rebasing and non-rebasing tokens"""
     vault_registry.setPerformanceFee(undy_usd_vault.address, 10_00, sender=switchboard_alpha.address)
 
@@ -1532,7 +1533,8 @@ def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_
     boa.env.time_travel(seconds=301)
 
     # Update snapshots
-    undy_usd_vault.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
+    price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
+    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
 
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
@@ -1888,8 +1890,17 @@ def test_preview_functions_with_high_pending_fees(undy_usd_vault, yield_underlyi
     assert total_assets > 0
 
 
-def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token_3, governance, switchboard_alpha):
+def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token_3, governance, switchboard_alpha, mock_yield_lego):
     """Test weighted average price calculation for non-rebasing tokens"""
+    # Set up snapshot price config
+    snapshot_config = (
+        300,     # minSnapshotDelay (5 minutes)
+        20,      # maxNumSnapshots
+        10_00,   # maxUpsideDeviation (10%)
+        86400    # staleTime (1 day)
+    )
+    mock_yield_lego.setSnapShotPriceConfig(snapshot_config, sender=switchboard_alpha.address)
+
     # This test requires yield_vault_token_3 to be non-rebasing
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
@@ -1903,11 +1914,12 @@ def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_to
         boa.env.time_travel(seconds=301)
 
         # Add snapshot
-        success = undy_usd_vault.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
+        price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
+        success = mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
         assert success
 
     # Get weighted price
-    weighted_price = undy_usd_vault.getWeightedPrice(yield_vault_token_3.address)
+    weighted_price = mock_yield_lego.getWeightedPricePerShare(yield_vault_token_3.address)
     assert weighted_price > 0
 
     # Trigger yield calculation

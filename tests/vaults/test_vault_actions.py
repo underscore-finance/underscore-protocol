@@ -249,9 +249,9 @@ def test_vault_mini_wallet_deposit_for_yield_after_yield_accrual(prepareAssetFor
     assert final_avg_price > initial_avg_price, \
         f"Average price must increase after yield accrual: {initial_avg_price} -> {final_avg_price}"
 
-    # The increase should be meaningful but less than the full 20% yield
+    # The increase should be meaningful but less than or equal to the full 20% yield
     price_increase_ratio = (final_avg_price - initial_avg_price) * 100 // initial_avg_price
-    assert 0 < price_increase_ratio < 20, \
+    assert 0 < price_increase_ratio <= 20, \
         f"Price increase should be between 0% and 20%, got {price_increase_ratio}%"
 
 

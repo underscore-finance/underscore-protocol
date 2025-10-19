@@ -36,7 +36,7 @@ def test_set_snapshot_config_only_switchboard(mock_yield_lego, bob):
     """Test that only switchboard can set snapshot config"""
     config = (300, 10, 500, 86400)
 
-    with boa.reverts():
+    with boa.reverts("no perms"):
         mock_yield_lego.setSnapShotPriceConfig(config, sender=bob)
 
 
@@ -44,17 +44,17 @@ def test_set_snapshot_config_invalid_values(mock_yield_lego, switchboard_alpha):
     """Test that invalid config values are rejected"""
     # Max snapshots = 0 should fail
     config = (300, 0, 500, 86400)
-    with boa.reverts():
+    with boa.reverts("invalid config"):
         mock_yield_lego.setSnapShotPriceConfig(config, sender=switchboard_alpha.address)
 
     # Max upside deviation > 100% should fail
     config = (300, 10, 10001, 86400)
-    with boa.reverts():
+    with boa.reverts("invalid config"):
         mock_yield_lego.setSnapShotPriceConfig(config, sender=switchboard_alpha.address)
 
     # Stale time >= 1 week should fail
     config = (300, 10, 500, 604800)
-    with boa.reverts():
+    with boa.reverts("invalid config"):
         mock_yield_lego.setSnapShotPriceConfig(config, sender=switchboard_alpha.address)
 
 
@@ -788,7 +788,7 @@ def test_external_add_price_snapshot_non_switchboard_reverts(
 ):
     """Test that non-switchboard callers cannot add snapshots directly"""
     # Should revert with permission check
-    with boa.reverts():
+    with boa.reverts("no perms"):
         mock_yield_lego.addPriceSnapshot(
             yield_vault_token.address,
             EIGHTEEN_DECIMALS,

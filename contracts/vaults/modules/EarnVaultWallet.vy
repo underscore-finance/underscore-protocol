@@ -703,6 +703,8 @@ def _updateYieldPosition(
     # non-rebase assets use weighted average share prices from lego
     if not data.isRebasing:
         data.avgPricePerShare = staticcall YieldLego(_legoAddr).getWeightedPricePerShare(_vaultToken)
+        if data.avgPricePerShare == 0: # fallback to current price if no snapshots exist yet
+            data.avgPricePerShare = staticcall YieldLego(_legoAddr).getPricePerShare(_vaultToken, data.vaultTokenDecimals)
         if data.avgPricePerShare != 0:
             needsSave = True
 
