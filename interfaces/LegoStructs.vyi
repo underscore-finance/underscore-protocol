@@ -3,6 +3,7 @@
 struct VaultTokenInfo:
     underlyingAsset: address
     decimals: uint256
+    lastAveragePricePerShare: uint256
 
 struct SnapShotPriceConfig:
     minSnapshotDelay: uint256

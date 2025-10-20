@@ -199,7 +199,7 @@ def depositForYield(
     )
 
     # add price snapshot for non-rebasing asset
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256)
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultAddr].decimals
     pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultTokenDecimals)
     yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultTokenDecimals)
 
@@ -258,7 +258,7 @@ def withdrawFromYield(
     )
 
     # add price snapshot for non-rebasing asset
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
     pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultTokenDecimals)
     yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
 
@@ -435,6 +435,40 @@ def _getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     if reserveId == 0:
         return 0
     return staticcall ExtraFiPool(EXTRAFI_POOL).exchangeRateOfReserve(reserveId) * (10 ** _decimals) // (10 ** 18)
+
+
+# underlying balances (true and safe)
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    if _vaultTokenBalance == 0:
+        return 0, 0
+
+    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
+    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+    if safeUnderlying == 0:
+        safeUnderlying = trueUnderlying
+
+    return trueUnderlying, min(trueUnderlying, safeUnderlying)
+
+
+@view
+@external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+
+
+@view
+@internal
+def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    vaultInfo: yld.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
+        return 0 # not registered
+
+    # safe underlying amount (using cached weighted average from snapshots)
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
 
 
 ################

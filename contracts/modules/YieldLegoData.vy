@@ -54,7 +54,7 @@ indexOfAssetOpportunity: public(HashMap[address, HashMap[address, uint256]]) # a
 numAssetOpportunities: public(HashMap[address, uint256]) # asset -> number of opportunities
 
 # mapping
-vaultToAsset: public(HashMap[address, ls.VaultTokenInfo]) # vault addr -> underlying asset
+vaultToAsset: public(HashMap[address, ls.VaultTokenInfo]) # vault addr -> data
 
 # lego assets (iterable)
 assets: public(HashMap[uint256, address]) # index -> asset
@@ -163,6 +163,7 @@ def _addAssetOpportunity(_asset: address, _vaultAddr: address):
     self.vaultToAsset[_vaultAddr] = ls.VaultTokenInfo(
         underlyingAsset = _asset,
         decimals = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256),
+        lastAveragePricePerShare = 0,
     )
 
     # add asset
@@ -400,6 +401,9 @@ def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultToken
     # save snap shot data
     self.snapShotData[_vaultToken] = data
 
+    # update cached weighted average price per share
+    self.vaultToAsset[_vaultToken].lastAveragePricePerShare = self._getWeightedPricePerShare(_vaultToken)
+
     log PricePerShareSnapShotAdded(
         vaultToken = _vaultToken,
         totalSupply = newSnapshot.totalSupply,
@@ -456,10 +460,11 @@ def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
 
 @view
 @external
-def getLatestSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenDecimals: uint256) -> ls.SingleSnapShot:
+def getLatestSnapshot(_vaultToken: address, _pricePerShare: uint256) -> ls.SingleSnapShot:
     data: ls.SnapShotData = self.snapShotData[_vaultToken]
     config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
-    return self._getLatestSnapshot(_vaultToken, _pricePerShare, _vaultTokenDecimals, data.lastSnapShot, config)
+    vaultTokenDecimals: uint256 = self.vaultToAsset[_vaultToken].decimals
+    return self._getLatestSnapshot(_vaultToken, _pricePerShare, vaultTokenDecimals, data.lastSnapShot, config)
 
 
 @view

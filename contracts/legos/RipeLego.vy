@@ -537,6 +537,12 @@ def depositForYield(
         vaultTokenAmountReceived = vaultTokenAmountReceived,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[vaultToken].decimals
+    pricePerShare: uint256 = staticcall IERC4626(vaultToken).convertToAssets(10 ** vaultTokenDecimals)
+    yld._addPriceSnapshot(vaultToken, pricePerShare, vaultTokenDecimals)
+
     return depositAmount, vaultToken, vaultTokenAmountReceived, usdValue
 
 
@@ -603,6 +609,12 @@ def withdrawFromYield(
         vaultTokenAmountBurned = vaultTokenAmount,
         recipient = _recipient,
     )
+
+    # add price snapshot for non-rebasing asset
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
+    pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultTokenDecimals)
+    yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
+
     return vaultTokenAmount, asset, assetAmountReceived, usdValue
 
 
@@ -782,6 +794,43 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
+
+
+# underlying balances
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    if _vaultTokenBalance == 0:
+        return 0, 0
+
+    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
+    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+    if safeUnderlying == 0:
+        safeUnderlying = trueUnderlying
+
+    return trueUnderlying, min(trueUnderlying, safeUnderlying)
+
+
+# safe underlying amount
+
+
+@view
+@external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+
+
+@view
+@internal
+def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    vaultInfo: yld.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
+        return 0 # not registered
+
+    # safe underlying amount (using cached weighted average from snapshots)
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
 
 
 ################

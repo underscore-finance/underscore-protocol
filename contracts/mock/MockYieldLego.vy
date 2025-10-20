@@ -149,7 +149,7 @@ def depositForYield(
 
     # add price snapshot for non-rebasing asset
     if not self._isRebasing():
-        vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256)
+        vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultAddr].decimals
         pricePerShare: uint256 = staticcall IERC4626(_vaultAddr).convertToAssets(10 ** vaultTokenDecimals)
         yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultTokenDecimals)
 
@@ -200,7 +200,7 @@ def withdrawFromYield(
 
     # add price snapshot for non-rebasing asset
     if not self._isRebasing():
-        vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+        vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
         pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultTokenDecimals)
         yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
 
@@ -350,6 +350,44 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @external
 def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
     return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
+
+
+# underlying balances (true and safe)
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    if _vaultTokenBalance == 0:
+        return 0, 0
+
+    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
+    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+    if safeUnderlying == 0:
+        safeUnderlying = trueUnderlying
+
+    return trueUnderlying, min(trueUnderlying, safeUnderlying)
+
+
+@view
+@external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+
+
+@view
+@internal
+def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    # If rebasing, return 0 (no snapshots for rebasing assets)
+    if self._isRebasing():
+        return 0
+
+    # Non-rebasing: use cached weighted average from snapshots
+    vaultInfo: yld.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
+        return 0 # not registered
+
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
 
 
 # get price

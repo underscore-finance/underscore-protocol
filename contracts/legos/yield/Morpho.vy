@@ -222,7 +222,7 @@ def depositForYield(
     )
 
     # add price snapshot for non-rebasing asset
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(vaultToken).decimals(), uint256)
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[vaultToken].decimals
     pricePerShare: uint256 = self._getPricePerShare(vaultToken, vaultTokenDecimals)
     yld._addPriceSnapshot(vaultToken, pricePerShare, vaultTokenDecimals)
 
@@ -302,7 +302,7 @@ def withdrawFromYield(
     )
 
     # add price snapshot for non-rebasing asset
-    vaultTokenDecimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
     pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultTokenDecimals)
     yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
 
