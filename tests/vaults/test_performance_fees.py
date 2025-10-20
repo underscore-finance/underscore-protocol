@@ -1479,8 +1479,7 @@ def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token
     boa.env.time_travel(seconds=301)
 
     # Update snapshot
-    price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
-    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
+    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
 
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
@@ -1513,8 +1512,7 @@ def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_
     boa.env.time_travel(seconds=301)
 
     # Update snapshots
-    price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
-    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
+    mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
 
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
@@ -1894,8 +1892,7 @@ def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_to
         boa.env.time_travel(seconds=301)
 
         # Add snapshot
-        price_per_share = yield_vault_token_3.convertToAssets(EIGHTEEN_DECIMALS)
-        success = mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, price_per_share, 18, sender=switchboard_alpha.address)
+        success = mock_yield_lego.addPriceSnapshot(yield_vault_token_3.address, sender=switchboard_alpha.address)
         assert success
 
     # Get weighted price

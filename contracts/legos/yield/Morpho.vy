@@ -27,6 +27,7 @@ initializes: yld[addys := addys]
 from interfaces import LegoPartner as Lego
 from interfaces import YieldLego as YieldLego
 from interfaces import WalletStructs as ws
+from interfaces import LegoStructs as ls
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
@@ -167,9 +168,25 @@ def _hasSufficientAssets(_vaultToken: address, _underlyingAsset: address) -> boo
     return staticcall IERC4626(_vaultToken).totalAssets() > 100_000 * (10 ** decimals)
 
 
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    # TODO: implement
+    return False
+
+
 #########
 # Yield #
 #########
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    # TODO: implement
+    return False
 
 
 # deposit
@@ -557,13 +574,12 @@ def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -
 @view
 @internal
 def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
-    decimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
-    if decimals == 0:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
         return 0 # not registered
 
-    # safe underlying amount (using weighted average from snapshots)
-    avgPricePerShare: uint256 = yld._getWeightedPricePerShare(_vaultToken)
-    return _vaultTokenBalance * avgPricePerShare // (10 ** decimals)
+    # safe underlying amount (using cached weighted average from snapshots)
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
 
 
 ################

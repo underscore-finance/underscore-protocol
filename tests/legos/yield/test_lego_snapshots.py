@@ -766,33 +766,52 @@ def test_throttle_with_zero_values(
 
 
 def test_external_add_price_snapshot_permission(
+    bob_user_wallet,
+    bob,
     yield_vault_token,
     mock_yield_lego,
+    lego_book,
+    yield_underlying_token,
+    yield_underlying_token_whale,
     switchboard_alpha,
 ):
     """Test that external addPriceSnapshot requires switchboard permissions"""
-    # Should succeed with switchboard
+    # First register the vault token by doing a deposit
+    amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob_user_wallet.address, amount, sender=yield_underlying_token_whale)
+
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    bob_user_wallet.depositForYield(lego_id, yield_underlying_token, yield_vault_token, MAX_UINT256, sender=bob)
+
+    # Should succeed with switchboard (only pass vault token address)
     result = mock_yield_lego.addPriceSnapshot(
         yield_vault_token.address,
-        EIGHTEEN_DECIMALS,
-        18,
         sender=switchboard_alpha.address
     )
     assert result == True or result == False  # Method exists and returns bool
 
 
 def test_external_add_price_snapshot_non_switchboard_reverts(
+    bob_user_wallet,
+    bob,
     yield_vault_token,
     mock_yield_lego,
-    bob,
+    lego_book,
+    yield_underlying_token,
+    yield_underlying_token_whale,
 ):
     """Test that non-switchboard callers cannot add snapshots directly"""
-    # Should revert with permission check
+    # First register the vault token by doing a deposit
+    amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob_user_wallet.address, amount, sender=yield_underlying_token_whale)
+
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    bob_user_wallet.depositForYield(lego_id, yield_underlying_token, yield_vault_token, MAX_UINT256, sender=bob)
+
+    # Should revert with permission check (only pass vault token address)
     with boa.reverts("no perms"):
         mock_yield_lego.addPriceSnapshot(
             yield_vault_token.address,
-            EIGHTEEN_DECIMALS,
-            18,
             sender=bob
         )
 

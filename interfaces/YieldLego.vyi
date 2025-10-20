@@ -2,21 +2,21 @@
 
 from interfaces import LegoStructs as ls
 
+
+###################
+# Underlying Data #
+###################
+
+
 @view
 @external
-def isRebasing() -> bool:
+def getUnderlyingAsset(_vaultToken: address) -> address:
     ...
 
 
 @view
 @external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    ...
-
-
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
     ...
 
 
@@ -34,19 +34,30 @@ def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -
 
 @view
 @external
-def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
     ...
 
 
 @view
 @external
-def getUnderlyingAsset(_vaultToken: address) -> address:
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    ...
+
+
+###############
+# Other Utils #
+###############
+
+
+@view
+@external
+def isRebasing() -> bool:
     ...
 
 
 @view
 @external
-def isVaultToken(_vaultToken: address) -> bool:
+def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     ...
 
 
@@ -58,13 +69,19 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 
 @view
 @external
-def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
     ...
 
 
 @view
 @external
-def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
+    ...
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
     ...
 
 
@@ -80,65 +97,9 @@ def totalBorrows(_vaultToken: address) -> uint256:
     ...
 
 
-@external
-def addAssetOpportunity(_asset: address, _vaultAddr: address):
-    ...
-
-
-@external
-def removeAssetOpportunity(_asset: address, _vaultAddr: address):
-    ...
-
-
-# YieldLegoData.vy module
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    ...
-
-
-@view
-@external
-def assetOpportunities(_asset: address, _index: uint256) -> address:
-    ...
-
-
-@view
-@external
-def indexOfAssetOpportunity(_asset: address, _vaultAddr: address) -> uint256:
-    ...
-
-
-@view
-@external
-def numAssetOpportunities(_asset: address) -> uint256:
-    ...
-
-
-@view
-@external
-def vaultToAsset(_vaultAddr: address) -> ls.VaultTokenInfo:
-    ...
-
-
-@view
-@external
-def assets(_index: uint256) -> address:
-    ...
-
-
-@view
-@external
-def indexOfAsset(_asset: address) -> uint256:
-    ...
-
-
-@view
-@external
-def numAssets() -> uint256:
-    ...
+###################
+# Yield Lego Data #
+###################
 
 
 @view
@@ -168,4 +129,89 @@ def isAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
 @view
 @external
 def getNumLegoAssets() -> uint256:
+    ...
+
+
+@view
+@external
+def assets(_index: uint256) -> address:
+    ...
+
+
+@view
+@external
+def indexOfAsset(_asset: address) -> uint256:
+    ...
+
+
+@view
+@external
+def numAssets() -> uint256:
+    ...
+
+
+@view
+@external
+def assetOpportunities(_asset: address, _index: uint256) -> address:
+    ...
+
+
+@view
+@external
+def indexOfAssetOpportunity(_asset: address, _vaultAddr: address) -> uint256:
+    ...
+
+
+@view
+@external
+def numAssetOpportunities(_asset: address) -> uint256:
+    ...
+
+
+@view
+@external
+def vaultToAsset(_vaultAddr: address) -> ls.VaultTokenInfo:
+    ...
+
+
+# price snapshots
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    ...
+
+
+@view
+@external
+def snapShotPriceConfig() -> ls.SnapShotPriceConfig:
+    ...
+
+
+@view
+@external
+def snapShotData(_vaultToken: address) -> ls.SnapShotData:
+    ...
+
+
+@view
+@external
+def snapShots(_vaultToken: address, _index: uint256) -> ls.SingleSnapShot:
+    ...
+
+
+@view
+@external
+def getWeightedPricePerShare(_vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def getLatestSnapshot(_vaultToken: address, _pricePerShare: uint256) -> ls.SingleSnapShot:
+    ...
+
+
+@external
+def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig):
     ...

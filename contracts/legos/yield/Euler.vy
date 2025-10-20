@@ -189,9 +189,25 @@ def _hasSufficientAssets(_vaultToken: address, _underlyingAsset: address) -> boo
     return staticcall IERC4626(_vaultToken).totalAssets() > 100_000 * (10 ** decimals)
 
 
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    # TODO: implement
+    return False
+
+
 #########
 # Yield #
 #########
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    # TODO: implement
+    return False
 
 
 # deposit

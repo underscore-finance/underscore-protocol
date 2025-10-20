@@ -112,9 +112,28 @@ def setIsEligibleForYieldBonus(_isEligible: bool):
     self.isEligible = _isEligible
 
 
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    # TODO: implement
+    return False
+
+
 #########
 # Yield #
 #########
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    assert vaultInfo.decimals != 0 # dev: not registered
+    pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultInfo.decimals)
+    return yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
 
 
 # deposit

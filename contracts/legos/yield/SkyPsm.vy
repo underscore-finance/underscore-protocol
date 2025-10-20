@@ -150,9 +150,25 @@ def isEligibleForYieldBonus(_asset: address) -> bool:
     return yld.vaultToAsset[_asset].underlyingAsset != empty(address)
 
 
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    # TODO: implement
+    return False
+
+
 #########
 # Yield #
 #########
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    # TODO: implement
+    return False
 
 
 # deposit

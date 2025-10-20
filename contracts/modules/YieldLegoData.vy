@@ -38,33 +38,31 @@ event SnapShotPriceConfigSet:
     maxUpsideDeviation: uint256
     staleTime: uint256
 
-# config
-isPaused: public(bool)
-
-# price snapshot config
-snapShotPriceConfig: public(ls.SnapShotPriceConfig)
-
-# price snapshot data
-snapShotData: public(HashMap[address, ls.SnapShotData]) # vault token -> data
-snapShots: public(HashMap[address, HashMap[uint256, ls.SingleSnapShot]]) # vault token -> index -> snapshot
+# core
+vaultToAsset: public(HashMap[address, ls.VaultTokenInfo]) # vault addr -> data
 
 # asset opportunities
 assetOpportunities: public(HashMap[address, HashMap[uint256, address]]) # asset -> index -> vault addr
 indexOfAssetOpportunity: public(HashMap[address, HashMap[address, uint256]]) # asset -> vault addr -> index
 numAssetOpportunities: public(HashMap[address, uint256]) # asset -> number of opportunities
 
-# mapping
-vaultToAsset: public(HashMap[address, ls.VaultTokenInfo]) # vault addr -> data
-
 # lego assets (iterable)
 assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
 
+# price snapshots
+snapShotData: public(HashMap[address, ls.SnapShotData]) # vault token -> data
+snapShots: public(HashMap[address, HashMap[uint256, ls.SingleSnapShot]]) # vault token -> index -> snapshot
+snapShotPriceConfig: public(ls.SnapShotPriceConfig) # config
+
+isPaused: public(bool)
+
 MAX_VAULTS: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 20
 MAX_RECOVER_ASSETS: constant(uint256) = 20
-ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
+ONE_DAY_SECONDS: constant(uint256) = 60 * 60 * 24
+ONE_WEEK_SECONDS: constant(uint256) = ONE_DAY_SECONDS * 7
 HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
@@ -72,6 +70,14 @@ HUNDRED_PERCENT: constant(uint256) = 100_00
 def __init__(_shouldPause: bool):
     self.isPaused = _shouldPause
     self.numAssets = 1 # not using 0 index
+
+    # default snapshot price config
+    self.snapShotPriceConfig = ls.SnapShotPriceConfig(
+        minSnapshotDelay = 60 * 10, # 10 minutes
+        maxNumSnapshots = 20,
+        maxUpsideDeviation = 10_00, # 10%
+        staleTime = 3 * ONE_DAY_SECONDS, # 3 days
+    )
 
 
 #########
@@ -145,11 +151,12 @@ def _isAssetOpportunity(_asset: address, _vaultAddr: address) -> bool:
 
 
 @internal
-def _addAssetOpportunity(_asset: address, _vaultAddr: address):
+def _addAssetOpportunity(_asset: address, _vaultAddr: address) -> ls.VaultTokenInfo:
     if self.indexOfAssetOpportunity[_asset][_vaultAddr] != 0:
-        return
+        return self.vaultToAsset[_vaultAddr]
+
     if empty(address) in [_asset, _vaultAddr]:
-        return
+        return empty(ls.VaultTokenInfo)
 
     # add asset opportunity
     aid: uint256 = self.numAssetOpportunities[_asset]
@@ -160,16 +167,18 @@ def _addAssetOpportunity(_asset: address, _vaultAddr: address):
     self.numAssetOpportunities[_asset] = aid + 1
 
     # add mapping
-    self.vaultToAsset[_vaultAddr] = ls.VaultTokenInfo(
+    vaultInfo: ls.VaultTokenInfo = ls.VaultTokenInfo(
         underlyingAsset = _asset,
         decimals = convert(staticcall IERC20Detailed(_vaultAddr).decimals(), uint256),
         lastAveragePricePerShare = 0,
     )
+    self.vaultToAsset[_vaultAddr] = vaultInfo
 
     # add asset
     self._addAsset(_asset)
 
     log AssetOpportunityAdded(asset=_asset, vaultAddr=_vaultAddr)
+    return vaultInfo
 
 
 # remove asset opportunity
@@ -322,54 +331,12 @@ def _recoverFunds(_recipient: address, _asset: address):
     log LegoFundsRecovered(asset=_asset, recipient=_recipient, balance=balance)
 
 
-#########################
-# Snapshot Price Config #
-#########################
-
-
-@external
-def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._isValidPriceConfig(_config) # dev: invalid config
-    self.snapShotPriceConfig = _config
-    log SnapShotPriceConfigSet(
-        minSnapshotDelay=_config.minSnapshotDelay,
-        maxNumSnapshots=_config.maxNumSnapshots,
-        maxUpsideDeviation=_config.maxUpsideDeviation,
-        staleTime=_config.staleTime
-    )
-
-
-@view
-@external
-def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
-    return self._isValidPriceConfig(_config)
-
-
-@view
-@internal
-def _isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
-    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
-        return False
-    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
-        return False
-    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
-        return False
-    return _config.staleTime < ONE_WEEK_SECONDS
-
-
 ###################
 # Price Snapshots #
 ###################
 
 
 # add price snapshot
-
-
-@external
-def addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultTokenDecimals: uint256) -> bool:
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    return self._addPriceSnapshot(_vaultToken, _pricePerShare, _vaultTokenDecimals)
 
 
 @internal
@@ -402,7 +369,7 @@ def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultToken
     self.snapShotData[_vaultToken] = data
 
     # update cached weighted average price per share
-    self.vaultToAsset[_vaultToken].lastAveragePricePerShare = self._getWeightedPricePerShare(_vaultToken)
+    self.vaultToAsset[_vaultToken].lastAveragePricePerShare = self._getWeightedPricePerShare(_vaultToken, _pricePerShare)
 
     log PricePerShareSnapShotAdded(
         vaultToken = _vaultToken,
@@ -412,18 +379,19 @@ def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultToken
     return True
 
 
-# get weighted price per share
+# weighted price per share
 
 
 @view
 @external
 def getWeightedPricePerShare(_vaultToken: address) -> uint256:
-    return self._getWeightedPricePerShare(_vaultToken)
+    data: ls.SnapShotData = self.snapShotData[_vaultToken]
+    return self._getWeightedPricePerShare(_vaultToken, data.lastSnapShot.pricePerShare)
 
 
 @view
 @internal
-def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
+def _getWeightedPricePerShare(_vaultToken: address, _lastPricePerShare: uint256) -> uint256:
     config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
     if config.maxNumSnapshots == 0:
         return 0
@@ -449,8 +417,7 @@ def _getWeightedPricePerShare(_vaultToken: address) -> uint256:
     if numerator != 0:
         weightedPricePerShare = numerator // denominator
     else:
-        data: ls.SnapShotData = self.snapShotData[_vaultToken]
-        weightedPricePerShare = data.lastSnapShot.pricePerShare
+        weightedPricePerShare = _lastPricePerShare
 
     return weightedPricePerShare
 
@@ -497,3 +464,37 @@ def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256
         return _newValue
     maxPricePerShare: uint256 = _prevValue + (_prevValue * _maxUpside // HUNDRED_PERCENT)
     return min(_newValue, maxPricePerShare)
+
+
+# snapshot price config
+
+
+@external
+def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._isValidPriceConfig(_config) # dev: invalid config
+    self.snapShotPriceConfig = _config
+    log SnapShotPriceConfigSet(
+        minSnapshotDelay=_config.minSnapshotDelay,
+        maxNumSnapshots=_config.maxNumSnapshots,
+        maxUpsideDeviation=_config.maxUpsideDeviation,
+        staleTime=_config.staleTime
+    )
+
+
+@view
+@external
+def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
+    return self._isValidPriceConfig(_config)
+
+
+@view
+@internal
+def _isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
+    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
+        return False
+    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
+        return False
+    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
+        return False
+    return _config.staleTime < ONE_WEEK_SECONDS

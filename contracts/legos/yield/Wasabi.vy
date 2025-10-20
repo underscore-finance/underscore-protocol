@@ -135,9 +135,25 @@ def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
 
 
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    # TODO: implement
+    return False
+
+
 #########
 # Yield #
 #########
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    # TODO: implement
+    return False
 
 
 # deposit
