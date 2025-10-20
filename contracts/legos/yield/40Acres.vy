@@ -32,7 +32,6 @@ from interfaces import LegoStructs as ls
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
-from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
