@@ -14,9 +14,6 @@ from conf_utils import filter_logs
 def setup_vault_with_deposit(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob):
     """Setup fixture that deposits into vault and returns the amount"""
     def setup_vault_with_deposit(_amount=1000 * EIGHTEEN_DECIMALS):
-        # Transfer tokens to vault
-        yield_underlying_token.transfer(undy_usd_vault.address, _amount, sender=yield_underlying_token_whale)
-
         # User deposits to get shares
         yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
         shares = undy_usd_vault.deposit(_amount, bob, sender=yield_underlying_token_whale)
@@ -361,6 +358,11 @@ def test_partial_withdrawal_impact_on_tracking(setup_vault_with_deposit, setup_y
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
     undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
+    # Deposit remaining idle balance to yield to force withdrawal from yield during redemption
+    idle_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    if idle_balance > 100 * EIGHTEEN_DECIMALS:
+        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, idle_balance - 100 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+
     initial_last_bal = undy_usd_vault.lastUnderlyingBal()
 
     # Partial withdrawal
@@ -531,13 +533,18 @@ def test_fee_claim_updates_last_underlying_bal_correctly(setup_yield_position, s
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
     setup_yield_position(initial_deposit)
 
-    yield_amount = 200 * EIGHTEEN_DECIMALS
+    yield_amount = 1000 * EIGHTEEN_DECIMALS  # Increased to ensure fee is large enough to trigger withdrawal
     simulate_yield(yield_amount)
     boa.env.time_travel(seconds=301)
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
     undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+
+    # Deposit ALL idle balance to yield to force withdrawal from yield during fee claim
+    idle_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
+    if idle_balance > 0:
+        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, idle_balance, sender=starter_agent.address)
 
     last_bal_before_claim = undy_usd_vault.lastUnderlyingBal()
 

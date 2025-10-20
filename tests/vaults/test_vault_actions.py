@@ -69,12 +69,7 @@ def test_vault_mini_wallet_deposit_for_yield_basic(prepareAssetForWalletTx, undy
     assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens_received
         
     # verify saved data
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.legoId == lego_id
-    assert vault_data.isRebasing == False
-    assert vault_data.vaultTokenDecimals == 18
-    assert vault_data.avgPricePerShare == EIGHTEEN_DECIMALS
-
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == lego_id
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
     assert undy_usd_vault.assets(1) == yield_vault_token.address
     assert undy_usd_vault.numAssets() == 2
@@ -190,10 +185,8 @@ def test_vault_mini_wallet_deposit_for_yield_after_yield_accrual(prepareAssetFor
         sender=starter_agent.address
     )
 
-    # Record initial average price per share
-    initial_vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    initial_avg_price = initial_vault_data.avgPricePerShare
-    assert initial_avg_price > 0  # Should have an initial price
+    # Verify lego ID is registered
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == lego_id
 
     # Time travel to allow snapshot updates (min delay is 5 minutes)
     boa.env.time_travel(seconds=301)  # Travel 5 minutes + 1 second
@@ -223,36 +216,10 @@ def test_vault_mini_wallet_deposit_for_yield_after_yield_accrual(prepareAssetFor
     # Total vault tokens held
     assert yield_vault_token.balanceOf(undy_usd_vault) == first_vault_tokens + second_vault_tokens
 
-    # Verify average price per share tracking
-    final_vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    final_avg_price = final_vault_data.avgPricePerShare
-
-    # The avgPricePerShare uses a snapshot mechanism that may require specific conditions
-    # to update (like time delays or explicit updates). For now, verify that:
-    # 1. The price is being tracked (non-zero)
-    assert final_avg_price > 0, f"Average price should be tracked: {final_avg_price}"
-
-    # 2. The current vault token price has increased due to yield
+    # Verify the current vault token price has increased due to yield
     current_price = yield_vault_token.convertToAssets(EIGHTEEN_DECIMALS)
     expected_price = (first_amount + yield_amount) * EIGHTEEN_DECIMALS // first_vault_tokens
     assert abs(current_price - expected_price) <= 1, f"Current price {current_price} should reflect yield"
-
-    # Note: The avgPricePerShare may not immediately update due to snapshot timing requirements
-    # In production, price updates would happen based on the priceConfig settings
-    # (minSnapshotDelay, maxNumSnapshots, staleTime, etc.)
-
-    # With time travel, the snapshot MUST update and reflect the new weighted average
-    # The average price MUST increase because:
-    # 1. First deposit was at 1:1 ratio
-    # 2. Second deposit was at ~1.2:1 ratio after yield
-    # 3. The weighted average must be between 1.0 and 1.2
-    assert final_avg_price > initial_avg_price, \
-        f"Average price must increase after yield accrual: {initial_avg_price} -> {final_avg_price}"
-
-    # The increase should be meaningful but less than or equal to the full 20% yield
-    price_increase_ratio = (final_avg_price - initial_avg_price) * 100 // initial_avg_price
-    assert 0 < price_increase_ratio <= 20, \
-        f"Price increase should be between 0% and 20%, got {price_increase_ratio}%"
 
 
 def test_vault_mini_wallet_deposit_for_yield_max_amount(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
@@ -327,11 +294,7 @@ def test_vault_mini_wallet_deposit_for_yield_duplicate_with_different_amounts(pr
 
     # Verify final state
     assert total_deposited == sum(amounts)
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.legoId == lego_id
-
-    # All deposits at same price should maintain 1:1 average
-    assert vault_data.avgPricePerShare == EIGHTEEN_DECIMALS
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == lego_id
 
 
 def test_vault_mini_wallet_deposit_for_yield_tracking_vault_tokens(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
@@ -350,11 +313,7 @@ def test_vault_mini_wallet_deposit_for_yield_tracking_vault_tokens(prepareAssetF
     )
 
     # Verify vault token is tracked with correct lego ID
-    data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert data.legoId == lego_id
-    assert data.avgPricePerShare == EIGHTEEN_DECIMALS
-    assert data.isRebasing == False
-    assert data.vaultTokenDecimals == 18
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == lego_id
 
     # Second deposit to same vault
     second_amount = prepareAssetForWalletTx(_amount=30 * EIGHTEEN_DECIMALS)
@@ -370,10 +329,8 @@ def test_vault_mini_wallet_deposit_for_yield_tracking_vault_tokens(prepareAssetF
     total_vault_tokens = vault_tokens_1 + vault_tokens_2
     assert yield_vault_token.balanceOf(undy_usd_vault) == total_vault_tokens
 
-    # Data should still show same lego ID and price
-    data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert data.legoId == lego_id
-    assert data.avgPricePerShare == EIGHTEEN_DECIMALS  # No yield, so price unchanged
+    # Data should still show same lego ID
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == lego_id
 
 
 def test_vault_mini_wallet_deposit_for_yield_partial_amount(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
@@ -484,8 +441,6 @@ def test_vault_mini_wallet_deposit_yield_then_withdraw_simulation(prepareAssetFo
         sender=starter_agent.address
     )
 
-    initial_vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-
     # Simulate yield accrual (20% gain)
     yield_amount = 20 * EIGHTEEN_DECIMALS
     yield_underlying_token.mint(yield_vault_token.address, yield_amount, sender=governance.address)
@@ -495,10 +450,6 @@ def test_vault_mini_wallet_deposit_yield_then_withdraw_simulation(prepareAssetFo
     expected_value = (deposit_amount * 120) // 100
     actual_value = yield_vault_token.convertToAssets(vault_tokens)
     assert abs(actual_value - expected_value) < EIGHTEEN_DECIMALS // 100  # Within 1%
-
-    # Verify avgPricePerShare hasn't changed (no new deposits)
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.avgPricePerShare == initial_vault_data.avgPricePerShare
 
 
 #######################
@@ -574,12 +525,7 @@ def test_vault_mini_wallet_withdraw_from_yield_basic(setupYieldPosition, undy_us
     assert yield_underlying_token.balanceOf(undy_usd_vault) == underlying_received
     
     # verify storage updated
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.legoId == 1
-    assert vault_data.isRebasing == False
-    assert vault_data.vaultTokenDecimals == 18
-    assert vault_data.avgPricePerShare == EIGHTEEN_DECIMALS
-
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
     assert undy_usd_vault.assets(1) == yield_vault_token.address
     assert undy_usd_vault.numAssets() == 2
@@ -626,9 +572,8 @@ def test_vault_mini_wallet_withdraw_from_yield_entire_balance_deregisters_asset(
     # So no array reorganization is needed. For array reorganization testing with 3+ assets,
     # see test_vault_mini_wallet_withdraw_deregistration_array_reorganization_multiple_assets
 
-    # 4. AssetData is retained for historical tracking but not in active index
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.legoId == 1  # lego ID retained for tracking
+    # 4. Lego ID mapping is retained for historical tracking
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1  # lego ID retained for tracking
 
     # 5. Verify the vault token cannot be found in the active assets array
     for i in range(1, undy_usd_vault.numAssets()):
@@ -897,10 +842,6 @@ def test_vault_mini_wallet_withdraw_yield_price_tracking_update(setupYieldPositi
     # setup position
     vault_tokens = setupYieldPosition()
 
-    # Record initial price
-    initial_data = undy_usd_vault.assetData(yield_vault_token.address)
-    initial_avg_price = initial_data.avgPricePerShare
-
     # Time travel to allow snapshot updates
     boa.env.time_travel(seconds=301)  # 5 minutes + 1 second
 
@@ -908,7 +849,7 @@ def test_vault_mini_wallet_withdraw_yield_price_tracking_update(setupYieldPositi
     yield_amount = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.mint(yield_vault_token.address, yield_amount, sender=governance.address)
 
-    # Withdraw triggers price update
+    # Withdraw
     withdraw_amount = vault_tokens // 2
     undy_usd_vault.withdrawFromYield(
         1,
@@ -917,14 +858,8 @@ def test_vault_mini_wallet_withdraw_yield_price_tracking_update(setupYieldPositi
         sender=starter_agent.address
     )
 
-    # Check if avgPricePerShare updated (may depend on snapshot mechanism)
-    final_data = undy_usd_vault.assetData(yield_vault_token.address)
-    final_avg_price = final_data.avgPricePerShare
-
-    # Price should be tracked (non-zero) and may have updated
-    assert final_avg_price > 0
-    # With yield and time travel, price tracking should reflect the change
-    assert final_avg_price >= initial_avg_price
+    # Verify withdrawal succeeded
+    assert yield_vault_token.balanceOf(undy_usd_vault) == vault_tokens - withdraw_amount
 
 
 def test_vault_mini_wallet_withdraw_deregistration_simple(setupYieldPosition, undy_usd_vault, starter_agent, yield_vault_token):
@@ -956,9 +891,8 @@ def test_vault_mini_wallet_withdraw_deregistration_simple(setupYieldPosition, un
     assert vault_burned == vault_tokens
     assert yield_vault_token.balanceOf(undy_usd_vault) == 0
 
-    # 4. Asset data is retained for historical purposes
-    vault_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert vault_data.legoId == 1  # Historical data retained
+    # 4. Lego ID mapping is retained for historical purposes
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1  # Historical data retained
 
 
 ##################################################
@@ -1042,18 +976,11 @@ def test_vault_multiple_vault_tokens_registration(prepareAssetForWalletTx, undy_
     assert undy_usd_vault.assets(3) == yield_vault_token_3.address
     assert undy_usd_vault.assets(4) == yield_vault_token_4.address
 
-    # Verify asset data for each - all should use lego ID 1
-    data1 = undy_usd_vault.assetData(yield_vault_token.address)
-    assert data1.legoId == 1
-
-    data2 = undy_usd_vault.assetData(yield_vault_token_2.address)
-    assert data2.legoId == 1
-
-    data3 = undy_usd_vault.assetData(yield_vault_token_3.address)
-    assert data3.legoId == 1
-
-    data4 = undy_usd_vault.assetData(yield_vault_token_4.address)
-    assert data4.legoId == 1
+    # Verify lego ID for each - all should use lego ID 1
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token_2.address) == 1
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token_3.address) == 1
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token_4.address) == 1
 
 
 def test_vault_deregister_middle_asset_array_reorganization(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token, yield_vault_token_2, yield_vault_token_3):
@@ -1407,8 +1334,7 @@ def test_max_number_of_positions_registration(prepareAssetForWalletTx, undy_usd_
     for i, vault_token in enumerate(vault_tokens_list):
         balance = vault_token.balanceOf(undy_usd_vault)
         assert balance > 0
-        asset_data = undy_usd_vault.assetData(vault_token.address)
-        assert asset_data.legoId == 1
+        assert undy_usd_vault.vaultToLegoId(vault_token.address) == 1
 
 
 def test_withdrawal_from_position_with_zero_balance(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
@@ -1603,11 +1529,8 @@ def test_position_with_invalid_lego_data_retrieval(prepareAssetForWalletTx, undy
         sender=starter_agent.address
     )
 
-    # Verify asset data is stored correctly
-    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert asset_data.legoId == 1
-    assert asset_data.avgPricePerShare > 0
-    assert asset_data.vaultTokenDecimals == 18
+    # Verify lego ID is stored correctly
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1
 
     # Perform withdrawal
     undy_usd_vault.withdrawFromYield(
@@ -1617,10 +1540,8 @@ def test_position_with_invalid_lego_data_retrieval(prepareAssetForWalletTx, undy
         sender=starter_agent.address
     )
 
-    # Asset data should still be accessible and valid after partial withdrawal
-    asset_data_after = undy_usd_vault.assetData(yield_vault_token.address)
-    assert asset_data_after.legoId == 1  # Lego ID persists
-    assert asset_data_after.avgPricePerShare > 0  # Price tracking continues
+    # Lego ID should still be accessible after partial withdrawal
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1  # Lego ID persists
 
     # Even after full withdrawal and deregistration, data should be retained
     remaining = yield_vault_token.balanceOf(undy_usd_vault)
@@ -1634,9 +1555,8 @@ def test_position_with_invalid_lego_data_retrieval(prepareAssetForWalletTx, undy
     # Position is deregistered
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
 
-    # But historical data is retained
-    asset_data_final = undy_usd_vault.assetData(yield_vault_token.address)
-    assert asset_data_final.legoId == 1  # Historical data preserved
+    # But historical lego ID mapping is retained
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1  # Historical data preserved
 
 
 def test_sequential_position_operations_with_reregistration(prepareAssetForWalletTx, undy_usd_vault, starter_agent, yield_underlying_token, yield_vault_token):
@@ -1683,9 +1603,8 @@ def test_sequential_position_operations_with_reregistration(prepareAssetForWalle
     assert undy_usd_vault.numAssets() == 2
     assert yield_vault_token.balanceOf(undy_usd_vault) == vault2_tokens
 
-    # Historical data should reflect the re-registration
-    asset_data = undy_usd_vault.assetData(yield_vault_token.address)
-    assert asset_data.legoId == 1
+    # Lego ID mapping should remain
+    assert undy_usd_vault.vaultToLegoId(yield_vault_token.address) == 1
 
 
 

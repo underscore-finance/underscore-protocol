@@ -1249,11 +1249,10 @@ def test_get_latest_snapshot_external_method(
     # Get current price
     current_price = mock_yield_lego.snapShotData(yield_vault_token.address).lastSnapShot.pricePerShare
 
-    # Call external getLatestSnapshot
+    # Call external getLatestSnapshot (only takes 2 parameters)
     latest_snapshot = mock_yield_lego.getLatestSnapshot(
         yield_vault_token.address,
-        current_price,
-        18
+        current_price
     )
 
     # Verify returned snapshot
@@ -1271,12 +1270,11 @@ def test_get_latest_snapshot_with_zero_snapshots(
     config = (0, 10, 500, 86400)
     mock_yield_lego.setSnapShotPriceConfig(config, sender=switchboard_alpha.address)
 
-    # Call getLatestSnapshot with a mock price
+    # Call getLatestSnapshot with a mock price (only takes 2 parameters)
     mock_price = 1 * EIGHTEEN_DECIMALS
     latest_snapshot = mock_yield_lego.getLatestSnapshot(
         yield_vault_token.address,
-        mock_price,
-        18
+        mock_price
     )
 
     # Should return snapshot with provided price (no throttling since no previous snapshot)

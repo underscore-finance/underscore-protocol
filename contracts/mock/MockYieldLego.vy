@@ -12,6 +12,7 @@ initializes: yld[addys := addys]
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
 from interfaces import YieldLego as YieldLego
+from interfaces import LegoStructs as ls
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
@@ -383,7 +384,7 @@ def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) 
         return 0
 
     # Non-rebasing: use cached weighted average from snapshots
-    vaultInfo: yld.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
     if vaultInfo.decimals == 0:
         return 0 # not registered
 
