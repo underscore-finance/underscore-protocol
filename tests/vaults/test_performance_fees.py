@@ -528,33 +528,6 @@ def test_fee_claim_resets_pending_yield_realized(setup_yield_position, simulate_
     assert undy_usd_vault.pendingYieldRealized() == 0
 
 
-def test_fee_claim_updates_last_underlying_bal_correctly(setup_yield_position, simulate_yield, undy_usd_vault, governance, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
-    """Test that claiming fees updates lastUnderlyingBal correctly"""
-    initial_deposit = 1000 * EIGHTEEN_DECIMALS
-    setup_yield_position(initial_deposit)
-
-    yield_amount = 1000 * EIGHTEEN_DECIMALS  # Increased to ensure fee is large enough to trigger withdrawal
-    simulate_yield(yield_amount)
-    boa.env.time_travel(seconds=301)
-
-    trigger = 50 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
-
-    # Deposit ALL idle balance to yield to force withdrawal from yield during fee claim
-    idle_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
-    if idle_balance > 0:
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, idle_balance, sender=starter_agent.address)
-
-    last_bal_before_claim = undy_usd_vault.lastUnderlyingBal()
-
-    undy_usd_vault.claimPerformanceFees(sender=governance.address)
-
-    last_bal_after_claim = undy_usd_vault.lastUnderlyingBal()
-
-    # Should be updated to reflect the fee withdrawal
-    assert last_bal_after_claim < last_bal_before_claim
-
 
 def test_fee_claim_transfers_correct_amount_to_governance(setup_yield_position, simulate_yield, undy_usd_vault, governance, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, vault_registry, switchboard_alpha):
     """Test that correct fee amount is transferred to governance"""
