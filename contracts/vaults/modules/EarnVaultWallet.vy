@@ -19,9 +19,8 @@ interface VaultRegistry:
     def getPerformanceFee(_vaultAddr: address) -> uint256: view
 
 interface YieldLego:
-    def getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256: view
-    def getWeightedPricePerShare(_vaultToken: address) -> uint256: view
-    def isRebasing() -> bool: view
+    def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256): view
+    def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -35,18 +34,13 @@ interface Registry:
 interface UndyHq:
     def governance() -> address: view
 
-struct LocalVaultTokenData:
-    legoId: uint256
-    isRebasing: bool
-    vaultTokenDecimals: uint256
-    avgPricePerShare: uint256
-
 struct VaultActionData:
     ledger: address
     missionControl: address
     legoBook: address
     appraiser: address
     vaultRegistry: address
+    vaultAsset: address
     signer: address
     legoId: uint256
     legoAddr: address
@@ -69,7 +63,7 @@ lastUnderlyingBal: public(uint256)
 pendingYieldRealized: public(uint256)
 
 # asset data
-assetData: public(HashMap[address, LocalVaultTokenData]) # asset -> data
+vaultToLegoId: public(HashMap[address, uint256]) # vault addr -> lego id
 assets: public(HashMap[uint256, address]) # index -> asset
 indexOfAsset: public(HashMap[address, uint256]) # asset -> index
 numAssets: public(uint256) # num assets
@@ -131,7 +125,7 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData, self._getUnderlyingAndUpdatePendingYield(), True, ad)
+    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, self._getUnderlyingAndUpdatePendingYield(), True, ad)
 
 
 @internal
@@ -140,16 +134,16 @@ def _onReceiveVaultFunds(
     _depositor: address,
     _vaultRegistry: address,
 ) -> uint256:
-    legoId: uint256 = self.assetData[_vaultAddr].legoId
+    legoId: uint256 = self.vaultToLegoId[_vaultAddr]
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
-    return self._depositForYield(ad.legoId, VAULT_ASSET, _vaultAddr, max_value(uint256), empty(bytes32), 0, False, ad)[0]
+    ad.vaultAsset = VAULT_ASSET
+    return self._depositForYield(ad.vaultAsset, _vaultAddr, max_value(uint256), empty(bytes32), 0, False, ad)[0]
 
 
 @internal
 def _depositForYield(
-    _legoId: uint256,
     _asset: address,
     _vaultAddr: address,
     _amount: uint256,
@@ -173,7 +167,7 @@ def _depositForYield(
     if _asset == VAULT_ASSET:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
         assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: lego or vault token not approved
-        self._updateYieldPosition(vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
+        self._updateYieldPosition(vaultToken, _ad.legoId)
         currentUnderlying += assetAmount
 
     # save underlying balance
@@ -234,7 +228,7 @@ def _withdrawFromYield(
 
     # update yield position
     if underlyingAsset == VAULT_ASSET:
-        self._updateYieldPosition(_vaultToken, _ad.legoId, _ad.legoAddr, _ad.vaultRegistry)
+        self._updateYieldPosition(_vaultToken, _ad.legoId)
         currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
     if _shouldSaveUnderlying:
@@ -268,7 +262,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     # important checks!
     vaultAsset: address = VAULT_ASSET
     assert tokenIn != vaultAsset # dev: cannot swap out of vault asset
-    assert self.assetData[tokenIn].legoId == 0 # dev: cannot swap out of vault token
+    assert self.vaultToLegoId[tokenIn] == 0 # dev: cannot swap out of vault token
     assert tokenOut == vaultAsset # dev: must swap into vault asset
 
     # action data bundle
@@ -438,7 +432,7 @@ def claimPerformanceFees() -> uint256:
     # make withdrawals from yield positions
     availAmount: uint256 = 0
     withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = self._prepareRedemption(pendingFees, empty(address), governance, vaultRegistry)
+    availAmount, withdrawnAmount = self._prepareRedemption(VAULT_ASSET, pendingFees, empty(address), governance, vaultRegistry)
     assert availAmount >= pendingFees # dev: insufficient funds
 
     # transfer pending fees to governance
@@ -485,6 +479,7 @@ def _getUnderlyingYieldBalances() -> (uint256, uint256, address):
 
     maxTotalAssets: uint256 = 0
     safeTotalAssets: uint256 = 0
+
     maxBalance: uint256 = 0
     maxBalVaultToken: address = empty(address)
 
@@ -501,32 +496,26 @@ def _getUnderlyingYieldBalances() -> (uint256, uint256, address):
         if vaultTokenBalance == 0:
             continue
 
-        data: LocalVaultTokenData = self.assetData[vaultToken]
-        if data.legoId == 0 or data.vaultTokenDecimals == 0:
+        legoId: uint256 = self.vaultToLegoId[vaultToken]
+        if legoId == 0:
             continue
 
-        # add to total assets
-        underlyingBalance: uint256 = 0
-        if data.isRebasing:
-            underlyingBalance = vaultTokenBalance # TODO: check that decimals match up with underlying asset !!
-            safeTotalAssets += vaultTokenBalance
+        legoAddr: address = staticcall Registry(legoBook).getAddr(legoId)
+        if legoAddr == empty(address):
+            continue
 
-        else:
-            legoAddr: address = staticcall Registry(legoBook).getAddr(data.legoId)
+        # get balance data
+        trueUnderlying: uint256 = 0
+        safeUnderlying: uint256 = 0
+        trueUnderlying, safeUnderlying = staticcall YieldLego(legoAddr).getUnderlyingBalances(vaultToken, vaultTokenBalance)
 
-            # max possible balance
-            pricePerShare: uint256 = staticcall YieldLego(legoAddr).getPricePerShare(vaultToken, data.vaultTokenDecimals)
-            underlyingBalance = vaultTokenBalance * pricePerShare // (10 ** data.vaultTokenDecimals)
-
-            # safe balance
-            avgBalance: uint256 = vaultTokenBalance * data.avgPricePerShare // (10 ** data.vaultTokenDecimals)
-            safeTotalAssets += min(avgBalance, underlyingBalance)
-
-        maxTotalAssets += underlyingBalance
+        # add totals
+        maxTotalAssets += trueUnderlying
+        safeTotalAssets += safeUnderlying
 
         # save max balance / token
-        if underlyingBalance > maxBalance:
-            maxBalance = underlyingBalance
+        if trueUnderlying > maxBalance:
+            maxBalance = trueUnderlying
             maxBalVaultToken = vaultToken
 
     return maxTotalAssets, safeTotalAssets, maxBalVaultToken
@@ -539,12 +528,13 @@ def _getUnderlyingYieldBalances() -> (uint256, uint256, address):
 
 @internal
 def _prepareRedemption(
+    _asset: address,
     _amount: uint256,
     _maxBalVaultToken: address,
     _sender: address,
     _vaultRegistry: address,
 ) -> (uint256, uint256):
-    availAmount: uint256 = staticcall IERC20(VAULT_ASSET).balanceOf(self)
+    availAmount: uint256 = staticcall IERC20(_asset).balanceOf(self)
     if availAmount >= _amount:
         return availAmount, 0
 
@@ -559,6 +549,7 @@ def _prepareRedemption(
 
     withdrawnAmount: uint256 = 0
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(0, _sender)
+    ad.vaultAsset = _asset
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     # first withdraw from biggest yield position
@@ -617,30 +608,21 @@ def _withdrawDuringRedemption(
     if vaultTokenBalance == 0:
         return 0, _numDeregisterAssets < MAX_DEREGISTER_ASSETS # need to deregister
 
-    data: LocalVaultTokenData = self.assetData[_vaultToken]
-    if data.legoId == 0 or data.vaultTokenDecimals == 0:
+    legoId: uint256 = self.vaultToLegoId[_vaultToken]
+    if legoId == 0:
         return 0, False
 
     ad: VaultActionData = _ad
-    ad.legoId = data.legoId
-    ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(data.legoId)
-
-    # get price per share
-    pricePerShare: uint256 = 0
-    if data.isRebasing:
-        pricePerShare = 10 ** data.vaultTokenDecimals
-    else:
-        pricePerShare = staticcall YieldLego(ad.legoAddr).getPricePerShare(_vaultToken, data.vaultTokenDecimals)
-
-    # calculate how many vault tokens we need to withdraw
-    amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount
+    ad.legoId = legoId
+    ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(legoId)
 
     # skip if amount still needed is below minimum (dust protection)
+    amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount
     if _minWithdrawAmount != 0 and amountStillNeeded < _minWithdrawAmount:
         return 0, False
 
     # skip if vault tokens needed rounds to 0 (dust)
-    vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** data.vaultTokenDecimals) // pricePerShare
+    vaultTokensNeeded: uint256 = staticcall YieldLego(ad.legoAddr).getVaultTokenAmount(_ad.vaultAsset, amountStillNeeded, _vaultToken)
     if vaultTokensNeeded == 0:
         return 0, False
 
@@ -668,19 +650,14 @@ def updateYieldPosition(_vaultToken: address):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     vaultRegistry: address = self._getVaultRegistry()
     legoId: uint256 = 0
-    legoAddr: address = empty(address)
-    legoId, legoAddr = staticcall VaultRegistry(vaultRegistry).getLegoDataFromVaultToken(_vaultToken)
-    if legoId != 0 and legoAddr != empty(address):
-        self._updateYieldPosition(_vaultToken, legoId, legoAddr, vaultRegistry)
+    na: address = empty(address)
+    legoId, na = staticcall VaultRegistry(vaultRegistry).getLegoDataFromVaultToken(_vaultToken)
+    if legoId != 0:
+        self._updateYieldPosition(_vaultToken, legoId)
 
 
 @internal
-def _updateYieldPosition(
-    _vaultToken: address,
-    _legoId: uint256,
-    _legoAddr: address,
-    _vaultRegistry: address,
-):
+def _updateYieldPosition(_vaultToken: address, _legoId: uint256):
     if _vaultToken == empty(address):
         return
 
@@ -690,27 +667,10 @@ def _updateYieldPosition(
         self._deregisterYieldPosition(_vaultToken)
         return
 
-    data: LocalVaultTokenData = self.assetData[_vaultToken]
-    needsSave: bool = False
-
-    # first time, need to save data
-    if data.legoId == 0:
-        data.legoId = _legoId
-        data.isRebasing = staticcall YieldLego(_legoAddr).isRebasing()
-        data.vaultTokenDecimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-        needsSave = True
-
-    # non-rebase assets use weighted average share prices from lego
-    if not data.isRebasing:
-        data.avgPricePerShare = staticcall YieldLego(_legoAddr).getWeightedPricePerShare(_vaultToken)
-        if data.avgPricePerShare == 0: # fallback to current price if no snapshots exist yet
-            data.avgPricePerShare = staticcall YieldLego(_legoAddr).getPricePerShare(_vaultToken, data.vaultTokenDecimals)
-        if data.avgPricePerShare != 0:
-            needsSave = True
-
-    # save data
-    if needsSave:
-        self.assetData[_vaultToken] = data
+    # first time, need to save lego mapping
+    legoId: uint256 = self.vaultToLegoId[_vaultToken]
+    if legoId == 0 and _legoId != 0:
+        self.vaultToLegoId[_vaultToken] = _legoId
 
     # register asset (if necessary)
     if self.indexOfAsset[_vaultToken] == 0:
@@ -776,6 +736,7 @@ def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_L
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
+    ad.vaultAsset = VAULT_ASSET
 
     # cannot perform any actions if vault is frozen
     assert not isVaultOpsFrozen # dev: frozen vault

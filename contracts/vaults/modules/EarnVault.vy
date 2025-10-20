@@ -379,7 +379,7 @@ def _redeem(
     # withdraw from yield opportunity
     availAmount: uint256 = 0
     withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_amount, _maxBalVaultToken, _sender, _vaultRegistry)
+    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
     assert actualAmount >= _amount - (_amount // 100) # dev: insufficient funds (1% tolerance)
 

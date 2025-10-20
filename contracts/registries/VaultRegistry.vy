@@ -50,6 +50,7 @@ struct VaultActionData:
     legoBook: address
     appraiser: address
     vaultRegistry: address
+    vaultAsset: address
     signer: address
     legoId: uint256
     legoAddr: address
@@ -529,6 +530,7 @@ def _getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultAction
         legoBook = a.legoBook,
         appraiser = a.appraiser,
         vaultRegistry = self,
+        vaultAsset = empty(address),
         signer = _signer,
         legoId = _legoId,
         legoAddr = legoAddr,

@@ -28,6 +28,18 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
 
 @view
 @external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    ...
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    ...
+
+
+@view
+@external
 def getUnderlyingAsset(_vaultToken: address) -> address:
     ...
 
