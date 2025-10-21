@@ -44,11 +44,11 @@ def setupConfig(lego_extrafi, fork, switchboard_alpha):
         pytest.skip("asset not relevant on this fork")
 
     if not lego_extrafi.isAssetOpportunity(usdc, extrafi_usdc):
-        lego_extrafi.addAssetOpportunityWithReserveId(usdc, extrafi_usdc, 25, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(usdc, extrafi_usdc, 25, sender=switchboard_alpha.address)
     if not lego_extrafi.isAssetOpportunity(aero, extrafi_aero):
-        lego_extrafi.addAssetOpportunityWithReserveId(aero, extrafi_aero, 3, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(aero, extrafi_aero, 3, sender=switchboard_alpha.address)
     if not lego_extrafi.isAssetOpportunity(weth, extrafi_weth):
-        lego_extrafi.addAssetOpportunityWithReserveId(weth, extrafi_weth, 1, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(weth, extrafi_weth, 1, sender=switchboard_alpha.address)
 
 
 #########
