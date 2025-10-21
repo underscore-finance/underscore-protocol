@@ -4,6 +4,20 @@ DAY_IN_BLOCKS = 43_200
 MONTH_IN_BLOCKS = DAY_IN_BLOCKS * 30
 YEAR_IN_BLOCKS = DAY_IN_BLOCKS * 365
 
+VAULT_INFO = {
+    "USDC": {
+        "name": "Underscore Blue Chip USD",
+        "symbol": "undyUSD",
+    },
+    "WETH": {
+        "name": "Underscore Blue Chip ETH",
+        "symbol": "undyETH",
+    },
+    "CBBTC": {
+        "name": "Underscore Blue Chip BTC",
+        "symbol": "undyBTC",
+    },
+}
 
 PARAMS = {
     "base": {
@@ -11,7 +25,7 @@ PARAMS = {
         "UNDY_HQ_MIN_GOV_TIMELOCK": 1 * DAY_IN_BLOCKS,
         "UNDY_HQ_MAX_GOV_TIMELOCK": 30 * DAY_IN_BLOCKS,
         # undy hq - registry changes (blocks)
-        "UNDY_HQ_MIN_REG_TIMELOCK": 12 * HOUR_IN_BLOCKS,
+        "UNDY_HQ_MIN_REG_TIMELOCK": 2 * HOUR_IN_BLOCKS,
         "UNDY_HQ_MAX_REG_TIMELOCK": 30 * DAY_IN_BLOCKS,
         # gen config changes (blocks)
         "GEN_MIN_CONFIG_TIMELOCK": 2 * HOUR_IN_BLOCKS,
