@@ -85,3 +85,9 @@ def getBestSwapAmountIn(_tokenIn: address, _tokenOut: address, _amountOut: uint2
 @external
 def getCoreRouterPool() -> address:
     ...
+
+
+@view
+@external
+def getPrice(_asset: address, _decimals: uint256) -> uint256:
+    ...

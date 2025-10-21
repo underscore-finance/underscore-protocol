@@ -436,7 +436,7 @@ def isVaultToken(_vaultToken: address, _legoBook: address = empty(address)) -> b
         if not staticcall LegoPartner(legoAddr).isYieldLego():
             continue
 
-        if staticcall YieldLego(legoAddr).isVaultToken(_vaultToken):
+        if staticcall YieldLego(legoAddr).isLegoAsset(_vaultToken):
             return True
 
     return False
@@ -493,7 +493,7 @@ def getLegoInfoFromVaultToken(_vaultToken: address, _legoBook: address = empty(a
         if not staticcall LegoPartner(legoInfo.addr).isYieldLego():
             continue
 
-        if staticcall YieldLego(legoInfo.addr).isVaultToken(_vaultToken):
+        if staticcall YieldLego(legoInfo.addr).isLegoAsset(_vaultToken):
             return i, legoInfo.addr, legoInfo.description
 
     return 0, empty(address), ""

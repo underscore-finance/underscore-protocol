@@ -44,11 +44,11 @@ def setupConfig(lego_extrafi, fork, switchboard_alpha):
         pytest.skip("asset not relevant on this fork")
 
     if not lego_extrafi.isAssetOpportunity(usdc, extrafi_usdc):
-        lego_extrafi.addAssetOpportunityWithReserveId(usdc, extrafi_usdc, 25, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(usdc, extrafi_usdc, 25, sender=switchboard_alpha.address)
     if not lego_extrafi.isAssetOpportunity(aero, extrafi_aero):
-        lego_extrafi.addAssetOpportunityWithReserveId(aero, extrafi_aero, 3, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(aero, extrafi_aero, 3, sender=switchboard_alpha.address)
     if not lego_extrafi.isAssetOpportunity(weth, extrafi_weth):
-        lego_extrafi.addAssetOpportunityWithReserveId(weth, extrafi_weth, 1, sender=switchboard_alpha.address)
+        lego_extrafi.registerVaultTokenLocally(weth, extrafi_weth, 1, sender=switchboard_alpha.address)
 
 
 #########
@@ -65,14 +65,13 @@ def test_extrafi_deposit_max(
     bob_user_wallet,
     lego_extrafi,
     getVaultToken,
-    lego_book,
 ):
     # setup
     vault_token = getVaultToken(token_str)
     asset, whale = getTokenAndWhale(token_str)
     asset.transfer(bob_user_wallet.address, TEST_AMOUNTS[token_str] * (10 ** asset.decimals()), sender=whale)
 
-    testLegoDeposit(lego_book.getRegId(lego_extrafi), asset, vault_token)
+    testLegoDeposit(lego_extrafi, asset, vault_token)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
@@ -84,7 +83,6 @@ def test_extrafi_deposit_partial(
     bob_user_wallet,
     lego_extrafi,
     getTokenAndWhale,
-    lego_book,
 ):
     # setup
     vault_token = getVaultToken(token_str)
@@ -92,7 +90,7 @@ def test_extrafi_deposit_partial(
     amount = TEST_AMOUNTS[token_str] * (10 ** asset.decimals())
     asset.transfer(bob_user_wallet.address, amount, sender=whale)
 
-    testLegoDeposit(lego_book.getRegId(lego_extrafi), asset, vault_token, amount // 2)
+    testLegoDeposit(lego_extrafi, asset, vault_token, amount // 2)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)

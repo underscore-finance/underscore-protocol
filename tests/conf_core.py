@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS
+from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS, VAULT_INFO
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
 
 
@@ -241,13 +241,15 @@ def switchboard_charlie(undy_hq_deploy, fork):
 def defaults(fork, user_wallet_template, user_wallet_config_template, agent_template, agent_eoa):
     d = ZERO_ADDRESS
     if fork == "local":
-        d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa)
+        d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template,
+                     user_wallet_config_template, agent_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
         trial_funds_asset = TOKENS[fork]["USDC"]
         trial_funds_amount = 10 * (10 ** 6)
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template,
+                     agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
     return d
 
 
@@ -264,6 +266,7 @@ def lego_book_deploy(undy_hq_deploy, fork):
     return boa.load(
         "contracts/registries/LegoBook.vy",
         undy_hq_deploy,
+        ZERO_ADDRESS,
         PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
         name="lego_book",
@@ -542,8 +545,10 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
                    yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
     asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
     vault = boa.load(
-        "contracts/vaults/UndyUsd.vy",
+        "contracts/vaults/Autopilot.vy",
         asset,
+        VAULT_INFO['USDC']["name"],
+        VAULT_INFO['USDC']["symbol"],
         undy_hq,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
@@ -573,10 +578,6 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 
@@ -593,8 +594,10 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
 def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, weth, switchboard_alpha):
     asset = weth.address if fork == "local" else TOKENS[fork]["WETH"]
     vault = boa.load(
-        "contracts/vaults/UndyEth.vy",
+        "contracts/vaults/Autopilot.vy",
         asset,
+        VAULT_INFO['WETH']["name"],
+        VAULT_INFO['WETH']["symbol"],
         undy_hq,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
@@ -619,10 +622,6 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 
@@ -639,8 +638,10 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
 def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, switchboard_alpha):
     asset = TOKENS[fork]["CBBTC"]
     vault = boa.load(
-        "contracts/vaults/UndyBtc.vy",
+        "contracts/vaults/Autopilot.vy",
         asset,
+        VAULT_INFO['CBBTC']["name"],
+        VAULT_INFO['CBBTC']["symbol"],
         undy_hq,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
@@ -665,10 +666,6 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         2_00,  # redemptionBuffer (2%)
-        PARAMS[fork]["EARN_VAULT_MIN_SNAPSHOT_DELAY"],
-        PARAMS[fork]["EARN_VAULT_MAX_NUM_SNAPSHOTS"],
-        PARAMS[fork]["EARN_VAULT_MAX_UPSIDE_DEVIATION"],
-        PARAMS[fork]["EARN_VAULT_STALE_TIME"],
         sender=governance.address
     )
 

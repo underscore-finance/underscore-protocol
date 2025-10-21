@@ -23,10 +23,11 @@ import contracts.modules.Addys as addys
 import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
+from interfaces import LegoStructs as ls
+
 interface VaultRegistry:
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
     def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
-    def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig): nonpayable
     def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
     def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
     def isApprovedVaultToken(_vaultAddr: address, _vaultToken: address) -> bool: view
@@ -36,7 +37,6 @@ interface VaultRegistry:
     def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool): nonpayable
     def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool): nonpayable
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
-    def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool: view
     def isValidPerformanceFee(_performanceFee: uint256) -> bool: view
     def isValidRedemptionBuffer(_buffer: uint256) -> bool: view
     def isValidVaultToken(_vaultToken: address) -> bool: view
@@ -44,6 +44,13 @@ interface VaultRegistry:
 
 interface MissionControl:
     def canPerformSecurityAction(_signer: address) -> bool: view
+
+interface YieldLego:
+    def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
+    def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 flag ActionType:
     REDEMPTION_BUFFER
@@ -54,12 +61,6 @@ flag ActionType:
     DEFAULT_TARGET_VAULT_TOKEN
     MAX_DEPOSIT_AMOUNT
 
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
 struct PendingRedemptionBuffer:
     vaultAddr: address
     buffer: uint256
@@ -69,8 +70,8 @@ struct PendingMinYieldWithdrawAmount:
     amount: uint256
 
 struct PendingSnapShotPriceConfig:
-    vaultAddr: address
-    config: SnapShotPriceConfig
+    legoId: uint256
+    config: ls.SnapShotPriceConfig
 
 struct PendingApprovedVaultToken:
     vaultAddr: address
@@ -110,7 +111,7 @@ event MinYieldWithdrawAmountSet:
     amount: uint256
 
 event PendingSnapShotPriceConfigChange:
-    vaultAddr: indexed(address)
+    legoId: indexed(uint256)
     minSnapshotDelay: uint256
     maxNumSnapshots: uint256
     maxUpsideDeviation: uint256
@@ -119,7 +120,8 @@ event PendingSnapShotPriceConfigChange:
     actionId: uint256
 
 event SnapShotPriceConfigSet:
-    vaultAddr: indexed(address)
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
     minSnapshotDelay: uint256
     maxNumSnapshots: uint256
     maxUpsideDeviation: uint256
@@ -328,7 +330,7 @@ def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256) -> uint256:
 
 @external
 def setSnapShotPriceConfig(
-    _vaultAddr: address,
+    _legoId: uint256,
     _minSnapshotDelay: uint256,
     _maxNumSnapshots: uint256,
     _maxUpsideDeviation: uint256,
@@ -336,27 +338,28 @@ def setSnapShotPriceConfig(
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
-    # validation
-    vr: address = addys._getVaultRegistryAddr()
-    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    # validation - get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
 
-    config: SnapShotPriceConfig = SnapShotPriceConfig(
+    config: ls.SnapShotPriceConfig = ls.SnapShotPriceConfig(
         minSnapshotDelay=_minSnapshotDelay,
         maxNumSnapshots=_maxNumSnapshots,
         maxUpsideDeviation=_maxUpsideDeviation,
         staleTime=_staleTime,
     )
-    assert staticcall VaultRegistry(vr).isValidPriceConfig(config) # dev: invalid price config
+    assert staticcall YieldLego(legoAddr).isValidPriceConfig(config) # dev: invalid price config
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.SNAPSHOT_PRICE_CONFIG
     self.pendingSnapShotPriceConfig[aid] = PendingSnapShotPriceConfig(
-        vaultAddr=_vaultAddr,
+        legoId=_legoId,
         config=config
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingSnapShotPriceConfigChange(
-        vaultAddr=_vaultAddr,
+        legoId=_legoId,
         minSnapshotDelay=config.minSnapshotDelay,
         maxNumSnapshots=config.maxNumSnapshots,
         maxUpsideDeviation=config.maxUpsideDeviation,
@@ -502,9 +505,14 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.SNAPSHOT_PRICE_CONFIG:
         p: PendingSnapShotPriceConfig = self.pendingSnapShotPriceConfig[_aid]
-        extcall VaultRegistry(vr).setSnapShotPriceConfig(p.vaultAddr, p.config)
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set config on the lego
+        extcall YieldLego(legoAddr).setSnapShotPriceConfig(p.config)
         log SnapShotPriceConfigSet(
-            vaultAddr=p.vaultAddr,
+            legoId=p.legoId,
+            legoAddr=legoAddr,
             minSnapshotDelay=p.config.minSnapshotDelay,
             maxNumSnapshots=p.config.maxNumSnapshots,
             maxUpsideDeviation=p.config.maxUpsideDeviation,

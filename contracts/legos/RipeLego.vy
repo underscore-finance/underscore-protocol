@@ -32,12 +32,11 @@ initializes: yld[addys := addys]
 from interfaces import LegoPartner as Lego
 from interfaces import YieldLego as YieldLego
 from interfaces import WalletStructs as ws
-from interfaces import Wallet as wi
+from interfaces import LegoStructs as ls
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
-from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
@@ -49,42 +48,26 @@ interface RipeTeller:
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
-interface RipeRegistry:
-    def getAddr(_regId: uint256) -> address: view
-    def savingsGreen() -> address: view
-    def greenToken() -> address: view
-    def ripeToken() -> address: view
-
-interface CreditEngine:
-    def getMaxWithdrawableForAsset(_user: address, _vaultId: uint256, _asset: address) -> uint256: view
-    def getUserCollateralValueAndDebtAmount(_user: address) -> (uint256, uint256): view
-    def getCollateralValue(_user: address) -> uint256: view
-    def getUserDebtAmount(_user: address) -> uint256: view
-
-interface RipePriceDesk:
-    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
+interface RipeRegistry:
+    def savingsGreen() -> address: view
+    def greenToken() -> address: view
+    def ripeToken() -> address: view
+
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
-interface RipeMissionControl:
-    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
-    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
-
-interface UndyRegistry:
+interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def getAddr(_regId: uint256) -> address: view
 
-interface RipeDepositVault:
-    def getTotalAmountForUser(_user: address, _asset: address) -> uint256: view
+interface RipeMissionControl:
+    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -141,11 +124,6 @@ event RipeSavingsGreenWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
-
-GREEN_USDC_POOL: public(immutable(address))
-USDC: public(immutable(address))
-CURVE_DEX_LEGO_ID: public(immutable(uint256))
-
 # ripe addrs
 RIPE_REGISTRY: public(immutable(address))
 RIPE_GREEN_TOKEN: public(immutable(address))
@@ -153,25 +131,14 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
-RIPE_PRICE_DESK_ID: constant(uint256) = 7
-RIPE_VAULT_BOOK_ID: constant(uint256) = 8
-RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
-RIPE_LOOTBOX_ID: constant(uint256) = 16
 RIPE_TELLER_ID: constant(uint256) = 17
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
-HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
 
 @deploy
-def __init__(
-    _undyHq: address,
-    _ripeRegistry: address,
-    _greenUsdcPool: address,
-    _usdc: address,
-    _curveDexLegoId: uint256,
-):
+def __init__(_undyHq: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
@@ -180,13 +147,6 @@ def __init__(
     RIPE_GREEN_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).greenToken()
     RIPE_SAVINGS_GREEN = staticcall RipeRegistry(RIPE_REGISTRY).savingsGreen()
     RIPE_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).ripeToken()
-
-    assert empty(address) not in [_greenUsdcPool, _usdc] # dev: invalid addrs
-    GREEN_USDC_POOL = _greenUsdcPool
-    USDC = _usdc
-
-    assert _curveDexLegoId != 0 # dev: invalid curve dex lego id
-    CURVE_DEX_LEGO_ID = _curveDexLegoId
 
 
 @view
@@ -211,28 +171,429 @@ def getRegistries() -> DynArray[address, 10]:
 
 @view
 @external
-def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
-    ripeHq: address = RIPE_REGISTRY
-
-    mc: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    if staticcall RipeMissionControl(mc).doesUndyLegoHaveAccess(_user, self):
-        return empty(address), empty(String[64]), 0
-
-    else:
-        teller: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_TELLER_ID)
-        return teller, LEGO_ACCESS_ABI, 1
-
-
-@view
-@external
 def isYieldLego() -> bool:
-    return True # Savings Green
+    return True # savings green
 
 
 @view
 @external
 def isDexLego() -> bool:
     return False
+
+
+###################
+# Underlying Data #
+###################
+
+
+# underlying asset
+
+
+@view
+@external
+def getUnderlyingAsset(_vaultToken: address) -> address:
+    return self._getUnderlyingAsset(_vaultToken)
+
+
+@view
+@internal
+def _getUnderlyingAsset(_vaultToken: address) -> address:
+    return yld.vaultToAsset[_vaultToken].underlyingAsset
+
+
+# underlying balances (both true and safe)
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    if _vaultTokenBalance == 0:
+        return 0, 0
+
+    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
+    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+    if safeUnderlying == 0:
+        safeUnderlying = trueUnderlying
+
+    return trueUnderlying, min(trueUnderlying, safeUnderlying)
+
+
+# underlying amount (true)
+
+
+@view
+@external
+def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+
+
+@view
+@internal
+def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+
+
+# underlying amount (safe)
+
+
+@view
+@external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+
+
+@view
+@internal
+def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
+        return 0 # not registered
+
+    # safe underlying amount (using cached weighted average from snapshots)
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
+
+
+# underlying data (combined)
+
+
+@view
+@external
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return empty(address), 0, 0 # invalid vault token
+    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    return asset, underlyingAmount, usdValue
+
+
+# usd value
+
+
+@view
+@external
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)[2]
+
+
+@view
+@internal
+def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+
+
+###############
+# Other Utils #
+###############
+
+
+# basics
+
+
+@view
+@external
+def isRebasing() -> bool:
+    return self._isRebasing()
+
+
+@view
+@internal
+def _isRebasing() -> bool:
+    return False
+
+
+# price per share
+
+
+@view
+@external
+def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
+    decimals: uint256 = _decimals
+    if decimals == 0:
+        decimals = yld.vaultToAsset[_vaultToken].decimals
+    if decimals == 0:
+        return 0 # not registered
+    return self._getPricePerShare(_vaultToken, decimals)
+
+
+@view
+@internal
+def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToAssets(10 ** _decimals)
+
+
+# vault token amount
+
+
+@view
+@external
+def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
+
+
+# extras
+
+
+@view
+@external
+def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
+    return False
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    # TODO: implement
+    return 0
+
+
+################
+# Registration #
+################
+
+
+# can vault be registered
+
+
+@view
+@external
+def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    return self._canRegisterVaultToken(_asset, _vaultToken)
+
+
+@view
+@internal
+def _canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    if empty(address) in [_asset, _vaultToken]:
+        return False
+    return _asset == RIPE_GREEN_TOKEN and _vaultToken == RIPE_SAVINGS_GREEN
+
+
+# register vault token locally
+
+
+@external
+def registerVaultTokenLocally(_asset: address, _vaultAddr: address) -> ls.VaultTokenInfo:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._canRegisterVaultToken(_asset, _vaultAddr) # dev: cannot register vault token
+    assert not yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    vaultInfo: ls.VaultTokenInfo = self._registerVaultTokenLocally(_asset, _vaultAddr)
+    self._registerVaultTokenGlobally(_asset, _vaultAddr, vaultInfo.decimals, addys._getLedgerAddr(), addys._getLegoBookAddr())
+    return vaultInfo
+
+
+@internal
+def _registerVaultTokenLocally(_asset: address, _vaultAddr: address) -> ls.VaultTokenInfo:
+    assert extcall IERC20(_asset).approve(_vaultAddr, max_value(uint256), default_return_value=True) # dev: max approval failed
+    vaultInfo: ls.VaultTokenInfo = yld._addAssetOpportunity(_asset, _vaultAddr)
+    assert vaultInfo.decimals != 0 # dev: invalid vault token
+    return vaultInfo
+
+
+# remove vault token locally
+
+
+@external
+def deregisterVaultTokenLocally(_asset: address, _vaultAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    self._deregisterVaultTokenLocally(_asset, _vaultAddr)
+
+
+@internal
+def _deregisterVaultTokenLocally(_asset: address, _vaultAddr: address):
+    assert extcall IERC20(_asset).approve(_vaultAddr, 0, default_return_value=True) # dev: max approval failed
+    yld._removeAssetOpportunity(_asset, _vaultAddr)
+
+
+# ledger registration
+
+
+@internal
+def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address, _decimals: uint256, _ledger: address, _legoBook: address):
+    if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
+        legoId: uint256 = staticcall Registry(_legoBook).getRegId(self)
+        extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, _decimals, self._isRebasing())
+
+
+#################
+# Yield Actions #
+#################
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_vaultToken: address) -> bool:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    assert vaultInfo.decimals != 0 # dev: not registered
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
+    return yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
+
+
+# deposit
+
+
+@external
+def depositForYield(
+    _asset: address,
+    _amount: uint256,
+    _vaultAddr: address,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
+
+    # pre balances
+    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+
+    # transfer deposit asset to this contract
+    depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
+    assert depositAmount != 0 # dev: nothing to transfer
+    assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
+
+    # deposit assets into lego partner
+    vaultTokenAmountReceived: uint256 = extcall IERC4626(_vaultAddr).deposit(depositAmount, _recipient)
+    assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
+
+    # refund if full deposit didn't get through
+    currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+    refundAssetAmount: uint256 = 0
+    if currentLegoBalance > preLegoBalance:
+        refundAssetAmount = currentLegoBalance - preLegoBalance
+        assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
+        depositAmount -= refundAssetAmount
+
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    log RipeSavingsGreenDeposit(
+        sender = msg.sender,
+        asset = _asset,
+        vaultToken = _vaultAddr,
+        assetAmountDeposited = depositAmount,
+        usdValue = usdValue,
+        vaultTokenAmountReceived = vaultTokenAmountReceived,
+        recipient = _recipient,
+    )
+
+    # add price snapshot
+    pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultInfo.decimals)
+    yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultInfo.decimals)
+
+    return depositAmount, _vaultAddr, vaultTokenAmountReceived, usdValue
+
+
+# vault info on deposit
+
+
+@internal
+def _getVaultInfoOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> ls.VaultTokenInfo:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultAddr]
+    if vaultInfo.decimals == 0:
+        assert self._canRegisterVaultToken(_asset, _vaultAddr) # dev: cannot register vault token
+        vaultInfo = self._registerVaultTokenLocally(_asset, _vaultAddr)
+        self._registerVaultTokenGlobally(_asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
+    else:
+        assert vaultInfo.underlyingAsset == _asset # dev: asset mismatch
+    return vaultInfo
+
+
+# withdraw
+
+
+@external
+def withdrawFromYield(
+    _vaultToken: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, address, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
+
+    # pre balances
+    preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
+
+    # transfer vaults tokens to this contract
+    vaultTokenAmount: uint256 = min(_amount, staticcall IERC20(_vaultToken).balanceOf(msg.sender))
+    assert vaultTokenAmount != 0 # dev: nothing to transfer
+    assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
+
+    # withdraw assets from lego partner
+    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
+    assert assetAmountReceived != 0 # dev: no asset amount received
+
+    # refund if full withdrawal didn't happen
+    currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
+    refundVaultTokenAmount: uint256 = 0
+    if currentLegoVaultBalance > preLegoVaultBalance:
+        refundVaultTokenAmount = currentLegoVaultBalance - preLegoVaultBalance
+        assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
+        vaultTokenAmount -= refundVaultTokenAmount
+
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    log RipeSavingsGreenWithdrawal(
+        sender = msg.sender,
+        asset = vaultInfo.underlyingAsset,
+        vaultToken = _vaultToken,
+        assetAmountReceived = assetAmountReceived,
+        usdValue = usdValue,
+        vaultTokenAmountBurned = vaultTokenAmount,
+        recipient = _recipient,
+    )
+
+    # add price snapshot
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
+    yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
+
+    return vaultTokenAmount, vaultInfo.underlyingAsset, assetAmountReceived, usdValue
+
+
+# vault info on withdrawal
+
+
+@internal
+def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: address) -> ls.VaultTokenInfo:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultAddr]
+    if vaultInfo.decimals == 0:
+        asset: address = staticcall IERC4626(_vaultAddr).asset()
+        assert self._canRegisterVaultToken(asset, _vaultAddr) # dev: cannot register vault token
+        vaultInfo = self._registerVaultTokenLocally(asset, _vaultAddr)
+        self._registerVaultTokenGlobally(asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
+    return vaultInfo
 
 
 ###################
@@ -320,7 +681,7 @@ def removeCollateral(
         vaultId = convert(_extraData, uint256)
 
     # withdraw from Ripe Protocol
-    teller: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     amountRemoved: uint256 = extcall RipeTeller(teller).withdraw(_asset, _amount, _recipient, empty(address), vaultId)
     assert amountRemoved != 0 # dev: no asset amount received
 
@@ -358,7 +719,7 @@ def borrow(
     wantsSavingsGreen: bool = _borrowAsset == RIPE_SAVINGS_GREEN
 
     # borrow from Ripe
-    teller: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     borrowAmount: uint256 = extcall RipeTeller(teller).borrow(_amount, _recipient, wantsSavingsGreen, False)
     assert borrowAmount != 0 # dev: no borrow amount received
 
@@ -430,7 +791,7 @@ def repayDebt(
 
 @internal
 def _getRipeTellerAndApprove(_asset: address) -> address:
-    teller: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     # some vault tokens require max value approval (comp v3)
     assert extcall IERC20(_asset).approve(teller, max_value(uint256), default_return_value = True) # dev: appr
     return teller
@@ -469,7 +830,7 @@ def claimRewards(
 
     assert _rewardToken == RIPE_TOKEN # dev: invalid reward token
 
-    teller: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     totalRipe: uint256 = extcall RipeTeller(teller).claimLoot(_user, True)
     assert totalRipe != 0 # dev: no ripe tokens received
 
@@ -484,457 +845,25 @@ def claimRewards(
     return 0, usdValue
 
 
-#################
-# Savings Green #
-#################
-
-
-# deposit
-
-
-@external
-def depositForYield(
-    _asset: address,
-    _amount: uint256,
-    _vaultAddr: address,
-    _extraData: bytes32,
-    _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, address, uint256, uint256):
-    assert not yld.isPaused # dev: paused
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    # verify vault token (register if necessary)
-    vaultToken: address = self._getVaultTokenOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
-
-    # pre balances
-    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
-
-    # transfer deposit asset to this contract
-    depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
-    assert depositAmount != 0 # dev: nothing to transfer
-    assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
-
-    # deposit assets into lego partner
-    vaultTokenAmountReceived: uint256 = extcall IERC4626(vaultToken).deposit(depositAmount, _recipient)
-    assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
-
-    # refund if full deposit didn't get through
-    currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
-    refundAssetAmount: uint256 = 0
-    if currentLegoBalance > preLegoBalance:
-        refundAssetAmount = currentLegoBalance - preLegoBalance
-        assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
-        depositAmount -= refundAssetAmount
-
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
-    log RipeSavingsGreenDeposit(
-        sender = msg.sender,
-        asset = _asset,
-        vaultToken = vaultToken,
-        assetAmountDeposited = depositAmount,
-        usdValue = usdValue,
-        vaultTokenAmountReceived = vaultTokenAmountReceived,
-        recipient = _recipient,
-    )
-    return depositAmount, vaultToken, vaultTokenAmountReceived, usdValue
-
-
-# validate green / sgreen tokens
-
-
-@internal
-def _getVaultTokenOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> address:
-    assert _vaultAddr == RIPE_SAVINGS_GREEN # dev: must be savings green
-    assert _asset == RIPE_GREEN_TOKEN # dev: must be green token
-
-    # register if necessary
-    if yld.vaultToAsset[_vaultAddr] == empty(address):
-        self._registerAsset(_asset, _vaultAddr)
-        self._updateLedgerVaultToken(_asset, _vaultAddr, _ledger, _legoBook)
-
-    return _vaultAddr
-
-
-# withdraw
-
-
-@external
-def withdrawFromYield(
-    _vaultToken: address,
-    _amount: uint256,
-    _extraData: bytes32,
-    _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, address, uint256, uint256):
-    assert not yld.isPaused # dev: paused
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    # verify asset (register if necessary)
-    asset: address = self._getAssetOnWithdraw(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
-
-    # pre balances
-    preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
-
-    # transfer vaults tokens to this contract
-    vaultTokenAmount: uint256 = min(_amount, staticcall IERC20(_vaultToken).balanceOf(msg.sender))
-    assert vaultTokenAmount != 0 # dev: nothing to transfer
-    assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
-
-    # withdraw assets from lego partner
-    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
-    assert assetAmountReceived != 0 # dev: no asset amount received
-
-    # refund if full withdrawal didn't happen
-    currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
-    refundVaultTokenAmount: uint256 = 0
-    if currentLegoVaultBalance > preLegoVaultBalance:
-        refundVaultTokenAmount = currentLegoVaultBalance - preLegoVaultBalance
-        assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
-        vaultTokenAmount -= refundVaultTokenAmount
-
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(asset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
-    log RipeSavingsGreenWithdrawal(
-        sender = msg.sender,
-        asset = asset,
-        vaultToken = _vaultToken,
-        assetAmountReceived = assetAmountReceived,
-        usdValue = usdValue,
-        vaultTokenAmountBurned = vaultTokenAmount,
-        recipient = _recipient,
-    )
-    return vaultTokenAmount, asset, assetAmountReceived, usdValue
-
-
-# vault token verification
-
-
-@internal
-def _getAssetOnWithdraw(_vaultToken: address, _ledger: address, _legoBook: address) -> address:
-    assert _vaultToken == RIPE_SAVINGS_GREEN # dev: must be savings green
-    asset: address = RIPE_GREEN_TOKEN
-
-    # register if necessary
-    if yld.vaultToAsset[_vaultToken] == empty(address):
-        self._registerAsset(asset, _vaultToken)
-        self._updateLedgerVaultToken(asset, _vaultToken, _ledger, _legoBook)
-
-    return asset
-
-
-#######################
-# Savings Green Utils #
-#######################
-
-
 @view
 @external
-def isRebasing() -> bool:
-    return self._isRebasing()
-
-
-@view
-@internal
-def _isRebasing() -> bool:
+def hasClaimableRewards(_user: address) -> bool:
+    # TODO: implement
     return False
 
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    # likely already giving away RIPE tokens, not allowing sGREEN to have bonus
-    return False
-
-
-# underlying asset
-
-
-@view
-@external
-def isVaultToken(_vaultToken: address) -> bool:
-    return self._isVaultToken(_vaultToken)
-
-
-@view
-@internal
-def _isVaultToken(_vaultToken: address) -> bool:
-    return _vaultToken == RIPE_SAVINGS_GREEN
-
-
-@view
-@external
-def getUnderlyingAsset(_vaultToken: address) -> address:
-    return self._getUnderlyingAsset(_vaultToken)
-
-
-@view
-@internal
-def _getUnderlyingAsset(_vaultToken: address) -> address:
-    if _vaultToken != RIPE_SAVINGS_GREEN:
-        return empty(address)
-    return RIPE_GREEN_TOKEN
-
-
-# underlying amount
-
-
-@view
-@external
-def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    if not self._isVaultToken(_vaultToken) or _vaultTokenAmount == 0:
-        return 0 # invalid vault token or amount
-    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-
-
-@view
-@internal
-def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
-
-
-@view
-@external
-def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
-    if empty(address) in [_asset, _vaultToken] or _assetAmount == 0:
-        return 0 # bad inputs
-    if self._getUnderlyingAsset(_vaultToken) != _asset:
-        return 0 # invalid vault token or asset
-    return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
-
-
-# usd value
-
-
-@view
-@external
-def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
-    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
-
-
-@view
-@internal
-def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
-    asset: address = empty(address)
-    underlyingAmount: uint256 = 0
-    usdValue: uint256 = 0
-    asset, underlyingAmount, usdValue = self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
-    return usdValue
-
-
-# all underlying data together
-
-
-@view
-@external
-def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
-    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
-
-
-@view
-@internal
-def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
-    if _vaultTokenAmount == 0 or _vaultToken == empty(address):
-        return empty(address), 0, 0 # bad inputs
-    asset: address = self._getUnderlyingAsset(_vaultToken)
-    if asset == empty(address):
-        return empty(address), 0, 0 # invalid vault token
-    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
-    return asset, underlyingAmount, usdValue
-
-
-@view
-@internal
-def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
-    appraiser: address = _appraiser
-    if _appraiser == empty(address):
-        appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
-
-
-# other
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    if not self._isVaultToken(_vaultToken):
-        return 0 # invalid vault token
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    return 0 # TODO
-
-
-# price per share
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
-
-
-################
-# Registration #
-################
-
-
-@external
-def addAssetOpportunity(_asset: address, _vaultAddr: address):
-    pass
-
-
-@external
-def removeAssetOpportunity(_asset: address, _vaultAddr: address):
-    pass
-
-
-@internal
-def _registerAsset(_asset: address, _vaultAddr: address):
-    assert extcall IERC20(_asset).approve(_vaultAddr, max_value(uint256), default_return_value=True) # dev: max approval failed
-    yld._addAssetOpportunity(_asset, _vaultAddr)
-
-
-# update ledger registration
-
-
-@internal
-def _updateLedgerVaultToken(
-    _underlyingAsset: address,
-    _vaultToken: address,
-    _ledger: address,
-    _legoBook: address,
-):
-    if empty(address) in [_underlyingAsset, _vaultToken]:
-        return
-
-    if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
-        legoId: uint256 = staticcall UndyRegistry(_legoBook).getRegId(self)
-        decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-        extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
-
-
-##################
-# Debt Utilities #
-##################
-
-
-# NOTE: many of these functions take the first vault id for the asset
-# If leverage vaults uses yield assets that are in multiple Ripe deposit vaults, this needs to be updated!
-
-
-@view
-@external
-def getCollateralBalance(_user: address, _asset: address) -> uint256:
+def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
     ripeHq: address = RIPE_REGISTRY
-    mc: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
-    vaultBook: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
-    vaultAddr: address = staticcall RipeRegistry(vaultBook).getAddr(vaultId)
-    return staticcall RipeDepositVault(vaultAddr).getTotalAmountForUser(_user, _asset)
 
+    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    if staticcall RipeMissionControl(mc).doesUndyLegoHaveAccess(_user, self):
+        return empty(address), empty(String[64]), 0
 
-@view
-@external
-def getMaxWithdrawableForAsset(_user: address, _asset: address) -> uint256:
-    ripeHq: address = RIPE_REGISTRY
-    mc: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
-    creditEngine: address = staticcall RipeRegistry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
-    return staticcall CreditEngine(creditEngine).getMaxWithdrawableForAsset(_user, vaultId, _asset)
-
-
-@view
-@external
-def getCollateralValue(_user: address) -> uint256:
-    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
-    return staticcall CreditEngine(creditEngine).getCollateralValue(_user)
-
-
-@view
-@external
-def getUserDebtAmount(_user: address) -> uint256:
-    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
-    return staticcall CreditEngine(creditEngine).getUserDebtAmount(_user)
-
-
-@view
-@external
-def getUserCollateralValueAndDebtAmount(_user: address) -> (uint256, uint256):
-    creditEngine: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
-    return staticcall CreditEngine(creditEngine).getUserCollateralValueAndDebtAmount(_user)
-
-
-@view
-@external
-def getRipePrice(_asset: address) -> uint256:
-    return self._getRipePrice(_asset)
-
-
-@view
-@internal
-def _getRipePrice(_asset: address) -> uint256:
-    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    if ripePriceDesk == empty(address):
-        return 0
-    return staticcall RipePriceDesk(ripePriceDesk).getPrice(_asset, False)
-
-
-@view
-@external
-def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256:
-    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    if ripePriceDesk == empty(address):
-        return 0
-    return staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(_asset, _usdValue, _shouldRaise)
-
-
-@view
-@external
-def prepareGreenToUsdcSwap(_greenAmount: uint256) -> wi.SwapInstruction:
-    allowedSlippage: uint256 = 2_00 # 2% # TODO: make this a param
-
-    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    usdc: address = USDC
-    usdcAmount: uint256 = staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(usdc, _greenAmount, True)
-    minUsdcAmount: uint256 = usdcAmount * (HUNDRED_PERCENT - allowedSlippage) // HUNDRED_PERCENT
-
-    return wi.SwapInstruction(
-        legoId=CURVE_DEX_LEGO_ID,
-        amountIn=_greenAmount,
-        minAmountOut=minUsdcAmount,
-        tokenPath=[RIPE_GREEN_TOKEN, usdc],
-        poolPath=[GREEN_USDC_POOL],
-    )
-
-
-@view
-@external
-def prepareUsdcToGreenSwap(_usdcAmount: uint256) -> wi.SwapInstruction:
-    allowedSlippage: uint256 = 50 # 0.5% # TODO: make this a param
-
-    ripePriceDesk: address = staticcall RipeRegistry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    usdc: address = USDC
-    usdValue: uint256 = staticcall RipePriceDesk(ripePriceDesk).getUsdValue(usdc, _usdcAmount, True)
-    minGreenAmount: uint256 = usdValue * (HUNDRED_PERCENT - allowedSlippage) // HUNDRED_PERCENT
-
-    return wi.SwapInstruction(
-        legoId=CURVE_DEX_LEGO_ID,
-        amountIn=_usdcAmount,
-        minAmountOut=minGreenAmount,
-        tokenPath=[USDC, RIPE_GREEN_TOKEN],
-        poolPath=[GREEN_USDC_POOL],
-    )
+    else:
+        teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
+        return teller, LEGO_ACCESS_ABI, 1
 
 
 #########
@@ -965,7 +894,7 @@ def mintOrRedeemAsset(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, bool, uint256):
     return 0, 0, False, 0
-    
+
 
 @external
 def confirmMintOrRedeemAsset(
@@ -1044,9 +973,3 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
-
-
-@view
-@external
-def getPrice(_asset: address, _decimals: uint256) -> uint256:
-    return 0

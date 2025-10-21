@@ -2,6 +2,7 @@ import pytest
 import boa
 from conf_utils import filter_logs
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from conf_core import VAULT_INFO
 
 
 @pytest.fixture
@@ -19,12 +20,15 @@ def deploy_test_vault(undy_hq_deploy):
         )
 
         return boa.load(
-            "contracts/vaults/UndyUsd.vy",
-            mock_asset.address,  # asset
-            undy_hq_deploy.address,  # undyHq
-            0,  # minHqTimeLock
-            0,  # maxHqTimeLock
-            boa.env.generate_address(),  # startingAgent
+            "contracts/vaults/Autopilot.vy",
+            mock_asset.address,
+            VAULT_INFO['USDC']["name"],
+            VAULT_INFO['USDC']["symbol"],
+            undy_hq_deploy.address,
+            0,
+            0,
+            boa.env.generate_address(),
+            name="undy_usd_vault",
         )
     return _deploy
 
@@ -361,14 +365,15 @@ def test_set_min_yield_withdraw_amount_non_governance_fails(switchboard_charlie,
         )
 
 
-def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+def test_set_snapshot_price_config_success(switchboard_charlie, mock_yield_lego, governance):
     """Test successful snapshot price config update"""
     # Get initial config
-    initial_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    lego_id = 1  # mock_yield_lego
+    initial_config = mock_yield_lego.snapShotPriceConfig()
 
     # Initiate config change
     aid = switchboard_charlie.setSnapShotPriceConfig(
-        undy_usd_vault.address,
+        lego_id,
         600,    # _minSnapshotDelay
         15,     # _maxNumSnapshots
         2000,   # _maxUpsideDeviation
@@ -379,7 +384,7 @@ def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, 
     # Verify event
     logs = filter_logs(switchboard_charlie, "PendingSnapShotPriceConfigChange")
     assert len(logs) >= 1
-    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].legoId == lego_id
     assert logs[-1].minSnapshotDelay == 600
     assert logs[-1].maxNumSnapshots == 15
     assert logs[-1].maxUpsideDeviation == 2000
@@ -396,23 +401,25 @@ def test_set_snapshot_price_config_success(switchboard_charlie, vault_registry, 
     # Verify execution event
     exec_logs = filter_logs(switchboard_charlie, "SnapShotPriceConfigSet")
     assert len(exec_logs) >= 1
-    assert exec_logs[-1].vaultAddr == undy_usd_vault.address
+    assert exec_logs[-1].legoId == lego_id
+    assert exec_logs[-1].legoAddr == mock_yield_lego.address
     assert exec_logs[-1].minSnapshotDelay == 600
 
     # Verify state changes
-    updated_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    updated_config = mock_yield_lego.snapShotPriceConfig()
     assert updated_config.minSnapshotDelay == 600
     assert updated_config.maxNumSnapshots == 15
     assert updated_config.maxUpsideDeviation == 2000
     assert updated_config.staleTime == 86400
 
 
-def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, undy_usd_vault, governance):
+def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, governance):
     """Test that invalid price config is rejected"""
+    lego_id = 1  # mock_yield_lego
     # Invalid: maxNumSnapshots = 0
     with boa.reverts("invalid price config"):
         switchboard_charlie.setSnapShotPriceConfig(
-            undy_usd_vault.address,
+            lego_id,
             300,     # _minSnapshotDelay
             0,       # _maxNumSnapshots (invalid)
             1000,    # _maxUpsideDeviation
@@ -421,13 +428,13 @@ def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, und
         )
 
 
-def test_set_snapshot_price_config_invalid_vault_fails(switchboard_charlie, governance):
-    """Test that invalid vault address is rejected"""
-    invalid_vault = boa.env.generate_address()
+def test_set_snapshot_price_config_invalid_lego_id_fails(switchboard_charlie, governance):
+    """Test that invalid lego id is rejected"""
+    invalid_lego_id = 999  # non-existent lego
 
-    with boa.reverts("invalid vault addr"):
+    with boa.reverts("invalid lego id"):
         switchboard_charlie.setSnapShotPriceConfig(
-            invalid_vault,
+            invalid_lego_id,
             300,     # _minSnapshotDelay
             20,      # _maxNumSnapshots
             1000,    # _maxUpsideDeviation
@@ -436,11 +443,12 @@ def test_set_snapshot_price_config_invalid_vault_fails(switchboard_charlie, gove
         )
 
 
-def test_set_snapshot_price_config_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
+def test_set_snapshot_price_config_non_governance_fails(switchboard_charlie, alice):
     """Test that non-governance cannot set snapshot config"""
+    lego_id = 1  # mock_yield_lego
     with boa.reverts("no perms"):
         switchboard_charlie.setSnapShotPriceConfig(
-            undy_usd_vault.address,
+            lego_id,
             600,    # _minSnapshotDelay
             15,     # _maxNumSnapshots
             2000,   # _maxUpsideDeviation
@@ -632,7 +640,7 @@ def test_execute_pending_action_non_governance_fails(switchboard_charlie, undy_u
         switchboard_charlie.executePendingAction(aid, sender=alice)
 
 
-def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_vault, mock_yield_lego, governance):
     """Test creating multiple pending actions with different action IDs"""
     # Create first pending action (redemption buffer)
     aid1 = switchboard_charlie.setRedemptionBuffer(
@@ -642,8 +650,9 @@ def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_
     )
 
     # Create second pending action (snapshot config)
+    lego_id = 1  # mock_yield_lego
     aid2 = switchboard_charlie.setSnapShotPriceConfig(
-        undy_usd_vault.address,
+        lego_id,
         600,    # _minSnapshotDelay
         15,     # _maxNumSnapshots
         2000,   # _maxUpsideDeviation
@@ -664,7 +673,7 @@ def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_
     assert result == True
 
     # Verify snapshot config updated
-    config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
+    config = mock_yield_lego.snapShotPriceConfig()
     assert config.minSnapshotDelay == 600
 
     # First action should still be pending

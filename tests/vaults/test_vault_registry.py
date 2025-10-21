@@ -2,6 +2,7 @@ import pytest
 import boa
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from conf_utils import filter_logs
+from conf_core import VAULT_INFO
 
 
 @pytest.fixture
@@ -19,12 +20,15 @@ def deploy_test_vault(undy_hq_deploy):
         )
 
         return boa.load(
-            "contracts/vaults/UndyUsd.vy",
-            mock_asset.address,  # asset - now a real ERC20 contract
-            undy_hq_deploy.address,  # undyHq
-            0,  # minHqTimeLock
-            0,  # maxHqTimeLock
-            boa.env.generate_address(),  # startingAgent
+            "contracts/vaults/Autopilot.vy",
+            mock_asset.address,
+            VAULT_INFO['USDC']["name"],
+            VAULT_INFO['USDC']["symbol"],
+            undy_hq_deploy.address,
+            0,
+            0,
+            boa.env.generate_address(),
+            name="undy_usd_vault",
         )
     return _deploy
 
@@ -756,185 +760,6 @@ def test_multiple_vaults_different_min_yield_amounts(vault_registry, governance,
     assert vault_registry.minYieldWithdrawAmount(vault_2.address) == 15000
 
 
-def test_set_snapshot_price_config(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test setting snapshot price config"""
-    # Get initial config
-    initial_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
-    assert initial_config.minSnapshotDelay == 300
-    assert initial_config.maxNumSnapshots == 20
-
-    # Create new config - pass as tuple matching SnapShotPriceConfig struct
-    # (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation, staleTime)
-    new_config = (600, 15, 2000, 86400)
-
-    vault_registry.setSnapShotPriceConfig(
-        undy_usd_vault.address,
-        new_config,
-        sender=switchboard_alpha.address
-    )
-
-    # Verify new config
-    updated_config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
-    assert updated_config.minSnapshotDelay == 600
-    assert updated_config.maxNumSnapshots == 15
-    assert updated_config.maxUpsideDeviation == 2000
-    assert updated_config.staleTime == 86400
-
-
-def test_set_snapshot_price_config_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
-    """Test that non-switchboard cannot set snapshot config"""
-    new_config = (600, 15, 2000, 86400)
-
-    with boa.reverts("no perms"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            new_config,
-            sender=bob
-        )
-
-
-def test_set_snapshot_price_config_invalid_min_delay(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that minSnapshotDelay > ONE_WEEK fails"""
-    # (minSnapshotDelay > 1 week, maxNumSnapshots, maxUpsideDeviation, staleTime)
-    invalid_config = (60 * 60 * 24 * 7 + 1, 15, 1000, 86400)
-
-    with boa.reverts("invalid config"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            invalid_config,
-            sender=switchboard_alpha.address
-        )
-
-
-def test_set_snapshot_price_config_invalid_max_snapshots(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that maxNumSnapshots must be 1-25"""
-    # Zero should fail
-    invalid_config_zero = (300, 0, 1000, 86400)
-
-    with boa.reverts("invalid config"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            invalid_config_zero,
-            sender=switchboard_alpha.address
-        )
-
-    # > 25 should fail
-    invalid_config_too_many = (300, 26, 1000, 86400)
-
-    with boa.reverts("invalid config"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            invalid_config_too_many,
-            sender=switchboard_alpha.address
-        )
-
-    # 25 should work
-    valid_config = (300, 25, 1000, 86400)
-
-    vault_registry.setSnapShotPriceConfig(
-        undy_usd_vault.address,
-        valid_config,
-        sender=switchboard_alpha.address
-    )
-
-    config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
-    assert config.maxNumSnapshots == 25
-
-
-def test_set_snapshot_price_config_invalid_upside_deviation(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that maxUpsideDeviation > 100% fails"""
-    # (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation > 100%, staleTime)
-    invalid_config = (300, 15, 10001, 86400)
-
-    with boa.reverts("invalid config"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            invalid_config,
-            sender=switchboard_alpha.address
-        )
-
-    # 100% should work
-    valid_config = (300, 15, 10000, 86400)
-
-    vault_registry.setSnapShotPriceConfig(
-        undy_usd_vault.address,
-        valid_config,
-        sender=switchboard_alpha.address
-    )
-
-    config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
-    assert config.maxUpsideDeviation == 10000
-
-
-def test_set_snapshot_price_config_invalid_stale_time(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that staleTime >= ONE_WEEK fails"""
-    # (minSnapshotDelay, maxNumSnapshots, maxUpsideDeviation, staleTime >= 1 week)
-    invalid_config = (300, 15, 1000, 60 * 60 * 24 * 7)
-
-    with boa.reverts("invalid config"):
-        vault_registry.setSnapShotPriceConfig(
-            undy_usd_vault.address,
-            invalid_config,
-            sender=switchboard_alpha.address
-        )
-
-    # Just under 1 week should work
-    valid_config = (300, 15, 1000, 60 * 60 * 24 * 7 - 1)
-
-    vault_registry.setSnapShotPriceConfig(
-        undy_usd_vault.address,
-        valid_config,
-        sender=switchboard_alpha.address
-    )
-
-    config = vault_registry.snapShotPriceConfig(undy_usd_vault.address)
-    assert config.staleTime == 60 * 60 * 24 * 7 - 1
-
-
-def test_set_snapshot_price_config_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
-    """Test that setSnapShotPriceConfig emits event"""
-    new_config = (600, 15, 2000, 86400)
-
-    vault_registry.setSnapShotPriceConfig(
-        undy_usd_vault.address,
-        new_config,
-        sender=switchboard_alpha.address
-    )
-
-    events = filter_logs(vault_registry, "SnapShotPriceConfigSet")
-    assert len(events) > 0
-
-    latest_event = events[-1]
-    assert latest_event.vaultAddr == undy_usd_vault.address
-    assert latest_event.minSnapshotDelay == 600
-    assert latest_event.maxNumSnapshots == 15
-    assert latest_event.maxUpsideDeviation == 2000
-    assert latest_event.staleTime == 86400
-
-
-def test_is_valid_price_config_view(vault_registry):
-    """Test isValidPriceConfig view function"""
-    # Valid config
-    valid_config = (300, 20, 1000, 259200)  # 3 days
-    assert vault_registry.isValidPriceConfig(valid_config) == True
-
-    # Invalid: minSnapshotDelay too high
-    invalid_delay = (60 * 60 * 24 * 8, 20, 1000, 259200)
-    assert vault_registry.isValidPriceConfig(invalid_delay) == False
-
-    # Invalid: maxNumSnapshots = 0
-    invalid_snapshots = (300, 0, 1000, 259200)
-    assert vault_registry.isValidPriceConfig(invalid_snapshots) == False
-
-    # Invalid: maxUpsideDeviation too high
-    invalid_deviation = (300, 20, 20000, 259200)
-    assert vault_registry.isValidPriceConfig(invalid_deviation) == False
-
-    # Invalid: staleTime too high
-    invalid_stale = (300, 20, 1000, 60 * 60 * 24 * 7)
-    assert vault_registry.isValidPriceConfig(invalid_stale) == False
-
-
 def test_set_approved_vault_token(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test approving and disapproving vault tokens"""
     new_vault_token = boa.env.generate_address()
@@ -1045,8 +870,6 @@ def test_get_vault_config_by_addr(vault_registry, undy_usd_vault):
     assert config.canWithdraw == True
     assert config.redemptionBuffer == 200
     assert config.isVaultOpsFrozen == False
-    assert config.snapShotPriceConfig.minSnapshotDelay == 300
-    assert config.snapShotPriceConfig.maxNumSnapshots == 20
 
 
 def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_test_vault):
@@ -1081,10 +904,6 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
         False,  # canWithdraw
         False,  # isVaultOpsFrozen
         100,  # redemptionBuffer (1%)
-        300,  # minSnapshotDelay
-        20,  # maxNumSnapshots
-        1000,  # maxUpsideDeviation (10%)
-        259200,  # staleTime (3 days)
         sender=governance.address
     )
 
@@ -1110,10 +929,6 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
         True,  # canWithdraw
         False,  # isVaultOpsFrozen
         500,  # redemptionBuffer (5%)
-        600,  # minSnapshotDelay
-        15,  # maxNumSnapshots
-        500,  # maxUpsideDeviation (5%)
-        86400,  # staleTime (1 day)
         sender=governance.address
     )
 
@@ -1123,7 +938,6 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     assert config_1.canWithdraw == False
     assert config_1.maxDepositAmount == 500_000 * EIGHTEEN_DECIMALS
     assert config_1.redemptionBuffer == 100
-    assert config_1.snapShotPriceConfig.minSnapshotDelay == 300
     assert vault_registry.isApprovedVaultTokenByAddr(vault_1.address, vault_token_1) == True
 
     # Verify vault 2 config
@@ -1132,7 +946,6 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     assert config_2.canWithdraw == True
     assert config_2.maxDepositAmount == 1_000_000 * EIGHTEEN_DECIMALS
     assert config_2.redemptionBuffer == 500
-    assert config_2.snapShotPriceConfig.minSnapshotDelay == 600
     assert vault_registry.isApprovedVaultTokenByAddr(vault_2.address, vault_token_2) == True
 
     # Verify isolation - vault 1 approvals don't affect vault 2

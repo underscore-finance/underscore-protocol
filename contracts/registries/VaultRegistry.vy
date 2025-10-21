@@ -27,12 +27,6 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-struct SnapShotPriceConfig:
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
-
 struct VaultConfig:
     canDeposit: bool
     canWithdraw: bool
@@ -43,7 +37,6 @@ struct VaultConfig:
     performanceFee: uint256
     shouldAutoDeposit: bool
     defaultTargetVaultToken: address
-    snapShotPriceConfig: SnapShotPriceConfig
 
 struct VaultToken:
     legoId: uint256
@@ -57,6 +50,7 @@ struct VaultActionData:
     legoBook: address
     appraiser: address
     vaultRegistry: address
+    vaultAsset: address
     signer: address
     legoId: uint256
     legoAddr: address
@@ -96,13 +90,6 @@ event DefaultTargetVaultTokenSet:
 event ShouldAutoDepositSet:
     vaultAddr: indexed(address)
     shouldAutoDeposit: bool
-
-event SnapShotPriceConfigSet:
-    vaultAddr: indexed(address)
-    minSnapshotDelay: uint256
-    maxNumSnapshots: uint256
-    maxUpsideDeviation: uint256
-    staleTime: uint256
 
 event ApprovedVaultTokenSet:
     vaultAddr: indexed(address)
@@ -172,10 +159,6 @@ def confirmNewAddressToRegistry(
     _canWithdraw: bool = True,
     _isVaultOpsFrozen: bool = False,
     _redemptionBuffer: uint256 = 2_00, # 2.00%
-    _minSnapshotDelay: uint256 = 60 * 5, # 5 minutes,
-    _maxNumSnapshots: uint256 = 20,
-    _maxUpsideDeviation: uint256 = 10_00, # 10.00%
-    _staleTime: uint256 = 60 * 60 * 24 * 3, # 3 days,
 ) -> uint256:
     assert self._canPerformAction(msg.sender) # dev: no perms
     regId: uint256 = registry._confirmNewAddressToRegistry(_vaultAddr)
@@ -192,10 +175,6 @@ def confirmNewAddressToRegistry(
             _canWithdraw,
             _isVaultOpsFrozen,
             _redemptionBuffer,
-            _minSnapshotDelay,
-            _maxNumSnapshots,
-            _maxUpsideDeviation,
-            _staleTime,
         )
     return regId
 
@@ -222,21 +201,10 @@ def _initializeVaultConfig(
     _canWithdraw: bool,
     _isVaultOpsFrozen: bool,
     _redemptionBuffer: uint256,
-    _minSnapshotDelay: uint256,
-    _maxNumSnapshots: uint256,
-    _maxUpsideDeviation: uint256,
-    _staleTime: uint256,
 ):
     assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
 
     # validation
-    snapShotPriceConfig: SnapShotPriceConfig = SnapShotPriceConfig(
-        minSnapshotDelay=_minSnapshotDelay,
-        maxNumSnapshots=_maxNumSnapshots,
-        maxUpsideDeviation=_maxUpsideDeviation,
-        staleTime=_staleTime,
-    )
-    assert self._isValidPriceConfig(snapShotPriceConfig) # dev: invalid price config
     assert self._isValidRedemptionBuffer(_redemptionBuffer) # dev: invalid redemption buffer
     assert self._isValidPerformanceFee(_performanceFee) # dev: invalid performance fee
 
@@ -254,7 +222,6 @@ def _initializeVaultConfig(
         performanceFee = _performanceFee,
         shouldAutoDeposit = _shouldAutoDeposit,
         defaultTargetVaultToken = _defaultTargetVaultToken,
-        snapShotPriceConfig = snapShotPriceConfig,
     )
     self.vaultConfigs[_vaultAddr] = config
 
@@ -422,41 +389,6 @@ def _isValidPerformanceFee(_performanceFee: uint256) -> bool:
     return _performanceFee <= HUNDRED_PERCENT
 
 
-#########################
-# Snapshot Price Config #
-#########################
-
-
-@external
-def setSnapShotPriceConfig(_vaultAddr: address, _config: SnapShotPriceConfig):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
-    assert self._isValidPriceConfig(_config) # dev: invalid config
-
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
-    config.snapShotPriceConfig = _config
-    self.vaultConfigs[_vaultAddr] = config
-    log SnapShotPriceConfigSet(vaultAddr=_vaultAddr, minSnapshotDelay=_config.minSnapshotDelay, maxNumSnapshots=_config.maxNumSnapshots, maxUpsideDeviation=_config.maxUpsideDeviation, staleTime=_config.staleTime)
-
-
-@view
-@external
-def isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
-    return self._isValidPriceConfig(_config)
-
-
-@view
-@internal
-def _isValidPriceConfig(_config: SnapShotPriceConfig) -> bool:
-    if _config.minSnapshotDelay > ONE_WEEK_SECONDS:
-        return False
-    if _config.maxNumSnapshots == 0 or _config.maxNumSnapshots > 25:
-        return False
-    if _config.maxUpsideDeviation > HUNDRED_PERCENT:
-        return False
-    return _config.staleTime < ONE_WEEK_SECONDS
-
-
 #####################
 # Redemption Buffer #
 #####################
@@ -554,12 +486,6 @@ def shouldAutoDeposit(_vaultAddr: address) -> bool:
 
 @view
 @external
-def snapShotPriceConfig(_vaultAddr: address) -> SnapShotPriceConfig:
-    return self.vaultConfigs[_vaultAddr].snapShotPriceConfig
-
-
-@view
-@external
 def isApprovedVaultTokenByAddr(_vaultAddr: address, _vaultToken: address) -> bool:
     return self.isApprovedVaultToken[_vaultAddr][_vaultToken]
 
@@ -604,6 +530,7 @@ def _getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultAction
         legoBook = a.legoBook,
         appraiser = a.appraiser,
         vaultRegistry = self,
+        vaultAsset = empty(address),
         signer = _signer,
         legoId = _legoId,
         legoAddr = legoAddr,
@@ -645,8 +572,3 @@ def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address):
     return config.canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
 
 
-@view
-@external
-def getLegoAndSnapshotConfig(_vaultToken: address, _vaultAddr: address) -> (address, SnapShotPriceConfig):
-    legoAddr: address = self._getLegoDataFromVaultToken(_vaultToken)[1]
-    return legoAddr, self.vaultConfigs[_vaultAddr].snapShotPriceConfig

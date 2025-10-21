@@ -1,4 +1,4 @@
-from config.BluePrint import PARAMS, INTEGRATION_ADDYS, TOKENS, HOUR_IN_BLOCKS, DAY_IN_BLOCKS, MONTH_IN_BLOCKS, YEAR_IN_BLOCKS
+from config.BluePrint import PARAMS, INTEGRATION_ADDYS, TOKENS, HOUR_IN_BLOCKS, DAY_IN_BLOCKS, MONTH_IN_BLOCKS, YEAR_IN_BLOCKS, VAULT_INFO
 from tests.constants import ZERO_ADDRESS, MAX_UINT256, EIGHTEEN_DECIMALS
 
 
@@ -21,6 +21,7 @@ class BluePrint:
         self.PARAMS = PARAMS[blueprint]
         self.INTEGRATION_ADDYS = INTEGRATION_ADDYS[blueprint]
         self.TOKENS = TOKENS[blueprint]
+        self.VAULT_INFO = VAULT_INFO
         self.BLOCKS = Blocks
         self.CONSTANTS = Constants
 
