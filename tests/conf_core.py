@@ -545,7 +545,7 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
                    yield_vault_token, yield_vault_token_2, yield_vault_token_3, yield_vault_token_4):
     asset = yield_underlying_token.address if fork == "local" else TOKENS[fork]["USDC"]
     vault = boa.load(
-        "contracts/vaults/Autopilot.vy",
+        "contracts/vaults/EarnVault.vy",
         asset,
         VAULT_INFO['USDC']["name"],
         VAULT_INFO['USDC']["symbol"],
@@ -594,7 +594,7 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
 def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, weth, switchboard_alpha):
     asset = weth.address if fork == "local" else TOKENS[fork]["WETH"]
     vault = boa.load(
-        "contracts/vaults/Autopilot.vy",
+        "contracts/vaults/EarnVault.vy",
         asset,
         VAULT_INFO['WETH']["name"],
         VAULT_INFO['WETH']["symbol"],
@@ -638,7 +638,7 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
 def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, switchboard_alpha):
     asset = TOKENS[fork]["CBBTC"]
     vault = boa.load(
-        "contracts/vaults/Autopilot.vy",
+        "contracts/vaults/EarnVault.vy",
         asset,
         VAULT_INFO['CBBTC']["name"],
         VAULT_INFO['CBBTC']["symbol"],

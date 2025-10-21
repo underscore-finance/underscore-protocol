@@ -57,7 +57,7 @@ def migrate(migration: Migration):
     vault_registry = migration.get_contract('VaultRegistry')
 
     usdcVault = migration.deploy(
-        'Autopilot',
+        'EarnVault',
         migration.blueprint.TOKENS["USDC"],
         migration.blueprint.VAULT_INFO["USDC"]["name"],
         migration.blueprint.VAULT_INFO["USDC"]["symbol"],
@@ -84,7 +84,7 @@ def migrate(migration: Migration):
     ) == 1
 
     ethVault = migration.deploy(
-        'Autopilot',
+        'EarnVault',
         migration.blueprint.TOKENS["WETH"],
         migration.blueprint.VAULT_INFO["WETH"]["name"],
         migration.blueprint.VAULT_INFO["WETH"]["symbol"],
@@ -111,7 +111,7 @@ def migrate(migration: Migration):
     ) == 2
 
     btcVault = migration.deploy(
-        'Autopilot',
+        'EarnVault',
         migration.blueprint.TOKENS["CBBTC"],
         migration.blueprint.VAULT_INFO["CBBTC"]["name"],
         migration.blueprint.VAULT_INFO["CBBTC"]["symbol"],

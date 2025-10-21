@@ -20,7 +20,7 @@ def deploy_test_vault(undy_hq_deploy):
         )
 
         return boa.load(
-            "contracts/vaults/Autopilot.vy",
+            "contracts/vaults/EarnVault.vy",
             mock_asset.address,
             VAULT_INFO['USDC']["name"],
             VAULT_INFO['USDC']["symbol"],
