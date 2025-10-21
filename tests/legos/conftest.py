@@ -31,21 +31,23 @@ def setupWithdrawal(getTokenAndWhale, bob_user_wallet, bob):
 @pytest.fixture(scope="package")
 def testLegoDeposit(bob_user_wallet, bob, lego_book, _test):
     def testLegoDeposit(
-        _legoId,
+        _lego,
         _asset,
         _vaultToken,
         _amount = MAX_UINT256,
     ):
+        lego_id = lego_book.getRegId(_lego)
+
         # pre balances
         pre_user_asset_bal = _asset.balanceOf(bob_user_wallet)
         pre_user_vault_bal = _vaultToken.balanceOf(bob_user_wallet)
 
-        lego_addr = lego_book.getAddr(_legoId)
+        lego_addr = lego_book.getAddr(lego_id)
         pre_lego_asset_bal = _asset.balanceOf(lego_addr)
         pre_lego_vault_bal = _vaultToken.balanceOf(lego_addr)
 
         # deposit
-        deposit_amount, vault_token, vault_tokens_received, usd_value = bob_user_wallet.depositForYield(_legoId, _asset, _vaultToken, _amount, sender=bob)
+        deposit_amount, vault_token, vault_tokens_received, usd_value = bob_user_wallet.depositForYield(lego_id, _asset, _vaultToken, _amount, sender=bob)
 
         # event
         log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
@@ -55,7 +57,7 @@ def testLegoDeposit(bob_user_wallet, bob, lego_book, _test):
         assert log_wallet.amount1 == deposit_amount
         assert log_wallet.amount2 == vault_tokens_received
         assert log_wallet.usdValue == usd_value
-        assert log_wallet.legoId == _legoId
+        assert log_wallet.legoId == lego_id
         assert log_wallet.signer == bob
 
         assert _vaultToken.address == vault_token
@@ -76,6 +78,11 @@ def testLegoDeposit(bob_user_wallet, bob, lego_book, _test):
 
         # asset amounts
         _test(pre_user_asset_bal - deposit_amount, _asset.balanceOf(bob_user_wallet.address))
+
+        # test key utility functions
+        _test(vault_tokens_received, _lego.getVaultTokenAmount(_asset, deposit_amount, _vaultToken))
+        _test(deposit_amount, _lego.getUnderlyingAmount(_vaultToken, vault_tokens_received))
+        assert _asset.address == _lego.getUnderlyingAsset(_vaultToken)
 
     yield testLegoDeposit
 

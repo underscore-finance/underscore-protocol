@@ -47,14 +47,13 @@ def test_morpho_deposit_max(
     bob_user_wallet,
     lego_morpho,
     getVaultToken,
-    lego_book,
 ):
     # setup
     vault_token = getVaultToken(token_str)
     asset, whale = getTokenAndWhale(token_str)
     asset.transfer(bob_user_wallet.address, TEST_AMOUNTS[token_str] * (10 ** asset.decimals()), sender=whale)
 
-    testLegoDeposit(lego_book.getRegId(lego_morpho), asset, vault_token)
+    testLegoDeposit(lego_morpho, asset, vault_token)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
@@ -66,7 +65,6 @@ def test_morpho_deposit_partial(
     bob_user_wallet,
     lego_morpho,
     getTokenAndWhale,
-    lego_book,
 ):
     # setup
     vault_token = getVaultToken(token_str)
@@ -74,7 +72,7 @@ def test_morpho_deposit_partial(
     amount = TEST_AMOUNTS[token_str] * (10 ** asset.decimals())
     asset.transfer(bob_user_wallet.address, amount, sender=whale)
 
-    testLegoDeposit(lego_book.getRegId(lego_morpho), asset, vault_token, amount // 2)
+    testLegoDeposit(lego_morpho, asset, vault_token, amount // 2)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)

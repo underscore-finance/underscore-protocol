@@ -37,8 +37,6 @@ from ethereum.ercs import IERC20
 interface SkyPsm:
     def swapExactIn(_assetIn: address, _assetOut: address, _amountIn: uint256, _minAmountOut: uint256, _receiver: address, _referralCode: uint256) -> uint256: nonpayable
     def previewSwapExactIn(_assetIn: address, _assetOut: address, _amountIn: uint256) -> uint256: view
-    def convertToAssets(_asset: address, _numShares: uint256) -> uint256: view
-    def convertToShares(_asset: address, _amount: uint256) -> uint256: view
     def totalAssets() -> uint256: view
     def susds() -> address: view
     def usds() -> address: view
@@ -177,7 +175,7 @@ def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> ui
     asset: address = self._getUnderlyingAsset(_vaultToken)
     if asset == empty(address):
         return 0 # invalid vault token
-    return staticcall SkyPsm(SKY_PSM).convertToAssets(asset, _vaultTokenAmount)
+    return staticcall SkyPsm(SKY_PSM).previewSwapExactIn(_vaultToken, asset, _vaultTokenAmount)
 
 
 # underlying amount (safe)
@@ -281,7 +279,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
 @view
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
-    return staticcall SkyPsm(SKY_PSM).convertToAssets(USDS, 10 ** _decimals)
+    return staticcall SkyPsm(SKY_PSM).previewSwapExactIn(_vaultToken, USDS, 10 ** _decimals)
 
 
 # vault token amount
@@ -290,7 +288,7 @@ def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
 @view
 @external
 def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
-    return staticcall SkyPsm(SKY_PSM).convertToShares(_asset, _assetAmount)
+    return staticcall SkyPsm(SKY_PSM).previewSwapExactIn(_asset, _vaultToken, _assetAmount)
 
 
 # extras
