@@ -2,7 +2,6 @@ from scripts.utils.migration import Migration
 
 
 def migrate(migration: Migration):
-
     lego_book = migration.get_contract('LegoBook')
     vault_registry = migration.get_contract('VaultRegistry')
     switchboard_charlie = migration.get_contract('SwitchboardCharlie')

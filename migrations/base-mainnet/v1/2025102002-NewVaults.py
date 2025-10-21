@@ -23,7 +23,6 @@ USDC_VAULTS = [
     '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22',
     '0xb99b6df96d4d5448cc0a5b3e0ef7896df9507cf5',
 ]
-USDC_LEGOS = [2, 3, 4, 5, 6, 7, 14]
 
 ETH_VAULTS = [
     '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1',
@@ -31,6 +30,7 @@ ETH_VAULTS = [
     '0x5A32099837D89E3a794a44fb131CBbAD41f87a8C',
     '0x09832347586E238841F49149C84d121Bc2191C53',
     '0x6b13c060F13Af1fdB319F52315BbbF3fb1D88844',
+    '0xA2Cac0023a4797b4729Db94783405189a4203AFc',
     '0x859160DB5841E5cfB8D3f144C6b3381A85A4b410',
     '0xF3BB6b0a9bEAF9240D7F4a91341d5Df6bF37cAea',
     '0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7',
@@ -38,7 +38,6 @@ ETH_VAULTS = [
     '0x9272D6153133175175Bc276512B2336BE3931CE9',
     '0x628ff693426583D9a7FB391E54366292F509D457',
 ]
-ETH_LEGOS = [2, 3, 4, 5, 6, 7]
 
 BTC_VAULTS = [
     '0x543257eF2161176D7C8cD90BA65C2d4CaEF5a796',
@@ -49,7 +48,6 @@ BTC_VAULTS = [
     '0xBdb9300b7CDE636d9cD4AFF00f6F009fFBBc8EE6',
     '0xF877ACaFA28c19b96727966690b2f44d35aD5976',
 ]
-BTC_LEGOS = [2, 4, 6, 7]
 
 
 def migrate(migration: Migration):
@@ -67,7 +65,7 @@ def migrate(migration: Migration):
         migration.blueprint.PARAMS["UNDY_HQ_MIN_REG_TIMELOCK"],
         migration.blueprint.PARAMS["UNDY_HQ_MAX_REG_TIMELOCK"],
         migration.blueprint.INTEGRATION_ADDYS["STARTER_AGENT"],
-        label="undyUSDCVault",
+        label="UndyUsd",
     )
     assert migration.execute(vault_registry.startAddNewAddressToRegistry, usdcVault, "UndyUSD Vault")
     assert migration.execute(
@@ -94,7 +92,7 @@ def migrate(migration: Migration):
         migration.blueprint.PARAMS["UNDY_HQ_MIN_REG_TIMELOCK"],
         migration.blueprint.PARAMS["UNDY_HQ_MAX_REG_TIMELOCK"],
         migration.blueprint.INTEGRATION_ADDYS["STARTER_AGENT"],
-        label="undyETHVault",
+        label="UndyEth",
     )
     assert migration.execute(vault_registry.startAddNewAddressToRegistry, ethVault, "UndyETH Vault")
     assert migration.execute(
@@ -121,7 +119,7 @@ def migrate(migration: Migration):
         migration.blueprint.PARAMS["UNDY_HQ_MIN_REG_TIMELOCK"],
         migration.blueprint.PARAMS["UNDY_HQ_MAX_REG_TIMELOCK"],
         migration.blueprint.INTEGRATION_ADDYS["STARTER_AGENT"],
-        label="undyBTCVault",
+        label="UndyBtc",
     )
     assert migration.execute(vault_registry.startAddNewAddressToRegistry, btcVault, "UndyBTC Vault")
     assert migration.execute(

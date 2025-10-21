@@ -12,9 +12,6 @@ def migrate(migration: Migration):
         'RipeLego',
         hq,
         migration.blueprint.INTEGRATION_ADDYS["RIPE_HQ_V1"],
-        migration.blueprint.TOKENS["GREEN_USDC"],
-        migration.blueprint.TOKENS["USDC"],
-        10,
     )
     assert migration.execute(lego_book.startAddNewAddressToRegistry, ripe_lego, "Ripe Protocol")
     assert migration.execute(lego_book.confirmNewAddressToRegistry, ripe_lego) == 1
@@ -140,3 +137,21 @@ def migrate(migration: Migration):
     )
     assert migration.execute(lego_book.startAddNewAddressToRegistry, forty_acres_lego, "40 Acres")
     assert migration.execute(lego_book.confirmNewAddressToRegistry, forty_acres_lego) == 14
+
+    lego_tools = migration.deploy(
+        'LegoTools',
+        hq,
+        migration.blueprint.TOKENS["USDC"],
+        migration.blueprint.TOKENS["WETH"],
+        lego_book.getRegId(aave_v3),
+        lego_book.getRegId(compound_v3),
+        lego_book.getRegId(euler),
+        lego_book.getRegId(fluid),
+        lego_book.getRegId(moonwell),
+        lego_book.getRegId(morpho),
+        lego_book.getRegId(uniswap_v2),
+        lego_book.getRegId(uniswap_v3),
+        lego_book.getRegId(aerodrome),
+        lego_book.getRegId(aero_slip_stream),
+        lego_book.getRegId(curve),
+    )
