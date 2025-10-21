@@ -407,8 +407,8 @@ def depositForYield(
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
-    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
     preRecipientVaultBalance: uint256 = staticcall IERC20(_vaultAddr).balanceOf(_recipient)
+    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
 
     # transfer deposit asset to this contract
     depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
@@ -474,8 +474,8 @@ def withdrawFromYield(
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
-    preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
     preRecipientAssetBalance: uint256 = staticcall IERC20(vaultInfo.underlyingAsset).balanceOf(_recipient)
+    preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
 
     # transfer vaults tokens to this contract
     vaultTokenAmount: uint256 = min(_amount, staticcall IERC20(_vaultToken).balanceOf(msg.sender))
@@ -486,8 +486,7 @@ def withdrawFromYield(
     extcall AaveV3Pool(AAVE_V3_POOL).withdraw(vaultInfo.underlyingAsset, max_value(uint256), _recipient)
 
     # validate asset transfer
-    postRecipientAssetBalance: uint256 = staticcall IERC20(vaultInfo.underlyingAsset).balanceOf(_recipient)
-    assetAmountReceived: uint256 = postRecipientAssetBalance - preRecipientAssetBalance
+    assetAmountReceived: uint256 = staticcall IERC20(vaultInfo.underlyingAsset).balanceOf(_recipient) - preRecipientAssetBalance
     assert assetAmountReceived != 0 # dev: no asset amount received
 
     # refund if full withdrawal didn't happen
