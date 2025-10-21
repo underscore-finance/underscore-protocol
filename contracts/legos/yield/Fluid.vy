@@ -553,6 +553,12 @@ def claimRewards(
     return 0, 0
 
 
+@view
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    return False
+
+
 @external
 def swapTokens(
     _amountIn: uint256,
