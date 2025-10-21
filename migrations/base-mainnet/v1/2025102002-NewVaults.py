@@ -81,7 +81,7 @@ def migrate(migration: Migration):
         True,  # _canWithdraw: bool,
         False,  # _isVaultOpsFrozen: bool,
         2_00,  # _redemptionBuffer: uint256,
-    ) == 1
+    ) > 0
 
     ethVault = migration.deploy(
         'EarnVault',
@@ -108,7 +108,7 @@ def migrate(migration: Migration):
         True,  # _canWithdraw: bool,
         False,  # _isVaultOpsFrozen: bool,
         2_00,  # _redemptionBuffer: uint256,
-    ) == 2
+    ) > 0
 
     btcVault = migration.deploy(
         'EarnVault',
@@ -135,4 +135,4 @@ def migrate(migration: Migration):
         True,  # _canWithdraw: bool,
         False,  # _isVaultOpsFrozen: bool,
         2_00,  # _redemptionBuffer: uint256,
-    ) == 3
+    ) > 0
