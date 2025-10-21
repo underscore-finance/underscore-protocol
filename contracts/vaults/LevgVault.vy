@@ -28,7 +28,7 @@ from contracts.vaults.modules import VaultErc20Token as token
 
 exports: vaultWallet.__interface__
 initializes: vaultWallet
-from contracts.vaults.modules import EarnVaultWallet as vaultWallet
+from contracts.vaults.modules import LevgVaultWallet as vaultWallet
 
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
@@ -95,16 +95,13 @@ def getTotalAssets(_shouldGetMax: bool) -> uint256:
 
 @view
 @internal
-def _getTotalAssets(_shouldGetMax: bool, _vaultRegistry: address = empty(address)) -> uint256:
-    vaultRegistry: address = _vaultRegistry
-    if vaultRegistry == empty(address):
-        vaultRegistry = vaultWallet._getVaultRegistry()
-    return self._getUnderlyingData(_shouldGetMax, vaultRegistry)[0]
+def _getTotalAssets(_shouldGetMax: bool) -> uint256:
+    return self._getUnderlyingData(_shouldGetMax)[0]
 
 
 @view
 @internal
-def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256, uint256, uint256, address):
+def _getUnderlyingData(_shouldGetMax: bool) -> (uint256, address):
     totalAssets: uint256 = staticcall IERC20(vaultWallet.VAULT_ASSET).balanceOf(self)
 
     # all underlying assets
@@ -113,23 +110,13 @@ def _getUnderlyingData(_shouldGetMax: bool, _vaultRegistry: address) -> (uint256
     maxBalVaultToken: address = empty(address)
     maxTotalAssets, safeTotalAssets, maxBalVaultToken = vaultWallet._getUnderlyingYieldBalances()
 
-    # new yield
-    currentBalance: uint256 = 0
-    newYield: uint256 = 0
-    currentBalance, newYield = vaultWallet._calcNewYieldAndGetUnderlying(maxTotalAssets)
-
-    # pending fees
-    pendingYieldRealized: uint256 = vaultWallet.pendingYieldRealized + newYield
-    pendingFees: uint256 = pendingYieldRealized * vaultWallet._getPerformanceFeeRatio(_vaultRegistry) // HUNDRED_PERCENT
-
     # add total assets
     if _shouldGetMax:
         totalAssets += maxTotalAssets
     else:
         totalAssets += safeTotalAssets
-    totalAssets -= min(pendingFees, totalAssets)
 
-    return totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken
+    return totalAssets, maxBalVaultToken
 
 
 ############
@@ -155,7 +142,7 @@ def maxDeposit(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = self._getTotalAssets(True, vaultRegistry)
+    totalAssets: uint256 = self._getTotalAssets(True)
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -180,13 +167,11 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 
     # underlying data
     totalAssets: uint256 = 0
-    currentBalance: uint256 = 0
-    pendingYieldRealized: uint256 = 0
     maxBalVaultToken: address = empty(address)
-    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
+    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
 
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
-    self._deposit(asset, amount, shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    self._deposit(asset, amount, shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -211,7 +196,7 @@ def maxMint(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = self._getTotalAssets(True, vaultRegistry)
+    totalAssets: uint256 = self._getTotalAssets(True)
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -232,13 +217,11 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
 
     # underlying data
     totalAssets: uint256 = 0
-    currentBalance: uint256 = 0
-    pendingYieldRealized: uint256 = 0
     maxBalVaultToken: address = empty(address)
-    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
+    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
 
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
     return amount
 
 
@@ -252,8 +235,6 @@ def _deposit(
     _shares: uint256,
     _recipient: address,
     _totalAssets: uint256,
-    _currentBalance: uint256,
-    _pendingYieldRealized: uint256,
     _maxBalVaultToken: address,
     _vaultRegistry: address,
 ):
@@ -275,17 +256,11 @@ def _deposit(
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed
 
     # put the deposit to work -- start earning
-    amountDeposited: uint256 = 0
     if shouldAutoDeposit:
         targetVaultToken: address = defaultTargetVaultToken
         if targetVaultToken == empty(address):
             targetVaultToken = _maxBalVaultToken
-        amountDeposited = vaultWallet._onReceiveVaultFunds(targetVaultToken, _recipient, _vaultRegistry)
-
-    # save data
-    currentBalance: uint256 = _currentBalance + amountDeposited
-    vaultWallet.lastUnderlyingBal = currentBalance
-    vaultWallet.pendingYieldRealized = _pendingYieldRealized
+        vaultWallet._onReceiveVaultFunds(targetVaultToken, _recipient, _vaultRegistry)
 
     token._mint(_recipient, _shares)
     log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)
@@ -320,13 +295,11 @@ def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address 
 
     # underlying data
     totalAssets: uint256 = 0
-    currentBalance: uint256 = 0
-    pendingYieldRealized: uint256 = 0
     maxBalVaultToken: address = empty(address)
-    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
+    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
 
     shares: uint256 = self._amountToShares(_assets, token.totalSupply, totalAssets, True)
-    self._redeem(vaultWallet.VAULT_ASSET, _assets, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    self._redeem(vaultWallet.VAULT_ASSET, _assets, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -356,13 +329,11 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
 
     # underlying data
     totalAssets: uint256 = 0
-    currentBalance: uint256 = 0
-    pendingYieldRealized: uint256 = 0
     maxBalVaultToken: address = empty(address)
-    totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(False, vaultRegistry)
+    totalAssets, maxBalVaultToken = self._getUnderlyingData(False)
 
     amount: uint256 = self._sharesToAmount(shares, token.totalSupply, totalAssets, False)
-    return self._redeem(vaultWallet.VAULT_ASSET, amount, shares, msg.sender, _receiver, _owner, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    return self._redeem(vaultWallet.VAULT_ASSET, amount, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
 
 
 # shared redeem logic
@@ -376,8 +347,6 @@ def _redeem(
     _sender: address,
     _recipient: address,
     _owner: address,
-    _currentBalance: uint256,
-    _pendingYieldRealized: uint256,
     _maxBalVaultToken: address,
     _vaultRegistry: address,
 ) -> uint256:
@@ -398,11 +367,6 @@ def _redeem(
     availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
     assert actualAmount >= _amount - (_amount // 10) # dev: insufficient funds (0.1% tolerance)
-
-    # save data
-    currentBalance: uint256 = _currentBalance - min(_currentBalance, withdrawnAmount)
-    vaultWallet.lastUnderlyingBal = currentBalance
-    vaultWallet.pendingYieldRealized = _pendingYieldRealized
 
     # burn shares, transfer assets
     token._burn(_owner, _shares)
