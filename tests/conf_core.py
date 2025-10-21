@@ -264,6 +264,7 @@ def lego_book_deploy(undy_hq_deploy, fork):
     return boa.load(
         "contracts/registries/LegoBook.vy",
         undy_hq_deploy,
+        ZERO_ADDRESS,
         PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
         name="lego_book",
