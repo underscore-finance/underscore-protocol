@@ -358,6 +358,148 @@ def claimRewards(
     return rewardAmount, txUsdValue
 
 
+###################
+# Debt Management #
+###################
+
+
+# add collateral
+
+
+@external
+def addCollateral(
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # set lego access and approve
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.ADD_COLLATERAL)
+    assert extcall IERC20(_asset).approve(ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
+    # add collateral
+    amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
+    amountDeposited: uint256 = 0
+    txUsdValue: uint256 = 0
+    amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    self._resetApproval(_asset, ad.legoAddr)
+
+    log EarnVaultAction(
+        op = 40,
+        asset1 = _asset,
+        asset2 = empty(address),
+        amount1 = amountDeposited,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return amountDeposited, txUsdValue
+
+
+# remove collateral
+
+
+@external
+def removeCollateral(
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # set lego access
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REMOVE_COLLATERAL)
+
+    # remove collateral
+    amountRemoved: uint256 = 0
+    txUsdValue: uint256 = 0
+    amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    log EarnVaultAction(
+        op = 41,
+        asset1 = _asset,
+        asset2 = empty(address),
+        amount1 = amountRemoved,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return amountRemoved, txUsdValue
+
+
+# borrow
+
+
+@external
+def borrow(
+    _legoId: uint256,
+    _borrowAsset: address,
+    _amount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # set lego access
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.BORROW)
+
+    # borrow
+    borrowAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    log EarnVaultAction(
+        op = 42,
+        asset1 = _borrowAsset,
+        asset2 = empty(address),
+        amount1 = borrowAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return borrowAmount, txUsdValue
+
+
+# repay debt
+
+
+@external
+def repayDebt(
+    _legoId: uint256,
+    _paymentAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # set lego access
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REPAY_DEBT)
+
+    # repay debt
+    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, ad.legoAddr) # doing approval here
+    repaidAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    self._resetApproval(_paymentAsset, ad.legoAddr)
+
+    log EarnVaultAction(
+        op = 43,
+        asset1 = _paymentAsset,
+        asset2 = empty(address),
+        amount1 = repaidAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return repaidAmount, txUsdValue
+
+
 #####################
 # Underlying Assets #
 #####################
@@ -725,6 +867,15 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
     if _legoAddr != empty(address):
         assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value = True) # dev: appr
     return amount
+
+
+# reset approval
+
+
+@internal
+def _resetApproval(_token: address, _legoAddr: address):
+    if _legoAddr != empty(address):
+        assert extcall IERC20(_token).approve(_legoAddr, 0, default_return_value = True) # dev: appr
 
 
 # lego access
