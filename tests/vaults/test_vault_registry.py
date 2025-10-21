@@ -2,6 +2,7 @@ import pytest
 import boa
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from conf_utils import filter_logs
+from conf_core import VAULT_INFO
 
 
 @pytest.fixture
@@ -19,12 +20,15 @@ def deploy_test_vault(undy_hq_deploy):
         )
 
         return boa.load(
-            "contracts/vaults/UndyUsd.vy",
-            mock_asset.address,  # asset - now a real ERC20 contract
-            undy_hq_deploy.address,  # undyHq
-            0,  # minHqTimeLock
-            0,  # maxHqTimeLock
-            boa.env.generate_address(),  # startingAgent
+            "contracts/vaults/Autopilot.vy",
+            mock_asset.address,
+            VAULT_INFO['USDC']["name"],
+            VAULT_INFO['USDC']["symbol"],
+            undy_hq_deploy.address,
+            0,
+            0,
+            boa.env.generate_address(),
+            name="undy_usd_vault",
         )
     return _deploy
 

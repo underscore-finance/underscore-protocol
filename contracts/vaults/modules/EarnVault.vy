@@ -381,7 +381,7 @@ def _redeem(
     withdrawnAmount: uint256 = 0
     availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
-    assert actualAmount >= _amount - (_amount // 100) # dev: insufficient funds (1% tolerance)
+    assert actualAmount >= _amount - (_amount // 10) # dev: insufficient funds (0.1% tolerance)
 
     # save data
     currentBalance: uint256 = _currentBalance - min(_currentBalance, withdrawnAmount)
