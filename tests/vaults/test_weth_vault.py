@@ -76,7 +76,6 @@ def prepareYieldDeposit(
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         return lego_id, lego, vault_addr, asset, amount
@@ -341,60 +340,6 @@ def test_weth_vault_share_price_increase(
         assert final_value >= initial_value, f"Share value decreased for {token_str}: {initial_value} -> {final_value}"
 
 
-@pytest.mark.parametrize("token_str", TEST_TOKENS)
-@pytest.base
-def test_weth_vault_avg_price_tracking(
-    prepareYieldDeposit,
-    undy_eth_vault,
-    starter_agent,
-    token_str,
-    bob,
-    fork,
-):
-    """Test avgPricePerShare tracking with multiple deposits (non-rebasing assets only)"""
-    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
-
-    # Skip rebasing assets (AAVE, Compound) - they don't use avgPricePerShare
-    if lego.isRebasing():
-        pytest.skip(f"Skipping {token_str} - rebasing assets don't track avgPricePerShare")
-
-    # first deposit
-    undy_eth_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # record initial avg price
-    initial_data = undy_eth_vault.assetData(vault_addr.address)
-    initial_avg_price = initial_data.avgPricePerShare
-    assert initial_avg_price > 0
-
-    # time travel to allow snapshot
-    boa.env.time_travel(seconds=301)
-
-    # prepare second deposit
-    whale = WHALES[fork]["WETH"]
-    asset.transfer(bob, amount, sender=whale)
-    undy_eth_vault.deposit(amount, bob, sender=bob)
-
-    # second deposit
-    undy_eth_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # verify avgPricePerShare is being tracked
-    final_data = undy_eth_vault.assetData(vault_addr.address)
-    final_avg_price = final_data.avgPricePerShare
-    assert final_avg_price > 0
-
-
 @pytest.base
 def test_weth_vault_deposit_multiple_protocols(
     getLegoId,
@@ -412,6 +357,9 @@ def test_weth_vault_deposit_multiple_protocols(
     whale = WHALES[fork]["WETH"]
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # test with first 3 protocols
     test_protocols = ["AAVE_WETH", "COMPOUND_WETH", "MOONWELL_WETH"]
 
@@ -426,7 +374,6 @@ def test_weth_vault_deposit_multiple_protocols(
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit for yield
@@ -516,6 +463,9 @@ def test_weth_vault_all_six_protocols_sequential(
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
     amount = 1 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # deposit to all 6 protocols
     vault_addrs = []
     for protocol in TEST_TOKENS:
@@ -529,7 +479,6 @@ def test_weth_vault_all_six_protocols_sequential(
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit for yield
@@ -592,7 +541,6 @@ def test_weth_vault_whale_deposit_100_eth(
         asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit whale amount
@@ -639,6 +587,9 @@ def test_weth_vault_rebasing_vs_nonrebasing_behavior(
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
     amount = 10 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # Setup one rebasing and one non-rebasing protocol
     rebasing_protocol = "AAVE_WETH"
     nonrebasing_protocol = "EULER_WETH"
@@ -659,7 +610,6 @@ def test_weth_vault_rebasing_vs_nonrebasing_behavior(
         asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_eth_vault.depositForYield(
@@ -696,14 +646,6 @@ def test_weth_vault_rebasing_vs_nonrebasing_behavior(
     assert nonrebasing_vault_tokens_final == nonrebasing_vault_tokens_initial
     assert nonrebasing_underlying_final >= nonrebasing_underlying_initial * 9999 // 10000  # allow tiny rounding
 
-    # Verify avgPricePerShare is only tracked for non-rebasing
-    rebasing_asset_data = undy_eth_vault.assetData(rebasing_vault.address)
-    nonrebasing_asset_data = undy_eth_vault.assetData(nonrebasing_vault.address)
-
-    # Rebasing shouldn't track avgPricePerShare (should be 0 or ignored)
-    # Non-rebasing should track avgPricePerShare
-    assert nonrebasing_asset_data.avgPricePerShare > 0, "Non-rebasing should track avgPricePerShare"
-
 
 @pytest.base
 def test_weth_vault_withdraw_from_multiple_protocols(
@@ -722,6 +664,9 @@ def test_weth_vault_withdraw_from_multiple_protocols(
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
     amount = 1 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # deposit to two protocols
     protocols = ["AAVE_WETH", "MOONWELL_WETH"]
     vault_addrs = []
@@ -735,7 +680,6 @@ def test_weth_vault_withdraw_from_multiple_protocols(
         asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
         undy_eth_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_eth_vault.depositForYield(
@@ -824,7 +768,6 @@ def test_weth_vault_small_deposit(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit small amount
@@ -868,7 +811,6 @@ def test_weth_vault_large_deposit(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit large amount
@@ -883,50 +825,6 @@ def test_weth_vault_large_deposit(
     # verify it worked
     assert asset_deposited == amount
     assert vault_tokens_received > 0
-
-
-@pytest.mark.parametrize("token_str", TEST_TOKENS)
-@pytest.base
-def test_weth_vault_multiple_deposits_same_protocol(
-    prepareYieldDeposit,
-    undy_eth_vault,
-    starter_agent,
-    token_str,
-    bob,
-    fork,
-):
-    """Test multiple sequential deposits to same protocol"""
-    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
-
-    # first deposit
-    _, _, vault_tokens_1, _ = undy_eth_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # second deposit - prepare more WETH
-    whale = WHALES[fork]["WETH"]
-    asset.transfer(bob, amount, sender=whale)
-    undy_eth_vault.deposit(amount, bob, sender=bob)
-
-    _, _, vault_tokens_2, _ = undy_eth_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # verify cumulative balance
-    total_vault_tokens = vault_tokens_1 + vault_tokens_2
-    assert vault_addr.balanceOf(undy_eth_vault) == total_vault_tokens
-
-    # should still be same asset (no duplicate registration)
-    vault_data = undy_eth_vault.assetData(vault_addr.address)
-    assert vault_data.legoId == lego_id
 
 
 @pytest.mark.parametrize("token_str", TEST_TOKENS)
@@ -956,7 +854,6 @@ def test_weth_vault_whale_deposit_1000_eth(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit whale amount
@@ -1002,6 +899,9 @@ def test_weth_vault_whale_deposit_10000_eth_multiple_protocols(
     whale = WHALES[fork]["WETH"]
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # 100 WETH per protocol (reduced from 1000 - whale balance constraint)
     amount_per_protocol = 100 * (10 ** asset.decimals())
 
@@ -1017,7 +917,6 @@ def test_weth_vault_whale_deposit_10000_eth_multiple_protocols(
         asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
         undy_eth_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit whale amount
@@ -1055,6 +954,10 @@ def test_weth_vault_emergency_withdrawal_multiple_protocols(
     asset = boa.from_etherscan(TOKENS[fork]["WETH"])
     whale = WHALES[fork]["WETH"]
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
+
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     amount_per_protocol = 10 * (10 ** asset.decimals())
 
     # Setup 3 protocols with deposits
@@ -1069,7 +972,6 @@ def test_weth_vault_emergency_withdrawal_multiple_protocols(
         asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
         undy_eth_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_eth_vault.depositForYield(
@@ -1140,7 +1042,6 @@ def test_weth_vault_emergency_partial_withdrawal_with_redemption_buffer(
     asset.transfer(bob, yield_amount, sender=whale)
     undy_eth_vault.deposit(yield_amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     undy_eth_vault.depositForYield(
@@ -1203,7 +1104,6 @@ def test_weth_vault_decimal_precision_large_amounts(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # Deposit
@@ -1276,7 +1176,6 @@ def test_weth_vault_decimal_precision_dust_amounts(
         if protocol not in approved_protocols:
             lego_id, lego = getLegoId(protocol)
             vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
-            vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
             vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
             approved_protocols.add(protocol)
 
@@ -1344,7 +1243,6 @@ def test_weth_vault_deregister_and_reregister(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # First deposit
@@ -1392,10 +1290,6 @@ def test_weth_vault_deregister_and_reregister(
     assert vault_tokens_2 > 0
     assert vault_addr.balanceOf(undy_eth_vault) == vault_tokens_2
 
-    # Verify assetData was properly reset/updated
-    asset_data = undy_eth_vault.assetData(vault_addr.address)
-    assert asset_data.legoId == lego_id
-
     # Verify withdrawal still works after re-registration
     _, _, underlying_received, _ = undy_eth_vault.withdrawFromYield(
         lego_id,
@@ -1424,6 +1318,9 @@ def test_weth_vault_multiple_deregister_reregister_cycles(
     mock_ripe.setPrice(asset, 2500 * EIGHTEEN_DECIMALS)
     amount = 5 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_eth_vault.address, False, sender=switchboard_alpha.address)
+
     # Setup two protocols
     protocols = ["AAVE_WETH", "EULER_WETH"]
     protocol_data = []
@@ -1433,7 +1330,6 @@ def test_weth_vault_multiple_deregister_reregister_cycles(
         vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
         protocol_data.append((protocol, lego_id, vault_addr))
 
-        vault_registry.setApprovedYieldLego(undy_eth_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # Perform 3 cycles of deposit/withdraw for each protocol

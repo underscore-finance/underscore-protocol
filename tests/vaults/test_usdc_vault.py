@@ -80,7 +80,6 @@ def prepareYieldDeposit(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         return lego_id, lego, vault_addr, asset, amount
@@ -166,10 +165,10 @@ def test_usdc_vault_withdraw_partial(
     assert underlying_asset == asset.address
     assert underlying_received > 0
 
-    # allow for rounding (difference should be <= 1 wei)
+    # allow for rounding (difference should be <= 2 wei for protocols like CompoundV3)
     remaining_balance = vault_addr.balanceOf(undy_usd_vault)
     expected_balance = initial_vault_balance - withdraw_amount
-    assert abs(remaining_balance - expected_balance) <= 1
+    assert abs(remaining_balance - expected_balance) <= 2
 
     # verify vault token still registered
     assert undy_usd_vault.indexOfAsset(vault_addr.address) > 0
@@ -345,60 +344,6 @@ def test_usdc_vault_share_price_increase(
         assert final_value >= initial_value, f"Share value decreased for {token_str}: {initial_value} -> {final_value}"
 
 
-@pytest.mark.parametrize("token_str", TEST_TOKENS)
-@pytest.base
-def test_usdc_vault_avg_price_tracking(
-    prepareYieldDeposit,
-    undy_usd_vault,
-    starter_agent,
-    token_str,
-    bob,
-    fork,
-):
-    """Test avgPricePerShare tracking with multiple deposits (non-rebasing assets only)"""
-    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
-
-    # Skip rebasing assets (AAVE, Compound) - they don't use avgPricePerShare
-    if lego.isRebasing():
-        pytest.skip(f"Skipping {token_str} - rebasing assets don't track avgPricePerShare")
-
-    # first deposit
-    undy_usd_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # record initial avg price
-    initial_data = undy_usd_vault.assetData(vault_addr.address)
-    initial_avg_price = initial_data.avgPricePerShare
-    assert initial_avg_price > 0
-
-    # time travel to allow snapshot
-    boa.env.time_travel(seconds=301)
-
-    # prepare second deposit
-    whale = WHALES[fork]["USDC"]
-    asset.transfer(bob, amount, sender=whale)
-    undy_usd_vault.deposit(amount, bob, sender=bob)
-
-    # second deposit
-    undy_usd_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # verify avgPricePerShare is being tracked
-    final_data = undy_usd_vault.assetData(vault_addr.address)
-    final_avg_price = final_data.avgPricePerShare
-    assert final_avg_price > 0
-
-
 @pytest.base
 def test_usdc_vault_deposit_multiple_protocols(
     getLegoId,
@@ -416,6 +361,9 @@ def test_usdc_vault_deposit_multiple_protocols(
     whale = WHALES[fork]["USDC"]
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # test with first 3 protocols
     test_protocols = ["AAVE_USDC", "COMPOUND_USDC", "MOONWELL_USDC"]
 
@@ -430,7 +378,6 @@ def test_usdc_vault_deposit_multiple_protocols(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit for yield
@@ -468,6 +415,9 @@ def test_usdc_vault_withdraw_from_multiple_protocols(
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
     amount = 100 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # deposit to two protocols
     protocols = ["AAVE_USDC", "MOONWELL_USDC"]
     vault_addrs = []
@@ -481,7 +431,6 @@ def test_usdc_vault_withdraw_from_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
@@ -570,7 +519,6 @@ def test_usdc_vault_small_deposit(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit small amount
@@ -614,7 +562,6 @@ def test_usdc_vault_large_deposit(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit large amount
@@ -684,50 +631,6 @@ def test_usdc_vault_full_cycle(
     assert undy_usd_vault.balanceOf(bob) == 0  # all shares burned
 
 
-@pytest.mark.parametrize("token_str", TEST_TOKENS)
-@pytest.base
-def test_usdc_vault_multiple_deposits_same_protocol(
-    prepareYieldDeposit,
-    undy_usd_vault,
-    starter_agent,
-    token_str,
-    bob,
-    fork,
-):
-    """Test multiple sequential deposits to same protocol"""
-    lego_id, lego, vault_addr, asset, amount = prepareYieldDeposit(token_str)
-
-    # first deposit
-    _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # second deposit - prepare more USDC
-    whale = WHALES[fork]["USDC"]
-    asset.transfer(bob, amount, sender=whale)
-    undy_usd_vault.deposit(amount, bob, sender=bob)
-
-    _, _, vault_tokens_2, _ = undy_usd_vault.depositForYield(
-        lego_id,
-        asset,
-        vault_addr,
-        amount,
-        sender=starter_agent.address
-    )
-
-    # verify cumulative balance
-    total_vault_tokens = vault_tokens_1 + vault_tokens_2
-    assert vault_addr.balanceOf(undy_usd_vault) == total_vault_tokens
-
-    # should still be same asset (no duplicate registration)
-    vault_data = undy_usd_vault.assetData(vault_addr.address)
-    assert vault_data.legoId == lego_id
-
-
 @pytest.base
 def test_usdc_vault_all_seven_protocols_sequential(
     getLegoId,
@@ -745,6 +648,9 @@ def test_usdc_vault_all_seven_protocols_sequential(
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
     amount = 100 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # deposit to all 7 protocols
     vault_addrs = []
     for protocol in TEST_TOKENS:
@@ -758,7 +664,6 @@ def test_usdc_vault_all_seven_protocols_sequential(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit for yield
@@ -807,6 +712,9 @@ def test_usdc_vault_rebasing_vs_nonrebasing_behavior(
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
     amount = 1000 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # Setup one rebasing and one non-rebasing protocol
     rebasing_protocol = "AAVE_USDC"
     nonrebasing_protocol = "EULER_USDC"
@@ -827,7 +735,6 @@ def test_usdc_vault_rebasing_vs_nonrebasing_behavior(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
@@ -864,14 +771,6 @@ def test_usdc_vault_rebasing_vs_nonrebasing_behavior(
     assert nonrebasing_vault_tokens_final == nonrebasing_vault_tokens_initial
     assert nonrebasing_underlying_final >= nonrebasing_underlying_initial * 9999 // 10000  # allow tiny rounding
 
-    # Verify avgPricePerShare is only tracked for non-rebasing
-    rebasing_asset_data = undy_usd_vault.assetData(rebasing_vault.address)
-    nonrebasing_asset_data = undy_usd_vault.assetData(nonrebasing_vault.address)
-
-    # Rebasing shouldn't track avgPricePerShare (should be 0 or ignored)
-    # Non-rebasing should track avgPricePerShare
-    assert nonrebasing_asset_data.avgPricePerShare > 0, "Non-rebasing should track avgPricePerShare"
-
 
 @pytest.mark.parametrize("token_str", TEST_TOKENS)
 @pytest.base
@@ -900,7 +799,6 @@ def test_usdc_vault_whale_deposit_1m(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # deposit whale amount
@@ -946,6 +844,9 @@ def test_usdc_vault_whale_deposit_10m_multiple_protocols(
     whale = WHALES[fork]["USDC"]
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # 10 million USDC per protocol
     amount_per_protocol = 10_000_000 * (10 ** asset.decimals())
 
@@ -961,7 +862,6 @@ def test_usdc_vault_whale_deposit_10m_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # deposit whale amount
@@ -1001,6 +901,9 @@ def test_usdc_vault_emergency_withdrawal_multiple_protocols(
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
     amount_per_protocol = 1000 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # Setup 3 protocols with deposits
     test_protocols = ["AAVE_USDC", "COMPOUND_USDC", "EULER_USDC"]
     total_deposited = 0
@@ -1013,7 +916,6 @@ def test_usdc_vault_emergency_withdrawal_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
@@ -1087,7 +989,6 @@ def test_usdc_vault_emergency_partial_withdrawal_with_redemption_buffer(
     asset.transfer(bob, yield_amount, sender=whale)
     undy_usd_vault.deposit(yield_amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     undy_usd_vault.depositForYield(
@@ -1150,7 +1051,6 @@ def test_usdc_vault_decimal_precision_large_amounts(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # Record vault token decimals
@@ -1227,7 +1127,6 @@ def test_usdc_vault_decimal_precision_dust_amounts(
         if protocol not in approved_protocols:
             lego_id, lego = getLegoId(protocol)
             vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
-            vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
             vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
             approved_protocols.add(protocol)
 
@@ -1295,7 +1194,6 @@ def test_usdc_vault_deregister_and_reregister(
     asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
     undy_usd_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
     vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # First deposit
@@ -1346,9 +1244,6 @@ def test_usdc_vault_deregister_and_reregister(
     assert vault_tokens_2 > 0
     assert vault_addr.balanceOf(undy_usd_vault) == vault_tokens_2
 
-    # Verify assetData was properly reset/updated
-    asset_data = undy_usd_vault.assetData(vault_addr.address)
-    assert asset_data.legoId == lego_id
 
     # Verify withdrawal still works after re-registration
     _, _, underlying_received, _ = undy_usd_vault.withdrawFromYield(
@@ -1378,6 +1273,9 @@ def test_usdc_vault_multiple_deregister_reregister_cycles(
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
     amount = 500 * (10 ** asset.decimals())
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # Setup two protocols
     protocols = ["AAVE_USDC", "EULER_USDC"]
     protocol_data = []
@@ -1387,7 +1285,6 @@ def test_usdc_vault_multiple_deregister_reregister_cycles(
         vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
         protocol_data.append((protocol, lego_id, vault_addr))
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
     # Perform 3 cycles of deposit/withdraw for each protocol
@@ -1442,215 +1339,6 @@ def test_usdc_vault_multiple_deregister_reregister_cycles(
 
 
 @pytest.base
-def test_usdc_vault_avg_price_divergence_across_protocols(
-    getLegoId,
-    undy_usd_vault,
-    vault_registry,
-    starter_agent,
-    bob,
-    fork,
-    switchboard_alpha,
-    mock_ripe,
-):
-    """Test avgPricePerShare tracking divergence across non-rebasing protocols with real assets"""
-    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
-    whale = WHALES[fork]["USDC"]
-    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
-    amount = 1000 * (10 ** asset.decimals())
-
-    # Test with 3 non-rebasing protocols
-    nonrebasing_protocols = ["EULER_USDC", "FLUID_USDC", "MOONWELL_USDC"]
-    protocol_data = []
-
-    for protocol in nonrebasing_protocols:
-        lego_id, lego = getLegoId(protocol)
-        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
-
-        # Skip if rebasing (shouldn't be, but safety check)
-        if lego.isRebasing():
-            continue
-
-        protocol_data.append((protocol, lego_id, lego, vault_addr))
-
-        # Prepare deposit
-        asset.transfer(bob, amount, sender=whale)
-        asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
-        undy_usd_vault.deposit(amount, bob, sender=bob)
-
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
-
-        # Initial deposit
-        undy_usd_vault.depositForYield(
-            lego_id,
-            asset,
-            vault_addr,
-            amount,
-            sender=starter_agent.address
-        )
-
-    # Record initial avgPricePerShare for each protocol
-    initial_avg_prices = {}
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset_data = undy_usd_vault.assetData(vault_addr.address)
-        initial_avg_prices[protocol] = asset_data.avgPricePerShare
-        assert asset_data.avgPricePerShare > 0, f"{protocol} should track avgPricePerShare"
-
-    # Time travel and add snapshots to allow avgPricePerShare to update
-    boa.env.time_travel(seconds=301)
-
-    # Make additional deposits to trigger snapshot updates
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset.transfer(bob, amount, sender=whale)
-        undy_usd_vault.deposit(amount, bob, sender=bob)
-
-        undy_usd_vault.depositForYield(
-            lego_id,
-            asset,
-            vault_addr,
-            amount,
-            sender=starter_agent.address
-        )
-
-    # Time travel again
-    boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
-
-    # Check final avgPricePerShare for each protocol
-    final_avg_prices = {}
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset_data = undy_usd_vault.assetData(vault_addr.address)
-        final_avg_prices[protocol] = asset_data.avgPricePerShare
-
-        # avgPricePerShare should remain stable (on static fork) or increase slightly
-        assert final_avg_prices[protocol] >= initial_avg_prices[protocol], \
-            f"{protocol} avgPricePerShare decreased: {initial_avg_prices[protocol]} -> {final_avg_prices[protocol]}"
-
-        # Should still be positive
-        assert final_avg_prices[protocol] > 0
-
-    # Verify each protocol maintains its own independent avgPricePerShare
-    # (even if they're all similar due to static fork)
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset_data = undy_usd_vault.assetData(vault_addr.address)
-
-        # Verify snapshot data exists
-        snapshot_data = undy_usd_vault.snapShotData(vault_addr.address)
-        assert snapshot_data.nextIndex > 0, f"{protocol} should have snapshots"
-
-        # Get weighted price (should use snapshots)
-        weighted_price = undy_usd_vault.getWeightedPrice(vault_addr.address)
-        assert weighted_price > 0, f"{protocol} weighted price should be positive"
-
-        # Weighted price should be close to avgPricePerShare
-        # (they may differ slightly due to weighting algorithm)
-        avg_price = asset_data.avgPricePerShare
-        # Allow for up to 10% difference (throttling can cause divergence)
-        assert abs(weighted_price - avg_price) <= avg_price // 10, \
-            f"{protocol} weighted price ({weighted_price}) diverged too much from avg ({avg_price})"
-
-
-@pytest.base
-def test_usdc_vault_avg_price_throttling_across_protocols(
-    getLegoId,
-    undy_usd_vault,
-    vault_registry,
-    starter_agent,
-    bob,
-    fork,
-    switchboard_alpha,
-    mock_ripe,
-):
-    """Test that avgPricePerShare throttling works independently for each protocol"""
-    asset = boa.from_etherscan(TOKENS[fork]["USDC"])
-    whale = WHALES[fork]["USDC"]
-    mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
-    amount = 2000 * (10 ** asset.decimals())
-
-    # Test with two non-rebasing protocols
-    protocols = ["EULER_USDC", "FLUID_USDC"]
-    protocol_data = []
-
-    for protocol in protocols:
-        lego_id, lego = getLegoId(protocol)
-        vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
-
-        # Skip rebasing
-        if lego.isRebasing():
-            continue
-
-        protocol_data.append((protocol, lego_id, lego, vault_addr))
-
-        # Setup
-        asset.transfer(bob, amount, sender=whale)
-        asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
-        undy_usd_vault.deposit(amount, bob, sender=bob)
-
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
-
-        # Initial deposit
-        undy_usd_vault.depositForYield(
-            lego_id,
-            asset,
-            vault_addr,
-            amount,
-            sender=starter_agent.address
-        )
-
-    # Get initial avgPricePerShare for both
-    initial_prices = {}
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset_data = undy_usd_vault.assetData(vault_addr.address)
-        initial_prices[protocol] = asset_data.avgPricePerShare
-
-    # Time travel and add snapshots
-    boa.env.time_travel(seconds=301)
-
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        # Add price snapshot
-        switchboard_alpha.address  # Already approved
-        # Note: addPriceSnapshot is only callable by switchboard via vault
-        # Snapshots are added automatically during depositForYield
-
-    # Make additional deposits to multiple protocols
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset.transfer(bob, amount // 2, sender=whale)
-        undy_usd_vault.deposit(amount // 2, bob, sender=bob)
-
-        undy_usd_vault.depositForYield(
-            lego_id,
-            asset,
-            vault_addr,
-            amount // 2,
-            sender=starter_agent.address
-        )
-
-    # Verify avgPricePerShare updated independently
-    for protocol, lego_id, lego, vault_addr in protocol_data:
-        asset_data = undy_usd_vault.assetData(vault_addr.address)
-        final_price = asset_data.avgPricePerShare
-
-        # Should be positive
-        assert final_price > 0
-
-        # Should be close to initial (or slightly higher due to yield/snapshots)
-        # On static fork, should be very similar
-        assert final_price >= initial_prices[protocol] * 99 // 100, \
-            f"{protocol} avgPricePerShare changed unexpectedly: {initial_prices[protocol]} -> {final_price}"
-
-        # Verify getTotalAssets uses avgPricePerShare correctly
-        total_assets_avg = undy_usd_vault.getTotalAssets(False)  # Use avg prices
-        total_assets_max = undy_usd_vault.getTotalAssets(True)   # Use max prices
-
-        # Both should be positive
-        assert total_assets_avg > 0
-        assert total_assets_max > 0
-
-        # Avg should be <= max (since it uses conservative pricing)
-        assert total_assets_avg <= total_assets_max
-
-
-@pytest.base
 def test_usdc_vault_random_deposits_total_assets_accuracy(
     getLegoId,
     undy_usd_vault,
@@ -1668,6 +1356,9 @@ def test_usdc_vault_random_deposits_total_assets_accuracy(
     asset = boa.from_etherscan(TOKENS[fork]["USDC"])
     whale = WHALES[fork]["USDC"]
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
+
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
 
     # Test with all 7 protocols
     random_amounts = {}
@@ -1689,7 +1380,6 @@ def test_usdc_vault_random_deposits_total_assets_accuracy(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # Approve lego and vault
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # Deposit for yield
@@ -1761,6 +1451,9 @@ def test_usdc_vault_total_assets_after_partial_withdrawals(
     whale = WHALES[fork]["USDC"]
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     # Use 5 protocols for this test
     test_protocols = ["AAVE_USDC", "COMPOUND_USDC", "EULER_USDC", "MOONWELL_USDC", "MORPHO_MOONWELL_USDC"]
     protocol_data = {}
@@ -1781,7 +1474,6 @@ def test_usdc_vault_total_assets_after_partial_withdrawals(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # Approve lego and vault
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         # Deposit for yield
@@ -1888,6 +1580,9 @@ def test_usdc_vault_multiple_users_random_operations(
     whale = WHALES[fork]["USDC"]
     mock_ripe.setPrice(asset, 1 * EIGHTEEN_DECIMALS)
 
+    # disable auto-deposit to allow manual deposits to specific protocols
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+
     users = [bob, alice, charlie]
     user_deposits = {bob: 0, alice: 0, charlie: 0}
 
@@ -1900,7 +1595,6 @@ def test_usdc_vault_multiple_users_random_operations(
         lego_id, lego = getLegoId(protocol)
         vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
 
-        vault_registry.setApprovedYieldLego(undy_usd_vault.address, lego_id, True, sender=switchboard_alpha.address)
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
 
         protocol_info[protocol] = {
