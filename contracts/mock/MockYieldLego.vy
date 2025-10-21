@@ -10,15 +10,14 @@ initializes: addys
 initializes: yld[addys := addys]
 
 from interfaces import LegoPartner as Lego
-from interfaces import WalletStructs as ws
 from interfaces import YieldLego as YieldLego
+from interfaces import WalletStructs as ws
 from interfaces import LegoStructs as ls
 
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 from ethereum.ercs import IERC4626
 
 interface Appraiser:
@@ -35,7 +34,6 @@ interface Registry:
 MAX_TOKEN_PATH: constant(uint256) = 5
 
 # mock config
-price: public(HashMap[address, uint256])
 mockIsRebasing: public(bool)
 minTotalAssets: public(uint256)
 isEligible: public(bool)
@@ -75,6 +73,130 @@ def isDexLego() -> bool:
     return False
 
 
+###################
+# Underlying Data #
+###################
+
+
+# underlying asset
+
+
+@view
+@external
+def getUnderlyingAsset(_vaultToken: address) -> address:
+    return self._getUnderlyingAsset(_vaultToken)
+
+
+@view
+@internal
+def _getUnderlyingAsset(_vaultToken: address) -> address:
+    return yld.vaultToAsset[_vaultToken].underlyingAsset
+
+
+# underlying balances (both true and safe)
+
+
+@view
+@external
+def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
+    if _vaultTokenBalance == 0:
+        return 0, 0
+
+    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
+    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+    if safeUnderlying == 0:
+        safeUnderlying = trueUnderlying
+
+    return trueUnderlying, min(trueUnderlying, safeUnderlying)
+
+
+# underlying amount (true)
+
+
+@view
+@external
+def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+
+
+@view
+@internal
+def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+
+
+# underlying amount (safe)
+
+
+@view
+@external
+def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
+
+
+@view
+@internal
+def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+    if vaultInfo.decimals == 0:
+        return 0 # not registered
+
+    # safe underlying amount (using cached weighted average from snapshots)
+    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
+
+
+# underlying data (combined)
+
+
+@view
+@external
+def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return empty(address), 0, 0 # invalid vault token
+    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
+    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    return asset, underlyingAmount, usdValue
+
+
+# usd value
+
+
+@view
+@external
+def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
+    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
+
+
+@view
+@internal
+def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
+    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)[2]
+
+
+@view
+@internal
+def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+    appraiser: address = _appraiser
+    if _appraiser == empty(address):
+        appraiser = addys._getAppraiserAddr()
+    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+
+
+###############
+# Other Utils #
+###############
+
+
+# basics
+
+
 @view
 @external
 def isRebasing() -> bool:
@@ -84,7 +206,39 @@ def isRebasing() -> bool:
 @view
 @internal
 def _isRebasing() -> bool:
-    return self.mockIsRebasing
+    return False
+
+
+# price per share
+
+
+@view
+@external
+def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
+    decimals: uint256 = _decimals
+    if decimals == 0:
+        decimals = yld.vaultToAsset[_vaultToken].decimals
+    if decimals == 0:
+        return 0 # not registered
+    return self._getPricePerShare(_vaultToken, decimals)
+
+
+@view
+@internal
+def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToAssets(10 ** _decimals)
+
+
+# vault token amount
+
+
+@view
+@external
+def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
+
+
+# extras
 
 
 @view
@@ -96,32 +250,96 @@ def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address
     return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
 
 
-@external
-def setMinTotalAssets(_minTotalAssets: uint256):
-    self.minTotalAssets = _minTotalAssets
-
-
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return self.isEligible 
 
 
+@view
 @external
-def setIsEligibleForYieldBonus(_isEligible: bool):
-    self.isEligible = _isEligible
+def totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return 0
+
+
+################
+# Registration #
+################
+
+
+# can vault be registered
 
 
 @view
 @external
 def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
-    # TODO: implement
-    return False
+    return self._canRegisterVaultToken(_asset, _vaultToken)
 
 
-#########
-# Yield #
-#########
+@view
+@internal
+def _canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
+    if empty(address) in [_asset, _vaultToken]:
+        return False
+    return staticcall IERC4626(_vaultToken).asset() == _asset
+
+
+# register vault token locally
+
+
+@external
+def registerVaultTokenLocally(_asset: address, _vaultAddr: address) -> ls.VaultTokenInfo:
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._canRegisterVaultToken(_asset, _vaultAddr) # dev: cannot register vault token
+    assert not yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    vaultInfo: ls.VaultTokenInfo = self._registerVaultTokenLocally(_asset, _vaultAddr)
+    self._registerVaultTokenGlobally(_asset, _vaultAddr, vaultInfo.decimals, addys._getLedgerAddr(), addys._getLegoBookAddr())
+    return vaultInfo
+
+
+@internal
+def _registerVaultTokenLocally(_asset: address, _vaultAddr: address) -> ls.VaultTokenInfo:
+    assert extcall IERC20(_asset).approve(_vaultAddr, max_value(uint256), default_return_value=True) # dev: max approval failed
+    vaultInfo: ls.VaultTokenInfo = yld._addAssetOpportunity(_asset, _vaultAddr)
+    assert vaultInfo.decimals != 0 # dev: invalid vault token
+    return vaultInfo
+
+
+# remove vault token locally
+
+
+@external
+def deregisterVaultTokenLocally(_asset: address, _vaultAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
+    self._deregisterVaultTokenLocally(_asset, _vaultAddr)
+
+
+@internal
+def _deregisterVaultTokenLocally(_asset: address, _vaultAddr: address):
+    assert extcall IERC20(_asset).approve(_vaultAddr, 0, default_return_value=True) # dev: max approval failed
+    yld._removeAssetOpportunity(_asset, _vaultAddr)
+
+
+# ledger registration
+
+
+@internal
+def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address, _decimals: uint256, _ledger: address, _legoBook: address):
+    if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
+        legoId: uint256 = staticcall Registry(_legoBook).getRegId(self)
+        extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, _decimals, self._isRebasing())
+
+
+#################
+# Yield Actions #
+#################
 
 
 # add price snapshot
@@ -132,7 +350,7 @@ def addPriceSnapshot(_vaultToken: address) -> bool:
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
     assert vaultInfo.decimals != 0 # dev: not registered
-    pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultInfo.decimals)
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
     return yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
 
 
@@ -150,15 +368,12 @@ def depositForYield(
 ) -> (uint256, address, uint256, uint256):
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    # register lego asset
-    if not yld._isAssetOpportunity(_asset, _vaultAddr):
-        self._registerAsset(_asset, _vaultAddr)
-        self._updateLedgerVaultToken(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
+    vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
     preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
 
+    # transfer deposit asset to this contract
     depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
     assert depositAmount != 0 # dev: nothing to transfer
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
@@ -166,12 +381,6 @@ def depositForYield(
     # deposit assets into lego partner
     vaultTokenAmountReceived: uint256 = extcall IERC4626(_vaultAddr).deposit(depositAmount, _recipient)
     assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
-
-    # add price snapshot for non-rebasing asset
-    if not self._isRebasing():
-        vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultAddr].decimals
-        pricePerShare: uint256 = staticcall IERC4626(_vaultAddr).convertToAssets(10 ** vaultTokenDecimals)
-        yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultTokenDecimals)
 
     # refund if full deposit didn't get through
     currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
@@ -181,9 +390,28 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    # usd value
     usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+
+    # add price snapshot
+    pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultInfo.decimals)
+    yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultInfo.decimals)
+
     return depositAmount, _vaultAddr, vaultTokenAmountReceived, usdValue
+
+
+# vault info on deposit
+
+
+@internal
+def _getVaultInfoOnDeposit(_asset: address, _vaultAddr: address, _ledger: address, _legoBook: address) -> ls.VaultTokenInfo:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultAddr]
+    if vaultInfo.decimals == 0:
+        assert self._canRegisterVaultToken(_asset, _vaultAddr) # dev: cannot register vault token
+        vaultInfo = self._registerVaultTokenLocally(_asset, _vaultAddr)
+        self._registerVaultTokenGlobally(_asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
+    else:
+        assert vaultInfo.underlyingAsset == _asset # dev: asset mismatch
+    return vaultInfo
 
 
 # withdraw
@@ -199,12 +427,7 @@ def withdrawFromYield(
 ) -> (uint256, address, uint256, uint256):
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    # register lego asset
-    asset: address = staticcall IERC4626(_vaultToken).asset()
-    if not yld._isAssetOpportunity(asset, _vaultToken):
-        self._registerAsset(asset, _vaultToken)
-        self._updateLedgerVaultToken(asset, _vaultToken, miniAddys.ledger, miniAddys.legoBook)
+    vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
 
     # pre balances
     preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -218,12 +441,6 @@ def withdrawFromYield(
     assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
     assert assetAmountReceived != 0 # dev: no asset amount received
 
-    # add price snapshot for non-rebasing asset
-    if not self._isRebasing():
-        vaultTokenDecimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
-        pricePerShare: uint256 = staticcall IERC4626(_vaultToken).convertToAssets(10 ** vaultTokenDecimals)
-        yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultTokenDecimals)
-
     # refund if full withdrawal didn't happen
     currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
     refundVaultTokenAmount: uint256 = 0
@@ -232,240 +449,75 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    # usd value
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(asset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
-    return vaultTokenAmount, asset, assetAmountReceived, usdValue
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+
+    # add price snapshot
+    pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
+    yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
+
+    return vaultTokenAmount, vaultInfo.underlyingAsset, assetAmountReceived, usdValue
 
 
-#############
-# Utilities #
-#############
+# vault info on withdrawal
 
 
-# underlying asset
-
-
-@view
-@external
-def isVaultToken(_vaultToken: address) -> bool:
-    return self._isVaultToken(_vaultToken)
-
-
-@view
 @internal
-def _isVaultToken(_vaultToken: address) -> bool:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset != empty(address)
-
-
-@view
-@external
-def getUnderlyingAsset(_vaultToken: address) -> address:
-    return self._getUnderlyingAsset(_vaultToken)
-
-
-@view
-@internal
-def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
-
-
-# underlying amount
-
-
-@view
-@external
-def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    if not self._isVaultToken(_vaultToken) or _vaultTokenAmount == 0:
-        return 0 # invalid vault token or amount
-    return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-
-
-@view
-@internal
-def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
-
-
-@view
-@external
-def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
-    if empty(address) in [_asset, _vaultToken] or _assetAmount == 0:
-        return 0 # bad inputs
-    if self._getUnderlyingAsset(_vaultToken) != _asset:
-        return 0 # invalid vault token or asset
-    return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
-
-
-# usd value
-
-
-@view
-@external
-def getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> uint256:
-    return self._getUsdValueOfVaultToken(_vaultToken, _vaultTokenAmount, _appraiser)
-
-
-@view
-@internal
-def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> uint256:
-    asset: address = empty(address)
-    underlyingAmount: uint256 = 0
-    usdValue: uint256 = 0
-    asset, underlyingAmount, usdValue = self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
-    return usdValue
-
-
-# all underlying data together
-
-
-@view
-@external
-def getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address = empty(address)) -> (address, uint256, uint256):
-    return self._getUnderlyingData(_vaultToken, _vaultTokenAmount, _appraiser)
-
-
-@view
-@internal
-def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _appraiser: address) -> (address, uint256, uint256):
-    if _vaultTokenAmount == 0 or _vaultToken == empty(address):
-        return empty(address), 0, 0 # bad inputs
-    asset: address = self._getUnderlyingAsset(_vaultToken)
-    if asset == empty(address):
-        return empty(address), 0, 0 # invalid vault token
-    underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
-    return asset, underlyingAmount, usdValue
-
-
-@view
-@internal
-def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
-    appraiser: address = _appraiser
-    if _appraiser == empty(address):
-        appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
-
-
-# other
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    if not self._isVaultToken(_vaultToken):
-        return 0 # invalid vault token
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    return 0
-
-
-# price per share
-
-
-@view
-@external
-def getPricePerShare(_asset: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_asset).convertToAssets(10 ** _decimals)
-
-
-# underlying balances (true and safe)
-
-
-@view
-@external
-def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256):
-    if _vaultTokenBalance == 0:
-        return 0, 0
-
-    trueUnderlying: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenBalance)
-    safeUnderlying: uint256 = self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
-    if safeUnderlying == 0:
-        safeUnderlying = trueUnderlying
-
-    return trueUnderlying, min(trueUnderlying, safeUnderlying)
-
-
-@view
-@external
-def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
-    return self._getUnderlyingAmountSafe(_vaultToken, _vaultTokenBalance)
-
-
-@view
-@internal
-def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256:
-    # If rebasing, return 0 (no snapshots for rebasing assets)
-    if self._isRebasing():
-        return 0
-
-    # Non-rebasing: use cached weighted average from snapshots
-    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
+def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: address) -> ls.VaultTokenInfo:
+    vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultAddr]
     if vaultInfo.decimals == 0:
-        return 0 # not registered
-
-    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
-
-
-# get price
-
-
-@view
-@external
-def getPrice(_asset: address, _decimals: uint256) -> uint256:
-    return self.price[_asset]
+        asset: address = staticcall IERC4626(_vaultAddr).asset()
+        assert self._canRegisterVaultToken(asset, _vaultAddr) # dev: cannot register vault token
+        vaultInfo = self._registerVaultTokenLocally(asset, _vaultAddr)
+        self._registerVaultTokenGlobally(asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
+    return vaultInfo
 
 
-################
-# Registration #
-################
+###############
+# Mock Config #
+###############
 
 
 @external
-def addAssetOpportunity(_asset: address, _vaultAddr: address):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert not yld._isAssetOpportunity(_asset, _vaultAddr) # dev: already registered
-    self._registerAsset(_asset, _vaultAddr)
-
-
-@internal
-def _registerAsset(_asset: address, _vaultAddr: address):
-    assert extcall IERC20(_asset).approve(_vaultAddr, max_value(uint256), default_return_value=True) # dev: max approval failed
-    yld._addAssetOpportunity(_asset, _vaultAddr)
+def setMinTotalAssets(_minTotalAssets: uint256):
+    self.minTotalAssets = _minTotalAssets
 
 
 @external
-def removeAssetOpportunity(_asset: address, _vaultAddr: address):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert extcall IERC20(_asset).approve(_vaultAddr, 0, default_return_value=True) # dev: max approval failed
-    yld._removeAssetOpportunity(_asset, _vaultAddr)
+def setIsEligibleForYieldBonus(_isEligible: bool):
+    self.isEligible = _isEligible
 
 
-# update ledger registration
-
-
-@internal
-def _updateLedgerVaultToken(
-    _underlyingAsset: address,
-    _vaultToken: address,
-    _ledger: address,
-    _legoBook: address,
-):
-    if empty(address) in [_underlyingAsset, _vaultToken]:
-        return
-
-    if not staticcall Ledger(_ledger).isRegisteredVaultToken(_vaultToken):
-        legoId: uint256 = staticcall Registry(_legoBook).getRegId(self)
-        decimals: uint256 = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
-        extcall Ledger(_ledger).setVaultToken(_vaultToken, legoId, _underlyingAsset, decimals, self._isRebasing())
+@external
+def setIsRebasing(_isRebasing: bool):
+    self.mockIsRebasing = _isRebasing
 
 
 #########
 # Other #
 #########
+
+
+@view
+@external
+def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
+    return empty(address), empty(String[64]), 0
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    return 0, 0
+
+
+@view
+@external
+def hasClaimableRewards(_user: address) -> bool:
+    return False
 
 
 @external
@@ -491,7 +543,7 @@ def mintOrRedeemAsset(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, bool, uint256):
     return 0, 0, False, 0
-    
+
 
 @external
 def confirmMintOrRedeemAsset(
@@ -543,17 +595,6 @@ def repayDebt(
     _paymentAmount: uint256,
     _extraData: bytes32,
     _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    return 0, 0
-
-
-@external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
@@ -625,24 +666,3 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
-
-
-@view
-@external
-def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
-    return empty(address), empty(String[64]), 0
-
-
-###############
-# Mock Config #
-###############
-
-
-@external
-def setIsRebasing(_isRebasing: bool):
-    self.mockIsRebasing = _isRebasing
-
-
-@external
-def setPrice(_asset: address, _price: uint256):
-    self.price[_asset] = _price

@@ -183,7 +183,6 @@ def test_normal_asset_both_price_sources_return_zero(appraiser, alpha_token, moc
     
     # Both sources return 0
     mock_ripe.setPrice(alpha_token, 0)
-    mock_yield_lego.setPrice(alpha_token, 0)
     
     # Should return 0 price
     price = appraiser.getNormalAssetPrice(alpha_token)
