@@ -62,18 +62,22 @@ def __init__(
     _tokenName: String[64],
     _tokenSymbol: String[32],
     _undyHq: address,
+    _coreVaultToken: address,
+    _leverageVaultToken: address,
+    _usdc: address,
+    _green: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
 ):
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)
-    vaultWallet.__init__(_undyHq, _asset, _startingAgent)
+    vaultWallet.__init__(_undyHq, _asset, _coreVaultToken, _leverageVaultToken, _usdc, _green, _startingAgent)
 
 
 @view
 @external
 def asset() -> address:
-    return vaultWallet.VAULT_ASSET
+    return vaultWallet.UNDERLYING_ASSET
 
 
 @view
@@ -102,7 +106,7 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
 @view
 @internal
 def _getUnderlyingData(_shouldGetMax: bool) -> (uint256, address):
-    totalAssets: uint256 = staticcall IERC20(vaultWallet.VAULT_ASSET).balanceOf(self)
+    totalAssets: uint256 = staticcall IERC20(vaultWallet.UNDERLYING_ASSET).balanceOf(self)
 
     # all underlying assets
     maxTotalAssets: uint256 = 0
@@ -159,7 +163,7 @@ def previewDeposit(_assets: uint256) -> uint256:
 @external
 def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
-    asset: address = vaultWallet.VAULT_ASSET
+    asset: address = vaultWallet.UNDERLYING_ASSET
 
     amount: uint256 = _assets
     if amount == max_value(uint256):
@@ -221,7 +225,7 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
 
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._deposit(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
+    self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
     return amount
 
 
@@ -299,7 +303,7 @@ def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address 
     totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
 
     shares: uint256 = self._amountToShares(_assets, token.totalSupply, totalAssets, True)
-    self._redeem(vaultWallet.VAULT_ASSET, _assets, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
+    self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -333,7 +337,7 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
     totalAssets, maxBalVaultToken = self._getUnderlyingData(False)
 
     amount: uint256 = self._sharesToAmount(shares, token.totalSupply, totalAssets, False)
-    return self._redeem(vaultWallet.VAULT_ASSET, amount, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
+    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
 
 
 # shared redeem logic

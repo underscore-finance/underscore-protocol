@@ -163,7 +163,7 @@ def _depositForYield(
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     # update yield position
-    if _asset == VAULT_ASSET:
+    if _asset == _ad.vaultAsset:
         assert _vaultAddr == vaultToken # dev: vault token mismatch
         assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: lego or vault token not approved
         self._updateYieldPosition(vaultToken, _ad.legoId)
@@ -226,7 +226,7 @@ def _withdrawFromYield(
     assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     # update yield position
-    if underlyingAsset == VAULT_ASSET:
+    if underlyingAsset == _ad.vaultAsset:
         self._updateYieldPosition(_vaultToken, _ad.legoId)
         currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
@@ -257,17 +257,14 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenOut: address = empty(address)
     legoIds: DynArray[uint256, MAX_LEGOS] = []
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
     # important checks!
-    vaultAsset: address = VAULT_ASSET
-    assert tokenIn != vaultAsset # dev: cannot swap out of vault asset
+    assert tokenIn != ad.vaultAsset # dev: cannot swap out of vault asset
     assert self.vaultToLegoId[tokenIn] == 0 # dev: cannot swap out of vault token
-    assert tokenOut == vaultAsset # dev: must swap into vault asset
+    assert tokenOut == ad.vaultAsset # dev: must swap into vault asset
 
-    # action data bundle
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
-
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
     lastTokenOutAmount: uint256 = 0

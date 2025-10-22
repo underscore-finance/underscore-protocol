@@ -53,11 +53,12 @@ event EarnVaultAction:
     legoId: uint256
     signer: indexed(address)
 
-# asset data
-vaultToLegoId: public(HashMap[address, uint256]) # vault addr -> lego id
-assets: public(HashMap[uint256, address]) # index -> asset
-indexOfAsset: public(HashMap[address, uint256]) # asset -> index
-numAssets: public(uint256) # num assets
+# main vault tokens
+coreVaultToken: public(address) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited
+leverageVaultToken: public(address) # leverage yield - where borrowed GREEN → swapped USDC is deposited
+
+# vault token -> lego id mapping
+vaultToLegoId: public(HashMap[address, uint256])
 
 # managers
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -71,28 +72,41 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_LEGOS: constant(uint256) = 10
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
-# registry ids
+# ids
+RIPE_LEGO_ID: constant(uint256) = 1
 LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
 VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: immutable(address)
-VAULT_ASSET: immutable(address)
+UNDERLYING_ASSET: immutable(address)
+USDC: immutable(address)
+GREEN: immutable(address)
 
 
 @deploy
 def __init__(
     _undyHq: address,
-    _vaultAsset: address,
+    _underlyingAsset: address,
+    _coreVaultToken: address,
+    _leverageVaultToken: address,
+    _usdc: address,
+    _green: address,
     _startingAgent: address,
 ):
     # not using 0 index
     self.numManagers = 1
-    self.numAssets = 1
 
-    assert empty(address) not in [_undyHq, _vaultAsset] # dev: inv addr
+    # main addys
+    assert empty(address) not in [_undyHq, _underlyingAsset, _usdc, _green, _coreVaultToken, _leverageVaultToken] # dev: inv addr
     UNDY_HQ = _undyHq
-    VAULT_ASSET = _vaultAsset
+    UNDERLYING_ASSET = _underlyingAsset
+    USDC = _usdc
+    GREEN = _green
+
+    # core vault token
+    self.coreVaultToken = _coreVaultToken
+    self.leverageVaultToken = _leverageVaultToken
 
     # initial agent
     if _startingAgent != empty(address):
@@ -129,7 +143,7 @@ def _onReceiveVaultFunds(
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
-    ad.vaultAsset = VAULT_ASSET
+    ad.vaultAsset = UNDERLYING_ASSET
     return self._depositForYield(ad.vaultAsset, _vaultAddr, max_value(uint256), empty(bytes32), ad)[0]
 
 
@@ -150,12 +164,21 @@ def _depositForYield(
     txUsdValue: uint256 = 0
     assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+    assert _vaultAddr == vaultToken # dev: vault token mismatch
 
-    # update yield position
-    if _asset == VAULT_ASSET:
-        assert _vaultAddr == vaultToken # dev: vault token mismatch
-        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: lego or vault token not approved
-        self._updateYieldPosition(vaultToken, _ad.legoId)
+    # vault asset must go into core vault
+    if _asset == UNDERLYING_ASSET:
+        assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: vault token not approved
+        assert vaultToken == self.coreVaultToken # dev: vault token mismatch
+
+    # USDC must go into leverage vault
+    elif _asset == USDC:
+        assert vaultToken == self.leverageVaultToken # dev: vault token mismatch
+
+    # first time, need to save lego mapping
+    legoId: uint256 = self.vaultToLegoId[vaultToken]
+    if legoId == 0 and _ad.legoId != 0:
+        self.vaultToLegoId[vaultToken] = _ad.legoId
 
     log EarnVaultAction(
         op = 10,
@@ -206,10 +229,6 @@ def _withdrawFromYield(
     vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
-    # update yield position
-    if underlyingAsset == VAULT_ASSET:
-        self._updateYieldPosition(_vaultToken, _ad.legoId)
-
     log EarnVaultAction(
         op = 11,
         asset1 = _vaultToken,
@@ -234,17 +253,17 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenOut: address = empty(address)
     legoIds: DynArray[uint256, MAX_LEGOS] = []
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
     # important checks!
-    vaultAsset: address = VAULT_ASSET
-    assert tokenIn != vaultAsset # dev: cannot swap out of vault asset
-    assert self.vaultToLegoId[tokenIn] == 0 # dev: cannot swap out of vault token
-    assert tokenOut == vaultAsset # dev: must swap into vault asset
+    assert tokenIn not in [ad.vaultAsset, self.coreVaultToken, self.leverageVaultToken] # dev: invalid swap asset
 
-    # action data bundle
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
+    # pre swap validation
+    green: address = GREEN
+    usdc: address = USDC
+    self._preSwapValidation(tokenIn, tokenOut, green, usdc)
+
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
-
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
     lastTokenOutAmount: uint256 = 0
@@ -260,6 +279,9 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         thisTxUsdValue: uint256 = 0
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+
+    # post swap validation
+    self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc)
 
     log EarnVaultAction(
         op = 20,
@@ -323,6 +345,33 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
     return tokenIn, tokenOut, legoIds
 
 
+# swap validation (GREEN/USDC)
+
+
+@view
+@internal
+def _preSwapValidation(_tokenIn: address, _tokenOut: address, _green: address, _usdc: address):
+    if _tokenIn == _green:
+        assert _tokenOut == _usdc # dev: GREEN can only go to USDC
+    elif _tokenIn == _usdc:
+        if _tokenOut != _green:
+            pass # TODO: if not swapping to GREEN, make sure there is NO OUTSTANDING DEBT!!!
+
+
+@view
+@internal
+def _postSwapValidation(
+    _tokenIn: address,
+    _tokenInAmount: uint256,
+    _tokenOut: address,
+    _tokenOutAmount: uint256,
+    _green: address,
+    _usdc: address,
+):
+    # TODO: implement
+    pass
+
+
 #################
 # Claim Rewards #
 #################
@@ -374,17 +423,36 @@ def addCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._addCollateral(_asset, _amount, _extraData, ad)
 
-    # set lego access and approve
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.ADD_COLLATERAL)
-    assert extcall IERC20(_asset).approve(ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
+@internal
+def _addCollateral(
+    _asset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _ad: VaultActionData,
+) -> (uint256, uint256):
+    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.ADD_COLLATERAL)
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+
+    # validate collateral + lego id
+    assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
+    approved: DynArray[address, 3] = [UNDERLYING_ASSET]
+    coreVaultToken: address = self.coreVaultToken
+    if coreVaultToken != empty(address):
+        approved.append(coreVaultToken)
+    leverageVaultToken: address = self.leverageVaultToken
+    if leverageVaultToken != empty(address):
+        approved.append(leverageVaultToken)
+    assert _asset in approved # dev: invalid collateral
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
-    amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-    self._resetApproval(_asset, ad.legoAddr)
+    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     log EarnVaultAction(
         op = 40,
@@ -393,8 +461,8 @@ def addCollateral(
         amount1 = amountDeposited,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return amountDeposited, txUsdValue
 
@@ -410,14 +478,22 @@ def removeCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._removeCollateral(_asset, _amount, _extraData, ad)
 
-    # set lego access
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REMOVE_COLLATERAL)
+
+@internal
+def _removeCollateral(
+    _asset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _ad: VaultActionData,
+) -> (uint256, uint256):
+    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.REMOVE_COLLATERAL)
 
     # remove collateral
     amountRemoved: uint256 = 0
     txUsdValue: uint256 = 0
-    amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
     log EarnVaultAction(
         op = 41,
@@ -426,8 +502,8 @@ def removeCollateral(
         amount1 = amountRemoved,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return amountRemoved, txUsdValue
 
@@ -443,14 +519,23 @@ def borrow(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._borrow(_borrowAsset, _amount, _extraData, ad)
 
-    # set lego access
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.BORROW)
+
+@internal
+def _borrow(
+    _borrowAsset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+    _ad: VaultActionData,
+) -> (uint256, uint256):
+    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.BORROW)
+    assert _borrowAsset == GREEN # dev: invalid borrow asset
 
     # borrow
     borrowAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    borrowAmount, txUsdValue = extcall Lego(_ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
     log EarnVaultAction(
         op = 42,
@@ -459,8 +544,8 @@ def borrow(
         amount1 = borrowAmount,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return borrowAmount, txUsdValue
 
@@ -476,16 +561,24 @@ def repayDebt(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+    return self._repayDebt(_paymentAsset, _paymentAmount, _extraData, ad)
 
-    # set lego access
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REPAY_DEBT)
+
+@internal
+def _repayDebt(
+    _paymentAsset: address,
+    _paymentAmount: uint256,
+    _extraData: bytes32,
+    _ad: VaultActionData,
+) -> (uint256, uint256):
+    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.REPAY_DEBT)
 
     # repay debt
-    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, ad.legoAddr) # doing approval here
+    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, _ad.legoAddr) # doing approval here
     repaidAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-    self._resetApproval(_paymentAsset, ad.legoAddr)
+    repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert extcall IERC20(_paymentAsset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     log EarnVaultAction(
         op = 43,
@@ -494,8 +587,8 @@ def repayDebt(
         amount1 = repaidAmount,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
     )
     return repaidAmount, txUsdValue
 
@@ -508,50 +601,52 @@ def repayDebt(
 @view
 @internal
 def _getUnderlyingYieldBalances() -> (uint256, uint256, address):
-    numAssets: uint256 = self.numAssets
-    if numAssets == 0:
-        return 0, 0, empty(address)
-
     maxTotalAssets: uint256 = 0
     safeTotalAssets: uint256 = 0
-
     maxBalance: uint256 = 0
     maxBalVaultToken: address = empty(address)
 
-    # iterate over each asset
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-    for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
 
-        # get asset addr
-        vaultToken: address = self.assets[i]
-        if vaultToken == empty(address):
-            continue
+    # Check core collateral vault
+    coreVaultToken: address = self.coreVaultToken
+    if coreVaultToken != empty(address):
+        coreLegoId: uint256 = self.vaultToLegoId[coreVaultToken]
+        if coreLegoId != 0:
+            coreBalance: uint256 = staticcall IERC20(coreVaultToken).balanceOf(self)
+            if coreBalance > 0:
+                legoAddr: address = staticcall Registry(legoBook).getAddr(coreLegoId)
+                if legoAddr != empty(address):
+                    trueUnderlying: uint256 = 0
+                    safeUnderlying: uint256 = 0
+                    trueUnderlying, safeUnderlying = staticcall YieldLego(legoAddr).getUnderlyingBalances(coreVaultToken, coreBalance)
+                    maxTotalAssets += trueUnderlying
+                    safeTotalAssets += safeUnderlying
 
-        vaultTokenBalance: uint256 = staticcall IERC20(vaultToken).balanceOf(self)
-        if vaultTokenBalance == 0:
-            continue
+                    if trueUnderlying > maxBalance:
+                        maxBalance = trueUnderlying
+                        maxBalVaultToken = coreVaultToken
 
-        legoId: uint256 = self.vaultToLegoId[vaultToken]
-        if legoId == 0:
-            continue
+    # Check leverage yield vault (skip if same as core)
+    leverageVaultToken: address = self.leverageVaultToken
+    if leverageVaultToken != empty(address):
+        # Skip if same vault as core (USDC case)
+        if leverageVaultToken != coreVaultToken:
+            leverageLegoId: uint256 = self.vaultToLegoId[leverageVaultToken]
+            if leverageLegoId != 0:
+                leverageBalance: uint256 = staticcall IERC20(leverageVaultToken).balanceOf(self)
+                if leverageBalance > 0:
+                    legoAddr: address = staticcall Registry(legoBook).getAddr(leverageLegoId)
+                    if legoAddr != empty(address):
+                        trueUnderlying: uint256 = 0
+                        safeUnderlying: uint256 = 0
+                        trueUnderlying, safeUnderlying = staticcall YieldLego(legoAddr).getUnderlyingBalances(leverageVaultToken, leverageBalance)
+                        maxTotalAssets += trueUnderlying
+                        safeTotalAssets += safeUnderlying
 
-        legoAddr: address = staticcall Registry(legoBook).getAddr(legoId)
-        if legoAddr == empty(address):
-            continue
-
-        # get balance data
-        trueUnderlying: uint256 = 0
-        safeUnderlying: uint256 = 0
-        trueUnderlying, safeUnderlying = staticcall YieldLego(legoAddr).getUnderlyingBalances(vaultToken, vaultTokenBalance)
-
-        # add totals
-        maxTotalAssets += trueUnderlying
-        safeTotalAssets += safeUnderlying
-
-        # save max balance / token
-        if trueUnderlying > maxBalance:
-            maxBalance = trueUnderlying
-            maxBalVaultToken = vaultToken
+                        if trueUnderlying > maxBalance:
+                            maxBalance = trueUnderlying
+                            maxBalVaultToken = leverageVaultToken
 
     return maxTotalAssets, safeTotalAssets, maxBalVaultToken
 
@@ -585,44 +680,21 @@ def _prepareRedemption(
     withdrawnAmount: uint256 = 0
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(0, _sender)
     ad.vaultAsset = _asset
-    assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
-    # first withdraw from biggest yield position
-    if _maxBalVaultToken != empty(address):
-        underlyingAmount: uint256 = 0
-        needsDeregister: bool = False
-        underlyingAmount, needsDeregister = self._withdrawDuringRedemption(_maxBalVaultToken, targetWithdrawAmount, availAmount, minWithdrawAmount, 0, ad)
+    # Always withdraw from core collateral vault (matches vault asset)
+    coreVaultToken: address = self.coreVaultToken
+    if coreVaultToken != empty(address):
+        coreLegoId: uint256 = self.vaultToLegoId[coreVaultToken]
+        underlyingAmount: uint256 = self._withdrawDuringRedemption(
+            coreVaultToken,
+            coreLegoId,
+            targetWithdrawAmount,
+            availAmount,
+            minWithdrawAmount,
+            ad
+        )
         availAmount += underlyingAmount
         withdrawnAmount += underlyingAmount
-        if needsDeregister:
-            assetsToDeregister.append(_maxBalVaultToken)
-
-    # next, iterate thru each yield position (order it is saved)
-    if availAmount < targetWithdrawAmount:
-        numAssets: uint256 = self.numAssets
-        if numAssets != 0:
-            for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
-                if availAmount >= targetWithdrawAmount:
-                    break
-
-                vaultToken: address = self.assets[i]
-                if _maxBalVaultToken != empty(address) and vaultToken == _maxBalVaultToken:
-                    continue
-
-                # withdraw from yield opportunity
-                underlyingAmount: uint256 = 0
-                needsDeregister: bool = False
-                underlyingAmount, needsDeregister = self._withdrawDuringRedemption(vaultToken, targetWithdrawAmount, availAmount, minWithdrawAmount, len(assetsToDeregister), ad)
-                availAmount += underlyingAmount
-                withdrawnAmount += underlyingAmount
-
-                # add to deregister list
-                if needsDeregister and vaultToken not in assetsToDeregister:
-                    assetsToDeregister.append(vaultToken)
-
-    # deregister vault positions
-    for asset: address in assetsToDeregister:
-        self._deregisterYieldPosition(asset)
 
     return availAmount, withdrawnAmount
 
@@ -630,124 +702,53 @@ def _prepareRedemption(
 @internal
 def _withdrawDuringRedemption(
     _vaultToken: address,
+    _legoId: uint256,
     _targetWithdrawAmount: uint256,
     _availAmount: uint256,
     _minWithdrawAmount: uint256,
-    _numDeregisterAssets: uint256,
     _ad: VaultActionData,
-) -> (uint256, bool):
+) -> uint256:
     if _vaultToken == empty(address):
-        return 0, False
+        return 0
 
     vaultTokenBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
     if vaultTokenBalance == 0:
-        return 0, _numDeregisterAssets < MAX_DEREGISTER_ASSETS # need to deregister
+        return 0
 
-    legoId: uint256 = self.vaultToLegoId[_vaultToken]
-    if legoId == 0:
-        return 0, False
+    if _legoId == 0:
+        return 0
 
     ad: VaultActionData = _ad
-    ad.legoId = legoId
-    ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(legoId)
+    ad.legoId = _legoId
+    ad.legoAddr = staticcall Registry(ad.legoBook).getAddr(_legoId)
 
     # skip if amount still needed is below minimum (dust protection)
     amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount
     if _minWithdrawAmount != 0 and amountStillNeeded < _minWithdrawAmount:
-        return 0, False
+        return 0
 
     # skip if vault tokens needed rounds to 0 (dust)
     vaultTokensNeeded: uint256 = staticcall YieldLego(ad.legoAddr).getVaultTokenAmount(_ad.vaultAsset, amountStillNeeded, _vaultToken)
     if vaultTokensNeeded == 0:
-        return 0, False
+        return 0
 
     # withdraw from yield opportunity
     underlyingAmount: uint256 = self._withdrawFromYield(_vaultToken, vaultTokensNeeded, empty(bytes32), ad)[2]
 
-    # add to deregister list
-    needsDeregister: bool = False
-    if vaultTokensNeeded >= vaultTokenBalance and staticcall IERC20(_vaultToken).balanceOf(self) == 0 and _numDeregisterAssets < MAX_DEREGISTER_ASSETS:
-        needsDeregister = True
-
-    return underlyingAmount, needsDeregister
+    return underlyingAmount
 
 
-###################
-# Yield Positions #
-###################
-
-
-# update yield position
+###############
+# Core Vaults #
+###############
 
 
 @external
-def updateYieldPosition(_vaultToken: address):
+def setCoreVaults(_vaultToken: address, _isCore: bool):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    vaultRegistry: address = self._getVaultRegistry()
-    legoId: uint256 = 0
-    na: address = empty(address)
-    legoId, na = staticcall VaultRegistry(vaultRegistry).getLegoDataFromVaultToken(_vaultToken)
-    if legoId != 0:
-        self._updateYieldPosition(_vaultToken, legoId)
+    assert _vaultToken != empty(address) # dev: invalid vault token
 
-
-@internal
-def _updateYieldPosition(_vaultToken: address, _legoId: uint256):
-    if _vaultToken == empty(address):
-        return
-
-    # no balance, deregister asset
-    currentBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
-    if currentBalance == 0:
-        self._deregisterYieldPosition(_vaultToken)
-        return
-
-    # first time, need to save lego mapping
-    legoId: uint256 = self.vaultToLegoId[_vaultToken]
-    if legoId == 0 and _legoId != 0:
-        self.vaultToLegoId[_vaultToken] = _legoId
-
-    # register asset (if necessary)
-    if self.indexOfAsset[_vaultToken] == 0:
-        self._registerYieldPosition(_vaultToken)
-
-
-# register yield position
-
-
-@internal
-def _registerYieldPosition(_vaultToken: address):
-    aid: uint256 = self.numAssets
-    self.assets[aid] = _vaultToken
-    self.indexOfAsset[_vaultToken] = aid
-    self.numAssets = aid + 1
-
-
-# deregister yield position
-
-
-@internal
-def _deregisterYieldPosition(_vaultToken: address) -> bool:
-    numAssets: uint256 = self.numAssets
-    if numAssets == 1:
-        return False
-
-    targetIndex: uint256 = self.indexOfAsset[_vaultToken]
-    if targetIndex == 0:
-        return False
-
-    # update data
-    lastIndex: uint256 = numAssets - 1
-    self.numAssets = lastIndex
-    self.indexOfAsset[_vaultToken] = 0
-
-    # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.assets[lastIndex]
-        self.assets[targetIndex] = lastItem
-        self.indexOfAsset[lastItem] = targetIndex
-
-    return True
+    # TODO: implement
 
 
 ####################
@@ -771,7 +772,7 @@ def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_L
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
-    ad.vaultAsset = VAULT_ASSET
+    ad.vaultAsset = UNDERLYING_ASSET
 
     # cannot perform any actions if vault is frozen
     assert not isVaultOpsFrozen # dev: frozen vault
@@ -867,15 +868,6 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
     if _legoAddr != empty(address):
         assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value = True) # dev: appr
     return amount
-
-
-# reset approval
-
-
-@internal
-def _resetApproval(_token: address, _legoAddr: address):
-    if _legoAddr != empty(address):
-        assert extcall IERC20(_token).approve(_legoAddr, 0, default_return_value = True) # dev: appr
 
 
 # lego access
