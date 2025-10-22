@@ -44,8 +44,8 @@ interface RipeTeller:
     def repay(_paymentAmount: uint256 = max_value(uint256), _user: address = msg.sender, _isPaymentSavingsGreen: bool = False, _shouldRefundSavingsGreen: bool = True) -> bool: nonpayable
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
-    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
+    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
 interface Ledger:
@@ -62,12 +62,23 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
+interface RipePriceDesk:
+    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
+
+interface RipeMissionControl:
+    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
+
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def getAddr(_regId: uint256) -> address: view
 
-interface RipeMissionControl:
-    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+interface RipeDepositVault:
+    def getTotalAmountForUser(_user: address, _asset: address) -> uint256: view
+
+interface CreditEngine:
+    def getUserDebtAmount(_user: address) -> uint256: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -131,6 +142,9 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
+RIPE_PRICE_DESK_ID: constant(uint256) = 7
+RIPE_VAULT_BOOK_ID: constant(uint256) = 8
+RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
@@ -269,7 +283,7 @@ def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _apprai
     if asset == empty(address):
         return empty(address), 0, 0 # invalid vault token
     underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    usdValue: uint256 = self._getUsdValueViaAppraiser(asset, underlyingAmount, _appraiser)
     return asset, underlyingAmount, usdValue
 
 
@@ -290,7 +304,7 @@ def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _
 
 @view
 @internal
-def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+def _getUsdValueViaAppraiser(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
@@ -864,6 +878,76 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     else:
         teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
         return teller, LEGO_ACCESS_ABI, 1
+
+
+##############
+# Ripe Utils #
+##############
+
+
+# collateral balance
+
+
+@view
+@external
+def getCollateralBalance(_user: address, _asset: address) -> uint256:
+    ripeHq: address = RIPE_REGISTRY
+    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
+    vaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    vaultAddr: address = staticcall Registry(vaultBook).getAddr(vaultId)
+    return self._getCollateralBalance(_user, _asset, vaultAddr)
+
+
+@view
+@internal
+def _getCollateralBalance(_user: address, _asset: address, _vaultAddr: address) -> uint256:
+    return staticcall RipeDepositVault(_vaultAddr).getTotalAmountForUser(_user, _asset)
+
+
+# user debt amount
+
+
+@view
+@external
+def getUserDebtAmount(_user: address) -> uint256:
+    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return self._getUserDebtAmount(_user, creditEngine)
+
+
+@view
+@internal
+def _getUserDebtAmount(_user: address, _creditEngine: address) -> uint256:
+    return staticcall CreditEngine(_creditEngine).getUserDebtAmount(_user)
+
+
+# price related
+
+
+@view
+@external
+def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256:
+    ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    return self._getAssetAmount(_asset, _usdValue, _shouldRaise, ripePriceDesk)
+
+
+@view
+@internal
+def _getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool, _ripePriceDesk: address) -> uint256:
+    return staticcall RipePriceDesk(_ripePriceDesk).getAssetAmount(_asset, _usdValue, _shouldRaise)
+
+
+@view
+@external
+def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256:
+    ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+    return self._getUsdValue(_asset, _amount, _shouldRaise, ripePriceDesk)
+
+
+@view
+@internal
+def _getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool, _ripePriceDesk: address) -> uint256:
+    return staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(_asset, _amount, _shouldRaise)
 
 
 #########
