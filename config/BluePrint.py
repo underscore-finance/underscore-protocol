@@ -263,6 +263,8 @@ TOKENS = {
         "EXTRAFI_WETH": "0x3d2673a5a253052bf2b46ebb70da77876cd085ac",
         # wasabi
         "WASABI_USDC": "0x1c4a802fd6b591bb71daa01d8335e43719048b24",
+        # avantis
+        "AVANTIS_USDC": "0x944766f715b51967e56afde5f0aa76ceacc9e7f9",
     },
     "local": {
         # important tokens / representations

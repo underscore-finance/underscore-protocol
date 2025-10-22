@@ -182,6 +182,16 @@ def lego_wasabi(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry)
     return addr
 
 
+@pytest.fixture(scope="session")
+def lego_avantis(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry):
+    AVANTIS_USDC = mock_lego_registry if fork == "local" else TOKENS[fork]["AVANTIS_USDC"]
+    addr = boa.load("contracts/legos/yield/Avantis.vy", undy_hq_deploy, AVANTIS_USDC, name="lego_avantis")
+    lego_book.startAddNewAddressToRegistry(addr, "Avantis", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
+    return addr
+
+
 ########
 # DEXs #
 ########
