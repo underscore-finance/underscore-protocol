@@ -275,7 +275,6 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
     # important checks!
-    assert empty(address) not in [tokenIn, tokenOut] # dev: invalid swap
     leverageVaultToken: address = self.leverageVaultToken
     assert tokenIn not in [ad.vaultAsset, self.coreVaultToken, leverageVaultToken] # dev: invalid swap asset
 
@@ -362,6 +361,7 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
         tokenOut = lastRoutePath[len(lastRoutePath) - 1]
 
     assert empty(address) not in [tokenIn, tokenOut] # dev: path
+    assert tokenIn != tokenOut # dev: same token
     return tokenIn, tokenOut, legoIds
 
 
@@ -408,16 +408,9 @@ def _getSwappableUsdcAmount(
     if userDebtAmount == 0:
         return _amountIn
 
-    usdcAmount: uint256 = _currentBalance # 6 decimals
-
-    # calc underlying amount of leverage vault
-    vaultTokenAmount: uint256 = staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, _leverageVaultToken)
-    vaultTokenAmount += staticcall IERC20(_leverageVaultToken).balanceOf(self)
-    if vaultTokenAmount != 0:
-        legoId: uint256 = self.vaultToLegoId[_leverageVaultToken]
-        legoAddr: address = staticcall Registry(_legoBook).getAddr(legoId)
-        if legoAddr != empty(address):
-            usdcAmount += staticcall YieldLego(legoAddr).getUnderlyingAmount(_leverageVaultToken, vaultTokenAmount)
+    # usdc amount
+    usdcAmount: uint256 = _currentBalance
+    usdcAmount += self._getUnderlyingAmount(_leverageVaultToken, _legoBook, ripeLegoAddr) # 6 decimals
 
     # compare usd values
     usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
@@ -691,6 +684,32 @@ def _getTotalAssets() -> uint256:
     # TODO: implement
 
     return maxTotalAssets
+
+
+@view
+@internal
+def _getUnderlyingAmount(
+    _vaultToken: address,
+    _legoBook: address,
+    _ripeLegoAddr: address,
+) -> uint256:
+    if _vaultToken == empty(address):
+        return 0
+
+    # ripe collateral balance or idle in vault
+    vaultTokenAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _vaultToken)
+    vaultTokenAmount += staticcall IERC20(_vaultToken).balanceOf(self)
+    if vaultTokenAmount == 0:
+        return 0
+
+    # calc underlying amount
+    underlyingAmount: uint256 = 0
+    legoId: uint256 = self.vaultToLegoId[_vaultToken]
+    legoAddr: address = staticcall Registry(_legoBook).getAddr(legoId)
+    if legoAddr != empty(address):
+        underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
+    
+    return underlyingAmount
 
 
 ###################
