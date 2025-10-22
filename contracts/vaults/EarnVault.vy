@@ -32,9 +32,7 @@ from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address): view
-    def maxDepositAmount(_vaultAddr: address) -> uint256: view
     def canWithdraw(_vaultAddr: address) -> bool: view
-    def canDeposit(_vaultAddr: address) -> bool: view
 
 event Deposit:
     sender: indexed(address)

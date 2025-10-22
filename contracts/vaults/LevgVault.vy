@@ -36,9 +36,7 @@ from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address): view
-    def maxDepositAmount(_vaultAddr: address) -> uint256: view
     def canWithdraw(_vaultAddr: address) -> bool: view
-    def canDeposit(_vaultAddr: address) -> bool: view
 
 event Deposit:
     sender: indexed(address)
@@ -52,8 +50,6 @@ event Withdraw:
     owner: indexed(address)
     assets: uint256
     shares: uint256
-
-HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
 
 @deploy
@@ -83,44 +79,7 @@ def asset() -> address:
 @view
 @external
 def totalAssets() -> uint256:
-    return self._getTotalAssets(True)
-
-
-################
-# Total Assets #
-################
-
-
-@view
-@external
-def getTotalAssets(_shouldGetMax: bool) -> uint256:
-    return self._getTotalAssets(_shouldGetMax)
-
-
-@view
-@internal
-def _getTotalAssets(_shouldGetMax: bool) -> uint256:
-    return self._getUnderlyingData(_shouldGetMax)[0]
-
-
-@view
-@internal
-def _getUnderlyingData(_shouldGetMax: bool) -> (uint256, address):
-    totalAssets: uint256 = staticcall IERC20(vaultWallet.UNDERLYING_ASSET).balanceOf(self)
-
-    # all underlying assets
-    maxTotalAssets: uint256 = 0
-    safeTotalAssets: uint256 = 0
-    maxBalVaultToken: address = empty(address)
-    maxTotalAssets, safeTotalAssets, maxBalVaultToken = vaultWallet._getUnderlyingYieldBalances()
-
-    # add total assets
-    if _shouldGetMax:
-        totalAssets += maxTotalAssets
-    else:
-        totalAssets += safeTotalAssets
-
-    return totalAssets, maxBalVaultToken
+    return vaultWallet._getTotalAssets()
 
 
 ############
@@ -131,14 +90,11 @@ def _getUnderlyingData(_shouldGetMax: bool) -> (uint256, address):
 @view
 @external
 def maxDeposit(_receiver: address) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
-
-    # deposit config
     canDeposit: bool = False
     maxDepositAmount: uint256 = 0
     na1: bool = False
     na2: address = empty(address)
-    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self)
 
     if not canDeposit:
         return 0
@@ -146,7 +102,7 @@ def maxDeposit(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = self._getTotalAssets(True)
+    totalAssets: uint256 = vaultWallet._getTotalAssets()
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -156,26 +112,21 @@ def maxDeposit(_receiver: address) -> uint256:
 @view
 @external
 def previewDeposit(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, self._getTotalAssets(True), False)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 @nonreentrant
 @external
 def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
     asset: address = vaultWallet.UNDERLYING_ASSET
 
     amount: uint256 = _assets
     if amount == max_value(uint256):
         amount = staticcall IERC20(asset).balanceOf(msg.sender)
 
-    # underlying data
-    totalAssets: uint256 = 0
-    maxBalVaultToken: address = empty(address)
-    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
-
+    totalAssets: uint256 = vaultWallet._getTotalAssets()
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
-    self._deposit(asset, amount, shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
+    self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry())
     return shares
 
 
@@ -185,14 +136,11 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 @view
 @external
 def maxMint(_receiver: address) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
-
-    # deposit config
     canDeposit: bool = False
     maxDepositAmount: uint256 = 0
     na1: bool = False
     na2: address = empty(address)
-    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultRegistry).getDepositConfig(self)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self)
 
     if not canDeposit:
         return 0
@@ -200,7 +148,7 @@ def maxMint(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = self._getTotalAssets(True)
+    totalAssets: uint256 = vaultWallet._getTotalAssets()
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -211,21 +159,15 @@ def maxMint(_receiver: address) -> uint256:
 @view
 @external
 def previewMint(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, self._getTotalAssets(True), True)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), True)
 
 
 @nonreentrant
 @external
 def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
-
-    # underlying data
-    totalAssets: uint256 = 0
-    maxBalVaultToken: address = empty(address)
-    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
-
+    totalAssets: uint256 = vaultWallet._getTotalAssets()
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, maxBalVaultToken, vaultRegistry)
+    self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, vaultWallet._getVaultRegistry())
     return amount
 
 
@@ -239,15 +181,14 @@ def _deposit(
     _shares: uint256,
     _recipient: address,
     _totalAssets: uint256,
-    _maxBalVaultToken: address,
     _vaultRegistry: address,
 ):
     # get all deposit config
     canDeposit: bool = False
     maxDepositAmount: uint256 = 0
     shouldAutoDeposit: bool = False
-    defaultTargetVaultToken: address = empty(address)
-    canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self)
+    na: address = empty(address)
+    canDeposit, maxDepositAmount, shouldAutoDeposit, na = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self)
 
     assert canDeposit # dev: cannot deposit
     assert _amount != 0 # dev: cannot deposit 0 amount
@@ -261,10 +202,7 @@ def _deposit(
 
     # put the deposit to work -- start earning
     if shouldAutoDeposit:
-        targetVaultToken: address = defaultTargetVaultToken
-        if targetVaultToken == empty(address):
-            targetVaultToken = _maxBalVaultToken
-        vaultWallet._onReceiveVaultFunds(targetVaultToken, _recipient, _vaultRegistry)
+        vaultWallet._onReceiveVaultFunds(_recipient, _vaultRegistry)
 
     token._mint(_recipient, _shares)
     log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)
@@ -281,7 +219,7 @@ def maxWithdraw(_owner: address) -> uint256:
     ownerShares: uint256 = token.balanceOf[_owner]
     if ownerShares == 0:
         return 0
-    availableAssets: uint256 = self._getTotalAssets(False)
+    availableAssets: uint256 = vaultWallet._getTotalAssets()
     ownerAssets: uint256 = self._sharesToAmount(ownerShares, token.totalSupply, availableAssets, False)
     return min(ownerAssets, availableAssets)
 
@@ -289,21 +227,14 @@ def maxWithdraw(_owner: address) -> uint256:
 @view
 @external
 def previewWithdraw(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, self._getTotalAssets(True), True)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), True)
 
 
 @nonreentrant
 @external
 def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
-
-    # underlying data
-    totalAssets: uint256 = 0
-    maxBalVaultToken: address = empty(address)
-    totalAssets, maxBalVaultToken = self._getUnderlyingData(True)
-
-    shares: uint256 = self._amountToShares(_assets, token.totalSupply, totalAssets, True)
-    self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
+    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), True)
+    self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry())
     return shares
 
 
@@ -319,25 +250,18 @@ def maxRedeem(_owner: address) -> uint256:
 @view
 @external
 def previewRedeem(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, self._getTotalAssets(False), False)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 @nonreentrant
 @external
 def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-    vaultRegistry: address = vaultWallet._getVaultRegistry()
-
     shares: uint256 = _shares
     if shares == max_value(uint256):
         shares = token.balanceOf[_owner]
 
-    # underlying data
-    totalAssets: uint256 = 0
-    maxBalVaultToken: address = empty(address)
-    totalAssets, maxBalVaultToken = self._getUnderlyingData(False)
-
-    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, totalAssets, False)
-    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, maxBalVaultToken, vaultRegistry)
+    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry())
 
 
 # shared redeem logic
@@ -351,7 +275,6 @@ def _redeem(
     _sender: address,
     _recipient: address,
     _owner: address,
-    _maxBalVaultToken: address,
     _vaultRegistry: address,
 ) -> uint256:
     assert staticcall VaultRegistry(_vaultRegistry).canWithdraw(self) # dev: cannot withdraw
@@ -366,9 +289,7 @@ def _redeem(
         token._spendAllowance(_owner, _sender, _shares)
 
     # withdraw from yield opportunity
-    availAmount: uint256 = 0
-    withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
+    availAmount: uint256 = vaultWallet._prepareRedemption(_asset, _amount, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
     assert actualAmount >= _amount - (_amount // 10) # dev: insufficient funds (0.1% tolerance)
 
@@ -388,25 +309,25 @@ def _redeem(
 @view
 @external
 def convertToShares(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, self._getTotalAssets(True), False)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 @view
 @external
 def convertToSharesSafe(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, self._getTotalAssets(False), False)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 @view
 @external
 def convertToAssets(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, self._getTotalAssets(True), False)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 @view
 @external
 def convertToAssetsSafe(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, self._getTotalAssets(False), False)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
 # amount -> shares
