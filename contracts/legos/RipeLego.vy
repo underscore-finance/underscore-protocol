@@ -885,6 +885,18 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
 ##############
 
 
+@view
+@external
+def greenToken() -> address:
+    return RIPE_GREEN_TOKEN
+
+
+@view
+@external
+def savingsGreen() -> address:
+    return RIPE_SAVINGS_GREEN
+
+
 # collateral balance
 
 
