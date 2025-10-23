@@ -384,7 +384,7 @@ def _preSwapValidation(
     _leverageVaultToken: address,
     _legoBook: address,
 ) -> uint256:
-    currentBalance: uint256 = staticcall IERC20(_usdc).balanceOf(self)
+    currentBalance: uint256 = staticcall IERC20(_tokenIn).balanceOf(self)
 
     amountIn: uint256 = _amountIn
     if _tokenIn == _green:
@@ -416,6 +416,7 @@ def _getSwappableUsdcAmount(
 
     # usdc balance
     usdcAmount: uint256 = _currentBalance
+    usdcAmount += staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, _usdc)
     usdcAmount += self._getUnderlyingAmount(_leverageVaultToken, _legoBook, ripeLegoAddr) # 6 decimals
     usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
 
@@ -698,16 +699,15 @@ def _getTotalAssets() -> uint256:
     if underlyingAsset == usdc:
         return self._getTotalAssetsForUsdcVault(usdc, GREEN, SAVINGS_GREEN, legoBook, ripeLegoAddr)
 
-    # TODO: implement
-
-    return 0
-
+    # non-usdc vault (WETH, CBBTC, etc)
+    return self._getTotalAssetsForNonUsdcVault(underlyingAsset, usdc, GREEN, SAVINGS_GREEN, legoBook, ripeLegoAddr)
 
 
 @view
 @internal
 def _getTotalAssetsForUsdcVault(_usdc: address, _green: address, _savingsGreen: address, _legoBook: address, _ripeLegoAddr: address) -> uint256:
     usdcAmount: uint256 = staticcall IERC20(_usdc).balanceOf(self)
+    usdcAmount += staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _usdc)
 
     # leverage vault amount
     leverageVaultToken: address = self.leverageVaultToken
@@ -726,12 +726,68 @@ def _getTotalAssetsForUsdcVault(_usdc: address, _green: address, _savingsGreen: 
     if userDebtAmount > greenSurplusAmount:
         userDebtAmount -= greenSurplusAmount # treat green as $1 USD (most conservative, in this case)
         usdcAmount -= min(usdcAmount, userDebtAmount // (10 ** 12)) # normalize to 6 decimals
+
     elif greenSurplusAmount > userDebtAmount:
         extraGreen: uint256 = greenSurplusAmount - userDebtAmount
         usdValueOfGreen: uint256 = min(staticcall RipeLego(_ripeLegoAddr).getUsdValue(_green, extraGreen, True), extraGreen) # both 18 decimals
         usdcAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_usdc, usdValueOfGreen, True)
 
     return usdcAmount
+
+
+@view
+@internal
+def _getTotalAssetsForNonUsdcVault(
+    _underlyingAsset: address,
+    _usdc: address,
+    _green: address,
+    _savingsGreen: address,
+    _legoBook: address,
+    _ripeLegoAddr: address,
+) -> uint256:
+    # phase 1: get underlying asset amount (WETH/CBBTC/etc)
+    underlyingAmount: uint256 = staticcall IERC20(_underlyingAsset).balanceOf(self)
+    underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _underlyingAsset)
+
+    # core vault amount (should be in underlying asset for non-USDC vaults)
+    coreVaultToken: address = self.coreVaultToken
+    if coreVaultToken != empty(address):
+        underlyingAmount += self._getUnderlyingAmount(coreVaultToken, _legoBook, _ripeLegoAddr)
+
+    # phase 2: get USDC (wallet + leverage vault)
+    usdcAmount: uint256 = staticcall IERC20(_usdc).balanceOf(self)
+    leverageVaultToken: address = self.leverageVaultToken
+    usdcAmount += self._getUnderlyingAmount(leverageVaultToken, _legoBook, _ripeLegoAddr)
+    usdcValue: uint256 = staticcall RipeLego(_ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
+
+    # phase 3: calculate GREEN position
+    userDebtAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
+    greenAmount: uint256 = self._getTotalGreenAmount(_green, _savingsGreen, _ripeLegoAddr) # 18 decimals
+
+    # phase 4: convert (USDC +/- GREEN) to underlying asset and add/subtract
+    if userDebtAmount > greenAmount:
+
+        # net debt scenario: we owe GREEN
+        netDebt: uint256 = userDebtAmount - greenAmount # 18 decimals, treat GREEN as $1 USD (most conservative, in this case)
+
+        # USDC covers debt with surplus
+        if usdcValue > netDebt:
+            netPositiveValue: uint256 = usdcValue - netDebt
+            underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, netPositiveValue, True)
+
+        # debt exceeds USDC value - leverage vault is underwater
+        elif netDebt > usdcValue:
+            netNegativeValue: uint256 = netDebt - usdcValue
+            underlyingToSubtract: uint256 = staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, netNegativeValue, True)
+            underlyingAmount -= min(underlyingAmount, underlyingToSubtract)
+    
+    elif greenAmount > userDebtAmount:
+        extraGreen: uint256 = greenAmount - userDebtAmount # net surplus scenario: we have extra GREEN
+        greenValue: uint256 = min(staticcall RipeLego(_ripeLegoAddr).getUsdValue(_green, extraGreen, True), extraGreen) # both 18 decimals
+        totalPositiveValue: uint256 = usdcValue + greenValue
+        underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, totalPositiveValue, True)
+
+    return underlyingAmount
 
 
 @view
