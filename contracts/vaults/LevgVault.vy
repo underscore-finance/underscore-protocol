@@ -62,12 +62,13 @@ def __init__(
     _leverageVaultToken: address,
     _usdc: address,
     _green: address,
+    _savingsGreen: address,
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
 ):
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)
-    vaultWallet.__init__(_undyHq, _asset, _coreVaultToken, _leverageVaultToken, _usdc, _green, _startingAgent)
+    vaultWallet.__init__(_undyHq, _asset, _coreVaultToken, _leverageVaultToken, _usdc, _green, _savingsGreen, _startingAgent)
 
 
 @view
