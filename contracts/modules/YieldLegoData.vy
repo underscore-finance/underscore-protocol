@@ -446,6 +446,8 @@ def _getLatestSnapshot(
 
     # total supply (adjusted)
     totalSupply: uint256 = staticcall IERC20(_vaultToken).totalSupply() // (10 ** _vaultTokenDecimals)
+    if totalSupply == 0:
+        totalSupply = 1
 
     # throttle upside (extra safety check)
     pricePerShare: uint256 = self._throttleUpside(_pricePerShare, _lastSnapShot.pricePerShare, _config.maxUpsideDeviation)
