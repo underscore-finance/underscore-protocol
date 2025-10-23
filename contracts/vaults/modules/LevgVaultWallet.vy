@@ -15,15 +15,13 @@ interface RipeLego:
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getCollateralBalance(_user: address, _asset: address) -> uint256: view
     def getUserDebtAmount(_user: address) -> uint256: view
-    def savingsGreen() -> address: view
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
     def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view
-    def redemptionConfig(_vaultAddr: address) -> (uint256, uint256): view
+    def redemptionBuffer(_vaultAddr: address) -> uint256: view
 
 interface YieldLego:
-    def getUnderlyingBalances(_vaultToken: address, _vaultTokenBalance: uint256) -> (uint256, uint256): view
     def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256: view
     def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
 
@@ -185,7 +183,7 @@ def _depositForYield(
     assert _vaultAddr == vaultToken # dev: vault token mismatch
 
     # vault asset must go into core vault
-    if _asset == UNDERLYING_ASSET:
+    if _asset == _ad.vaultAsset:
         assert vaultToken == self.coreVaultToken # dev: vault token mismatch
 
     # USDC must go into leverage vault
@@ -195,7 +193,7 @@ def _depositForYield(
     # GREEN must go into savings green
     elif _asset == GREEN:
         ripeLegoAddr: address = staticcall Registry(_ad.legoBook).getAddr(RIPE_LEGO_ID)
-        assert vaultToken == staticcall RipeLego(ripeLegoAddr).savingsGreen() # dev: vault token mismatch
+        assert vaultToken == SAVINGS_GREEN # dev: vault token mismatch
 
     # first time, need to save lego mapping
     if _ad.legoId != 0:
@@ -535,7 +533,7 @@ def _addCollateral(
 
     # validate collateral + lego id
     assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
-    assert _asset in [UNDERLYING_ASSET, self.leverageVaultToken, self.coreVaultToken, staticcall RipeLego(_ad.legoAddr).savingsGreen()] # dev: invalid collateral
+    assert _asset in [_ad.vaultAsset, self.leverageVaultToken, self.coreVaultToken, SAVINGS_GREEN] # dev: invalid collateral
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
@@ -846,22 +844,45 @@ def _prepareRedemption(
     if availAmount >= _amount:
         return availAmount
 
-    # get redemption config (buffer and min withdraw amount)
-    redemptionBuffer: uint256 = 0
-    minWithdrawAmount: uint256 = 0
-    redemptionBuffer, minWithdrawAmount = staticcall VaultRegistry(_vaultRegistry).redemptionConfig(self)
-
-    # buffer to make sure we pull out enough for redemption
-    bufferMultiplier: uint256 = HUNDRED_PERCENT + redemptionBuffer
-    targetWithdrawAmount: uint256 = _amount * bufferMultiplier // HUNDRED_PERCENT
-
-    withdrawnAmount: uint256 = 0
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(0, _sender)
     ad.vaultAsset = _asset
+    ripeLegoAddr: address = staticcall Registry(ad.legoBook).getAddr(RIPE_LEGO_ID)
 
-    # TODO: implement
-    # if vault token, calc vault token amount to withdraw from Ripe (with buffer), then withdraw from yield opportunity
-    # if not vault token, withdraw from Ripe
+    # buffer to make sure we pull out enough for redemption
+    redemptionBuffer: uint256 = staticcall VaultRegistry(_vaultRegistry).redemptionBuffer(self)
+    targetWithdrawAmount: uint256 = _amount * (HUNDRED_PERCENT + redemptionBuffer) // HUNDRED_PERCENT
+
+    # step 1: remove underlying asset from Ripe collateral if needed
+    underlyingCollateral: uint256 = staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, _asset)
+    if underlyingCollateral != 0:
+        amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
+        availAmount += self._removeCollateral(_asset, amountStillNeeded, empty(bytes32), ad)[0]
+        if availAmount >= _amount:
+            return availAmount
+
+    # core vault info
+    coreVaultToken: address = self.coreVaultToken
+    legoId: uint256 = self.vaultToLegoId[coreVaultToken]
+    legoAddr: address = staticcall Registry(ad.legoBook).getAddr(legoId)
+    if legoAddr == empty(address):
+        return availAmount
+
+    # step 2: withdraw from idle coreVaultToken in wallet
+    coreVaultBalance: uint256 = staticcall IERC20(coreVaultToken).balanceOf(self)
+    if coreVaultBalance != 0:
+        amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, coreVaultToken)
+        availAmount += self._withdrawFromYield(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
+        if availAmount >= _amount:
+            return availAmount
+
+    # step 3: remove coreVaultToken collateral from Ripe and withdraw
+    coreVaultCollateral: uint256 = staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, coreVaultToken)
+    if coreVaultCollateral != 0:
+        amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, coreVaultToken)
+        vaultTokenAmountToWithdraw = self._removeCollateral(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[0]
+        availAmount += self._withdrawFromYield(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
 
     return availAmount
 
