@@ -55,6 +55,9 @@ event EarnVaultAction:
     legoId: uint256
     signer: indexed(address)
 
+event CollateralVaultTokenSet:
+    collateralVaultToken: indexed(address)
+
 event UsdcSlippageAllowedSet:
     slippage: uint256
 
@@ -63,8 +66,8 @@ event GreenSlippageAllowedSet:
 
 vaultToLegoId: public(HashMap[address, uint256])
 
-# main vault tokens
-coreVaultToken: public(address) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)
+# vault tokens
+collateralVaultToken: public(address) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)
 leverageVaultToken: public(address) # leverage yield - where borrowed GREEN → swapped USDC is deposited
 
 # slippage settings
@@ -100,7 +103,7 @@ SAVINGS_GREEN: immutable(address)
 def __init__(
     _undyHq: address,
     _underlyingAsset: address,
-    _coreVaultToken: address,
+    _collateralVaultToken: address,
     _leverageVaultToken: address,
     _usdc: address,
     _green: address,
@@ -123,9 +126,9 @@ def __init__(
     self.leverageVaultToken = _leverageVaultToken
 
     # ripe collateral token (optional)
-    if _coreVaultToken != empty(address):
-        assert staticcall IERC4626(_coreVaultToken).asset() == _underlyingAsset # dev: core vault token must be underlying asset
-        self.coreVaultToken = _coreVaultToken
+    if _collateralVaultToken != empty(address):
+        assert staticcall IERC4626(_collateralVaultToken).asset() == _underlyingAsset # dev: asset mismatch
+        self.collateralVaultToken = _collateralVaultToken
 
     # initial agent
     if _startingAgent != empty(address):
@@ -154,13 +157,13 @@ def depositForYield(
 
 @internal
 def _onReceiveVaultFunds(_depositor: address, _vaultRegistry: address) -> uint256:
-    coreVaultToken: address = self.coreVaultToken
-    legoId: uint256 = self.vaultToLegoId[coreVaultToken]
+    collateralVaultToken: address = self.collateralVaultToken
+    legoId: uint256 = self.vaultToLegoId[collateralVaultToken]
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
     ad.vaultAsset = UNDERLYING_ASSET
-    return self._depositForYield(ad.vaultAsset, coreVaultToken, max_value(uint256), empty(bytes32), ad)[0]
+    return self._depositForYield(ad.vaultAsset, collateralVaultToken, max_value(uint256), empty(bytes32), ad)[0]
 
 
 @internal
@@ -182,9 +185,9 @@ def _depositForYield(
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
     assert _vaultAddr == vaultToken # dev: vault token mismatch
 
-    # vault asset must go into core vault
+    # vault asset must go into collateral vault
     if _asset == _ad.vaultAsset:
-        assert vaultToken == self.coreVaultToken # dev: vault token mismatch
+        assert vaultToken == self.collateralVaultToken # dev: vault token mismatch
 
     # USDC must go into leverage vault
     elif _asset == USDC:
@@ -277,7 +280,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     # important checks!
     leverageVaultToken: address = self.leverageVaultToken
     savingsGreen: address = SAVINGS_GREEN
-    assert tokenIn not in [ad.vaultAsset, self.coreVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
+    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
 
     # pre swap validation
     green: address = GREEN
@@ -467,41 +470,6 @@ def _postSwapValidation(
         assert _tokenOutAmount >= minExpected # dev: too much slippage
 
 
-#################
-# Claim Rewards #
-#################
-
-
-@external
-def claimRewards(
-    _legoId: uint256,
-    _rewardToken: address = empty(address),
-    _rewardAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-) -> (uint256, uint256):
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-
-    # make sure can access
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
-
-    # claim rewards
-    rewardAmount: uint256 = 0
-    txUsdValue: uint256 = 0
-    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
-
-    log EarnVaultAction(
-        op = 50,
-        asset1 = _rewardToken,
-        asset2 = ad.legoAddr,
-        amount1 = rewardAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
-    return rewardAmount, txUsdValue
-
-
 ###################
 # Debt Management #
 ###################
@@ -533,7 +501,7 @@ def _addCollateral(
 
     # validate collateral + lego id
     assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
-    assert _asset in [_ad.vaultAsset, self.leverageVaultToken, self.coreVaultToken, SAVINGS_GREEN] # dev: invalid collateral
+    assert _asset in [_ad.vaultAsset, self.leverageVaultToken, self.collateralVaultToken, SAVINGS_GREEN] # dev: invalid collateral
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
@@ -607,22 +575,12 @@ def borrow(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._borrow(_borrowAsset, _amount, _extraData, ad)
-
-
-@internal
-def _borrow(
-    _borrowAsset: address,
-    _amount: uint256,
-    _extraData: bytes32,
-    _ad: VaultActionData,
-) -> (uint256, uint256):
-    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.BORROW)
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.BORROW)
 
     # borrow
     borrowAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    borrowAmount, txUsdValue = extcall Lego(_ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     log EarnVaultAction(
         op = 42,
@@ -631,8 +589,8 @@ def _borrow(
         amount1 = borrowAmount,
         amount2 = 0,
         usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
+        legoId = ad.legoId,
+        signer = ad.signer,
     )
     return borrowAmount, txUsdValue
 
@@ -680,6 +638,41 @@ def _repayDebt(
     return repaidAmount, txUsdValue
 
 
+#################
+# Claim Rewards #
+#################
+
+
+@external
+def claimRewards(
+    _legoId: uint256,
+    _rewardToken: address = empty(address),
+    _rewardAmount: uint256 = max_value(uint256),
+    _extraData: bytes32 = empty(bytes32),
+) -> (uint256, uint256):
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+
+    # make sure can access
+    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
+
+    # claim rewards
+    rewardAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    log EarnVaultAction(
+        op = 50,
+        asset1 = _rewardToken,
+        asset2 = ad.legoAddr,
+        amount1 = rewardAmount,
+        amount2 = 0,
+        usdValue = txUsdValue,
+        legoId = ad.legoId,
+        signer = ad.signer,
+    )
+    return rewardAmount, txUsdValue
+
+
 #####################
 # Underlying Assets #
 #####################
@@ -711,10 +704,10 @@ def _getTotalAssetsForUsdcVault(_usdc: address, _green: address, _savingsGreen: 
     leverageVaultToken: address = self.leverageVaultToken
     usdcAmount += self._getUnderlyingAmount(leverageVaultToken, _legoBook, _ripeLegoAddr)
 
-    # core vault amount
-    coreVaultToken: address = self.coreVaultToken
-    if coreVaultToken != empty(address) and coreVaultToken != leverageVaultToken:
-        usdcAmount += self._getUnderlyingAmount(coreVaultToken, _legoBook, _ripeLegoAddr)
+    # collateral vault amount
+    collateralVaultToken: address = self.collateralVaultToken
+    if collateralVaultToken != empty(address) and collateralVaultToken != leverageVaultToken:
+        usdcAmount += self._getUnderlyingAmount(collateralVaultToken, _legoBook, _ripeLegoAddr)
 
     # green amounts
     userDebtAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
@@ -747,10 +740,10 @@ def _getTotalAssetsForNonUsdcVault(
     underlyingAmount: uint256 = staticcall IERC20(_underlyingAsset).balanceOf(self)
     underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _underlyingAsset)
 
-    # core vault amount (should be in underlying asset for non-USDC vaults)
-    coreVaultToken: address = self.coreVaultToken
-    if coreVaultToken != empty(address):
-        underlyingAmount += self._getUnderlyingAmount(coreVaultToken, _legoBook, _ripeLegoAddr)
+    # collateral vault amount (should be in underlying asset for non-USDC vaults)
+    collateralVaultToken: address = self.collateralVaultToken
+    if collateralVaultToken != empty(address):
+        underlyingAmount += self._getUnderlyingAmount(collateralVaultToken, _legoBook, _ripeLegoAddr)
 
     # phase 2: get USDC (wallet + leverage vault)
     usdcAmount: uint256 = staticcall IERC20(_usdc).balanceOf(self)
@@ -860,29 +853,29 @@ def _prepareRedemption(
         if availAmount >= _amount:
             return availAmount
 
-    # core vault info
-    coreVaultToken: address = self.coreVaultToken
-    legoId: uint256 = self.vaultToLegoId[coreVaultToken]
+    # collateral vault info
+    collateralVaultToken: address = self.collateralVaultToken
+    legoId: uint256 = self.vaultToLegoId[collateralVaultToken]
     legoAddr: address = staticcall Registry(ad.legoBook).getAddr(legoId)
     if legoAddr == empty(address):
         return availAmount
 
-    # step 2: withdraw from idle coreVaultToken in wallet
-    coreVaultBalance: uint256 = staticcall IERC20(coreVaultToken).balanceOf(self)
-    if coreVaultBalance != 0:
+    # step 2: withdraw from idle collateralVaultToken in wallet
+    collateralVaultTokenBalance: uint256 = staticcall IERC20(collateralVaultToken).balanceOf(self)
+    if collateralVaultTokenBalance != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, coreVaultToken)
-        availAmount += self._withdrawFromYield(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collateralVaultToken)
+        availAmount += self._withdrawFromYield(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
         if availAmount >= _amount:
             return availAmount
 
-    # step 3: remove coreVaultToken collateral from Ripe and withdraw
-    coreVaultCollateral: uint256 = staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, coreVaultToken)
-    if coreVaultCollateral != 0:
+    # step 3: remove collateralVaultToken collateral from Ripe and withdraw
+    collateralVaultTokenOnRipe: uint256 = staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, collateralVaultToken)
+    if collateralVaultTokenOnRipe != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, coreVaultToken)
-        vaultTokenAmountToWithdraw = self._removeCollateral(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[0]
-        availAmount += self._withdrawFromYield(coreVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collateralVaultToken)
+        vaultTokenAmountToWithdraw = self._removeCollateral(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[0]
+        availAmount += self._withdrawFromYield(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ad)[2]
 
     return availAmount
 
@@ -893,11 +886,32 @@ def _prepareRedemption(
 
 
 @external
-def setCoreVaults(_vaultToken: address, _isCore: bool):
+def setCollateralVaults(_collateralVaultToken: address):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _vaultToken != empty(address) # dev: invalid vault token
+    assert _collateralVaultToken != empty(address) # dev: invalid vault token
+    self.collateralVaultToken = _collateralVaultToken
+    log CollateralVaultTokenSet(collateralVaultToken = _collateralVaultToken)
 
-    # TODO: implement
+
+#####################
+# Slippage Settings #
+#####################
+
+
+@external
+def setUsdcSlippageAllowed(_slippage: uint256):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _slippage <= 10_00 # dev: slippage too high
+    self.usdcSlippageAllowed = _slippage
+    log UsdcSlippageAllowedSet(slippage = _slippage)
+
+
+@external
+def setGreenSlippageAllowed(_slippage: uint256):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _slippage <= 10_00 # dev: slippage too high
+    self.greenSlippageAllowed = _slippage
+    log GreenSlippageAllowedSet(slippage = _slippage)
 
 
 ####################
@@ -979,27 +993,6 @@ def removeManager(_manager: address):
         lastItem: address = self.managers[lastIndex]
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
-
-
-#####################
-# Slippage Settings #
-#####################
-
-
-@external
-def setUsdcSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= HUNDRED_PERCENT # dev: slippage too high
-    self.usdcSlippageAllowed = _slippage
-    log UsdcSlippageAllowedSet(slippage = _slippage)
-
-
-@external
-def setGreenSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= HUNDRED_PERCENT # dev: slippage too high
-    self.greenSlippageAllowed = _slippage
-    log GreenSlippageAllowedSet(slippage = _slippage)
 
 
 #############
