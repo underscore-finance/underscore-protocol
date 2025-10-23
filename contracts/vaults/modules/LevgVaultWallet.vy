@@ -195,8 +195,7 @@ def _depositForYield(
         assert vaultToken == staticcall RipeLego(ripeLegoAddr).savingsGreen() # dev: vault token mismatch
 
     # first time, need to save lego mapping
-    legoId: uint256 = self.vaultToLegoId[vaultToken]
-    if legoId == 0 and _ad.legoId != 0:
+    if _ad.legoId != 0:
         self.vaultToLegoId[vaultToken] = _ad.legoId
 
     log EarnVaultAction(
@@ -679,11 +678,45 @@ def _repayDebt(
 @view
 @internal
 def _getTotalAssets() -> uint256:
-    maxTotalAssets: uint256 = 0
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    ripeLegoAddr: address = staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
 
-    # TODO: implement
+    # underlying amount
+    underlyingAsset: address = UNDERLYING_ASSET
+    underlyingAmount: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
+    coreVaultToken: address = self.coreVaultToken
+    if coreVaultToken != empty(address):
+        underlyingAmount += self._getUnderlyingAmount(coreVaultToken, legoBook, ripeLegoAddr)
 
-    return maxTotalAssets
+    # leverage vault
+    usdc: address = USDC
+    usdcAmount: uint256 = self._getUnderlyingAmount(self.leverageVaultToken, legoBook, ripeLegoAddr)
+    if underlyingAsset != usdc:
+        usdcAmount += staticcall IERC20(usdc).balanceOf(self)
+
+    # user debt amount
+    userDebtAmount: uint256 = staticcall RipeLego(ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
+
+    return 0
+
+    # return maxTotalAssets
+
+
+
+    # if userDebtAmount == 0:
+    #     return _amountIn
+
+    # # usdc amount
+    # usdcAmount: uint256 = _currentBalance
+    # usdcAmount += self._getUnderlyingAmount(_leverageVaultToken, _legoBook, ripeLegoAddr) # 6 decimals
+
+    # # compare usd values
+    # usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
+    # if userDebtAmount > usdcValue:
+    #     return 0
+
+    # availUsdcAmount: uint256 = staticcall RipeLego(ripeLegoAddr).getAssetAmount(_usdc, usdcValue - userDebtAmount, True) # 6 decimals
+    # return min(availUsdcAmount, _amountIn)
 
 
 @view
