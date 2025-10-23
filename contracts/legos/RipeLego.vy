@@ -69,6 +69,7 @@ interface RipePriceDesk:
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
     def getFirstVaultIdForAsset(_asset: address) -> uint256: view
+    def isSupportedAsset(_asset: address) -> bool: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
@@ -212,7 +213,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return RIPE_GREEN_TOKEN
 
 
 # underlying balances (both true and safe)
@@ -915,6 +919,16 @@ def getCollateralBalance(_user: address, _asset: address) -> uint256:
 @internal
 def _getCollateralBalance(_user: address, _asset: address, _vaultAddr: address) -> uint256:
     return staticcall RipeDepositVault(_vaultAddr).getTotalAmountForUser(_user, _asset)
+
+
+# supported asset
+
+
+@view
+@external
+def isSupportedRipeAsset(_asset: address) -> bool:
+    mc: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_MISSION_CONTROL_ID)
+    return staticcall RipeMissionControl(mc).isSupportedAsset(_asset)
 
 
 # user debt amount

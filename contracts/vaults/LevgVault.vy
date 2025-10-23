@@ -58,8 +58,10 @@ def __init__(
     _tokenName: String[64],
     _tokenSymbol: String[32],
     _undyHq: address,
-    _coreVaultToken: address,
+    _collateralVaultToken: address,
+    _collateralVaultTokenLegoId: uint256,
     _leverageVaultToken: address,
+    _leverageVaultTokenLegoId: uint256,
     _usdc: address,
     _green: address,
     _savingsGreen: address,
@@ -68,7 +70,7 @@ def __init__(
     _startingAgent: address,
 ):
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)
-    vaultWallet.__init__(_undyHq, _asset, _coreVaultToken, _leverageVaultToken, _usdc, _green, _savingsGreen, _startingAgent)
+    vaultWallet.__init__(_undyHq, _asset, _collateralVaultToken, _collateralVaultTokenLegoId, _leverageVaultToken, _leverageVaultTokenLegoId, _usdc, _green, _savingsGreen, _startingAgent)
 
 
 @view
