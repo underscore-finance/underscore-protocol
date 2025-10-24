@@ -692,9 +692,9 @@ def undy_levg_vault_local(undy_hq, mock_usdc_collateral_vault, mock_usdc_leverag
     vault = boa.load(
         "contracts/vaults/LevgVault.vy",
         mock_usdc.address,
-        "dd",
-        "ddddd",
-        undy_hq,
+        VAULT_INFO['LEVG_USDC']["name"],
+        VAULT_INFO['LEVG_USDC']["symbol"],
+        undy_hq.address,
         mock_usdc_collateral_vault.address,
         2,
         mock_usdc_leverage_vault.address,
@@ -704,7 +704,7 @@ def undy_levg_vault_local(undy_hq, mock_usdc_collateral_vault, mock_usdc_leverag
         mock_savings_green_token.address,
         PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
-        starter_agent,
+        starter_agent.address,
         name="undy_levg_vault_local",
     )
 

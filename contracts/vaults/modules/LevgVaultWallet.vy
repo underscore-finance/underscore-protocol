@@ -281,54 +281,54 @@ def _withdrawFromYield(
 ###################
 
 
-# @external
-# def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
-#     tokenIn: address = empty(address)
-#     tokenOut: address = empty(address)
-#     legoIds: DynArray[uint256, MAX_LEGOS] = []
-#     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
-#     ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
+@external
+def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
+    tokenIn: address = empty(address)
+    tokenOut: address = empty(address)
+    legoIds: DynArray[uint256, MAX_LEGOS] = []
+    tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
-#     # important checks!
-#     leverageVaultToken: address = self.leverageVaultToken
-#     savingsGreen: address = SAVINGS_GREEN
-#     assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
+    # important checks!
+    leverageVaultToken: address = self.leverageVaultToken
+    savingsGreen: address = SAVINGS_GREEN
+    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
 
-#     # pre swap validation
-#     green: address = GREEN
-#     usdc: address = USDC
-#     origAmountIn: uint256 = self._preSwapValidation(tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, green, savingsGreen, usdc, leverageVaultToken, ad.legoBook)
+    # pre swap validation
+    green: address = GREEN
+    usdc: address = USDC
+    origAmountIn: uint256 = self._preSwapValidation(tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, green, savingsGreen, usdc, leverageVaultToken, ad.legoBook)
 
-#     amountIn: uint256 = origAmountIn
-#     lastTokenOut: address = empty(address)
-#     lastTokenOutAmount: uint256 = 0
-#     maxTxUsdValue: uint256 = 0
+    amountIn: uint256 = origAmountIn
+    lastTokenOut: address = empty(address)
+    lastTokenOutAmount: uint256 = 0
+    maxTxUsdValue: uint256 = 0
 
-#     # perform swaps
-#     for i: wi.SwapInstruction in _instructions:
-#         if lastTokenOut != empty(address):
-#             newTokenIn: address = i.tokenPath[0]
-#             assert lastTokenOut == newTokenIn # dev: path
-#             amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
+    # perform swaps
+    for i: wi.SwapInstruction in _instructions:
+        if lastTokenOut != empty(address):
+            newTokenIn: address = i.tokenPath[0]
+            assert lastTokenOut == newTokenIn # dev: path
+            amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
         
-#         thisTxUsdValue: uint256 = 0
-#         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
-#         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+        thisTxUsdValue: uint256 = 0
+        lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
+        maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
-#     # post swap validation
-#     self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc, ad.legoBook)
+    # post swap validation
+    self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc, ad.legoBook)
 
-#     log LevgVaultAction(
-#         op = 20,
-#         asset1 = tokenIn,
-#         asset2 = lastTokenOut,
-#         amount1 = origAmountIn,
-#         amount2 = lastTokenOutAmount,
-#         usdValue = maxTxUsdValue,
-#         legoId = ad.legoId, # using just the first lego used
-#         signer = ad.signer,
-#     )
-#     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
+    log LevgVaultAction(
+        op = 20,
+        asset1 = tokenIn,
+        asset2 = lastTokenOut,
+        amount1 = origAmountIn,
+        amount2 = lastTokenOutAmount,
+        usdValue = maxTxUsdValue,
+        legoId = ad.legoId, # using just the first lego used
+        signer = ad.signer,
+    )
+    return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
 
 @internal

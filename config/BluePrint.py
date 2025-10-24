@@ -17,6 +17,10 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip BTC",
         "symbol": "undyBTC",
     },
+    "LEVG_USDC": {
+        "name": "Underscore Leveraged USD",
+        "symbol": "undyLevgUSD",
+    },
 }
 
 PARAMS = {
