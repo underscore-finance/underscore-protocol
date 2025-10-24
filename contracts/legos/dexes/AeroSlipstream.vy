@@ -288,6 +288,11 @@ def swapTokens(
     assert amountIn != 0 # dev: nothing to transfer
     assert extcall IERC20(tokenIn).transferFrom(msg.sender, self, amountIn, default_return_value=True) # dev: transfer failed
 
+    # adjust min amount out
+    minAmountOut: uint256 = _minAmountOut
+    if amountIn < _amountIn and _amountIn != max_value(uint256):
+        minAmountOut = _minAmountOut * amountIn // _amountIn
+
     # iterate through swap routes
     aeroFactory: address = AERO_SLIPSTREAM_FACTORY
     tempAmountIn: uint256 = amountIn
@@ -306,7 +311,7 @@ def swapTokens(
 
     # final amount
     amountOut: uint256 = tempAmountIn
-    assert amountOut >= _minAmountOut # dev: min amount out not met
+    assert amountOut >= minAmountOut # dev: min amount out not met
 
     # refund if full swap didn't get through
     currentLegoBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
