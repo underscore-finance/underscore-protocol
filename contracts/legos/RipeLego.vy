@@ -53,6 +53,11 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
+interface RipeMissionControl:
+    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
+    def isSupportedAsset(_asset: address) -> bool: view
+
 interface RipeRegistry:
     def savingsGreen() -> address: view
     def greenToken() -> address: view
@@ -66,11 +71,6 @@ interface RipePriceDesk:
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
 
-interface RipeMissionControl:
-    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
-    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
-    def isSupportedAsset(_asset: address) -> bool: view
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def getAddr(_regId: uint256) -> address: view
@@ -80,6 +80,9 @@ interface RipeDepositVault:
 
 interface CreditEngine:
     def getUserDebtAmount(_user: address) -> uint256: view
+
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -634,7 +637,7 @@ def addCollateral(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # only allowing user wallets to do this
-    assert self._isUserWallet(msg.sender) # dev: not a user wallet
+    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     # pre balances
@@ -691,7 +694,7 @@ def removeCollateral(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # only allowing user wallets to do this
-    assert self._isUserWallet(msg.sender) # dev: not a user wallet
+    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     vaultId: uint256 = 0
@@ -730,7 +733,7 @@ def borrow(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # only allowing user wallets to do this
-    assert self._isUserWallet(msg.sender) # dev: not a user wallet
+    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     assert _borrowAsset in [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN] # dev: invalid borrow asset
@@ -767,7 +770,7 @@ def repayDebt(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
     # only allowing user wallets to do this
-    assert self._isUserWallet(msg.sender) # dev: not a user wallet
+    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     assert _paymentAsset in [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN] # dev: invalid payment asset
@@ -823,8 +826,8 @@ def _resetTellerApproval(_asset: address, _teller: address):
 
 @view
 @internal
-def _isUserWallet(_user: address) -> bool:
-    return staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user)
+def _isUserWalletOrEarnVault(_user: address) -> bool:
+    return staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user) or staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_user)
 
 
 #################

@@ -287,16 +287,6 @@ def yield_underlying_token_whale(env, yield_underlying_token, governance):
 
 
 @pytest.fixture(scope="session")
-def mock_ripe():
-    return boa.load("contracts/mock/MockRipe.vy", name="mock_ripe")
-
-
-@pytest.fixture(scope="session")
-def mock_ripe_token(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token", "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
-
-
-@pytest.fixture(scope="session")
 def mock_weth():
     return boa.load("contracts/mock/MockWeth.vy", name="mock_weth")
 
@@ -332,3 +322,37 @@ def mock_rando_contract():
 @pytest.fixture(scope="session")
 def another_rando_contract():
     return boa.load("contracts/mock/MockRando.vy", name="another_rando_contract")
+
+
+####################
+# Ripe Integration #
+####################
+
+
+@pytest.fixture(scope="session")
+def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale):
+    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, name="mock_ripe")
+    mock_green_token.setMinter(ripe_registry, True, sender=governance.address)
+    return ripe_registry
+
+
+@pytest.fixture(scope="session")
+def mock_green_token(governance, whale):
+    green_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Green Token", "MGT", 18, 1_000_000_000, name="mock_green_token")
+    green_token.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
+    return green_token
+
+
+@pytest.fixture(scope="session")
+def mock_savings_green_token(mock_green_token, whale):
+    savings_green = boa.load("contracts/mock/MockErc4626Vault.vy", mock_green_token, name="mock_savings_green_token")
+    mock_green_token.approve(savings_green, 100_000 * EIGHTEEN_DECIMALS, sender=whale)
+    savings_green.deposit(100_000 * EIGHTEEN_DECIMALS, whale, sender=whale)
+    return savings_green
+
+
+@pytest.fixture(scope="session")
+def mock_ripe_token(governance, whale):
+    ripe_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token", "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
+    ripe_token.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
+    return ripe_token

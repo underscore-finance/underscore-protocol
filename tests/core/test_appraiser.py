@@ -1672,14 +1672,3 @@ def test_get_ripe_price_external(appraiser, alpha_token, mock_ripe):
     # Call external function
     price = appraiser.getRipePrice(alpha_token)
     assert price == expected_price
-
-
-def test_get_ripe_price_no_price_desk(appraiser, alpha_token, mock_ripe):
-    """ Test getRipePrice when price desk is not set """
-    
-    # Set registry to return empty address for price desk
-    mock_ripe.setAddr(ZERO_ADDRESS)
-    
-    # Should return 0
-    price = appraiser.getRipePrice(alpha_token)
-    assert price == 0

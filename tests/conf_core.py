@@ -274,15 +274,19 @@ def lego_book_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def lego_book(lego_book_deploy, deploy3r, mock_dex_lego, mock_yield_lego):
+def lego_book(lego_book_deploy, deploy3r, mock_dex_lego, mock_yield_lego, lego_ripe):
+
+    # register ripe lego
+    assert lego_book_deploy.startAddNewAddressToRegistry(lego_ripe, "Ripe Lego", sender=deploy3r)
+    assert lego_book_deploy.confirmNewAddressToRegistry(lego_ripe, sender=deploy3r) == 1
 
     # register mock yield lego
     assert lego_book_deploy.startAddNewAddressToRegistry(mock_yield_lego, "Mock Yield Lego", sender=deploy3r)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=deploy3r) == 1
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_yield_lego, sender=deploy3r) == 2
 
     # register mock dex lego
     assert lego_book_deploy.startAddNewAddressToRegistry(mock_dex_lego, "Mock Dex Lego", sender=deploy3r)
-    assert lego_book_deploy.confirmNewAddressToRegistry(mock_dex_lego, sender=deploy3r) == 2
+    assert lego_book_deploy.confirmNewAddressToRegistry(mock_dex_lego, sender=deploy3r) == 3
 
     # finish registry setup
     assert lego_book_deploy.setRegistryTimeLockAfterSetup(sender=deploy3r)
