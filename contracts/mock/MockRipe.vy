@@ -145,11 +145,11 @@ def borrow(
     recipient: address = _user
     if _wantsSavingsGreen:
         recipient = self
-
     extcall MockToken(GREEN_TOKEN).mint(recipient, amount)
 
     if _wantsSavingsGreen:
-        extcall IERC4626(SAVINGS_GREEN).deposit(amount, recipient)
+        extcall IERC20(GREEN_TOKEN).approve(SAVINGS_GREEN, amount)
+        extcall IERC4626(SAVINGS_GREEN).deposit(amount, _user)
 
     self.userDebt[_user] += amount
     return amount
@@ -172,8 +172,14 @@ def repay(
     assert amount != 0 # dev: nothing to repay
 
     assert extcall IERC20(paymentAsset).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed
-    extcall MockToken(paymentAsset).burn(amount)
-    self.userDebt[_user] -= amount
+
+    # If paying with SAVINGS_GREEN, redeem it to GREEN first
+    greenAmount: uint256 = amount
+    if _isPaymentSavingsGreen:
+        greenAmount = extcall IERC4626(SAVINGS_GREEN).redeem(amount, self, self)
+    extcall MockToken(GREEN_TOKEN).burn(greenAmount)
+
+    self.userDebt[_user] -= greenAmount
     return True
 
 
@@ -192,8 +198,10 @@ def claimLoot(
     _user: address = msg.sender,
     _shouldStake: bool = True,
 ) -> uint256:
-    # nothing to mock here
-    return 0
+    # Mock claiming 100 RIPE tokens as rewards
+    amount: uint256 = 100 * 10 ** 18
+    extcall MockToken(RIPE_TOKEN).mint(_user, amount)
+    return amount
 
 
 ##################################
