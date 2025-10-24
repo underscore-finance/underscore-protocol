@@ -32,7 +32,7 @@ def setup_yield_position(undy_usd_vault, yield_underlying_token, yield_underlyin
 
         # Deposit for yield
         _, vault_token, vault_tokens_received, _ = undy_usd_vault.depositForYield(
-            1,  # lego_id
+            2,  # lego_id
             yield_underlying_token.address,
             yield_vault_token.address,
             _amount,
@@ -114,7 +114,7 @@ def test_yield_accrual_between_deposits(setup_yield_position, simulate_yield, un
     yield_underlying_token.transfer(undy_usd_vault.address, second_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         second_deposit,
@@ -142,7 +142,7 @@ def test_yield_accrual_with_multiple_deposits(setup_yield_position, simulate_yie
     # Second deposit (triggers yield calculation)
     deposit2 = 500 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit2, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit2, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit2, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield1
 
@@ -154,7 +154,7 @@ def test_yield_accrual_with_multiple_deposits(setup_yield_position, simulate_yie
     # Third deposit (triggers another yield calculation)
     deposit3 = 300 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit3, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit3, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit3, sender=starter_agent.address)
 
     # Total yield should be yield1 + yield2
     assert abs(undy_usd_vault.pendingYieldRealized() - (yield1 + yield2)) <= 100
@@ -165,12 +165,12 @@ def test_yield_accrual_with_multiple_yield_positions(undy_usd_vault, yield_under
     # Deposit to first yield position
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Deposit to second yield position
     deposit2 = 800 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit2, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
 
     # Simulate yield on both positions
     yield1 = 100 * EIGHTEEN_DECIMALS
@@ -183,7 +183,7 @@ def test_yield_accrual_with_multiple_yield_positions(undy_usd_vault, yield_under
     # Trigger yield calculation with another deposit
     deposit3 = 200 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit3, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit3, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit3, sender=starter_agent.address)
 
     # Should track total yield from both positions
     assert undy_usd_vault.pendingYieldRealized() == yield1 + yield2
@@ -241,7 +241,7 @@ def test_large_yield_accrual(setup_yield_position, simulate_yield, undy_usd_vaul
     # Trigger yield calculation
     trigger_deposit = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger_deposit, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -259,7 +259,7 @@ def test_small_yield_accrual(setup_yield_position, simulate_yield, undy_usd_vaul
     # Trigger yield calculation
     trigger_deposit = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger_deposit, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -277,7 +277,7 @@ def test_yield_accrual_followed_by_more_yield(setup_yield_position, simulate_yie
     # Trigger
     trigger_deposit = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger_deposit, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield1
 
@@ -288,7 +288,7 @@ def test_yield_accrual_followed_by_more_yield(setup_yield_position, simulate_yie
 
     # Trigger again
     yield_underlying_token.transfer(undy_usd_vault.address, trigger_deposit, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger_deposit, sender=starter_agent.address)
 
     assert abs(undy_usd_vault.pendingYieldRealized() - (yield1 + yield2)) <= 500
 
@@ -327,7 +327,7 @@ def test_yield_accrual_then_withdrawal_preserves_yield(setup_yield_position, sim
     # Deposit to trigger yield calculation
     trigger = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -356,12 +356,12 @@ def test_partial_withdrawal_impact_on_tracking(setup_vault_with_deposit, setup_y
     boa.env.time_travel(seconds=301)
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Deposit remaining idle balance to yield to force withdrawal from yield during redemption
     idle_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
     if idle_balance > 100 * EIGHTEEN_DECIMALS:
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, idle_balance - 100 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+        undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, idle_balance - 100 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     initial_last_bal = undy_usd_vault.lastUnderlyingBal()
 
@@ -392,7 +392,7 @@ def test_withdraw_from_yield_position_updates_last_underlying_bal(setup_yield_po
     assert undy_usd_vault.lastUnderlyingBal() == initial_deposit
 
     # Withdraw from yield
-    undy_usd_vault.withdrawFromYield(1, yield_vault_token.address, vault_tokens // 2, sender=starter_agent.address)
+    undy_usd_vault.withdrawFromYield(2, yield_vault_token.address, vault_tokens // 2, sender=starter_agent.address)
 
     # lastUnderlyingBal should be updated to reflect withdrawal
     new_bal = undy_usd_vault.lastUnderlyingBal()
@@ -421,7 +421,7 @@ def test_basic_fee_claim(setup_yield_position, simulate_yield, undy_usd_vault, g
     # Trigger yield calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -452,7 +452,7 @@ def test_fee_claim_with_zero_percent_fee(setup_yield_position, simulate_yield, u
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim fees (should be 0)
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -476,7 +476,7 @@ def test_fee_claim_with_hundred_percent_fee(setup_yield_position, simulate_yield
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim all yield as fees
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -500,7 +500,7 @@ def test_fee_claim_with_various_fee_ratios(setup_yield_position, simulate_yield,
 
         trigger = 100 * EIGHTEEN_DECIMALS
         yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+        undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
         expected_fees = yield_amount * fee_ratio // 100_00
         fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -519,7 +519,7 @@ def test_fee_claim_resets_pending_yield_realized(setup_yield_position, simulate_
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -542,7 +542,7 @@ def test_fee_claim_transfers_correct_amount_to_governance(setup_yield_position, 
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     gov_balance_before = yield_underlying_token.balanceOf(governance.address)
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -566,7 +566,7 @@ def test_fee_claim_emits_correct_event(setup_yield_position, simulate_yield, und
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     undy_usd_vault.claimPerformanceFees(sender=governance.address)
 
@@ -589,7 +589,7 @@ def test_fee_claim_when_vault_needs_redemption(setup_yield_position, simulate_yi
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Vault has minimal idle balance, needs to withdraw from yield
     idle_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
@@ -616,7 +616,7 @@ def test_fee_claim_with_sufficient_idle_balance(setup_yield_position, simulate_y
     yield_underlying_token.transfer(undy_usd_vault.address, extra_idle, sender=yield_underlying_token_whale)
 
     trigger = 50 * EIGHTEEN_DECIMALS
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim should use idle balance
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -637,7 +637,7 @@ def test_multiple_sequential_fee_claims(setup_yield_position, simulate_yield, un
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     fees1 = undy_usd_vault.claimPerformanceFees(sender=governance.address)
     assert fees1 > 0
@@ -649,7 +649,7 @@ def test_multiple_sequential_fee_claims(setup_yield_position, simulate_yield, un
     boa.env.time_travel(seconds=301)
 
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     fees2 = undy_usd_vault.claimPerformanceFees(sender=governance.address)
     assert fees2 > fees1  # Second yield was larger
@@ -663,11 +663,11 @@ def test_fee_claim_with_multiple_yield_positions(undy_usd_vault, yield_underlyin
     # Setup two yield positions
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     deposit2 = 800 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit2, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
 
     # Yield on both
     yield1 = 100 * EIGHTEEN_DECIMALS
@@ -679,7 +679,7 @@ def test_fee_claim_with_multiple_yield_positions(undy_usd_vault, yield_underlyin
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim should work across both positions
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -706,7 +706,7 @@ def test_get_claimable_performance_fees_returns_correct_value(setup_yield_positi
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     claimable = undy_usd_vault.getClaimablePerformanceFees()
     expected = yield_amount * 15 // 100
@@ -753,7 +753,7 @@ def test_get_claimable_before_and_after_transactions(setup_yield_position, simul
     # After triggering calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     claimable_after_trigger = undy_usd_vault.getClaimablePerformanceFees()
     assert claimable_after_trigger == claimable_after_yield
@@ -800,7 +800,7 @@ def test_total_assets_subtracts_pending_fees(setup_yield_position, simulate_yiel
     # Trigger yield calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     total_after_yield = undy_usd_vault.totalAssets()
 
@@ -833,7 +833,7 @@ def test_share_price_accounts_for_pending_fees(setup_vault_with_deposit, setup_y
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Share value should increase but account for fees
     new_value_per_share = undy_usd_vault.convertToAssets(EIGHTEEN_DECIMALS)
@@ -855,7 +855,7 @@ def test_deposit_after_yield_before_fee_claim(setup_yield_position, simulate_yie
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # User deposits
     user_deposit = 500 * EIGHTEEN_DECIMALS
@@ -880,7 +880,7 @@ def test_withdrawal_after_yield_before_fee_claim(setup_vault_with_deposit, setup
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # User withdraws
     balance_before = yield_underlying_token.balanceOf(bob)
@@ -903,7 +903,7 @@ def test_convert_to_assets_shares_with_pending_fees(setup_yield_position, simula
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Test convertToAssets
     test_shares = 100 * EIGHTEEN_DECIMALS
@@ -937,7 +937,7 @@ def test_max_withdraw_redeem_with_pending_fees(setup_vault_with_deposit, setup_y
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     max_withdraw_after = undy_usd_vault.maxWithdraw(bob)
     max_redeem_after = undy_usd_vault.maxRedeem(bob)
@@ -960,7 +960,7 @@ def test_zero_yield_scenario(setup_yield_position, undy_usd_vault, yield_underly
     # No yield, just another deposit
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == 0
 
@@ -975,7 +975,7 @@ def test_negative_yield_doesnt_decrease_pending(setup_yield_position, undy_usd_v
     # Simulate loss by withdrawing from yield (simulates negative yield)
     # Note: In practice, negative yield is when underlying decreases
     # The implementation should not add negative values to pendingYieldRealized
-    undy_usd_vault.withdrawFromYield(1, yield_vault_token.address, EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.withdrawFromYield(2, yield_vault_token.address, EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     # pendingYieldRealized should not decrease
     assert undy_usd_vault.pendingYieldRealized() >= initial_pending
@@ -996,7 +996,7 @@ def test_direct_transfer_to_vault(setup_yield_position, undy_usd_vault, yield_un
     # Next operation should not count direct transfer as yield
     # (because it's not in yield positions)
     trigger = 50 * EIGHTEEN_DECIMALS
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == 0
 
@@ -1014,7 +1014,7 @@ def test_slippage_loss_in_yield_position(setup_yield_position, simulate_yield, u
     # Trigger calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # pendingYieldRealized should not increase (no profit to track)
     assert undy_usd_vault.pendingYieldRealized() == 0
@@ -1031,7 +1031,7 @@ def test_rounding_errors_with_small_amounts(setup_yield_position, simulate_yield
 
     trigger = EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Should handle tiny yield
     assert undy_usd_vault.pendingYieldRealized() >= 0
@@ -1049,7 +1049,7 @@ def test_very_large_pending_yield_realized(setup_yield_position, simulate_yield,
 
     trigger = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == huge_yield
 
@@ -1079,7 +1079,7 @@ def test_claiming_fees_insufficient_yield_positions(setup_yield_position, simula
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Attempt to claim (might fail due to insufficient liquidity)
     try:
@@ -1113,7 +1113,7 @@ def test_last_underlying_bal_consistency(setup_yield_position, simulate_yield, u
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     expected_bal = initial_deposit + yield_amount + trigger
     assert undy_usd_vault.lastUnderlyingBal() == expected_bal
@@ -1137,7 +1137,7 @@ def test_only_governance_can_claim_fees(setup_yield_position, simulate_yield, un
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Governance can claim
     fees = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -1157,7 +1157,7 @@ def test_switchboard_can_claim_fees(setup_yield_position, simulate_yield, undy_u
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Switchboard can claim
     fees = undy_usd_vault.claimPerformanceFees(sender=switchboard_alpha.address)
@@ -1175,7 +1175,7 @@ def test_unauthorized_cannot_claim_fees(setup_yield_position, simulate_yield, un
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Bob (unauthorized) cannot claim
     with boa.reverts("no perms"):
@@ -1206,7 +1206,7 @@ def test_deposit_yield_deposit_claim_withdraw_flow(setup_vault_with_deposit, set
     # Trigger yield calc
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Second user deposit
     yield_underlying_token.approve(undy_usd_vault.address, MAX_UINT256, sender=yield_underlying_token_whale)
@@ -1239,7 +1239,7 @@ def test_deposit_yield_withdraw_yield_claim_flow(setup_vault_with_deposit, setup
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # User withdraws
     undy_usd_vault.redeem(user_shares // 2, bob, bob, sender=bob)
@@ -1250,7 +1250,7 @@ def test_deposit_yield_withdraw_yield_claim_flow(setup_vault_with_deposit, setup
     boa.env.time_travel(seconds=301)
 
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim
     fees = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -1292,7 +1292,7 @@ def test_fee_claim_doesnt_affect_user_shares(setup_vault_with_deposit, setup_yie
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     value_before_claim = undy_usd_vault.convertToAssets(user_shares)
 
@@ -1315,7 +1315,7 @@ def test_fee_claim_followed_by_immediate_deposit(setup_yield_position, simulate_
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     undy_usd_vault.claimPerformanceFees(sender=governance.address)
 
@@ -1336,7 +1336,7 @@ def test_fee_claim_followed_by_immediate_withdrawal(setup_vault_with_deposit, se
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     undy_usd_vault.claimPerformanceFees(sender=governance.address)
 
@@ -1375,7 +1375,7 @@ def test_last_underlying_bal_matches_actual(setup_yield_position, simulate_yield
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # lastUnderlyingBal should match actual
     expected = initial_deposit + yield_amount + trigger
@@ -1387,7 +1387,7 @@ def test_pending_yield_realized_never_negative(setup_yield_position, undy_usd_va
     setup_yield_position(1000 * EIGHTEEN_DECIMALS)
 
     # Various operations
-    undy_usd_vault.withdrawFromYield(1, yield_vault_token.address, 100 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.withdrawFromYield(2, yield_vault_token.address, 100 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() >= 0
 
@@ -1406,7 +1406,7 @@ def test_total_assets_calculation_consistency(setup_vault_with_deposit, setup_yi
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     total_after = undy_usd_vault.totalAssets()
 
@@ -1443,7 +1443,7 @@ def test_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token, yi
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Simulate yield
     yield_amount = 100 * EIGHTEEN_DECIMALS
@@ -1453,7 +1453,7 @@ def test_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token, yi
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Verify yield tracked
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
@@ -1471,7 +1471,7 @@ def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_3.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_3.address, deposit1, sender=starter_agent.address)
 
     # Simulate yield (price per share increases)
     yield_amount = 100 * EIGHTEEN_DECIMALS
@@ -1484,7 +1484,7 @@ def test_non_rebasing_only_yield_position(undy_usd_vault, yield_underlying_token
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_3.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_3.address, trigger, sender=starter_agent.address)
 
     # Verify yield tracked (may have slight variance due to snapshot averaging)
     assert undy_usd_vault.pendingYieldRealized() > 0
@@ -1497,12 +1497,12 @@ def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_
     # Deposit to rebasing token
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Deposit to non-rebasing token
     deposit2 = 800 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit2, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_3.address, deposit2, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_3.address, deposit2, sender=starter_agent.address)
 
     # Yield on both
     yield1 = 80 * EIGHTEEN_DECIMALS
@@ -1517,7 +1517,7 @@ def test_mixed_rebasing_non_rebasing_positions(undy_usd_vault, yield_underlying_
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Should track combined yield from both positions
     pending_yield = undy_usd_vault.pendingYieldRealized()
@@ -1531,11 +1531,11 @@ def test_fee_claim_multiple_position_withdrawals(undy_usd_vault, yield_underlyin
     # Setup two yield positions with limited idle balance
     deposit1 = 500 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     deposit2 = 500 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit2, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_2.address, deposit2, sender=starter_agent.address)
 
     # Large yield
     yield_amount = 400 * EIGHTEEN_DECIMALS
@@ -1546,7 +1546,7 @@ def test_fee_claim_multiple_position_withdrawals(undy_usd_vault, yield_underlyin
     # Trigger (minimal idle balance left)
     trigger = 10 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim should withdraw from both positions
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
@@ -1567,7 +1567,7 @@ def test_redemption_buffer_over_withdrawal(undy_usd_vault, yield_underlying_toke
     # Create yield position
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Yield
     yield_amount = 200 * EIGHTEEN_DECIMALS
@@ -1577,7 +1577,7 @@ def test_redemption_buffer_over_withdrawal(undy_usd_vault, yield_underlying_toke
     # Trigger
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Claim fees (buffer should cause slightly more to be withdrawn)
     initial_idle = yield_underlying_token.balanceOf(undy_usd_vault.address)
@@ -1597,7 +1597,7 @@ def test_dust_protection_in_redemption(undy_usd_vault, yield_underlying_token, y
 
     deposit1 = 10000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Very small withdrawal (tests dust protection)
     # Redeem tiny amount
@@ -1614,7 +1614,7 @@ def test_precision_loss_small_yields(undy_usd_vault, yield_underlying_token, yie
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Very small yields relative to position size
     # At this scale (1-100 wei on 1000e18 position), precision loss is expected
@@ -1627,7 +1627,7 @@ def test_precision_loss_small_yields(undy_usd_vault, yield_underlying_token, yie
 
         trigger = EIGHTEEN_DECIMALS
         yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+        undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
         total_yield += yield_amount
 
@@ -1645,7 +1645,7 @@ def test_precision_loss_accumulation(undy_usd_vault, yield_underlying_token, yie
 
     deposit1 = 10000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     total_expected_yield = 0
     num_operations = 50
@@ -1657,7 +1657,7 @@ def test_precision_loss_accumulation(undy_usd_vault, yield_underlying_token, yie
 
         trigger = EIGHTEEN_DECIMALS // 10
         yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+        undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
         total_expected_yield += yield_amount
 
@@ -1676,7 +1676,7 @@ def test_fee_claim_no_new_yield(undy_usd_vault, yield_underlying_token, yield_un
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Yield and trigger
     yield_amount = 100 * EIGHTEEN_DECIMALS
@@ -1685,7 +1685,7 @@ def test_fee_claim_no_new_yield(undy_usd_vault, yield_underlying_token, yield_un
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
 
@@ -1703,7 +1703,7 @@ def test_rapid_sequential_fee_claims(undy_usd_vault, yield_underlying_token, yie
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # First yield and claim
     yield1 = 100 * EIGHTEEN_DECIMALS
@@ -1712,7 +1712,7 @@ def test_rapid_sequential_fee_claims(undy_usd_vault, yield_underlying_token, yie
 
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     fees1 = undy_usd_vault.claimPerformanceFees(sender=governance.address)
     assert fees1 > 0
@@ -1729,7 +1729,7 @@ def test_rapid_sequential_fee_claims(undy_usd_vault, yield_underlying_token, yie
     boa.env.time_travel(seconds=301)
 
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     fees3 = undy_usd_vault.claimPerformanceFees(sender=governance.address)
     expected_fees3 = yield2 * 10 // 100
@@ -1743,7 +1743,7 @@ def test_yield_cycle_multiple_times(undy_usd_vault, yield_underlying_token, yiel
 
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     trigger = 10 * EIGHTEEN_DECIMALS
 
@@ -1755,7 +1755,7 @@ def test_yield_cycle_multiple_times(undy_usd_vault, yield_underlying_token, yiel
 
         # Trigger
         yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-        undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+        undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
         # Verify pending yield (allow small tolerance for rounding)
         assert abs(undy_usd_vault.pendingYieldRealized() - yield_amount) <= 1000
@@ -1771,7 +1771,7 @@ def test_zero_change_in_underlying(undy_usd_vault, yield_underlying_token, yield
     """Test when lastUnderlyingBal == currentUnderlying (no change)"""
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     initial_last_bal = undy_usd_vault.lastUnderlyingBal()
     initial_pending = undy_usd_vault.pendingYieldRealized()
@@ -1780,7 +1780,7 @@ def test_zero_change_in_underlying(undy_usd_vault, yield_underlying_token, yield
     boa.env.time_travel(seconds=301)
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Pending should NOT increase (no yield)
     assert undy_usd_vault.pendingYieldRealized() == initial_pending
@@ -1795,7 +1795,7 @@ def test_auto_deposit_with_pending_fees(undy_usd_vault, yield_underlying_token, 
     # Create yield position
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Accrue yield
     yield_amount = 200 * EIGHTEEN_DECIMALS
@@ -1805,7 +1805,7 @@ def test_auto_deposit_with_pending_fees(undy_usd_vault, yield_underlying_token, 
     # Trigger yield calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # Now pending fees exist
     pending_fees_before = undy_usd_vault.getClaimablePerformanceFees()
@@ -1836,7 +1836,7 @@ def test_preview_functions_with_high_pending_fees(undy_usd_vault, yield_underlyi
     # Create large yield
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, deposit1, sender=starter_agent.address)
 
     # Huge yield
     yield_amount = 2000 * EIGHTEEN_DECIMALS
@@ -1845,7 +1845,7 @@ def test_preview_functions_with_high_pending_fees(undy_usd_vault, yield_underlyi
 
     trigger = 100 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     # High pending fees now (50% of 2000 = 1000 tokens)
     pending_fees = undy_usd_vault.getClaimablePerformanceFees()
@@ -1882,7 +1882,7 @@ def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_to
     # This test requires yield_vault_token_3 to be non-rebasing
     deposit1 = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit1, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_3.address, deposit1, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_3.address, deposit1, sender=starter_agent.address)
 
     # Add multiple snapshots with different prices
     for i in range(3):
@@ -1902,7 +1902,7 @@ def test_weighted_price_calculation_accuracy(undy_usd_vault, yield_underlying_to
     # Trigger yield calculation
     trigger = 50 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_3.address, trigger, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_3.address, trigger, sender=starter_agent.address)
 
     # Pending yield should be tracked (with weighted average)
     pending_yield = undy_usd_vault.pendingYieldRealized()

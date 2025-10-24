@@ -119,7 +119,7 @@ def test_owner_bypass_no_signature(
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
         _price=10 * EIGHTEEN_DECIMALS,
-        _lego_id=1,
+        _lego_id=2,
         _shouldCheckYield=False
     )
     
@@ -129,7 +129,7 @@ def test_owner_bypass_no_signature(
     # Owner should execute without signature verification
     asset_deposited, vault_token, vault_tokens_received, usd_value = starter_agent.depositForYield(
         user_wallet.address,
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         amount,
@@ -160,7 +160,7 @@ def test_expired_signature_rejected(
         _asset=yield_underlying_token,
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
-        _lego_id=1
+        _lego_id=2
     )
     
     # Create expired signature
@@ -172,7 +172,7 @@ def test_expired_signature_rejected(
     with boa.reverts("signature expired"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             yield_underlying_token.address,
             ZERO_ADDRESS,
             100 * EIGHTEEN_DECIMALS,
@@ -198,7 +198,7 @@ def test_invalid_nonce_rejected(
         _asset=yield_underlying_token,
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
-        _lego_id=1
+        _lego_id=2
     )
     
     valid_time = boa.env.evm.patch.timestamp + 3600
@@ -209,7 +209,7 @@ def test_invalid_nonce_rejected(
     with boa.reverts("invalid nonce"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             yield_underlying_token.address,
             ZERO_ADDRESS,
             100 * EIGHTEEN_DECIMALS,
@@ -223,7 +223,7 @@ def test_invalid_nonce_rejected(
     with boa.reverts("invalid nonce"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             yield_underlying_token.address,
             ZERO_ADDRESS,
             100 * EIGHTEEN_DECIMALS,
@@ -250,7 +250,7 @@ def test_invalid_signer_rejected(
         _asset=yield_underlying_token,
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
-        _lego_id=1
+        _lego_id=2
     )
     
     valid_time = boa.env.evm.patch.timestamp + 3600
@@ -268,7 +268,7 @@ def test_invalid_signer_rejected(
     with boa.reverts():  # Will fail at signer verification
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             yield_underlying_token.address,
             ZERO_ADDRESS,
             100 * EIGHTEEN_DECIMALS,
@@ -295,7 +295,7 @@ def test_malformed_signature_rejected(
     with boa.reverts():  # Will fail during signature extraction
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -310,7 +310,7 @@ def test_malformed_signature_rejected(
     with boa.reverts():
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -341,7 +341,7 @@ def test_invalid_v_parameter_rejected(
     with boa.reverts("invalid v parameter"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -368,7 +368,7 @@ def test_zero_signature_rejected(
     with boa.reverts():  # Should fail at ecrecover or signer check
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -396,7 +396,7 @@ def test_nonce_increments_on_success(
         _asset=yield_underlying_token,
         _amount=200 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
-        _lego_id=1
+        _lego_id=2
     )
     
     # Record initial nonce
@@ -436,7 +436,7 @@ def test_batch_actions_signature_validation(
         _asset=mock_dex_asset,
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=whale,
-        _lego_id=2
+        _lego_id=3
     )
     
     # Create transfer instruction - transfers go to wallet owner (bob), not agent owner
@@ -496,7 +496,7 @@ def test_different_action_message_hashes(
     with boa.reverts():  # Will fail signature verification
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             mock_dex_asset.address,
             ZERO_ADDRESS,
             100,
@@ -509,7 +509,7 @@ def test_different_action_message_hashes(
     with boa.reverts():  # Will fail signature verification
         starter_agent.withdrawFromYield(
             user_wallet.address,
-            1,
+            2,
             mock_dex_asset.address,
             100,
             b"",
@@ -519,7 +519,7 @@ def test_different_action_message_hashes(
     
     # Test swapTokens (action 20)
     swap_instruction = (
-        1,  # legoId
+        3,  # legoId
         100,  # amountIn
         0,    # minAmountOut
         [mock_dex_asset.address, ZERO_ADDRESS],  # tokenPath
@@ -602,7 +602,7 @@ def test_v_parameter_normalization(
     with boa.reverts():  # Should get past v check
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -620,7 +620,7 @@ def test_v_parameter_normalization(
     with boa.reverts():  # Should get past v check
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -667,7 +667,7 @@ def test_signature_malleability_s_value_check(
     with boa.reverts("invalid s value"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -695,7 +695,7 @@ def test_signature_reuse_prevented(
         _asset=yield_underlying_token,
         _amount=200 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
-        _lego_id=1
+        _lego_id=2
     )
     
     # First, manually increment the nonce as owner to simulate a used nonce
@@ -715,7 +715,7 @@ def test_signature_reuse_prevented(
     with boa.reverts("invalid nonce"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             50 * EIGHTEEN_DECIMALS,
@@ -743,7 +743,7 @@ def test_batch_max_instructions(
         _asset=mock_dex_asset,
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
-        _lego_id=2
+        _lego_id=3
     )
     
     # Create exactly 15 instructions (MAX_INSTRUCTIONS)
@@ -807,7 +807,7 @@ def test_ecrecover_edge_cases(
     with boa.reverts():  # ecrecover returns zero address
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -825,7 +825,7 @@ def test_ecrecover_edge_cases(
     with boa.reverts("invalid s value (zero)"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -842,7 +842,7 @@ def test_ecrecover_edge_cases(
     with boa.reverts():  # ecrecover will fail
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,
@@ -859,7 +859,7 @@ def test_ecrecover_edge_cases(
     with boa.reverts("invalid v parameter"):
         starter_agent.depositForYield(
             user_wallet.address,
-            1,
+            2,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             0,

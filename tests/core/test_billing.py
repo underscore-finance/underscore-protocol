@@ -352,7 +352,7 @@ def test_pullPaymentAsCheque_with_vault_withdrawal(
     
     # Deposit 40 tokens into vault, keep 20 in wallet
     user_wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         40 * EIGHTEEN_DECIMALS,
@@ -441,7 +441,7 @@ def test_pullPaymentAsCheque_with_multiple_vaults(
     
     # Deposit into multiple vaults: 30 in each vault, keep 30 in wallet
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         30 * EIGHTEEN_DECIMALS,
@@ -449,7 +449,7 @@ def test_pullPaymentAsCheque_with_multiple_vaults(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault_2.address,
         30 * EIGHTEEN_DECIMALS,
@@ -457,7 +457,7 @@ def test_pullPaymentAsCheque_with_multiple_vaults(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault_3.address,
         30 * EIGHTEEN_DECIMALS,
@@ -607,7 +607,7 @@ def test_pullPaymentAsCheque_with_yield_gains(
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         amount,
@@ -825,7 +825,7 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         amount,
@@ -1151,7 +1151,7 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
     
     # Deposit 40 tokens into vault, keep 20 in wallet
     user_wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         40 * EIGHTEEN_DECIMALS,
@@ -1233,7 +1233,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
     
     # Deposit into multiple vaults: 30 in each vault, keep 30 in wallet
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         30 * EIGHTEEN_DECIMALS,
@@ -1241,7 +1241,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault_2.address,
         30 * EIGHTEEN_DECIMALS,
@@ -1249,7 +1249,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault_3.address,
         30 * EIGHTEEN_DECIMALS,
@@ -1396,7 +1396,7 @@ def test_pullPaymentAsPayee_with_yield_gains(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         amount,
@@ -1565,7 +1565,7 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
     )
     
     user_wallet.depositForYield(
-        1,  # legoId
+        2,  # legoId
         alpha_token.address,
         alpha_token_vault.address,
         amount,

@@ -1338,7 +1338,7 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     """Test successful asset configuration update"""
     # Set new asset config
     asset = alpha_token.address
-    lego_id = 1  # Assuming valid lego ID
+    lego_id = 2  # Assuming valid lego ID
     stale_blocks = 100
     swap_fee = 30  # 0.3%
     stable_swap_fee = 10  # 0.1%
@@ -1591,7 +1591,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     
     # Verify the config was saved in MissionControl
     saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.legoId == 1
+    assert saved_config.legoId == 1  # lego_ripe
     assert saved_config.staleBlocks == 100
     assert saved_config.txFees.swapFee == 50
     assert saved_config.txFees.stableSwapFee == 10

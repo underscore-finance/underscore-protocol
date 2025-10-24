@@ -247,7 +247,7 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(
             _canManageYield=False,  # cannot manage yield
-            _allowedLegos=[1, 2]  # only legos 1 and 2 allowed
+            _allowedLegos=[2, 3]  # only legos 1 and 2 allowed
         )
     )
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
@@ -255,7 +255,7 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
     # try to give manager yield permissions when globally restricted
     invalid_perms = createLegoPerms(
         _canManageYield=True,  # trying to allow yield when globally false
-        _allowedLegos=[3, 4]  # trying to use legos not in global allowed list
+        _allowedLegos=[6, 7]  # trying to use legos not in global allowed list
     )
     
     result = high_command.isValidNewManager(
@@ -541,7 +541,7 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(
             _canManageYield=False,  # globally restricted
-            _allowedLegos=[1, 2]  # only legos 1 and 2 allowed globally
+            _allowedLegos=[2, 3]  # only legos 1 and 2 allowed globally
         )
     )
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
@@ -553,7 +553,7 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
     # try to update with legos outside global restrictions
     invalid_perms = createLegoPerms(
         _canManageYield=True,  # trying to override global restriction
-        _allowedLegos=[3, 4]  # trying to use legos not globally allowed
+        _allowedLegos=[6, 7]  # trying to use legos not globally allowed
     )
     
     result = high_command.validateManagerOnUpdate(

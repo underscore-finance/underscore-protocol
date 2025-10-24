@@ -39,7 +39,7 @@ def setupDebtTest(user_wallet, mock_dex_lego, mock_dex_asset, lego_book, mock_ri
 def test_add_collateral_basic(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test basic add collateral functionality"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Check initial balance
     initial_balance = mock_dex_asset.balanceOf(user_wallet)
@@ -82,7 +82,7 @@ def test_add_collateral_basic(setupDebtTest, user_wallet, bob, mock_dex_asset):
 def test_add_collateral_max_value(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test adding collateral with MAX_UINT256 to use entire balance"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Get current balance
     current_balance = mock_dex_asset.balanceOf(user_wallet)
@@ -110,7 +110,7 @@ def test_add_collateral_max_value(setupDebtTest, user_wallet, bob, mock_dex_asse
 def test_add_collateral_multiple_deposits(setupDebtTest, user_wallet, bob, mock_dex_lego, mock_dex_asset):
     """Test multiple sequential collateral deposits"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     initial_balance = mock_dex_asset.balanceOf(user_wallet)
     
@@ -169,7 +169,7 @@ def test_add_collateral_multiple_deposits(setupDebtTest, user_wallet, bob, mock_
 def test_remove_collateral_basic(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test basic remove collateral functionality"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # First add some collateral
     add_amount = 300 * EIGHTEEN_DECIMALS
@@ -220,7 +220,7 @@ def test_remove_collateral_basic(setupDebtTest, user_wallet, bob, mock_dex_asset
 def test_remove_collateral_partial(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test removing partial collateral"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # First add some collateral
     add_amount = 500 * EIGHTEEN_DECIMALS
@@ -253,7 +253,7 @@ def test_remove_collateral_partial(setupDebtTest, user_wallet, bob, mock_dex_ass
 def test_add_remove_collateral_cycle(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test adding and removing collateral in cycles"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     initial_balance = mock_dex_asset.balanceOf(user_wallet)
     
@@ -285,7 +285,7 @@ def test_add_remove_collateral_cycle(setupDebtTest, user_wallet, bob, mock_dex_a
 def test_collateral_operations_update_storage(setupDebtTest, user_wallet, bob, mock_dex_asset):
     """Test that collateral operations properly update asset data storage"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Check initial storage
     initial_data = user_wallet.assetData(mock_dex_asset.address)
@@ -332,7 +332,7 @@ def test_collateral_operations_update_storage(setupDebtTest, user_wallet, bob, m
 def test_borrow_basic(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock_ripe):
     """Test basic borrow functionality"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1 per debt token
@@ -382,7 +382,7 @@ def test_borrow_basic(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock
 def test_borrow_multiple_times(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock_ripe):
     """Test borrowing multiple times accumulates debt"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1
@@ -435,7 +435,7 @@ def test_borrow_multiple_times(setupDebtTest, user_wallet, bob, mock_dex_debt_to
 def test_repay_debt_basic(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock_ripe):
     """Test basic debt repayment functionality"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1
@@ -489,7 +489,7 @@ def test_repay_debt_basic(setupDebtTest, user_wallet, bob, mock_dex_debt_token, 
 def test_repay_debt_max_value(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock_ripe):
     """Test repaying debt with MAX_UINT256 to repay entire balance"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1
@@ -528,7 +528,7 @@ def test_repay_debt_max_value(setupDebtTest, user_wallet, bob, mock_dex_debt_tok
 def test_borrow_repay_cycle(setupDebtTest, user_wallet, bob, mock_dex_debt_token, mock_ripe):
     """Test cycles of borrowing and repaying debt"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1
@@ -562,7 +562,7 @@ def test_borrow_repay_cycle(setupDebtTest, user_wallet, bob, mock_dex_debt_token
 def test_borrow_with_collateral_workflow(setupDebtTest, user_wallet, bob, mock_dex_asset, mock_dex_debt_token, mock_ripe):
     """Test typical workflow: add collateral, borrow against it, repay debt, remove collateral"""
     setupDebtTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set price for debt token
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $1

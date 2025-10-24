@@ -214,7 +214,7 @@ def test_vault_token_persistence(ledger, lego_aave_v3, alice, bob):
     # Verify persistence
     assert ledger.isRegisteredVaultToken(vault_token)
     vault_data = ledger.vaultTokens(vault_token)
-    assert vault_data.legoId == 1
+    assert vault_data.legoId == 1  # lego_ripe
     assert vault_data.underlyingAsset == underlying_asset
     assert vault_data.decimals == 18
     assert vault_data.isRebasing == True

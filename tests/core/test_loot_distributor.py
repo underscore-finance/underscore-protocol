@@ -102,7 +102,7 @@ def test_get_loot_distro_config_with_vault_registration(loot_distributor, ambass
     
     # Verify vault token registration
     vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
+    assert vault_token.legoId == 2
     assert vault_token.underlyingAsset == yield_underlying_token.address
     assert vault_token.decimals == yield_vault_token.decimals()
     
@@ -444,6 +444,7 @@ def test_add_loot_from_yield_profit_with_fee_and_bonus(loot_distributor, user_wa
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -514,6 +515,7 @@ def test_add_loot_from_yield_profit_no_bonus_insufficient_balance(loot_distribut
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -574,6 +576,7 @@ def test_add_loot_from_yield_profit_only_fee_no_bonus_config(loot_distributor, u
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -631,6 +634,7 @@ def test_add_loot_from_yield_profit_zero_fee_with_bonus(loot_distributor, user_w
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -686,6 +690,7 @@ def test_add_loot_from_yield_profit_with_price_per_share_change(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -756,7 +761,7 @@ def test_add_loot_from_yield_profit_eligible_asset_gets_bonus(loot_distributor, 
     
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -843,7 +848,7 @@ def test_add_loot_from_yield_profit_non_eligible_asset_no_bonus(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -936,6 +941,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_config(loot_distributor, use
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1083,7 +1089,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_no_ambassador(loot_distribut
         _altBonusAsset=undy_token.address,
     )
     
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Register vault token
     deposit_amount = 1_000 * EIGHTEEN_DECIMALS
@@ -1146,6 +1152,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_insufficient_balance(loot_di
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1226,6 +1233,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_reservation(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1302,6 +1310,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_limits_bonuses(loot_distribu
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1374,6 +1383,7 @@ def test_add_loot_from_yield_profit_vault_token_bonus(loot_distributor, user_wal
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1432,6 +1442,7 @@ def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_w
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1509,6 +1520,7 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1632,6 +1644,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     
     setAssetConfig(
         charlie_token_vault,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1677,6 +1690,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     
     setAssetConfig(
         delta_token_vault,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig2,
     )
@@ -3214,7 +3228,7 @@ def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, 
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3267,7 +3281,7 @@ def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_com
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3358,7 +3372,7 @@ def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_comma
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3609,6 +3623,7 @@ def test_ripe_token_yield_bonus_user_only(loot_distributor, yield_vault_token, y
     # Set asset config for vault token
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _yieldConfig=yieldConfig,
     )
     
@@ -3690,6 +3705,7 @@ def test_ripe_token_yield_bonus_ambassador_zero_rev_share(loot_distributor, user
     # Set asset config
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )

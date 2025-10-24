@@ -39,7 +39,7 @@ def setupSwapTest(user_wallet, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt
 def test_swap_tokens_basic(setupSwapTest, user_wallet, bob, mock_dex_asset, mock_dex_asset_alt):
     """Test basic token swap functionality"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Prepare swap instruction
     swap_amount = 100 * EIGHTEEN_DECIMALS
@@ -78,14 +78,14 @@ def test_swap_tokens_basic(setupSwapTest, user_wallet, bob, mock_dex_asset, mock
     assert log.amount1 == swap_amount
     assert log.amount2 == swap_amount
     assert log.usdValue == usdValue
-    assert log.legoId == 2
+    assert log.legoId == 3
     assert log.signer == bob
 
 
 def test_swap_tokens_max_amount(setupSwapTest, user_wallet, bob, mock_dex_asset, mock_dex_asset_alt):
     """Test swapping with max_value to swap entire balance"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Get current balance
     current_balance = mock_dex_asset.balanceOf(user_wallet)
@@ -111,7 +111,7 @@ def test_swap_tokens_max_amount(setupSwapTest, user_wallet, bob, mock_dex_asset,
 def test_swap_tokens_multi_instruction(setupSwapTest, user_wallet, bob, mock_dex_asset, mock_dex_asset_alt):
     """Test swapping with multiple instructions (chained swaps)"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # First swap some asset to alt
     swap_amount_1 = 50 * EIGHTEEN_DECIMALS
@@ -160,7 +160,7 @@ def test_swap_tokens_multi_instruction(setupSwapTest, user_wallet, bob, mock_dex
 def test_swap_updates_asset_data(setupSwapTest, user_wallet, bob, mock_dex_asset, mock_dex_asset_alt):
     """Test that swap properly updates asset data in storage"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Check initial asset data
     initial_asset_data = user_wallet.assetData(mock_dex_asset.address)
@@ -200,7 +200,7 @@ def test_swap_updates_asset_data(setupSwapTest, user_wallet, bob, mock_dex_asset
 def test_mint_redeem_asset_immediate(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt):
     """Test immediate mint/redeem functionality"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set immediate mint/redeem mode
     mock_dex_lego.setImmediateMintOrRedeem(True)
@@ -252,7 +252,7 @@ def test_mint_redeem_asset_immediate(setupSwapTest, user_wallet, bob, mock_dex_l
 def test_mint_redeem_asset_pending(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt):
     """Test pending mint/redeem that requires confirmation"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set pending mint/redeem mode (not immediate)
     mock_dex_lego.setImmediateMintOrRedeem(False)
@@ -326,7 +326,7 @@ def test_mint_redeem_asset_pending(setupSwapTest, user_wallet, bob, mock_dex_leg
 def test_mint_redeem_with_max_value(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt):
     """Test minting with MAX_UINT256 to use entire balance"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set immediate mode for simplicity
     mock_dex_lego.setImmediateMintOrRedeem(True)
@@ -355,7 +355,7 @@ def test_mint_redeem_with_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
 def test_redeem_asset_back_to_original(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt):
     """Test redeeming alt tokens back to original asset tokens"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set immediate mode
     mock_dex_lego.setImmediateMintOrRedeem(True)
@@ -410,7 +410,7 @@ def test_redeem_asset_back_to_original(setupSwapTest, user_wallet, bob, mock_dex
 def test_add_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
     """Test basic add liquidity functionality"""
     setupSwapTest()
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Set LP token price
     mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)  # $5 per LP token
@@ -468,7 +468,7 @@ def test_add_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, moc
 def test_add_liquidity_single_sided(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
     """Test adding liquidity with only one token"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     # Set LP token price
     mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)
@@ -500,7 +500,7 @@ def test_add_liquidity_single_sided(setupSwapTest, user_wallet, bob, mock_dex_le
 def test_add_liquidity_max_values(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
     """Test adding liquidity with MAX_UINT256 to use entire balances"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     # Get current balances
     asset_balance = mock_dex_asset.balanceOf(user_wallet)
@@ -531,7 +531,7 @@ def test_add_liquidity_max_values(setupSwapTest, user_wallet, bob, mock_dex_lego
 def test_remove_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
     """Test basic remove liquidity functionality"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     # First add liquidity to get LP tokens
     amount_a = 100 * EIGHTEEN_DECIMALS
@@ -592,7 +592,7 @@ def test_remove_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, 
 def test_remove_liquidity_max_value(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
     """Test removing all liquidity with MAX_UINT256"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     # First add liquidity
     lp_received, _, _, _ = user_wallet.addLiquidity(
@@ -629,7 +629,7 @@ def test_remove_liquidity_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
 def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token):
     """Test multiple add/remove liquidity cycles"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     initial_asset = mock_dex_asset.balanceOf(user_wallet)
     initial_alt = mock_dex_asset_alt.balanceOf(user_wallet)
@@ -691,7 +691,7 @@ def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_le
 def test_liquidity_operations_update_storage(setupSwapTest, user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_dex_asset_alt, mock_dex_lp_token, mock_ripe):
     """Test that liquidity operations properly update asset storage"""
     setupSwapTest()
-    lego_id = 2
+    lego_id = 3
     
     # Set LP token price
     mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)

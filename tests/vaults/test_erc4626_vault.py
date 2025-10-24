@@ -1771,7 +1771,7 @@ def test_redeem_with_min_amount_out_with_yield_positions(
     yield_underlying_token.transfer(undy_usd_vault.address, vault_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         vault_deposit,

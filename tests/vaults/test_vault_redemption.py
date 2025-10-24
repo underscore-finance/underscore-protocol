@@ -11,7 +11,7 @@ def prepareVaultWithYield(undy_usd_vault, yield_underlying_token, yield_underlyi
         yield_underlying_token.transfer(undy_usd_vault.address, _deposit_amount, sender=yield_underlying_token_whale)
 
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             _deposit_amount,
@@ -267,7 +267,7 @@ def test_redemption_multiple_positions_sequential(undy_usd_vault, yield_underlyi
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -275,7 +275,7 @@ def test_redemption_multiple_positions_sequential(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -307,7 +307,7 @@ def test_redemption_target_reached_mid_loop(undy_usd_vault, yield_underlying_tok
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -315,7 +315,7 @@ def test_redemption_target_reached_mid_loop(undy_usd_vault, yield_underlying_tok
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -347,7 +347,7 @@ def test_redemption_skip_empty_positions(undy_usd_vault, yield_underlying_token,
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2 + deposit_3, sender=yield_underlying_token_whale)
 
     _, _, vault_tokens_1, _ = undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -355,7 +355,7 @@ def test_redemption_skip_empty_positions(undy_usd_vault, yield_underlying_token,
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -363,7 +363,7 @@ def test_redemption_skip_empty_positions(undy_usd_vault, yield_underlying_token,
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_3,
@@ -371,7 +371,7 @@ def test_redemption_skip_empty_positions(undy_usd_vault, yield_underlying_token,
     )
 
     undy_usd_vault.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         vault_tokens_1,
         sender=starter_agent.address
@@ -404,7 +404,7 @@ def test_redemption_deregister_multiple_positions(undy_usd_vault, yield_underlyi
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2 + deposit_3, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -412,7 +412,7 @@ def test_redemption_deregister_multiple_positions(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -420,7 +420,7 @@ def test_redemption_deregister_multiple_positions(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_3,
@@ -458,7 +458,7 @@ def test_redemption_large_amount_multiple_positions(undy_usd_vault, yield_underl
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2 + deposit_3, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -466,7 +466,7 @@ def test_redemption_large_amount_multiple_positions(undy_usd_vault, yield_underl
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -474,7 +474,7 @@ def test_redemption_large_amount_multiple_positions(undy_usd_vault, yield_underl
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_3,
@@ -601,7 +601,7 @@ def test_biggest_position_withdrawn_first_two_positions(undy_usd_vault, yield_un
 
     # First position (smaller)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -610,7 +610,7 @@ def test_biggest_position_withdrawn_first_two_positions(undy_usd_vault, yield_un
 
     # Second position (larger)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -654,7 +654,7 @@ def test_biggest_position_withdrawn_first_three_positions(undy_usd_vault, yield_
 
     # First position (medium)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         medium_deposit,
@@ -663,7 +663,7 @@ def test_biggest_position_withdrawn_first_three_positions(undy_usd_vault, yield_
 
     # Second position (small)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         small_deposit,
@@ -672,7 +672,7 @@ def test_biggest_position_withdrawn_first_three_positions(undy_usd_vault, yield_
 
     # Third position (large - biggest)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         large_deposit,
@@ -719,7 +719,7 @@ def test_biggest_position_exhausted_then_next_positions(undy_usd_vault, yield_un
 
     # First position (small)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -728,7 +728,7 @@ def test_biggest_position_exhausted_then_next_positions(undy_usd_vault, yield_un
 
     # Second position (medium)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         medium_deposit,
@@ -737,7 +737,7 @@ def test_biggest_position_exhausted_then_next_positions(undy_usd_vault, yield_un
 
     # Third position (large - biggest)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         large_deposit,
@@ -782,7 +782,7 @@ def test_biggest_position_identified_correctly_with_equal_sizes(undy_usd_vault, 
 
     # First position
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -791,7 +791,7 @@ def test_biggest_position_identified_correctly_with_equal_sizes(undy_usd_vault, 
 
     # Second position (same size)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -837,7 +837,7 @@ def test_biggest_position_withdrawal_order_matters(undy_usd_vault, yield_underly
 
     # Register in order: medium, large, small
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         medium_deposit,
@@ -845,7 +845,7 @@ def test_biggest_position_withdrawal_order_matters(undy_usd_vault, yield_underly
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -853,7 +853,7 @@ def test_biggest_position_withdrawal_order_matters(undy_usd_vault, yield_underly
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         small_deposit,
@@ -898,7 +898,7 @@ def test_biggest_position_not_withdrawn_twice(undy_usd_vault, yield_underlying_t
     yield_underlying_token.transfer(undy_usd_vault.address, small_deposit + large_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -906,7 +906,7 @@ def test_biggest_position_not_withdrawn_twice(undy_usd_vault, yield_underlying_t
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -949,7 +949,7 @@ def test_biggest_position_exact_amount_withdrawal(undy_usd_vault, yield_underlyi
     yield_underlying_token.transfer(undy_usd_vault.address, small_deposit + large_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -957,7 +957,7 @@ def test_biggest_position_exact_amount_withdrawal(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -1005,7 +1005,7 @@ def test_biggest_position_with_buffer_calculation(undy_usd_vault, yield_underlyi
     yield_underlying_token.transfer(undy_usd_vault.address, small_deposit + large_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -1013,7 +1013,7 @@ def test_biggest_position_with_buffer_calculation(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -1046,7 +1046,7 @@ def test_biggest_position_fully_drained_and_deregistered(undy_usd_vault, yield_u
     yield_underlying_token.transfer(undy_usd_vault.address, small_deposit + large_deposit, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -1054,7 +1054,7 @@ def test_biggest_position_fully_drained_and_deregistered(undy_usd_vault, yield_u
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
