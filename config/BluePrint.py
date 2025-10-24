@@ -17,6 +17,14 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip BTC",
         "symbol": "undyBTC",
     },
+    "EURC": {
+        "name": "Underscore Blue Chip EURC",
+        "symbol": "undyEURC",
+    },
+    "AERO": {
+        "name": "Underscore Blue Chip AERO",
+        "symbol": "undyAERO",
+    },
 }
 
 PARAMS = {
