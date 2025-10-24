@@ -1363,3 +1363,479 @@ def test_multiple_flag_changes(
     assert undy_usd_vault.balanceOf(bob) == 0
 
 
+#################################
+# depositWithMinAmountOut Tests #
+#################################
+
+
+def test_deposit_with_min_amount_out_success(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test depositWithMinAmountOut succeeds when shares exceed minimum"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+
+    # Preview how many shares we'll get
+    expected_shares = undy_usd_vault.previewDeposit(deposit_amount)
+
+    # Set minAmountOut to 90% of expected shares
+    min_shares = expected_shares * 90 // 100
+
+    # Deposit should succeed
+    shares = undy_usd_vault.depositWithMinAmountOut(
+        deposit_amount,
+        min_shares,
+        bob,
+        sender=yield_underlying_token_whale
+    )
+
+    assert shares >= min_shares
+    assert shares == expected_shares
+    assert undy_usd_vault.balanceOf(bob) == shares
+
+
+def test_deposit_with_min_amount_out_exact_match(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test depositWithMinAmountOut succeeds when shares exactly match minimum"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    expected_shares = undy_usd_vault.previewDeposit(deposit_amount)
+
+    # Set minAmountOut to exact expected shares
+    shares = undy_usd_vault.depositWithMinAmountOut(
+        deposit_amount,
+        expected_shares,
+        bob,
+        sender=yield_underlying_token_whale
+    )
+
+    assert shares == expected_shares
+    assert undy_usd_vault.balanceOf(bob) == shares
+
+
+def test_deposit_with_min_amount_out_failure(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+    governance,
+):
+    """Test depositWithMinAmountOut fails when shares < minAmountOut (slippage protection)"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit to establish share price
+    initial_deposit = 100 * EIGHTEEN_DECIMALS
+    undy_usd_vault.deposit(initial_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Simulate profit to inflate share price (fewer shares per asset)
+    profit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
+
+    # Now try to deposit with minAmountOut set too high (expecting old share price)
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    expected_shares = undy_usd_vault.previewDeposit(deposit_amount)
+
+    # Set minAmountOut higher than what we'll actually get
+    unrealistic_min = expected_shares * 2
+
+    # Should fail with slippage protection
+    with boa.reverts("insufficient shares"):
+        undy_usd_vault.depositWithMinAmountOut(
+            deposit_amount,
+            unrealistic_min,
+            bob,
+            sender=yield_underlying_token_whale
+        )
+
+
+def test_deposit_with_min_amount_out_zero(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test depositWithMinAmountOut with zero minAmountOut behaves like regular deposit"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+
+    # Deposit with minAmountOut = 0 should work like regular deposit
+    shares = undy_usd_vault.depositWithMinAmountOut(
+        deposit_amount,
+        0,
+        bob,
+        sender=yield_underlying_token_whale
+    )
+
+    assert shares > 0
+    assert shares == undy_usd_vault.previewDeposit(deposit_amount)
+    assert undy_usd_vault.balanceOf(bob) == shares
+
+
+def test_deposit_with_min_amount_out_after_share_price_increase(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+    sally,
+    governance,
+):
+    """Test depositWithMinAmountOut protects against share price manipulation"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Bob makes initial deposit
+    initial_deposit = 1000 * EIGHTEEN_DECIMALS
+    initial_shares = undy_usd_vault.deposit(initial_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Record share price
+    initial_share_price = undy_usd_vault.convertToAssets(EIGHTEEN_DECIMALS)
+
+    # Simulate large profit (doubles the assets)
+    profit = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.mint(yield_underlying_token_whale, profit, sender=governance.address)
+    yield_underlying_token.transfer(undy_usd_vault, profit, sender=yield_underlying_token_whale)
+
+    # Share price should have increased
+    new_share_price = undy_usd_vault.convertToAssets(EIGHTEEN_DECIMALS)
+    assert new_share_price > initial_share_price
+
+    # Sally tries to deposit with minAmountOut based on old share price
+    sally_deposit = 100 * EIGHTEEN_DECIMALS
+    actual_shares = undy_usd_vault.previewDeposit(sally_deposit)
+
+    # Set minAmountOut based on old share price (would expect more shares)
+    old_price_shares = sally_deposit * EIGHTEEN_DECIMALS // initial_share_price
+
+    # Should fail because share price increased (fewer shares per asset)
+    with boa.reverts("insufficient shares"):
+        undy_usd_vault.depositWithMinAmountOut(
+            sally_deposit,
+            old_price_shares,
+            sally,
+            sender=yield_underlying_token_whale
+        )
+
+    # But should succeed with realistic minAmountOut
+    realistic_min = actual_shares * 95 // 100  # 95% of expected
+    shares = undy_usd_vault.depositWithMinAmountOut(
+        sally_deposit,
+        realistic_min,
+        sally,
+        sender=yield_underlying_token_whale
+    )
+    assert shares >= realistic_min
+
+
+def test_deposit_with_min_amount_out_max_value_assets(
+    undy_usd_vault,
+    yield_underlying_token,
+    sally,
+    governance,
+):
+    """Test depositWithMinAmountOut with max_value(uint256) for assets parameter"""
+    # Mint tokens to sally
+    mint_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.mint(sally, mint_amount, sender=governance.address)
+
+    # Approve the vault
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=sally)
+
+    # Deposit with max_value - should use all available tokens
+    expected_shares = undy_usd_vault.previewDeposit(mint_amount)
+    min_shares = expected_shares * 95 // 100
+
+    shares = undy_usd_vault.depositWithMinAmountOut(
+        MAX_UINT256,
+        min_shares,
+        sally,
+        sender=sally
+    )
+
+    assert shares >= min_shares
+    assert yield_underlying_token.balanceOf(sally) == 0  # All tokens used
+    assert undy_usd_vault.balanceOf(sally) == shares
+
+
+################################
+# redeemWithMinAmountOut Tests #
+################################
+
+
+def test_redeem_with_min_amount_out_success(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test redeemWithMinAmountOut succeeds when assets exceed minimum"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Preview how many assets we'll get back
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+
+    # Set minAmountOut to 90% of expected assets
+    min_assets = expected_assets * 90 // 100
+
+    # Redeem should succeed
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        shares,
+        min_assets,
+        bob,
+        bob,
+        sender=bob
+    )
+
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    assert assets >= min_assets
+    assert bob_balance_after - bob_balance_before == assets
+    assert undy_usd_vault.balanceOf(bob) == 0
+
+
+def test_redeem_with_min_amount_out_exact_match(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test redeemWithMinAmountOut succeeds when assets exactly match minimum"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Preview expected assets
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+
+    # Set minAmountOut to exact expected assets
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        shares,
+        expected_assets,
+        bob,
+        bob,
+        sender=bob
+    )
+
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    assert assets == expected_assets
+    assert bob_balance_after - bob_balance_before == assets
+
+
+def test_redeem_with_min_amount_out_failure(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+    sally,
+):
+    """Test redeemWithMinAmountOut fails when actualAmount < minAmountOut"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Simulate loss by transferring assets out (simulating bad investment)
+    loss = 20 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(sally, loss, sender=undy_usd_vault.address)
+
+    # Preview how many assets we'll actually get (should be less due to loss)
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+
+    # Set minAmountOut higher than what we'll get (expecting no loss)
+    unrealistic_min = deposit_amount  # Expecting full deposit back
+
+    # Should fail with slippage protection
+    with boa.reverts("insufficient amount out"):
+        undy_usd_vault.redeemWithMinAmountOut(
+            shares,
+            unrealistic_min,
+            bob,
+            bob,
+            sender=bob
+        )
+
+
+def test_redeem_with_min_amount_out_zero(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test redeemWithMinAmountOut with zero minAmountOut uses default buffer check"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Redeem with minAmountOut = 0 should use default _isRedemptionCloseEnough check
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        shares,
+        0,
+        bob,
+        bob,
+        sender=bob
+    )
+
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    assert assets > 0
+    assert bob_balance_after - bob_balance_before == assets
+    assert undy_usd_vault.balanceOf(bob) == 0
+
+
+def test_redeem_with_min_amount_out_after_loss(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+    sally,
+):
+    """Test redeemWithMinAmountOut when vault has losses (fewer assets per share)"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Bob deposits
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Record share price
+    initial_asset_per_share = undy_usd_vault.convertToAssets(EIGHTEEN_DECIMALS)
+
+    # Simulate loss (e.g., bad investment)
+    loss = 200 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(sally, loss, sender=undy_usd_vault.address)
+
+    # Asset per share should have decreased
+    new_asset_per_share = undy_usd_vault.convertToAssets(EIGHTEEN_DECIMALS)
+    assert new_asset_per_share < initial_asset_per_share
+
+    # Try to redeem with minAmountOut based on old share price
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+    old_price_assets = shares * initial_asset_per_share // EIGHTEEN_DECIMALS
+
+    # Should fail because of the loss
+    with boa.reverts("insufficient amount out"):
+        undy_usd_vault.redeemWithMinAmountOut(
+            shares,
+            old_price_assets,
+            bob,
+            bob,
+            sender=bob
+        )
+
+    # But should succeed with realistic minAmountOut
+    realistic_min = expected_assets * 95 // 100  # 95% of expected
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        shares,
+        realistic_min,
+        bob,
+        bob,
+        sender=bob
+    )
+    assert assets >= realistic_min
+
+
+def test_redeem_with_min_amount_out_with_yield_positions(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    yield_vault_token,
+    starter_agent,
+    bob,
+):
+    """Test redeemWithMinAmountOut with active yield positions (slippage scenarios)"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # Setup: Put funds into yield
+    vault_deposit = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, vault_deposit, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        vault_deposit,
+        sender=starter_agent.address
+    )
+
+    # User deposits
+    user_deposit = 100 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(user_deposit, bob, sender=yield_underlying_token_whale)
+
+    # Preview redemption - will need to withdraw from yield
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+
+    # Set reasonable minAmountOut (accounting for potential slippage from yield withdrawal)
+    # Use 98% to allow for small rounding differences
+    min_assets = expected_assets * 98 // 100
+
+    # Should succeed even though we need to withdraw from yield position
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        shares,
+        min_assets,
+        bob,
+        bob,
+        sender=bob
+    )
+
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    assert assets >= min_assets
+    assert bob_balance_after - bob_balance_before == assets
+
+
+def test_redeem_with_min_amount_out_max_value_shares(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test redeemWithMinAmountOut with max_value(uint256) for shares parameter"""
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=yield_underlying_token_whale)
+
+    # First deposit
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    shares = undy_usd_vault.deposit(deposit_amount, bob, sender=yield_underlying_token_whale)
+
+    # Preview what we'll get back
+    expected_assets = undy_usd_vault.previewRedeem(shares)
+    min_assets = expected_assets * 95 // 100
+
+    # Redeem with max_value - should redeem all shares
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets = undy_usd_vault.redeemWithMinAmountOut(
+        MAX_UINT256,
+        min_assets,
+        bob,
+        bob,
+        sender=bob
+    )
+
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    assert assets >= min_assets
+    assert bob_balance_after - bob_balance_before == assets
+    assert undy_usd_vault.balanceOf(bob) == 0  # All shares redeemed
+
+
