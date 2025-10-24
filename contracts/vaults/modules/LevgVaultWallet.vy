@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
@@ -46,7 +47,7 @@ struct VaultActionData:
     legoId: uint256
     legoAddr: address
 
-event EarnVaultAction:
+event LevgVaultAction:
     op: uint8
     asset1: indexed(address)
     asset2: indexed(address)
@@ -213,7 +214,7 @@ def _depositForYield(
     if _ad.legoId != 0 and self.vaultToLegoId[vaultToken] == 0:
         self.vaultToLegoId[vaultToken] = _ad.legoId
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 10,
         asset1 = _asset,
         asset2 = vaultToken,
@@ -262,7 +263,7 @@ def _withdrawFromYield(
     vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 11,
         asset1 = _vaultToken,
         asset2 = underlyingAsset,
@@ -280,54 +281,54 @@ def _withdrawFromYield(
 ###################
 
 
-@external
-def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
-    tokenIn: address = empty(address)
-    tokenOut: address = empty(address)
-    legoIds: DynArray[uint256, MAX_LEGOS] = []
-    tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
+# @external
+# def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
+#     tokenIn: address = empty(address)
+#     tokenOut: address = empty(address)
+#     legoIds: DynArray[uint256, MAX_LEGOS] = []
+#     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+#     ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
-    # important checks!
-    leverageVaultToken: address = self.leverageVaultToken
-    savingsGreen: address = SAVINGS_GREEN
-    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
+#     # important checks!
+#     leverageVaultToken: address = self.leverageVaultToken
+#     savingsGreen: address = SAVINGS_GREEN
+#     assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
 
-    # pre swap validation
-    green: address = GREEN
-    usdc: address = USDC
-    origAmountIn: uint256 = self._preSwapValidation(tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, green, savingsGreen, usdc, leverageVaultToken, ad.legoBook)
+#     # pre swap validation
+#     green: address = GREEN
+#     usdc: address = USDC
+#     origAmountIn: uint256 = self._preSwapValidation(tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, green, savingsGreen, usdc, leverageVaultToken, ad.legoBook)
 
-    amountIn: uint256 = origAmountIn
-    lastTokenOut: address = empty(address)
-    lastTokenOutAmount: uint256 = 0
-    maxTxUsdValue: uint256 = 0
+#     amountIn: uint256 = origAmountIn
+#     lastTokenOut: address = empty(address)
+#     lastTokenOutAmount: uint256 = 0
+#     maxTxUsdValue: uint256 = 0
 
-    # perform swaps
-    for i: wi.SwapInstruction in _instructions:
-        if lastTokenOut != empty(address):
-            newTokenIn: address = i.tokenPath[0]
-            assert lastTokenOut == newTokenIn # dev: path
-            amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
+#     # perform swaps
+#     for i: wi.SwapInstruction in _instructions:
+#         if lastTokenOut != empty(address):
+#             newTokenIn: address = i.tokenPath[0]
+#             assert lastTokenOut == newTokenIn # dev: path
+#             amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
         
-        thisTxUsdValue: uint256 = 0
-        lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
-        maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+#         thisTxUsdValue: uint256 = 0
+#         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
+#         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
-    # post swap validation
-    self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc, ad.legoBook)
+#     # post swap validation
+#     self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc, ad.legoBook)
 
-    log EarnVaultAction(
-        op = 20,
-        asset1 = tokenIn,
-        asset2 = lastTokenOut,
-        amount1 = origAmountIn,
-        amount2 = lastTokenOutAmount,
-        usdValue = maxTxUsdValue,
-        legoId = ad.legoId, # using just the first lego used
-        signer = ad.signer,
-    )
-    return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
+#     log LevgVaultAction(
+#         op = 20,
+#         asset1 = tokenIn,
+#         asset2 = lastTokenOut,
+#         amount1 = origAmountIn,
+#         amount2 = lastTokenOutAmount,
+#         usdValue = maxTxUsdValue,
+#         legoId = ad.legoId, # using just the first lego used
+#         signer = ad.signer,
+#     )
+#     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
 
 @internal
@@ -521,7 +522,7 @@ def _addCollateral(
     amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 40,
         asset1 = _asset,
         asset2 = empty(address),
@@ -562,7 +563,7 @@ def _removeCollateral(
     txUsdValue: uint256 = 0
     amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 41,
         asset1 = _asset,
         asset2 = empty(address),
@@ -593,7 +594,7 @@ def borrow(
     txUsdValue: uint256 = 0
     borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 42,
         asset1 = _borrowAsset,
         asset2 = empty(address),
@@ -636,7 +637,7 @@ def _repayDebt(
     repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_paymentAsset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 43,
         asset1 = _paymentAsset,
         asset2 = empty(address),
@@ -671,7 +672,7 @@ def claimRewards(
     txUsdValue: uint256 = 0
     rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    log EarnVaultAction(
+    log LevgVaultAction(
         op = 50,
         asset1 = _rewardToken,
         asset2 = ad.legoAddr,

@@ -677,3 +677,54 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
     vault_registry.setPerformanceFee(vault.address, 0, sender=switchboard_alpha.address)
 
     return vault
+
+
+###################
+# Leverage Vaults #
+###################
+
+
+# usdc leverage vault
+
+
+@pytest.fixture(scope="session")
+def undy_levg_vault_local(undy_hq, mock_usdc_collateral_vault, mock_usdc_leverage_vault, vault_registry, governance, fork, starter_agent, mock_usdc, mock_green_token, mock_savings_green_token):
+    vault = boa.load(
+        "contracts/vaults/LevgVault.vy",
+        mock_usdc.address,
+        "dd",
+        "ddddd",
+        undy_hq,
+        mock_usdc_collateral_vault.address,
+        2,
+        mock_usdc_leverage_vault.address,
+        2,
+        mock_usdc.address,
+        mock_green_token.address,
+        mock_savings_green_token.address,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="undy_levg_vault_local",
+    )
+
+    # Register vault in VaultRegistry (requires governance from undy_hq after finishUndyHqSetup)
+    vault_registry.startAddNewAddressToRegistry(vault.address, "Undy Levg Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+
+    # confirmNewAddressToRegistry now auto-initializes vault config
+    vault_registry.confirmNewAddressToRegistry(
+        vault.address,
+        [], # doesn't matter for leverage vault
+        0,  # maxDepositAmount (0 = unlimited)
+        100_000_000_000, # doesn't matter for leverage vault
+        0, # doesn't matter for leverage vault
+        ZERO_ADDRESS, # doesn't matter for leverage vault
+        True, # shouldAutoDeposit
+        True, # canDeposit
+        True, # canWithdraw
+        False, # isVaultOpsFrozen
+        2_00, # redemptionBuffer (2%)
+        sender=governance.address
+    )
+    return vault

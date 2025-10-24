@@ -357,3 +357,21 @@ def mock_ripe_token(governance, whale):
     ripe_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token", "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
     ripe_token.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
     return ripe_token
+
+
+# leverage vault mock fixtures
+
+
+@pytest.fixture(scope="session")
+def mock_usdc(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock USDC", "MOCK USDC", 18, 1_000_000_000, name="mock_usdc")
+
+
+@pytest.fixture(scope="session")
+def mock_usdc_leverage_vault(mock_usdc):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", mock_usdc, name="mock_usdc_leverage_vault")
+
+
+@pytest.fixture(scope="session")
+def mock_usdc_collateral_vault(mock_usdc):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", mock_usdc, name="mock_usdc_collateral_vault")
