@@ -52,9 +52,10 @@ def lego_tools(
 
 
 @pytest.fixture(scope="session")
-def lego_ripe(mock_ripe, fork, undy_hq_deploy):
+def lego_ripe(mock_ripe, fork, undy_hq_deploy, mock_usdc):
     RIPE_REGISTRY = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-    return boa.load("contracts/legos/RipeLego.vy", undy_hq_deploy, RIPE_REGISTRY, name="lego_ripe")
+    USDC = mock_usdc if fork == "local" else TOKENS[fork]["USDC"]
+    return boa.load("contracts/legos/RipeLego.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="lego_ripe")
 
 
 #######################

@@ -19,6 +19,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 implements: Lego
 implements: YieldLego
@@ -84,6 +85,9 @@ interface CreditEngine:
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
+interface EarnVault:
+    def vaultToLegoId(_vaultAddr: address) -> uint256: view
+
 event RipeCollateralDeposit:
     sender: indexed(address)
     asset: indexed(address)
@@ -139,11 +143,22 @@ event RipeSavingsGreenWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+event UsdcSlippageAllowedSet:
+    slippage: uint256
+
+event GreenSlippageAllowedSet:
+    slippage: uint256
+
+# slippage settings
+usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
+greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
+
 # ripe addrs
 RIPE_REGISTRY: public(immutable(address))
 RIPE_GREEN_TOKEN: public(immutable(address))
 RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
+USDC: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
@@ -153,10 +168,11 @@ RIPE_TELLER_ID: constant(uint256) = 17
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
+HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
 
 
 @deploy
-def __init__(_undyHq: address, _ripeRegistry: address):
+def __init__(_undyHq: address, _ripeRegistry: address, _usdc: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
@@ -165,6 +181,13 @@ def __init__(_undyHq: address, _ripeRegistry: address):
     RIPE_GREEN_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).greenToken()
     RIPE_SAVINGS_GREEN = staticcall RipeRegistry(RIPE_REGISTRY).savingsGreen()
     RIPE_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).ripeToken()
+
+    assert _usdc != empty(address) # dev: invalid usdc
+    USDC = _usdc
+
+    # defaults
+    self.usdcSlippageAllowed = 1_00 # 1.00%
+    self.greenSlippageAllowed = 1_00 # 1.00%
 
 
 @view
@@ -1086,3 +1109,201 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
+
+
+##################
+# Leverage Vault #
+##################
+
+
+# pre swap validation
+
+
+@view
+@external
+def performPreSwapValidation(
+    _wallet: address,
+    _tokenIn: address,
+    _amountIn: uint256,
+    _tokenOut: address,
+    _vaultAsset: address,
+    _leverageVaultToken: address,
+) -> uint256:
+    currentBalance: uint256 = staticcall IERC20(_tokenIn).balanceOf(_wallet)
+
+    usdc: address = USDC
+    green: address = RIPE_GREEN_TOKEN
+
+    amountIn: uint256 = _amountIn
+    if _tokenIn == green:
+        assert _tokenOut == usdc  # dev: GREEN can only go to USDC
+    elif _tokenIn == usdc and _tokenOut != green:
+        assert _tokenOut == _vaultAsset  # dev: must swap into vault asset
+        amountIn = self._getSwappableUsdcAmount(_wallet, usdc, green, amountIn, currentBalance, _leverageVaultToken)
+
+    finalAmount: uint256 = min(amountIn, currentBalance)
+    assert finalAmount != 0  # dev: no amount to swap
+    return finalAmount
+
+
+@view
+@internal
+def _getSwappableUsdcAmount(
+    _wallet: address,
+    _usdc: address,
+    _green: address,
+    _amountIn: uint256,
+    _currentBalance: uint256,
+    _leverageVaultToken: address,
+) -> uint256:
+    ripeHq: address = RIPE_REGISTRY
+
+    # user debt amount
+    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
+    userDebtAmount: uint256 = self._getUserDebtAmount(_wallet, creditEngine) # 18 decimals
+    if userDebtAmount == 0:
+        return _amountIn
+
+    # other addrs
+    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    vaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    
+    # usdc balance
+    usdcAmount: uint256 = _currentBalance
+
+    # usdc on ripe protocol
+    ripeVaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_usdc)
+    if ripeVaultId != 0:
+        ripeDepositAddr: address = staticcall Registry(vaultBook).getAddr(ripeVaultId)
+        usdcAmount += self._getCollateralBalance(_wallet, _usdc, ripeDepositAddr)
+
+    # usdc via leverage vault
+    usdcAmount += self._getUnderlyingForLeverageToken(_leverageVaultToken, _wallet, mc, vaultBook) # 6 decimals
+
+    # get USD value
+    ripePriceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
+    usdcValue: uint256 = self._getUsdValue(_usdc, usdcAmount, True, ripePriceDesk) # 18 decimals
+
+    # green amount
+    greenSurplusAmount: uint256 = self._getUnderlyingGreenAmount(_wallet, _green, mc, vaultBook)
+    positiveValue: uint256 = greenSurplusAmount + usdcValue # treat green as $1 USD (most conservative, in this case)
+
+    # compare usd values
+    if userDebtAmount > positiveValue:
+        return 0
+
+    # calc asset amount
+    availUsdcAmount: uint256 = self._getAssetAmount(_usdc, positiveValue - userDebtAmount, True, ripePriceDesk) # 6 decimals
+    return min(availUsdcAmount, _amountIn)
+
+
+@view
+@internal
+def _getUnderlyingForLeverageToken(
+    _vaultToken: address,
+    _wallet: address,
+    _missionControl: address,
+    _vaultBook: address,
+) -> uint256:
+    if _vaultToken == empty(address):
+        return 0
+
+    vaultTokenAmount: uint256 = staticcall IERC20(_vaultToken).balanceOf(_wallet)
+
+    # ripe collateral
+    ripeVaultId: uint256 = staticcall RipeMissionControl(_missionControl).getFirstVaultIdForAsset(_vaultToken)
+    ripeDepositAddr: address = staticcall Registry(_vaultBook).getAddr(ripeVaultId)
+    vaultTokenAmount += self._getCollateralBalance(_wallet, _vaultToken, ripeDepositAddr)
+    if vaultTokenAmount == 0:
+        return 0
+
+    # calc underlying amount
+    underlyingAmount: uint256 = 0
+    legoId: uint256 = staticcall EarnVault(_wallet).vaultToLegoId(_vaultToken)
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(legoId)
+    if legoAddr != empty(address):
+        underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
+    
+    return underlyingAmount
+
+
+@view
+@internal
+def _getUnderlyingGreenAmount(_wallet: address, _green: address, _mc: address, _vaultBook: address) -> uint256:
+    greenAmount: uint256 = staticcall IERC20(_green).balanceOf(_wallet)
+
+    # savings green balance
+    savingsGreen: address = RIPE_SAVINGS_GREEN
+    savingsGreenAmount: uint256= staticcall IERC20(savingsGreen).balanceOf(_wallet)
+
+    # savings green on ripe protocol
+    ripeVaultId: uint256 = staticcall RipeMissionControl(_mc).getFirstVaultIdForAsset(savingsGreen)
+    ripeDepositAddr: address = staticcall Registry(_vaultBook).getAddr(ripeVaultId)
+    savingsGreenAmount += self._getCollateralBalance(_wallet, savingsGreen, ripeDepositAddr)
+
+    # calc underlying amount
+    if savingsGreenAmount != 0:
+        greenAmount += self._getUnderlyingAmount(savingsGreen, savingsGreenAmount)
+
+    return greenAmount
+
+
+# post swap validation
+
+
+@view
+@external
+def performPostSwapValidation(
+    _tokenIn: address,
+    _tokenInAmount: uint256,
+    _tokenOut: address,
+    _tokenOutAmount: uint256,
+) -> bool:
+    green: address = RIPE_GREEN_TOKEN
+    usdc: address = USDC
+
+    # GREEN -> USDC swap validation
+    if _tokenIn == green and _tokenOut == usdc:
+        slippage: uint256 = self.usdcSlippageAllowed
+
+        # Get USD value of USDC received (18 decimals)
+        ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+        usdcValue: uint256 = self._getUsdValue(usdc, _tokenOutAmount, True, ripePriceDesk)
+
+        # Minimum expected: greenAmount * (10000 - slippage) / 10000
+        # GREEN is 18 decimals and treated as $1 USD, so greenAmount = USD value
+        minExpected: uint256 = _tokenInAmount * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
+        return usdcValue >= minExpected
+
+    # USDC -> GREEN swap validation
+    elif _tokenIn == usdc and _tokenOut == green:
+        slippage: uint256 = self.greenSlippageAllowed
+
+        # Get USD value of USDC sent (18 decimals)
+        ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
+        usdcValue: uint256 = self._getUsdValue(usdc, _tokenInAmount, True, ripePriceDesk)
+
+        # Minimum expected: usdcValue * (10000 - slippage) / 10000
+        minExpected: uint256 = usdcValue * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
+        return _tokenOutAmount >= minExpected
+
+    return True
+
+
+# slippage settings
+
+
+@external
+def setUsdcSlippageAllowed(_slippage: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+    self.usdcSlippageAllowed = _slippage
+    log UsdcSlippageAllowedSet(slippage=_slippage)
+
+
+@external
+def setGreenSlippageAllowed(_slippage: uint256):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+    self.greenSlippageAllowed = _slippage
+    log GreenSlippageAllowedSet(slippage=_slippage)

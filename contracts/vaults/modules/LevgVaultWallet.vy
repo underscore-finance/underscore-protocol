@@ -11,6 +11,8 @@ from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
 
 interface RipeLego:
+    def performPreSwapValidation(_wallet: address, _tokenIn: address, _amountIn: uint256, _tokenOut: address, _vaultAsset: address, _leverageVaultToken: address) -> uint256: view
+    def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256) -> bool: view
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
     def getCollateralBalance(_user: address, _asset: address) -> uint256: view
@@ -63,21 +65,11 @@ event CollateralVaultTokenSet:
 event LeverageVaultTokenSet:
     leverageVaultToken: indexed(address)
 
-event UsdcSlippageAllowedSet:
-    slippage: uint256
-
-event GreenSlippageAllowedSet:
-    slippage: uint256
-
 vaultToLegoId: public(HashMap[address, uint256])
 
 # vault tokens
 collateralVaultToken: public(address) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)
 leverageVaultToken: public(address) # leverage yield - where borrowed GREEN → swapped USDC is deposited
-
-# slippage settings
-usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
-greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
 
 # managers
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -294,10 +286,9 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     savingsGreen: address = SAVINGS_GREEN
     assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
 
-    # pre swap validation
-    green: address = GREEN
-    usdc: address = USDC
-    origAmountIn: uint256 = self._preSwapValidation(tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, green, savingsGreen, usdc, leverageVaultToken, ad.legoBook)
+    # pre swap validation (via Ripe Lego)
+    ripeLegoAddr: address = staticcall Registry(ad.legoBook).getAddr(RIPE_LEGO_ID)
+    origAmountIn: uint256 = staticcall RipeLego(ripeLegoAddr).performPreSwapValidation(self, tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, leverageVaultToken)
 
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
@@ -310,13 +301,13 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
             newTokenIn: address = i.tokenPath[0]
             assert lastTokenOut == newTokenIn # dev: path
             amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
-        
+
         thisTxUsdValue: uint256 = 0
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
-    # post swap validation
-    self._postSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, green, usdc, ad.legoBook)
+    # post swap validation (via Ripe Lego)
+    assert staticcall RipeLego(ripeLegoAddr).performPostSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount) # dev: slippage
 
     log LevgVaultAction(
         op = 20,
@@ -379,107 +370,6 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
     assert empty(address) not in [tokenIn, tokenOut] # dev: path
     assert tokenIn != tokenOut # dev: same token
     return tokenIn, tokenOut, legoIds
-
-
-# swap validation (GREEN/USDC)
-
-
-@view
-@internal
-def _preSwapValidation(
-    _tokenIn: address,
-    _amountIn: uint256,
-    _tokenOut: address,
-    _vaultAsset: address,
-    _green: address,
-    _savingsGreen: address,
-    _usdc: address,
-    _leverageVaultToken: address,
-    _legoBook: address,
-) -> uint256:
-    currentBalance: uint256 = staticcall IERC20(_tokenIn).balanceOf(self)
-
-    amountIn: uint256 = _amountIn
-    if _tokenIn == _green:
-        assert _tokenOut == _usdc # dev: GREEN can only go to USDC
-    elif _tokenIn == _usdc and _tokenOut != _green:
-        assert _tokenOut == _vaultAsset # dev: must swap into vault asset
-        amountIn = self._getSwappableUsdcAmount(_usdc, _amountIn, currentBalance, _leverageVaultToken, _green, _savingsGreen, _legoBook)
-
-    finalAmount: uint256 = min(amountIn, currentBalance)
-    assert finalAmount != 0 # dev: no amount to swap
-    return finalAmount
-
-
-@view
-@internal
-def _getSwappableUsdcAmount(
-    _usdc: address,
-    _amountIn: uint256,
-    _currentBalance: uint256,
-    _leverageVaultToken: address,
-    _green: address,
-    _savingsGreen: address,
-    _legoBook: address,
-) -> uint256:
-    ripeLegoAddr: address = staticcall Registry(_legoBook).getAddr(RIPE_LEGO_ID)
-    userDebtAmount: uint256 = staticcall RipeLego(ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
-    if userDebtAmount == 0:
-        return _amountIn
-
-    # usdc balance
-    usdcAmount: uint256 = _currentBalance
-    usdcAmount += staticcall RipeLego(ripeLegoAddr).getCollateralBalance(self, _usdc)
-    usdcAmount += self._getUnderlyingAmount(_leverageVaultToken, _legoBook, ripeLegoAddr) # 6 decimals
-    usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
-
-    # green amount
-    greenSurplusAmount: uint256 = self._getTotalGreenAmount(_green, _savingsGreen, ripeLegoAddr)
-    positiveValue: uint256 = greenSurplusAmount + usdcValue # treat green as $1 USD (most conservative, in this case)
-
-    # compare usd values
-    if userDebtAmount > positiveValue:
-        return 0
-
-    availUsdcAmount: uint256 = staticcall RipeLego(ripeLegoAddr).getAssetAmount(_usdc, positiveValue - userDebtAmount, True) # 6 decimals
-    return min(availUsdcAmount, _amountIn)
-
-
-@view
-@internal
-def _postSwapValidation(
-    _tokenIn: address,
-    _tokenInAmount: uint256,
-    _tokenOut: address,
-    _tokenOutAmount: uint256,
-    _green: address,
-    _usdc: address,
-    _legoBook: address,
-):
-    # GREEN -> USDC swap validation
-    if _tokenIn == _green and _tokenOut == _usdc:
-        slippage: uint256 = self.usdcSlippageAllowed
-
-        # Get USD value of USDC received (18 decimals)
-        ripeLegoAddr: address = staticcall Registry(_legoBook).getAddr(RIPE_LEGO_ID)
-        usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, _tokenOutAmount, True)
-
-        # Minimum expected: greenAmount * (10000 - slippage) / 10000
-        # GREEN is 18 decimals and treated as $1 USD, so greenAmount = USD value
-        minExpected: uint256 = _tokenInAmount * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
-        assert usdcValue >= minExpected # dev: too much slippage
-
-    # USDC -> GREEN swap validation
-    elif _tokenIn == _usdc and _tokenOut == _green:
-        slippage: uint256 = self.greenSlippageAllowed
-
-        # Get USD value of USDC sent (18 decimals)
-        ripeLegoAddr: address = staticcall Registry(_legoBook).getAddr(RIPE_LEGO_ID)
-        usdcValue: uint256 = staticcall RipeLego(ripeLegoAddr).getUsdValue(_usdc, _tokenInAmount, True)
-
-        # Minimum expected: usdcValue * (10000 - slippage) / 10000
-        minExpected: uint256 = usdcValue * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
-        assert _tokenOutAmount >= minExpected # dev: too much slippage
 
 
 ###################
@@ -956,27 +846,6 @@ def setLeverageVault(_vaultToken: address, _legoId: uint256):
     # update state
     self.leverageVaultToken = _vaultToken
     log LeverageVaultTokenSet(leverageVaultToken = _vaultToken)
-
-
-#####################
-# Slippage Settings #
-#####################
-
-
-@external
-def setUsdcSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high
-    self.usdcSlippageAllowed = _slippage
-    log UsdcSlippageAllowedSet(slippage = _slippage)
-
-
-@external
-def setGreenSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high
-    self.greenSlippageAllowed = _slippage
-    log GreenSlippageAllowedSet(slippage = _slippage)
 
 
 ####################
