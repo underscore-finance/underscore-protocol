@@ -7,17 +7,15 @@ from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
 
-from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20
 
 interface RipeLego:
-    def performPreSwapValidation(_wallet: address, _tokenIn: address, _amountIn: uint256, _tokenOut: address, _vaultAsset: address, _leverageVaultToken: address) -> uint256: view
-    def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256) -> bool: view
-    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view
     def getCollateralBalance(_user: address, _asset: address) -> uint256: view
     def isSupportedRipeAsset(_asset: address) -> bool: view
-    def getUserDebtAmount(_user: address) -> uint256: view
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
@@ -26,7 +24,6 @@ interface VaultRegistry:
 
 interface YieldLego:
     def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256: view
-    def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
     def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
 
 interface MissionControl:
@@ -199,7 +196,6 @@ def _depositForYield(
 
     # GREEN must go into savings green
     elif _asset == GREEN:
-        ripeLegoAddr: address = staticcall Registry(_ad.legoBook).getAddr(RIPE_LEGO_ID)
         assert vaultToken == SAVINGS_GREEN # dev: vault token mismatch
 
     # first time, need to save lego mapping
@@ -281,14 +277,36 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
-    # important checks!
-    leverageVaultToken: address = self.leverageVaultToken
+    # key addresses
+    usdc: address = USDC
+    green: address = GREEN
     savingsGreen: address = SAVINGS_GREEN
-    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
-
-    # pre swap validation (via Ripe Lego)
+    leverageVaultToken: address = self.leverageVaultToken
     ripeLegoAddr: address = staticcall Registry(ad.legoBook).getAddr(RIPE_LEGO_ID)
-    origAmountIn: uint256 = staticcall RipeLego(ripeLegoAddr).performPreSwapValidation(self, tokenIn, _instructions[0].amountIn, tokenOut, ad.vaultAsset, leverageVaultToken)
+
+    origAmountIn: uint256 = _instructions[0].amountIn
+    currentBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
+
+    # important checks!
+    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
+    if tokenIn == green:
+        assert tokenOut == usdc  # dev: GREEN can only go to USDC
+    elif tokenIn == usdc and tokenOut != green:
+        assert tokenOut == ad.vaultAsset  # dev: must swap into vault asset
+        origAmountIn = staticcall RipeLego(ripeLegoAddr).getSwappableUsdcAmount(
+            self,
+            origAmountIn,
+            currentBalance,
+            leverageVaultToken,
+            self.vaultToLegoId[leverageVaultToken],
+            usdc,
+            green,
+            savingsGreen,
+            ad.legoBook,
+        )
+
+    origAmountIn = min(origAmountIn, currentBalance)
+    assert origAmountIn != 0  # dev: no amount to swap
 
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
@@ -306,8 +324,9 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
-    # post swap validation (via Ripe Lego)
-    assert staticcall RipeLego(ripeLegoAddr).performPostSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount) # dev: slippage
+    # verify green <--> usdc swap is fair (check slippage)
+    if tokenIn in [green, usdc] and lastTokenOut in [green, usdc]:
+        assert staticcall RipeLego(ripeLegoAddr).performPostSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usdc, green) # dev: bad slippage
 
     log LevgVaultAction(
         op = 20,
@@ -583,144 +602,40 @@ def claimRewards(
 @view
 @internal
 def _getTotalAssets() -> uint256:
+    underlyingAsset: address = UNDERLYING_ASSET
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
     ripeLegoAddr: address = staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
-    underlyingAsset: address = UNDERLYING_ASSET
+    collateralVaultToken: address = self.collateralVaultToken
+    leverageVaultToken: address = self.leverageVaultToken
 
     # usdc vault
     usdc: address = USDC
     if underlyingAsset == usdc:
-        return self._getTotalAssetsForUsdcVault(usdc, GREEN, SAVINGS_GREEN, legoBook, ripeLegoAddr)
+        return staticcall RipeLego(ripeLegoAddr).getTotalAssetsForUsdcVault(
+            self,
+            collateralVaultToken,
+            self.vaultToLegoId[collateralVaultToken],
+            leverageVaultToken,
+            self.vaultToLegoId[leverageVaultToken],
+            usdc,
+            GREEN,
+            SAVINGS_GREEN,
+            legoBook,
+        )
 
     # non-usdc vault (WETH, CBBTC, etc)
-    return self._getTotalAssetsForNonUsdcVault(underlyingAsset, usdc, GREEN, SAVINGS_GREEN, legoBook, ripeLegoAddr)
-
-
-@view
-@internal
-def _getTotalAssetsForUsdcVault(_usdc: address, _green: address, _savingsGreen: address, _legoBook: address, _ripeLegoAddr: address) -> uint256:
-    usdcAmount: uint256 = staticcall IERC20(_usdc).balanceOf(self)
-    usdcAmount += staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _usdc)
-
-    # leverage vault amount
-    leverageVaultToken: address = self.leverageVaultToken
-    usdcAmount += self._getUnderlyingAmount(leverageVaultToken, _legoBook, _ripeLegoAddr)
-
-    # collateral vault amount
-    collateralVaultToken: address = self.collateralVaultToken
-    if collateralVaultToken != empty(address) and collateralVaultToken != leverageVaultToken:
-        usdcAmount += self._getUnderlyingAmount(collateralVaultToken, _legoBook, _ripeLegoAddr)
-
-    # green amounts
-    userDebtAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
-    greenSurplusAmount: uint256 = self._getTotalGreenAmount(_green, _savingsGreen, _ripeLegoAddr)
-
-    # adjust usdc values based on green situation
-    if userDebtAmount > greenSurplusAmount:
-        userDebtAmount -= greenSurplusAmount # treat green as $1 USD (most conservative, in this case)
-        usdcAmount -= min(usdcAmount, userDebtAmount // (10 ** 12)) # normalize to 6 decimals
-
-    elif greenSurplusAmount > userDebtAmount:
-        extraGreen: uint256 = greenSurplusAmount - userDebtAmount
-        usdValueOfGreen: uint256 = min(staticcall RipeLego(_ripeLegoAddr).getUsdValue(_green, extraGreen, True), extraGreen) # both 18 decimals
-        usdcAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_usdc, usdValueOfGreen, True)
-
-    return usdcAmount
-
-
-@view
-@internal
-def _getTotalAssetsForNonUsdcVault(
-    _underlyingAsset: address,
-    _usdc: address,
-    _green: address,
-    _savingsGreen: address,
-    _legoBook: address,
-    _ripeLegoAddr: address,
-) -> uint256:
-    # phase 1: get underlying asset amount (WETH/CBBTC/etc)
-    underlyingAmount: uint256 = staticcall IERC20(_underlyingAsset).balanceOf(self)
-    underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _underlyingAsset)
-
-    # collateral vault amount (should be in underlying asset for non-USDC vaults)
-    collateralVaultToken: address = self.collateralVaultToken
-    if collateralVaultToken != empty(address):
-        underlyingAmount += self._getUnderlyingAmount(collateralVaultToken, _legoBook, _ripeLegoAddr)
-
-    # phase 2: get USDC (wallet + leverage vault)
-    usdcAmount: uint256 = staticcall IERC20(_usdc).balanceOf(self)
-    leverageVaultToken: address = self.leverageVaultToken
-    usdcAmount += self._getUnderlyingAmount(leverageVaultToken, _legoBook, _ripeLegoAddr)
-    usdcValue: uint256 = staticcall RipeLego(_ripeLegoAddr).getUsdValue(_usdc, usdcAmount, True) # 18 decimals
-
-    # phase 3: calculate GREEN position
-    userDebtAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getUserDebtAmount(self) # 18 decimals
-    greenAmount: uint256 = self._getTotalGreenAmount(_green, _savingsGreen, _ripeLegoAddr) # 18 decimals
-
-    # phase 4: convert (USDC +/- GREEN) to underlying asset and add/subtract
-    if userDebtAmount > greenAmount:
-
-        # net debt scenario: we owe GREEN
-        netDebt: uint256 = userDebtAmount - greenAmount # 18 decimals, treat GREEN as $1 USD (most conservative, in this case)
-
-        # USDC covers debt with surplus
-        if usdcValue > netDebt:
-            netPositiveValue: uint256 = usdcValue - netDebt
-            underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, netPositiveValue, True)
-
-        # debt exceeds USDC value - leverage vault is underwater
-        elif netDebt > usdcValue:
-            netNegativeValue: uint256 = netDebt - usdcValue
-            underlyingToSubtract: uint256 = staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, netNegativeValue, True)
-            underlyingAmount -= min(underlyingAmount, underlyingToSubtract)
-    
-    elif greenAmount > userDebtAmount:
-        extraGreen: uint256 = greenAmount - userDebtAmount # net surplus scenario: we have extra GREEN
-        greenValue: uint256 = min(staticcall RipeLego(_ripeLegoAddr).getUsdValue(_green, extraGreen, True), extraGreen) # both 18 decimals
-        totalPositiveValue: uint256 = usdcValue + greenValue
-        underlyingAmount += staticcall RipeLego(_ripeLegoAddr).getAssetAmount(_underlyingAsset, totalPositiveValue, True)
-
-    return underlyingAmount
-
-
-@view
-@internal
-def _getUnderlyingAmount(
-    _vaultToken: address,
-    _legoBook: address,
-    _ripeLegoAddr: address,
-) -> uint256:
-    if _vaultToken == empty(address):
-        return 0
-
-    # ripe collateral balance or idle in vault
-    vaultTokenAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _vaultToken)
-    vaultTokenAmount += staticcall IERC20(_vaultToken).balanceOf(self)
-    if vaultTokenAmount == 0:
-        return 0
-
-    # calc underlying amount
-    underlyingAmount: uint256 = 0
-    legoId: uint256 = self.vaultToLegoId[_vaultToken]
-    legoAddr: address = staticcall Registry(_legoBook).getAddr(legoId)
-    if legoAddr != empty(address):
-        underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
-    
-    return underlyingAmount
-
-
-@view
-@internal
-def _getTotalGreenAmount(_green: address, _savingsGreen: address, _ripeLegoAddr: address) -> uint256:
-    greenAmount: uint256 = staticcall IERC20(_green).balanceOf(self)
-
-    # calc savings green
-    savingsGreenAmount: uint256 = staticcall RipeLego(_ripeLegoAddr).getCollateralBalance(self, _savingsGreen)
-    savingsGreenAmount += staticcall IERC20(_savingsGreen).balanceOf(self)
-    if savingsGreenAmount != 0:
-        greenAmount += staticcall YieldLego(_ripeLegoAddr).getUnderlyingAmount(_savingsGreen, savingsGreenAmount)
-
-    return greenAmount
+    return staticcall RipeLego(ripeLegoAddr).getTotalAssetsForNonUsdcVault(
+        self,
+        underlyingAsset,
+        collateralVaultToken,
+        self.vaultToLegoId[collateralVaultToken],
+        leverageVaultToken,
+        self.vaultToLegoId[leverageVaultToken],
+        usdc,
+        GREEN,
+        SAVINGS_GREEN,
+        legoBook,
+    )
 
 
 ###################
