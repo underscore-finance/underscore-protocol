@@ -346,29 +346,6 @@ def test_ripe_remove_collateral(
     _test(mock_green_token.balanceOf(bob_wallet_with_green), pre_green_balance + remove_amount)
 
 
-def test_ripe_get_collateral_balance(
-    lego_ripe,
-    setup_mock_prices,
-    bob_wallet_with_green,
-    mock_green_token,
-    lego_book,
-    bob,
-):
-    """Test getting collateral balance from Ripe Protocol"""
-    lego_id = lego_book.getRegId(lego_ripe)
-
-    # Add some collateral
-    collateral_amount = 7_500 * EIGHTEEN_DECIMALS
-    bob_wallet_with_green.addCollateral(
-        lego_id,
-        mock_green_token,
-        collateral_amount,
-        sender=bob
-    )
-
-    # Query collateral balance
-    balance = lego_ripe.getCollateralBalance(bob_wallet_with_green.address, mock_green_token)
-    assert balance >= collateral_amount
 
 
 #################################
@@ -580,35 +557,6 @@ def test_ripe_repay_with_savings_green(
     _test(pre_debt - current_debt, amount_repaid)
 
 
-def test_ripe_get_user_debt_amount(
-    lego_ripe,
-    setup_mock_prices,
-    bob_wallet_with_green,
-    mock_green_token,
-    lego_book,
-    bob,
-):
-    """Test getting user debt amount"""
-    lego_id = lego_book.getRegId(lego_ripe)
-
-    # Add collateral and borrow
-    bob_wallet_with_green.addCollateral(
-        lego_id,
-        mock_green_token,
-        50_000 * EIGHTEEN_DECIMALS,
-        sender=bob
-    )
-    borrow_amount = 15_000 * EIGHTEEN_DECIMALS
-    bob_wallet_with_green.borrow(
-        lego_id,
-        mock_green_token,
-        borrow_amount,
-        sender=bob
-    )
-
-    # Query debt amount
-    debt = lego_ripe.getUserDebtAmount(bob_wallet_with_green.address)
-    assert debt >= borrow_amount
 
 
 ###################
@@ -667,58 +615,6 @@ def test_ripe_get_vault_token_amount(
         mock_savings_green_token
     )
     assert vault_amount > 0
-
-
-def test_ripe_is_supported_asset(
-    lego_ripe,
-    mock_green_token,
-):
-    """Test checking if an asset is supported by Ripe"""
-    # In the mock, all assets return True
-    is_supported = lego_ripe.isSupportedRipeAsset(mock_green_token)
-    assert is_supported == True
-
-
-def test_ripe_get_usd_value(
-    lego_ripe,
-    setup_mock_prices,
-    mock_green_token,
-):
-    """Test getting USD value of an asset amount"""
-    amount = 100 * EIGHTEEN_DECIMALS
-    usd_value = lego_ripe.getUsdValue(mock_green_token, amount)
-    # With price at $1, 100 tokens = $100
-    assert usd_value == 100 * EIGHTEEN_DECIMALS
-
-
-def test_ripe_get_asset_amount(
-    lego_ripe,
-    setup_mock_prices,
-    mock_green_token,
-):
-    """Test getting asset amount from USD value"""
-    usd_value = 100 * EIGHTEEN_DECIMALS  # $100
-    asset_amount = lego_ripe.getAssetAmount(mock_green_token, usd_value)
-    # With price at $1, $100 = 100 tokens
-    assert asset_amount == 100 * EIGHTEEN_DECIMALS
-
-
-def test_ripe_green_token(
-    lego_ripe,
-    mock_green_token,
-):
-    """Test getting the GREEN token address"""
-    green = lego_ripe.greenToken()
-    assert green == mock_green_token.address
-
-
-def test_ripe_savings_green(
-    lego_ripe,
-    mock_savings_green_token,
-):
-    """Test getting the SAVINGS_GREEN token address"""
-    savings = lego_ripe.savingsGreen()
-    assert savings == mock_savings_green_token.address
 
 
 ########################

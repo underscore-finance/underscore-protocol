@@ -18,7 +18,6 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
-# pragma optimize codesize
 
 implements: IERC4626
 implements: IERC20
@@ -69,9 +68,10 @@ def __init__(
     _minHqTimeLock: uint256,
     _maxHqTimeLock: uint256,
     _startingAgent: address,
+    _levgVaultHelper: address,
 ):
     token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)
-    vaultWallet.__init__(_undyHq, _asset, _collateralVaultToken, _collateralVaultTokenLegoId, _leverageVaultToken, _leverageVaultTokenLegoId, _usdc, _green, _savingsGreen, _startingAgent)
+    vaultWallet.__init__(_undyHq, _asset, _collateralVaultToken, _collateralVaultTokenLegoId, _leverageVaultToken, _leverageVaultTokenLegoId, _usdc, _green, _savingsGreen, _startingAgent, _levgVaultHelper)
 
 
 @view

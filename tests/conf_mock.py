@@ -364,7 +364,7 @@ def mock_ripe_token(governance, whale):
 
 @pytest.fixture(scope="session")
 def mock_usdc(governance):
-    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock USDC", "MOCK USDC", 18, 1_000_000_000, name="mock_usdc")
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock USDC", "MOCK USDC", 6, 1_000_000_000, name="mock_usdc")
 
 
 @pytest.fixture(scope="session")
@@ -375,3 +375,13 @@ def mock_usdc_leverage_vault(mock_usdc):
 @pytest.fixture(scope="session")
 def mock_usdc_collateral_vault(mock_usdc):
     return boa.load("contracts/mock/MockErc4626Vault.vy", mock_usdc, name="mock_usdc_collateral_vault")
+
+
+@pytest.fixture(scope="session")
+def mock_cbbtc(governance):
+    return boa.load("contracts/mock/MockErc20.vy", governance, "Mock cbBTC", "MOCK cbBTC", 8, 1_000_000_000, name="mock_cbbtc")
+
+
+@pytest.fixture(scope="session")
+def mock_cbbtc_collateral_vault(mock_cbbtc):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", mock_cbbtc, name="mock_cbbtc_collateral_vault")

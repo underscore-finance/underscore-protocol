@@ -21,6 +21,10 @@ VAULT_INFO = {
         "name": "Underscore Leveraged USD",
         "symbol": "undyLevgUSD",
     },
+    "LEVG_CBBTC": {
+        "name": "Underscore Leveraged cbBTC",
+        "symbol": "undyLevgCBBTC",
+    },
 }
 
 PARAMS = {

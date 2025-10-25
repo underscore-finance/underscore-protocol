@@ -19,9 +19,8 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
-# pragma optimize codesize
 
-# implements: Lego
+implements: Lego
 implements: YieldLego
 
 exports: addys.__interface__
@@ -54,11 +53,6 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface RipeMissionControl:
-    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
-    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
-    def isSupportedAsset(_asset: address) -> bool: view
-
 interface RipeRegistry:
     def savingsGreen() -> address: view
     def greenToken() -> address: view
@@ -68,25 +62,15 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
-interface RipePriceDesk:
-    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def getAddr(_regId: uint256) -> address: view
 
-interface RipeDepositVault:
-    def getTotalAmountForUser(_user: address, _asset: address) -> uint256: view
-
-interface CreditEngine:
-    def getUserDebtAmount(_user: address) -> uint256: view
+interface RipeMissionControl:
+    def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
-
-interface EarnVault:
-    def vaultToLegoId(_vaultAddr: address) -> uint256: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -143,36 +127,21 @@ event RipeSavingsGreenWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
-event UsdcSlippageAllowedSet:
-    slippage: uint256
-
-event GreenSlippageAllowedSet:
-    slippage: uint256
-
-# slippage settings
-usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
-greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
-
 # ripe addrs
 RIPE_REGISTRY: public(immutable(address))
 RIPE_GREEN_TOKEN: public(immutable(address))
 RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
-USDC: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
-RIPE_PRICE_DESK_ID: constant(uint256) = 7
-RIPE_VAULT_BOOK_ID: constant(uint256) = 8
-RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
-HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
 
 
 @deploy
-def __init__(_undyHq: address, _ripeRegistry: address, _usdc: address):
+def __init__(_undyHq: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
@@ -181,13 +150,6 @@ def __init__(_undyHq: address, _ripeRegistry: address, _usdc: address):
     RIPE_GREEN_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).greenToken()
     RIPE_SAVINGS_GREEN = staticcall RipeRegistry(RIPE_REGISTRY).savingsGreen()
     RIPE_TOKEN = staticcall RipeRegistry(RIPE_REGISTRY).ripeToken()
-
-    assert _usdc != empty(address) # dev: invalid usdc
-    USDC = _usdc
-
-    # defaults
-    self.usdcSlippageAllowed = 1_00 # 1.00%
-    self.greenSlippageAllowed = 1_00 # 1.00%
 
 
 @view
@@ -912,567 +874,110 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
         return teller, LEGO_ACCESS_ABI, 1
 
 
-##############
-# Ripe Utils #
-##############
+#########
+# Other #
+#########
 
 
-@view
 @external
-def greenToken() -> address:
-    return RIPE_GREEN_TOKEN
-
-
-@view
-@external
-def savingsGreen() -> address:
-    return RIPE_SAVINGS_GREEN
-
-
-# collateral balance
-
-
-@view
-@external
-def getCollateralBalance(_user: address, _asset: address) -> uint256:
-    ripeHq: address = RIPE_REGISTRY
-    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    vaultId: uint256 = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
-    vaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
-    vaultAddr: address = staticcall Registry(vaultBook).getAddr(vaultId)
-    return self._getCollateralBalance(_user, _asset, vaultAddr)
-
-
-@view
-@internal
-def _getCollateralBalance(_user: address, _asset: address, _vaultAddr: address) -> uint256:
-    return staticcall RipeDepositVault(_vaultAddr).getTotalAmountForUser(_user, _asset)
-
-
-# supported asset
-
-
-@view
-@external
-def isSupportedRipeAsset(_asset: address) -> bool:
-    mc: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_MISSION_CONTROL_ID)
-    return staticcall RipeMissionControl(mc).isSupportedAsset(_asset)
-
-
-# user debt amount
-
-
-@view
-@external
-def getUserDebtAmount(_user: address) -> uint256:
-    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
-    return self._getUserDebtAmount(_user, creditEngine)
-
-
-@view
-@internal
-def _getUserDebtAmount(_user: address, _creditEngine: address) -> uint256:
-    return staticcall CreditEngine(_creditEngine).getUserDebtAmount(_user)
-
-
-# price related
-
-
-@view
-@external
-def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256:
-    ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    return self._getAssetAmount(_asset, _usdValue, _shouldRaise, ripePriceDesk)
-
-
-@view
-@internal
-def _getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool, _ripePriceDesk: address) -> uint256:
-    return staticcall RipePriceDesk(_ripePriceDesk).getAssetAmount(_asset, _usdValue, _shouldRaise)
-
-
-@view
-@external
-def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256:
-    ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-    return self._getUsdValue(_asset, _amount, _shouldRaise, ripePriceDesk)
-
-
-@view
-@internal
-def _getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool, _ripePriceDesk: address) -> uint256:
-    return staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(_asset, _amount, _shouldRaise)
-
-
-###################
-# Leverage Vaults #
-###################
-
-
-# pre swap validation
-
-
-@view
-@external
-def getSwappableUsdcAmount(
-    _wallet: address,
+def swapTokens(
     _amountIn: uint256,
-    _currentBalance: uint256,
-    _leverageVaultToken: address,
-    _leverageVaultTokenLegoId: uint256,
-    _usdc: address = empty(address),
-    _green: address = empty(address),
-    _savingsGreen: address = empty(address),
-    _legoBook: address = empty(address),
-) -> uint256:
-    usdc: address = _usdc if _usdc != empty(address) else USDC
-    green: address = _green if _green != empty(address) else RIPE_GREEN_TOKEN
-    savingsGreen: address = _savingsGreen if _savingsGreen != empty(address) else RIPE_SAVINGS_GREEN
-    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
-
-    # user debt amount
-    ripeHq: address = RIPE_REGISTRY
-    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
-    userDebtAmount: uint256 = self._getUserDebtAmount(_wallet, creditEngine) # 18 decimals
-    if userDebtAmount == 0:
-        return _amountIn
-
-    # usdc balance
-    usdcAmount: uint256 = _currentBalance
-
-    # usdc on ripe protocol
-    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
-    ripeVaultId: uint256 = staticcall RipeMissionControl(ripeMc).getFirstVaultIdForAsset(usdc)
-    if ripeVaultId != 0:
-        ripeDepositAddr: address = staticcall Registry(ripeVaultBook).getAddr(ripeVaultId)
-        usdcAmount += self._getCollateralBalance(_wallet, usdc, ripeDepositAddr)
-
-    # usdc via leverage vault
-    usdcAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, legoBook, ripeMc, ripeVaultBook) # 6 decimals
-
-    # get USD value
-    ripePriceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
-    usdcValue: uint256 = self._getUsdValue(usdc, usdcAmount, True, ripePriceDesk) # 18 decimals
-
-    # green amount
-    greenSurplusAmount: uint256 = self._getUnderlyingGreenAmount(_wallet, green, savingsGreen, ripeMc, ripeVaultBook)
-    positiveValue: uint256 = greenSurplusAmount + usdcValue # treat green as $1 USD (most conservative, in this case)
-
-    # compare usd values
-    if userDebtAmount > positiveValue:
-        return 0
-
-    # calc asset amount
-    availUsdcAmount: uint256 = self._getAssetAmount(usdc, positiveValue - userDebtAmount, True, ripePriceDesk) # 6 decimals
-    return min(availUsdcAmount, _amountIn)
+    _minAmountOut: uint256,
+    _tokenPath: DynArray[address, MAX_TOKEN_PATH],
+    _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, uint256):
+    return 0, 0, 0
 
 
-# post swap validation
-
-
-@view
 @external
-def performPostSwapValidation(
+def mintOrRedeemAsset(
     _tokenIn: address,
-    _tokenInAmount: uint256,
     _tokenOut: address,
-    _tokenOutAmount: uint256,
-    _usdc: address = empty(address),
-    _green: address = empty(address),
-) -> bool:
-    usdc: address = _usdc if _usdc != empty(address) else USDC
-    green: address = _green if _green != empty(address) else RIPE_GREEN_TOKEN
-
-    # GREEN -> USDC swap validation
-    if _tokenIn == green and _tokenOut == usdc:
-        slippage: uint256 = self.usdcSlippageAllowed
-
-        # Get USD value of USDC received (18 decimals)
-        ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-        usdcValue: uint256 = self._getUsdValue(usdc, _tokenOutAmount, True, ripePriceDesk)
-
-        # Minimum expected: greenAmount * (10000 - slippage) / 10000
-        # GREEN is 18 decimals and treated as $1 USD, so greenAmount = USD value
-        minExpected: uint256 = _tokenInAmount * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
-        return usdcValue >= minExpected
-
-    # USDC -> GREEN swap validation
-    elif _tokenIn == usdc and _tokenOut == green:
-        slippage: uint256 = self.greenSlippageAllowed
-
-        # Get USD value of USDC sent (18 decimals)
-        ripePriceDesk: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_PRICE_DESK_ID)
-        usdcValue: uint256 = self._getUsdValue(usdc, _tokenInAmount, True, ripePriceDesk)
-
-        # Minimum expected: usdcValue * (10000 - slippage) / 10000
-        minExpected: uint256 = usdcValue * (HUNDRED_PERCENT - slippage) // HUNDRED_PERCENT
-        return _tokenOutAmount >= minExpected
-
-    return True
-
-
-# slippage settings
+    _tokenInAmount: uint256,
+    _minAmountOut: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, bool, uint256):
+    return 0, 0, False, 0
 
 
 @external
-def setUsdcSlippageAllowed(_slippage: uint256):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.usdcSlippageAllowed = _slippage
-    log UsdcSlippageAllowedSet(slippage=_slippage)
+def confirmMintOrRedeemAsset(
+    _tokenIn: address,
+    _tokenOut: address,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    return 0, 0
 
 
 @external
-def setGreenSlippageAllowed(_slippage: uint256):
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.greenSlippageAllowed = _slippage
-    log GreenSlippageAllowedSet(slippage=_slippage)
+def addLiquidity(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _minLpAmount: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (address, uint256, uint256, uint256, uint256):
+    return empty(address), 0, 0, 0, 0
 
 
-# usdc vault
-
-
-@view
 @external
-def getTotalAssetsForUsdcVault(
-    _wallet: address,
-    _collateralVaultToken: address,
-    _collateralVaultTokenLegoId: uint256,
-    _leverageVaultToken: address,
-    _leverageVaultTokenLegoId: uint256,
-    _usdc: address = empty(address),
-    _green: address = empty(address),
-    _savingsGreen: address = empty(address),
-    _legoBook: address = empty(address),
-) -> uint256:
-    usdc: address = _usdc if _usdc != empty(address) else USDC
-    green: address = _green if _green != empty(address) else RIPE_GREEN_TOKEN
-    savingsGreen: address = _savingsGreen if _savingsGreen != empty(address) else RIPE_SAVINGS_GREEN
-    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
-
-    # ripe addresses
-    ripeHq: address = RIPE_REGISTRY
-    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
-    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
-
-    # usdc amount
-    usdcAmount: uint256 = self._getUnderlyingAmountForLevgVault(
-        _wallet,
-        usdc,
-        _collateralVaultToken,
-        _collateralVaultTokenLegoId,
-        _leverageVaultToken,
-        _leverageVaultTokenLegoId,
-        True,
-        legoBook,
-        ripeMc,
-        ripeVaultBook,
-    )
-
-    # green amounts
-    userDebtAmount: uint256 = self._getUserDebtAmount(_wallet, creditEngine) # 18 decimals
-    greenSurplusAmount: uint256 = self._getUnderlyingGreenAmount(_wallet, green, savingsGreen, ripeMc, ripeVaultBook)
-
-    # adjust usdc values based on green situation
-    if userDebtAmount > greenSurplusAmount:
-        userDebtAmount -= greenSurplusAmount # treat green as $1 USD (most conservative, in this case)
-        usdcAmount -= min(usdcAmount, userDebtAmount // (10 ** 12)) # normalize to 6 decimals
-
-    elif greenSurplusAmount > userDebtAmount:
-        ripePriceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
-        extraGreen: uint256 = greenSurplusAmount - userDebtAmount
-        usdValueOfGreen: uint256 = min(self._getUsdValue(green, extraGreen, True, ripePriceDesk), extraGreen) # both 18 decimals
-        usdcAmount += self._getAssetAmount(usdc, usdValueOfGreen, True, ripePriceDesk)
-
-    return usdcAmount
+def removeLiquidity(
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, uint256, uint256):
+    return 0, 0, 0, 0
 
 
-# non-usdc vault
-
-
-@view
 @external
-def getTotalAssetsForNonUsdcVault(
-    _wallet: address,
-    _underlyingAsset: address,
-    _collateralVaultToken: address,
-    _collateralVaultTokenLegoId: uint256,
-    _leverageVaultToken: address,
-    _leverageVaultTokenLegoId: uint256,
-    _usdc: address = empty(address),
-    _green: address = empty(address),
-    _savingsGreen: address = empty(address),
-    _legoBook: address = empty(address),
-) -> uint256:
-    usdc: address = _usdc if _usdc != empty(address) else USDC
-    green: address = _green if _green != empty(address) else RIPE_GREEN_TOKEN
-    savingsGreen: address = _savingsGreen if _savingsGreen != empty(address) else RIPE_SAVINGS_GREEN
-    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
-
-    # ripe addresses
-    ripeHq: address = RIPE_REGISTRY
-    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
-    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
-    ripePriceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
-
-    # phase 1: get underlying asset amount (WETH/CBBTC/etc)
-    underlyingAmount: uint256 = self._getUnderlyingAmountForLevgVault(
-        _wallet,
-        _underlyingAsset,
-        _collateralVaultToken,
-        _collateralVaultTokenLegoId,
-        _leverageVaultToken,
-        _leverageVaultTokenLegoId,
-        False, # !
-        legoBook,
-        ripeMc,
-        ripeVaultBook,
-    )
-
-    # phase 2: get USDC (wallet + leverage vault)
-    usdcAmount: uint256 = staticcall IERC20(usdc).balanceOf(_wallet)
-    usdcAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, legoBook, ripeMc, ripeVaultBook)
-    usdcValue: uint256 = self._getUsdValue(usdc, usdcAmount, True, ripePriceDesk) # 18 decimals
-
-    # phase 3: calculate GREEN position
-    userDebtAmount: uint256 = self._getUserDebtAmount(_wallet, creditEngine) # 18 decimals
-    greenSurplusAmount: uint256 = self._getUnderlyingGreenAmount(_wallet, green, savingsGreen, ripeMc, ripeVaultBook)
-
-    # phase 4: convert (USDC +/- GREEN) to underlying asset and add/subtract
-    if userDebtAmount > greenSurplusAmount:
-
-        # net debt scenario: we owe GREEN
-        netDebt: uint256 = userDebtAmount - greenSurplusAmount # 18 decimals, treat GREEN as $1 USD (most conservative, in this case)
-
-        # USDC covers debt with surplus
-        if usdcValue > netDebt:
-            netPositiveValue: uint256 = usdcValue - netDebt
-            underlyingAmount += self._getAssetAmount(_underlyingAsset, netPositiveValue, True, ripePriceDesk)
-
-        # debt exceeds USDC value - leverage vault is underwater
-        else:
-            netNegativeValue: uint256 = netDebt - usdcValue
-            underlyingToSubtract: uint256 = self._getAssetAmount(_underlyingAsset, netNegativeValue, True, ripePriceDesk)
-            underlyingAmount -= min(underlyingAmount, underlyingToSubtract)
-    
-    elif greenSurplusAmount > userDebtAmount:
-        extraGreen: uint256 = greenSurplusAmount - userDebtAmount # net surplus scenario: we have extra GREEN
-        greenValue: uint256 = min(self._getUsdValue(green, extraGreen, True, ripePriceDesk), extraGreen) # both 18 decimals
-        totalPositiveValue: uint256 = usdcValue + greenValue
-        underlyingAmount += self._getAssetAmount(_underlyingAsset, totalPositiveValue, True, ripePriceDesk)
-
-    return underlyingAmount
+def addLiquidityConcentrated(
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _tickLower: int24,
+    _tickUpper: int24,
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, uint256, uint256, uint256):
+    return 0, 0, 0, 0, 0
 
 
-# underlying green amount
-
-
-@view
-@internal
-def _getUnderlyingGreenAmount(
-    _wallet: address,
-    _green: address,
-    _savingsGreen: address,
-    _ripeMissionControl: address,
-    _ripeVaultBook: address,
-) -> uint256:
-    greenAmount: uint256 = staticcall IERC20(_green).balanceOf(_wallet)
-
-    # savings green balance
-    savingsGreenAmount: uint256= staticcall IERC20(_savingsGreen).balanceOf(_wallet)
-
-    # savings green on ripe protocol
-    ripeVaultId: uint256 = staticcall RipeMissionControl(_ripeMissionControl).getFirstVaultIdForAsset(_savingsGreen)
-    if ripeVaultId != 0:
-        ripeDepositAddr: address = staticcall Registry(_ripeVaultBook).getAddr(ripeVaultId)
-        savingsGreenAmount += self._getCollateralBalance(_wallet, _savingsGreen, ripeDepositAddr)
-
-    # calc underlying amount
-    if savingsGreenAmount != 0:
-        greenAmount += self._getUnderlyingAmount(_savingsGreen, savingsGreenAmount)
-
-    return greenAmount
-
-
-# underlying amount for leverage vault
-
-
-@view
-@internal
-def _getUnderlyingAmountForLevgVault(
-    _wallet: address,
-    _underlyingAsset: address,
-    _collateralVaultToken: address,
-    _collateralVaultTokenLegoId: uint256,
-    _leverageVaultToken: address,
-    _leverageVaultTokenLegoId: uint256,
-    _haveSameUnderlyingAsset: bool,
-    _legoBook: address,
-    _ripeMissionControl: address,
-    _ripeVaultBook: address,
-) -> uint256:
-    underlyingAmount: uint256 = staticcall IERC20(_underlyingAsset).balanceOf(_wallet)
-
-    # check if underlying asset is in a ripe vault
-    vaultId: uint256 = staticcall RipeMissionControl(_ripeMissionControl).getFirstVaultIdForAsset(_underlyingAsset)
-    if vaultId != 0:
-        ripeDepositAddr: address = staticcall Registry(_ripeVaultBook).getAddr(vaultId)
-        underlyingAmount += self._getCollateralBalance(_wallet, _underlyingAsset, ripeDepositAddr)
-
-    # collateral vault amount
-    underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _collateralVaultToken, _collateralVaultTokenLegoId, _legoBook, _ripeMissionControl, _ripeVaultBook)
-
-    # leverage vault amount
-    if _haveSameUnderlyingAsset and _collateralVaultToken != _leverageVaultToken:
-        underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _legoBook, _ripeMissionControl, _ripeVaultBook)
-
-    return underlyingAmount
-
-
-# underlying amount for vault token
-
-
-@view
-@internal
-def _getUnderlyingForVaultToken(
-    _wallet: address,
-    _vaultToken: address,
-    _vaultTokenLegoId: uint256,
-    _legoBook: address,
-    _ripeMissionControl: address,
-    _ripeVaultBook: address,
-) -> uint256:
-    if _vaultToken == empty(address):
-        return 0
-
-    vaultTokenAmount: uint256 = staticcall IERC20(_vaultToken).balanceOf(_wallet)
-
-    # ripe collateral
-    ripeVaultId: uint256 = staticcall RipeMissionControl(_ripeMissionControl).getFirstVaultIdForAsset(_vaultToken)
-    if ripeVaultId != 0:
-        ripeDepositAddr: address = staticcall Registry(_ripeVaultBook).getAddr(ripeVaultId)
-        vaultTokenAmount += self._getCollateralBalance(_wallet, _vaultToken, ripeDepositAddr)
-
-    if vaultTokenAmount == 0:
-        return 0
-
-    # calc underlying amount
-    underlyingAmount: uint256 = 0
-    legoAddr: address = staticcall Registry(_legoBook).getAddr(_vaultTokenLegoId)
-    if legoAddr != empty(address):
-        underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
-    
-    return underlyingAmount
-
-
-# #########
-# # Other #
-# #########
-
-
-# @external
-# def swapTokens(
-#     _amountIn: uint256,
-#     _minAmountOut: uint256,
-#     _tokenPath: DynArray[address, MAX_TOKEN_PATH],
-#     _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256, uint256):
-#     return 0, 0, 0
-
-
-# @external
-# def mintOrRedeemAsset(
-#     _tokenIn: address,
-#     _tokenOut: address,
-#     _tokenInAmount: uint256,
-#     _minAmountOut: uint256,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256, bool, uint256):
-#     return 0, 0, False, 0
-
-
-# @external
-# def confirmMintOrRedeemAsset(
-#     _tokenIn: address,
-#     _tokenOut: address,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256):
-#     return 0, 0
-
-
-# @external
-# def addLiquidity(
-#     _pool: address,
-#     _tokenA: address,
-#     _tokenB: address,
-#     _amountA: uint256,
-#     _amountB: uint256,
-#     _minAmountA: uint256,
-#     _minAmountB: uint256,
-#     _minLpAmount: uint256,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (address, uint256, uint256, uint256, uint256):
-#     return empty(address), 0, 0, 0, 0
-
-
-# @external
-# def removeLiquidity(
-#     _pool: address,
-#     _tokenA: address,
-#     _tokenB: address,
-#     _lpToken: address,
-#     _lpAmount: uint256,
-#     _minAmountA: uint256,
-#     _minAmountB: uint256,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256, uint256, uint256):
-#     return 0, 0, 0, 0
-
-
-# @external
-# def addLiquidityConcentrated(
-#     _nftTokenId: uint256,
-#     _pool: address,
-#     _tokenA: address,
-#     _tokenB: address,
-#     _tickLower: int24,
-#     _tickUpper: int24,
-#     _amountA: uint256,
-#     _amountB: uint256,
-#     _minAmountA: uint256,
-#     _minAmountB: uint256,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256, uint256, uint256, uint256):
-#     return 0, 0, 0, 0, 0
-
-
-# @external
-# def removeLiquidityConcentrated(
-#     _nftTokenId: uint256,
-#     _pool: address,
-#     _tokenA: address,
-#     _tokenB: address,
-#     _liqToRemove: uint256,
-#     _minAmountA: uint256,
-#     _minAmountB: uint256,
-#     _extraData: bytes32,
-#     _recipient: address,
-#     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-# ) -> (uint256, uint256, uint256, bool, uint256):
-#     return 0, 0, 0, False, 0
+@external
+def removeLiquidityConcentrated(
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, uint256, bool, uint256):
+    return 0, 0, 0, False, 0
