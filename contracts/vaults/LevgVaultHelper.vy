@@ -293,9 +293,9 @@ def getTotalAssetsForNonUsdcVault(
             netNegativeValue: uint256 = netDebt - usdcValue
             underlyingToSubtract: uint256 = self._getAssetAmount(_underlyingAsset, netNegativeValue, True, ripePriceDesk)
             underlyingAmount -= min(underlyingAmount, underlyingToSubtract)
-    
-    elif greenSurplusAmount > userDebtAmount:
-        extraGreen: uint256 = greenSurplusAmount - userDebtAmount # net surplus scenario: we have extra GREEN
+
+    else:
+        extraGreen: uint256 = greenSurplusAmount - userDebtAmount # net surplus scenario: we have extra GREEN (or zero)
         greenValue: uint256 = min(self._getUsdValue(green, extraGreen, True, ripePriceDesk), extraGreen) # both 18 decimals
         totalPositiveValue: uint256 = usdcValue + greenValue
         underlyingAmount += self._getAssetAmount(_underlyingAsset, totalPositiveValue, True, ripePriceDesk)

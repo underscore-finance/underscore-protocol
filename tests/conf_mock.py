@@ -387,6 +387,11 @@ def mock_cbbtc_collateral_vault(mock_cbbtc):
     return boa.load("contracts/mock/MockErc4626Vault.vy", mock_cbbtc, name="mock_cbbtc_collateral_vault")
 
 
+@pytest.fixture(scope="session")
+def mock_weth_collateral_vault(mock_weth):
+    return boa.load("contracts/mock/MockErc4626Vault.vy", mock_weth, name="mock_weth_collateral_vault")
+
+
 ##################
 # Mock Swap Lego #
 ##################
