@@ -318,19 +318,7 @@ def convertToShares(_assets: uint256) -> uint256:
 
 @view
 @external
-def convertToSharesSafe(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
-
-
-@view
-@external
 def convertToAssets(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
-
-
-@view
-@external
-def convertToAssetsSafe(_shares: uint256) -> uint256:
     return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
 
 
