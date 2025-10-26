@@ -385,3 +385,22 @@ def mock_cbbtc(governance):
 @pytest.fixture(scope="session")
 def mock_cbbtc_collateral_vault(mock_cbbtc):
     return boa.load("contracts/mock/MockErc4626Vault.vy", mock_cbbtc, name="mock_cbbtc_collateral_vault")
+
+
+##################
+# Mock Swap Lego #
+##################
+
+
+@pytest.fixture(scope="session")
+def mock_swap_lego(undy_hq_deploy, mock_green_token, mock_usdc, governance):
+    """Mock swap lego for testing GREEN <-> USDC swaps with configurable prices."""
+    msl = boa.load(
+        "contracts/mock/MockSwapLego.vy",
+        undy_hq_deploy,
+        name="mock_swap_lego",
+    )
+    # Give mock_swap_lego minting permissions for both tokens
+    mock_green_token.setMinter(msl, True, sender=governance.address)
+    mock_usdc.setMinter(msl, True, sender=governance.address)
+    return msl
