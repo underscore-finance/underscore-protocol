@@ -205,11 +205,16 @@ def _depositForYield(
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
     assert _vaultAddr == vaultToken # dev: vault token mismatch
 
-    # vault asset must go into collateral vault
+    # vault asset can go into collateral vault OR (for USDC vaults) leverage vault
     if _asset == _ad.vaultAsset:
-        assert vaultToken == self.collateralVaultToken # dev: vault token mismatch
+        if _asset == USDC:
+            # USDC vault: allow both collateral and leverage vaults
+            assert vaultToken in [self.collateralVaultToken, self.leverageVaultToken] # dev: vault token mismatch
+        else:
+            # Non-USDC vault: only collateral vault
+            assert vaultToken == self.collateralVaultToken # dev: vault token mismatch
 
-    # USDC must go into leverage vault
+    # USDC (when NOT vault asset) must go into leverage vault
     elif _asset == USDC:
         assert vaultToken == self.leverageVaultToken # dev: vault token mismatch
 
@@ -713,6 +718,34 @@ def _prepareRedemption(
         vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collateralVaultToken)
         vaultTokenAmountToWithdraw = self._removeCollateral(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ripeAd)[0]
         availAmount += self._withdrawFromYield(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
+        if availAmount >= _amount:
+            return availAmount
+
+    # step 4: for USDC vaults, also check leverageVaultToken
+    if _asset == USDC:
+        leverageVaultToken: address = self.leverageVaultToken
+        if leverageVaultToken != empty(address) and availAmount < _amount:
+            levgAd: VaultActionData = ripeAd
+            levgAd.legoId = self.vaultToLegoId[leverageVaultToken]
+            levgAd.legoAddr = staticcall Registry(levgAd.legoBook).getAddr(levgAd.legoId)
+
+            if levgAd.legoAddr != empty(address):
+                # step 4a: withdraw from idle leverageVaultToken in wallet
+                leverageVaultTokenBalance: uint256 = staticcall IERC20(leverageVaultToken).balanceOf(self)
+                if leverageVaultTokenBalance != 0:
+                    amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
+                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, leverageVaultToken)
+                    availAmount += self._withdrawFromYield(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
+                    if availAmount >= _amount:
+                        return availAmount
+
+                # step 4b: remove leverageVaultToken collateral from Ripe and withdraw
+                leverageVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, leverageVaultToken)
+                if leverageVaultTokenOnRipe != 0:
+                    amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
+                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, leverageVaultToken)
+                    vaultTokenAmountToWithdraw = self._removeCollateral(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ripeAd)[0]
+                    availAmount += self._withdrawFromYield(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
 
     return availAmount
 
