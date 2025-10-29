@@ -123,7 +123,7 @@ def __init__(
 @view
 @external
 def isEarnVault(_vaultAddr: address) -> bool:
-    return registry._isValidAddr(_vaultAddr)
+    return registry._isValidAddr(_vaultAddr) or self._hasConfig(_vaultAddr)
 
 
 # gov access
@@ -133,6 +133,22 @@ def isEarnVault(_vaultAddr: address) -> bool:
 @internal
 def _canPerformAction(_caller: address) -> bool:
     return gov._canGovern(_caller) and not deptBasics.isPaused
+
+
+# has config
+
+
+@view
+@external
+def hasConfig(_vaultAddr: address) -> bool:
+    return self._hasConfig(_vaultAddr)
+
+
+@view
+@internal
+def _hasConfig(_vaultAddr: address) -> bool:
+    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    return config.redemptionBuffer != 0 or config.minYieldWithdrawAmount != 0 or config.performanceFee != 0 or config.defaultTargetVaultToken != empty(address) or config.shouldAutoDeposit or config.canDeposit or config.canWithdraw
 
 
 ############
@@ -231,6 +247,41 @@ def _initializeVaultConfig(
             self.isApprovedVaultToken[_vaultAddr][vaultToken] = True
 
 
+#################
+# Vault Disable #
+#################
+
+
+@external
+def startAddressDisableInRegistry(_regId: uint256) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    assert self._canDisableVault(_regId) # dev: cannot disable vault
+    return registry._startAddressDisableInRegistry(_regId)
+
+
+@external
+def confirmAddressDisableInRegistry(_regId: uint256) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    assert self._canDisableVault(_regId) # dev: cannot disable vault
+    return registry._confirmAddressDisableInRegistry(_regId)
+
+
+@external
+def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return registry._cancelAddressDisableInRegistry(_regId)
+
+
+# validation
+
+
+@view
+@internal
+def _canDisableVault(_regId: uint256) -> bool:
+    vaultAddr: address = registry._getAddr(_regId)
+    return self._hasConfig(vaultAddr)
+
+
 ######################
 # Basic Vault Config #
 ######################
@@ -239,7 +290,7 @@ def _initializeVaultConfig(
 @external
 def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.canDeposit = _canDeposit
@@ -250,7 +301,7 @@ def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
 @external
 def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.canWithdraw = _canWithdraw
@@ -261,7 +312,7 @@ def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
 @external
 def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.maxDepositAmount = _maxDepositAmount
@@ -272,7 +323,7 @@ def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
 @external
 def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.isVaultOpsFrozen = _isFrozen
@@ -283,7 +334,7 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
 @external
 def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.shouldAutoDeposit = _shouldAutoDeposit
@@ -294,7 +345,7 @@ def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
 @external
 def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
     config.minYieldWithdrawAmount = _amount
@@ -310,7 +361,7 @@ def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256):
 @external
 def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
     assert self._isValidVaultToken(_vaultToken) # dev: invalid vault token
 
     self.isApprovedVaultToken[_vaultAddr][_vaultToken] = _isApproved
@@ -337,7 +388,7 @@ def _isValidVaultToken(_vaultToken: address) -> bool:
 @external
 def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
     assert self._isValidDefaultTargetVaultToken(_vaultAddr, _targetVaultToken) # dev: invalid default target vault token
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
@@ -368,7 +419,7 @@ def _isValidDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: addr
 @external
 def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
     assert self._isValidPerformanceFee(_performanceFee) # dev: invalid performance fee
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
@@ -397,7 +448,7 @@ def _isValidPerformanceFee(_performanceFee: uint256) -> bool:
 @external
 def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
     assert self._isValidRedemptionBuffer(_buffer) # dev: invalid redemption buffer
 
     config: VaultConfig = self.vaultConfigs[_vaultAddr]
