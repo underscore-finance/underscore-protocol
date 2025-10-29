@@ -372,6 +372,9 @@ def _paySwapFees(
         return 0
 
     governance: address = staticcall UndyHq(UNDY_HQ).governance()
+    if governance == empty(address):
+        return 0
+
     assert extcall IERC20(_tokenOut).transfer(governance, swapFee, default_return_value = True) # dev: xfer
     return swapFee
 
