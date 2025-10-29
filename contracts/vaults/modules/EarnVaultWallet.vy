@@ -154,17 +154,20 @@ def _depositForYield(
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
     currentUnderlying: uint256 = _currentUnderlying
 
+    # no re-depositing / re-staking
+    assert self.vaultToLegoId[_asset] == 0 # dev: cannot re-deposit vault tokens
+
     # deposit for yield
     assetAmount: uint256 = 0
     vaultToken: address = empty(address)
     vaultTokenAmountReceived: uint256 = 0
     txUsdValue: uint256 = 0
     assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    assert _vaultAddr == vaultToken # dev: vault token mismatch
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     # update yield position
-    if _asset == VAULT_ASSET:
-        assert _vaultAddr == vaultToken # dev: vault token mismatch
+    if _asset == _ad.vaultAsset:
         assert staticcall VaultRegistry(_ad.vaultRegistry).checkVaultApprovals(self, vaultToken) # dev: lego or vault token not approved
         self._updateYieldPosition(vaultToken, _ad.legoId)
         currentUnderlying += assetAmount
@@ -226,7 +229,7 @@ def _withdrawFromYield(
     assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     # update yield position
-    if underlyingAsset == VAULT_ASSET:
+    if underlyingAsset == _ad.vaultAsset:
         self._updateYieldPosition(_vaultToken, _ad.legoId)
         currentUnderlying -= min(currentUnderlying, underlyingAmount)
 
@@ -257,17 +260,15 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     tokenOut: address = empty(address)
     legoIds: DynArray[uint256, MAX_LEGOS] = []
     tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)
+    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
 
     # important checks!
-    vaultAsset: address = VAULT_ASSET
-    assert tokenIn != vaultAsset # dev: cannot swap out of vault asset
+    assert tokenIn != ad.vaultAsset # dev: cannot swap out of vault asset
     assert self.vaultToLegoId[tokenIn] == 0 # dev: cannot swap out of vault token
-    assert tokenOut == vaultAsset # dev: must swap into vault asset
+    assert tokenOut == ad.vaultAsset # dev: must swap into vault asset
 
     # action data bundle
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
-
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
     lastTokenOutAmount: uint256 = 0
@@ -283,6 +284,14 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         thisTxUsdValue: uint256 = 0
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+
+    assert lastTokenOutAmount != 0 # dev: no output amount
+
+    # handle swap fees
+    swapFee: uint256 = self._paySwapFees(lastTokenOut, lastTokenOutAmount, ad.vaultRegistry)
+    if swapFee != 0:
+        maxTxUsdValue = maxTxUsdValue * (lastTokenOutAmount - swapFee) // lastTokenOutAmount
+        lastTokenOutAmount -= swapFee
 
     log EarnVaultAction(
         op = 20,
@@ -344,6 +353,27 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
 
     assert empty(address) not in [tokenIn, tokenOut] # dev: path
     return tokenIn, tokenOut, legoIds
+
+
+# pay swap fees
+
+
+@internal
+def _paySwapFees(
+    _tokenOut: address,
+    _tokenOutAmount: uint256,
+    _vaultRegistry: address,
+) -> uint256:
+    if _tokenOut == empty(address) or _tokenOutAmount == 0:
+        return 0
+
+    swapFee: uint256 = min(_tokenOutAmount * self._getPerformanceFeeRatio(_vaultRegistry) // HUNDRED_PERCENT, staticcall IERC20(_tokenOut).balanceOf(self))
+    if swapFee == 0:
+        return 0
+
+    governance: address = staticcall UndyHq(UNDY_HQ).governance()
+    assert extcall IERC20(_tokenOut).transfer(governance, swapFee, default_return_value = True) # dev: xfer
+    return swapFee
 
 
 #################
