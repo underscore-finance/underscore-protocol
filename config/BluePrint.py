@@ -1,7 +1,4 @@
 # time (blocks)
-from tests.constants import ZERO_ADDRESS
-
-
 HOUR_IN_BLOCKS = 1_800
 DAY_IN_BLOCKS = 43_200
 MONTH_IN_BLOCKS = DAY_IN_BLOCKS * 30
