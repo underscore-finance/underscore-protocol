@@ -209,11 +209,12 @@ def lego_avantis(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry
 
 
 @pytest.fixture(scope="session")
-def lego_uniswap_v2(fork, lego_book, undy_hq_deploy, governance):
+def lego_uniswap_v2(fork, lego_book, undy_hq_deploy, governance, mock_ripe):
     if fork == "local":
         pytest.skip("asset not relevant on this fork")
+    RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     addr = boa.load("contracts/legos/dexes/UniswapV2.vy", undy_hq_deploy,
-                    INTEGRATION_ADDYS[fork]["UNISWAP_V2_FACTORY"], INTEGRATION_ADDYS[fork]["UNISWAP_V2_ROUTER"], INTEGRATION_ADDYS[fork]["UNI_V2_WETH_USDC_POOL"], name="lego_uniswap_v2")
+                    INTEGRATION_ADDYS[fork]["UNISWAP_V2_FACTORY"], INTEGRATION_ADDYS[fork]["UNISWAP_V2_ROUTER"], INTEGRATION_ADDYS[fork]["UNI_V2_WETH_USDC_POOL"], RIPE_HQ, name="lego_uniswap_v2")
     lego_book.startAddNewAddressToRegistry(addr, "Uniswap V2", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -221,11 +222,12 @@ def lego_uniswap_v2(fork, lego_book, undy_hq_deploy, governance):
 
 
 @pytest.fixture(scope="session")
-def lego_uniswap_v3(fork, lego_book, undy_hq_deploy, governance):
+def lego_uniswap_v3(fork, lego_book, undy_hq_deploy, governance, mock_ripe):
     if fork == "local":
         pytest.skip("asset not relevant on this fork")
+    RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     addr = boa.load("contracts/legos/dexes/UniswapV3.vy", undy_hq_deploy, INTEGRATION_ADDYS[fork]["UNIV3_FACTORY"], INTEGRATION_ADDYS[fork]
-                    ["UNIV3_NFT_MANAGER"], INTEGRATION_ADDYS[fork]["UNIV3_QUOTER"], INTEGRATION_ADDYS[fork]["UNI_V3_WETH_USDC_POOL"], name="lego_uniswap_v3")
+                    ["UNIV3_NFT_MANAGER"], INTEGRATION_ADDYS[fork]["UNIV3_QUOTER"], INTEGRATION_ADDYS[fork]["UNI_V3_WETH_USDC_POOL"], RIPE_HQ, name="lego_uniswap_v3")
     lego_book.startAddNewAddressToRegistry(addr, "Uniswap V3", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -233,11 +235,12 @@ def lego_uniswap_v3(fork, lego_book, undy_hq_deploy, governance):
 
 
 @pytest.fixture(scope="session")
-def lego_aero_classic(fork, lego_book, undy_hq_deploy, governance):
+def lego_aero_classic(fork, lego_book, undy_hq_deploy, governance, mock_ripe):
     if fork == "local":
         pytest.skip("asset not relevant on this fork")
+    RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     addr = boa.load("contracts/legos/dexes/AeroClassic.vy", undy_hq_deploy,
-                    INTEGRATION_ADDYS[fork]["AERODROME_FACTORY"], INTEGRATION_ADDYS[fork]["AERODROME_ROUTER"], INTEGRATION_ADDYS[fork]["AERODROME_WETH_USDC_POOL"], name="lego_aero_classic")
+                    INTEGRATION_ADDYS[fork]["AERODROME_FACTORY"], INTEGRATION_ADDYS[fork]["AERODROME_ROUTER"], INTEGRATION_ADDYS[fork]["AERODROME_WETH_USDC_POOL"], RIPE_HQ, name="lego_aero_classic")
     lego_book.startAddNewAddressToRegistry(addr, "aero_classic", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -245,11 +248,12 @@ def lego_aero_classic(fork, lego_book, undy_hq_deploy, governance):
 
 
 @pytest.fixture(scope="session")
-def lego_aero_slipstream(fork, lego_book, undy_hq_deploy, governance):
+def lego_aero_slipstream(fork, lego_book, undy_hq_deploy, governance, mock_ripe):
     if fork == "local":
         pytest.skip("asset not relevant on this fork")
+    RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     addr = boa.load("contracts/legos/dexes/AeroSlipstream.vy", undy_hq_deploy, INTEGRATION_ADDYS[fork]["AERO_SLIPSTREAM_FACTORY"], INTEGRATION_ADDYS[fork]
-                    ["AERO_SLIPSTREAM_NFT_MANAGER"], INTEGRATION_ADDYS[fork]["AERO_SLIPSTREAM_QUOTER"], INTEGRATION_ADDYS[fork]["AERO_SLIPSTREAM_WETH_USDC_POOL"], name="lego_aero_slipstream")
+                    ["AERO_SLIPSTREAM_NFT_MANAGER"], INTEGRATION_ADDYS[fork]["AERO_SLIPSTREAM_QUOTER"], INTEGRATION_ADDYS[fork]["AERO_SLIPSTREAM_WETH_USDC_POOL"], RIPE_HQ, name="lego_aero_slipstream")
     lego_book.startAddNewAddressToRegistry(addr, "aero_slipstream", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
@@ -257,11 +261,12 @@ def lego_aero_slipstream(fork, lego_book, undy_hq_deploy, governance):
 
 
 @pytest.fixture(scope="session")
-def lego_curve(fork, lego_book, undy_hq_deploy, governance):
+def lego_curve(fork, lego_book, undy_hq_deploy, governance, mock_ripe):
     if fork == "local":
         pytest.skip("asset not relevant on this fork")
+    RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     addr = boa.load("contracts/legos/dexes/Curve.vy", undy_hq_deploy,
-                    INTEGRATION_ADDYS[fork]["CURVE_ADDRESS_PROVIDER"], name="lego_curve")
+                    INTEGRATION_ADDYS[fork]["CURVE_ADDRESS_PROVIDER"], RIPE_HQ, name="lego_curve")
     lego_book.startAddNewAddressToRegistry(addr, "Curve", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0

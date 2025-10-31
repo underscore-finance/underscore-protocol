@@ -33,6 +33,7 @@ import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
+from ethereum.ercs import IERC20Detailed
 
 interface ExtraFiPool:
     def redeem(_reserveId: uint256, _eTokenAmount: uint256, _recipient: address, _receiveNativeETH: bool) -> uint256: nonpayable
@@ -275,7 +276,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     if decimals == 0:
         decimals = yld.vaultToAsset[_vaultToken].decimals
     if decimals == 0:
-        return 0 # not registered
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     return self._getPricePerShare(_vaultToken, decimals)
 
 

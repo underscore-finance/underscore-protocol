@@ -34,6 +34,7 @@ import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
+from ethereum.ercs import IERC20Detailed
 
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
@@ -260,7 +261,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     if decimals == 0:
         decimals = yld.vaultToAsset[_vaultToken].decimals
     if decimals == 0:
-        return 0 # not registered
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     return self._getPricePerShare(_vaultToken, decimals)
 
 

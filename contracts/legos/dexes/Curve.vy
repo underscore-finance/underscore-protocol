@@ -119,8 +119,17 @@ interface CryptoLegacyPool:
 interface OracleRegistry:
     def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
+
 interface CurveAddressProvider:
     def get_address(_id: uint256) -> address: view
+
+interface Registry:
+    def isValidAddr(_addr: address) -> bool: view
 
 flag PoolType:
     STABLESWAP_NG
@@ -196,6 +205,7 @@ event CurveLiquidityRemoved:
 # curve
 CURVE_META_REGISTRY: public(immutable(address))
 CURVE_REGISTRIES: public(immutable(CurveRegistries))
+RIPE_REGISTRY: public(immutable(address))
 
 # curve address provider ids
 METAPOOL_FACTORY_ID: constant(uint256) = 3
@@ -212,10 +222,11 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 
 
 @deploy
-def __init__(_undyHq: address, _curveAddressProvider: address):
+def __init__(_undyHq: address, _curveAddressProvider: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     dld.__init__(False)
 
+    assert empty(address) not in [_curveAddressProvider, _ripeRegistry] # dev: invalid addrs
     CURVE_META_REGISTRY = staticcall CurveAddressProvider(_curveAddressProvider).get_address(META_REGISTRY_ID)
     CURVE_REGISTRIES = CurveRegistries(
         StableSwapNg= staticcall CurveAddressProvider(_curveAddressProvider).get_address(STABLESWAP_NG_FACTORY_ID),
@@ -225,6 +236,7 @@ def __init__(_undyHq: address, _curveAddressProvider: address):
         MetaPool= staticcall CurveAddressProvider(_curveAddressProvider).get_address(METAPOOL_FACTORY_ID),
         RateProvider= staticcall CurveAddressProvider(_curveAddressProvider).get_address(RATE_PROVIDER_ID),
     )
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -255,6 +267,16 @@ def isDexLego() -> bool:
     return True
 
 
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller)
+
+
 #########
 # Swaps #
 #########
@@ -270,6 +292,7 @@ def swapTokens(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
@@ -407,6 +430,7 @@ def addLiquidity(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (address, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     assert empty(address) not in [_tokenA, _tokenB] # dev: invalid tokens
@@ -608,6 +632,7 @@ def removeLiquidity(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # if one of the tokens is empty, it means they only want to remove liquidity for one token
