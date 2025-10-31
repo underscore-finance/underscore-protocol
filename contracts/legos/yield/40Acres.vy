@@ -42,9 +42,14 @@ interface Appraiser:
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
 
 event FortyAcresDeposit:
     sender: indexed(address)
@@ -64,17 +69,21 @@ event FortyAcresWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+RIPE_REGISTRY: public(immutable(address))
 FORTY_ACRES_USDC_VAULT: public(immutable(address))
 MAX_TOKEN_PATH: constant(uint256) = 5
 
 
 @deploy
-def __init__(_undyHq: address, _fortyAcresVault: address):
+def __init__(_undyHq: address, _fortyAcresVault: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
     assert _fortyAcresVault != empty(address) # dev: invalid addr
     FORTY_ACRES_USDC_VAULT = _fortyAcresVault
+
+    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -395,6 +404,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -463,6 +473,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -517,6 +528,22 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
         vaultInfo = self._registerVaultTokenLocally(asset, _vaultAddr)
         self._registerVaultTokenGlobally(asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
     return vaultInfo
+
+
+##################
+# Access Control #
+##################
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
 
 
 #########
