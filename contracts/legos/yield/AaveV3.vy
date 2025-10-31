@@ -34,13 +34,14 @@ import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
+
+interface Appraiser:
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface AaveV3Pool:
     def supply(_asset: address, _amount: uint256, _onBehalfOf: address, _referralCode: uint16): nonpayable
@@ -50,12 +51,16 @@ interface AaveProtocolDataProvider:
     def getReserveTokensAddresses(_asset: address) -> (address, address, address): view
     def getTotalDebt(_asset: address) -> uint256: view
 
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
 interface AToken:
     def UNDERLYING_ASSET_ADDRESS() -> address: view
     def totalSupply() -> uint256: view
 
-interface Registry:
-    def getRegId(_addr: address) -> uint256: view
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface AaveV3AddressProvider:
     def getPoolDataProvider() -> address: view
@@ -81,6 +86,7 @@ event AaveV3Withdrawal:
 # aave v3
 AAVE_V3_POOL: public(immutable(address))
 AAVE_V3_ADDRESS_PROVIDER: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -90,13 +96,15 @@ def __init__(
     _undyHq: address,
     _aaveV3: address,
     _addressProvider: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert empty(address) not in [_aaveV3, _addressProvider] # dev: invalid addrs
+    assert empty(address) not in [_aaveV3, _addressProvider, _ripeRegistry] # dev: invalid addrs
     AAVE_V3_POOL = _aaveV3
     AAVE_V3_ADDRESS_PROVIDER = _addressProvider
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -390,6 +398,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # deposit
 
 
@@ -402,6 +424,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -469,6 +492,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)

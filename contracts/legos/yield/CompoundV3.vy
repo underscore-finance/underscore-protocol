@@ -41,23 +41,28 @@ interface CompoundV3:
     def totalBorrow() -> uint256: view
     def baseToken() -> address: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
+
+interface Appraiser:
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface CompoundV3Rewards:
     def getRewardOwed(_comet: address, _user: address) -> RewardOwed: nonpayable
     def claim(_comet: address, _user: address, _shouldAccrue: bool): nonpayable
 
-interface CompoundV3Configurator:
-    def factory(_cometAsset: address) -> address: view
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface CompoundV3Configurator:
+    def factory(_cometAsset: address) -> address: view
 
 struct RewardOwed:
     token: address
@@ -89,6 +94,7 @@ compoundRewards: public(address)
 
 # compound v3
 COMPOUND_V3_CONFIGURATOR: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -98,6 +104,7 @@ def __init__(
     _undyHq: address,
     _configurator: address,
     _compRewards: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
@@ -105,6 +112,9 @@ def __init__(
     assert _configurator != empty(address) # dev: invalid configurator
     COMPOUND_V3_CONFIGURATOR = _configurator
     self.compoundRewards = _compRewards
+
+    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -386,6 +396,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # deposit
 
 
@@ -398,6 +422,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -465,6 +490,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -533,10 +559,9 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    assert msg.sender == _user # dev: recipient must be caller
     preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
 
     market: address = empty(address)

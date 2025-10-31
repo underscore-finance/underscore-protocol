@@ -391,6 +391,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -555,7 +569,6 @@ def claimRewards(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
-    assert msg.sender == _user # dev: recipient must be caller
 
     lootDistributor: address = addys._getLootDistributorAddr()
 
@@ -584,22 +597,6 @@ def hasClaimableRewards(_user: address) -> bool:
         return True
     depositRewards: uint256 = staticcall LootDistributor(lootDistributor).getClaimableDepositRewards(_user)
     return depositRewards != 0
-
-
-##################
-# Access Control #
-##################
-
-
-@view
-@internal
-def _isAllowedToPerformAction(_caller: address) -> bool:
-    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
-    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
-        return True
-    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
-        return True
-    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
 
 
 #########

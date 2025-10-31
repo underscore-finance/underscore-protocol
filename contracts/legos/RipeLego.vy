@@ -828,7 +828,6 @@ def claimRewards(
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    assert msg.sender == _user # dev: recipient must be caller
     assert _rewardToken == RIPE_TOKEN # dev: invalid reward token
 
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)

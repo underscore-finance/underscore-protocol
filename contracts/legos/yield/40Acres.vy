@@ -35,14 +35,14 @@ import contracts.modules.YieldLegoData as yld
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
+
+interface Appraiser:
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
@@ -380,6 +380,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -528,22 +542,6 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
         vaultInfo = self._registerVaultTokenLocally(asset, _vaultAddr)
         self._registerVaultTokenGlobally(asset, _vaultAddr, vaultInfo.decimals, _ledger, _legoBook)
     return vaultInfo
-
-
-##################
-# Access Control #
-##################
-
-
-@view
-@internal
-def _isAllowedToPerformAction(_caller: address) -> bool:
-    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
-    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
-        return True
-    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
-        return True
-    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
 
 
 #########

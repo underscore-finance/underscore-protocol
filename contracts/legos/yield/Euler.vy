@@ -35,26 +35,31 @@ import contracts.modules.YieldLegoData as yld
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
+
+interface Appraiser:
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface EulerRewardsDistributor:
     def claim(_users: DynArray[address, 10], _rewardTokens: DynArray[address, 10], _claimAmounts: DynArray[uint256, 10], _proofs: DynArray[bytes32, 10]): nonpayable
     def operators(_user: address, _operator: address) -> bool: view
 
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
 interface EulerEarnFactory:
     def isValidDeployment(_vault: address) -> bool: view
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
 interface EulerEvaultFactory:
     def isProxy(_vault: address) -> bool: view
-
-interface Registry:
-    def getRegId(_addr: address) -> uint256: view
 
 interface EulerVault:
     def totalBorrows() -> uint256: view
@@ -86,6 +91,7 @@ eulerRewards: public(address)
 # euler
 EULER_EVAULT_FACTORY: public(immutable(address))
 EULER_EARN_FACTORY: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 LEGO_ACCESS_ABI: constant(String[64]) = "toggleOperator(address,address)"
@@ -97,14 +103,17 @@ def __init__(
     _evaultFactory: address,
     _earnFactory: address,
     _eulerRewardsAddr: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert empty(address) not in [_evaultFactory, _earnFactory] # dev: invalid addrs
+    assert empty(address) not in [_evaultFactory, _earnFactory, _ripeRegistry] # dev: invalid addrs
     EULER_EVAULT_FACTORY = _evaultFactory
     EULER_EARN_FACTORY = _earnFactory
     self.eulerRewards = _eulerRewardsAddr
+
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -403,6 +412,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -427,6 +450,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -495,6 +519,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -564,10 +589,9 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    assert msg.sender == _user # dev: recipient must be caller
     preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
 
     eulerRewards: address = self.eulerRewards

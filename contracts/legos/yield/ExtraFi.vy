@@ -43,16 +43,21 @@ interface ExtraFiPool:
     def exchangeRateOfReserve(_reserveId: uint256) -> uint256: view
     def getETokenAddress(_reserveId: uint256) -> address: view
 
+interface Ledger:
+    def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
+    def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
+
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
-interface Ledger:
-    def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
-    def isRegisteredVaultToken(_vaultToken: address) -> bool: view
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
 
 event ExtraFiDeposit:
     sender: indexed(address)
@@ -75,6 +80,7 @@ event ExtraFiWithdrawal:
 vaultTokenToReserveId: public(HashMap[address, uint256]) # vault token -> reserve id
 
 EXTRAFI_POOL: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 MAX_MARKETS: constant(uint256) = 50
 MAX_ASSETS: constant(uint256) = 25
@@ -82,12 +88,15 @@ MAX_TOKEN_PATH: constant(uint256) = 5
 
 
 @deploy
-def __init__(_undyHq: address, _extraFiPool: address):
+def __init__(_undyHq: address, _extraFiPool: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
     assert _extraFiPool != empty(address) # dev: invalid addr
     EXTRAFI_POOL = _extraFiPool
+
+    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -404,6 +413,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -428,6 +451,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultAddr]
@@ -487,6 +511,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[_vaultToken]
