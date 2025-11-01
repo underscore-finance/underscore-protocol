@@ -321,6 +321,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
     return staticcall CompoundV3(_vaultToken).totalBorrow()
 
 
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return 0
+
+
 ################
 # Registration #
 ################

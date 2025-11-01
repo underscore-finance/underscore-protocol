@@ -322,6 +322,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
     return staticcall AaveProtocolDataProvider(self._getPoolDataProvider()).getTotalDebt(asset)
 
 
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return 0
+
+
 ################
 # Registration #
 ################

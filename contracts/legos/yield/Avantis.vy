@@ -49,6 +49,9 @@ interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
 
+interface AvantisVault:
+    def getWithdrawalFeesTotal(_amount: uint256) -> uint256: view
+
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
@@ -249,6 +252,15 @@ def isRebasing() -> bool:
 @internal
 def _isRebasing() -> bool:
     return False
+
+
+# withdrawal fees
+
+
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return staticcall AvantisVault(_vaultToken).getWithdrawalFeesTotal(_vaultTokenAmount)
 
 
 # price per share

@@ -330,6 +330,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
     return staticcall ExtraFiPool(EXTRAFI_POOL).totalBorrowsOfReserve(reserveId)
 
 
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return 0
+
+
 ################
 # Registration #
 ################
