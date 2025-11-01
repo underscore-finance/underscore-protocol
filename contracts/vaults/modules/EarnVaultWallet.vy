@@ -211,7 +211,7 @@ def _depositForYield(
     assert _vaultAddr == vaultToken # dev: vault token mismatch
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
-    # true redemption amount (those legos with fees, this reduces the fee amount)
+    # this accounts for withdrawal fees -- therefore using this when tracking `lastUnderlyingBal`
     assetAmountAdjusted: uint256 = staticcall YieldLego(_ad.legoAddr).getUnderlyingAmount(_vaultAddr, vaultTokenAmountReceived)
 
     # update yield position

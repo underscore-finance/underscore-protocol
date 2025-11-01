@@ -1253,63 +1253,18 @@ def test_multiple_fee_positions_all_deferred_to_phase3(undy_usd_vault, yield_und
     assert bob_balance >= withdraw_amount * 99 // 100, "User should receive close to requested amount even when all positions have fees"
 
 
-def test_lastUnderlyingBal_accounts_for_expected_withdrawal_with_fees(_test, undy_usd_vault, vault_registry, switchboard_alpha, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, mock_yield_lego, starter_agent, bob):
-    """Verify lastUnderlyingBal uses EXPECTED withdrawal amount (before fees), not ACTUAL amount (after fees)"""
-
-    # Set redemption buffer to 0 to simplify calculations
-    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 0, sender=switchboard_alpha.address)
-
-    # Create large yield position
-    deposit_amount = 100_000 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(
-        1,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=starter_agent.address
-    )
-
-    # User deposits
-    user_deposit = 10_000 * EIGHTEEN_DECIMALS
-    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
-    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
-    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
-
-    # Set 10% withdrawal fee
-    mock_yield_lego.setWithdrawalFees(20, sender=starter_agent.address)
-
-    # pre balances
-    last_bal_before = undy_usd_vault.lastUnderlyingBal()
-    bob_pre_withdraw = yield_underlying_token.balanceOf(bob)
-
-    # Perform withdrawal
-    withdraw_amount = 2_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
-
-    # post balances
-    last_bal_after = undy_usd_vault.lastUnderlyingBal()
-    bob_post_withdraw = yield_underlying_token.balanceOf(bob)
-
-    # key test
-    _test(bob_post_withdraw - bob_pre_withdraw, withdraw_amount * 90_00 // 100_00) # 10% fee
-    _test(last_bal_before - last_bal_after, withdraw_amount) # full withdrawal amount
+########################################################
+# Transient Storage & Deregistration Process Tests (6) #
+########################################################
 
 
-def test_lastUnderlyingBal_multiple_withdrawals_with_fees(_test, undy_usd_vault, vault_registry, switchboard_alpha, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, mock_yield_lego, starter_agent, bob):
-    """Verify lastUnderlyingBal correctly accounts for multiple withdrawals with fees"""
+def test_deregistration_occurs_after_fee_processing(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, mock_yield_lego, starter_agent, bob):
+    """Verify that deregistration happens AFTER Phase 3 (fee position processing)"""
 
-    # Set redemption buffer to 0 to simplify calculations
-    vault_registry.setRedemptionBuffer(undy_usd_vault.address, 0, sender=switchboard_alpha.address)
-
-    # Create large yield positions
-    deposit_amount = 50_000 * EIGHTEEN_DECIMALS
+    # Create two equal-sized positions
+    deposit_amount = 500 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount * 2, sender=yield_underlying_token_whale)
 
-    # Set 0.1% withdrawal fee before creating positions (10 basis points)
-    mock_yield_lego.setWithdrawalFees(10, sender=starter_agent.address)
-
-    # Create two positions
     undy_usd_vault.depositForYield(
         1,
         yield_underlying_token.address,
@@ -1326,45 +1281,267 @@ def test_lastUnderlyingBal_multiple_withdrawals_with_fees(_test, undy_usd_vault,
         sender=starter_agent.address
     )
 
-    # User deposits
-    user_deposit = 10_000 * EIGHTEEN_DECIMALS
+    # Set fees on both - they'll be processed in Phase 3
+    mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)  # 0.25%
+
+    assert undy_usd_vault.numAssets() == 3
+
+    # User deposits (large enough to ensure full drain after fees)
+    user_deposit = 200 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
     yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
     undy_usd_vault.deposit(user_deposit, bob, sender=bob)
 
-    # Record initial lastUnderlyingBal
-    initial_last_bal = undy_usd_vault.lastUnderlyingBal()
+    # Withdraw amount that will drain both positions (with 0.25% fee: 500*0.9975*2 + 200 = 1197.5)
+    withdraw_amount = 1197 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
 
-    # Perform first withdrawal (small relative to vault balance)
-    first_withdraw = 1_500 * EIGHTEEN_DECIMALS
-    undy_usd_vault.withdraw(first_withdraw, bob, bob, sender=bob)
+    # Both positions should be deregistered (after being processed in Phase 3)
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0, "First position should be deregistered"
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 0, "Second position should be deregistered"
+    assert undy_usd_vault.numAssets() == 1, "Should only have the default asset left"
 
-    last_bal_after_first = undy_usd_vault.lastUnderlyingBal()
-    first_reduction = initial_last_bal - last_bal_after_first
 
-    # Perform second withdrawal
-    second_withdraw = 1_000 * EIGHTEEN_DECIMALS
-    undy_usd_vault.withdraw(second_withdraw, bob, bob, sender=bob)
+def test_position_with_fees_that_gets_fully_drained(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, mock_yield_lego, starter_agent, bob):
+    """Test a position that has withdrawal fees AND gets fully drained (should be in both fee list and dereg list)"""
 
-    last_bal_after_second = undy_usd_vault.lastUnderlyingBal()
-    second_reduction = last_bal_after_first - last_bal_after_second
+    # Create single yield position
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
-    # Total reduction
-    total_reduction = initial_last_bal - last_bal_after_second
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
 
-    # Verify each withdrawal independently
-    # Each reduction should reflect the EXPECTED amount (no buffer), not actual after fees
-    # First: vault tries 1500, receives 1498.5 after 0.1% fee, lastUnderlyingBal reduced by 1500
-    # Second: vault tries 1000, receives 999 after 0.1% fee, lastUnderlyingBal reduced by 1000
-    expected_first_reduction = first_withdraw  # No buffer, exactly 1500
-    expected_second_reduction = second_withdraw  # No buffer, exactly 1000
-    expected_total_reduction = expected_first_reduction + expected_second_reduction  # 2500
+    # Set withdrawal fee
+    mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)
 
-    # Verify first withdrawal
-    _test(expected_first_reduction, first_reduction)
+    assert undy_usd_vault.numAssets() == 2
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1
 
-    # Verify second withdrawal
-    _test(expected_second_reduction, second_reduction)
+    # User deposits
+    user_deposit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
+    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
 
-    # Verify total reduction
-    _test(expected_total_reduction, total_reduction)
+    # Withdraw amount that will fully drain the position (1000 with 0.25% fee = 997.5 + 100 liquid = 1097.5)
+    withdraw_amount = 1097 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+
+    # Position should be processed in Phase 3 (due to fees) and then deregistered (due to being drained)
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0, "Fully drained fee position should be deregistered"
+    assert undy_usd_vault.numAssets() == 1
+
+
+def test_partial_drain_then_full_drain_with_deregistration(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, starter_agent, bob):
+    """Test position gets deregistered only after being fully drained, not partial"""
+
+    # Create yield position
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    assert undy_usd_vault.numAssets() == 2
+    initial_index = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    assert initial_index == 1
+
+    # User deposits
+    user_deposit = 2000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
+    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
+
+    # First withdrawal - partial drain
+    partial_withdraw = 500 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(partial_withdraw, bob, bob, sender=bob)
+
+    # Position should still be registered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == initial_index, "Partially drained position should still be registered"
+    assert undy_usd_vault.numAssets() == 2
+
+    # Second withdrawal - full drain
+    full_withdraw = 2500 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(full_withdraw, bob, bob, sender=bob)
+
+    # Now position should be deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0, "Fully drained position should be deregistered"
+    assert undy_usd_vault.numAssets() == 1
+
+
+def test_multiple_positions_dereg_maintains_correct_indexing(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, yield_vault_token_3, starter_agent, bob):
+    """Test that deregistering multiple positions maintains correct asset indexing"""
+
+    # Create three positions with different sizes
+    deposit_1 = 300 * EIGHTEEN_DECIMALS
+    deposit_2 = 400 * EIGHTEEN_DECIMALS
+    deposit_3 = 500 * EIGHTEEN_DECIMALS
+
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2 + deposit_3, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_1,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_2,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_3.address,
+        deposit_3,
+        sender=starter_agent.address
+    )
+
+    # Verify all positions are registered
+    assert undy_usd_vault.numAssets() == 4
+    index_1 = undy_usd_vault.indexOfAsset(yield_vault_token.address)
+    index_2 = undy_usd_vault.indexOfAsset(yield_vault_token_2.address)
+    index_3 = undy_usd_vault.indexOfAsset(yield_vault_token_3.address)
+
+    assert index_1 > 0
+    assert index_2 > 0
+    assert index_3 > 0
+
+    # User deposits
+    user_deposit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
+    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
+
+    # Withdraw amount that drains all three positions (300 + 400 + 500 + 100 liquid = 1300)
+    withdraw_amount = 1300 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+
+    # All three positions should be deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0, "First position should be deregistered"
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 0, "Second position should be deregistered"
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_3.address) == 0, "Third position should be deregistered"
+    assert undy_usd_vault.numAssets() == 1  # Only default asset remains
+
+
+def test_empty_position_skipped_during_withdrawal(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, starter_agent, bob):
+    """Test that positions with 0 balance are skipped during withdrawal (no attempt to withdraw from them)"""
+
+    # Create two positions
+    deposit_1 = 500 * EIGHTEEN_DECIMALS
+    deposit_2 = 500 * EIGHTEEN_DECIMALS
+
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2, sender=yield_underlying_token_whale)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_1,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_2,
+        sender=starter_agent.address
+    )
+
+    assert undy_usd_vault.numAssets() == 3
+
+    # Manually drain first position completely outside of redemption
+    first_position_balance = yield_vault_token.balanceOf(undy_usd_vault.address)
+    yield_vault_token.transfer(bob, first_position_balance, sender=undy_usd_vault.address)
+
+    assert yield_vault_token.balanceOf(undy_usd_vault.address) == 0, "First position should be empty"
+
+    # User deposits
+    user_deposit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
+    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
+
+    # Perform withdrawal - should skip empty position and withdraw from second position
+    withdraw_amount = 400 * EIGHTEEN_DECIMALS
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+    bob_balance_after = yield_underlying_token.balanceOf(bob)
+
+    # Verify withdrawal succeeded by pulling from non-empty position
+    assert bob_balance_after == bob_balance_before + withdraw_amount, "Should successfully withdraw from second position"
+    # Empty position remains registered but wasn't touched
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 1, "Empty position still registered"
+
+
+def test_fee_position_deregistration_order(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, yield_vault_token_2, yield_vault_token_3, mock_yield_lego, starter_agent, bob):
+    """Test that fee positions are withdrawn in Phase 3, then deregistered if drained"""
+
+    # Create 3 positions: 2 without fees (phases 1-2), 1 with fees (phase 3)
+    deposit_amount = 400 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount * 3, sender=yield_underlying_token_whale)
+
+    # Create positions without fees
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_2.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    # Now set fees before creating third position
+    mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)
+
+    undy_usd_vault.depositForYield(
+        1,
+        yield_underlying_token.address,
+        yield_vault_token_3.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+
+    assert undy_usd_vault.numAssets() == 4
+
+    # User deposits
+    user_deposit = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, user_deposit, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, user_deposit, sender=bob)
+    undy_usd_vault.deposit(user_deposit, bob, sender=bob)
+
+    # Withdraw amount that drains all positions (400 + 400 + 399 after 0.25% fee on pos 3 + 100 liquid = 1299)
+    withdraw_amount = 1296 * EIGHTEEN_DECIMALS
+    undy_usd_vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+
+    # All positions should be deregistered
+    assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_2.address) == 0
+    assert undy_usd_vault.indexOfAsset(yield_vault_token_3.address) == 0
+    assert undy_usd_vault.numAssets() == 1
+
