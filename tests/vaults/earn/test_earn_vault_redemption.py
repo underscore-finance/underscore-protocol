@@ -1092,7 +1092,7 @@ def test_fee_positions_processed_last_not_first(undy_usd_vault, yield_underlying
 
     # Create positions WITHOUT fees first
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -1100,7 +1100,7 @@ def test_fee_positions_processed_last_not_first(undy_usd_vault, yield_underlying
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -1145,7 +1145,7 @@ def test_biggest_position_with_fees_deferred_to_phase3(undy_usd_vault, yield_und
 
     # Small position first
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         small_deposit,
@@ -1154,7 +1154,7 @@ def test_biggest_position_with_fees_deferred_to_phase3(undy_usd_vault, yield_und
 
     # Large position (would normally be withdrawn first in Phase 1)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         large_deposit,
@@ -1198,7 +1198,7 @@ def test_multiple_fee_positions_all_deferred_to_phase3(undy_usd_vault, yield_und
 
     # Create multiple positions - all will have fees
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1206,7 +1206,7 @@ def test_multiple_fee_positions_all_deferred_to_phase3(undy_usd_vault, yield_und
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -1214,7 +1214,7 @@ def test_multiple_fee_positions_all_deferred_to_phase3(undy_usd_vault, yield_und
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_amount,
@@ -1266,7 +1266,7 @@ def test_deregistration_occurs_after_fee_processing(undy_usd_vault, yield_underl
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount * 2, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1274,7 +1274,7 @@ def test_deregistration_occurs_after_fee_processing(undy_usd_vault, yield_underl
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -1310,7 +1310,7 @@ def test_position_with_fees_that_gets_fully_drained(undy_usd_vault, yield_underl
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1346,7 +1346,7 @@ def test_partial_drain_then_full_drain_with_deregistration(undy_usd_vault, yield
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1391,7 +1391,7 @@ def test_multiple_positions_dereg_maintains_correct_indexing(undy_usd_vault, yie
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2 + deposit_3, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -1399,7 +1399,7 @@ def test_multiple_positions_dereg_maintains_correct_indexing(undy_usd_vault, yie
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -1407,7 +1407,7 @@ def test_multiple_positions_dereg_maintains_correct_indexing(undy_usd_vault, yie
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_3,
@@ -1451,7 +1451,7 @@ def test_empty_position_skipped_during_withdrawal(undy_usd_vault, yield_underlyi
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_1 + deposit_2, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_1,
@@ -1459,7 +1459,7 @@ def test_empty_position_skipped_during_withdrawal(undy_usd_vault, yield_underlyi
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_2,
@@ -1501,7 +1501,7 @@ def test_fee_position_deregistration_order(undy_usd_vault, yield_underlying_toke
 
     # Create positions without fees
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1509,7 +1509,7 @@ def test_fee_position_deregistration_order(undy_usd_vault, yield_underlying_toke
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -1520,7 +1520,7 @@ def test_fee_position_deregistration_order(undy_usd_vault, yield_underlying_toke
     mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_3.address,
         deposit_amount,
@@ -1562,7 +1562,7 @@ def test_fee_position_saved_only_once_in_transient_storage(undy_usd_vault, yield
     mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)  # 0.25%
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1570,7 +1570,7 @@ def test_fee_position_saved_only_once_in_transient_storage(undy_usd_vault, yield
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -1622,7 +1622,7 @@ def test_deregistration_saved_only_once_in_transient_storage(undy_usd_vault, yie
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount * 2, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -1630,7 +1630,7 @@ def test_deregistration_saved_only_once_in_transient_storage(undy_usd_vault, yie
     )
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token_2.address,
         deposit_amount,
@@ -1673,7 +1673,7 @@ def test_position_in_both_fee_and_dereg_transient_lists(undy_usd_vault, yield_un
     mock_yield_lego.setWithdrawalFees(25, sender=starter_agent.address)  # 0.25%
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
