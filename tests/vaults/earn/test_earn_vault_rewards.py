@@ -55,12 +55,9 @@ def test_claim_rewards_basic(
 
     assert mock_dex_asset.balanceOf(undy_usd_vault) == reward_amount
 
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 50
-    assert log.asset1 == mock_dex_asset.address
-    assert log.asset2 == mock_dex_lego.address
-    assert log.amount1 == reward_amount
-    assert log.amount2 == 0
+    log = filter_logs(undy_usd_vault, "EarnVaultRewardsClaim")[0]
+    assert log.rewardToken == mock_dex_asset.address
+    assert log.rewardAmount == reward_amount
     assert log.usdValue == usd_value
     assert log.legoId == lego_id
     assert log.signer == starter_agent.address
@@ -218,12 +215,9 @@ def test_claim_rewards_event_details(
         sender=starter_agent.address,
     )
 
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 50
-    assert log.asset1 == mock_dex_asset.address
-    assert log.asset2 == mock_dex_lego.address
-    assert log.amount1 == reward_amount
-    assert log.amount2 == 0
+    log = filter_logs(undy_usd_vault, "EarnVaultRewardsClaim")[0]
+    assert log.rewardToken == mock_dex_asset.address
+    assert log.rewardAmount == reward_amount
     assert log.usdValue == 1250 * EIGHTEEN_DECIMALS
     assert log.legoId == lego_id
     assert log.signer == starter_agent.address

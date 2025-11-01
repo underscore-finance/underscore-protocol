@@ -34,23 +34,29 @@ import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
+from ethereum.ercs import IERC20Detailed
+
+interface Ledger:
+    def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
+    def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
 
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
-interface Ledger:
-    def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
-    def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
 
 interface MorphoRewardsDistributor:
     def claim(_user: address, _rewardToken: address, _claimable: uint256, _proof: bytes32) -> uint256: nonpayable
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
 interface MetaMorphoFactory:
     def isMetaMorpho(_vault: address) -> bool: view
-
-interface Registry:
-    def getRegId(_addr: address) -> uint256: view
 
 event MorphoDeposit:
     sender: indexed(address)
@@ -79,6 +85,7 @@ morphoRewards: public(address)
 # morpho
 MORPHO_FACTORY: public(immutable(address))
 MORPHO_FACTORY_LEGACY: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
@@ -89,14 +96,17 @@ def __init__(
     _morphoFactory: address,
     _morphoFactoryLegacy: address,
     _morphoRewardsAddr: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert empty(address) not in [_morphoFactory, _morphoFactoryLegacy] # dev: invalid addrs
+    assert empty(address) not in [_morphoFactory, _morphoFactoryLegacy, _ripeRegistry] # dev: invalid addrs
     MORPHO_FACTORY = _morphoFactory
     MORPHO_FACTORY_LEGACY = _morphoFactoryLegacy
     self.morphoRewards = _morphoRewardsAddr
+
+    RIPE_REGISTRY = _ripeRegistry
 
 
 @view
@@ -176,7 +186,7 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
 @view
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+    return staticcall IERC4626(_vaultToken).previewRedeem(_vaultTokenAmount)
 
 
 # underlying amount (safe)
@@ -273,14 +283,14 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     if decimals == 0:
         decimals = yld.vaultToAsset[_vaultToken].decimals
     if decimals == 0:
-        return 0 # not registered
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     return self._getPricePerShare(_vaultToken, decimals)
 
 
 @view
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(10 ** _decimals)
+    return staticcall IERC4626(_vaultToken).previewRedeem(10 ** _decimals)
 
 
 # vault token amount
@@ -317,6 +327,12 @@ def totalAssets(_vaultToken: address) -> uint256:
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
     # TODO: implement
+    return 0
+
+
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     return 0
 
 
@@ -396,6 +412,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -420,6 +450,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -488,6 +519,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -557,10 +589,9 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    assert msg.sender == _user # dev: recipient must be caller
     morphoRewards: address = self.morphoRewards
     assert morphoRewards != empty(address) # dev: no morpho rewards addr set
 

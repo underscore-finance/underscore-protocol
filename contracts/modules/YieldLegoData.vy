@@ -31,6 +31,7 @@ event PricePerShareSnapShotAdded:
     vaultToken: indexed(address)
     totalSupply: uint256
     pricePerShare: uint256
+    lastAveragePricePerShare: uint256
 
 event SnapShotPriceConfigSet:
     minSnapshotDelay: uint256
@@ -76,7 +77,7 @@ def __init__(_shouldPause: bool):
         minSnapshotDelay = 60 * 10, # 10 minutes
         maxNumSnapshots = 20,
         maxUpsideDeviation = 10_00, # 10%
-        staleTime = 3 * ONE_DAY_SECONDS, # 3 days
+        staleTime = ONE_DAY_SECONDS, # 1 day
     )
 
 
@@ -369,12 +370,14 @@ def _addPriceSnapshot(_vaultToken: address, _pricePerShare: uint256, _vaultToken
     self.snapShotData[_vaultToken] = data
 
     # update cached weighted average price per share
-    self.vaultToAsset[_vaultToken].lastAveragePricePerShare = self._getWeightedPricePerShare(_vaultToken, _pricePerShare)
+    lastAveragePricePerShare: uint256 = self._getWeightedPricePerShare(_vaultToken, _pricePerShare)
+    self.vaultToAsset[_vaultToken].lastAveragePricePerShare = lastAveragePricePerShare
 
     log PricePerShareSnapShotAdded(
         vaultToken = _vaultToken,
         totalSupply = newSnapshot.totalSupply,
         pricePerShare = newSnapshot.pricePerShare,
+        lastAveragePricePerShare = lastAveragePricePerShare,
     )
     return True
 

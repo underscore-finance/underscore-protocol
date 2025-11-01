@@ -53,6 +53,12 @@ def convertToAssets(_shares: uint256) -> uint256:
 
 
 @view
+@external
+def previewRedeem(_shares: uint256) -> uint256:
+    return self._sharesToAmount(_shares)
+
+
+@view
 @internal
 def _sharesToAmount(_shares: uint256) -> uint256:
     if _shares == 0:

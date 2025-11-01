@@ -39,6 +39,7 @@ import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
+from ethereum.ercs import IERC20Detailed
 
 interface RipeTeller:
     def repay(_paymentAmount: uint256 = max_value(uint256), _user: address = msg.sender, _isPaymentSavingsGreen: bool = False, _shouldRefundSavingsGreen: bool = True) -> bool: nonpayable
@@ -53,6 +54,11 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+    def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
+    
 interface RipeRegistry:
     def savingsGreen() -> address: view
     def greenToken() -> address: view
@@ -61,10 +67,6 @@ interface RipeRegistry:
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
-interface Registry:
-    def getRegId(_addr: address) -> uint256: view
-    def getAddr(_regId: uint256) -> address: view
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
@@ -333,7 +335,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     if decimals == 0:
         decimals = yld.vaultToAsset[_vaultToken].decimals
     if decimals == 0:
-        return 0 # not registered
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     return self._getPricePerShare(_vaultToken, decimals)
 
 
@@ -377,6 +379,12 @@ def totalAssets(_vaultToken: address) -> uint256:
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
     # TODO: implement
+    return 0
+
+
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     return 0
 
 
@@ -478,6 +486,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -546,6 +555,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -618,11 +628,10 @@ def addCollateral(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    # only allowing user wallets to do this
-    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     # pre balances
@@ -675,11 +684,10 @@ def removeCollateral(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    # only allowing user wallets to do this
-    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     vaultId: uint256 = 0
@@ -714,11 +722,10 @@ def borrow(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    # only allowing user wallets to do this
-    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     savingsGreen: address = RIPE_SAVINGS_GREEN
@@ -752,11 +759,10 @@ def repayDebt(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
 
-    # only allowing user wallets to do this
-    assert self._isUserWalletOrEarnVault(msg.sender) # dev: not a user wallet
     assert msg.sender == _recipient # dev: recipient must be caller
 
     savingsGreen: address = RIPE_SAVINGS_GREEN
@@ -830,11 +836,9 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    # NOTE: not checking isUserWallet -- Ripe's Endaoment needs to be able to call this
-    assert msg.sender == _user # dev: recipient must be caller
 
     assert _rewardToken == RIPE_TOKEN # dev: invalid reward token
 
@@ -872,6 +876,22 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     else:
         teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
         return teller, LEGO_ACCESS_ABI, 1
+
+
+##################
+# Access Control #
+##################
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
 
 
 #########

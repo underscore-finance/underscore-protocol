@@ -48,12 +48,11 @@ def test_vault_mini_wallet_deposit_for_yield_basic(prepareAssetForWalletTx, undy
     )
 
     # verify event
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 10  # EARN_DEPOSIT operation
-    assert log.asset1 == yield_underlying_token.address
-    assert log.asset2 == yield_vault_token.address
-    assert log.amount1 == deposit_amount
-    assert log.amount2 == vault_tokens_received
+    log = filter_logs(undy_usd_vault, "EarnVaultDeposit")[0]
+    assert log.asset == yield_underlying_token.address
+    assert log.vaultToken == yield_vault_token.address
+    assert log.assetAmountDeposited == deposit_amount
+    assert log.vaultTokenReceived == vault_tokens_received
     assert log.usdValue == usd_value
     assert log.legoId == lego_id
     assert log.signer == starter_agent.address
@@ -144,9 +143,9 @@ def test_vault_mini_wallet_deposit_for_yield_multiple_sequential(prepareAssetFor
     )
 
     # Get event from first deposit
-    first_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert first_log.amount1 == first_amount
-    assert first_log.amount2 == first_vault_tokens
+    first_log = filter_logs(undy_usd_vault, "EarnVaultDeposit")[0]
+    assert first_log.assetAmountDeposited == first_amount
+    assert first_log.vaultTokenReceived == first_vault_tokens
 
     # Second deposit
     second_amount = prepareAssetForWalletTx(_amount=30 * EIGHTEEN_DECIMALS)
@@ -160,9 +159,9 @@ def test_vault_mini_wallet_deposit_for_yield_multiple_sequential(prepareAssetFor
     )
 
     # Get event from second deposit
-    second_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert second_log.amount1 == second_amount
-    assert second_log.amount2 == second_vault_tokens
+    second_log = filter_logs(undy_usd_vault, "EarnVaultDeposit")[0]
+    assert second_log.assetAmountDeposited == second_amount
+    assert second_log.vaultTokenReceived == second_vault_tokens
 
     # Verify cumulative effects
     total_vault_tokens = first_vault_tokens + second_vault_tokens
@@ -390,12 +389,11 @@ def test_vault_mini_wallet_deposit_for_yield_event_verification_detailed(prepare
     )
 
     # Get event immediately after transaction
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 10  # EARN_DEPOSIT
-    assert log.asset1 == yield_underlying_token.address
-    assert log.asset2 == yield_vault_token.address
-    assert log.amount1 == deposit_amount
-    assert log.amount2 == vault_tokens_received
+    log = filter_logs(undy_usd_vault, "EarnVaultDeposit")[0]
+    assert log.asset == yield_underlying_token.address
+    assert log.vaultToken == yield_vault_token.address
+    assert log.assetAmountDeposited == deposit_amount
+    assert log.vaultTokenReceived == vault_tokens_received
     assert log.usdValue == usd_value
     assert log.legoId == lego_id
     assert log.signer == starter_agent.address
@@ -504,12 +502,11 @@ def test_vault_mini_wallet_withdraw_from_yield_basic(setupYieldPosition, undy_us
     )
 
     # verify event
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 11  # EARN_WITHDRAW operation
-    assert log.asset1 == yield_vault_token.address
-    assert log.asset2 == yield_underlying_token.address
-    assert log.amount1 == withdraw_amount == vault_burned
-    assert log.amount2 == underlying_received
+    log = filter_logs(undy_usd_vault, "EarnVaultWithdrawal")[0]
+    assert log.vaultToken == yield_vault_token.address
+    assert log.underlyingAsset == yield_underlying_token.address
+    assert log.vaultTokenBurned == withdraw_amount == vault_burned
+    assert log.underlyingAmountReceived == underlying_received
     assert log.usdValue == usd_value
     assert log.legoId == 2
     assert log.signer == starter_agent.address
@@ -699,9 +696,8 @@ def test_vault_mini_wallet_withdraw_from_yield_multiple_sequential(setupYieldPos
     assert underlying1 == withdraw1  # 1:1 price
 
     # Get event from first withdrawal
-    first_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert first_log.op == 11  # EARN_WITHDRAW
-    assert first_log.amount1 == withdraw1
+    first_log = filter_logs(undy_usd_vault, "EarnVaultWithdrawal")[0]
+    assert first_log.vaultTokenBurned == withdraw1
 
     # second withdrawal - 1/3
     withdraw2 = vault_tokens // 3
@@ -717,9 +713,8 @@ def test_vault_mini_wallet_withdraw_from_yield_multiple_sequential(setupYieldPos
     assert underlying2 == withdraw2
 
     # Get event from second withdrawal
-    second_log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert second_log.op == 11
-    assert second_log.amount1 == withdraw2
+    second_log = filter_logs(undy_usd_vault, "EarnVaultWithdrawal")[0]
+    assert second_log.vaultTokenBurned == withdraw2
 
     # third withdrawal - remaining
     remaining = vault_tokens - withdraw1 - withdraw2
@@ -784,12 +779,11 @@ def test_vault_mini_wallet_withdraw_from_yield_event_details(setupYieldPosition,
     )
 
     # Get event immediately after transaction
-    log = filter_logs(undy_usd_vault, "EarnVaultAction")[0]
-    assert log.op == 11  # EARN_WITHDRAW
-    assert log.asset1 == yield_vault_token.address
-    assert log.asset2 == underlying_asset
-    assert log.amount1 == vault_burned
-    assert log.amount2 == underlying_received
+    log = filter_logs(undy_usd_vault, "EarnVaultWithdrawal")[0]
+    assert log.vaultToken == yield_vault_token.address
+    assert log.underlyingAsset == underlying_asset
+    assert log.vaultTokenBurned == vault_burned
+    assert log.underlyingAmountReceived == underlying_received
     assert log.usdValue == usd_value
     assert log.legoId == 2
     assert log.signer == starter_agent.address

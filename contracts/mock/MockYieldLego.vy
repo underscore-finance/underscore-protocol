@@ -32,11 +32,13 @@ interface Registry:
     def getRegId(_addr: address) -> uint256: view
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 # mock config
 mockIsRebasing: public(bool)
 minTotalAssets: public(uint256)
 isEligible: public(bool)
+withdrawalFees: public(uint256)
 
 
 @deploy
@@ -122,7 +124,14 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
 @view
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+    underlyingAmount: uint256 = staticcall IERC4626(_vaultToken).previewRedeem(_vaultTokenAmount)
+
+    # Reduce by withdrawal fees if present
+    fees: uint256 = self.withdrawalFees
+    if fees != 0:
+        underlyingAmount = underlyingAmount * (HUNDRED_PERCENT - fees) // HUNDRED_PERCENT
+
+    return underlyingAmount
 
 
 # underlying amount (safe)
@@ -226,7 +235,14 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
 @view
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(10 ** _decimals)
+    pricePerShare: uint256 = staticcall IERC4626(_vaultToken).previewRedeem(10 ** _decimals)
+
+    # Reduce by withdrawal fees if present
+    fees: uint256 = self.withdrawalFees
+    if fees != 0:
+        pricePerShare = pricePerShare * (HUNDRED_PERCENT - fees) // HUNDRED_PERCENT
+
+    return pricePerShare
 
 
 # vault token amount
@@ -266,6 +282,12 @@ def totalAssets(_vaultToken: address) -> uint256:
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
     return 0
+
+
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return self.withdrawalFees
 
 
 ################
@@ -438,8 +460,17 @@ def withdrawFromYield(
     assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
 
     # withdraw assets from lego partner
-    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
+    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, self, self)
     assert assetAmountReceived != 0 # dev: no asset amount received
+
+    # calculate withdrawal fees
+    fees: uint256 = self.withdrawalFees
+    if fees != 0:
+        feesAmount: uint256 = assetAmountReceived * fees // HUNDRED_PERCENT
+        assetAmountReceived -= feesAmount
+
+    # transfer assets to recipient
+    assert extcall IERC20(vaultInfo.underlyingAsset).transfer(_recipient, assetAmountReceived, default_return_value=True) # dev: transfer failed
 
     # refund if full withdrawal didn't happen
     currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -490,6 +521,11 @@ def setIsEligibleForYieldBonus(_isEligible: bool):
 @external
 def setIsRebasing(_isRebasing: bool):
     self.mockIsRebasing = _isRebasing
+
+
+@external
+def setWithdrawalFees(_withdrawalFees: uint256):
+    self.withdrawalFees = _withdrawalFees
 
 
 #########

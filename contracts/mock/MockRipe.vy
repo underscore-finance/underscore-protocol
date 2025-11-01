@@ -58,6 +58,12 @@ def getAddr(_regId: uint256) -> address:
 
 @view
 @external
+def isValidAddr(_addr: address) -> bool:
+    return True
+
+
+@view
+@external
 def greenToken() -> address:
     return GREEN_TOKEN
 
