@@ -186,7 +186,7 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
 @view
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+    return staticcall IERC4626(_vaultToken).previewRedeem(_vaultTokenAmount)
 
 
 # underlying amount (safe)
@@ -290,7 +290,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
 @view
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).convertToAssets(10 ** _decimals)
+    return staticcall IERC4626(_vaultToken).previewRedeem(10 ** _decimals)
 
 
 # vault token amount
