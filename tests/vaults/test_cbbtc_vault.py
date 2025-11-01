@@ -303,11 +303,12 @@ def test_cbbtc_vault_share_price_increase(
     whale = WHALES[fork]["CBBTC"]
     whale_amount = 10 * (10 ** asset.decimals())
 
-    # Transfer to whale and deposit via lego
-    asset.transfer(whale, whale_amount, sender=WHALES[fork]["CBBTC"])
-    asset.approve(lego.address, whale_amount, sender=whale)
+    # Transfer to vault and deposit via lego (simulating another depositor)
+    # vault is allowed to call lego.depositForYield (registered as earn vault)
+    asset.transfer(undy_btc_vault.address, whale_amount, sender=WHALES[fork]["CBBTC"])
+    asset.approve(lego.address, whale_amount, sender=undy_btc_vault.address)
 
-    # Deposit via lego (simulating another depositor)
+    # Deposit via lego through allowed caller (simulating another depositor)
     # Parameters: _asset, _amount, _vaultAddr, _extraData, _recipient
     whale_vault_tokens = lego.depositForYield(
         asset,                # _asset
@@ -315,7 +316,7 @@ def test_cbbtc_vault_share_price_increase(
         vault_addr,           # _vaultAddr
         b'',                  # _extraData (empty bytes32)
         whale,                # _recipient
-        sender=whale
+        sender=undy_btc_vault.address
     )
 
     # Check that value didn't decrease (it should stay the same or increase very slightly due to rounding)
