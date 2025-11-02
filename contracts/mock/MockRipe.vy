@@ -290,6 +290,16 @@ def getUserDebtAmount(_user: address) -> uint256:
     return self.userDebt[_user]
 
 
+@view
+@external
+def getMaxWithdrawableForAsset(
+    _user: address,
+    _vaultId: uint256,
+    _asset: address,
+) -> uint256:
+    return max_value(uint256)
+
+
 ################################
 # RIPE DEPOSIT VAULT INTERFACE #
 ################################
