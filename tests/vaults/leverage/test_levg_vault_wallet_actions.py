@@ -944,8 +944,88 @@ def test_repay_max_amount(
     assert mock_ripe.userDebt(wallet.address) == 0
 
 
+###################################
+# 5. Rewards Claiming Tests #
+###################################
+
+
+def test_claim_rewards_success(
+    setup_prices,
+    usdc_wallet_with_funds,
+    mock_usdc,
+    mock_yield_lego,
+    starter_agent,
+    governance,
+):
+    """Test successfully claiming rewards from a lego"""
+    wallet = usdc_wallet_with_funds
+    lego_id = 2  # Mock yield lego ID
+
+    # Create a mock reward token
+    reward_token = boa.load(
+        "contracts/mock/MockErc20.vy",
+        governance,
+        "Reward Token",
+        "REWARD",
+        18,
+        1_000_000_000,
+        name="reward_token"
+    )
+
+    reward_amount = 100 * EIGHTEEN_DECIMALS
+
+    # Get initial balance
+    initial_balance = reward_token.balanceOf(wallet.address)
+
+    # Claim rewards - this calls the lego's claimRewards function
+    # MockYieldLego returns (0, 0), so we just verify the call succeeds
+    amount_received, usd_value = wallet.claimRewards(
+        lego_id,
+        reward_token.address,
+        reward_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # MockYieldLego returns 0, but the call should succeed
+    assert amount_received == 0  # MockYieldLego implementation
+    assert usd_value == 0
+
+
+def test_claim_rewards_unauthorized_fails(
+    setup_prices,
+    usdc_wallet_with_funds,
+    mock_usdc,
+    alice,
+    governance,
+):
+    """Test that only managers can claim rewards"""
+    wallet = usdc_wallet_with_funds
+
+    # Create a mock reward token
+    reward_token = boa.load(
+        "contracts/mock/MockErc20.vy",
+        governance,
+        "Reward Token",
+        "REWARD",
+        18,
+        1_000_000_000,
+        name="reward_token_2"
+    )
+
+    # Try to claim rewards from unauthorized user - should fail
+    with boa.reverts():  # dev: no perms or unauthorized
+        wallet.claimRewards(
+            2,  # Mock yield lego ID
+            reward_token.address,
+            100 * EIGHTEEN_DECIMALS,
+            b"",
+            sender=alice
+        )
+
+
 ##############################
-# 5. Integration Tests #
+# 6. Integration Tests #
 ##############################
 
 
@@ -1147,7 +1227,7 @@ def test_multi_step_position_management(
 
 
 ####################################
-# 6. Access Control & Security #
+# 7. Access Control & Security #
 ####################################
 
 
@@ -1371,7 +1451,7 @@ def test_invalid_lego_for_debt_management(
 
 
 ###########################################
-# 7. Vault Token Validation Tests #
+# 8. Vault Token Validation Tests #
 ###########################################
 
 
@@ -1394,7 +1474,7 @@ def test_vault_to_lego_id_set_on_init(
 
 
 #################################################
-# 8. Redemption from Leverage Vault Tests (Step 4) #
+# 9. Redemption from Leverage Vault Tests (Step 4) #
 #################################################
 
 
