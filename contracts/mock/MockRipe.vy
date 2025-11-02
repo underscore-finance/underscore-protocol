@@ -233,6 +233,12 @@ def isSupportedAsset(_asset: address) -> bool:
     return True
 
 
+@view
+@external
+def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool:
+    return True
+
+
 #############################
 # RIPE PRICE DESK INTERFACE #
 #############################

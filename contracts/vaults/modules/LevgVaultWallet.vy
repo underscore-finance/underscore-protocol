@@ -9,12 +9,12 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
 interface LevgVaultHelper:
-    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
-    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
-    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
     def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdcSlippageAllowed: uint256, _greenSlippageAllowed: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view
-    def getCollateralBalance(_user: address, _asset: address) -> uint256: view
-    def isSupportedRipeAsset(_asset: address) -> bool: view
+    def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
+    def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256) -> uint256: view
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
@@ -23,7 +23,6 @@ interface VaultRegistry:
 
 interface YieldLego:
     def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256: view
-    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
 
 interface MissionControl:
     def isLockedSigner(_signer: address) -> bool: view
@@ -45,6 +44,10 @@ struct VaultActionData:
     legoId: uint256
     legoAddr: address
 
+struct RipeAsset:
+    vaultToken: address
+    ripeVaultId: uint256
+
 event LevgVaultAction:
     op: uint8
     asset1: indexed(address)
@@ -57,9 +60,13 @@ event LevgVaultAction:
 
 event CollateralVaultTokenSet:
     collateralVaultToken: indexed(address)
+    legoId: uint256
+    ripeVaultId: uint256
 
 event LeverageVaultTokenSet:
     leverageVaultToken: indexed(address)
+    legoId: uint256
+    ripeVaultId: uint256
 
 event UsdcSlippageAllowedSet:
     slippage: uint256
@@ -74,8 +81,8 @@ vaultToLegoId: public(HashMap[address, uint256])
 levgVaultHelper: public(address)
 
 # vault tokens
-collateralVaultToken: public(address) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)
-leverageVaultToken: public(address) # leverage yield - where borrowed GREEN → swapped USDC is deposited
+collateralAsset: public(RipeAsset) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)
+leverageAsset: public(RipeAsset) # leverage yield - where borrowed GREEN → swapped USDC is deposited
 
 # managers
 managers: public(HashMap[uint256, address]) # index -> manager
@@ -111,8 +118,10 @@ def __init__(
     _underlyingAsset: address,
     _collateralVaultToken: address,
     _collateralVaultTokenLegoId: uint256,
+    _collateralVaultTokenRipeVaultId: uint256,
     _leverageVaultToken: address,
     _leverageVaultTokenLegoId: uint256,
+    _leverageVaultTokenRipeVaultId: uint256,
     _usdc: address,
     _green: address,
     _savingsGreen: address,
@@ -130,20 +139,18 @@ def __init__(
     GREEN = _green
     SAVINGS_GREEN = _savingsGreen
 
+    # set levg vault helper
     self.levgVaultHelper = _levgVaultHelper
-    legoBook: address = staticcall Registry(_undyHq).getAddr(LEGO_BOOK_ID)
 
     # leverage vault token
-    legoAddr: address = staticcall Registry(legoBook).getAddr(_leverageVaultTokenLegoId)
-    assert staticcall YieldLego(legoAddr).canRegisterVaultToken(_usdc, _leverageVaultToken) # dev: invalid leverage vault token
-    self.leverageVaultToken = _leverageVaultToken
+    assert staticcall LevgVaultHelper(_levgVaultHelper).isValidVaultToken(_usdc, _leverageVaultToken, _leverageVaultTokenRipeVaultId, _leverageVaultTokenLegoId) # dev: invalid leverage vault token
+    self.leverageAsset = RipeAsset(vaultToken=_leverageVaultToken, ripeVaultId=_leverageVaultTokenRipeVaultId)
     self.vaultToLegoId[_leverageVaultToken] = _leverageVaultTokenLegoId
 
     # ripe collateral token (optional)
     if _collateralVaultToken != empty(address):
-        legoAddr = staticcall Registry(legoBook).getAddr(_collateralVaultTokenLegoId)
-        assert staticcall YieldLego(legoAddr).canRegisterVaultToken(_underlyingAsset, _collateralVaultToken) # dev: invalid collateral vault token
-        self.collateralVaultToken = _collateralVaultToken
+        assert staticcall LevgVaultHelper(_levgVaultHelper).isValidVaultToken(_underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _collateralVaultTokenLegoId) # dev: invalid collateral vault token
+        self.collateralAsset = RipeAsset(vaultToken=_collateralVaultToken, ripeVaultId=_collateralVaultTokenRipeVaultId)
         self.vaultToLegoId[_collateralVaultToken] = _collateralVaultTokenLegoId
 
     # initial agent
@@ -177,13 +184,16 @@ def depositForYield(
 
 @internal
 def _onReceiveVaultFunds(_depositor: address, _vaultRegistry: address) -> uint256:
-    collateralVaultToken: address = self.collateralVaultToken
-    legoId: uint256 = self.vaultToLegoId[collateralVaultToken]
+    collData: RipeAsset = self.collateralAsset
+    legoId: uint256 = self.vaultToLegoId[collData.vaultToken]
     ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
     ad.vaultAsset = UNDERLYING_ASSET
-    return self._depositForYield(ad.vaultAsset, collateralVaultToken, max_value(uint256), empty(bytes32), ad)[0]
+
+    # TODO: add ripeVaultId in bytes32 data to be able to deposit into the correct vault
+
+    return self._depositForYield(ad.vaultAsset, collData.vaultToken, max_value(uint256), empty(bytes32), ad)[0]
 
 
 @internal
@@ -209,14 +219,14 @@ def _depositForYield(
     if _asset == _ad.vaultAsset:
         if _asset == USDC:
             # USDC vault: allow both collateral and leverage vaults
-            assert vaultToken in [self.collateralVaultToken, self.leverageVaultToken] # dev: vault token mismatch
+            assert vaultToken in [self.collateralAsset.vaultToken, self.leverageAsset.vaultToken] # dev: vault token mismatch
         else:
             # Non-USDC vault: only collateral vault
-            assert vaultToken == self.collateralVaultToken # dev: vault token mismatch
+            assert vaultToken == self.collateralAsset.vaultToken # dev: vault token mismatch
 
     # USDC (when NOT vault asset) must go into leverage vault
     elif _asset == USDC:
-        assert vaultToken == self.leverageVaultToken # dev: vault token mismatch
+        assert vaultToken == self.leverageAsset.vaultToken # dev: vault token mismatch
 
     # GREEN must go into savings green
     elif _asset == GREEN:
@@ -305,14 +315,14 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     usdc: address = USDC
     green: address = GREEN
     savingsGreen: address = SAVINGS_GREEN
-    leverageVaultToken: address = self.leverageVaultToken
+    levgData: RipeAsset = self.leverageAsset
     levgVaultHelper: address = self.levgVaultHelper
 
     origAmountIn: uint256 = _instructions[0].amountIn
     currentBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
 
     # important checks!
-    assert tokenIn not in [ad.vaultAsset, self.collateralVaultToken, leverageVaultToken, savingsGreen] # dev: invalid swap asset
+    assert tokenIn not in [ad.vaultAsset, self.collateralAsset.vaultToken, levgData.vaultToken, savingsGreen] # dev: invalid swap asset
     if tokenIn == green:
         assert tokenOut == usdc  # dev: GREEN can only go to USDC
     elif tokenIn == usdc and tokenOut != green:
@@ -321,8 +331,9 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
             self,
             origAmountIn,
             currentBalance,
-            leverageVaultToken,
-            self.vaultToLegoId[leverageVaultToken],
+            levgData.vaultToken,
+            self.vaultToLegoId[levgData.vaultToken],
+            levgData.ripeVaultId,
             usdc,
             green,
             savingsGreen,
@@ -446,7 +457,7 @@ def _addCollateral(
 
     # validate collateral + lego id
     assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
-    assert _asset in [_ad.vaultAsset, self.leverageVaultToken, self.collateralVaultToken, SAVINGS_GREEN] # dev: invalid collateral
+    assert _asset in [_ad.vaultAsset, self.leverageAsset.vaultToken, self.collateralAsset.vaultToken, SAVINGS_GREEN] # dev: invalid collateral
 
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
@@ -629,18 +640,20 @@ def _getTotalAssets() -> uint256:
     underlyingAsset: address = UNDERLYING_ASSET
     legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
     levgVaultHelper: address = self.levgVaultHelper
-    collateralVaultToken: address = self.collateralVaultToken
-    leverageVaultToken: address = self.leverageVaultToken
+    collData: RipeAsset = self.collateralAsset
+    levgData: RipeAsset = self.leverageAsset
 
     # usdc vault
     usdc: address = USDC
     if underlyingAsset == usdc:
         return staticcall LevgVaultHelper(levgVaultHelper).getTotalAssetsForUsdcVault(
             self,
-            collateralVaultToken,
-            self.vaultToLegoId[collateralVaultToken],
-            leverageVaultToken,
-            self.vaultToLegoId[leverageVaultToken],
+            collData.vaultToken,
+            self.vaultToLegoId[collData.vaultToken],
+            collData.ripeVaultId,
+            levgData.vaultToken,
+            self.vaultToLegoId[levgData.vaultToken],
+            levgData.ripeVaultId,
             usdc,
             GREEN,
             SAVINGS_GREEN,
@@ -651,10 +664,12 @@ def _getTotalAssets() -> uint256:
     return staticcall LevgVaultHelper(levgVaultHelper).getTotalAssetsForNonUsdcVault(
         self,
         underlyingAsset,
-        collateralVaultToken,
-        self.vaultToLegoId[collateralVaultToken],
-        leverageVaultToken,
-        self.vaultToLegoId[leverageVaultToken],
+        collData.vaultToken,
+        self.vaultToLegoId[collData.vaultToken],
+        collData.ripeVaultId,
+        levgData.vaultToken,
+        self.vaultToLegoId[levgData.vaultToken],
+        levgData.ripeVaultId,
         usdc,
         GREEN,
         SAVINGS_GREEN,
@@ -687,65 +702,65 @@ def _prepareRedemption(
     targetWithdrawAmount: uint256 = _amount * (HUNDRED_PERCENT + redemptionBuffer) // HUNDRED_PERCENT
 
     # step 1: remove underlying asset from Ripe collateral if needed
-    underlyingCollateral: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _asset)
+    underlyingCollateral: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _asset, 0)
     if underlyingCollateral != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        availAmount += self._removeCollateral(_asset, amountStillNeeded, empty(bytes32), ripeAd)[0]
+        availAmount += self._removeCollateral(_asset, min(amountStillNeeded, underlyingCollateral), empty(bytes32), ripeAd)[0]
         if availAmount >= _amount:
             return availAmount
 
     # collateral vault info
     collAd: VaultActionData = ripeAd
-    collateralVaultToken: address = self.collateralVaultToken
-    collAd.legoId = self.vaultToLegoId[collateralVaultToken]
+    collData: RipeAsset = self.collateralAsset
+    collAd.legoId = self.vaultToLegoId[collData.vaultToken]
     collAd.legoAddr = staticcall Registry(collAd.legoBook).getAddr(collAd.legoId)
     if collAd.legoAddr == empty(address):
         return availAmount
 
     # step 2: withdraw from idle collateralVaultToken in wallet
-    collateralVaultTokenBalance: uint256 = staticcall IERC20(collateralVaultToken).balanceOf(self)
+    collateralVaultTokenBalance: uint256 = staticcall IERC20(collData.vaultToken).balanceOf(self)
     if collateralVaultTokenBalance != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collateralVaultToken)
-        availAmount += self._withdrawFromYield(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collData.vaultToken)
+        availAmount += self._withdrawFromYield(collData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
         if availAmount >= _amount:
             return availAmount
 
     # step 3: remove collateralVaultToken collateral from Ripe and withdraw
-    collateralVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, collateralVaultToken)
+    collateralVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, collData.vaultToken, collData.ripeVaultId)
     if collateralVaultTokenOnRipe != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collateralVaultToken)
-        vaultTokenAmountToWithdraw = self._removeCollateral(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ripeAd)[0]
-        availAmount += self._withdrawFromYield(collateralVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
+        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collData.vaultToken)
+        vaultTokenAmountToWithdraw = self._removeCollateral(collData.vaultToken, min(vaultTokenAmountToWithdraw, collateralVaultTokenOnRipe), empty(bytes32), ripeAd)[0]
+        availAmount += self._withdrawFromYield(collData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
         if availAmount >= _amount:
             return availAmount
 
     # step 4: for USDC vaults, also check leverageVaultToken
     if _asset == USDC:
-        leverageVaultToken: address = self.leverageVaultToken
-        if leverageVaultToken != empty(address) and availAmount < _amount:
+        levgData: RipeAsset = self.leverageAsset
+        if levgData.vaultToken != empty(address) and availAmount < _amount:
             levgAd: VaultActionData = ripeAd
-            levgAd.legoId = self.vaultToLegoId[leverageVaultToken]
+            levgAd.legoId = self.vaultToLegoId[levgData.vaultToken]
             levgAd.legoAddr = staticcall Registry(levgAd.legoBook).getAddr(levgAd.legoId)
 
             if levgAd.legoAddr != empty(address):
                 # step 4a: withdraw from idle leverageVaultToken in wallet
-                leverageVaultTokenBalance: uint256 = staticcall IERC20(leverageVaultToken).balanceOf(self)
+                leverageVaultTokenBalance: uint256 = staticcall IERC20(levgData.vaultToken).balanceOf(self)
                 if leverageVaultTokenBalance != 0:
                     amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, leverageVaultToken)
-                    availAmount += self._withdrawFromYield(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
+                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, levgData.vaultToken)
+                    availAmount += self._withdrawFromYield(levgData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
                     if availAmount >= _amount:
                         return availAmount
 
                 # step 4b: remove leverageVaultToken collateral from Ripe and withdraw
-                leverageVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, leverageVaultToken)
+                leverageVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, levgData.vaultToken, levgData.ripeVaultId)
                 if leverageVaultTokenOnRipe != 0:
                     amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, leverageVaultToken)
-                    vaultTokenAmountToWithdraw = self._removeCollateral(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), ripeAd)[0]
-                    availAmount += self._withdrawFromYield(leverageVaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
+                    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, levgData.vaultToken)
+                    vaultTokenAmountToWithdraw = self._removeCollateral(levgData.vaultToken, min(vaultTokenAmountToWithdraw, leverageVaultTokenOnRipe), empty(bytes32), ripeAd)[0]
+                    availAmount += self._withdrawFromYield(levgData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
 
     return availAmount
 
@@ -759,67 +774,50 @@ def _prepareRedemption(
 
 
 @external
-def setCollateralVault(_vaultToken: address, _legoId: uint256):
+def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    levgVaultHelper: address = self.levgVaultHelper
 
-    oldVaultToken: address = self.collateralVaultToken
-    assert _vaultToken != oldVaultToken # dev: no change
-
-    # get required addresses
-    ad: VaultActionData = staticcall VaultRegistry(self._getVaultRegistry()).getVaultActionDataBundle(RIPE_LEGO_ID, msg.sender)
-    ripeLegoAddr: address = ad.legoAddr
+    oldCollData: RipeAsset = self.collateralAsset
+    assert _vaultToken != oldCollData.vaultToken # dev: no change
 
     # validate new collateral vault token
     if _vaultToken != empty(address):
-        assert staticcall LevgVaultHelper(ripeLegoAddr).isSupportedRipeAsset(_vaultToken) # dev: not supported asset
-        assert _vaultToken != SAVINGS_GREEN # dev: cannot be savings green
-        legoAddr: address = staticcall Registry(ad.legoBook).getAddr(_legoId)
-        assert staticcall YieldLego(legoAddr).canRegisterVaultToken(UNDERLYING_ASSET, _vaultToken) # dev: invalid collateral vault token
+        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(UNDERLYING_ASSET, _vaultToken, _ripeVaultId, _legoId) # dev: invalid collateral vault token
         self.vaultToLegoId[_vaultToken] = _legoId
 
     # validate old collateral vault token has no balances
-    if oldVaultToken != empty(address):
-        assert staticcall IERC20(oldVaultToken).balanceOf(self) == 0 # dev: old vault has local balance
-        assert staticcall LevgVaultHelper(ripeLegoAddr).getCollateralBalance(self, oldVaultToken) == 0 # dev: old vault has ripe balance
-        self.vaultToLegoId[oldVaultToken] = 0
+    if oldCollData.vaultToken != empty(address):
+        assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
+        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
 
     # update state
-    self.collateralVaultToken = _vaultToken
-    log CollateralVaultTokenSet(collateralVaultToken = _vaultToken)
+    self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+    log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
 
 
 # leverage vault token
 
 
 @external
-def setLeverageVault(_vaultToken: address, _legoId: uint256):
+def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    levgVaultHelper: address = self.levgVaultHelper
 
-    oldVaultToken: address = self.leverageVaultToken
-    assert _vaultToken != oldVaultToken # dev: no change
+    oldCollData: RipeAsset = self.leverageAsset
+    assert _vaultToken != oldCollData.vaultToken # dev: no change
 
-    # get required addresses
-    ad: VaultActionData = staticcall VaultRegistry(self._getVaultRegistry()).getVaultActionDataBundle(RIPE_LEGO_ID, msg.sender)
-    ripeLegoAddr: address = ad.legoAddr
-
-    # validate new leverage vault token
-    assert _vaultToken != empty(address) # dev: invalid vault token
-    assert staticcall LevgVaultHelper(ripeLegoAddr).isSupportedRipeAsset(_vaultToken) # dev: not supported asset
-    assert _vaultToken != SAVINGS_GREEN # dev: cannot be savings green
-
-    legoAddr: address = staticcall Registry(ad.legoBook).getAddr(_legoId)
-    assert staticcall YieldLego(legoAddr).canRegisterVaultToken(USDC, _vaultToken) # dev: invalid leverage vault token
+    assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(USDC, _vaultToken, _ripeVaultId, _legoId) # dev: invalid leverage vault token
     self.vaultToLegoId[_vaultToken] = _legoId
 
     # validate old leverage vault token has no balances
-    if oldVaultToken != empty(address):
-        assert staticcall IERC20(oldVaultToken).balanceOf(self) == 0 # dev: old vault has local balance
-        assert staticcall LevgVaultHelper(ripeLegoAddr).getCollateralBalance(self, oldVaultToken) == 0 # dev: old vault has ripe balance
-        self.vaultToLegoId[oldVaultToken] = 0
+    if oldCollData.vaultToken != empty(address):
+        assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
+        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
 
     # update state
-    self.leverageVaultToken = _vaultToken
-    log LeverageVaultTokenSet(leverageVaultToken = _vaultToken)
+    self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+    log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
 
 
 # slippage settings (USDC <--> GREEN)
