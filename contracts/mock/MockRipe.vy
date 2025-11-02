@@ -299,3 +299,13 @@ def getUserDebtAmount(_user: address) -> uint256:
 @external
 def getTotalAmountForUser(_user: address, _asset: address) -> uint256:
     return self.userCollateral[_user][_asset]
+
+
+########################
+# DELEVERAGE INTERFACE #
+########################
+
+
+@external
+def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool:
+    return True

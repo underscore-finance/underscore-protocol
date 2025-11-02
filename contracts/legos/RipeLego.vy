@@ -70,6 +70,13 @@ interface Appraiser:
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+    def getFirstVaultIdForAsset(_asset: address) -> uint256: view
+
+interface Deleverage:
+    def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
+
+interface CreditEngine:
+    def getMaxWithdrawableForAsset(_user: address, _vaultId: uint256, _asset: address) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -136,7 +143,9 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
+RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
+RIPE_DELEVERAGE_ID: constant(uint256) = 18
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
@@ -694,8 +703,21 @@ def removeCollateral(
     if _extraData != empty(bytes32):
         vaultId = convert(_extraData, uint256)
 
+    # get ripe vault id
+    ripeHq: address = RIPE_REGISTRY
+    if vaultId == 0:
+        missionControl: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+        vaultId = staticcall RipeMissionControl(missionControl).getFirstVaultIdForAsset(_asset)
+
+    # deleverage if needed
+    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
+    maxWithdrawable: uint256 = staticcall CreditEngine(creditEngine).getMaxWithdrawableForAsset(_recipient, vaultId, _asset)
+    if maxWithdrawable < _amount:
+        deleverage: address = staticcall Registry(ripeHq).getAddr(RIPE_DELEVERAGE_ID)
+        extcall Deleverage(deleverage).deleverageForWithdrawal(_recipient, vaultId, _asset, _amount)
+
     # withdraw from Ripe Protocol
-    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
     amountRemoved: uint256 = extcall RipeTeller(teller).withdraw(_asset, _amount, _recipient, empty(address), vaultId)
     assert amountRemoved != 0 # dev: no asset amount received
 

@@ -190,9 +190,6 @@ def _onReceiveVaultFunds(_depositor: address, _vaultRegistry: address) -> uint25
     if ad.legoId == 0 or ad.legoAddr == empty(address):
         return 0
     ad.vaultAsset = UNDERLYING_ASSET
-
-    # TODO: add ripeVaultId in bytes32 data to be able to deposit into the correct vault
-
     return self._depositForYield(ad.vaultAsset, collData.vaultToken, max_value(uint256), empty(bytes32), ad)[0]
 
 
@@ -442,7 +439,7 @@ def addCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._addCollateral(_asset, _amount, _extraData, ad)
+    return self._addCollateral(_asset, _amount, _extraData, 0, ad)
 
 
 @internal
@@ -450,6 +447,7 @@ def _addCollateral(
     _asset: address,
     _amount: uint256,
     _extraData: bytes32,
+    _ripeVaultId: uint256,
     _ad: VaultActionData,
 ) -> (uint256, uint256):
     self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.ADD_COLLATERAL)
@@ -459,11 +457,16 @@ def _addCollateral(
     assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _asset in [_ad.vaultAsset, self.leverageAsset.vaultToken, self.collateralAsset.vaultToken, SAVINGS_GREEN] # dev: invalid collateral
 
+    # encode ripeVaultId into extraData for RipeLego
+    extraData: bytes32 = _extraData
+    if _ripeVaultId != 0:
+        extraData = convert(_ripeVaultId, bytes32)
+
     # add collateral
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
-    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
     assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
 
     log LevgVaultAction(
@@ -490,7 +493,7 @@ def removeCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
-    return self._removeCollateral(_asset, _amount, _extraData, ad)
+    return self._removeCollateral(_asset, _amount, _extraData, 0, ad)
 
 
 @internal
@@ -498,14 +501,20 @@ def _removeCollateral(
     _asset: address,
     _amount: uint256,
     _extraData: bytes32,
+    _ripeVaultId: uint256,
     _ad: VaultActionData,
 ) -> (uint256, uint256):
     self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.REMOVE_COLLATERAL)
 
+    # encode ripeVaultId into extraData for RipeLego
+    extraData: bytes32 = _extraData
+    if _ripeVaultId != 0:
+        extraData = convert(_ripeVaultId, bytes32)
+
     # remove collateral
     amountRemoved: uint256 = 0
     txUsdValue: uint256 = 0
-    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
 
     log LevgVaultAction(
         op = 41,
@@ -705,7 +714,7 @@ def _prepareRedemption(
     underlyingCollateral: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _asset, 0)
     if underlyingCollateral != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
-        availAmount += self._removeCollateral(_asset, min(amountStillNeeded, underlyingCollateral), empty(bytes32), ripeAd)[0]
+        availAmount += self._removeCollateral(_asset, min(amountStillNeeded, underlyingCollateral), empty(bytes32), 0, ripeAd)[0]
         if availAmount >= _amount:
             return availAmount
 
@@ -731,7 +740,7 @@ def _prepareRedemption(
     if collateralVaultTokenOnRipe != 0:
         amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
         vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collData.vaultToken)
-        vaultTokenAmountToWithdraw = self._removeCollateral(collData.vaultToken, min(vaultTokenAmountToWithdraw, collateralVaultTokenOnRipe), empty(bytes32), ripeAd)[0]
+        vaultTokenAmountToWithdraw = self._removeCollateral(collData.vaultToken, min(vaultTokenAmountToWithdraw, collateralVaultTokenOnRipe), empty(bytes32), collData.ripeVaultId, ripeAd)[0]
         availAmount += self._withdrawFromYield(collData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
         if availAmount >= _amount:
             return availAmount
@@ -759,7 +768,7 @@ def _prepareRedemption(
                 if leverageVaultTokenOnRipe != 0:
                     amountStillNeeded: uint256 = targetWithdrawAmount - availAmount
                     vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, levgData.vaultToken)
-                    vaultTokenAmountToWithdraw = self._removeCollateral(levgData.vaultToken, min(vaultTokenAmountToWithdraw, leverageVaultTokenOnRipe), empty(bytes32), ripeAd)[0]
+                    vaultTokenAmountToWithdraw = self._removeCollateral(levgData.vaultToken, min(vaultTokenAmountToWithdraw, leverageVaultTokenOnRipe), empty(bytes32), levgData.ripeVaultId, ripeAd)[0]
                     availAmount += self._withdrawFromYield(levgData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
 
     return availAmount
