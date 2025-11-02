@@ -777,9 +777,7 @@ def _prepareRedemption(
 def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     levgVaultHelper: address = self.levgVaultHelper
-
     oldCollData: RipeAsset = self.collateralAsset
-    assert _vaultToken != oldCollData.vaultToken # dev: no change
 
     # validate new collateral vault token
     if _vaultToken != empty(address):
@@ -788,8 +786,9 @@ def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uin
 
     # validate old collateral vault token has no balances
     if oldCollData.vaultToken != empty(address):
-        assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
         assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
+        if oldCollData.vaultToken != _vaultToken:
+            assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
 
     # update state
     self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
@@ -803,17 +802,15 @@ def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uin
 def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
     levgVaultHelper: address = self.levgVaultHelper
-
     oldCollData: RipeAsset = self.leverageAsset
-    assert _vaultToken != oldCollData.vaultToken # dev: no change
 
     assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(USDC, _vaultToken, _ripeVaultId, _legoId) # dev: invalid leverage vault token
     self.vaultToLegoId[_vaultToken] = _legoId
 
     # validate old leverage vault token has no balances
-    if oldCollData.vaultToken != empty(address):
+    assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
+    if oldCollData.vaultToken != _vaultToken:
         assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
-        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
 
     # update state
     self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
