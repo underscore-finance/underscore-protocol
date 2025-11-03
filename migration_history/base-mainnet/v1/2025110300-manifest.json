@@ -1,0 +1,78 @@
+{
+  "contracts": {
+    "ConvertVaultToken": {
+      "address": "0x64789EE37DFf2d26AA5F3E9AcB26fCB2011939B8",
+      "abi": [
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "convertVaultToken",
+          "inputs": [
+            {
+              "name": "_fromVaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_toVaultToken",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "convertVaultToken",
+          "inputs": [
+            {
+              "name": "_fromVaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_toVaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_fromAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/other/ConvertVaultToken.vy": {
+            "content": "# @version 0.4.3\n\nfrom ethereum.ercs import IERC4626\nfrom ethereum.ercs import IERC20\n\n\n@internal\ndef _verifyAndReturnAmount(_token: address) -> bool:\n    amount: uint256 = staticcall IERC20(_token).balanceOf(self)\n    if amount != 0:\n        return extcall IERC20(_token).transfer(msg.sender, amount, default_return_value=True)\n    return True\n\n\n@external\ndef convertVaultToken(_fromVaultToken: address, _toVaultToken: address, _fromAmount: uint256 = max_value(uint256)) -> bool:\n    # valdate and get from vault token data\n    amount: uint256 = min(_fromAmount, staticcall IERC20(_fromVaultToken).balanceOf(msg.sender))\n    assert amount != 0 # dev: amount is 0\n\n    underlyingAsset: address = staticcall IERC4626(_fromVaultToken).asset()  # from vault token asset\n    assert underlyingAsset == staticcall IERC4626(_toVaultToken).asset() # dev: asset mismatch\n\n    # transfer from vault token to this contract and redeem\n    assert extcall IERC20(_fromVaultToken).transferFrom(msg.sender, self, amount, default_return_value=True) # dev: transfer failed\n    extcall IERC4626(_fromVaultToken).redeem(amount, self, self)\n\n    # deposit underlying asset to to vault token\n    underlyingAmount: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)\n    assert underlyingAmount != 0 # dev: no token amount\n\n    depositedAmount: uint256 = extcall IERC4626(_toVaultToken).deposit(underlyingAmount, msg.sender)\n\n    assert depositedAmount != 0 # dev: no vault tokens received\n\n    assert self._verifyAndReturnAmount(_fromVaultToken) \n    assert self._verifyAndReturnAmount(_toVaultToken)\n    assert self._verifyAndReturnAmount(underlyingAsset)\n\n    return True\n",
+            "sha256sum": "44efdbf8c12ac853668e76b8fe79435cfcd7b5d1d4a799e6c31974b7c4e1f5e6"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/other/ConvertVaultToken.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "9457ece477e675f75eb222ec18d05b102ce4bdbe0e14ecd5cd37bc3bbe0153be"
+      },
+      "args": "",
+      "file": "contracts/other/ConvertVaultToken.vy"
+    }
+  }
+}
