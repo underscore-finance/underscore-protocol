@@ -29,6 +29,7 @@ def convertVaultToken(_fromVaultToken: address, _toVaultToken: address, _fromAmo
     underlyingAmount: uint256 = staticcall IERC20(underlyingAsset).balanceOf(self)
     assert underlyingAmount != 0 # dev: no token amount
     
+    assert extcall IERC20(underlyingAsset).approve(_toVaultToken, underlyingAmount, default_return_value=True) # dev: approve failed
     depositedAmount: uint256 = extcall IERC4626(_toVaultToken).deposit(underlyingAmount, msg.sender)
 
     assert depositedAmount != 0 # dev: no vault tokens received
