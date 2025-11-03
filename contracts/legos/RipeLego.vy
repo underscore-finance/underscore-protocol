@@ -81,6 +81,9 @@ interface CreditEngine:
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
 event RipeCollateralDeposit:
     sender: indexed(address)
     asset: indexed(address)
