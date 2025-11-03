@@ -68,6 +68,15 @@ interface IUniswapV3Callback:
 interface UniV3Factory:
     def getPool(_tokenA: address, _tokenB: address, _fee: uint24) -> address: view
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
+
+interface Registry:
+    def isValidAddr(_addr: address) -> bool: view
+
 struct QuoteExactInputSingleParams:
     tokenIn: address
     tokenOut: address
@@ -186,6 +195,7 @@ poolSwapData: transient(PoolSwapData)
 UNIV3_FACTORY: public(immutable(address))
 UNIV3_NFT_MANAGER: public(immutable(address))
 UNIV3_QUOTER: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 coreRouterPool: public(address)
 
 FEE_TIERS: constant(uint24[4]) = [100, 500, 3000, 10000] # 0.01%, 0.05%, 0.3%, 1%
@@ -206,14 +216,16 @@ def __init__(
     _uniNftPositionManager: address,
     _uniV3Quoter: address,
     _coreRouterPool: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     dld.__init__(False)
 
-    assert empty(address) not in [_uniswapV3Factory, _uniNftPositionManager, _uniV3Quoter, _coreRouterPool] # dev: invalid addrs
+    assert empty(address) not in [_uniswapV3Factory, _uniNftPositionManager, _uniV3Quoter, _coreRouterPool, _ripeRegistry] # dev: invalid addrs
     UNIV3_FACTORY = _uniswapV3Factory
     UNIV3_NFT_MANAGER = _uniNftPositionManager
     UNIV3_QUOTER = _uniV3Quoter
+    RIPE_REGISTRY = _ripeRegistry
     self.coreRouterPool = _coreRouterPool
 
 
@@ -253,6 +265,16 @@ def isDexLego() -> bool:
     return True
 
 
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller)
+
+
 #########
 # Swaps #
 #########
@@ -268,6 +290,7 @@ def swapTokens(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
@@ -421,6 +444,7 @@ def addLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate tokens
@@ -647,6 +671,7 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # make sure nft is here

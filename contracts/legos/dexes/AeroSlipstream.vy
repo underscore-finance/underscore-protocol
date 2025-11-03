@@ -67,6 +67,15 @@ interface IUniswapV3Callback:
 interface AeroSlipStreamFactory:
     def getPool(_tokenA: address, _tokenB: address, _tickSpacing: int24) -> address: view
 
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
+
+interface Registry:
+    def isValidAddr(_addr: address) -> bool: view
+
 struct PoolSwapData:
     pool: address
     tokenIn: address
@@ -186,6 +195,7 @@ poolSwapData: transient(PoolSwapData)
 AERO_SLIPSTREAM_FACTORY: public(immutable(address))
 AERO_SLIPSTREAM_NFT_MANAGER: public(immutable(address))
 AERO_SLIPSTREAM_QUOTER: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 coreRouterPool: public(address)
 
 TICK_SPACING: constant(int24[5]) = [1, 50, 100, 200, 2000]
@@ -206,14 +216,16 @@ def __init__(
     _aeroNftPositionManager: address,
     _aeroQuoter: address,
     _coreRouterPool: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     dld.__init__(False)
 
-    assert empty(address) not in [_aeroFactory, _aeroNftPositionManager, _aeroQuoter, _coreRouterPool] # dev: invalid addrs
+    assert empty(address) not in [_aeroFactory, _aeroNftPositionManager, _aeroQuoter, _coreRouterPool, _ripeRegistry] # dev: invalid addrs
     AERO_SLIPSTREAM_FACTORY = _aeroFactory
     AERO_SLIPSTREAM_NFT_MANAGER = _aeroNftPositionManager
     AERO_SLIPSTREAM_QUOTER = _aeroQuoter
+    RIPE_REGISTRY = _ripeRegistry
     self.coreRouterPool = _coreRouterPool
 
 
@@ -253,6 +265,16 @@ def isDexLego() -> bool:
     return True
 
 
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller)
+
+
 #########
 # Swaps #
 #########
@@ -268,6 +290,7 @@ def swapTokens(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
@@ -422,6 +445,7 @@ def addLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate tokens
@@ -647,6 +671,7 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # make sure nft is here

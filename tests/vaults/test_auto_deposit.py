@@ -524,7 +524,7 @@ def test_user_shares_correct_regardless_of_auto_deposit(undy_usd_vault, yield_un
     assert abs(shares_with_auto - shares_without_auto) < shares_with_auto // 100  # Within 1%
 
 
-def test_pending_yield_not_affected_by_auto_deposit(undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, governance, vault_registry, switchboard_alpha, setup_auto_deposit_config):
+def test_pending_yield_not_affected_by_auto_deposit(_test, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token, governance, vault_registry, switchboard_alpha, setup_auto_deposit_config):
     """Test that pendingYieldRealized is not affected by auto-deposit"""
     # Create yield position and accrue some yield
     yield_underlying_token.transfer(undy_usd_vault.address, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -547,7 +547,7 @@ def test_pending_yield_not_affected_by_auto_deposit(undy_usd_vault, yield_underl
 
     # Pending yield should not change
     pending_after = undy_usd_vault.pendingYieldRealized()
-    assert pending_after == pending_before
+    _test(pending_before, pending_after)
 
 
 ################################

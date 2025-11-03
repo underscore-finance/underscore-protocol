@@ -34,6 +34,7 @@ import contracts.modules.YieldLegoData as yld
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
+from ethereum.ercs import IERC20Detailed
 
 interface LootDistributor:
     def claimRevShareAndBonusLoot(_user: address) -> uint256: nonpayable
@@ -50,11 +51,15 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
+interface Registry:
+    def getRegId(_addr: address) -> uint256: view
+    def isValidAddr(_addr: address) -> bool: view
+
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
-interface Registry:
-    def getRegId(_addr: address) -> uint256: view
+interface RipeRegistry:
+    def ripeToken() -> address: view
 
 event UnderscoreEarnVaultDeposit:
     sender: indexed(address)
@@ -74,18 +79,20 @@ event UnderscoreEarnVaultWithdrawal:
     vaultTokenAmountBurned: uint256
     recipient: address
 
+RIPE_REGISTRY: public(immutable(address))
 RIPE_TOKEN: immutable(address)
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 
 
 @deploy
-def __init__(_undyHq: address, _ripeToken: address):
+def __init__(_undyHq: address, _ripeRegistry: address):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert _ripeToken != empty(address) # dev: invalid addrs
-    RIPE_TOKEN = _ripeToken
+    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    RIPE_REGISTRY = _ripeRegistry
+    RIPE_TOKEN = staticcall RipeRegistry(_ripeRegistry).ripeToken()
 
 
 @view
@@ -262,7 +269,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     if decimals == 0:
         decimals = yld.vaultToAsset[_vaultToken].decimals
     if decimals == 0:
-        return 0 # not registered
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
     return self._getPricePerShare(_vaultToken, decimals)
 
 
@@ -306,6 +313,12 @@ def totalAssets(_vaultToken: address) -> uint256:
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
     # TODO: implement
+    return 0
+
+
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     return 0
 
 
@@ -385,6 +398,20 @@ def _registerVaultTokenGlobally(_underlyingAsset: address, _vaultToken: address,
 #################
 
 
+# access control
+
+
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    # NOTE: important to not trust `_miniAddys` here, that's why getting ledger and vault registry from addys
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
 # add price snapshot
 
 
@@ -409,6 +436,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
@@ -477,6 +505,7 @@ def withdrawFromYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
@@ -546,8 +575,7 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
-    assert staticcall Ledger(addys._getLedgerAddr()).isUserWallet(msg.sender) # dev: not a user wallet
-    assert msg.sender == _user # dev: recipient must be caller
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
 
     lootDistributor: address = addys._getLootDistributorAddr()
 

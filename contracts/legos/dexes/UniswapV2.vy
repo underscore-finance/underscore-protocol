@@ -48,6 +48,15 @@ interface UniV2Router:
 interface UniV2Factory:
     def getPair(_tokenA: address, _tokenB: address) -> address: view
 
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
+
+interface VaultRegistry:
+    def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface Registry:
+    def isValidAddr(_addr: address) -> bool: view
+
 struct BestPool:
     pool: address
     fee: uint256
@@ -95,6 +104,7 @@ event UniswapV2LiquidityRemoved:
 # uniswap v2
 UNISWAP_V2_FACTORY: public(immutable(address))
 UNISWAP_V2_ROUTER: public(immutable(address))
+RIPE_REGISTRY: public(immutable(address))
 coreRouterPool: public(address)
 
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
@@ -107,13 +117,15 @@ def __init__(
     _uniswapV2Factory: address,
     _uniswapV2Router: address,
     _coreRouterPool: address,
+    _ripeRegistry: address,
 ):
     addys.__init__(_undyHq)
     dld.__init__(False)
 
-    assert empty(address) not in [_uniswapV2Factory, _uniswapV2Router, _coreRouterPool] # dev: invalid addrs
+    assert empty(address) not in [_uniswapV2Factory, _uniswapV2Router, _coreRouterPool, _ripeRegistry] # dev: invalid addrs
     UNISWAP_V2_FACTORY = _uniswapV2Factory
     UNISWAP_V2_ROUTER = _uniswapV2Router
+    RIPE_REGISTRY = _ripeRegistry
     self.coreRouterPool = _coreRouterPool
 
 
@@ -145,6 +157,16 @@ def isDexLego() -> bool:
     return True
 
 
+@view
+@internal
+def _isAllowedToPerformAction(_caller: address) -> bool:
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_caller):
+        return True
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
+        return True
+    return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller)
+
+
 #########
 # Swaps #
 #########
@@ -160,6 +182,7 @@ def swapTokens(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate inputs
@@ -293,6 +316,7 @@ def addLiquidity(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (address, uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate tokens
@@ -382,6 +406,7 @@ def removeLiquidity(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, uint256):
     assert not dld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
     # validate tokens

@@ -97,6 +97,12 @@ def totalBorrows(_vaultToken: address) -> uint256:
     ...
 
 
+@view
+@external
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    ...
+
+
 ###################
 # Yield Lego Data #
 ###################

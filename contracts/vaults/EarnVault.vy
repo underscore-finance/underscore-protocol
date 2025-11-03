@@ -291,8 +291,7 @@ def _depositIntoVault(
         amountDeposited = vaultWallet._onReceiveVaultFunds(targetVaultToken, _recipient, _vaultRegistry)
 
     # save data
-    currentBalance: uint256 = _currentBalance + amountDeposited
-    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.lastUnderlyingBal = _currentBalance + amountDeposited
     vaultWallet.pendingYieldRealized = _pendingYieldRealized
 
     token._mint(_recipient, _shares)
@@ -414,8 +413,8 @@ def _redeemFromVault(
 
     # withdraw from yield opportunity
     availAmount: uint256 = 0
-    withdrawnAmount: uint256 = 0
-    availAmount, withdrawnAmount = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
+    actuallyWithdrawn: uint256 = 0
+    availAmount, actuallyWithdrawn = vaultWallet._prepareRedemption(_asset, _amount, _maxBalVaultToken, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
 
     # check amount out
@@ -425,8 +424,7 @@ def _redeemFromVault(
         assert self._isRedemptionCloseEnough(_amount, actualAmount) # dev: insufficient funds
 
     # save data
-    currentBalance: uint256 = _currentBalance - min(_currentBalance, withdrawnAmount)
-    vaultWallet.lastUnderlyingBal = currentBalance
+    vaultWallet.lastUnderlyingBal = _currentBalance - min(_currentBalance, actuallyWithdrawn)
     vaultWallet.pendingYieldRealized = _pendingYieldRealized
 
     # burn shares, transfer assets

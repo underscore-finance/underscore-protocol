@@ -39,6 +39,12 @@ def addPriceSnapshot(_asset: address) -> bool:
     return True
 
 
+@view
+@external
+def isValidAddr(_addr: address) -> bool:
+    return True
+
+
 # MOCK RIPE PRICE DESK
 
 

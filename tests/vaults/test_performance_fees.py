@@ -96,7 +96,7 @@ def test_state_after_first_deposit_for_yield(setup_yield_position, undy_usd_vaul
 #####################################
 
 
-def test_yield_accrual_between_deposits(setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
+def test_yield_accrual_between_deposits(_test, setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
     """Test yield accrual is tracked between deposits"""
     # Initial deposit
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
@@ -125,7 +125,7 @@ def test_yield_accrual_between_deposits(setup_yield_position, simulate_yield, un
     assert undy_usd_vault.pendingYieldRealized() == yield_amount
     # lastUnderlyingBal should be updated to current underlying
     expected_underlying = initial_deposit + yield_amount + second_deposit
-    assert undy_usd_vault.lastUnderlyingBal() == expected_underlying
+    _test(expected_underlying, undy_usd_vault.lastUnderlyingBal())
 
 
 def test_yield_accrual_with_multiple_deposits(setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
@@ -313,7 +313,7 @@ def test_withdrawal_doesnt_register_as_negative_yield(setup_vault_with_deposit, 
     assert undy_usd_vault.pendingYieldRealized() >= initial_pending
 
 
-def test_yield_accrual_then_withdrawal_preserves_yield(setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token):
+def test_yield_accrual_then_withdrawal_preserves_yield(_test, setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob, starter_agent, yield_vault_token):
     """Test that yield is preserved after withdrawal"""
     # Setup with yield
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
@@ -329,7 +329,7 @@ def test_yield_accrual_then_withdrawal_preserves_yield(setup_yield_position, sim
     yield_underlying_token.transfer(undy_usd_vault.address, trigger, sender=yield_underlying_token_whale)
     undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
-    assert undy_usd_vault.pendingYieldRealized() == yield_amount
+    _test(yield_amount, undy_usd_vault.pendingYieldRealized())
 
     # User makes a deposit to get shares
     user_deposit = 500 * EIGHTEEN_DECIMALS
@@ -340,7 +340,7 @@ def test_yield_accrual_then_withdrawal_preserves_yield(setup_yield_position, sim
     undy_usd_vault.redeem(shares, bob, bob, sender=bob)
 
     # pendingYieldRealized should still be the same
-    assert undy_usd_vault.pendingYieldRealized() == yield_amount
+    _test(yield_amount, undy_usd_vault.pendingYieldRealized())
 
 
 def test_partial_withdrawal_impact_on_tracking(setup_vault_with_deposit, setup_yield_position, simulate_yield, undy_usd_vault, bob, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
@@ -460,7 +460,7 @@ def test_fee_claim_with_zero_percent_fee(setup_yield_position, simulate_yield, u
     assert undy_usd_vault.pendingYieldRealized() == 0  # Still reset
 
 
-def test_fee_claim_with_hundred_percent_fee(setup_yield_position, simulate_yield, undy_usd_vault, governance, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, vault_registry, switchboard_alpha):
+def test_fee_claim_with_hundred_percent_fee(_test, setup_yield_position, simulate_yield, undy_usd_vault, governance, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, vault_registry, switchboard_alpha):
     """Test fee claim with 100% fee ratio"""
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
     setup_yield_position(initial_deposit)
@@ -480,7 +480,7 @@ def test_fee_claim_with_hundred_percent_fee(setup_yield_position, simulate_yield
 
     # Claim all yield as fees
     fees_claimed = undy_usd_vault.claimPerformanceFees(sender=governance.address)
-    assert fees_claimed == yield_amount  # 100% of yield
+    _test(yield_amount, fees_claimed)  # 100% of yield
 
 
 def test_fee_claim_with_various_fee_ratios(setup_yield_position, simulate_yield, undy_usd_vault, governance, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token, vault_registry, switchboard_alpha):
@@ -1099,7 +1099,7 @@ def test_simultaneous_deposit_yield_same_block(setup_yield_position, undy_usd_va
     assert undy_usd_vault.pendingYieldRealized() == 0
 
 
-def test_last_underlying_bal_consistency(setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
+def test_last_underlying_bal_consistency(_test, setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
     """Test lastUnderlyingBal remains consistent across operations"""
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
     setup_yield_position(initial_deposit)
@@ -1116,7 +1116,7 @@ def test_last_underlying_bal_consistency(setup_yield_position, simulate_yield, u
     undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, trigger, sender=starter_agent.address)
 
     expected_bal = initial_deposit + yield_amount + trigger
-    assert undy_usd_vault.lastUnderlyingBal() == expected_bal
+    _test(expected_bal, undy_usd_vault.lastUnderlyingBal())
 
 
 #############################################
@@ -1362,7 +1362,7 @@ def test_yield_tracking_with_swap_operations(setup_yield_position, simulate_yiel
 ###################################
 
 
-def test_last_underlying_bal_matches_actual(setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
+def test_last_underlying_bal_matches_actual(_test, setup_yield_position, simulate_yield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, starter_agent, yield_vault_token):
     """Test lastUnderlyingBal matches actual underlying after operations"""
     initial_deposit = 1000 * EIGHTEEN_DECIMALS
     setup_yield_position(initial_deposit)
@@ -1379,7 +1379,7 @@ def test_last_underlying_bal_matches_actual(setup_yield_position, simulate_yield
 
     # lastUnderlyingBal should match actual
     expected = initial_deposit + yield_amount + trigger
-    assert undy_usd_vault.lastUnderlyingBal() == expected
+    _test(expected, undy_usd_vault.lastUnderlyingBal())
 
 
 def test_pending_yield_realized_never_negative(setup_yield_position, undy_usd_vault, yield_vault_token, starter_agent):
