@@ -44,6 +44,7 @@ RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
 RIPE_VAULT_BOOK_ID: constant(uint256) = 8
 RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
+RIPE_DELEVERAGE_ID: constant(uint256) = 18
 
 HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
 
@@ -420,14 +421,24 @@ def _getUnderlyingForVaultToken(
 
 @view
 @external
-def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256) -> uint256:
-    ripeHq: address = RIPE_REGISTRY
-    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256, _vaultBook: address = empty(address)) -> uint256:
+    ripeHq: address = empty(address)
+
     ripeVaultId: uint256 = _ripeVaultId
     if ripeVaultId == 0:
+        ripeHq = RIPE_REGISTRY
+        mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
         ripeVaultId = staticcall RipeMissionControl(mc).getFirstVaultIdForAsset(_asset)
-    vaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+
+    vaultBook: address = _vaultBook
+    if _vaultBook == empty(address):
+        ripeHq = ripeHq if ripeHq != empty(address) else RIPE_REGISTRY
+        vaultBook = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+
     vaultAddr: address = staticcall Registry(vaultBook).getAddr(ripeVaultId)
+    if vaultAddr == empty(address):
+        return 0
+
     return self._getCollateralBalance(_user, _asset, vaultAddr)
 
 
@@ -484,6 +495,18 @@ def _getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool, _ripePri
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     return staticcall IERC4626(_vaultToken).convertToAssets(_vaultTokenAmount)
+
+
+# get addrs
+
+
+@view
+@external
+def getVaultBookAndDeleverage() -> (address, address):
+    ripeHq: address = RIPE_REGISTRY
+    vaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    deleverage: address = staticcall Registry(ripeHq).getAddr(RIPE_DELEVERAGE_ID)
+    return vaultBook, deleverage
 
 
 # validate vault token
