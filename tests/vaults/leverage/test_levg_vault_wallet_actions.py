@@ -774,7 +774,6 @@ def test_borrow_savings_green(
     usdc_wallet_with_funds,
     mock_usdc,
     mock_savings_green_token,
-    mock_ripe,
     starter_agent,
 ):
     """Test borrowing SAVINGS_GREEN from Ripe"""
@@ -952,8 +951,6 @@ def test_repay_max_amount(
 def test_claim_rewards_success(
     setup_prices,
     usdc_wallet_with_funds,
-    mock_usdc,
-    mock_yield_lego,
     starter_agent,
     governance,
 ):
@@ -995,7 +992,6 @@ def test_claim_rewards_success(
 def test_claim_rewards_unauthorized_fails(
     setup_prices,
     usdc_wallet_with_funds,
-    mock_usdc,
     alice,
     governance,
 ):
@@ -1096,7 +1092,6 @@ def test_full_deleverage_loop(
     mock_usdc_leverage_vault,
     mock_green_token,
     mock_ripe,
-    governance,
     starter_agent,
     lego_book,
     mock_swap_lego,
@@ -1162,7 +1157,6 @@ def test_multi_step_position_management(
     mock_green_token,
     mock_savings_green_token,
     mock_ripe,
-    governance,
     starter_agent,
     lego_book,
     mock_swap_lego,
@@ -1367,7 +1361,6 @@ def test_manager_can_perform_all_actions(
     mock_usdc_collateral_vault,
     mock_green_token,
     starter_agent,
-    governance,
 ):
     """Test that authorized manager (starter_agent) can perform all actions"""
     wallet = usdc_wallet_with_funds
@@ -1484,7 +1477,6 @@ def test_redeem_withdraws_from_leverage_vault_idle(
     mock_usdc_leverage_vault,
     mock_usdc_collateral_vault,
     mock_ripe,
-    mock_yield_lego,
     bob,
     starter_agent,
     governance,
@@ -1561,7 +1553,6 @@ def test_redeem_withdraws_from_leverage_vault_on_ripe(
     mock_usdc_leverage_vault,
     mock_usdc_collateral_vault,
     mock_ripe,
-    mock_yield_lego,
     bob,
     starter_agent,
     governance,
@@ -1776,3 +1767,530 @@ def test_redeem_uses_leverage_vault_when_collateral_insufficient(
     assert leverage_balance_post < leverage_balance_pre  # Leverage was also used (step 4)
     assert assets_received > 0
     assert mock_usdc.balanceOf(bob) == pre_usdc + assets_received
+
+
+#################################################
+# 10. Full Lifecycle Integration Tests        #
+#################################################
+
+
+def test_usdc_vault_complete_lifecycle(
+    setup_prices,
+    usdc_wallet_with_funds,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+    mock_usdc_leverage_vault,
+    mock_green_token,
+    mock_ripe,
+    mock_swap_lego,
+    lego_book,
+    bob,
+    starter_agent,
+    governance,
+    vault_registry,
+    switchboard_alpha,
+):
+    """Test complete lifecycle for USDC vault: deposit → leverage → yield → deleverage → withdraw"""
+    vault = usdc_wallet_with_funds
+
+    # Enable all operations
+    vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(vault.address, True, sender=switchboard_alpha.address)
+
+    # 1. User deposits USDC
+    deposit_amount = 20_000 * SIX_DECIMALS
+    mock_usdc.mint(bob, deposit_amount, sender=governance.address)
+    mock_usdc.approve(vault.address, deposit_amount, sender=bob)
+    shares = vault.deposit(deposit_amount, bob, sender=bob)
+    assert shares > 0
+
+    # 2. Auto-deposit should have moved USDC to collateral vault
+    collateral_balance = mock_usdc_collateral_vault.balanceOf(vault.address)
+    assert collateral_balance > 0
+
+    # 3. Add collateral to Ripe
+    vault.addCollateral(
+        RIPE_LEGO_ID,
+        mock_usdc_collateral_vault.address,
+        collateral_balance,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userCollateral(vault.address, mock_usdc_collateral_vault.address) == collateral_balance
+
+    # 4. Borrow GREEN (leverage up)
+    borrow_amount = 10_000 * EIGHTEEN_DECIMALS
+    vault.borrow(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userDebt(vault.address) == borrow_amount
+
+    # 5. Swap GREEN → USDC
+    swap_lego_id = lego_book.getRegId(mock_swap_lego.address)
+    swap_instruction = (swap_lego_id, borrow_amount, 9_900 * SIX_DECIMALS, [mock_green_token.address, mock_usdc.address], [])
+    _, _, _, usdc_received, _ = vault.swapTokens([swap_instruction], sender=starter_agent.address)
+    assert usdc_received >= 9_900 * SIX_DECIMALS
+
+    # 6. Deposit USDC to leverage vault (productive use)
+    vault.depositForYield(
+        2,
+        mock_usdc.address,
+        mock_usdc_leverage_vault.address,
+        usdc_received,
+        sender=starter_agent.address
+    )
+    leverage_balance = mock_usdc_leverage_vault.balanceOf(vault.address)
+    assert leverage_balance > 0
+
+    # 7. Simulate yield generation over time
+    yield_amount = leverage_balance // 10  # 10% yield
+    mock_usdc.mint(mock_usdc_leverage_vault.address, yield_amount, sender=governance.address)
+
+    # 8. Begin unwinding: withdraw from leverage vault
+    total_leverage = mock_usdc_leverage_vault.balanceOf(vault.address)
+    _, _, underlying_received, _ = vault.withdrawFromYield(
+        2,
+        mock_usdc_leverage_vault.address,
+        total_leverage,
+        sender=starter_agent.address
+    )
+    assert underlying_received > usdc_received  # Got yield
+
+    # 9. Swap some USDC back to GREEN for debt repayment
+    # Only mint what's needed for repayment (no extra since there's no interest in mocks)
+    green_needed = borrow_amount
+    swap_instruction_back = (swap_lego_id, underlying_received, green_needed, [mock_usdc.address, mock_green_token.address], [])
+
+    # Give vault GREEN for repayment (simulate swap)
+    mock_green_token.mint(vault.address, green_needed, sender=governance.address)
+
+    # 10. Repay debt
+    vault.repayDebt(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userDebt(vault.address) == 0
+
+    # 11. Remove collateral from Ripe
+    collateral_on_ripe = mock_ripe.userCollateral(vault.address, mock_usdc_collateral_vault.address)
+    vault.removeCollateral(
+        RIPE_LEGO_ID,
+        mock_usdc_collateral_vault.address,
+        collateral_on_ripe,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userCollateral(vault.address, mock_usdc_collateral_vault.address) == 0
+
+    # 11b. Withdraw from collateral vault to get USDC back
+    vault.withdrawFromYield(
+        2,
+        mock_usdc_collateral_vault.address,
+        collateral_on_ripe,
+        sender=starter_agent.address
+    )
+
+    # 12. User withdraws (final step)
+    initial_balance = mock_usdc.balanceOf(bob)
+    # Use redeemWithMinAmountOut to handle rounding issues
+    # Accept 99.9% of the deposit as minimum (accounts for rounding)
+    min_amount = deposit_amount * 999 // 1000
+    assets_received = vault.redeemWithMinAmountOut(shares, min_amount, bob, bob, sender=bob)
+
+    # User should have received original deposit + some yield
+    assert assets_received >= deposit_amount
+    assert mock_usdc.balanceOf(bob) == initial_balance + assets_received
+
+    # Vault should be empty after full redemption
+    assert vault.totalSupply(sender=bob) == 0
+    # May have some dust from rounding, but should be minimal (<0.01 USDC)
+    assert vault.totalAssets(sender=bob) <= 10000, f"Vault should be empty but has {vault.totalAssets(sender=bob)} assets remaining"  # Allow up to 0.01 USDC dust
+
+
+def test_weth_vault_complete_lifecycle(
+    setup_prices,
+    undy_levg_vault_weth,
+    mock_weth,
+    mock_weth_collateral_vault,
+    mock_usdc_leverage_vault,
+    mock_green_token,
+    mock_usdc,
+    mock_ripe,
+    mock_swap_lego,
+    lego_book,
+    bob,
+    starter_agent,
+    governance,
+    vault_registry,
+    switchboard_alpha,
+):
+    """Test complete lifecycle for WETH vault: deposit WETH → leverage → USDC yield → unwind"""
+    vault = undy_levg_vault_weth
+
+    # Enable all operations
+    vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)  # Manual control
+
+    # Track initial state (may have leftovers from previous tests due to module fixtures)
+    initial_assets = vault.totalAssets()
+    initial_supply = vault.totalSupply()
+
+    # 1. User deposits WETH
+    deposit_amount = 2 * EIGHTEEN_DECIMALS  # 2 WETH
+    boa.env.set_balance(bob, deposit_amount)
+    mock_weth.deposit(value=deposit_amount, sender=bob)
+    mock_weth.approve(vault.address, deposit_amount, sender=bob)
+    shares = vault.deposit(deposit_amount, bob, sender=bob)
+    assert shares > 0
+
+    # 2. Deposit WETH to collateral vault
+    vault.depositForYield(
+        2,
+        mock_weth.address,
+        mock_weth_collateral_vault.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+    collateral_balance = mock_weth_collateral_vault.balanceOf(vault.address)
+    assert collateral_balance > 0
+
+    # 3. Add WETH collateral to Ripe
+    vault.addCollateral(
+        RIPE_LEGO_ID,
+        mock_weth_collateral_vault.address,
+        collateral_balance,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userCollateral(vault.address, mock_weth_collateral_vault.address) == collateral_balance
+
+    # 4. Borrow GREEN against WETH collateral
+    # With WETH at $2000, 2 WETH = $4000 collateral
+    # Can safely borrow $2000 worth of GREEN
+    borrow_amount = 2_000 * EIGHTEEN_DECIMALS
+    vault.borrow(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userDebt(vault.address) == borrow_amount
+
+    # 5. Swap GREEN → USDC to deploy in USDC leverage vault
+    swap_lego_id = lego_book.getRegId(mock_swap_lego.address)
+    swap_instruction = (swap_lego_id, borrow_amount, 1_980 * SIX_DECIMALS, [mock_green_token.address, mock_usdc.address], [])
+
+    # Mock the swap by minting USDC
+    mock_usdc.mint(vault.address, 2_000 * SIX_DECIMALS, sender=governance.address)
+
+    # 6. Deploy USDC to leverage vault for yield
+    vault.depositForYield(
+        2,
+        mock_usdc.address,
+        mock_usdc_leverage_vault.address,
+        2_000 * SIX_DECIMALS,
+        sender=starter_agent.address
+    )
+    leverage_balance = mock_usdc_leverage_vault.balanceOf(vault.address)
+    assert leverage_balance > 0
+
+    # 7. Generate yield
+    yield_amount = leverage_balance // 5  # 20% yield
+    mock_usdc.mint(mock_usdc_leverage_vault.address, yield_amount, sender=governance.address)
+
+    # 8. Unwind: withdraw from leverage vault
+    total_leverage = mock_usdc_leverage_vault.balanceOf(vault.address)
+    _, _, usdc_received, _ = vault.withdrawFromYield(
+        2,
+        mock_usdc_leverage_vault.address,
+        total_leverage,
+        sender=starter_agent.address
+    )
+    assert usdc_received > 2_000 * SIX_DECIMALS  # Original + yield
+
+    # 9. Swap USDC back to GREEN for debt repayment
+    # Give vault GREEN for repayment
+    mock_green_token.mint(vault.address, borrow_amount + (100 * EIGHTEEN_DECIMALS), sender=governance.address)
+
+    # 10. Repay GREEN debt
+    vault.repayDebt(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userDebt(vault.address) == 0
+
+    # 11. Remove WETH collateral from Ripe
+    collateral_on_ripe = mock_ripe.userCollateral(vault.address, mock_weth_collateral_vault.address)
+    vault.removeCollateral(
+        RIPE_LEGO_ID,
+        mock_weth_collateral_vault.address,
+        collateral_on_ripe,
+        sender=starter_agent.address
+    )
+
+    # 12. Withdraw WETH from collateral vault
+    vault.withdrawFromYield(
+        2,
+        mock_weth_collateral_vault.address,
+        collateral_balance,
+        sender=starter_agent.address
+    )
+
+    # 13. User redeems shares for WETH
+    initial_weth = mock_weth.balanceOf(bob)
+    # Use redeemWithMinAmountOut to handle rounding issues
+    # Account for both deposit and any initial assets (first depositor gets all)
+    expected_redemption = deposit_amount + initial_assets
+    min_amount = expected_redemption * 999 // 1000
+    assets_received = vault.redeemWithMinAmountOut(shares, min_amount, bob, bob, sender=bob)
+
+    # Should receive original WETH deposit + any initial vault assets (yield was in USDC, might have some left)
+    assert assets_received >= deposit_amount, f"Should at least get deposit back: {assets_received} >= {deposit_amount}"
+    assert mock_weth.balanceOf(bob) == initial_weth + assets_received
+
+    # Vault should be empty after full redemption
+    assert vault.totalSupply(sender=bob) == initial_supply, f"Supply should return to initial: {vault.totalSupply()} == {initial_supply}"
+    # Note: WETH vault may have USDC yield left from leverage operations
+    # This is expected - totalAssets includes value of all assets
+
+
+def test_cbbtc_vault_complete_lifecycle(
+    setup_prices,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    mock_usdc_leverage_vault,
+    mock_green_token,
+    mock_savings_green_token,
+    mock_usdc,
+    mock_ripe,
+    mock_swap_lego,
+    lego_book,
+    bob,
+    starter_agent,
+    governance,
+    vault_registry,
+    switchboard_alpha,
+):
+    """Test complete lifecycle for CBBTC vault with sGREEN integration"""
+    vault = undy_levg_vault_cbbtc
+
+    # Enable all operations
+    vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)  # Manual control
+
+    # Track initial state (may have leftovers from previous tests due to module fixtures)
+    initial_assets = vault.totalAssets()
+    initial_supply = vault.totalSupply()
+
+    # 1. User deposits CBBTC
+    deposit_amount = 50000000  # 0.5 CBBTC (8 decimals)
+    mock_cbbtc.mint(bob, deposit_amount, sender=governance.address)
+    mock_cbbtc.approve(vault.address, deposit_amount, sender=bob)
+    shares = vault.deposit(deposit_amount, bob, sender=bob)
+    assert shares > 0
+
+    # 2. Deposit CBBTC to collateral vault
+    vault.depositForYield(
+        2,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        deposit_amount,
+        sender=starter_agent.address
+    )
+    collateral_balance = mock_cbbtc_collateral_vault.balanceOf(vault.address)
+    assert collateral_balance > 0
+
+    # 3. Add CBBTC as collateral to Ripe
+    vault.addCollateral(
+        RIPE_LEGO_ID,
+        mock_cbbtc_collateral_vault.address,
+        collateral_balance,
+        sender=starter_agent.address
+    )
+
+    # 4. Borrow GREEN (0.5 BTC at $90k = $45k collateral, borrow $20k GREEN)
+    borrow_amount = 20_000 * EIGHTEEN_DECIMALS
+    vault.borrow(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+
+    # 5. Convert half of GREEN to sGREEN for yield
+    sgreen_amount = borrow_amount // 2
+    vault.depositForYield(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        mock_savings_green_token.address,
+        sgreen_amount,
+        sender=starter_agent.address
+    )
+    assert mock_savings_green_token.balanceOf(vault.address) == sgreen_amount
+
+    # 6. Swap remaining GREEN to USDC
+    swap_lego_id = lego_book.getRegId(mock_swap_lego.address)
+    remaining_green = borrow_amount // 2
+    swap_instruction = (swap_lego_id, remaining_green, 9_900 * SIX_DECIMALS, [mock_green_token.address, mock_usdc.address], [])
+
+    # Mock swap by minting USDC
+    mock_usdc.mint(vault.address, 10_000 * SIX_DECIMALS, sender=governance.address)
+
+    # 7. Deploy USDC to leverage vault
+    vault.depositForYield(
+        2,
+        mock_usdc.address,
+        mock_usdc_leverage_vault.address,
+        10_000 * SIX_DECIMALS,
+        sender=starter_agent.address
+    )
+
+    # 8. Simulate yield on both sGREEN and USDC leverage
+    # sGREEN compounds internally (no action needed)
+    # USDC leverage vault yields
+    usdc_yield = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(mock_usdc_leverage_vault.address, usdc_yield, sender=governance.address)
+
+    # 9. Begin unwinding: withdraw from leverage vault
+    total_leverage = mock_usdc_leverage_vault.balanceOf(vault.address)
+    vault.withdrawFromYield(
+        2,
+        mock_usdc_leverage_vault.address,
+        total_leverage,
+        sender=starter_agent.address
+    )
+
+    # 10. Withdraw sGREEN back to GREEN
+    vault.withdrawFromYield(
+        RIPE_LEGO_ID,
+        mock_savings_green_token.address,
+        sgreen_amount,
+        sender=starter_agent.address
+    )
+
+    # 11. Repay GREEN debt
+    # Give vault enough GREEN for repayment
+    mock_green_token.mint(vault.address, borrow_amount, sender=governance.address)
+    vault.repayDebt(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        borrow_amount,
+        sender=starter_agent.address
+    )
+    assert mock_ripe.userDebt(vault.address) == 0
+
+    # 12. Remove CBBTC collateral from Ripe
+    collateral_on_ripe = mock_ripe.userCollateral(vault.address, mock_cbbtc_collateral_vault.address)
+    vault.removeCollateral(
+        RIPE_LEGO_ID,
+        mock_cbbtc_collateral_vault.address,
+        collateral_on_ripe,
+        sender=starter_agent.address
+    )
+
+    # 13. Withdraw from collateral vault
+    vault.withdrawFromYield(
+        2,
+        mock_cbbtc_collateral_vault.address,
+        collateral_balance,
+        sender=starter_agent.address
+    )
+
+    # 14. User redeems shares for CBBTC
+    initial_cbbtc = mock_cbbtc.balanceOf(bob)
+    # Use redeemWithMinAmountOut to handle rounding issues
+    # Account for both deposit and any initial assets (first depositor gets all)
+    expected_redemption = deposit_amount + initial_assets
+    min_amount = expected_redemption * 999 // 1000
+    assets_received = vault.redeemWithMinAmountOut(shares, min_amount, bob, bob, sender=bob)
+
+    # Should receive original CBBTC deposit + any initial vault assets
+    assert assets_received >= deposit_amount, f"Should at least get deposit back: {assets_received} >= {deposit_amount}"
+    assert mock_cbbtc.balanceOf(bob) == initial_cbbtc + assets_received
+
+    # Vault should be empty after full redemption
+    assert vault.totalSupply(sender=bob) == initial_supply, f"Supply should return to initial: {vault.totalSupply()} == {initial_supply}"
+    # Note: CBBTC vault may have USDC yield left from leverage operations
+    # This is expected - totalAssets includes value of all assets
+
+
+def test_cross_vault_interactions(
+    setup_prices,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    alice,
+    bob,
+    charlie,
+    governance,
+    vault_registry,
+    switchboard_alpha,
+):
+    """Test multiple vaults operating independently and correctly"""
+
+    # Enable all vaults
+    for vault in [undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth]:
+        vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+        vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
+        vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)  # Manual control
+
+    # Track initial state (may have leftovers from previous tests due to module fixtures)
+    usdc_initial_assets = undy_levg_vault_usdc.totalAssets()
+    cbbtc_initial_assets = undy_levg_vault_cbbtc.totalAssets()
+    weth_initial_assets = undy_levg_vault_weth.totalAssets()
+
+    # Alice uses USDC vault
+    alice_usdc = 10_000 * SIX_DECIMALS
+    mock_usdc.mint(alice, alice_usdc, sender=governance.address)
+    mock_usdc.approve(undy_levg_vault_usdc.address, alice_usdc, sender=alice)
+    alice_shares = undy_levg_vault_usdc.deposit(alice_usdc, alice, sender=alice)
+
+    # Bob uses CBBTC vault
+    bob_cbbtc = 1 * EIGHT_DECIMALS
+    mock_cbbtc.mint(bob, bob_cbbtc, sender=governance.address)
+    mock_cbbtc.approve(undy_levg_vault_cbbtc.address, bob_cbbtc, sender=bob)
+    bob_shares = undy_levg_vault_cbbtc.deposit(bob_cbbtc, bob, sender=bob)
+
+    # Charlie uses WETH vault
+    charlie_weth = 3 * EIGHTEEN_DECIMALS
+    boa.env.set_balance(charlie, charlie_weth)
+    mock_weth.deposit(value=charlie_weth, sender=charlie)
+    mock_weth.approve(undy_levg_vault_weth.address, charlie_weth, sender=charlie)
+    charlie_shares = undy_levg_vault_weth.deposit(charlie_weth, charlie, sender=charlie)
+
+    # Each vault maintains independent state - only check new shares
+    assert undy_levg_vault_usdc.balanceOf(alice) == alice_shares
+    assert undy_levg_vault_cbbtc.balanceOf(bob) == bob_shares
+    assert undy_levg_vault_weth.balanceOf(charlie) == charlie_shares
+
+    # Each vault has correct underlying assets (new deposits + any previous state)
+    assert undy_levg_vault_usdc.totalAssets(sender=alice) == usdc_initial_assets + alice_usdc
+    assert undy_levg_vault_cbbtc.totalAssets(sender=bob) == cbbtc_initial_assets + bob_cbbtc
+    assert undy_levg_vault_weth.totalAssets(sender=charlie) == weth_initial_assets + charlie_weth
+
+    # All users can redeem from their respective vaults
+    alice_redeemed = undy_levg_vault_usdc.redeem(alice_shares, alice, alice, sender=alice)
+    bob_redeemed = undy_levg_vault_cbbtc.redeem(bob_shares, bob, bob, sender=bob)
+    charlie_redeemed = undy_levg_vault_weth.redeem(charlie_shares, charlie, charlie, sender=charlie)
+
+    # Verify correct redemptions (including any initial state from previous tests)
+    # If there were initial assets with 0 shares, first depositor gets them all
+    assert alice_redeemed == alice_usdc + usdc_initial_assets
+    assert bob_redeemed == bob_cbbtc + cbbtc_initial_assets
+    assert charlie_redeemed == charlie_weth + weth_initial_assets
+
+    # Vaults should be empty after full redemption
+    assert undy_levg_vault_usdc.totalSupply(sender=alice) == 0
+    assert undy_levg_vault_cbbtc.totalSupply(sender=bob) == 0
+    assert undy_levg_vault_weth.totalSupply(sender=charlie) == 0

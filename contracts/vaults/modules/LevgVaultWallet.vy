@@ -208,6 +208,9 @@ def _depositForYield(
 ) -> (uint256, address, uint256, uint256):
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here
 
+    # no re-depositing / re-staking
+    assert self.vaultToLegoId[_asset] == 0 # dev: cannot re-deposit vault tokens
+
     # deposit for yield
     assetAmount: uint256 = 0
     vaultToken: address = empty(address)
@@ -360,6 +363,8 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         thisTxUsdValue: uint256 = 0
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
+
+    assert lastTokenOutAmount != 0 # dev: no output amount
 
     # verify green <--> usdc swap is fair (check slippage)
     if tokenIn in [green, usdc] and lastTokenOut in [green, usdc]:
@@ -546,6 +551,9 @@ def borrow(
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
     self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.BORROW)
+
+    assert ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
+    assert _borrowAsset in [GREEN, SAVINGS_GREEN] # dev: invalid borrow asset
 
     # borrow
     borrowAmount: uint256 = 0
