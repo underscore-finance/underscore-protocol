@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
@@ -737,25 +738,38 @@ def _prepareRedemption(
         return availAmount
 
     # step 2: withdraw from idle collateralVaultToken in wallet
-    collateralVaultTokenBalance: uint256 = staticcall IERC20(collData.vaultToken).balanceOf(self)
-    if collateralVaultTokenBalance != 0:
-        amountStillNeeded = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collData.vaultToken)
-        availAmount += self._withdrawFromYield(collData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
-        if availAmount >= _amount:
-            return availAmount
+    availAmount = self._withdrawVaultTokenForRedemption(
+        _asset,
+        collData.vaultToken,
+        targetWithdrawAmount,
+        availAmount,
+        0,
+        True,
+        collAd,
+        ripeAd,
+        levgVaultHelper,
+        ripeVaultBook,
+        ripeDeleverage
+    )
+    if availAmount >= _amount:
+        return availAmount
 
     # step 3: remove collateralVaultToken collateral from Ripe and withdraw
-    collateralVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, collData.vaultToken, collData.ripeVaultId, ripeVaultBook)
-    if collateralVaultTokenOnRipe != 0:
-        amountStillNeeded = targetWithdrawAmount - availAmount
-        vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(collAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, collData.vaultToken)
-        specificWithdrawAmount = min(vaultTokenAmountToWithdraw, collateralVaultTokenOnRipe)
-        extcall RipeDeleverage(ripeDeleverage).deleverageForWithdrawal(self, collData.ripeVaultId, collData.vaultToken, specificWithdrawAmount)
-        vaultTokenAmountToWithdraw = self._removeCollateral(collData.vaultToken, specificWithdrawAmount, empty(bytes32), collData.ripeVaultId, ripeAd)[0]
-        availAmount += self._withdrawFromYield(collData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), collAd)[2]
-        if availAmount >= _amount:
-            return availAmount
+    availAmount = self._withdrawVaultTokenForRedemption(
+        _asset,
+        collData.vaultToken,
+        targetWithdrawAmount,
+        availAmount,
+        collData.ripeVaultId,
+        False,
+        collAd,
+        ripeAd,
+        levgVaultHelper,
+        ripeVaultBook,
+        ripeDeleverage
+    )
+    if availAmount >= _amount:
+        return availAmount
 
     # step 4: for USDC vaults, also check leverageVaultToken
     if _asset == USDC and availAmount < _amount:
@@ -770,25 +784,82 @@ def _prepareRedemption(
             return availAmount
 
         # step 4a: withdraw from idle leverageVaultToken in wallet
-        leverageVaultTokenBalance: uint256 = staticcall IERC20(levgData.vaultToken).balanceOf(self)
-        if leverageVaultTokenBalance != 0:
-            amountStillNeeded = targetWithdrawAmount - availAmount
-            vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, levgData.vaultToken)
-            availAmount += self._withdrawFromYield(levgData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
-            if availAmount >= _amount:
-                return availAmount
+        availAmount = self._withdrawVaultTokenForRedemption(
+            _asset,
+            levgData.vaultToken,
+            targetWithdrawAmount,
+            availAmount,
+            0,
+            True,
+            levgAd,
+            ripeAd,
+            levgVaultHelper,
+            ripeVaultBook,
+            ripeDeleverage
+        )
+        if availAmount >= _amount:
+            return availAmount
 
         # step 4b: remove leverageVaultToken collateral from Ripe and withdraw
-        leverageVaultTokenOnRipe: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, levgData.vaultToken, levgData.ripeVaultId, ripeVaultBook)
-        if leverageVaultTokenOnRipe != 0:
-            amountStillNeeded = targetWithdrawAmount - availAmount
-            vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(levgAd.legoAddr).getVaultTokenAmount(_asset, amountStillNeeded, levgData.vaultToken)
-            specificWithdrawAmount = min(vaultTokenAmountToWithdraw, leverageVaultTokenOnRipe)
-            extcall RipeDeleverage(ripeDeleverage).deleverageForWithdrawal(self, levgData.ripeVaultId, levgData.vaultToken, specificWithdrawAmount)
-            vaultTokenAmountToWithdraw = self._removeCollateral(levgData.vaultToken, specificWithdrawAmount, empty(bytes32), levgData.ripeVaultId, ripeAd)[0]
-            availAmount += self._withdrawFromYield(levgData.vaultToken, vaultTokenAmountToWithdraw, empty(bytes32), levgAd)[2]
+        availAmount = self._withdrawVaultTokenForRedemption(
+            _asset,
+            levgData.vaultToken,
+            targetWithdrawAmount,
+            availAmount,
+            levgData.ripeVaultId,
+            False,
+            levgAd,
+            ripeAd,
+            levgVaultHelper,
+            ripeVaultBook,
+            ripeDeleverage
+        )
 
     return availAmount
+
+
+# withdraw for redemption
+
+
+@internal
+def _withdrawVaultTokenForRedemption(
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _targetWithdrawAmount: uint256,
+    _availAmount: uint256,
+    _ripeVaultId: uint256,
+    _fromWallet: bool,
+    _actionData: VaultActionData,
+    _ripeActionData: VaultActionData,
+    _levgVaultHelper: address,
+    _ripeVaultBook: address,
+    _ripeDeleverage: address,
+) -> uint256:
+    balance: uint256 = 0
+    if _fromWallet:
+        balance = staticcall IERC20(_vaultToken).balanceOf(self)
+    else:
+        balance = staticcall LevgVaultHelper(_levgVaultHelper).getCollateralBalance(self, _vaultToken, _ripeVaultId, _ripeVaultBook)
+    if balance == 0:
+        return _availAmount
+
+    # calc amount to withdraw
+    amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount
+    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(_actionData.legoAddr).getVaultTokenAmount(_underlyingAsset, amountStillNeeded, _vaultToken)
+    actualVaultTokenAmount: uint256 = vaultTokenAmountToWithdraw
+
+    # ripe withdrawals, cap at available balance and handle deleverage
+    if not _fromWallet:
+        actualVaultTokenAmount = min(vaultTokenAmountToWithdraw, balance)
+
+        # deleverage before removing collateral
+        extcall RipeDeleverage(_ripeDeleverage).deleverageForWithdrawal(self, _ripeVaultId, _vaultToken, actualVaultTokenAmount)
+
+        # remove collateral and get actual amount removed
+        actualVaultTokenAmount = self._removeCollateral(_vaultToken, actualVaultTokenAmount, empty(bytes32), _ripeVaultId, _ripeActionData)[0]
+
+    # withdraw from yield protocol to get underlying asset
+    return _availAmount + self._withdrawFromYield(_vaultToken, actualVaultTokenAmount, empty(bytes32), _actionData)[2]
 
 
 #####################
