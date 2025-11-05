@@ -51,6 +51,8 @@ event Withdraw:
     assets: uint256
     shares: uint256
 
+HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
+
 
 @deploy
 def __init__(
@@ -132,7 +134,22 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
 
     totalAssets: uint256 = vaultWallet._getTotalAssets()
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
-    self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry())
+    self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), 0)
+    return shares
+
+
+@nonreentrant
+@external
+def depositWithMinAmountOut(_assets: uint256, _minAmountOut: uint256, _receiver: address = msg.sender) -> uint256:
+    asset: address = vaultWallet.UNDERLYING_ASSET
+
+    amount: uint256 = _assets
+    if amount == max_value(uint256):
+        amount = staticcall IERC20(asset).balanceOf(msg.sender)
+
+    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
+    self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), _minAmountOut)
     return shares
 
 
@@ -173,7 +190,7 @@ def previewMint(_shares: uint256) -> uint256:
 def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     totalAssets: uint256 = vaultWallet._getTotalAssets()
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, vaultWallet._getVaultRegistry())
+    self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), 0)
     return amount
 
 
@@ -188,6 +205,7 @@ def _deposit(
     _recipient: address,
     _totalAssets: uint256,
     _vaultRegistry: address,
+    _minAmountOut: uint256,
 ):
     # get all deposit config
     canDeposit: bool = False
@@ -200,8 +218,12 @@ def _deposit(
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
+
     if maxDepositAmount != 0:
         assert _totalAssets + _amount <= maxDepositAmount # dev: exceeds max deposit
+
+    if _minAmountOut != 0:
+        assert _shares >= _minAmountOut # dev: insufficient shares
 
     # transfer assets to vault
     assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed
@@ -240,7 +262,7 @@ def previewWithdraw(_assets: uint256) -> uint256:
 @external
 def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
     shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), True)
-    self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry())
+    self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), 0)
     return shares
 
 
@@ -267,7 +289,18 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
         shares = token.balanceOf[_owner]
 
     amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
-    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry())
+    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), 0)
+
+
+@nonreentrant
+@external
+def redeemWithMinAmountOut(_shares: uint256, _minAmountOut: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
+    shares: uint256 = _shares
+    if shares == max_value(uint256):
+        shares = token.balanceOf[_owner]
+
+    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), _minAmountOut)
 
 
 # shared redeem logic
@@ -282,6 +315,7 @@ def _redeem(
     _recipient: address,
     _owner: address,
     _vaultRegistry: address,
+    _minAmountOut: uint256,
 ) -> uint256:
     assert staticcall VaultRegistry(_vaultRegistry).canWithdraw(self) # dev: cannot withdraw
 
@@ -297,7 +331,12 @@ def _redeem(
     # withdraw from yield opportunity
     availAmount: uint256 = vaultWallet._prepareRedemption(_asset, _amount, _sender, _vaultRegistry)
     actualAmount: uint256 = min(availAmount, _amount)
-    assert actualAmount >= _amount - (_amount // 10) # dev: insufficient funds (0.1% tolerance)
+
+    # check amount out
+    if _minAmountOut != 0:
+        assert actualAmount >= _minAmountOut # dev: insufficient amount out
+    else:
+        assert self._isRedemptionCloseEnough(_amount, actualAmount) # dev: insufficient funds
 
     # burn shares, transfer assets
     token._burn(_owner, _shares)
@@ -305,6 +344,15 @@ def _redeem(
 
     log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)
     return actualAmount
+
+
+@view
+@internal
+def _isRedemptionCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:
+    # extra check to make sure what was sent was actually close-ish to what was requested
+    buffer: uint256 = _requestedAmount * 10 // HUNDRED_PERCENT  # 0.1%
+    lowerBound: uint256 = _requestedAmount - buffer
+    return _actualAmount >= lowerBound
 
 
 ##########
@@ -384,3 +432,4 @@ def _sharesToAmount(
         amount += 1
 
     return amount
+
