@@ -120,7 +120,7 @@ VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: immutable(address)
 UNDERLYING_ASSET: immutable(address)
-USDC: immutable(address)
+USDC: public(immutable(address))
 GREEN: immutable(address)
 SAVINGS_GREEN: immutable(address)
 
