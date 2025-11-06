@@ -122,6 +122,71 @@ def getSwappableUsdcAmount(
     return min(availUsdcAmount, _amountIn)
 
 
+# max borrow amount
+
+
+@view
+@external
+def getMaxBorrowAmount(
+    _wallet: address,
+    _underlyingAsset: address,
+    _collateralVaultToken: address,
+    _collateralVaultTokenLegoId: uint256,
+    _collateralVaultTokenRipeVaultId: uint256,
+    _netUserCapital: uint256,
+    _maxDebtRatio: uint256,
+    _isUsdcVault: bool,
+    _legoBook: address = empty(address),
+) -> uint256:
+    if _maxDebtRatio == 0:
+        return max_value(uint256)
+
+    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
+
+    # ripe addresses
+    ripeHq: address = RIPE_REGISTRY
+    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    priceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
+    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
+
+    # NOTE: for usdc vaults, there may not be a clear distinction between collateral and leverage vaults
+    # so using netUserCapital as the underlying asset amount for extra safety
+
+    # get underlying asset amount
+    underlyingAmount: uint256 = 0
+    if _isUsdcVault:
+        underlyingAmount = _netUserCapital
+    else:
+        underlyingAmount = self._getTotalUnderlying(
+            _wallet,
+            _underlyingAsset,
+            _collateralVaultToken,
+            _collateralVaultTokenLegoId,
+            _collateralVaultTokenRipeVaultId,
+            empty(address),
+            0,
+            0,
+            False, # !
+            legoBook,
+            ripeMc,
+            ripeVaultBook,
+        )
+
+    # convert to USD value
+    underlyingUsdValue: uint256 = self._getUsdValue(_underlyingAsset, underlyingAmount, True, priceDesk)
+
+    # current debt amount (in GREEN, 18 decimals, treated as $1 USD)
+    currentDebt: uint256 = self._getUserDebtAmount(_wallet, creditEngine)
+
+    # max allowed debt (in USD)
+    maxAllowedDebt: uint256 = underlyingUsdValue * _maxDebtRatio // HUNDRED_PERCENT
+    if currentDebt >= maxAllowedDebt:
+        return 0
+
+    return maxAllowedDebt - currentDebt
+
+
 # post swap validation
 
 

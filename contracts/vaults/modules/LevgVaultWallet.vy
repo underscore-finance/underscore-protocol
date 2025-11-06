@@ -13,6 +13,7 @@ interface LevgVaultHelper:
     def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
     def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
     def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _netUserCapital: uint256, _maxDebtRatio: uint256, _isUsdcVault: bool, _legoBook: address = empty(address)) -> uint256: view
     def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdcSlippageAllowed: uint256, _greenSlippageAllowed: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view
     def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256, _vaultBook: address = empty(address)) -> uint256: view
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
@@ -82,6 +83,9 @@ event GreenSlippageAllowedSet:
 event LevgVaultHelperSet:
     levgVaultHelper: indexed(address)
 
+event MaxDebtRatioSet:
+    maxDebtRatio: uint256
+
 vaultToLegoId: public(HashMap[address, uint256])
 levgVaultHelper: public(address)
 
@@ -97,6 +101,10 @@ numManagers: public(uint256) # num managers
 # slippage settings
 usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
 greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
+
+# leverage limits
+maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%)
+netUserCapital: public(uint256) # tracks user deposits - withdrawals (for USDC vaults)
 
 # constants
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
@@ -555,10 +563,31 @@ def borrow(
     assert ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
     assert _borrowAsset in [GREEN, SAVINGS_GREEN] # dev: invalid borrow asset
 
+    amount: uint256 = _amount
+
+    # check maxDebtRatio if configured
+    maxDebtRatio: uint256 = self.maxDebtRatio
+    if maxDebtRatio != 0:
+        collData: RipeAsset = self.collateralAsset
+        maxBorrowableAmount: uint256 = staticcall LevgVaultHelper(self.levgVaultHelper).getMaxBorrowAmount(
+            self,
+            ad.vaultAsset,
+            collData.vaultToken,
+            self.vaultToLegoId[collData.vaultToken],
+            collData.ripeVaultId,
+            self.netUserCapital,
+            maxDebtRatio,
+            ad.vaultAsset == USDC,
+            ad.legoBook,
+        )
+        amount = min(amount, maxBorrowableAmount)
+
+    assert amount != 0 # dev: no amount to borrow
+
     # borrow
     borrowAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     log LevgVaultAction(
         op = 42,
@@ -950,6 +979,17 @@ def setLevgVaultHelper(_levgVaultHelper: address):
     assert _levgVaultHelper != empty(address) # dev: invalid lego helper
     self.levgVaultHelper = _levgVaultHelper
     log LevgVaultHelperSet(levgVaultHelper=_levgVaultHelper)
+
+
+# max debt ratio
+
+
+@external
+def setMaxDebtRatio(_ratio: uint256):
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert _ratio <= HUNDRED_PERCENT # dev: ratio too high (max 100%)
+    self.maxDebtRatio = _ratio
+    log MaxDebtRatioSet(maxDebtRatio=_ratio)
 
 
 ####################

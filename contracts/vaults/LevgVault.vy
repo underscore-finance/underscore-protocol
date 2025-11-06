@@ -234,6 +234,10 @@ def _deposit(
         vaultWallet._onReceiveVaultFunds(_recipient, _vaultRegistry)
 
     token._mint(_recipient, _shares)
+
+    # track user capital for maxDebtRatio enforcement
+    vaultWallet.netUserCapital += _amount
+
     log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)
 
 
@@ -342,6 +346,10 @@ def _redeem(
     # burn shares, transfer assets
     token._burn(_owner, _shares)
     assert extcall IERC20(_asset).transfer(_recipient, actualAmount, default_return_value=True) # dev: withdrawal failed
+
+    # track user capital for maxDebtRatio enforcement
+    netUserCapital: uint256 = vaultWallet.netUserCapital
+    vaultWallet.netUserCapital = netUserCapital - min(netUserCapital, actualAmount)
 
     log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)
     return actualAmount
