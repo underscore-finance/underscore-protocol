@@ -37,6 +37,18 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip GHO",
         "symbol": "undyGHO",
     },
+    "LEVG_USDC": {
+        "name": "Underscore Leveraged USD",
+        "symbol": "undyLevgUSD",
+    },
+    "LEVG_CBBTC": {
+        "name": "Underscore Leveraged cbBTC",
+        "symbol": "undyLevgCBBTC",
+    },
+    "LEVG_WETH": {
+        "name": "Underscore Leveraged WETH",
+        "symbol": "undyLevgWETH",
+    },
 }
 
 PARAMS = {

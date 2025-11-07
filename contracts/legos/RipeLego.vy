@@ -45,8 +45,8 @@ interface RipeTeller:
     def repay(_paymentAmount: uint256 = max_value(uint256), _user: address = msg.sender, _isPaymentSavingsGreen: bool = False, _shouldRefundSavingsGreen: bool = True) -> bool: nonpayable
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
-    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
+    def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
 interface Ledger:
@@ -136,7 +136,9 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
+RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
+RIPE_DELEVERAGE_ID: constant(uint256) = 18
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
@@ -203,7 +205,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return RIPE_GREEN_TOKEN
 
 
 # underlying balances (both true and safe)
@@ -274,7 +279,7 @@ def _getUnderlyingData(_vaultToken: address, _vaultTokenAmount: uint256, _apprai
     if asset == empty(address):
         return empty(address), 0, 0 # invalid vault token
     underlyingAmount: uint256 = self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
-    usdValue: uint256 = self._getUsdValue(asset, underlyingAmount, _appraiser)
+    usdValue: uint256 = self._getUsdValueViaAppraiser(asset, underlyingAmount, _appraiser)
     return asset, underlyingAmount, usdValue
 
 
@@ -295,7 +300,7 @@ def _getUsdValueOfVaultToken(_vaultToken: address, _vaultTokenAmount: uint256, _
 
 @view
 @internal
-def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
+def _getUsdValueViaAppraiser(_asset: address, _amount: uint256, _appraiser: address) -> uint256:
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
@@ -692,7 +697,8 @@ def removeCollateral(
         vaultId = convert(_extraData, uint256)
 
     # withdraw from Ripe Protocol
-    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    ripeHq: address = RIPE_REGISTRY
+    teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
     amountRemoved: uint256 = extcall RipeTeller(teller).withdraw(_asset, _amount, _recipient, empty(address), vaultId)
     assert amountRemoved != 0 # dev: no asset amount received
 
@@ -725,8 +731,9 @@ def borrow(
 
     assert msg.sender == _recipient # dev: recipient must be caller
 
-    assert _borrowAsset in [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN] # dev: invalid borrow asset
-    wantsSavingsGreen: bool = _borrowAsset == RIPE_SAVINGS_GREEN
+    savingsGreen: address = RIPE_SAVINGS_GREEN
+    assert _borrowAsset in [RIPE_GREEN_TOKEN, savingsGreen] # dev: invalid borrow asset
+    wantsSavingsGreen: bool = _borrowAsset == savingsGreen
 
     # borrow from Ripe
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
@@ -761,8 +768,9 @@ def repayDebt(
 
     assert msg.sender == _recipient # dev: recipient must be caller
 
-    assert _paymentAsset in [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN] # dev: invalid payment asset
-    isPaymentSavingsGreen: bool = _paymentAsset == RIPE_SAVINGS_GREEN
+    savingsGreen: address = RIPE_SAVINGS_GREEN
+    assert _paymentAsset in [RIPE_GREEN_TOKEN, savingsGreen] # dev: invalid payment asset
+    isPaymentSavingsGreen: bool = _paymentAsset == savingsGreen
 
     # pre balances
     preLegoBalance: uint256 = staticcall IERC20(_paymentAsset).balanceOf(self)
@@ -814,8 +822,8 @@ def _resetTellerApproval(_asset: address, _teller: address):
 
 @view
 @internal
-def _isUserWallet(_user: address) -> bool:
-    return staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user)
+def _isUserWalletOrEarnVault(_user: address) -> bool:
+    return staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user) or staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_user)
 
 
 #################

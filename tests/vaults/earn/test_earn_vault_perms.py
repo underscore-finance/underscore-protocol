@@ -60,7 +60,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, vault_registr
     # Deposit should fail with unapproved vault token
     with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
-            1,  # Lego ID 1 is approved
+            2,  # Lego ID 1 is approved
             yield_underlying_token.address,
             new_vault_token.address,
             deposit_amount,
@@ -72,7 +72,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, vault_registr
 
     # Deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         new_vault_token.address,
         deposit_amount,
@@ -92,7 +92,7 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry,
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -108,7 +108,7 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry,
 
     # Withdrawals should still work (no approval check on withdrawals)
     vault_burned, underlying_asset, underlying_received, usd_value = undy_usd_vault.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         vault_balance,
         sender=starter_agent.address
@@ -171,7 +171,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
         asset_deposited, vault_token, vault_tokens_received, _ = undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             vt.address,
             deposit_amount,
@@ -190,7 +190,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
         asset_deposited, vault_token, vault_tokens_received, _ = undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             vt.address,
             deposit_amount,
@@ -204,7 +204,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
 
     with boa.reverts("lego or vault token not approved"):
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             vault_tokens[1].address,
             deposit_amount,
@@ -362,7 +362,7 @@ def test_multiple_managers_can_perform_actions(undy_usd_vault, switchboard_alpha
     # Each new manager should be able to deposit
     for manager in [alice, bob, charlie]:
         asset_deposited, vault_token, vault_tokens_received, _ = undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,
@@ -419,7 +419,7 @@ def test_non_manager_cannot_deposit(undy_usd_vault, alice, yield_underlying_toke
     # alice should not be able to deposit
     with boa.reverts("not manager"):
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,
@@ -435,7 +435,7 @@ def test_non_manager_cannot_withdraw(undy_usd_vault, starter_agent, alice, yield
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -447,7 +447,7 @@ def test_non_manager_cannot_withdraw(undy_usd_vault, starter_agent, alice, yield
     # alice is not a manager and should not be able to withdraw
     with boa.reverts("not manager"):
         undy_usd_vault.withdrawFromYield(
-            1,
+            2,
             yield_vault_token.address,
             vault_balance,
             sender=alice
@@ -467,7 +467,7 @@ def test_removed_manager_loses_permissions(undy_usd_vault, switchboard_alpha, al
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -482,7 +482,7 @@ def test_removed_manager_loses_permissions(undy_usd_vault, switchboard_alpha, al
 
     with boa.reverts("not manager"):
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,

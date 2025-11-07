@@ -630,7 +630,7 @@ def test_migrate_funds_with_trial_funds_in_vault(migrator, hatchery, bob, alice,
     
     # Deposit all trial funds into vault
     wallet_with_trial.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         sender=bob,

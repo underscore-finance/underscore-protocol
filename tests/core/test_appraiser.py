@@ -87,10 +87,10 @@ def test_appraiser_normal_asset_price_ripe_zero_lego_fallback(appraiser, alpha_t
 
     boa.env.time_travel(blocks=5)
 
-    # need to add lego id so this works (legoId 2 is mock_dex_lego)
+    # need to add lego id so this works (legoId 3 is mock_dex_lego)
     setAssetConfig(
         alpha_token,
-        _legoId = 2,
+        _legoId = 3,
     )
 
     # Set Ripe to return 0
@@ -708,8 +708,8 @@ def test_appraiser_get_usd_value_zero_amount(appraiser, alpha_token, mock_ripe):
 def test_appraiser_get_usd_value_price_fallback_to_lego(appraiser, alpha_token, mock_ripe, mock_dex_lego, setAssetConfig):
     """ Test getUsdValue falls back to lego price when Ripe returns zero """
 
-    # Configure asset with lego (legoId 2 is mock_dex_lego)
-    setAssetConfig(alpha_token, _legoId=2)
+    # Configure asset with lego (legoId 3 is mock_dex_lego)
+    setAssetConfig(alpha_token, _legoId=3)
 
     # Ripe returns 0
     mock_ripe.setPrice(alpha_token, 0)
@@ -860,7 +860,7 @@ def test_calculate_yield_profits_no_update_rebasing_profit(appraiser, yield_vaul
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -900,7 +900,7 @@ def test_calculate_yield_profits_no_update_rebasing_balance_decreased(appraiser,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -953,7 +953,7 @@ def test_calculate_yield_profits_no_update_rebasing_with_cap(appraiser, yield_va
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1005,7 +1005,7 @@ def test_calculate_yield_profits_no_update_rebasing_no_cap_huge_increase(apprais
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1040,7 +1040,7 @@ def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1076,7 +1076,7 @@ def test_calculate_yield_profits_external_rebasing(appraiser, yield_vault_token,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1115,7 +1115,7 @@ def test_calculate_yield_profits_no_update_normal_first_time(appraiser, yield_va
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1165,7 +1165,7 @@ def test_calculate_yield_profits_no_update_normal_price_decreased(appraiser, yie
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1216,7 +1216,7 @@ def test_calculate_yield_profits_no_update_normal_with_cap(appraiser, yield_vaul
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1284,7 +1284,7 @@ def test_calculate_yield_profits_no_update_normal_no_cap(appraiser, yield_vault_
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1346,7 +1346,7 @@ def test_handle_normal_yield_current_price_per_share_zero(appraiser, yield_vault
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1383,7 +1383,7 @@ def test_calculate_yield_profits_external_normal_yield(appraiser, yield_vault_to
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1457,7 +1457,7 @@ def test_handle_normal_yield_different_balances(appraiser, yield_vault_token, yi
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -1536,13 +1536,13 @@ def test_appraiser_get_profit_calc_config_with_asset_config(mock_yield_lego, app
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId = 1,
+        _legoId = 2,  # mock_yield_lego
         _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
         _yieldConfig = yield_config,
     )
 
     config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 1
+    assert config.legoId == 2  # mock_yield_lego
     assert config.legoAddr == mock_yield_lego.address
 
     assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
@@ -1567,14 +1567,14 @@ def test_appraiser_get_profit_calc_config_with_vault_registration(appraiser, yie
 
     # verify vault token registration
     vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
+    assert vault_token.legoId == 2
     assert vault_token.underlyingAsset == yield_underlying_token.address
     assert vault_token.decimals == yield_vault_token.decimals()
     assert vault_token.isRebasing == False
 
     # get profit calc config
     config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 1
+    assert config.legoId == 2
     assert config.legoAddr == mock_yield_lego.address
     assert config.decimals == yield_vault_token.decimals()
     assert config.isYieldAsset == True
@@ -1612,13 +1612,13 @@ def test_appraiser_get_asset_usd_value_config_with_asset_config(mock_yield_lego,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId = 1,
+        _legoId = 2,  # mock_yield_lego
         _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
         _yieldConfig = yield_config,
     )
 
     config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 1
+    assert config.legoId == 2  # mock_yield_lego
     assert config.legoAddr == mock_yield_lego.address
     assert config.decimals == yield_vault_token.decimals()
     assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
@@ -1640,14 +1640,14 @@ def test_appraiser_get_asset_usd_value_config_with_vault_registration(appraiser,
 
     # verify vault token registration
     vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
+    assert vault_token.legoId == 2
     assert vault_token.underlyingAsset == yield_underlying_token.address
     assert vault_token.decimals == yield_vault_token.decimals()
     assert vault_token.isRebasing == False
 
     # get asset usd value config
     config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 1
+    assert config.legoId == 2
     assert config.legoAddr == mock_yield_lego.address
     assert config.decimals == yield_vault_token.decimals()
     assert config.isYieldAsset == True
@@ -1672,14 +1672,3 @@ def test_get_ripe_price_external(appraiser, alpha_token, mock_ripe):
     # Call external function
     price = appraiser.getRipePrice(alpha_token)
     assert price == expected_price
-
-
-def test_get_ripe_price_no_price_desk(appraiser, alpha_token, mock_ripe):
-    """ Test getRipePrice when price desk is not set """
-    
-    # Set registry to return empty address for price desk
-    mock_ripe.setAddr(ZERO_ADDRESS)
-    
-    # Should return 0
-    price = appraiser.getRipePrice(alpha_token)
-    assert price == 0

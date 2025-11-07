@@ -608,7 +608,7 @@ def test_does_wallet_still_have_trial_funds_all_in_single_vault(
     
     # Owner deposits all trial funds into vault
     wallet.depositForYield(
-        1,
+        2,
         alpha_token.address,
         alpha_token_vault.address,
         sender=alice,
@@ -635,7 +635,7 @@ def test_does_wallet_still_have_trial_funds_split_across_vaults(
     
     # Deposit 3 units into vault 1
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         3 * EIGHTEEN_DECIMALS,
@@ -644,7 +644,7 @@ def test_does_wallet_still_have_trial_funds_split_across_vaults(
     
     # Deposit 3 units into vault 2
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_2.address,
         3 * EIGHTEEN_DECIMALS,
@@ -653,7 +653,7 @@ def test_does_wallet_still_have_trial_funds_split_across_vaults(
     
     # Deposit 3 units into vault 3
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_3.address,
         3 * EIGHTEEN_DECIMALS,
@@ -715,7 +715,7 @@ def test_does_wallet_still_have_trial_funds_mixed_scenario(
     
     # Deposit 3 units into vault 1
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         3 * EIGHTEEN_DECIMALS,
@@ -724,7 +724,7 @@ def test_does_wallet_still_have_trial_funds_mixed_scenario(
     
     # Deposit 2 units into vault 2
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_2.address,
         2 * EIGHTEEN_DECIMALS,
@@ -751,7 +751,7 @@ def test_does_wallet_still_have_trial_funds_vault_gains_yield(
     
     # Deposit 8 units into vault, keep 2 in wallet
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         8 * EIGHTEEN_DECIMALS,
@@ -783,7 +783,7 @@ def test_does_wallet_still_have_trial_funds_vault_loses_value(
     
     # Deposit all 10 units into vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         10 * EIGHTEEN_DECIMALS,
@@ -844,7 +844,7 @@ def test_claw_back_trial_funds_all_in_single_vault(
     
     # Deposit all funds into vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         sender=alice,
@@ -883,7 +883,7 @@ def test_claw_back_trial_funds_split_across_vaults(
     
     # Split funds across vaults (3, 3, 3 units each, keep 1 in wallet)
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         3 * EIGHTEEN_DECIMALS,
@@ -891,7 +891,7 @@ def test_claw_back_trial_funds_split_across_vaults(
     )
     
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_2.address,
         3 * EIGHTEEN_DECIMALS,
@@ -899,7 +899,7 @@ def test_claw_back_trial_funds_split_across_vaults(
     )
     
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_3.address,
         3 * EIGHTEEN_DECIMALS,
@@ -974,7 +974,7 @@ def test_claw_back_trial_funds_with_vault_yield(
     
     # Deposit all funds into vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         sender=alice,
@@ -1189,7 +1189,7 @@ def test_claw_back_trial_funds_vault_loses_value(
     
     # Deposit all funds into vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         sender=alice,
@@ -1257,7 +1257,7 @@ def test_claw_back_trial_funds_rounding_edge_case(
     
     # Deposit 99% into vault, keep 1% in wallet
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         int(9.9 * EIGHTEEN_DECIMALS),  # 99% of 10 units
@@ -1306,7 +1306,7 @@ def test_claw_back_trial_funds_many_vaults_gas_usage(
     for i in range(9):  # 9 deposits of 2 units each = 18 units
         vault = vaults[i % 3]
         wallet.depositForYield(
-            1,  # legoId for mock_yield_lego
+            2,  # legoId for mock_yield_lego
             alpha_token.address,
             vault.address,
             amount_per_deposit,
@@ -1360,7 +1360,7 @@ def test_claw_back_trial_funds_partial_vault_withdrawal(
     
     # Keep 3 units in wallet, deposit 7 units
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         7 * EIGHTEEN_DECIMALS,
@@ -1395,7 +1395,7 @@ def test_does_wallet_still_have_trial_funds_with_eligible_vault(
        
     # Deposit all trial funds into the eligible vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         10 * EIGHTEEN_DECIMALS,
@@ -1471,7 +1471,7 @@ def test_claw_back_trial_funds_deregisters_vault_assets(
     # Split funds across multiple vaults
     # Deposit 4 units into vault 1
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         4 * EIGHTEEN_DECIMALS,
@@ -1480,7 +1480,7 @@ def test_claw_back_trial_funds_deregisters_vault_assets(
     
     # Deposit 4 units into vault 2
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault_2.address,
         4 * EIGHTEEN_DECIMALS,
@@ -1538,7 +1538,7 @@ def test_claw_back_trial_funds_vault_deregistration_after_loss(
     
     # Deposit all funds into vault
     wallet.depositForYield(
-        1,  # legoId for mock_yield_lego
+        2,  # legoId for mock_yield_lego
         alpha_token.address,
         alpha_token_vault.address,
         10 * EIGHTEEN_DECIMALS,

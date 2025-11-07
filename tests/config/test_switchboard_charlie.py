@@ -368,7 +368,7 @@ def test_set_min_yield_withdraw_amount_non_governance_fails(switchboard_charlie,
 def test_set_snapshot_price_config_success(switchboard_charlie, mock_yield_lego, governance):
     """Test successful snapshot price config update"""
     # Get initial config
-    lego_id = 1  # mock_yield_lego
+    lego_id = 2  # mock_yield_lego
     initial_config = mock_yield_lego.snapShotPriceConfig()
 
     # Initiate config change
@@ -415,7 +415,7 @@ def test_set_snapshot_price_config_success(switchboard_charlie, mock_yield_lego,
 
 def test_set_snapshot_price_config_invalid_config_fails(switchboard_charlie, governance):
     """Test that invalid price config is rejected"""
-    lego_id = 1  # mock_yield_lego
+    lego_id = 2  # mock_yield_lego
     # Invalid: maxNumSnapshots = 0
     with boa.reverts("invalid price config"):
         switchboard_charlie.setSnapShotPriceConfig(
@@ -445,7 +445,7 @@ def test_set_snapshot_price_config_invalid_lego_id_fails(switchboard_charlie, go
 
 def test_set_snapshot_price_config_non_governance_fails(switchboard_charlie, alice):
     """Test that non-governance cannot set snapshot config"""
-    lego_id = 1  # mock_yield_lego
+    lego_id = 2  # mock_yield_lego
     with boa.reverts("no perms"):
         switchboard_charlie.setSnapShotPriceConfig(
             lego_id,
@@ -650,7 +650,7 @@ def test_multiple_pending_actions(switchboard_charlie, vault_registry, undy_usd_
     )
 
     # Create second pending action (snapshot config)
-    lego_id = 1  # mock_yield_lego
+    lego_id = 2  # mock_yield_lego
     aid2 = switchboard_charlie.setSnapShotPriceConfig(
         lego_id,
         600,    # _minSnapshotDelay

@@ -24,6 +24,7 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 from interfaces import LegoStructs as ls
+from ethereum.ercs import IERC4626
 
 interface VaultRegistry:
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
@@ -42,12 +43,27 @@ interface VaultRegistry:
     def isValidVaultToken(_vaultToken: address) -> bool: view
     def isEarnVault(_vaultAddr: address) -> bool: view
 
-interface MissionControl:
-    def canPerformSecurityAction(_signer: address) -> bool: view
+interface LevgVault:
+    def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256): nonpayable
+    def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256): nonpayable
+    def setUsdcSlippageAllowed(_slippage: uint256): nonpayable
+    def setGreenSlippageAllowed(_slippage: uint256): nonpayable
+    def setLevgVaultHelper(_levgVaultHelper: address): nonpayable
+    def setMaxDebtRatio(_ratio: uint256): nonpayable
+    def addManager(_manager: address): nonpayable
+    def removeManager(_manager: address): nonpayable
+    def levgVaultHelper() -> address: view
+    def USDC() -> address: view
 
 interface YieldLego:
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
     def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
+
+interface LevgVaultHelper:
+    def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
+
+interface MissionControl:
+    def canPerformSecurityAction(_signer: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -60,6 +76,14 @@ flag ActionType:
     PERFORMANCE_FEE
     DEFAULT_TARGET_VAULT_TOKEN
     MAX_DEPOSIT_AMOUNT
+    COLLATERAL_VAULT
+    LEVERAGE_VAULT
+    USDC_SLIPPAGE
+    GREEN_SLIPPAGE
+    LEVG_VAULT_HELPER
+    MAX_DEBT_RATIO
+    ADD_MANAGER
+    REMOVE_MANAGER
 
 struct PendingRedemptionBuffer:
     vaultAddr: address
@@ -89,6 +113,42 @@ struct PendingDefaultTargetVaultToken:
 struct PendingMaxDepositAmount:
     vaultAddr: address
     maxDepositAmount: uint256
+
+struct PendingCollateralVault:
+    vaultAddr: address
+    vaultToken: address
+    ripeVaultId: uint256
+    legoId: uint256
+
+struct PendingLeverageVault:
+    vaultAddr: address
+    vaultToken: address
+    legoId: uint256
+    ripeVaultId: uint256
+
+struct PendingUsdcSlippage:
+    vaultAddr: address
+    slippage: uint256
+
+struct PendingGreenSlippage:
+    vaultAddr: address
+    slippage: uint256
+
+struct PendingLevgVaultHelper:
+    vaultAddr: address
+    levgVaultHelper: address
+
+struct PendingMaxDebtRatio:
+    vaultAddr: address
+    ratio: uint256
+
+struct PendingAddManager:
+    vaultAddr: address
+    manager: address
+
+struct PendingRemoveManager:
+    vaultAddr: address
+    manager: address
 
 event PendingRedemptionBufferChange:
     vaultAddr: indexed(address)
@@ -189,6 +249,94 @@ event ShouldAutoDepositSet:
     shouldAutoDeposit: bool
     caller: indexed(address)
 
+event PendingCollateralVaultChange:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    ripeVaultId: uint256
+    legoId: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event CollateralVaultSet:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    ripeVaultId: uint256
+    legoId: uint256
+
+event PendingLeverageVaultChange:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    legoId: uint256
+    ripeVaultId: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event LeverageVaultSet:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    legoId: uint256
+    ripeVaultId: uint256
+
+event PendingUsdcSlippageChange:
+    vaultAddr: indexed(address)
+    slippage: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event UsdcSlippageSet:
+    vaultAddr: indexed(address)
+    slippage: uint256
+
+event PendingGreenSlippageChange:
+    vaultAddr: indexed(address)
+    slippage: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event GreenSlippageSet:
+    vaultAddr: indexed(address)
+    slippage: uint256
+
+event PendingLevgVaultHelperChange:
+    vaultAddr: indexed(address)
+    levgVaultHelper: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event LevgVaultHelperSet:
+    vaultAddr: indexed(address)
+    levgVaultHelper: indexed(address)
+
+event PendingMaxDebtRatioChange:
+    vaultAddr: indexed(address)
+    ratio: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event MaxDebtRatioSet:
+    vaultAddr: indexed(address)
+    ratio: uint256
+
+event PendingAddManagerChange:
+    vaultAddr: indexed(address)
+    manager: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event ManagerAdded:
+    vaultAddr: indexed(address)
+    manager: indexed(address)
+
+event PendingRemoveManagerChange:
+    vaultAddr: indexed(address)
+    manager: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event ManagerRemoved:
+    vaultAddr: indexed(address)
+    manager: indexed(address)
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
@@ -198,6 +346,14 @@ pendingApprovedVaultToken: public(HashMap[uint256, PendingApprovedVaultToken]) #
 pendingPerformanceFee: public(HashMap[uint256, PendingPerformanceFee]) # aid -> config
 pendingDefaultTargetVaultToken: public(HashMap[uint256, PendingDefaultTargetVaultToken]) # aid -> config
 pendingMaxDepositAmount: public(HashMap[uint256, PendingMaxDepositAmount]) # aid -> config
+pendingCollateralVault: public(HashMap[uint256, PendingCollateralVault]) # aid -> config
+pendingLeverageVault: public(HashMap[uint256, PendingLeverageVault]) # aid -> config
+pendingUsdcSlippage: public(HashMap[uint256, PendingUsdcSlippage]) # aid -> config
+pendingGreenSlippage: public(HashMap[uint256, PendingGreenSlippage]) # aid -> config
+pendingLevgVaultHelper: public(HashMap[uint256, PendingLevgVaultHelper]) # aid -> config
+pendingMaxDebtRatio: public(HashMap[uint256, PendingMaxDebtRatio]) # aid -> config
+pendingAddManager: public(HashMap[uint256, PendingAddManager]) # aid -> config
+pendingRemoveManager: public(HashMap[uint256, PendingRemoveManager]) # aid -> config
 
 
 @deploy
@@ -475,6 +631,223 @@ def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256) -> uint
     return aid
 
 
+# collateral vault
+
+
+@external
+def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # validate vault token if not empty
+    if _vaultToken != empty(address):
+        helper: address = staticcall LevgVault(_vaultAddr).levgVaultHelper()
+        underlyingAsset: address = staticcall IERC4626(_vaultAddr).asset()
+        assert staticcall LevgVaultHelper(helper).isValidVaultToken(underlyingAsset, _vaultToken, _ripeVaultId, _legoId) # dev: invalid collateral vault token
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.COLLATERAL_VAULT
+    self.pendingCollateralVault[aid] = PendingCollateralVault(
+        vaultAddr=_vaultAddr,
+        vaultToken=_vaultToken,
+        ripeVaultId=_ripeVaultId,
+        legoId=_legoId
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingCollateralVaultChange(
+        vaultAddr=_vaultAddr,
+        vaultToken=_vaultToken,
+        ripeVaultId=_ripeVaultId,
+        legoId=_legoId,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# leverage vault
+
+
+@external
+def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # validate vault token
+    helper: address = staticcall LevgVault(_vaultAddr).levgVaultHelper()
+    usdc: address = staticcall LevgVault(_vaultAddr).USDC()
+    assert staticcall LevgVaultHelper(helper).isValidVaultToken(usdc, _vaultToken, _ripeVaultId, _legoId) # dev: invalid leverage vault token
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.LEVERAGE_VAULT
+    self.pendingLeverageVault[aid] = PendingLeverageVault(
+        vaultAddr=_vaultAddr,
+        vaultToken=_vaultToken,
+        legoId=_legoId,
+        ripeVaultId=_ripeVaultId
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingLeverageVaultChange(
+        vaultAddr=_vaultAddr,
+        vaultToken=_vaultToken,
+        legoId=_legoId,
+        ripeVaultId=_ripeVaultId,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# usdc slippage
+
+
+@external
+def setUsdcSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.USDC_SLIPPAGE
+    self.pendingUsdcSlippage[aid] = PendingUsdcSlippage(
+        vaultAddr=_vaultAddr,
+        slippage=_slippage
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingUsdcSlippageChange(
+        vaultAddr=_vaultAddr,
+        slippage=_slippage,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# green slippage
+
+
+@external
+def setGreenSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.GREEN_SLIPPAGE
+    self.pendingGreenSlippage[aid] = PendingGreenSlippage(
+        vaultAddr=_vaultAddr,
+        slippage=_slippage
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingGreenSlippageChange(
+        vaultAddr=_vaultAddr,
+        slippage=_slippage,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# levg vault helper
+
+
+@external
+def setLevgVaultHelper(_vaultAddr: address, _levgVaultHelper: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert _levgVaultHelper != empty(address) # dev: invalid helper address
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.LEVG_VAULT_HELPER
+    self.pendingLevgVaultHelper[aid] = PendingLevgVaultHelper(
+        vaultAddr=_vaultAddr,
+        levgVaultHelper=_levgVaultHelper
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingLevgVaultHelperChange(
+        vaultAddr=_vaultAddr,
+        levgVaultHelper=_levgVaultHelper,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# max debt ratio
+
+
+@external
+def setMaxDebtRatio(_vaultAddr: address, _ratio: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert _ratio <= 100_00 # dev: ratio too high (max 100%)
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.MAX_DEBT_RATIO
+    self.pendingMaxDebtRatio[aid] = PendingMaxDebtRatio(
+        vaultAddr=_vaultAddr,
+        ratio=_ratio
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingMaxDebtRatioChange(
+        vaultAddr=_vaultAddr,
+        ratio=_ratio,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# add manager
+
+
+@external
+def addVaultManager(_vaultAddr: address, _manager: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ADD_MANAGER
+    self.pendingAddManager[aid] = PendingAddManager(
+        vaultAddr=_vaultAddr,
+        manager=_manager
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingAddManagerChange(
+        vaultAddr=_vaultAddr,
+        manager=_manager,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# remove manager
+
+
+@external
+def removeVaultManager(_vaultAddr: address, _manager: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.REMOVE_MANAGER
+    self.pendingRemoveManager[aid] = PendingRemoveManager(
+        vaultAddr=_vaultAddr,
+        manager=_manager
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingRemoveManagerChange(
+        vaultAddr=_vaultAddr,
+        manager=_manager,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
 #############
 # Execution #
 #############
@@ -538,6 +911,46 @@ def executePendingAction(_aid: uint256) -> bool:
         p: PendingMaxDepositAmount = self.pendingMaxDepositAmount[_aid]
         extcall VaultRegistry(vr).setMaxDepositAmount(p.vaultAddr, p.maxDepositAmount)
         log MaxDepositAmountSet(vaultAddr=p.vaultAddr, maxDepositAmount=p.maxDepositAmount)
+
+    elif actionType == ActionType.COLLATERAL_VAULT:
+        p: PendingCollateralVault = self.pendingCollateralVault[_aid]
+        extcall LevgVault(p.vaultAddr).setCollateralVault(p.vaultToken, p.ripeVaultId, p.legoId)
+        log CollateralVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, ripeVaultId=p.ripeVaultId, legoId=p.legoId)
+
+    elif actionType == ActionType.LEVERAGE_VAULT:
+        p: PendingLeverageVault = self.pendingLeverageVault[_aid]
+        extcall LevgVault(p.vaultAddr).setLeverageVault(p.vaultToken, p.legoId, p.ripeVaultId)
+        log LeverageVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, legoId=p.legoId, ripeVaultId=p.ripeVaultId)
+
+    elif actionType == ActionType.USDC_SLIPPAGE:
+        p: PendingUsdcSlippage = self.pendingUsdcSlippage[_aid]
+        extcall LevgVault(p.vaultAddr).setUsdcSlippageAllowed(p.slippage)
+        log UsdcSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
+
+    elif actionType == ActionType.GREEN_SLIPPAGE:
+        p: PendingGreenSlippage = self.pendingGreenSlippage[_aid]
+        extcall LevgVault(p.vaultAddr).setGreenSlippageAllowed(p.slippage)
+        log GreenSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
+
+    elif actionType == ActionType.LEVG_VAULT_HELPER:
+        p: PendingLevgVaultHelper = self.pendingLevgVaultHelper[_aid]
+        extcall LevgVault(p.vaultAddr).setLevgVaultHelper(p.levgVaultHelper)
+        log LevgVaultHelperSet(vaultAddr=p.vaultAddr, levgVaultHelper=p.levgVaultHelper)
+
+    elif actionType == ActionType.MAX_DEBT_RATIO:
+        p: PendingMaxDebtRatio = self.pendingMaxDebtRatio[_aid]
+        extcall LevgVault(p.vaultAddr).setMaxDebtRatio(p.ratio)
+        log MaxDebtRatioSet(vaultAddr=p.vaultAddr, ratio=p.ratio)
+
+    elif actionType == ActionType.ADD_MANAGER:
+        p: PendingAddManager = self.pendingAddManager[_aid]
+        extcall LevgVault(p.vaultAddr).addManager(p.manager)
+        log ManagerAdded(vaultAddr=p.vaultAddr, manager=p.manager)
+
+    elif actionType == ActionType.REMOVE_MANAGER:
+        p: PendingRemoveManager = self.pendingRemoveManager[_aid]
+        extcall LevgVault(p.vaultAddr).removeManager(p.manager)
+        log ManagerRemoved(vaultAddr=p.vaultAddr, manager=p.manager)
 
     self.actionType[_aid] = empty(ActionType)
     return True
