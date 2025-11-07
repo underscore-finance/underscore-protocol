@@ -88,7 +88,13 @@ def asset() -> address:
 @view
 @external
 def totalAssets() -> uint256:
-    return vaultWallet._getTotalAssets()
+    return vaultWallet._getTotalAssets(True)
+
+
+@view
+@external
+def getTotalAssets(_shouldGetMax: bool) -> uint256:
+    return vaultWallet._getTotalAssets(_shouldGetMax)
 
 
 ############
@@ -111,7 +117,7 @@ def maxDeposit(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -121,7 +127,7 @@ def maxDeposit(_receiver: address) -> uint256:
 @view
 @external
 def previewDeposit(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), False)
 
 
 @nonreentrant
@@ -133,7 +139,7 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     if amount == max_value(uint256):
         amount = staticcall IERC20(asset).balanceOf(msg.sender)
 
-    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
     self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), 0)
     return shares
@@ -148,7 +154,7 @@ def depositWithMinAmountOut(_assets: uint256, _minAmountOut: uint256, _receiver:
     if amount == max_value(uint256):
         amount = staticcall IERC20(asset).balanceOf(msg.sender)
 
-    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
     shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)
     self._deposit(asset, amount, shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), _minAmountOut)
     return shares
@@ -172,7 +178,7 @@ def maxMint(_receiver: address) -> uint256:
     if maxDepositAmount == 0:
         return max_value(uint256)
 
-    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
     if totalAssets >= maxDepositAmount:
         return 0
 
@@ -183,13 +189,13 @@ def maxMint(_receiver: address) -> uint256:
 @view
 @external
 def previewMint(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), True)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(True), True)
 
 
 @nonreentrant
 @external
 def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
-    totalAssets: uint256 = vaultWallet._getTotalAssets()
+    totalAssets: uint256 = vaultWallet._getTotalAssets(True)
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
     self._deposit(vaultWallet.UNDERLYING_ASSET, amount, _shares, _receiver, totalAssets, vaultWallet._getVaultRegistry(), 0)
     return amount
@@ -252,7 +258,7 @@ def maxWithdraw(_owner: address) -> uint256:
     ownerShares: uint256 = token.balanceOf[_owner]
     if ownerShares == 0:
         return 0
-    availableAssets: uint256 = vaultWallet._getTotalAssets()
+    availableAssets: uint256 = vaultWallet._getTotalAssets(False)
     ownerAssets: uint256 = self._sharesToAmount(ownerShares, token.totalSupply, availableAssets, False)
     return min(ownerAssets, availableAssets)
 
@@ -260,13 +266,13 @@ def maxWithdraw(_owner: address) -> uint256:
 @view
 @external
 def previewWithdraw(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), True)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)
 
 
 @nonreentrant
 @external
 def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), True)
+    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)
     self._redeem(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), 0)
     return shares
 
@@ -283,7 +289,7 @@ def maxRedeem(_owner: address) -> uint256:
 @view
 @external
 def previewRedeem(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)
 
 
 @nonreentrant
@@ -293,7 +299,7 @@ def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = 
     if shares == max_value(uint256):
         shares = token.balanceOf[_owner]
 
-    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)
     return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), 0)
 
 
@@ -304,7 +310,7 @@ def redeemWithMinAmountOut(_shares: uint256, _minAmountOut: uint256, _receiver: 
     if shares == max_value(uint256):
         shares = token.balanceOf[_owner]
 
-    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)
     return self._redeem(vaultWallet.UNDERLYING_ASSET, amount, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), _minAmountOut)
 
 
@@ -372,13 +378,25 @@ def _isRedemptionCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) 
 @view
 @external
 def convertToShares(_assets: uint256) -> uint256:
-    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), False)
+
+
+@view
+@external
+def convertToSharesSafe(_assets: uint256) -> uint256:
+    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), False)
 
 
 @view
 @external
 def convertToAssets(_shares: uint256) -> uint256:
-    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(), False)
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(True), False)
+
+
+@view
+@external
+def convertToAssetsSafe(_shares: uint256) -> uint256:
+    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)
 
 
 # amount -> shares

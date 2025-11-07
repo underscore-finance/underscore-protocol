@@ -76,7 +76,9 @@ def test_multiple_users_different_share_prices(
     setup_vault_for_multi_user,
     mock_usdc,
     mock_usdc_collateral_vault,
+    mock_yield_lego,
     starter_agent,
+    switchboard_alpha,
     governance,
 ):
     """Test multiple users deposit at different share prices and all get fair treatment"""
@@ -108,6 +110,9 @@ def test_multiple_users_different_share_prices(
     yield_amount = alice_deposit // 10  # 10% yield
     mock_usdc.mint(mock_usdc_collateral_vault.address, yield_amount, sender=governance.address)
 
+    # Update price snapshot to reflect the new yield
+    mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
+
     # Now total assets = 11,000 USDC, total shares = 10,000
     # Share price = 1.1 USDC per share
 
@@ -122,7 +127,10 @@ def test_multiple_users_different_share_prices(
 
     # Generate more yield
     additional_yield = 1_000 * SIX_DECIMALS
-    mock_usdc.mint(vault.address, additional_yield, sender=governance.address)
+    mock_usdc.mint(mock_usdc_collateral_vault.address, additional_yield, sender=governance.address)
+
+    # Update price snapshot to reflect the additional yield
+    mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
 
     # Now total assets = 17,500 USDC, total shares = 15,000
     # Share price = 1.167 USDC per share
@@ -331,7 +339,9 @@ def test_multiple_users_with_yield_accrual(
     setup_vault_for_multi_user,
     mock_usdc,
     mock_usdc_collateral_vault,
+    mock_yield_lego,
     starter_agent,
+    switchboard_alpha,
     governance,
 ):
     """Test fair yield distribution among multiple users over time"""
@@ -359,6 +369,9 @@ def test_multiple_users_with_yield_accrual(
     yield_1 = 1_000 * SIX_DECIMALS
     mock_usdc.mint(mock_usdc_collateral_vault.address, yield_1, sender=governance.address)
 
+    # Update price snapshot to reflect the new yield
+    mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
+
     bob_deposit = 5_000 * SIX_DECIMALS
     mock_usdc.approve(vault.address, bob_deposit, sender=bob)
     bob_shares = vault.deposit(bob_deposit, bob, sender=bob)
@@ -369,7 +382,10 @@ def test_multiple_users_with_yield_accrual(
     # Time 2: Another 10% yield on total, Charlie joins
     total_assets_t1 = vault.totalAssets(sender=alice)
     yield_2 = total_assets_t1 // 10
-    mock_usdc.mint(vault.address, yield_2, sender=governance.address)
+    mock_usdc.mint(mock_usdc_collateral_vault.address, yield_2, sender=governance.address)
+
+    # Update price snapshot to reflect the additional yield
+    mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
 
     charlie_deposit = 100 * SIX_DECIMALS
     mock_usdc.approve(vault.address, charlie_deposit, sender=charlie)
@@ -451,9 +467,11 @@ def test_front_running_protection_withdrawal(
     setup_vault_for_multi_user,
     mock_usdc,
     mock_usdc_collateral_vault,
+    mock_yield_lego,
     alice,
     bob,
     starter_agent,
+    switchboard_alpha,
     governance,
 ):
     """Test that front-running withdrawals doesn't give unfair advantage"""
@@ -480,6 +498,9 @@ def test_front_running_protection_withdrawal(
 
     # Generate some yield
     mock_usdc.mint(mock_usdc_collateral_vault.address, 2_000 * SIX_DECIMALS, sender=governance.address)
+
+    # Update price snapshot to reflect the new yield
+    mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
 
     # Simulate front-running on withdrawal:
     # Bob wants to withdraw

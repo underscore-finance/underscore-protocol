@@ -9,13 +9,14 @@ import contracts.modules.Addys as addys
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
+interface YieldLego:
+    def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256: view
+    def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
+    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
+
 interface RipePriceDesk:
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
-
-interface YieldLego:
-    def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
-    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
 
 interface RipeMissionControl:
     def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool: view
@@ -104,7 +105,15 @@ def getSwappableUsdcAmount(
     # usdc balance (in wallet, naked on ripe, via leverage vault)
     usdcAmount: uint256 = _currentBalance
     usdcAmount += self._getCollateralBalanceNoRipeVaultId(_wallet, usdc, ripeMc, ripeVaultBook)
-    usdcAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, legoBook, ripeVaultBook) # 6 decimals
+    usdcAmount += self._getUnderlyingForVaultToken(
+        _wallet,
+        _leverageVaultToken,
+        _leverageVaultTokenLegoId,
+        _leverageVaultTokenRipeVaultId,
+        False, # safe underlying amount
+        legoBook,
+        ripeVaultBook,
+    )
 
     # convert to USD value
     usdcValue: uint256 = self._getUsdValue(usdc, usdcAmount, True, ripePriceDesk) # 18 decimals
@@ -168,6 +177,7 @@ def getMaxBorrowAmount(
             0,
             0,
             False, # !
+            False, # safe underlying amount
             legoBook,
             ripeMc,
             ripeVaultBook,
@@ -244,6 +254,7 @@ def getTotalAssetsForUsdcVault(
     _leverageVaultToken: address,
     _leverageVaultTokenLegoId: uint256,
     _leverageVaultTokenRipeVaultId: uint256,
+    _shouldGetMax: bool = True,
     _usdc: address = empty(address),
     _green: address = empty(address),
     _savingsGreen: address = empty(address),
@@ -271,6 +282,7 @@ def getTotalAssetsForUsdcVault(
         _leverageVaultTokenLegoId,
         _leverageVaultTokenRipeVaultId,
         True,
+        _shouldGetMax,
         legoBook,
         ripeMc,
         ripeVaultBook,
@@ -308,6 +320,7 @@ def getTotalAssetsForNonUsdcVault(
     _leverageVaultToken: address,
     _leverageVaultTokenLegoId: uint256,
     _leverageVaultTokenRipeVaultId: uint256,
+    _shouldGetMax: bool = True,
     _usdc: address = empty(address),
     _green: address = empty(address),
     _savingsGreen: address = empty(address),
@@ -336,6 +349,7 @@ def getTotalAssetsForNonUsdcVault(
         _leverageVaultTokenLegoId,
         _leverageVaultTokenRipeVaultId,
         False, # !
+        _shouldGetMax,
         legoBook,
         ripeMc,
         ripeVaultBook,
@@ -344,7 +358,7 @@ def getTotalAssetsForNonUsdcVault(
     # phase 2: get USDC (wallet + naked on ripe + leverage vault)
     usdcAmount: uint256 = staticcall IERC20(usdc).balanceOf(_wallet)
     usdcAmount += self._getCollateralBalanceNoRipeVaultId(_wallet, usdc, ripeMc, ripeVaultBook)
-    usdcAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, legoBook, ripeVaultBook)
+    usdcAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, _shouldGetMax, legoBook, ripeVaultBook)
     usdcValue: uint256 = self._getUsdValue(usdc, usdcAmount, True, ripePriceDesk) # 18 decimals
 
     # phase 3: calculate GREEN position
@@ -419,6 +433,7 @@ def _getTotalUnderlying(
     _leverageVaultTokenLegoId: uint256,
     _leverageVaultTokenRipeVaultId: uint256,
     _haveSameUnderlyingAsset: bool,
+    _shouldGetMax: bool,
     _legoBook: address,
     _ripeMissionControl: address,
     _ripeVaultBook: address,
@@ -429,11 +444,11 @@ def _getTotalUnderlying(
     underlyingAmount += self._getCollateralBalanceNoRipeVaultId(_wallet, _underlyingAsset, _ripeMissionControl, _ripeVaultBook)
 
     # collateral vault amount
-    underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _collateralVaultToken, _collateralVaultTokenLegoId, _collateralVaultTokenRipeVaultId, _legoBook, _ripeVaultBook)
+    underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _collateralVaultToken, _collateralVaultTokenLegoId, _collateralVaultTokenRipeVaultId, _shouldGetMax, _legoBook, _ripeVaultBook)
 
     # leverage vault amount
     if _haveSameUnderlyingAsset and _collateralVaultToken != _leverageVaultToken:
-        underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, _legoBook, _ripeVaultBook)
+        underlyingAmount += self._getUnderlyingForVaultToken(_wallet, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, _shouldGetMax, _legoBook, _ripeVaultBook)
 
     return underlyingAmount
 
@@ -448,6 +463,7 @@ def _getUnderlyingForVaultToken(
     _vaultToken: address,
     _vaultTokenLegoId: uint256,
     _ripeVaultId: uint256,
+    _shouldGetMax: bool,
     _legoBook: address,
     _ripeVaultBook: address,
 ) -> uint256:
@@ -470,7 +486,10 @@ def _getUnderlyingForVaultToken(
     underlyingAmount: uint256 = 0
     legoAddr: address = staticcall Registry(_legoBook).getAddr(_vaultTokenLegoId)
     if legoAddr != empty(address):
-        underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
+        if _shouldGetMax:
+            underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmount(_vaultToken, vaultTokenAmount)
+        else:
+            underlyingAmount = staticcall YieldLego(legoAddr).getUnderlyingAmountSafe(_vaultToken, vaultTokenAmount)
     
     return underlyingAmount
 
