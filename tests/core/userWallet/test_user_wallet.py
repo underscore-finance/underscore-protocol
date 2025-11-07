@@ -304,7 +304,7 @@ def test_deposit_for_yield_basic(prepareAssetForWalletTx, user_wallet, bob, yiel
     initial_price_per_share = yield_vault_token.convertToAssets(EIGHTEEN_DECIMALS)
     
     # deposit for yield
-    lego_id = 1  # mock_yield_lego is registered with id 1
+    lego_id = 2  # mock_yield_lego is registered with id 2
     asset_deposited, vault_token, vault_tokens_received, usd_value = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -359,7 +359,7 @@ def test_deposit_for_yield_max_value(prepareAssetForWalletTx, user_wallet, bob, 
     )
     
     # deposit using max_value
-    lego_id = 1
+    lego_id = 2
     asset_deposited, vault_token, vault_tokens_received, usd_value = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -378,7 +378,7 @@ def test_deposit_for_yield_max_value(prepareAssetForWalletTx, user_wallet, bob, 
 def test_multiple_yield_deposits(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
     """Test multiple deposits accumulate vault tokens correctly"""
     
-    lego_id = 1
+    lego_id = 2
     
     # first deposit
     deposit1_amount = prepareAssetForWalletTx(
@@ -470,7 +470,7 @@ def test_yield_asset_data_tracking(prepareAssetForWalletTx, user_wallet, bob, yi
     current_price_per_share = yield_vault_token.convertToAssets(EIGHTEEN_DECIMALS)
     
     # deposit
-    lego_id = 1
+    lego_id = 2
     _, _, vault_tokens_received, _ = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -508,7 +508,7 @@ def test_yield_price_per_share_update_via_updateAssetData(prepareAssetForWalletT
     )
     
     # initial deposit
-    lego_id = 1
+    lego_id = 2
     _, _, vault_tokens_received, _ = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -563,7 +563,7 @@ def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_walle
         _shouldCheckYield=False
     )
     
-    lego_id = 1
+    lego_id = 2
     _, _, vault_tokens_received, _ = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -618,7 +618,7 @@ def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, b
         _shouldCheckYield=False
     )
     
-    lego_id = 1
+    lego_id = 2
     _, _, vault_tokens_received, _ = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -690,7 +690,7 @@ def test_yield_no_update_within_stale_blocks(prepareAssetForWalletTx, user_walle
         _shouldCheckYield=False
     )
     
-    lego_id = 1
+    lego_id = 2
     _, _, vault_tokens_received, _ = user_wallet.depositForYield(
         lego_id,
         yield_underlying_token.address,
@@ -766,7 +766,7 @@ def setupYieldPosition(prepareAssetForWalletTx, user_wallet, bob, yield_underlyi
         
         # deposit to get vault tokens
         _, _, vault_tokens_received, _ = user_wallet.depositForYield(
-            1,
+            2,  # mock_yield_lego is registered with id 2
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,
@@ -794,7 +794,7 @@ def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underl
     # withdraw half
     withdraw_amount = vault_tokens // 2
     vault_burned, underlying_asset, underlying_received, usd_value = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         withdraw_amount,
         sender=bob
@@ -808,7 +808,7 @@ def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underl
     assert log.amount1 == withdraw_amount == vault_burned
     assert log.amount2 == underlying_received
     assert log.usdValue == usd_value
-    assert log.legoId == 1
+    assert log.legoId == 2
     assert log.signer == bob
 
     # verify return values
@@ -847,7 +847,7 @@ def test_withdraw_yield_entire_balance(setupYieldPosition, user_wallet, bob, yie
     
     # withdraw entire balance
     vault_burned, underlying_asset, underlying_received, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         vault_tokens,
         sender=bob
@@ -879,7 +879,7 @@ def test_withdraw_yield_with_max_value(setupYieldPosition, user_wallet, bob, yie
     
     # withdraw with max_value
     vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         MAX_UINT256,  # max value
         sender=bob
@@ -909,7 +909,7 @@ def test_withdraw_yield_with_accrued_yield(setupYieldPosition, user_wallet, bob,
     # withdraw half - this should detect yield and update price per share
     withdraw_amount = vault_tokens // 2
     vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         withdraw_amount,
         sender=bob
@@ -948,7 +948,7 @@ def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bo
 
     # withdraw remaining balance after fee
     vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         expected_vault_balance_after_fee,
         sender=bob
@@ -974,7 +974,7 @@ def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob
     # first withdrawal - 1/3
     withdraw1 = vault_tokens // 3
     _, _, underlying1, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         withdraw1,
         sender=bob
@@ -986,7 +986,7 @@ def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob
     # second withdrawal - another 1/3
     withdraw2 = vault_tokens // 3
     _, _, underlying2, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         withdraw2,
         sender=bob
@@ -997,7 +997,7 @@ def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob
     
     # final withdrawal - remaining balance
     _, _, underlying3, _ = user_wallet.withdrawFromYield(
-        1,
+        2,
         yield_vault_token.address,
         MAX_UINT256,  # withdraw all remaining
         sender=bob
@@ -1020,7 +1020,7 @@ def test_withdraw_from_yield_trusted_tx_only_wallet_config(setupYieldPosition, u
     # attempt to call withdrawFromYield with _isTrustedTx=True from non-config address
     with boa.reverts("perms"):
         user_wallet.withdrawFromYield(
-            1,
+            2,
             yield_vault_token.address,
             vault_tokens // 2,
             b"",
@@ -1031,7 +1031,7 @@ def test_withdraw_from_yield_trusted_tx_only_wallet_config(setupYieldPosition, u
     # also test with non-owner
     with boa.reverts("perms"):
         user_wallet.withdrawFromYield(
-            1,
+            2,
             yield_vault_token.address,
             vault_tokens // 2,
             b"",
@@ -1052,7 +1052,7 @@ def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wal
     # wallet config should be able to call withdrawFromYield via switchboard
     underlying_amount, usd_value = wallet_config.preparePayment(
         yield_underlying_token.address,
-        1,
+        2,
         yield_vault_token.address,
         vault_tokens // 2,
         sender=hatchery.address
@@ -1081,7 +1081,7 @@ def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wal
 
 def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees):
     """Test basic rewards claiming functionality"""
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Setup: no rewards fee initially
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=0))
@@ -1137,7 +1137,7 @@ def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mo
 
 def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor, governance):
     """Test rewards claiming with fee deduction"""
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
 
     # Setup: 10% rewards fee
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=10_00))  # 10%
@@ -1195,7 +1195,7 @@ def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset,
 
 def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees):
     """Test multiple sequential reward claims accumulate correctly"""
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
     
     # Setup: no rewards fee for simplicity
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=0))
@@ -1257,7 +1257,7 @@ def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex
 
 def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor, governance):
     """Test that rewards fee is capped at 25% maximum"""
-    lego_id = 2  # mock_dex_lego is always id 2
+    lego_id = 3  # mock_dex_lego is always id 3
 
     # Setup: 50% rewards fee (should be capped to 25%)
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=50_00))  # 50%
