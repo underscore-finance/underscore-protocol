@@ -4535,17 +4535,17 @@ def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, u
 
 def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, governance, mock_yield_lego, mock_ripe, switchboard_alpha, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
     """ Test governance revenue transfer AND RIPE staking working together """
-    
+
     # Set ripe stake ratio to 60%
     loot_distributor.setRipeRewardsConfig(60_00, 43200, sender=switchboard_alpha.address)
-    
+
     # Set prices for RIPE and underlying
     mock_ripe.setPrice(mock_ripe_token.address, 2 * EIGHTEEN_DECIMALS)  # $2 per RIPE
     mock_ripe.setPrice(yield_underlying_token.address, 10 * EIGHTEEN_DECIMALS)  # $10 per underlying
-    
+
     # Transfer RIPE to loot distributor for bonuses
     mock_ripe_token.transfer(loot_distributor.address, 5000 * EIGHTEEN_DECIMALS, sender=governance.address)
-    
+
     # Set up configs with 35% yield fee share and RIPE as alt bonus
     ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=35_00)
     yieldConfig = createAssetYieldConfig(
@@ -4554,7 +4554,7 @@ def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user
         _bonusRatio=20_00,  # 20% user bonus in RIPE
         _altBonusAsset=mock_ripe_token.address,
     )
-    setAssetConfig(yield_vault_token, _ambassadorRevShare=ambassadorRevShare, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _ambassadorRevShare=ambassadorRevShare, _yieldConfig=yieldConfig)
     
     # Register vault token
     deposit_amount = 1000 * EIGHTEEN_DECIMALS
