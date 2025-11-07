@@ -39,6 +39,9 @@ interface Switchboard:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface UndyHq:
+    def governance() -> address: view
+
 struct VaultActionData:
     ledger: address
     missionControl: address
@@ -1111,6 +1114,15 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
     if _legoAddr != empty(address):
         assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value = True) # dev: appr
     return amount
+
+
+# governance
+
+
+@view
+@internal
+def _getGovernanceAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ).governance()
 
 
 # lego access

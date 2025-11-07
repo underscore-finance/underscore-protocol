@@ -165,23 +165,23 @@ def previewDeposit(_assets: uint256) -> uint256:
 @nonreentrant
 @external
 def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
-    return self._deposit(_assets, _receiver, 0)
+    return self._deposit(_assets, msg.sender, _receiver, 0)
 
 
 @nonreentrant
 @external
 def depositWithMinAmountOut(_assets: uint256, _minAmountOut: uint256, _receiver: address = msg.sender) -> uint256:
-    return self._deposit(_assets, _receiver, _minAmountOut)
+    return self._deposit(_assets, msg.sender, _receiver, _minAmountOut)
 
 
 @internal
-def _deposit(_assets: uint256, _receiver: address, _minAmountOut: uint256) -> uint256:
+def _deposit(_assets: uint256, _sender: address, _receiver: address, _minAmountOut: uint256) -> uint256:
     vaultRegistry: address = vaultWallet._getVaultRegistry()
     asset: address = vaultWallet.VAULT_ASSET
 
     amount: uint256 = _assets
     if amount == max_value(uint256):
-        amount = staticcall IERC20(asset).balanceOf(msg.sender)
+        amount = staticcall IERC20(asset).balanceOf(_sender)
 
     # underlying data
     totalAssets: uint256 = 0
@@ -194,7 +194,7 @@ def _deposit(_assets: uint256, _receiver: address, _minAmountOut: uint256) -> ui
     if _minAmountOut != 0:
         assert shares >= _minAmountOut # dev: insufficient shares
 
-    self._depositIntoVault(asset, amount, shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    self._depositIntoVault(asset, amount, shares, _sender, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
     return shares
 
 
@@ -246,7 +246,7 @@ def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
     totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken = self._getUnderlyingData(True, vaultRegistry)
 
     amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)
-    self._depositIntoVault(vaultWallet.VAULT_ASSET, amount, _shares, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
+    self._depositIntoVault(vaultWallet.VAULT_ASSET, amount, _shares, msg.sender, _receiver, totalAssets, currentBalance, pendingYieldRealized, maxBalVaultToken, vaultRegistry)
     return amount
 
 
@@ -258,6 +258,7 @@ def _depositIntoVault(
     _asset: address,
     _amount: uint256,
     _shares: uint256,
+    _sender: address,
     _recipient: address,
     _totalAssets: uint256,
     _currentBalance: uint256,
@@ -272,7 +273,9 @@ def _depositIntoVault(
     defaultTargetVaultToken: address = empty(address)
     canDeposit, maxDepositAmount, shouldAutoDeposit, defaultTargetVaultToken = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self)
 
-    assert canDeposit # dev: cannot deposit
+    if not canDeposit:
+        assert _sender == vaultWallet._getGovernanceAddr() # dev: cannot deposit
+
     assert _amount != 0 # dev: cannot deposit 0 amount
     assert _shares != 0 # dev: cannot receive 0 shares
     assert _recipient != empty(address) # dev: invalid recipient
@@ -400,7 +403,8 @@ def _redeemFromVault(
     _maxBalVaultToken: address,
     _vaultRegistry: address,
 ) -> uint256:
-    assert staticcall VaultRegistry(_vaultRegistry).canWithdraw(self) # dev: cannot withdraw
+    if not staticcall VaultRegistry(_vaultRegistry).canWithdraw(self):
+        assert _sender == vaultWallet._getGovernanceAddr() # dev: cannot withdraw
 
     assert _amount != 0 # dev: cannot withdraw 0 amount
     assert _shares != 0 # dev: cannot redeem 0 shares
@@ -423,12 +427,14 @@ def _redeemFromVault(
     else:
         assert self._isRedemptionCloseEnough(_amount, actualAmount) # dev: insufficient funds
 
-    # save data
+    # burn shares
+    token._burn(_owner, _shares)
+
+    # save vault yield data
     vaultWallet.lastUnderlyingBal = _currentBalance - min(_currentBalance, actuallyWithdrawn)
     vaultWallet.pendingYieldRealized = _pendingYieldRealized
 
-    # burn shares, transfer assets
-    token._burn(_owner, _shares)
+    # transfer assets to recipient
     assert extcall IERC20(_asset).transfer(_recipient, actualAmount, default_return_value=True) # dev: withdrawal failed
 
     log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)

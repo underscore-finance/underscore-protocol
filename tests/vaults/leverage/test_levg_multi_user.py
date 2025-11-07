@@ -88,6 +88,12 @@ def test_multiple_users_different_share_prices(
     bob = users['bob']
     charlie = users['charlie']
 
+    # Configure snapshot to use only most recent price for safe values close to current price
+    mock_yield_lego.setSnapShotPriceConfig(
+        (60 * 10, 1, 10_00, 60 * 60 * 24),  # (minSnapshotDelay, maxNumSnapshots=1, maxUpsideDeviation, staleTime)
+        sender=switchboard_alpha.address
+    )
+
     # Alice deposits first at 1:1 share price
     alice_deposit = 10_000 * SIX_DECIMALS
     mock_usdc.approve(vault.address, alice_deposit, sender=alice)
@@ -110,6 +116,9 @@ def test_multiple_users_different_share_prices(
     yield_amount = alice_deposit // 10  # 10% yield
     mock_usdc.mint(mock_usdc_collateral_vault.address, yield_amount, sender=governance.address)
 
+    # Advance time to allow snapshot update (minSnapshotDelay = 10 minutes)
+    boa.env.time_travel(seconds=60 * 11)  # 11 minutes
+
     # Update price snapshot to reflect the new yield
     mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
 
@@ -128,6 +137,9 @@ def test_multiple_users_different_share_prices(
     # Generate more yield
     additional_yield = 1_000 * SIX_DECIMALS
     mock_usdc.mint(mock_usdc_collateral_vault.address, additional_yield, sender=governance.address)
+
+    # Advance time to allow snapshot update
+    boa.env.time_travel(seconds=60 * 11)  # 11 minutes
 
     # Update price snapshot to reflect the additional yield
     mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
@@ -351,6 +363,12 @@ def test_multiple_users_with_yield_accrual(
     bob = users['bob']
     charlie = users['charlie']
 
+    # Configure snapshot for responsive safe values
+    mock_yield_lego.setSnapShotPriceConfig(
+        (60 * 10, 1, 10_00, 60 * 60 * 24),
+        sender=switchboard_alpha.address
+    )
+
     # Time 0: Alice deposits
     alice_deposit = 10_000 * SIX_DECIMALS
     mock_usdc.approve(vault.address, alice_deposit, sender=alice)
@@ -369,6 +387,9 @@ def test_multiple_users_with_yield_accrual(
     yield_1 = 1_000 * SIX_DECIMALS
     mock_usdc.mint(mock_usdc_collateral_vault.address, yield_1, sender=governance.address)
 
+    # Advance time to allow snapshot update
+    boa.env.time_travel(seconds=60 * 11)  # 11 minutes
+
     # Update price snapshot to reflect the new yield
     mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
 
@@ -383,6 +404,9 @@ def test_multiple_users_with_yield_accrual(
     total_assets_t1 = vault.totalAssets(sender=alice)
     yield_2 = total_assets_t1 // 10
     mock_usdc.mint(mock_usdc_collateral_vault.address, yield_2, sender=governance.address)
+
+    # Advance time to allow snapshot update
+    boa.env.time_travel(seconds=60 * 11)  # 11 minutes
 
     # Update price snapshot to reflect the additional yield
     mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)
@@ -477,6 +501,12 @@ def test_front_running_protection_withdrawal(
     """Test that front-running withdrawals doesn't give unfair advantage"""
     vault = setup_vault_for_multi_user
 
+    # Configure snapshot for responsive safe values
+    mock_yield_lego.setSnapShotPriceConfig(
+        (60 * 10, 1, 10_00, 60 * 60 * 24),
+        sender=switchboard_alpha.address
+    )
+
     # Give users USDC and deposit
     mock_usdc.mint(alice, 10_000 * SIX_DECIMALS, sender=governance.address)
     mock_usdc.mint(bob, 10_000 * SIX_DECIMALS, sender=governance.address)
@@ -498,6 +528,9 @@ def test_front_running_protection_withdrawal(
 
     # Generate some yield
     mock_usdc.mint(mock_usdc_collateral_vault.address, 2_000 * SIX_DECIMALS, sender=governance.address)
+
+    # Advance time to allow snapshot update
+    boa.env.time_travel(seconds=60 * 11)  # 11 minutes
 
     # Update price snapshot to reflect the new yield
     mock_yield_lego.addPriceSnapshot(mock_usdc_collateral_vault.address, sender=switchboard_alpha.address)

@@ -418,7 +418,7 @@ def _paySwapFees(
     if swapFee == 0:
         return 0
 
-    governance: address = staticcall UndyHq(UNDY_HQ).governance()
+    governance: address = self._getGovernanceAddr()
     if governance == empty(address):
         return 0
 
@@ -498,7 +498,7 @@ def _getUnderlyingAndUpdatePendingYield() -> uint256:
 
 @external
 def claimPerformanceFees() -> uint256:
-    governance: address = staticcall UndyHq(UNDY_HQ).governance()
+    governance: address = self._getGovernanceAddr()
     assert self._isSwitchboardAddr(msg.sender) or governance == msg.sender # dev: no perms
 
     vaultRegistry: address = self._getVaultRegistry()
@@ -952,6 +952,15 @@ def _isSwitchboardAddr(_signer: address) -> bool:
     if switchboard == empty(address):
         return False
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
+
+
+# governance
+
+
+@view
+@internal
+def _getGovernanceAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ).governance()
 
 
 # approve
