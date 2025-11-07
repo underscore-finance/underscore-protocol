@@ -964,7 +964,7 @@ def _handleRipeRewards(
     # stake ripe tokens
     if amountToStake != 0:
         assert extcall IERC20(_ripeToken).approve(_ripeTeller, amountToStake, default_return_value=True) # dev: ripe approval failed
-        extcall RipeTeller(_ripeTeller).depositIntoGovVault(_ripeToken, _amount, _ripeLockDuration, _user)
+        extcall RipeTeller(_ripeTeller).depositIntoGovVault(_ripeToken, amountToStake, _ripeLockDuration, _user)
         assert extcall IERC20(_ripeToken).approve(_ripeTeller, 0, default_return_value=True) # dev: ripe approval failed
 
     # transfer ripe to user
