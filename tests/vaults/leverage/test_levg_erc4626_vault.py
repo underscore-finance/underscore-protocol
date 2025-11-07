@@ -2305,6 +2305,140 @@ def test_multiple_flag_changes(
     assert config["vault"].balanceOf(bob) == 0
 
 
+@pytest.mark.parametrize("vault_type", TEST_LEVG_VAULTS)
+def test_governance_can_deposit_when_flag_disabled(
+    vault_type,
+    get_vault_config,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    vault_registry,
+    switchboard_alpha,
+    governance,
+    mint_to_user,
+    mock_weth_whale,
+    setup_mock_prices,
+    bob,
+):
+    """Test that governance can deposit even when canDeposit is False"""
+    config = get_vault_config(
+        vault_type,
+        undy_levg_vault_usdc,
+        undy_levg_vault_cbbtc,
+        undy_levg_vault_weth,
+        mock_usdc,
+        mock_cbbtc,
+        mock_weth,
+    )
+
+    is_weth = vault_type == "weth"
+    deposit_amount = 100 * config["decimals"]
+
+    # Setup: Mint tokens for both bob and governance
+    mint_to_user(config["underlying"], bob, deposit_amount * 2, is_weth, mock_weth_whale, governance)
+    mint_to_user(config["underlying"], governance.address, deposit_amount, is_weth, mock_weth_whale, governance)
+
+    # Approve vault for both users
+    config["underlying"].approve(config["vault"], MAX_UINT256, sender=bob)
+    config["underlying"].approve(config["vault"], MAX_UINT256, sender=governance.address)
+
+    # Initially canDeposit should be True - verify regular user can deposit
+    assert vault_registry.canDeposit(config["vault"].address) == True
+    shares_bob_before = config["vault"].deposit(deposit_amount, bob, sender=bob)
+    assert shares_bob_before > 0
+
+    # Disable deposits
+    vault_registry.setCanDeposit(config["vault"].address, False, sender=switchboard_alpha.address)
+    assert vault_registry.canDeposit(config["vault"].address) == False
+
+    # Verify regular user (bob) cannot deposit
+    with boa.reverts("cannot deposit"):
+        config["vault"].deposit(deposit_amount, bob, sender=bob)
+
+    # Verify governance CAN deposit when flag is disabled
+    gov_shares = config["vault"].deposit(deposit_amount, governance.address, sender=governance.address)
+    assert gov_shares > 0
+    assert config["vault"].balanceOf(governance.address) == gov_shares
+
+    # Re-enable deposits and verify normal operation resumes
+    vault_registry.setCanDeposit(config["vault"].address, True, sender=switchboard_alpha.address)
+    shares_bob_after = config["vault"].deposit(deposit_amount, bob, sender=bob)
+    assert shares_bob_after > 0
+
+
+@pytest.mark.parametrize("vault_type", TEST_LEVG_VAULTS)
+def test_governance_can_withdraw_when_flag_disabled(
+    vault_type,
+    get_vault_config,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    vault_registry,
+    switchboard_alpha,
+    governance,
+    mint_to_user,
+    mock_weth_whale,
+    setup_mock_prices,
+    bob,
+):
+    """Test that governance can withdraw even when canWithdraw is False"""
+    config = get_vault_config(
+        vault_type,
+        undy_levg_vault_usdc,
+        undy_levg_vault_cbbtc,
+        undy_levg_vault_weth,
+        mock_usdc,
+        mock_cbbtc,
+        mock_weth,
+    )
+
+    is_weth = vault_type == "weth"
+    deposit_amount = 100 * config["decimals"]
+
+    # Setup: Mint tokens and make deposits for both bob and governance
+    mint_to_user(config["underlying"], bob, deposit_amount, is_weth, mock_weth_whale, governance)
+    mint_to_user(config["underlying"], governance.address, deposit_amount, is_weth, mock_weth_whale, governance)
+
+    # Approve vault for both users
+    config["underlying"].approve(config["vault"], MAX_UINT256, sender=bob)
+    config["underlying"].approve(config["vault"], MAX_UINT256, sender=governance.address)
+
+    # Make deposits for both users
+    shares_bob = config["vault"].deposit(deposit_amount, bob, sender=bob)
+    shares_gov = config["vault"].deposit(deposit_amount, governance.address, sender=governance.address)
+    assert shares_bob > 0
+    assert shares_gov > 0
+
+    # Disable withdrawals
+    vault_registry.setCanWithdraw(config["vault"].address, False, sender=switchboard_alpha.address)
+    assert vault_registry.canWithdraw(config["vault"].address) == False
+
+    # Verify regular user (bob) cannot withdraw
+    with boa.reverts("cannot withdraw"):
+        config["vault"].redeem(shares_bob, bob, bob, sender=bob)
+
+    # Verify governance CAN withdraw when flag is disabled
+    gov_balance_before = config["underlying"].balanceOf(governance.address)
+    assets_received = config["vault"].redeem(shares_gov, governance.address, governance.address, sender=governance.address)
+    assert assets_received > 0
+    gov_balance_after = config["underlying"].balanceOf(governance.address)
+    assert gov_balance_after == gov_balance_before + assets_received
+    assert config["vault"].balanceOf(governance.address) == 0
+
+    # Re-enable withdrawals and verify normal operation resumes
+    vault_registry.setCanWithdraw(config["vault"].address, True, sender=switchboard_alpha.address)
+    bob_balance_before = config["underlying"].balanceOf(bob)
+    assets_bob = config["vault"].redeem(shares_bob, bob, bob, sender=bob)
+    assert assets_bob > 0
+    assert config["underlying"].balanceOf(bob) == bob_balance_before + assets_bob
+
+
 ########################################
 # 14. maxDepositAmount Tests #
 ########################################

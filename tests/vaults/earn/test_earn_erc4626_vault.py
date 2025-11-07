@@ -1363,6 +1363,101 @@ def test_multiple_flag_changes(
     assert undy_usd_vault.balanceOf(bob) == 0
 
 
+def test_governance_can_deposit_when_flag_disabled(
+    undy_usd_vault,
+    vault_registry,
+    switchboard_alpha,
+    governance,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test that governance can deposit even when canDeposit is False"""
+    # Setup: Mint tokens for both bob and governance
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, deposit_amount, sender=yield_underlying_token_whale)
+    yield_underlying_token.transfer(governance.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    # Approve vault for both users
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=bob)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=governance.address)
+
+    # Initially canDeposit should be True - verify regular user can deposit
+    assert vault_registry.canDeposit(undy_usd_vault.address) == True
+    shares_bob_before = undy_usd_vault.deposit(deposit_amount, bob, sender=bob)
+    assert shares_bob_before > 0
+
+    # Disable deposits
+    vault_registry.setCanDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+    assert vault_registry.canDeposit(undy_usd_vault.address) == False
+
+    # Mint more tokens for bob
+    yield_underlying_token.transfer(bob, deposit_amount, sender=yield_underlying_token_whale)
+
+    # Verify regular user (bob) cannot deposit
+    with boa.reverts("cannot deposit"):
+        undy_usd_vault.deposit(deposit_amount, bob, sender=bob)
+
+    # Verify governance CAN deposit when flag is disabled
+    gov_shares = undy_usd_vault.deposit(deposit_amount, governance.address, sender=governance.address)
+    assert gov_shares > 0
+    assert undy_usd_vault.balanceOf(governance.address) == gov_shares
+
+    # Re-enable deposits and verify normal operation resumes
+    vault_registry.setCanDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+    shares_bob_after = undy_usd_vault.deposit(deposit_amount, bob, sender=bob)
+    assert shares_bob_after > 0
+
+
+def test_governance_can_withdraw_when_flag_disabled(
+    undy_usd_vault,
+    vault_registry,
+    switchboard_alpha,
+    governance,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    bob,
+):
+    """Test that governance can withdraw even when canWithdraw is False"""
+    # Setup: Mint tokens and make deposits for both bob and governance
+    deposit_amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(bob, deposit_amount, sender=yield_underlying_token_whale)
+    yield_underlying_token.transfer(governance.address, deposit_amount, sender=yield_underlying_token_whale)
+
+    # Approve vault for both users
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=bob)
+    yield_underlying_token.approve(undy_usd_vault, MAX_UINT256, sender=governance.address)
+
+    # Make deposits for both users
+    shares_bob = undy_usd_vault.deposit(deposit_amount, bob, sender=bob)
+    shares_gov = undy_usd_vault.deposit(deposit_amount, governance.address, sender=governance.address)
+    assert shares_bob > 0
+    assert shares_gov > 0
+
+    # Disable withdrawals
+    vault_registry.setCanWithdraw(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+    assert vault_registry.canWithdraw(undy_usd_vault.address) == False
+
+    # Verify regular user (bob) cannot withdraw
+    with boa.reverts("cannot withdraw"):
+        undy_usd_vault.redeem(shares_bob, bob, bob, sender=bob)
+
+    # Verify governance CAN withdraw when flag is disabled
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+    assets_received = undy_usd_vault.redeem(shares_gov, governance.address, governance.address, sender=governance.address)
+    assert assets_received > 0
+    gov_balance_after = yield_underlying_token.balanceOf(governance.address)
+    assert gov_balance_after == gov_balance_before + assets_received
+    assert undy_usd_vault.balanceOf(governance.address) == 0
+
+    # Re-enable withdrawals and verify normal operation resumes
+    vault_registry.setCanWithdraw(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+    bob_balance_before = yield_underlying_token.balanceOf(bob)
+    assets_bob = undy_usd_vault.redeem(shares_bob, bob, bob, sender=bob)
+    assert assets_bob > 0
+    assert yield_underlying_token.balanceOf(bob) == bob_balance_before + assets_bob
+
+
 #################################
 # depositWithMinAmountOut Tests #
 #################################
