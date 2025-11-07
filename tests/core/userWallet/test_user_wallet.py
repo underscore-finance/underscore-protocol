@@ -603,7 +603,7 @@ def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_walle
     assert updated_vault_data.assetBalance == vault_tokens_received - transfer_amount
 
 
-def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, switchboard_alpha, loot_distributor):
+def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, switchboard_alpha, loot_distributor, governance):
     """Test that yield performance fee is deducted when yield profits are detected"""
     
     # set stale blocks, 20% yield performance fee, and remove yield cap
@@ -632,9 +632,9 @@ def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, b
     assert initial_vault_data.assetBalance == vault_tokens_received
     assert initial_vault_data.lastPricePerShare == EIGHTEEN_DECIMALS  # 1:1
     
-    # get initial loot distributor balance
-    initial_loot_balance = yield_vault_token.balanceOf(loot_distributor)
-    
+    # get initial governance balance (fees go to governance since no ambassador yield fee share configured)
+    initial_gov_balance = yield_vault_token.balanceOf(governance.address)
+
     # time travel and simulate yield accrual
     boa.env.time_travel(blocks=15)  # 15 > 10 stale blocks
     
@@ -669,10 +669,10 @@ def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, b
     updated_vault_data = user_wallet.assetData(yield_vault_token.address)
     assert updated_vault_data.assetBalance == expected_balance_after_fee
     assert updated_vault_data.lastPricePerShare == 2 * EIGHTEEN_DECIMALS
-    
-    # verify fee was sent to loot distributor
-    loot_balance_increase = yield_vault_token.balanceOf(loot_distributor) - initial_loot_balance
-    assert loot_balance_increase == expected_fee
+
+    # verify fee was sent to governance (no ambassador yield fee share configured, so 100% goes to gov)
+    gov_balance_increase = yield_vault_token.balanceOf(governance.address) - initial_gov_balance
+    assert gov_balance_increase == expected_fee
 
 
 def test_yield_no_update_within_stale_blocks(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
@@ -924,7 +924,7 @@ def test_withdraw_yield_with_accrued_yield(setupYieldPosition, user_wallet, bob,
     assert vault_data.lastPricePerShare == 2 * EIGHTEEN_DECIMALS
 
 
-def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, loot_distributor):
+def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, loot_distributor, governance):
     """Test withdrawal with yield accrued deducts performance fee"""
     
     # 20% performance fee, no yield cap
@@ -938,14 +938,14 @@ def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bo
     current_vault_balance = yield_underlying_token.balanceOf(yield_vault_token.address)
     yield_underlying_token.transfer(yield_vault_token.address, current_vault_balance, sender=yield_underlying_token_whale)
     
-    # get initial loot balance
-    initial_loot_balance = yield_vault_token.balanceOf(loot_distributor)
-    
+    # get initial governance balance (fees go to governance since no ambassador yield fee share configured)
+    initial_gov_balance = yield_vault_token.balanceOf(governance.address)
+
     # withdraw triggers yield check and fee deduction
     # With 2x price: profit = 50 vault tokens, fee = 10 vault tokens
     expected_fee = 10 * EIGHTEEN_DECIMALS
     expected_vault_balance_after_fee = vault_tokens - expected_fee
-    
+
     # withdraw remaining balance after fee
     vault_burned, _, underlying_received, _ = user_wallet.withdrawFromYield(
         1,
@@ -953,10 +953,10 @@ def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bo
         expected_vault_balance_after_fee,
         sender=bob
     )
-    
-    # verify fee was paid
-    loot_balance_increase = yield_vault_token.balanceOf(loot_distributor) - initial_loot_balance
-    assert loot_balance_increase == expected_fee
+
+    # verify fee was sent to governance (no ambassador yield fee share configured, so 100% goes to gov)
+    gov_balance_increase = yield_vault_token.balanceOf(governance.address) - initial_gov_balance
+    assert gov_balance_increase == expected_fee
     
     # verify correct amount withdrawn
     assert vault_burned == expected_vault_balance_after_fee
@@ -1135,25 +1135,25 @@ def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mo
     assert asset_data.isYieldAsset == False
 
 
-def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor):
+def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor, governance):
     """Test rewards claiming with fee deduction"""
     lego_id = 2  # mock_dex_lego is always id 2
-    
+
     # Setup: 10% rewards fee
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=10_00))  # 10%
-    
+
     # Set price for reward token
     mock_ripe.setPrice(mock_dex_asset, 5 * EIGHTEEN_DECIMALS)  # $5
-    
+
     # Register asset in wallet config
     wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
     wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
-    
+
     # Set lego access
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
-    # Get initial loot distributor balance
-    initial_loot_balance = mock_dex_asset.balanceOf(loot_distributor)
+
+    # Get initial governance balance (fees go to governance since no ambassador rewards fee share configured)
+    initial_gov_balance = mock_dex_asset.balanceOf(governance.address)
     
     # Claim rewards
     reward_amount = 200 * EIGHTEEN_DECIMALS
@@ -1174,10 +1174,10 @@ def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset,
     
     # Check wallet balance (should have net amount after fee)
     assert mock_dex_asset.balanceOf(user_wallet) == expected_net_amount
-    
-    # Check fee was sent to loot distributor
-    loot_balance_increase = mock_dex_asset.balanceOf(loot_distributor) - initial_loot_balance
-    assert loot_balance_increase == expected_fee
+
+    # Check fee was sent to governance (no ambassador rewards fee share configured, so 100% goes to gov)
+    gov_balance_increase = mock_dex_asset.balanceOf(governance.address) - initial_gov_balance
+    assert gov_balance_increase == expected_fee
     
     # Check event shows net amount after fee
     log = filter_logs(user_wallet, "WalletAction")[0]
@@ -1255,25 +1255,25 @@ def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex
     assert asset_data.usdValue == total_claimed * 3  # $3 per token
 
 
-def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor):
+def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees, loot_distributor, governance):
     """Test that rewards fee is capped at 25% maximum"""
     lego_id = 2  # mock_dex_lego is always id 2
-    
+
     # Setup: 50% rewards fee (should be capped to 25%)
     setUserWalletConfig(_txFees=createTxFees(_rewardsFee=50_00))  # 50%
-    
+
     # Set price for reward token
     mock_ripe.setPrice(mock_dex_asset, 4 * EIGHTEEN_DECIMALS)  # $4
-    
+
     # Register asset in wallet config
     wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
     wallet_config.updateAssetData(lego_id, mock_dex_asset, False, sender=switchboard_alpha.address)
-    
+
     # Set lego access
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
-    # Get initial loot distributor balance
-    initial_loot_balance = mock_dex_asset.balanceOf(loot_distributor)
+
+    # Get initial governance balance (fees go to governance since no ambassador rewards fee share configured)
+    initial_gov_balance = mock_dex_asset.balanceOf(governance.address)
     
     # Claim rewards
     reward_amount = 400 * EIGHTEEN_DECIMALS
@@ -1294,10 +1294,10 @@ def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_de
     
     # Check wallet balance
     assert mock_dex_asset.balanceOf(user_wallet) == expected_net_amount
-    
-    # Check fee was capped at 25%
-    loot_balance_increase = mock_dex_asset.balanceOf(loot_distributor) - initial_loot_balance
-    assert loot_balance_increase == expected_fee
+
+    # Check fee was capped at 25% and sent to governance (no ambassador rewards fee share configured)
+    gov_balance_increase = mock_dex_asset.balanceOf(governance.address) - initial_gov_balance
+    assert gov_balance_increase == expected_fee
     
     # Verify fee percentage
     fee_percentage = (expected_fee * 10000) // reward_amount
