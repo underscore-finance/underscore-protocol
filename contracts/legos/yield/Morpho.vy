@@ -50,7 +50,7 @@ interface Registry:
     def isValidAddr(_addr: address) -> bool: view
 
 interface MorphoRewardsDistributor:
-    def claim(_user: address, _rewardToken: address, _claimable: uint256, _proof: bytes32) -> uint256: nonpayable
+    def claim(_user: address, _rewardToken: address, _claimable: uint256, _proofs: DynArray[bytes32, MAX_PROOFS]) -> uint256: nonpayable
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -88,6 +88,7 @@ MORPHO_FACTORY_LEGACY: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -582,6 +583,19 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    assert not yld.isPaused # dev: paused
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    morphoRewards: address = self.morphoRewards
+    assert morphoRewards != empty(address) # dev: no morpho rewards addr set
+
+    rewardAmount: uint256 = extcall MorphoRewardsDistributor(morphoRewards).claim(_user, _rewardToken, _rewardAmount, _proofs)
+    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    return rewardAmount, usdValue
+
+
+@external
 def claimRewards(
     _user: address,
     _rewardToken: address,
@@ -589,15 +603,8 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
-    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
-    assert not yld.isPaused # dev: paused
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-    morphoRewards: address = self.morphoRewards
-    assert morphoRewards != empty(address) # dev: no morpho rewards addr set
-
-    rewardAmount: uint256 = extcall MorphoRewardsDistributor(morphoRewards).claim(_user, _rewardToken, _rewardAmount, _extraData)
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
-    return rewardAmount, usdValue
+    # backwards compatibility
+    return 0, 0
 
 
 @view

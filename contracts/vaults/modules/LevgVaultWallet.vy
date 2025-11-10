@@ -114,6 +114,7 @@ HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_LEGOS: constant(uint256) = 10
+MAX_PROOFS: constant(uint256) = 25
 
 # ids
 RIPE_LEGO_ID: constant(uint256) = 1
@@ -648,17 +649,17 @@ def _repayDebt(
     return repaidAmount, txUsdValue
 
 
-#################
-# Claim Rewards #
-#################
+####################
+# Claim Incentives #
+####################
 
 
 @external
-def claimRewards(
+def claimIncentives(
     _legoId: uint256,
     _rewardToken: address = empty(address),
     _rewardAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
+    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
 ) -> (uint256, uint256):
     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
 
@@ -668,7 +669,7 @@ def claimRewards(
     # claim rewards
     rewardAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     log LevgVaultAction(
         op = 50,

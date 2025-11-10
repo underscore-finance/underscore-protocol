@@ -83,6 +83,7 @@ slippage: public(uint256)
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
+MAX_PROOFS: constant(uint256) = 25
 
 SKY_PSM: public(immutable(address))
 USDS: public(immutable(address))
@@ -612,6 +613,18 @@ def claimRewards(
     _rewardToken: address,
     _rewardAmount: uint256,
     _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    # backwards compatibility
+    return 0, 0
+
+
+@external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0

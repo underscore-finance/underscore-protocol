@@ -59,6 +59,7 @@ currentNonce: public(HashMap[address, uint256])
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -248,16 +249,16 @@ def repayDebt(
 
 
 @external
-def claimRewards(
+def claimIncentives(
     _userWallet: address,
     _legoId: uint256,
     _rewardToken: address = empty(address),
     _rewardAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
+    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_userWallet).claimRewards(_legoId, _rewardToken, _rewardAmount, _extraData)
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, _sig.nonce, _sig.expiration)), _sig)
+    return extcall Wallet(_userWallet).claimIncentives(_legoId, _rewardToken, _rewardAmount, _proofs)
 
 
 ###############
@@ -472,10 +473,10 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         nextAmount, txUsdValue = extcall Wallet(_userWallet).repayDebt(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
-    # claim rewards
-    elif instruction.action == 50:
-        nextAmount, txUsdValue = extcall Wallet(_userWallet).claimRewards(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-        return nextAmount
+    # # claim rewards
+    # elif instruction.action == 50:
+    #     nextAmount, txUsdValue = extcall Wallet(_userWallet).claimIncentives(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+    #     return nextAmount
 
     # add liquidity
     elif instruction.action == 30:

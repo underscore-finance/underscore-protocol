@@ -46,7 +46,7 @@ interface Appraiser:
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
 
 interface EulerRewardsDistributor:
-    def claim(_users: DynArray[address, 10], _rewardTokens: DynArray[address, 10], _claimAmounts: DynArray[uint256, 10], _proofs: DynArray[bytes32, 10]): nonpayable
+    def claim(_users: DynArray[address, 10], _rewardTokens: DynArray[address, 10], _claimAmounts: DynArray[uint256, 10], _proofs: DynArray[DynArray[bytes32, MAX_PROOFS], 10]): nonpayable
     def operators(_user: address, _operator: address) -> bool: view
 
 interface Registry:
@@ -95,6 +95,7 @@ EULER_EARN_FACTORY: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 LEGO_ACCESS_ABI: constant(String[64]) = "toggleOperator(address,address)"
 
 
@@ -589,13 +590,7 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
@@ -603,12 +598,24 @@ def claimRewards(
 
     eulerRewards: address = self.eulerRewards
     assert eulerRewards != empty(address) # dev: no eulerRewards rewards addr set
-    extcall EulerRewardsDistributor(eulerRewards).claim([_user], [_rewardToken], [_rewardAmount], [_extraData])
+    extcall EulerRewardsDistributor(eulerRewards).claim([_user], [_rewardToken], [_rewardAmount], [_proofs])
     rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
     assert rewardAmount != 0 # dev: no rewards received
 
     usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
     return rewardAmount, usdValue
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    # backwards compatibility
+    return 0, 0
 
 
 @view

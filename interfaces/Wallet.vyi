@@ -9,6 +9,7 @@ struct SwapInstruction:
 
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @view
@@ -184,11 +185,11 @@ def repayDebt(
 
 
 @external
-def claimRewards(
+def claimIncentives(
     _legoId: uint256,
     _rewardToken: address = empty(address),
     _rewardAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
+    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
 ) -> (uint256, uint256):
     ...
 

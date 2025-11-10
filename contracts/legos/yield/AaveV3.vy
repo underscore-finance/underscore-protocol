@@ -90,6 +90,7 @@ AAVE_V3_ADDRESS_PROVIDER: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -578,6 +579,18 @@ def claimRewards(
     _rewardToken: address,
     _rewardAmount: uint256,
     _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    # backwards compatibility
+    return 0, 0
+
+
+@external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     return 0, 0
