@@ -32,6 +32,7 @@ price: public(HashMap[address, uint256])
 
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -217,6 +218,11 @@ def repayDebt(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
+    return 0, 0
+
+
+@external
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
     return 0, 0
 
 
