@@ -103,7 +103,7 @@ def test_batch_deposit_and_withdraw_yield(
         _amount=200 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
         _price=10 * EIGHTEEN_DECIMALS,
-        _lego_id=1,
+        _lego_id=2,
         _shouldCheckYield=False
     )
     
@@ -111,14 +111,14 @@ def test_batch_deposit_and_withdraw_yield(
     instructions = [
         createActionInstruction(
             action=10,  # depositForYield
-            legoId=1,
+            legoId=2,
             asset=yield_underlying_token.address,
             target=yield_vault_token.address,
             amount=100 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=11,  # withdrawFromYield
-            legoId=1,
+            legoId=2,
             asset=yield_vault_token.address,
             amount=50 * EIGHTEEN_DECIMALS,
         )
@@ -195,14 +195,14 @@ def test_batch_multiple_swaps(
     instructions = [
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=200 * EIGHTEEN_DECIMALS,
             extraData=b"\x00" * 32,
             auxData=b"\x00" * 32,
             swapInstructions=[(
-                2,  # legoId
+                3,  # legoId
                 200 * EIGHTEEN_DECIMALS,  # amountIn
                 0,  # minAmountOut
                 [mock_dex_asset.address, mock_dex_asset_alt.address],  # tokenPath
@@ -211,14 +211,14 @@ def test_batch_multiple_swaps(
         ),
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset_alt.address,
             target=mock_dex_lp_token.address,
             amount=100 * EIGHTEEN_DECIMALS,
             extraData=b"\x00" * 32,
             auxData=b"\x00" * 32,
             swapInstructions=[(
-                2,
+                3,
                 100 * EIGHTEEN_DECIMALS,
                 0,
                 [mock_dex_asset_alt.address, mock_dex_lp_token.address],
@@ -290,12 +290,12 @@ def test_batch_with_prev_amount_out(
     instructions = [
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=300 * EIGHTEEN_DECIMALS,
             swapInstructions=[(
-                2,
+                3,
                 300 * EIGHTEEN_DECIMALS,
                 0,
                 [mock_dex_asset.address, mock_dex_asset_alt.address],
@@ -305,12 +305,12 @@ def test_batch_with_prev_amount_out(
         createActionInstruction(
             action=20,  # swapTokens
             usePrevAmountOut=True,  # Use output from previous instruction
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset_alt.address,
             target=mock_dex_lp_token.address,
             amount=0,  # Will be overridden by prevAmount
             swapInstructions=[(
-                2,
+                3,
                 300 * EIGHTEEN_DECIMALS,  # This will be replaced by prevAmount
                 0,
                 [mock_dex_asset_alt.address, mock_dex_lp_token.address],
@@ -365,7 +365,7 @@ def test_batch_mixed_operations(
         _amount=300 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
         _price=10 * EIGHTEEN_DECIMALS,
-        _lego_id=1,
+        _lego_id=2,
         _shouldCheckYield=False
     )
     
@@ -392,19 +392,19 @@ def test_batch_mixed_operations(
         ),
         createActionInstruction(
             action=10,  # depositForYield
-            legoId=1,
+            legoId=2,
             asset=yield_underlying_token.address,
             target=yield_vault_token.address,
             amount=100 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=150 * EIGHTEEN_DECIMALS,
             swapInstructions=[(
-                2,
+                3,
                 150 * EIGHTEEN_DECIMALS,
                 0,
                 [mock_dex_asset.address, mock_dex_asset_alt.address],
@@ -480,7 +480,7 @@ def test_batch_mint_and_redeem(
     instructions = [
         createActionInstruction(
             action=21,  # mintOrRedeemAsset
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=200 * EIGHTEEN_DECIMALS,
@@ -488,7 +488,7 @@ def test_batch_mint_and_redeem(
         createActionInstruction(
             action=21,  # mintOrRedeemAsset (redeem)
             usePrevAmountOut=True,  # Redeem all minted tokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset_alt.address,
             target=mock_dex_asset.address,
             amount=0,  # Will use prev amount
@@ -571,25 +571,25 @@ def test_batch_debt_management(
     instructions = [
         createActionInstruction(
             action=40,  # addCollateral
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             amount=500 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=42,  # borrow
-            legoId=2,
+            legoId=3,
             asset=mock_dex_debt_token.address,
             amount=200 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=43,  # repayDebt
-            legoId=2,
+            legoId=3,
             asset=mock_dex_debt_token.address,
             amount=100 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=41,  # removeCollateral
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             amount=50 * EIGHTEEN_DECIMALS,
         )
@@ -734,7 +734,7 @@ def test_batch_liquidity_operations(
     instructions = [
         createActionInstruction(
             action=30,  # addLiquidity
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             asset2=mock_dex_asset_alt.address,
             target=mock_dex_lego.address,  # pool
@@ -744,7 +744,7 @@ def test_batch_liquidity_operations(
         ),
         createActionInstruction(
             action=31,  # removeLiquidity
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             asset2=mock_dex_asset_alt.address,
             target=mock_dex_lego.address,  # pool
@@ -807,7 +807,7 @@ def test_batch_claim_rewards(
     instructions = [
         createActionInstruction(
             action=50,  # claimRewards
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             amount=50 * EIGHTEEN_DECIMALS,
         )
@@ -868,12 +868,12 @@ def test_batch_complex_prev_amount_chain(
     instructions = [
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=400 * EIGHTEEN_DECIMALS,
             swapInstructions=[(
-                2,
+                3,
                 400 * EIGHTEEN_DECIMALS,
                 0,
                 [mock_dex_asset.address, mock_dex_asset_alt.address],
@@ -883,12 +883,12 @@ def test_batch_complex_prev_amount_chain(
         createActionInstruction(
             action=20,  # swapTokens
             usePrevAmountOut=True,
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset_alt.address,
             target=mock_dex_lp_token.address,
             amount=0,  # Will use previous output
             swapInstructions=[(
-                2,
+                3,
                 0,  # Will be replaced
                 0,
                 [mock_dex_asset_alt.address, mock_dex_lp_token.address],
@@ -959,14 +959,14 @@ def test_batch_pending_mint_redeem(
     instructions = [
         createActionInstruction(
             action=21,  # mintOrRedeemAsset
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=300 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
             action=22,  # confirmMintOrRedeemAsset
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
         )
@@ -1097,12 +1097,12 @@ def test_batch_borrow_with_prev_collateral(
     instructions = [
         createActionInstruction(
             action=20,  # swapTokens
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset.address,
             target=mock_dex_asset_alt.address,
             amount=500 * EIGHTEEN_DECIMALS,
             swapInstructions=[(
-                2,
+                3,
                 500 * EIGHTEEN_DECIMALS,
                 0,
                 [mock_dex_asset.address, mock_dex_asset_alt.address],
@@ -1112,13 +1112,13 @@ def test_batch_borrow_with_prev_collateral(
         createActionInstruction(
             action=40,  # addCollateral
             usePrevAmountOut=True,
-            legoId=2,
+            legoId=3,
             asset=mock_dex_asset_alt.address,
             amount=0,  # Use all from swap
         ),
         createActionInstruction(
             action=42,  # borrow
-            legoId=2,
+            legoId=3,
             asset=mock_dex_debt_token.address,
             amount=200 * EIGHTEEN_DECIMALS,
         )

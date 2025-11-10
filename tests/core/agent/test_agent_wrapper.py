@@ -59,14 +59,14 @@ def test_agent_deposit_for_yield_basic(
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
         _price=10 * EIGHTEEN_DECIMALS,
-        _lego_id=1,  # mock_yield_lego
+        _lego_id=2,  # mock_yield_lego
         _shouldCheckYield=False
     )
     
     # Deposit for yield through agent wrapper (no signature needed when called by owner)
     asset_deposited, vault_token, vault_tokens_received, usd_value = starter_agent.depositForYield(
         user_wallet.address,
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         amount,
@@ -82,7 +82,7 @@ def test_agent_deposit_for_yield_basic(
     assert log.amount1 == asset_deposited
     assert log.amount2 == vault_tokens_received
     assert log.usdValue == usd_value
-    assert log.legoId == 1
+    assert log.legoId == 2
 
     # Verify results
     assert asset_deposited == amount
@@ -116,14 +116,14 @@ def test_agent_withdraw_from_yield_basic(
         _amount=100 * EIGHTEEN_DECIMALS,
         _whale=yield_underlying_token_whale,
         _price=5 * EIGHTEEN_DECIMALS,
-        _lego_id=1,
+        _lego_id=2,
         _shouldCheckYield=False
     )
     
     # Deposit through agent wrapper
     _, _, vault_tokens, _ = starter_agent.depositForYield(
         user_wallet.address,
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         amount,
@@ -135,7 +135,7 @@ def test_agent_withdraw_from_yield_basic(
     withdraw_amount = vault_tokens // 2
     vault_burned, underlying_asset, underlying_received, usd_value = starter_agent.withdrawFromYield(
         user_wallet.address,
-        1,
+        2,
         yield_vault_token.address,
         withdraw_amount,
         b"",
@@ -181,7 +181,7 @@ def test_agent_swap_tokens_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,  # mock_dex_lego
+        _lego_id=3,  # mock_dex_lego
         _shouldCheckYield=False
     )
     
@@ -192,7 +192,7 @@ def test_agent_swap_tokens_basic(
     swap_amount = 100 * EIGHTEEN_DECIMALS
     swap_instructions = [
         (
-            2,  # legoId (mock_dex_lego)
+            3,  # legoId (mock_dex_lego)
             swap_amount,  # amountIn
             0,  # minAmountOut
             [mock_dex_asset.address, mock_dex_asset_alt.address],  # tokenPath
@@ -215,7 +215,7 @@ def test_agent_swap_tokens_basic(
     assert log.amount1 == amount_in
     assert log.amount2 == amount_out
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # Verify results
     assert token_in == mock_dex_asset.address
@@ -248,7 +248,7 @@ def test_agent_mint_or_redeem_asset_immediate(
         _amount=200 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -263,7 +263,7 @@ def test_agent_mint_or_redeem_asset_immediate(
     # Mint through agent wrapper
     token_out_received, output_amount, is_pending, usd_value = starter_agent.mintOrRedeemAsset(
         user_wallet.address,
-        2,
+        3,
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
         mint_amount,
@@ -280,7 +280,7 @@ def test_agent_mint_or_redeem_asset_immediate(
     assert log.amount1 == mint_amount
     assert log.amount2 == output_amount
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # Verify results for immediate mint
     assert token_out_received == mint_amount  # 1:1 exchange
@@ -312,7 +312,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
         _amount=300 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -321,8 +321,8 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     
     # Set pending mint/redeem mode (not immediate)
     mock_dex_lego.setImmediateMintOrRedeem(False)
-    
-    lego_id = 2
+
+    lego_id = 3
     mint_amount = 150 * EIGHTEEN_DECIMALS
     
     # Initiate mint - should go to pending state
@@ -396,7 +396,7 @@ def test_agent_add_liquidity_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -405,7 +405,7 @@ def test_agent_add_liquidity_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=3 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -422,7 +422,7 @@ def test_agent_add_liquidity_basic(
     # Add liquidity through agent wrapper
     lp_received, added_a, added_b, usd_value = starter_agent.addLiquidity(
         user_wallet.address,
-        2,
+        3,
         mock_dex_lego.address,  # pool address
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
@@ -443,7 +443,7 @@ def test_agent_add_liquidity_basic(
     assert log.amount1 == added_a
     assert log.amount2 == added_b
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # Verify results
     assert added_a == amount_a
@@ -476,7 +476,7 @@ def test_agent_remove_liquidity_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -485,7 +485,7 @@ def test_agent_remove_liquidity_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=3 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -495,7 +495,7 @@ def test_agent_remove_liquidity_basic(
     # First add liquidity
     lp_received, _, _, _ = starter_agent.addLiquidity(
         user_wallet.address,
-        2,
+        3,
         mock_dex_lego.address,
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
@@ -510,7 +510,7 @@ def test_agent_remove_liquidity_basic(
     lp_to_remove = lp_received // 2
     received_a, received_b, lp_burned, usd_value = starter_agent.removeLiquidity(
         user_wallet.address,
-        2,
+        3,
         mock_dex_lego.address,  # pool
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
@@ -530,7 +530,7 @@ def test_agent_remove_liquidity_basic(
     assert log.amount1 == received_a
     assert log.amount2 == received_b
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # MockDexLego returns half of LP amount for each token
     expected_per_token = lp_to_remove // 2
@@ -565,7 +565,7 @@ def test_agent_add_collateral_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,  # mock_dex_lego
+        _lego_id=3,  # mock_dex_lego
         _shouldCheckYield=False
     )
     
@@ -577,7 +577,7 @@ def test_agent_add_collateral_basic(
     # Add collateral through agent wrapper
     amount_deposited, usd_value = starter_agent.addCollateral(
         user_wallet.address,
-        2,
+        3,
         mock_dex_asset.address,
         collateral_amount,
         b"",
@@ -590,7 +590,7 @@ def test_agent_add_collateral_basic(
     assert log.asset1 == mock_dex_asset.address
     assert log.amount1 == amount_deposited
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # Verify results
     assert amount_deposited == collateral_amount
@@ -617,7 +617,7 @@ def test_agent_remove_collateral_basic(
         _amount=1000 * EIGHTEEN_DECIMALS,
         _whale=whale,
         _price=2 * EIGHTEEN_DECIMALS,
-        _lego_id=2,
+        _lego_id=3,
         _shouldCheckYield=False
     )
     
@@ -628,7 +628,7 @@ def test_agent_remove_collateral_basic(
     # First add collateral
     starter_agent.addCollateral(
         user_wallet.address,
-        2,
+        3,
         mock_dex_asset.address,
         add_amount,
         b"",
@@ -643,7 +643,7 @@ def test_agent_remove_collateral_basic(
     remove_amount = 100 * EIGHTEEN_DECIMALS
     amount_removed, usd_value = starter_agent.removeCollateral(
         user_wallet.address,
-        2,
+        3,
         mock_dex_asset.address,
         remove_amount,
         b"",
@@ -682,7 +682,7 @@ def test_agent_borrow_basic(
     # Borrow through agent wrapper
     amount_borrowed, usd_value = starter_agent.borrow(
         user_wallet.address,
-        2,
+        3,
         mock_dex_debt_token.address,
         borrow_amount,
         b"",
@@ -695,7 +695,7 @@ def test_agent_borrow_basic(
     assert log.asset1 == mock_dex_debt_token.address
     assert log.amount1 == amount_borrowed
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
 
     # Verify results
     assert amount_borrowed == borrow_amount
@@ -723,7 +723,7 @@ def test_agent_repay_debt_basic(
     # First borrow
     starter_agent.borrow(
         user_wallet.address,
-        2,
+        3,
         mock_dex_debt_token.address,
         borrow_amount,
         b"",
@@ -737,7 +737,7 @@ def test_agent_repay_debt_basic(
     repay_amount = 200 * EIGHTEEN_DECIMALS
     amount_repaid, usd_value = starter_agent.repayDebt(
         user_wallet.address,
-        2,
+        3,
         mock_dex_debt_token.address,
         repay_amount,
         b"",
@@ -832,7 +832,7 @@ def test_agent_claim_rewards_basic(
     # Claim rewards through agent wrapper
     amount_claimed, usd_value = starter_agent.claimRewards(
         user_wallet.address,
-        2,
+        3,
         mock_dex_asset.address,
         reward_amount,
         b"",
@@ -847,7 +847,7 @@ def test_agent_claim_rewards_basic(
     assert log.amount1 == amount_claimed
     assert log.amount2 == 0
     assert log.usdValue == usd_value
-    assert log.legoId == 2
+    assert log.legoId == 3
     
     # Verify results
     assert amount_claimed == reward_amount

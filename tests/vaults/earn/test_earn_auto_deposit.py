@@ -24,7 +24,7 @@ def setup_auto_deposit_config(vault_registry, switchboard_alpha, yield_underlyin
 
         # Now deposit that to yield to register the vault token
         _vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             _targetVaultToken.address,
             small_amount,
@@ -47,7 +47,7 @@ def setup_multiple_yield_positions(undy_usd_vault, yield_underlying_token, yield
         for vault_token, amount in _positions:
             yield_underlying_token.transfer(undy_usd_vault.address, amount, sender=yield_underlying_token_whale)
             undy_usd_vault.depositForYield(
-                1,
+                2,
                 yield_underlying_token.address,
                 vault_token.address,
                 amount,
@@ -399,7 +399,7 @@ def test_max_bal_changes_after_withdrawal(undy_usd_vault, yield_underlying_token
     ])
 
     # Withdraw from token 1 to make it smaller than token 2
-    undy_usd_vault.withdrawFromYield(1, yield_vault_token.address, 400 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.withdrawFromYield(2, yield_vault_token.address, 400 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     # Set auto-deposit with 0x0 default
     vault_registry.setShouldAutoDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
@@ -528,7 +528,7 @@ def test_pending_yield_not_affected_by_auto_deposit(_test, undy_usd_vault, yield
     """Test that pendingYieldRealized is not affected by auto-deposit"""
     # Create yield position and accrue some yield
     yield_underlying_token.transfer(undy_usd_vault.address, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 500 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 500 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     # Accrue yield
     yield_underlying_token.mint(yield_vault_token.address, 100 * EIGHTEEN_DECIMALS, sender=governance.address)
@@ -536,7 +536,7 @@ def test_pending_yield_not_affected_by_auto_deposit(_test, undy_usd_vault, yield
 
     # Trigger yield calculation
     yield_underlying_token.transfer(undy_usd_vault.address, 10 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     pending_before = undy_usd_vault.pendingYieldRealized()
 
@@ -661,7 +661,7 @@ def test_auto_deposit_target_changes_between_deposits(undy_usd_vault, yield_unde
     # Register token 2 by creating a small position
     small_amount = 10 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, small_amount, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token_2.address, small_amount, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token_2.address, small_amount, sender=starter_agent.address)
 
     # Change target to token 2
     vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, yield_vault_token_2.address, sender=switchboard_alpha.address)
@@ -687,13 +687,13 @@ def test_auto_deposit_after_performance_fee_claim(undy_usd_vault, yield_underlyi
 
     # Create yield and claim fees
     yield_underlying_token.transfer(undy_usd_vault.address, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 1000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 1000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     yield_underlying_token.mint(yield_vault_token.address, 200 * EIGHTEEN_DECIMALS, sender=governance.address)
     boa.env.time_travel(seconds=301)
 
     yield_underlying_token.transfer(undy_usd_vault.address, 10 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     undy_usd_vault.claimPerformanceFees(sender=governance.address)
 
@@ -712,13 +712,13 @@ def test_auto_deposit_with_existing_pending_fees(undy_usd_vault, yield_underlyin
 
     # Create yield
     yield_underlying_token.transfer(undy_usd_vault.address, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 1000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 1000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     yield_underlying_token.mint(yield_vault_token.address, 200 * EIGHTEEN_DECIMALS, sender=governance.address)
     boa.env.time_travel(seconds=301)
 
     yield_underlying_token.transfer(undy_usd_vault.address, 10 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    undy_usd_vault.depositForYield(1, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    undy_usd_vault.depositForYield(2, yield_underlying_token.address, yield_vault_token.address, 10 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
     # Now there are pending fees
     pending_fees_before = undy_usd_vault.getClaimablePerformanceFees()

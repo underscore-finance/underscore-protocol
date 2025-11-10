@@ -1338,7 +1338,7 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     """Test successful asset configuration update"""
     # Set new asset config
     asset = alpha_token.address
-    lego_id = 1  # Assuming valid lego ID
+    lego_id = 2  # Assuming valid lego ID
     stale_blocks = 100
     swap_fee = 30  # 0.3%
     stable_swap_fee = 10  # 0.1%
@@ -1591,7 +1591,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     
     # Verify the config was saved in MissionControl
     saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.legoId == 1
+    assert saved_config.legoId == 1  # lego_ripe
     assert saved_config.staleBlocks == 100
     assert saved_config.txFees.swapFee == 50
     assert saved_config.txFees.stableSwapFee == 10
@@ -3415,73 +3415,95 @@ def test_creator_whitelist_and_locked_signer_interaction(switchboard_alpha, gove
     assert mission_control.isLockedSigner(alice) == False
 
 
-######################
-# Ripe Lock Duration #
-######################
+########################
+# Ripe Rewards Config #
+########################
 
 
 def test_set_ripe_lock_duration_success(switchboard_alpha, governance, loot_distributor):
-    """Test successful setting of ripe lock duration"""
-    # Set new ripe lock duration (e.g., 50,400 blocks ~ 7 days on Ethereum)
-    new_duration = 50400  # blocks
-    
-    # Call setRipeLockDuration as governance
-    switchboard_alpha.setRipeLockDuration(new_duration, sender=governance.address)
-    
+    """Test successful setting of ripe rewards config"""
+    # Set new ripe rewards config
+    new_stake_ratio = 75_00  # 75%
+    new_duration = 50400  # blocks (~7 days on Ethereum)
+
+    # Call setRipeRewardsConfig as governance
+    switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
+
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "RipeLockDurationSetFromSwitchboard")
+    logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
     assert len(logs) == 1
+    assert logs[0].ripeStakeRatio == new_stake_ratio
     assert logs[0].ripeLockDuration == new_duration
-    
-    # Verify the value was set in LootDistributor
+
+    # Verify the values were set in LootDistributor
+    assert loot_distributor.ripeStakeRatio() == new_stake_ratio
     assert loot_distributor.ripeLockDuration() == new_duration
 
 
 def test_set_ripe_lock_duration_different_values(switchboard_alpha, governance, loot_distributor):
-    """Test setting different ripe lock duration values in blocks"""
-    # Test with ~1 day (7200 blocks at 12s/block)
+    """Test setting different ripe rewards config values"""
+    # Test with ~1 day (7200 blocks at 12s/block) and 90% stake ratio
+    stake_ratio_90 = 90_00
     duration_1_day = 7200
-    switchboard_alpha.setRipeLockDuration(duration_1_day, sender=governance.address)
+    switchboard_alpha.setRipeRewardsConfig(stake_ratio_90, duration_1_day, sender=governance.address)
+    assert loot_distributor.ripeStakeRatio() == stake_ratio_90
     assert loot_distributor.ripeLockDuration() == duration_1_day
-    
-    # Test with ~30 days (216,000 blocks)
+
+    # Test with ~30 days (216,000 blocks) and 50% stake ratio
+    stake_ratio_50 = 50_00
     duration_30_days = 216000
-    switchboard_alpha.setRipeLockDuration(duration_30_days, sender=governance.address)
+    switchboard_alpha.setRipeRewardsConfig(stake_ratio_50, duration_30_days, sender=governance.address)
+    assert loot_distributor.ripeStakeRatio() == stake_ratio_50
     assert loot_distributor.ripeLockDuration() == duration_30_days
-    
-    # Test with 0 (immediate unlock)
-    duration_zero = 0
-    switchboard_alpha.setRipeLockDuration(duration_zero, sender=governance.address)
-    assert loot_distributor.ripeLockDuration() == duration_zero
-    
-    # Test with ~1 year (2,628,000 blocks)
+
+    # Test with 0% stake ratio and minimum lock duration
+    stake_ratio_0 = 0
+    duration_min = 1
+    switchboard_alpha.setRipeRewardsConfig(stake_ratio_0, duration_min, sender=governance.address)
+    assert loot_distributor.ripeStakeRatio() == stake_ratio_0
+    assert loot_distributor.ripeLockDuration() == duration_min
+
+    # Test with ~1 year (2,628,000 blocks) and 100% stake ratio
+    stake_ratio_100 = 100_00
     duration_1_year = 2628000
-    switchboard_alpha.setRipeLockDuration(duration_1_year, sender=governance.address)
+    switchboard_alpha.setRipeRewardsConfig(stake_ratio_100, duration_1_year, sender=governance.address)
+    assert loot_distributor.ripeStakeRatio() == stake_ratio_100
     assert loot_distributor.ripeLockDuration() == duration_1_year
 
 
 def test_set_ripe_lock_duration_non_governance_reverts(switchboard_alpha, alice, loot_distributor):
-    """Test that non-governance addresses cannot set ripe lock duration"""
+    """Test that non-governance addresses cannot set ripe rewards config"""
+    new_stake_ratio = 85_00
     new_duration = 50400  # blocks (~7 days)
-    
-    # Store the current duration before the failed attempt
+
+    # Store the current values before the failed attempt
+    current_stake_ratio = loot_distributor.ripeStakeRatio()
     current_duration = loot_distributor.ripeLockDuration()
-    
-    with boa.reverts():
-        switchboard_alpha.setRipeLockDuration(new_duration, sender=alice)
-    
-    # Verify the value was not changed
-    assert loot_distributor.ripeLockDuration() == current_duration  # Should remain at previous value
+
+    with boa.reverts("no perms"):
+        switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=alice)
+
+    # Verify the values were not changed
+    assert loot_distributor.ripeStakeRatio() == current_stake_ratio
+    assert loot_distributor.ripeLockDuration() == current_duration
 
 
 def test_set_ripe_lock_duration_multiple_updates(switchboard_alpha, governance, loot_distributor):
-    """Test multiple consecutive updates to ripe lock duration in blocks"""
-    durations = [100, 500, 1000, 7200, 50400]  # Various block counts
-    
-    for duration in durations:
-        switchboard_alpha.setRipeLockDuration(duration, sender=governance.address)
+    """Test multiple consecutive updates to ripe rewards config"""
+    configs = [
+        (80_00, 100),
+        (60_00, 500),
+        (50_00, 1000),
+        (90_00, 7200),
+        (100_00, 50400)
+    ]  # (stake_ratio, duration) pairs
+
+    for stake_ratio, duration in configs:
+        switchboard_alpha.setRipeRewardsConfig(stake_ratio, duration, sender=governance.address)
+        assert loot_distributor.ripeStakeRatio() == stake_ratio
         assert loot_distributor.ripeLockDuration() == duration
-        
+
         # Verify each update emits an event
-        logs = filter_logs(switchboard_alpha, "RipeLockDurationSetFromSwitchboard")
+        logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
+        assert logs[-1].ripeStakeRatio == stake_ratio
         assert logs[-1].ripeLockDuration == duration

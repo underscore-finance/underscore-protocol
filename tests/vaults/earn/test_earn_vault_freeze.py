@@ -20,7 +20,7 @@ def test_freeze_vault_prevents_deposit_for_yield(
 
     # Initial deposit works (not frozen)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -37,7 +37,7 @@ def test_freeze_vault_prevents_deposit_for_yield(
     # Now deposit should fail
     with boa.reverts("frozen vault"):
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,
@@ -61,7 +61,7 @@ def test_freeze_vault_prevents_withdraw_from_yield(
     yield_underlying_token.transfer(undy_usd_vault.address, deposit_amount, sender=yield_underlying_token_whale)
 
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -77,7 +77,7 @@ def test_freeze_vault_prevents_withdraw_from_yield(
     # Withdrawal should fail
     with boa.reverts("frozen vault"):
         undy_usd_vault.withdrawFromYield(
-            1,
+            2,
             yield_vault_token.address,
             vault_balance,
             sender=starter_agent.address
@@ -101,7 +101,7 @@ def test_freeze_vault_prevents_claim_rewards(
     # Claim rewards should fail
     with boa.reverts("frozen vault"):
         undy_usd_vault.claimRewards(
-            1,  # lego id
+            2,  # lego id
             yield_underlying_token.address,  # reward token
             sender=starter_agent.address
         )
@@ -129,7 +129,7 @@ def test_freeze_vault_allows_user_withdrawals(
     manager_deposit = 500 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(undy_usd_vault.address, manager_deposit, sender=yield_underlying_token_whale)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         manager_deposit,
@@ -202,7 +202,7 @@ def test_unfreeze_restores_manager_operations(
     # Deposit should fail when frozen
     with boa.reverts("frozen vault"):
         undy_usd_vault.depositForYield(
-            1,
+            2,
             yield_underlying_token.address,
             yield_vault_token.address,
             deposit_amount,
@@ -215,7 +215,7 @@ def test_unfreeze_restores_manager_operations(
 
     # Now deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         deposit_amount,
@@ -277,7 +277,7 @@ def test_freeze_vault_redeem_triggers_redemption(
     # Manager deposits ALL to yield (no idle balance)
     vault_balance = yield_underlying_token.balanceOf(undy_usd_vault.address)
     undy_usd_vault.depositForYield(
-        1,
+        2,
         yield_underlying_token.address,
         yield_vault_token.address,
         vault_balance,

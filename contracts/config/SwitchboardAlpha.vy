@@ -42,7 +42,7 @@ interface MissionControl:
     def agentConfig() -> cs.AgentConfig: view
 
 interface LootDistributor:
-    def setRipeLockDuration(_ripeLockDuration: uint256): nonpayable
+    def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256): nonpayable
 
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
@@ -290,7 +290,8 @@ event LockedSignerSet:
     isLocked: bool
     caller: address
 
-event RipeLockDurationSetFromSwitchboard:
+event RipeRewardsConfigSetFromSwitchboard:
+    ripeStakeRatio: uint256
     ripeLockDuration: uint256
 
 # pending config changes
@@ -1019,16 +1020,16 @@ def setLockedSigner(_signer: address, _isLocked: bool):
     log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
 
 
-# ripe lock duration
+# ripe rewards config
 
 
 @external
-def setRipeLockDuration(_ripeLockDuration: uint256):
+def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256):
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
     ld: address = addys._getLootDistributorAddr()
-    extcall LootDistributor(ld).setRipeLockDuration(_ripeLockDuration)
-    log RipeLockDurationSetFromSwitchboard(ripeLockDuration=_ripeLockDuration)
+    extcall LootDistributor(ld).setRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration)
+    log RipeRewardsConfigSetFromSwitchboard(ripeStakeRatio=_ripeStakeRatio, ripeLockDuration=_ripeLockDuration)
 
 
 ###############

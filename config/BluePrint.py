@@ -37,6 +37,18 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip GHO",
         "symbol": "undyGHO",
     },
+    "LEVG_USDC": {
+        "name": "Underscore Leveraged USD",
+        "symbol": "undyLevgUSD",
+    },
+    "LEVG_CBBTC": {
+        "name": "Underscore Leveraged cbBTC",
+        "symbol": "undyLevgCBBTC",
+    },
+    "LEVG_WETH": {
+        "name": "Underscore Leveraged WETH",
+        "symbol": "undyLevgWETH",
+    },
 }
 
 PARAMS = {
@@ -51,6 +63,7 @@ PARAMS = {
         "GEN_MIN_CONFIG_TIMELOCK": 2 * HOUR_IN_BLOCKS,
         "GEN_MAX_CONFIG_TIMELOCK": 30 * DAY_IN_BLOCKS,
         # loot distributor
+        "LOOT_DISTRIBUTOR_RIPE_STAKE_RATIO": 80_00,
         "LOOT_DISTRIBUTOR_RIPE_LOCK_DURATION": 6 * MONTH_IN_BLOCKS,
         # boss validator
         "BOSS_MIN_MANAGER_PERIOD": 24 * HOUR_IN_BLOCKS,
@@ -87,6 +100,7 @@ PARAMS = {
         "GEN_MIN_CONFIG_TIMELOCK": 6 * HOUR_IN_BLOCKS,
         "GEN_MAX_CONFIG_TIMELOCK": 7 * DAY_IN_BLOCKS,
         # loot distributor
+        "LOOT_DISTRIBUTOR_RIPE_STAKE_RATIO": 80_00,
         "LOOT_DISTRIBUTOR_RIPE_LOCK_DURATION": 1 * DAY_IN_BLOCKS,
         # boss validator
         "BOSS_MIN_MANAGER_PERIOD": 12 * HOUR_IN_BLOCKS,

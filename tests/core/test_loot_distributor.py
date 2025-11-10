@@ -102,7 +102,7 @@ def test_get_loot_distro_config_with_vault_registration(loot_distributor, ambass
     
     # Verify vault token registration
     vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 1
+    assert vault_token.legoId == 2
     assert vault_token.underlyingAsset == yield_underlying_token.address
     assert vault_token.decimals == yield_vault_token.decimals()
     
@@ -129,31 +129,34 @@ def test_get_loot_distro_config_with_vault_registration(loot_distributor, ambass
 # add loot from swap or rewards
 
 
-def test_add_loot_from_swap_fees(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+def test_add_loot_from_swap_fees(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, governance, setAssetConfig, createAmbassadorRevShare):
     """ Test addLootFromSwapOrRewards for swap fees with ambassador rev share """
-    
+
     # Set up ambassador config with 30% swap fee share
     ambassadorRevShare = createAmbassadorRevShare(
         _swapRatio=30_00,      # 30%
         _rewardsRatio=25_00,   # 25%
         _yieldRatio=20_00,     # 20%
     )
-    
+
     setAssetConfig(
         alpha_token,
         _ambassadorRevShare=ambassadorRevShare,
     )
-    
+
     # Transfer tokens to user wallet and approve loot distributor
     fee_amount = 100 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
     alpha_token.approve(loot_distributor.address, fee_amount, sender=user_wallet.address)
-    
+
     # Check initial state
     assert loot_distributor.totalClaimableLoot(alpha_token) == 0
     assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
     assert loot_distributor.numClaimableAssets(ambassador_wallet) == 0
-    
+
+    # Check initial governance balance
+    initial_gov_balance = alpha_token.balanceOf(governance.address)
+
     # Add loot from swap
     loot_distributor.addLootFromSwapOrRewards(
         alpha_token,
@@ -161,38 +164,45 @@ def test_add_loot_from_swap_fees(loot_distributor, user_wallet, ambassador_walle
         ACTION_TYPE.SWAP,
         sender=user_wallet.address
     )
-    
+
     # Verify ambassador gets 30% of the fee
     expected_ambassador_fee = fee_amount * 30_00 // 100_00  # 30 tokens
     assert loot_distributor.totalClaimableLoot(alpha_token) == expected_ambassador_fee
     assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_ambassador_fee
-    
+
+    # Verify governance receives leftover 70% of the fee
+    expected_gov_fee = fee_amount * 70_00 // 100_00  # 70 tokens
+    assert alpha_token.balanceOf(governance.address) == initial_gov_balance + expected_gov_fee
+
     # Verify asset registration
     assert loot_distributor.numClaimableAssets(ambassador_wallet) == 2  # Starts at 1, not 0
     assert loot_distributor.claimableAssets(ambassador_wallet, 1) == alpha_token.address
     assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
 
 
-def test_add_loot_from_rewards_fees(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+def test_add_loot_from_rewards_fees(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, governance, setAssetConfig, createAmbassadorRevShare):
     """ Test addLootFromSwapOrRewards for rewards fees with different rev share ratio """
-    
+
     # Set up ambassador config with 50% rewards fee share
     ambassadorRevShare = createAmbassadorRevShare(
         _swapRatio=30_00,      # 30%
         _rewardsRatio=50_00,   # 50% for rewards
         _yieldRatio=20_00,     # 20%
     )
-    
+
     setAssetConfig(
         alpha_token,
         _ambassadorRevShare=ambassadorRevShare,
     )
-    
+
     # Transfer tokens to user wallet and approve
     fee_amount = 200 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
     alpha_token.approve(loot_distributor.address, fee_amount, sender=user_wallet.address)
-    
+
+    # Check initial governance balance
+    initial_gov_balance = alpha_token.balanceOf(governance.address)
+
     # Add loot from rewards action
     loot_distributor.addLootFromSwapOrRewards(
         alpha_token,
@@ -200,11 +210,15 @@ def test_add_loot_from_rewards_fees(loot_distributor, user_wallet, ambassador_wa
         ACTION_TYPE.REWARDS,
         sender=user_wallet.address
     )
-    
+
     # Verify ambassador gets 50% of the fee for rewards
     expected_ambassador_fee = fee_amount * 50_00 // 100_00  # 100 tokens
     assert loot_distributor.totalClaimableLoot(alpha_token) == expected_ambassador_fee
     assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == expected_ambassador_fee
+
+    # Verify governance receives leftover 50% of the fee
+    expected_gov_fee = fee_amount * 50_00 // 100_00  # 100 tokens
+    assert alpha_token.balanceOf(governance.address) == initial_gov_balance + expected_gov_fee
 
 
 def test_add_loot_multiple_assets(loot_distributor, user_wallet, ambassador_wallet, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, setAssetConfig, createAmbassadorRevShare):
@@ -425,33 +439,34 @@ def test_add_loot_multiple_ambassadors(loot_distributor, hatchery, env, alpha_to
 #######################
 
 
-def test_add_loot_from_yield_profit_with_fee_and_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+def test_add_loot_from_yield_profit_with_fee_and_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, governance, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
     """ Test addLootFromYieldProfit with both performance fee and yield bonus """
-    
+
     # Set up ambassador config with yield fee share and bonus ratio
     ambassadorRevShare = createAmbassadorRevShare(
         _swapRatio=30_00,
         _rewardsRatio=30_00,
         _yieldRatio=40_00,     # 40% of performance fees go to ambassador
     )
-    
+
     # Create yield config with bonus ratio
     yieldConfig = createAssetYieldConfig(
         _isYieldAsset=True,
         _underlyingAsset=yield_underlying_token.address,
         _ambassadorBonusRatio=10_00,  # 10% bonus on yield profit
     )
-    
+
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
-    
+
     # Seed loot distributor with underlying tokens for bonus payments
     seed_amount = 1000 * EIGHTEEN_DECIMALS
     yield_underlying_token.transfer(loot_distributor, seed_amount, sender=yield_underlying_token_whale)
-    
+
     # Register vault token by making a deposit (creates price per share)
     deposit_amount = 1_000 * EIGHTEEN_DECIMALS
     yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
@@ -461,14 +476,17 @@ def test_add_loot_from_yield_profit_with_fee_and_bonus(loot_distributor, user_wa
         yield_vault_token,
         sender=yield_underlying_token_whale,
     )
-    
+
     # Simulate yield profit
     performance_fee = 20 * EIGHTEEN_DECIMALS  # 20 vault tokens as performance fee
     total_yield_amount = 100 * EIGHTEEN_DECIMALS  # 100 vault tokens total yield
-    
+
     # Transfer the performance fee to loot distributor (simulating it was already collected)
     yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
-    
+
+    # Check initial governance balance
+    initial_gov_balance = yield_vault_token.balanceOf(governance.address)
+
     # Add loot from yield profit
     loot_distributor.addLootFromYieldProfit(
         yield_vault_token,
@@ -476,11 +494,15 @@ def test_add_loot_from_yield_profit_with_fee_and_bonus(loot_distributor, user_wa
         total_yield_amount,
         sender=user_wallet.address
     )
-    
+
     # Verify ambassador gets 40% of the performance fee
     expected_fee_share = performance_fee * 40_00 // 100_00  # 8 vault tokens
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
-    
+
+    # Verify governance receives leftover 60% of the performance fee
+    expected_gov_fee = performance_fee * 60_00 // 100_00  # 12 vault tokens
+    assert yield_vault_token.balanceOf(governance.address) == initial_gov_balance + expected_gov_fee
+
     # Verify ambassador gets 10% bonus in underlying tokens
     # Price per share is 1.0, so 100 vault tokens = 100 underlying tokens
     expected_bonus = total_yield_amount * 10_00 // 100_00  # 10 underlying tokens
@@ -514,6 +536,7 @@ def test_add_loot_from_yield_profit_no_bonus_insufficient_balance(loot_distribut
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -574,6 +597,7 @@ def test_add_loot_from_yield_profit_only_fee_no_bonus_config(loot_distributor, u
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -631,6 +655,7 @@ def test_add_loot_from_yield_profit_zero_fee_with_bonus(loot_distributor, user_w
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -686,6 +711,7 @@ def test_add_loot_from_yield_profit_with_price_per_share_change(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -756,7 +782,7 @@ def test_add_loot_from_yield_profit_eligible_asset_gets_bonus(loot_distributor, 
     
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -843,7 +869,7 @@ def test_add_loot_from_yield_profit_non_eligible_asset_no_bonus(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
-        _legoId=1,
+        _legoId=2,
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -936,6 +962,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_config(loot_distributor, use
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1083,7 +1110,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_no_ambassador(loot_distribut
         _altBonusAsset=undy_token.address,
     )
     
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Register vault token
     deposit_amount = 1_000 * EIGHTEEN_DECIMALS
@@ -1146,6 +1173,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_insufficient_balance(loot_di
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1226,6 +1254,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_reservation(loot_distributor
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1302,6 +1331,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_limits_bonuses(loot_distribu
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1348,7 +1378,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_limits_bonuses(loot_distribu
     assert loot_distributor.depositRewards().amount == deposit_rewards_amount
 
 
-def test_add_loot_from_yield_profit_vault_token_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+def test_add_loot_from_yield_profit_vault_token_bonus(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, governance, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
     """ Test yield bonus paid in vault tokens (in-kind) when no underlying or alt asset configured """
     
     # Seed vault tokens for bonuses
@@ -1374,6 +1404,7 @@ def test_add_loot_from_yield_profit_vault_token_bonus(loot_distributor, user_wal
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1397,13 +1428,17 @@ def test_add_loot_from_yield_profit_vault_token_bonus(loot_distributor, user_wal
     # User bonus: 25% of 100 = 25 vault tokens
     # Ambassador bonus: 15% of 100 = 15 vault tokens
     # Ambassador fee share: 40% of 10 = 4 vault tokens
-    
+    # Leftover fee to governance: 60% of 10 = 6 vault tokens
+
     assert loot_distributor.claimableLoot(user_wallet, yield_vault_token) == 25 * EIGHTEEN_DECIMALS
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == (15 + 4) * EIGHTEEN_DECIMALS
-    
-    # Verify vault token balance (initial seed amount)
-    # Note: fee stays in user wallet, bonuses are allocated but not transferred yet
-    assert yield_vault_token.balanceOf(loot_distributor) == vault_token_seed
+
+    # Verify leftover fee was sent to governance
+    leftover_fee = performance_fee * 60_00 // 100_00  # 6 vault tokens
+    assert yield_vault_token.balanceOf(governance.address) == leftover_fee
+
+    # Verify vault token balance (initial seed minus governance transfer)
+    assert yield_vault_token.balanceOf(loot_distributor) == vault_token_seed - leftover_fee
 
 
 def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, undy_token, whale, mock_yield_lego, mock_ripe, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
@@ -1432,6 +1467,7 @@ def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_w
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1509,6 +1545,7 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
     
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1632,6 +1669,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     
     setAssetConfig(
         charlie_token_vault,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -1677,6 +1715,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     
     setAssetConfig(
         delta_token_vault,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig2,
     )
@@ -2911,8 +2950,8 @@ def test_claim_deposit_rewards_not_current_distributor(loot_distributor, user_wa
     loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 100 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
     boa.env.time_travel(blocks=1000)
     
-    # Deploy a new loot distributor
-    new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq, mock_ripe_token, mock_ripe, 100)
+    # Deploy a new loot distributor (with ripeStakeRatio and ripeLockDuration)
+    new_loot_distributor = boa.load("contracts/core/LootDistributor.vy", undy_hq, mock_ripe_token, mock_ripe, 80_00, 100)
 
     # Update undy hq with new loot distributor
     assert undy_hq.startAddressUpdateToRegistry(6, new_loot_distributor, sender=governance.address)
@@ -3214,7 +3253,7 @@ def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, 
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3267,7 +3306,7 @@ def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_com
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3358,7 +3397,7 @@ def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_comma
         _underlyingAsset=yield_underlying_token.address,
         _bonusRatio=30_00,  # 30% bonus for user
     )
-    setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)
+    setAssetConfig(yield_vault_token, _legoId=2, _yieldConfig=yieldConfig)  # mock_yield_lego
     
     # Seed loot distributor with underlying tokens for bonus payments
     yield_underlying_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
@@ -3479,11 +3518,18 @@ def test_ripe_token_as_deposit_rewards_asset(loot_distributor, user_wallet, bob,
     
     # Claim rewards (should go through mock_ripe's depositIntoGovVault)
     user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
-    
-    # Verify user rewards were sent to mock_ripe (acting as RipeTeller)
+
+    # With 80% stake ratio: 80% staked, 20% sent directly
     assert user_rewards > 0
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == user_rewards
-    
+    staked_amount = user_rewards * 80_00 // 100_00
+    direct_amount = user_rewards * 20_00 // 100_00
+
+    # Verify 80% was staked in mock_ripe (acting as RipeTeller)
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == staked_amount
+
+    # Verify 20% was sent directly to user wallet
+    assert mock_ripe_token.balanceOf(user_wallet.address) == direct_amount
+
     # Verify rewards were deducted from deposit rewards
     rewards = loot_distributor.depositRewards()
     assert rewards.asset == mock_ripe_token.address
@@ -3562,23 +3608,34 @@ def test_ripe_token_as_yield_alt_bonus_asset(loot_distributor, user_wallet, amba
     # Check initial mock_ripe balance
     initial_ripe_balance = mock_ripe_token.balanceOf(mock_ripe.address)
     
-    # User claims their RIPE bonus
+    # User claims their RIPE bonus (200 RIPE total: 80% staked, 20% direct)
     assets_claimed = loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=user_wallet_config.owner())
     assert assets_claimed == 1  # Should have claimed 1 asset type (RIPE)
-    
-    # Verify RIPE tokens went to mock_ripe (acting as RipeTeller)
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + 200 * EIGHTEEN_DECIMALS
-    
+
+    # Verify 80% of user RIPE (160 RIPE) went to mock_ripe for staking
+    user_staked = 200 * EIGHTEEN_DECIMALS * 80_00 // 100_00
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + user_staked
+
+    # Verify 20% of user RIPE (40 RIPE) sent directly to user wallet
+    user_direct = 200 * EIGHTEEN_DECIMALS * 20_00 // 100_00
+    assert mock_ripe_token.balanceOf(user_wallet.address) == user_direct
+
     # Verify user's claimable is now zero
     assert loot_distributor.claimableLoot(user_wallet.address, mock_ripe_token.address) == 0
-    
-    # Ambassador claims their RIPE bonus
+
+    # Ambassador claims their RIPE bonus (100 RIPE total: 80% staked, 20% direct)
     assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet.address, sender=ambassador_wallet_config.owner())
     assert assets_claimed == 1
-    
-    # Verify RIPE tokens went to mock_ripe
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + 300 * EIGHTEEN_DECIMALS  # 200 + 100
-    
+
+    # Verify 80% of ambassador RIPE (80 RIPE) went to mock_ripe for staking
+    ambassador_staked = 100 * EIGHTEEN_DECIMALS * 80_00 // 100_00
+    total_staked = user_staked + ambassador_staked
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + total_staked
+
+    # Verify 20% of ambassador RIPE (20 RIPE) sent directly to ambassador wallet
+    ambassador_direct = 100 * EIGHTEEN_DECIMALS * 20_00 // 100_00
+    assert mock_ripe_token.balanceOf(ambassador_wallet.address) == ambassador_direct
+
     # Verify ambassador's claimable is now zero
     assert loot_distributor.claimableLoot(ambassador_wallet.address, mock_ripe_token.address) == 0
 
@@ -3609,6 +3666,7 @@ def test_ripe_token_yield_bonus_user_only(loot_distributor, yield_vault_token, y
     # Set asset config for vault token
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _yieldConfig=yieldConfig,
     )
     
@@ -3647,17 +3705,22 @@ def test_ripe_token_yield_bonus_user_only(loot_distributor, yield_vault_token, y
     # Check initial mock_ripe balance
     initial_ripe_balance = mock_ripe_token.balanceOf(mock_ripe.address)
     
-    # User claims their RIPE bonus
+    # User claims their RIPE bonus (600 RIPE total: 80% staked, 20% direct)
     assets_claimed = loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=charlie)
     assert assets_claimed == 1  # Should have claimed 1 asset type (RIPE)
-    
-    # Verify RIPE tokens went to mock_ripe (acting as RipeTeller)
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + 600 * EIGHTEEN_DECIMALS
-    
+
+    # Verify 80% of RIPE (480 RIPE) went to mock_ripe for staking
+    staked_amount = 600 * EIGHTEEN_DECIMALS * 80_00 // 100_00
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + staked_amount
+
+    # Verify 20% of RIPE (120 RIPE) sent directly to user wallet
+    direct_amount = 600 * EIGHTEEN_DECIMALS * 20_00 // 100_00
+    assert mock_ripe_token.balanceOf(user_wallet.address) == direct_amount
+
     # Verify user's claimable is now zero
     assert loot_distributor.claimableLoot(user_wallet.address, mock_ripe_token.address) == 0
-    
-    # Verify loot distributor balance decreased
+
+    # Verify loot distributor balance decreased by full amount (600 RIPE total)
     assert mock_ripe_token.balanceOf(loot_distributor.address) == 50000 * EIGHTEEN_DECIMALS - 600 * EIGHTEEN_DECIMALS
 
 
@@ -3690,6 +3753,7 @@ def test_ripe_token_yield_bonus_ambassador_zero_rev_share(loot_distributor, user
     # Set asset config
     setAssetConfig(
         yield_vault_token,
+        _legoId=2,  # mock_yield_lego
         _ambassadorRevShare=ambassadorRevShare,
         _yieldConfig=yieldConfig,
     )
@@ -3740,23 +3804,33 @@ def test_ripe_token_yield_bonus_ambassador_zero_rev_share(loot_distributor, user
     # Check initial mock_ripe balance
     initial_ripe_balance = mock_ripe_token.balanceOf(mock_ripe.address)
     
-    # User claims their RIPE bonus
+    # User claims their RIPE bonus (37.5 RIPE total: 80% staked, 20% direct)
     assets_claimed = loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=user_wallet_config.owner())
     assert assets_claimed == 1
-    
-    # Verify RIPE tokens went to mock_ripe
+
+    # Verify 80% of user RIPE (30 RIPE) went to mock_ripe for staking
     expected_user_amount = 375 * EIGHTEEN_DECIMALS // 10
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + expected_user_amount
-    
-    # Ambassador claims their RIPE bonus  
+    user_staked = expected_user_amount * 80_00 // 100_00
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + user_staked
+
+    # Verify 20% of user RIPE (7.5 RIPE) sent directly to user wallet
+    user_direct = expected_user_amount * 20_00 // 100_00
+    assert mock_ripe_token.balanceOf(user_wallet.address) == user_direct
+
+    # Ambassador claims their RIPE bonus (62.5 RIPE total: 80% staked, 20% direct)
     assets_claimed = loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet.address, sender=ambassador_wallet_config.owner())
     assert assets_claimed == 1
-    
-    # Verify RIPE tokens went to mock_ripe
+
+    # Verify 80% of ambassador RIPE (50 RIPE) went to mock_ripe for staking
     expected_ambassador_amount = 625 * EIGHTEEN_DECIMALS // 10
-    total_expected = expected_user_amount + expected_ambassador_amount
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + total_expected
-    
+    ambassador_staked = expected_ambassador_amount * 80_00 // 100_00
+    total_staked = user_staked + ambassador_staked
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_balance + total_staked
+
+    # Verify 20% of ambassador RIPE (12.5 RIPE) sent directly to ambassador wallet
+    ambassador_direct = expected_ambassador_amount * 20_00 // 100_00
+    assert mock_ripe_token.balanceOf(ambassador_wallet.address) == ambassador_direct
+
     # Verify both users' claimable is now zero
     assert loot_distributor.claimableLoot(user_wallet.address, mock_ripe_token.address) == 0
     assert loot_distributor.claimableLoot(ambassador_wallet.address, mock_ripe_token.address) == 0
@@ -3802,18 +3876,28 @@ def test_ripe_token_deposit_rewards_with_multiple_users(loot_distributor, user_w
     
     # User1 claims RIPE rewards (using the actual owner)
     user1_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=user_wallet_config.owner())
-    
+
     # User2 claims RIPE rewards (using the actual owner)
     user2_rewards = loot_distributor.claimDepositRewards(wallet2.address, sender=wallet2_config.owner())
-    
+
     # Verify proportional distribution
     # User1 had 25% of total value (500 / 2000)
     # User2 had 75% of total value (1500 / 2000)
     assert user1_rewards == 2500 * EIGHTEEN_DECIMALS  # 25% of 10000
     assert user2_rewards == 7500 * EIGHTEEN_DECIMALS  # 75% of 10000
-    
-    # Verify RIPE tokens went to mock_ripe (RipeTeller)
-    assert mock_ripe_token.balanceOf(mock_ripe.address) == user1_rewards + user2_rewards
+
+    # With 80% stake ratio: calculate staked and direct amounts
+    user1_staked = user1_rewards * 80_00 // 100_00  # 2000 RIPE
+    user1_direct = user1_rewards * 20_00 // 100_00   # 500 RIPE
+    user2_staked = user2_rewards * 80_00 // 100_00  # 6000 RIPE
+    user2_direct = user2_rewards * 20_00 // 100_00   # 1500 RIPE
+
+    # Verify 80% of total RIPE (8000 RIPE) went to mock_ripe for staking
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == user1_staked + user2_staked
+
+    # Verify 20% sent directly to user wallets
+    assert mock_ripe_token.balanceOf(user_wallet.address) == user1_direct
+    assert mock_ripe_token.balanceOf(wallet2.address) == user2_direct
 
 
 def test_loot_adjusted_event(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, switchboard_alpha, setAssetConfig, createAmbassadorRevShare):
@@ -3911,17 +3995,20 @@ def test_loot_claimed_event(loot_distributor, user_wallet, ambassador_wallet, al
 
 
 def test_ripe_lock_duration_set_event(loot_distributor, switchboard_alpha):
-    """ Test RipeLockDurationSet event emission """
-    
-    # Set new ripe lock duration
+    """ Test RipeRewardsConfigSet event emission """
+
+    # Set new ripe rewards config
+    new_stake_ratio = 90_00  # 90%
     new_duration = 86400  # 1 day in blocks
-    loot_distributor.setRipeLockDuration(new_duration, sender=switchboard_alpha.address)
-    
-    # Check RipeLockDurationSet event
-    event = filter_logs(loot_distributor, 'RipeLockDurationSet')[0]
-    assert event.lockDuration == new_duration
-    
-    # Verify the change took effect
+    loot_distributor.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=switchboard_alpha.address)
+
+    # Check RipeRewardsConfigSet event
+    event = filter_logs(loot_distributor, 'RipeRewardsConfigSet')[0]
+    assert event.ripeStakeRatio == new_stake_ratio
+    assert event.ripeLockDuration == new_duration
+
+    # Verify the changes took effect
+    assert loot_distributor.ripeStakeRatio() == new_stake_ratio
     assert loot_distributor.ripeLockDuration() == new_duration
 
 
@@ -4177,3 +4264,334 @@ def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_tok
     # Should have no claimable loot left (numClaimableAssets might still be non-zero but claimable amounts should be 0)
     assert loot_distributor.claimableLoot(fresh_ambassador_wallet, alpha_token) == 0
     assert loot_distributor.claimableLoot(fresh_ambassador_wallet, bravo_token) == 0
+
+###################################
+# RIPE Stake Ratio Edge Case Tests
+###################################
+
+
+def test_ripe_stake_ratio_zero_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha):
+    """ Test RIPE rewards with 0% stake ratio - all rewards sent directly to user """
+    
+    # Set ripe stake ratio to 0% (all direct, no staking)
+    loot_distributor.setRipeRewardsConfig(0, 43200, sender=switchboard_alpha.address)
+    assert loot_distributor.ripeStakeRatio() == 0
+    
+    # Configure RIPE as deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=mock_ripe_token.address)
+    
+    # Add RIPE rewards
+    rewards_amount = 1000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor.address, rewards_amount, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token.address, rewards_amount, sender=governance.address)
+    
+    # Build deposit points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 500 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Claim rewards
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # With 0% stake ratio: ALL rewards sent directly to user wallet
+    assert user_rewards > 0
+    assert mock_ripe_token.balanceOf(user_wallet.address) == user_rewards
+    
+    # Verify NO RIPE went to mock_ripe for staking
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == 0
+
+
+def test_ripe_stake_ratio_fifty_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha):
+    """ Test RIPE rewards with 50% stake ratio - equal split between staking and direct """
+    
+    # Set ripe stake ratio to 50%
+    loot_distributor.setRipeRewardsConfig(50_00, 43200, sender=switchboard_alpha.address)
+    assert loot_distributor.ripeStakeRatio() == 50_00
+    
+    # Configure RIPE as deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=mock_ripe_token.address)
+    
+    # Add RIPE rewards
+    rewards_amount = 2000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor.address, rewards_amount, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token.address, rewards_amount, sender=governance.address)
+    
+    # Build deposit points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Claim rewards
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # With 50% stake ratio: split evenly
+    assert user_rewards > 0
+    staked_amount = user_rewards * 50_00 // 100_00
+    direct_amount = user_rewards * 50_00 // 100_00
+    
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == staked_amount
+    assert mock_ripe_token.balanceOf(user_wallet.address) == direct_amount
+
+
+def test_ripe_stake_ratio_hundred_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha):
+    """ Test RIPE rewards with 100% stake ratio - all rewards staked, none direct """
+    
+    # Set ripe stake ratio to 100%
+    loot_distributor.setRipeRewardsConfig(100_00, 43200, sender=switchboard_alpha.address)
+    assert loot_distributor.ripeStakeRatio() == 100_00
+    
+    # Configure RIPE as deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=mock_ripe_token.address)
+    
+    # Add RIPE rewards
+    rewards_amount = 5000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor.address, rewards_amount, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token.address, rewards_amount, sender=governance.address)
+    
+    # Build deposit points
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 750 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=1000)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    # Claim rewards
+    user_rewards = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    
+    # With 100% stake ratio: ALL rewards staked
+    assert user_rewards > 0
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == user_rewards
+    
+    # Verify NO RIPE sent directly to user wallet
+    assert mock_ripe_token.balanceOf(user_wallet.address) == 0
+
+
+def test_set_ripe_rewards_config_boundaries(loot_distributor, switchboard_alpha):
+    """ Test setting RIPE rewards config with boundary values """
+    
+    # Test valid boundary: 0% stake ratio
+    loot_distributor.setRipeRewardsConfig(0, 1, sender=switchboard_alpha.address)
+    assert loot_distributor.ripeStakeRatio() == 0
+    assert loot_distributor.ripeLockDuration() == 1
+    
+    # Test valid boundary: 100% stake ratio
+    loot_distributor.setRipeRewardsConfig(100_00, 86400, sender=switchboard_alpha.address)
+    assert loot_distributor.ripeStakeRatio() == 100_00
+    assert loot_distributor.ripeLockDuration() == 86400
+    
+    # Test invalid: stake ratio > 100%
+    with boa.reverts("invalid stake ratio"):
+        loot_distributor.setRipeRewardsConfig(100_01, 43200, sender=switchboard_alpha.address)
+
+    # Test invalid: zero lock duration
+    with boa.reverts("invalid lock duration"):
+        loot_distributor.setRipeRewardsConfig(80_00, 0, sender=switchboard_alpha.address)
+
+
+#######################################
+# Governance Revenue Transfer Tests
+#######################################
+
+
+def test_governance_receives_leftover_when_no_ambassador(loot_distributor, hatchery, charlie, alpha_token, alpha_token_whale, governance):
+    """ Test that governance receives ALL fees when there's no ambassador """
+    
+    # Create user wallet WITHOUT ambassador
+    user_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, False, 1, sender=charlie)
+    user_wallet = UserWallet.at(user_wallet_addr)
+    
+    # Transfer tokens and approve
+    fee_amount = 500 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor.address, fee_amount, sender=user_wallet.address)
+    
+    # Check initial governance balance
+    initial_gov_balance = alpha_token.balanceOf(governance.address)
+    
+    # Add loot from swap (no ambassador, so 100% should go to governance)
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Verify governance receives ALL fees (100%)
+    assert alpha_token.balanceOf(governance.address) == initial_gov_balance + fee_amount
+
+
+def test_revenue_transferred_to_gov_event_swap(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+    """ Test RevenueTransferredToGov event emission for swap fees """
+    
+    # Set up ambassador config with 30% swap fee share
+    ambassadorRevShare = createAmbassadorRevShare(_swapRatio=30_00)
+    setAssetConfig(alpha_token, _ambassadorRevShare=ambassadorRevShare)
+    
+    # Transfer and approve
+    fee_amount = 1000 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet, fee_amount, sender=alpha_token_whale)
+    alpha_token.approve(loot_distributor.address, fee_amount, sender=user_wallet.address)
+    
+    # Add loot from swap
+    loot_distributor.addLootFromSwapOrRewards(
+        alpha_token,
+        fee_amount,
+        ACTION_TYPE.SWAP,
+        sender=user_wallet.address
+    )
+    
+    # Check RevenueTransferredToGov event
+    events = filter_logs(loot_distributor, 'RevenueTransferredToGov')
+    assert len(events) == 1
+    event = events[0]
+    
+    # Verify event parameters
+    assert event.asset == alpha_token.address
+    assert event.amount == fee_amount * 70_00 // 100_00  # 70% to governance
+    assert event.action == ACTION_TYPE.SWAP
+
+
+def test_revenue_transferred_to_gov_event_yield(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, governance, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test RevenueTransferredToGov event emission for yield profit fees """
+    
+    # Set up ambassador config with 25% yield fee share
+    ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=25_00)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+    )
+    setAssetConfig(yield_vault_token, _ambassadorRevShare=ambassadorRevShare, _yieldConfig=yieldConfig)
+    
+    # Register vault token
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(yield_underlying_token, deposit_amount, yield_vault_token, sender=yield_underlying_token_whale)
+    
+    # Simulate yield profit
+    performance_fee = 100 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(loot_distributor, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        500 * EIGHTEEN_DECIMALS,
+        sender=user_wallet.address
+    )
+    
+    # Check RevenueTransferredToGov event
+    events = filter_logs(loot_distributor, 'RevenueTransferredToGov')
+    assert len(events) == 1
+    event = events[0]
+    
+    # Verify event parameters
+    assert event.asset == yield_vault_token.address
+    assert event.amount == performance_fee * 75_00 // 100_00  # 75% to governance
+    assert event.action == ACTION_TYPE.EARN_WITHDRAW
+
+
+###################################
+# Combined Scenario Tests
+###################################
+
+
+def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha):
+    """ Test sequential claims with different stake ratios """
+    
+    # Configure RIPE as deposit rewards asset
+    setUserWalletConfig(_depositRewardsAsset=mock_ripe_token.address)
+    
+    # First claim with 80% stake ratio (default)
+    rewards_amount_1 = 1000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor.address, rewards_amount_1, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token.address, rewards_amount_1, sender=governance.address)
+    
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 500 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=500)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    user_rewards_1 = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    staked_1 = user_rewards_1 * 80_00 // 100_00
+    direct_1 = user_rewards_1 * 20_00 // 100_00
+    
+    # Change to 50% stake ratio
+    loot_distributor.setRipeRewardsConfig(50_00, 43200, sender=switchboard_alpha.address)
+    
+    # Second claim with 50% stake ratio
+    rewards_amount_2 = 2000 * EIGHTEEN_DECIMALS
+    mock_ripe_token.approve(loot_distributor.address, rewards_amount_2, sender=governance.address)
+    loot_distributor.addDepositRewards(mock_ripe_token.address, rewards_amount_2, sender=governance.address)
+    
+    loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 500 * EIGHTEEN_DECIMALS, sender=user_wallet.address)
+    boa.env.time_travel(blocks=500)
+    loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+    
+    user_rewards_2 = loot_distributor.claimDepositRewards(user_wallet.address, sender=bob)
+    staked_2 = user_rewards_2 * 50_00 // 100_00
+    direct_2 = user_rewards_2 * 50_00 // 100_00
+    
+    # Verify cumulative balances reflect both stake ratios
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == staked_1 + staked_2
+    assert mock_ripe_token.balanceOf(user_wallet.address) == direct_1 + direct_2
+
+
+def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, governance, mock_yield_lego, mock_ripe, switchboard_alpha, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+    """ Test governance revenue transfer AND RIPE staking working together """
+
+    # Set ripe stake ratio to 60%
+    loot_distributor.setRipeRewardsConfig(60_00, 43200, sender=switchboard_alpha.address)
+
+    # Set prices for RIPE and underlying
+    mock_ripe.setPrice(mock_ripe_token.address, 2 * EIGHTEEN_DECIMALS)  # $2 per RIPE
+    mock_ripe.setPrice(yield_underlying_token.address, 10 * EIGHTEEN_DECIMALS)  # $10 per underlying
+
+    # Transfer RIPE to loot distributor for bonuses
+    mock_ripe_token.transfer(loot_distributor.address, 5000 * EIGHTEEN_DECIMALS, sender=governance.address)
+
+    # Set up configs with 35% yield fee share and RIPE as alt bonus
+    ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=35_00)
+    yieldConfig = createAssetYieldConfig(
+        _isYieldAsset=True,
+        _underlyingAsset=yield_underlying_token.address,
+        _bonusRatio=20_00,  # 20% user bonus in RIPE
+        _altBonusAsset=mock_ripe_token.address,
+    )
+    setAssetConfig(yield_vault_token, _legoId=2, _ambassadorRevShare=ambassadorRevShare, _yieldConfig=yieldConfig)
+    
+    # Register vault token
+    deposit_amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(yield_underlying_token, deposit_amount, yield_vault_token, sender=yield_underlying_token_whale)
+    
+    # Simulate yield profit
+    performance_fee = 50 * EIGHTEEN_DECIMALS
+    total_yield = 100 * EIGHTEEN_DECIMALS
+    yield_vault_token.transfer(loot_distributor.address, performance_fee, sender=yield_underlying_token_whale)
+    
+    # Check initial balances
+    initial_gov_balance = yield_vault_token.balanceOf(governance.address)
+    initial_ripe_staked = mock_ripe_token.balanceOf(mock_ripe.address)
+    
+    # Add loot from yield profit
+    loot_distributor.addLootFromYieldProfit(
+        yield_vault_token,
+        performance_fee,
+        total_yield,
+        sender=user_wallet.address
+    )
+    
+    # Verify governance receives 65% of performance fee (100% - 35% ambassador share)
+    expected_gov_fee = performance_fee * 65_00 // 100_00
+    assert yield_vault_token.balanceOf(governance.address) == initial_gov_balance + expected_gov_fee
+    
+    # User claims RIPE bonus
+    # Yield profit value: 100 tokens * $10 = $1000
+    # User bonus: $1000 * 20% = $200 worth of RIPE = 100 RIPE tokens (at $2 each)
+    user_wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=user_wallet_config.owner())
+    
+    # Verify RIPE bonus with 60% stake ratio
+    expected_ripe_bonus = 100 * EIGHTEEN_DECIMALS
+    staked_ripe = expected_ripe_bonus * 60_00 // 100_00  # 60 RIPE
+    direct_ripe = expected_ripe_bonus * 40_00 // 100_00  # 40 RIPE
+    
+    assert mock_ripe_token.balanceOf(mock_ripe.address) == initial_ripe_staked + staked_ripe
+    assert mock_ripe_token.balanceOf(user_wallet.address) == direct_ripe
