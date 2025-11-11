@@ -39,6 +39,7 @@ interface UserWalletConfig:
     def managers(i: uint256) -> address: view
     def hasPendingOwnerChange() -> bool: view
     def payees(i: uint256) -> address: view
+    def numActiveCheques() -> uint256: view
     def numWhitelisted() -> uint256: view
     def startingAgent() -> address: view
     def numManagers() -> uint256: view
@@ -272,6 +273,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     if toData.numWhitelisted > 1:
         return False
 
+    # toWallet cannot have any active cheques
+    if toData.numActiveCheques != 0:
+        return False
+
     # cannot have managers (if starting agent is not set)
     if toData.startingAgent == empty(address) and toData.numManagers > 1:
         return False
@@ -355,6 +360,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
                 extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
                 whitelistCopied += 1
 
+    # NOTE (FIX L-04): Cheque settings are NOT migrated - destination wallet uses default settings
+    # Individual cheques are also NOT migrated - users must manually recreate them
+    # Validation ensures destination has no active cheques before migration
+
     log ConfigCloned(
         fromWallet = _fromWallet,
         toWallet = _toWallet,
@@ -408,6 +417,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
 
     # toWallet cannot have any whitelisted addresses
     if toData.numWhitelisted > 1:
+        return False
+
+    # toWallet cannot have any active cheques
+    if toData.numActiveCheques != 0:
         return False
 
     # cannot have managers (if starting agent is not set)
@@ -469,4 +482,5 @@ def _getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle
         startingAgentIndex = staticcall UserWalletConfig(walletConfig).indexOfManager(startingAgent),
         hasPendingOwnerChange = staticcall UserWalletConfig(walletConfig).hasPendingOwnerChange(),
         groupId = staticcall UserWalletConfig(walletConfig).groupId(),
+        numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),
     )

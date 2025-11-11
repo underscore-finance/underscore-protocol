@@ -250,3 +250,4 @@ struct MigrationConfigBundle:
     startingAgentIndex: uint256
     hasPendingOwnerChange: bool
     groupId: uint256
+    numActiveCheques: uint256
