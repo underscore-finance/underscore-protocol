@@ -618,8 +618,36 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
-def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _miniAddys)
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _miniAddys)
+
+
+@internal
+def _claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
@@ -633,6 +661,9 @@ def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint25
     return rewardAmount, usdValue
 
 
+# has claimable rewards
+
+
 @view
 @external
 def hasClaimableRewards(_user: address) -> bool:
@@ -644,18 +675,6 @@ def hasClaimableRewards(_user: address) -> bool:
             if rewardsInfo[j].totalAmount > 0:
                 return True
     return False
-
-
-@external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
-    # backwards compatibility
-    return 0, 0
 
 
 #########

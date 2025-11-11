@@ -100,7 +100,7 @@ def test_freeze_vault_prevents_claim_rewards(
 
     # Claim rewards should fail
     with boa.reverts("frozen vault"):
-        undy_usd_vault.claimRewards(
+        undy_usd_vault.claimIncentives(
             2,  # lego id
             yield_underlying_token.address,  # reward token
             sender=starter_agent.address

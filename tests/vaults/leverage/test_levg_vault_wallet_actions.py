@@ -974,13 +974,13 @@ def test_claim_rewards_success(
     # Get initial balance
     initial_balance = reward_token.balanceOf(wallet.address)
 
-    # Claim rewards - this calls the lego's claimRewards function
+    # Claim rewards - this calls the lego's claimIncentives function
     # MockYieldLego returns (0, 0), so we just verify the call succeeds
-    amount_received, usd_value = wallet.claimRewards(
+    amount_received, usd_value = wallet.claimIncentives(
         lego_id,
         reward_token.address,
         reward_amount,
-        b"",
+        [],  # proofs
         sender=starter_agent.address
     )
 
@@ -1011,11 +1011,11 @@ def test_claim_rewards_unauthorized_fails(
 
     # Try to claim rewards from unauthorized user - should fail
     with boa.reverts():  # dev: no perms or unauthorized
-        wallet.claimRewards(
+        wallet.claimIncentives(
             2,  # Mock yield lego ID
             reward_token.address,
             100 * EIGHTEEN_DECIMALS,
-            b"",
+            [],  # proofs
             sender=alice
         )
 

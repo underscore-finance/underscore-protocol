@@ -47,6 +47,7 @@ struct ActionInstruction:
     extraData: bytes32         # Protocol-specific extra data (LSB used for isCheque in transfers)
     auxData: bytes32           # Packed data: lpToken addr (action 15) or pool+nftId (16-17)
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
+    proofs: DynArray[bytes32, MAX_PROOFS]  # Merkle proofs for claimIncentives (action 50)
 
 event NonceIncremented:
     userWallet: address
@@ -473,10 +474,10 @@ def _executeAction(_userWallet: address, instruction: ActionInstruction, _prevAm
         nextAmount, txUsdValue = extcall Wallet(_userWallet).repayDebt(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
-    # # claim rewards
-    # elif instruction.action == 50:
-    #     nextAmount, txUsdValue = extcall Wallet(_userWallet).claimIncentives(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-    #     return nextAmount
+    # claim incentives
+    elif instruction.action == 50:
+        nextAmount, txUsdValue = extcall Wallet(_userWallet).claimIncentives(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.proofs)
+        return nextAmount
 
     # add liquidity
     elif instruction.action == 30:

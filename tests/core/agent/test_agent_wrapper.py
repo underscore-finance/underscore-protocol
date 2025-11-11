@@ -819,7 +819,7 @@ def test_agent_claim_rewards_basic(
     mock_dex_lego,
     mock_ripe
 ):
-    """Test AgentWrapper claimRewards function"""
+    """Test AgentWrapper claimIncentives function"""
     
     # Setup asset price
     mock_ripe.setPrice(mock_dex_asset, 5 * EIGHTEEN_DECIMALS)  # $5
@@ -830,12 +830,12 @@ def test_agent_claim_rewards_basic(
     reward_amount = 100 * EIGHTEEN_DECIMALS
     
     # Claim rewards through agent wrapper
-    amount_claimed, usd_value = starter_agent.claimRewards(
+    amount_claimed, usd_value = starter_agent.claimIncentives(
         user_wallet.address,
         3,
         mock_dex_asset.address,
         reward_amount,
-        b"",
+        [],
         sender=charlie
     )
     log = filter_logs(starter_agent, "WalletAction")[0]
@@ -845,7 +845,7 @@ def test_agent_claim_rewards_basic(
     assert log.asset1 == mock_dex_asset.address
     assert log.asset2 == mock_dex_lego.address
     assert log.amount1 == amount_claimed
-    assert log.amount2 == 0
+    assert log.amount2 == amount_claimed
     assert log.usdValue == usd_value
     assert log.legoId == 3
     

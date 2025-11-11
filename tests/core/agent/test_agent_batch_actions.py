@@ -53,12 +53,15 @@ def createActionInstruction():
         tickUpper=0,
         extraData=b"",
         auxData=b"",
-        swapInstructions=None
+        swapInstructions=None,
+        proofs=None
     ):
         """Helper to create ActionInstruction tuple"""
         if swapInstructions is None:
             swapInstructions = []
-        
+        if proofs is None:
+            proofs = []
+
         return (
             usePrevAmountOut,
             action,
@@ -74,7 +77,8 @@ def createActionInstruction():
             tickUpper,
             extraData,
             auxData,
-            swapInstructions
+            swapInstructions,
+            proofs
         )
 
     yield createActionInstruction
