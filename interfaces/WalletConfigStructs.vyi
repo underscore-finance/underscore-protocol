@@ -70,6 +70,7 @@ struct PayeeManagementBundle:
     wallet: address
     isRegisteredPayee: bool
     isWhitelisted: bool
+    isExistingCheque: bool
     payeeSettings: PayeeSettings
     globalPayeeSettings: GlobalPayeeSettings
     timeLock: uint256
@@ -88,6 +89,8 @@ struct WhitelistConfigBundle:
     wallet: address
     isWhitelisted: bool
     pendingWhitelist: PendingWhitelist
+    isExistingPayee: bool
+    isExistingCheque: bool
     timeLock: uint256
     walletConfig: address
     isManager: bool
@@ -157,6 +160,7 @@ struct ChequeManagementBundle:
     chequeData: ChequeData
     isExistingCheque: bool
     numActiveCheques: uint256
+    isExistingPayee: bool
     timeLock: uint256
 
 # managers

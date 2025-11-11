@@ -28,6 +28,8 @@ interface UserWalletConfig:
     def confirmWhitelistAddr(_addr: address): nonpayable
     def removeWhitelistAddr(_addr: address): nonpayable
     def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_addr: address) -> uint256: view
+    def cheques(_addr: address) -> wcs.Cheque: view
     def timeLock() -> uint256: view
     def wallet() -> address: view
     def owner() -> address: view
@@ -101,6 +103,10 @@ def addPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert not c.isWhitelisted # dev: already whitelisted
     assert c.pendingWhitelist.initiatedBlock == 0 # dev: pending whitelist already exists
 
+    # cannot whitelist payee or active cheque recipient
+    assert not c.isExistingPayee # dev: already payee
+    assert not c.isExistingCheque # dev: already cheque recipient
+
     # under time lock
     confirmBlock: uint256 = block.number + c.timeLock
     c.pendingWhitelist = wcs.PendingWhitelist(
@@ -126,6 +132,10 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
     assert c.pendingWhitelist.confirmBlock != 0 and block.number >= c.pendingWhitelist.confirmBlock # dev: time delay not reached
     assert c.pendingWhitelist.currentOwner == c.owner # dev: owner must match
+
+    # cannot whitelist payee or active cheque recipient
+    assert not c.isExistingPayee # dev: already payee
+    assert not c.isExistingCheque # dev: already cheque recipient
 
     extcall UserWalletConfig(c.walletConfig).confirmWhitelistAddr(_whitelistAddr)
     log WhitelistAddrConfirmed(user = _userWallet, addr = _whitelistAddr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, confirmedBy = msg.sender)
@@ -235,11 +245,14 @@ def _getWhitelistConfig(_userWallet: address, _whitelistAddr: address, _caller: 
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(walletConfig).globalManagerSettings()
     owner: address = staticcall UserWalletConfig(walletConfig).owner()
 
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_whitelistAddr)
     return wcs.WhitelistConfigBundle(
         owner = owner,
         wallet = staticcall UserWalletConfig(walletConfig).wallet(),
         isWhitelisted = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_whitelistAddr) != 0,
         pendingWhitelist = staticcall UserWalletConfig(walletConfig).pendingWhitelist(_whitelistAddr),
+        isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_whitelistAddr) != 0,
+        isExistingCheque = cheque.active,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
         walletConfig = walletConfig,
         isManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_caller) != 0,

@@ -33,6 +33,7 @@ interface UserWalletConfig:
     def cancelPendingPayee(_payee: address): nonpayable
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
+    def cheques(_addr: address) -> wcs.Cheque: view
     def removePayee(_payee: address): nonpayable
     def timeLock() -> uint256: view
     def owner() -> address: view
@@ -563,6 +564,10 @@ def _isValidNewPayee(
     if _config.isWhitelisted:
         return False, empty(wcs.PayeeSettings)
 
+    # cannot add payee if they have an active cheque
+    if _config.isExistingCheque:
+        return False, empty(wcs.PayeeSettings)
+
     # calculate start delay
     startDelay: uint256 = max(_config.globalPayeeSettings.startDelay, _config.timeLock)
     if _startDelay != 0:
@@ -904,11 +909,13 @@ def getPayeeConfig(_userWallet: address, _payee: address) -> wcs.PayeeManagement
 def _getPayeeConfig(_userWallet: address, _payee: address) -> wcs.PayeeManagementBundle:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_payee)
     return wcs.PayeeManagementBundle(
         owner = owner,
         wallet = _userWallet,
         isRegisteredPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_payee) != 0,
         isWhitelisted = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_payee) != 0,
+        isExistingCheque = cheque.active,
         payeeSettings = staticcall UserWalletConfig(walletConfig).payeeSettings(_payee),
         globalPayeeSettings = staticcall UserWalletConfig(walletConfig).globalPayeeSettings(),
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),

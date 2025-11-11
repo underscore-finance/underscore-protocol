@@ -578,6 +578,147 @@ def test_invalid_new_payee_is_whitelisted(paymaster, user_wallet, user_wallet_co
     )
 
 
+def test_invalid_new_payee_has_active_cheque(
+    paymaster, user_wallet, user_wallet_config, bob, alice, alpha_token,
+    createPayeeLimits, cheque_book, mock_ripe
+):
+    """Test cross-validation: payee cannot be added if they have an active cheque"""
+    # First, set up cheque settings
+    ONE_MONTH_IN_BLOCKS = 30 * ONE_DAY_IN_BLOCKS
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for alice
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        True,
+        sender=bob
+    )
+
+    # Verify alice has an active cheque
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque[10] == True  # active flag
+
+    # Now try to add alice as a payee - should fail
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        alice,  # payee has active cheque (INVALID)
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits  # usdLimits
+    )
+
+
+def test_valid_new_payee_after_cheque_cancelled(
+    paymaster, user_wallet, user_wallet_config, bob, alice, alpha_token,
+    createPayeeLimits, cheque_book, mock_ripe
+):
+    """Test edge case: payee CAN be added after their cheque is cancelled/inactive"""
+    # First, set up cheque settings
+    ONE_MONTH_IN_BLOCKS = 30 * ONE_DAY_IN_BLOCKS
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for alice
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        True,
+        sender=bob
+    )
+
+    # Verify alice has an active cheque
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque[10] == True  # active flag
+
+    # Cancel the cheque
+    cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+
+    # Verify cheque is now inactive
+    cheque_after = user_wallet_config.cheques(alice)
+    assert cheque_after[10] == False  # active flag should be False
+
+    # Now adding alice as a payee should succeed (cheque is inactive)
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert paymaster.isValidNewPayee(
+        user_wallet,
+        alice,  # payee no longer has active cheque (VALID)
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits  # usdLimits
+    )
+
+
 def test_invalid_new_payee_period_too_short(paymaster, user_wallet, createPayeeLimits, alice, fork):
     """Test invalid new payee with period length too short"""
     usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)

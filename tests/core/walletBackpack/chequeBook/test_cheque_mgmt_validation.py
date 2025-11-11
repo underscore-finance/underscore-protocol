@@ -637,8 +637,76 @@ def test_isValidNewCheque_fails_when_recipient_is_whitelisted(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient (doesn't matter, whitelisted check comes first)
+        alpha_token.address,  # _asset
+        100 * EIGHTEEN_DECIMALS,  # _amount
+        ONE_DAY_IN_BLOCKS,  # _unlockNumBlocks
+        ONE_WEEK_IN_BLOCKS,  # _expiryNumBlocks
+        True,  # _canManagerPay
+        False,  # _canBePulled
+        bob,  # _creator
+        100 * EIGHTEEN_DECIMALS,  # _usdValue
+    )
+    assert is_valid == False
+
+
+def test_isValidNewCheque_fails_when_recipient_is_payee(
+    cheque_book, user_wallet, user_wallet_config, bob, alice, alpha_token,
+    createChequeSettings, createChequeData, paymaster, createPayeeLimits,
+    createGlobalPayeeSettings
+):
+    """Test cross-validation: cheques cannot be created for addresses that are already payees"""
+    # First, add alice as a payee
+    global_settings = createGlobalPayeeSettings(_canPull=False, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+
+    usd_limits = createPayeeLimits(
+        _perTxCap=100 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=10000 * EIGHTEEN_DECIMALS
+    )
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,  # payee
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits,  # usdLimits
+        0,  # startDelay
+        2**256 - 1,  # activationLength
+        sender=bob
+    )
+
+    # Verify alice is now a payee
+    assert user_wallet_config.indexOfPayee(alice) != 0
+
+    # Now try to create a cheque for alice (who is already a payee) - should fail
+    cheque_settings = createChequeSettings(
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_MONTH_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+    )
+    cheque_data = createChequeData()
+
+    is_valid = cheque_book.isValidNewCheque(
+        user_wallet.address,  # _wallet
+        user_wallet_config.address,  # _walletConfig
+        bob,  # _owner
+        False,  # _isRecipientOnWhitelist
+        cheque_settings,  # _chequeSettings
+        cheque_data,  # _chequeData
+        False,  # _isExistingCheque
+        0,  # _numActiveCheques
+        True,  # _isExistingPayee
+        ONE_DAY_IN_BLOCKS,  # _timeLock
+        alice,  # _recipient (INVALID: alice is a payee)
         alpha_token.address,  # _asset
         100 * EIGHTEEN_DECIMALS,  # _amount
         ONE_DAY_IN_BLOCKS,  # _unlockNumBlocks
@@ -671,6 +739,7 @@ def test_isValidNewCheque_fails_when_recipient_is_zero_address(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        True,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         ZERO_ADDRESS,  # _recipient (INVALID: zero address)
         alpha_token.address,  # _asset
@@ -705,6 +774,7 @@ def test_isValidNewCheque_fails_when_recipient_is_wallet(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         user_wallet.address,  # _recipient (INVALID: same as wallet)
         alpha_token.address,  # _asset
@@ -739,6 +809,7 @@ def test_isValidNewCheque_fails_when_recipient_is_wallet_config(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         user_wallet_config.address,  # _recipient (INVALID: same as wallet config)
         alpha_token.address,  # _asset
@@ -773,6 +844,7 @@ def test_isValidNewCheque_fails_when_recipient_is_owner(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         bob,  # _recipient (INVALID: same as owner)
         alpha_token.address,  # _asset
@@ -807,6 +879,7 @@ def test_isValidNewCheque_succeeds_with_valid_recipient(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient (VALID: different address)
         alpha_token.address,  # _asset
@@ -841,6 +914,7 @@ def test_isValidNewCheque_fails_with_zero_address_asset(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         ZERO_ADDRESS,  # _asset (INVALID: zero address)
@@ -875,6 +949,7 @@ def test_isValidNewCheque_fails_with_zero_amount(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -910,6 +985,7 @@ def test_isValidNewCheque_fails_when_asset_not_in_allowed_list(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         bravo_token.address,  # _asset (INVALID: not in allowed list)
@@ -945,6 +1021,7 @@ def test_isValidNewCheque_succeeds_when_asset_in_allowed_list(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset (VALID: in allowed list)
@@ -980,6 +1057,7 @@ def test_isValidNewCheque_succeeds_when_allowed_assets_empty(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset (VALID: any asset allowed when list is empty)
@@ -1015,6 +1093,7 @@ def test_isValidNewCheque_fails_when_can_be_pulled_not_allowed_globally(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1050,6 +1129,7 @@ def test_isValidNewCheque_fails_when_manager_pay_not_allowed_globally(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1086,6 +1166,7 @@ def test_isValidNewCheque_succeeds_with_restrictive_cheque_permissions(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1121,6 +1202,7 @@ def test_isValidNewCheque_fails_when_exceeds_max_active_cheques(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque (new cheque)
         5,  # _numActiveCheques (INVALID: already at limit)
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1156,6 +1238,7 @@ def test_isValidNewCheque_succeeds_when_replacing_existing_cheque(
         cheque_data,  # _chequeData
         True,  # _isExistingCheque (VALID: replacing, not new)
         5,  # _numActiveCheques (at limit, but replacing)
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1191,6 +1274,7 @@ def test_isValidNewCheque_succeeds_with_zero_max_active_cheques(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         1000,  # _numActiveCheques (VALID: no limit)
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1231,6 +1315,7 @@ def test_isValidNewCheque_fails_when_within_create_cooldown(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1271,6 +1356,7 @@ def test_isValidNewCheque_succeeds_after_create_cooldown(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
@@ -1308,6 +1394,7 @@ def test_isValidNewCheque_succeeds_with_zero_create_cooldown(
         cheque_data,  # _chequeData
         False,  # _isExistingCheque
         0,  # _numActiveCheques
+        False,  # _isExistingPayee
         ONE_DAY_IN_BLOCKS,  # _timeLock
         alice,  # _recipient
         alpha_token.address,  # _asset
