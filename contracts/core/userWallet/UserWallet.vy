@@ -100,6 +100,7 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+MAX_PROOFS: constant(uint256) = 25
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UE721"
 API_VERSION: constant(String[28]) = "0.1.0"
 
@@ -709,44 +710,55 @@ def repayDebt(
     return repaidAmount, txUsdValue
 
 
-#################
-# Claim Rewards #
-#################
+####################
+# Claim Incentives #
+####################
 
 
 @external
-def claimRewards(
+def claimIncentives(
     _legoId: uint256,
     _rewardToken: address = empty(address),
     _rewardAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
+    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
 ) -> (uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.REWARDS, True, [_rewardToken], [_legoId])
+
+    # pre balance
+    preBalance: uint256 = 0
+    if _rewardToken != empty(address):
+        preBalance = staticcall IERC20(_rewardToken).balanceOf(self)
 
     # claim rewards
     rewardAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimRewards(self, _rewardToken, _rewardAmount, _extraData, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+
+    # post balance
+    postBalance: uint256 = 0
+    if _rewardToken != empty(address):
+        postBalance = staticcall IERC20(_rewardToken).balanceOf(self)
+    actualRewardAmount: uint256 = postBalance - preBalance
 
     # handle rewards fee
     if _rewardToken != empty(address):
         rewardsFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getRewardsFee(self, _rewardToken, ad.missionControl)
-        if rewardsFee != 0 and rewardAmount != 0:
-            rewardsFee = self._payTransactionFee(_rewardToken, rewardAmount, min(rewardsFee, 25_00), ws.ActionType.REWARDS, ad.lootDistributor, ad.missionControl)
-            rewardAmount -= rewardsFee
+        if rewardsFee != 0 and actualRewardAmount != 0:
+            rewardsFee = self._payTransactionFee(_rewardToken, actualRewardAmount, min(rewardsFee, 25_00), ws.ActionType.REWARDS, ad.lootDistributor, ad.missionControl)
+            actualRewardAmount -= rewardsFee
 
     self._performPostActionTasks([_rewardToken], txUsdValue, ad)
     log WalletAction(
         op = 50,
         asset1 = _rewardToken,
         asset2 = ad.legoAddr,
-        amount1 = rewardAmount,
-        amount2 = 0,
+        amount1 = actualRewardAmount,
+        amount2 = rewardAmount,
         usdValue = txUsdValue,
         legoId = ad.legoId,
         signer = ad.signer,
     )
-    return rewardAmount, txUsdValue
+    return actualRewardAmount, txUsdValue
 
 
 ###############

@@ -98,6 +98,7 @@ COMPOUND_V3_CONFIGURATOR: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -559,6 +560,18 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _proofs, _miniAddys)
+
+
+@external
 def claimRewards(
     _user: address,
     _rewardToken: address,
@@ -567,13 +580,25 @@ def claimRewards(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, [_extraData], _miniAddys)
+
+
+@internal
+def _claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256):
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
 
     market: address = empty(address)
-    if _extraData != empty(bytes32):
-        market = convert(_extraData, address)
+    if len(_proofs) != 0:
+        data: bytes32 = _proofs[0]
+        market = convert(data, address)
 
     compRewards: address = self.compoundRewards
     assert compRewards != empty(address) # dev: no comp rewards addr set

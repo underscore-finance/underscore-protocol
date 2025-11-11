@@ -42,11 +42,11 @@ def test_claim_rewards_basic(
     assert initial_balance == 0
 
     reward_amount = 100 * EIGHTEEN_DECIMALS
-    amount_claimed, usd_value = undy_usd_vault.claimRewards(
+    amount_claimed, usd_value = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -72,11 +72,11 @@ def test_claim_rewards_multiple_claims(
     lego_id = setup_rewards_test()
 
     reward_amount_1 = 100 * EIGHTEEN_DECIMALS
-    amount_1, usd_1 = undy_usd_vault.claimRewards(
+    amount_1, usd_1 = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount_1,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -84,11 +84,11 @@ def test_claim_rewards_multiple_claims(
     assert mock_dex_asset.balanceOf(undy_usd_vault) == reward_amount_1
 
     reward_amount_2 = 50 * EIGHTEEN_DECIMALS
-    amount_2, usd_2 = undy_usd_vault.claimRewards(
+    amount_2, usd_2 = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount_2,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -108,11 +108,11 @@ def test_claim_rewards_with_amount(
     lego_id = setup_rewards_test()
 
     reward_amount = 250 * EIGHTEEN_DECIMALS
-    amount_claimed, usd_value = undy_usd_vault.claimRewards(
+    amount_claimed, usd_value = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -129,11 +129,11 @@ def test_claim_rewards_no_manager_perms(
     lego_id = setup_rewards_test()
 
     with boa.reverts("not manager"):
-        undy_usd_vault.claimRewards(
+        undy_usd_vault.claimIncentives(
             lego_id,
             mock_dex_asset.address,
             100 * EIGHTEEN_DECIMALS,
-            b"",
+            [],  # proofs
             sender=bob,
         )
 
@@ -149,11 +149,11 @@ def test_claim_rewards_unregistered_lego(
     invalid_lego_id = 999
 
     with boa.reverts():
-        undy_usd_vault.claimRewards(
+        undy_usd_vault.claimIncentives(
             invalid_lego_id,
             mock_dex_asset.address,
             100 * EIGHTEEN_DECIMALS,
-            b"",
+            [],  # proofs
             sender=starter_agent.address,
         )
 
@@ -171,11 +171,11 @@ def test_claim_rewards_different_reward_tokens(
     mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)
 
     reward_amount_1 = 100 * EIGHTEEN_DECIMALS
-    amount_1, usd_1 = undy_usd_vault.claimRewards(
+    amount_1, usd_1 = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount_1,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -184,11 +184,11 @@ def test_claim_rewards_different_reward_tokens(
     assert mock_dex_asset.balanceOf(undy_usd_vault) == reward_amount_1
 
     reward_amount_2 = 200 * EIGHTEEN_DECIMALS
-    amount_2, usd_2 = undy_usd_vault.claimRewards(
+    amount_2, usd_2 = undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset_alt.address,
         reward_amount_2,
-        b"",
+        [],  # proofs
         sender=starter_agent.address,
     )
 
@@ -207,11 +207,11 @@ def test_claim_rewards_event_details(
     lego_id = setup_rewards_test()
 
     reward_amount = 250 * EIGHTEEN_DECIMALS
-    undy_usd_vault.claimRewards(
+    undy_usd_vault.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
-        b"test_data",
+        [],  # proofs
         sender=starter_agent.address,
     )
 

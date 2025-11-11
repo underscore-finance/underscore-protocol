@@ -83,6 +83,7 @@ RIPE_REGISTRY: public(immutable(address))
 RIPE_TOKEN: immutable(address)
 
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -571,6 +572,19 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _proofs, miniAddys.appraiser)
+
+
+@external
 def claimRewards(
     _user: address,
     _rewardToken: address,
@@ -579,7 +593,18 @@ def claimRewards(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, [], miniAddys.appraiser)
 
+
+@internal
+def _claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _appraiser: address,
+) -> (uint256, uint256):
     lootDistributor: address = addys._getLootDistributorAddr()
 
     # rev share and loot bonus
@@ -592,10 +617,14 @@ def claimRewards(
     if depositRewards != 0:
         depositRewards = extcall LootDistributor(lootDistributor).claimDepositRewards(_user)
 
-    usdValue: uint256 = extcall Appraiser(addys._getAppraiserAddr()).updatePriceAndGetUsdValue(_rewardToken, depositRewards)
+    usdValue: uint256 = extcall Appraiser(_appraiser).updatePriceAndGetUsdValue(_rewardToken, depositRewards)
     if _rewardToken == RIPE_TOKEN:
         return 0, usdValue
+
     return depositRewards, usdValue
+
+
+# has claimable rewards
 
 
 @view

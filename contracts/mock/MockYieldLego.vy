@@ -33,6 +33,7 @@ interface Registry:
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 HUNDRED_PERCENT: constant(uint256) = 100_00
+MAX_PROOFS: constant(uint256) = 25
 
 # mock config
 mockIsRebasing: public(bool)
@@ -537,6 +538,11 @@ def setWithdrawalFees(_withdrawalFees: uint256):
 @external
 def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
     return empty(address), empty(String[64]), 0
+
+
+@external
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
+    return 0, 0
 
 
 @external

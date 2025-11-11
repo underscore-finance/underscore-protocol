@@ -4,6 +4,7 @@ from interfaces import WalletStructs as ws
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_RECOVER_ASSETS: constant(uint256) = 20
+MAX_PROOFS: constant(uint256) = 25
 
 @external
 def addLiquidityConcentrated(_nftTokenId: uint256, _pool: address, _tokenA: address, _tokenB: address, _tickLower: int24, _tickUpper: int24, _amountA: uint256, _amountB: uint256, _minAmountA: uint256, _minAmountB: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, uint256, uint256, uint256):
@@ -50,7 +51,7 @@ def repayDebt(_paymentAsset: address, _paymentAmount: uint256, _extraData: bytes
     ...
 
 @external
-def claimRewards(_user: address, _rewardToken: address, _rewardAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
     ...
 
 @external

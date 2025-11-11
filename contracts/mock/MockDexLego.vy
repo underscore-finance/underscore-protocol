@@ -51,6 +51,7 @@ price: public(HashMap[address, uint256])
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_TOKEN_PATH: constant(uint256) = 5
 LEGO_ACCESS_ABI: constant(String[64]) = "setLegoAccess(address)"
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -345,13 +346,7 @@ def repayDebt(
 
 
 @external
-def claimRewards(
-    _user: address,
-    _rewardToken: address,
-    _rewardAmount: uint256,
-    _extraData: bytes32,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256):
+def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):
     assert not dld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
 
@@ -362,6 +357,17 @@ def claimRewards(
 
     usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, _rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
     return _rewardAmount, usdValue
+
+
+@external
+def claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    return 0, 0
 
 
 #############

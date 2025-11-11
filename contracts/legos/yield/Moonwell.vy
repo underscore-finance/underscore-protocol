@@ -106,6 +106,7 @@ RIPE_REGISTRY: public(immutable(address))
 MAX_MARKETS: constant(uint256) = 50
 MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -617,6 +618,18 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
 
 
 @external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _miniAddys)
+
+
+@external
 def claimRewards(
     _user: address,
     _rewardToken: address,
@@ -625,6 +638,16 @@ def claimRewards(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimIncentives(_user, _rewardToken, _rewardAmount, _miniAddys)
+
+
+@internal
+def _claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
     assert not yld.isPaused # dev: paused
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     preBalance: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user)
@@ -636,6 +659,9 @@ def claimRewards(
 
     usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
     return rewardAmount, usdValue
+
+
+# has claimable rewards
 
 
 @view

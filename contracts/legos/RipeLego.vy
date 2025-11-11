@@ -142,6 +142,7 @@ RIPE_DELEVERAGE_ID: constant(uint256) = 18
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 @deploy
@@ -832,6 +833,18 @@ def _isUserWalletOrEarnVault(_user: address) -> bool:
 
 
 @external
+def claimIncentives(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, MAX_PROOFS],
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256):
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    return self._claimRewards(_user, _rewardToken, _rewardAmount, _miniAddys)
+
+
+@external
 def claimRewards(
     _user: address,
     _rewardToken: address,
@@ -840,9 +853,18 @@ def claimRewards(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
-    assert not yld.isPaused # dev: paused
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    return self._claimRewards(_user, _rewardToken, _rewardAmount, _miniAddys)
 
+
+@internal
+def _claimRewards(
+    _user: address,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256):
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+    assert not yld.isPaused # dev: paused
     assert _rewardToken == RIPE_TOKEN # dev: invalid reward token
 
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
@@ -860,25 +882,14 @@ def claimRewards(
     return 0, usdValue
 
 
+# has claimable rewards
+
+
 @view
 @external
 def hasClaimableRewards(_user: address) -> bool:
     # TODO: implement
     return False
-
-
-@view
-@external
-def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
-    ripeHq: address = RIPE_REGISTRY
-
-    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
-    if staticcall RipeMissionControl(mc).doesUndyLegoHaveAccess(_user, self):
-        return empty(address), empty(String[64]), 0
-
-    else:
-        teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
-        return teller, LEGO_ACCESS_ABI, 1
 
 
 ##################
@@ -895,6 +906,20 @@ def _isAllowedToPerformAction(_caller: address) -> bool:
     if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_caller):
         return True
     return staticcall Registry(RIPE_REGISTRY).isValidAddr(_caller) # Ripe Endaoment is allowed
+
+
+@view
+@external
+def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):
+    ripeHq: address = RIPE_REGISTRY
+
+    mc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    if staticcall RipeMissionControl(mc).doesUndyLegoHaveAccess(_user, self):
+        return empty(address), empty(String[64]), 0
+
+    else:
+        teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
+        return teller, LEGO_ACCESS_ABI, 1
 
 
 #########

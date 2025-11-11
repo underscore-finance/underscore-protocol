@@ -1069,16 +1069,6 @@ def test_withdraw_from_yield_trusted_tx_from_config(setupYieldPosition, user_wal
 ############################
 
 
-
-
-
-
-
-
-
-
-
-
 def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mock_ripe, switchboard_alpha, setUserWalletConfig, createTxFees):
     """Test basic rewards claiming functionality"""
     lego_id = 3  # mock_dex_lego is always id 3
@@ -1102,11 +1092,11 @@ def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mo
     
     # Claim rewards
     reward_amount = 100 * EIGHTEEN_DECIMALS
-    amount_claimed, usd_value = user_wallet.claimRewards(
+    amount_claimed, usd_value = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
-        b"",  # extraData
+        [],  # proofs
         sender=bob
     )
     
@@ -1123,7 +1113,7 @@ def test_claim_rewards_basic(user_wallet, bob, mock_dex_lego, mock_dex_asset, mo
     assert log.asset1 == mock_dex_asset.address
     assert log.asset2 == mock_dex_lego.address
     assert log.amount1 == reward_amount
-    assert log.amount2 == 0
+    assert log.amount2 == reward_amount
     assert log.usdValue == usd_value
     assert log.legoId == lego_id
     assert log.signer == bob
@@ -1157,10 +1147,11 @@ def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset,
     
     # Claim rewards
     reward_amount = 200 * EIGHTEEN_DECIMALS
-    amount_claimed, usd_value = user_wallet.claimRewards(
+    amount_claimed, usd_value = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
+        [],  # proofs
         sender=bob
     )
     
@@ -1185,7 +1176,7 @@ def test_claim_rewards_with_fee(user_wallet, bob, mock_dex_lego, mock_dex_asset,
     assert log.asset1 == mock_dex_asset.address
     assert log.asset2 == mock_dex_lego.address
     assert log.amount1 == expected_net_amount  # Net amount after fee
-    assert log.amount2 == 0
+    assert log.amount2 == reward_amount
     assert log.usdValue == usd_value  # USD value before fee
     
     # Check storage reflects net amount
@@ -1212,10 +1203,11 @@ def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex
     
     # First claim
     claim1_amount = 50 * EIGHTEEN_DECIMALS
-    amount1, usd1 = user_wallet.claimRewards(
+    amount1, usd1 = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         claim1_amount,
+        [],  # proofs
         sender=bob
     )
     
@@ -1224,10 +1216,11 @@ def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex
     
     # Second claim
     claim2_amount = 75 * EIGHTEEN_DECIMALS
-    amount2, usd2 = user_wallet.claimRewards(
+    amount2, usd2 = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         claim2_amount,
+        [],  # proofs
         sender=bob
     )
     
@@ -1236,10 +1229,11 @@ def test_claim_rewards_multiple_claims(user_wallet, bob, mock_dex_lego, mock_dex
     
     # Third claim
     claim3_amount = 25 * EIGHTEEN_DECIMALS
-    amount3, usd3 = user_wallet.claimRewards(
+    amount3, usd3 = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         claim3_amount,
+        [],  # proofs
         sender=bob
     )
     
@@ -1277,10 +1271,11 @@ def test_claim_rewards_with_max_fee_cap(user_wallet, bob, mock_dex_lego, mock_de
     
     # Claim rewards
     reward_amount = 400 * EIGHTEEN_DECIMALS
-    amount_claimed, usd_value = user_wallet.claimRewards(
+    amount_claimed, usd_value = user_wallet.claimIncentives(
         lego_id,
         mock_dex_asset.address,
         reward_amount,
+        [],  # proofs
         sender=bob
     )
     
