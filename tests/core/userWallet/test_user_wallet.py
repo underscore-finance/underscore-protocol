@@ -1507,3 +1507,85 @@ def test_convert_eth_to_weth_updates_asset_tracking(user_wallet, bob, weth, fork
     weth_data = user_wallet.assetData(weth.address)
     assert weth_data.assetBalance == int(0.5 * EIGHTEEN_DECIMALS)
     assert weth_data.usdValue == 1000 * EIGHTEEN_DECIMALS  # 0.5 * $2000
+
+
+################
+# Eject Mode   #
+################
+
+
+def test_eject_mode_blocks_manager_transfers(
+    prepareAssetForWalletTx,
+    user_wallet,
+    user_wallet_config,
+    bob,
+    alice,
+    alpha_token,
+    high_command,
+    switchboard_alpha,
+    createManagerSettings
+):
+    """Test that managers cannot transfer funds when wallet is in eject mode (FIX L-02)"""
+    # Prepare asset
+    amount = prepareAssetForWalletTx()
+
+    # Add alice as a manager
+    manager_settings = createManagerSettings()
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    # Verify alice can transfer in normal mode
+    transfer_amount = 10 * EIGHTEEN_DECIMALS
+    actual_amount, usd_value = user_wallet.transferFunds(
+        bob,
+        alpha_token.address,
+        transfer_amount,
+        sender=alice
+    )
+    assert actual_amount == transfer_amount
+
+    # Set wallet to eject mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
+
+    # Manager should not be able to transfer in eject mode
+    with boa.reverts("only owner can act in eject mode"):
+        user_wallet.transferFunds(
+            bob,
+            alpha_token.address,
+            transfer_amount,
+            sender=alice
+        )
+
+
+def test_eject_mode_allows_owner_transfers(
+    prepareAssetForWalletTx,
+    user_wallet,
+    user_wallet_config,
+    bob,
+    charlie,
+    alpha_token,
+    switchboard_alpha
+):
+    """Test that owner can still transfer funds to owner address in eject mode (FIX L-02)"""
+    # Prepare asset
+    amount = prepareAssetForWalletTx()
+
+    # Set wallet to eject mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
+
+    # Owner should be able to transfer to owner's own address in eject mode
+    # (transferring funds out of wallet to owner's EOA)
+    transfer_amount = 50 * EIGHTEEN_DECIMALS
+    initial_bob_balance = alpha_token.balanceOf(bob)
+    actual_amount, usd_value = user_wallet.transferFunds(
+        bob,  # Transfer to owner's address
+        alpha_token.address,
+        transfer_amount,
+        sender=bob
+    )
+    assert actual_amount == transfer_amount
+
+    # Verify balance
+    assert alpha_token.balanceOf(bob) == initial_bob_balance + transfer_amount
+    assert alpha_token.balanceOf(user_wallet) == amount - transfer_amount

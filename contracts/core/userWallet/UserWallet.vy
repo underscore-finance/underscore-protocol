@@ -1077,6 +1077,7 @@ def _performPreActionTasks(
     # eject mode can only do transfer and eth conversions
     if ad.inEjectMode:
         assert _action in (ws.ActionType.TRANSFER | ws.ActionType.ETH_TO_WETH | ws.ActionType.WETH_TO_ETH) # dev: invalid action in eject mode
+        assert _signer == ad.walletOwner # dev: only owner can act in eject mode
         return ad
 
     # make sure lego can perform the action
