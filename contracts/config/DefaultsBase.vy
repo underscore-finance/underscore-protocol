@@ -22,9 +22,7 @@ USER_WALLET_CONFIG_TEMPLATE: immutable(address)
 AGENT_TEMPLATE: immutable(address)
 STARTING_AGENT: immutable(address)
 
-# trial funds and rewards
-TRIAL_ASSET: immutable(address)
-TRIAL_AMOUNT: immutable(uint256)
+# rewards
 REWARDS_ASSET: immutable(address)
 
 
@@ -34,8 +32,6 @@ def __init__(
     _configTemplate: address,
     _agentTemplate: address,
     _startingAgent: address,
-    _trialAsset: address,
-    _trialAmount: uint256,
     _rewardsAsset: address,
 ):
     USER_WALLET_TEMPLATE = _walletTemplate
@@ -43,8 +39,6 @@ def __init__(
     AGENT_TEMPLATE = _agentTemplate
     STARTING_AGENT = _startingAgent
 
-    TRIAL_ASSET = _trialAsset
-    TRIAL_AMOUNT = _trialAmount
     REWARDS_ASSET = _rewardsAsset
 
 
@@ -57,8 +51,8 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        trialAsset = TRIAL_ASSET,
-        trialAmount = TRIAL_AMOUNT,
+        trialAsset = empty(address),
+        trialAmount = 0,
         numUserWalletsAllowed = 25,
         enforceCreatorWhitelist = True,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,

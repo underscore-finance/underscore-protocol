@@ -32,8 +32,6 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
     def setUserWalletConfig(
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
-        _trialAsset = ZERO_ADDRESS,
-        _trialAmount = 0,
         _numUserWalletsAllowed = 100,
         _enforceCreatorWhitelist = False,
         _minTimeLock = ONE_DAY_IN_BLOCKS // 2,
@@ -52,8 +50,8 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         config = (
             _walletTemplate,
             _configTemplate,
-            _trialAsset,
-            _trialAmount,
+            ZERO_ADDRESS,  # trialAsset
+            0,  # trialAmount
             _numUserWalletsAllowed,
             _enforceCreatorWhitelist,
             _minTimeLock,

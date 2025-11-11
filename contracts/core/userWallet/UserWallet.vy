@@ -56,9 +56,6 @@ interface WethContract:
     def withdraw(_amount: uint256): nonpayable
     def deposit(): payable
 
-interface Hatchery:
-    def doesWalletStillHaveTrialFundsWithAddys(_user: address, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address, _ledger: address) -> bool: view
-
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
@@ -1121,10 +1118,6 @@ def _performPostActionTasks(
 
     if not _ad.inEjectMode:
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
-
-        # check if wallet still has trial funds
-        if not _isSpecialTx:
-            assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
 
 
 ##################

@@ -49,7 +49,6 @@ interface Registry:
 
 flag ActionType:
     USER_WALLET_TEMPLATES
-    TRIAL_FUNDS
     WALLET_CREATION_LIMITS
     KEY_ACTION_TIMELOCK_BOUNDS
     DEFAULT_STALE_BLOCKS
@@ -83,16 +82,6 @@ event PendingUserWalletTemplatesChange:
 event UserWalletTemplatesSet:
     walletTemplate: address
     configTemplate: address
-
-event PendingTrialFundsChange:
-    trialAsset: address
-    trialAmount: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event TrialFundsSet:
-    trialAsset: address
-    trialAmount: uint256
 
 event PendingWalletCreationLimitsChange:
     numUserWalletsAllowed: uint256
@@ -357,21 +346,6 @@ def _areValidUserWalletTemplates(_walletTemplate: address, _configTemplate: addr
     return True
 
 
-# trial funds
-
-
-@external
-def setTrialFunds(_trialAsset: address, _trialAmount: uint256) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    return self._setPendingUserWalletConfig(
-        ActionType.TRIAL_FUNDS,
-        empty(address),
-        empty(address),
-        _trialAsset,
-        _trialAmount
-    )
-
-
 # wallet creation limits
 
 
@@ -384,8 +358,6 @@ def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhit
         ActionType.WALLET_CREATION_LIMITS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         _numUserWalletsAllowed,
         _enforceCreatorWhitelist
     )
@@ -413,8 +385,6 @@ def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTime
         ActionType.KEY_ACTION_TIMELOCK_BOUNDS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         _minKeyActionTimeLock,
@@ -446,8 +416,6 @@ def setDefaultStaleBlocks(_defaultStaleBlocks: uint256) -> uint256:
         ActionType.DEFAULT_STALE_BLOCKS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
@@ -478,8 +446,6 @@ def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256) 
         ActionType.TX_FEES,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
@@ -516,8 +482,6 @@ def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRat
         ActionType.AMBASSADOR_REV_SHARE,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
@@ -569,8 +533,6 @@ def setDefaultYieldParams(
         ActionType.DEFAULT_YIELD_PARAMS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
@@ -622,8 +584,6 @@ def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint25
         ActionType.LOOT_PARAMS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
@@ -1042,8 +1002,6 @@ def _setPendingUserWalletConfig(
     _actionType: ActionType,
     _walletTemplate: address = empty(address),
     _configTemplate: address = empty(address),
-    _trialAsset: address = empty(address),
-    _trialAmount: uint256 = 0,
     _numUserWalletsAllowed: uint256 = 0,
     _enforceCreatorWhitelist: bool = False,
     _minKeyActionTimeLock: uint256 = 0,
@@ -1069,8 +1027,8 @@ def _setPendingUserWalletConfig(
     self.pendingUserWalletConfig[aid] = cs.UserWalletConfig(
         walletTemplate=_walletTemplate,
         configTemplate=_configTemplate,
-        trialAsset=_trialAsset,
-        trialAmount=_trialAmount,
+        trialAsset=empty(address),
+        trialAmount=0,
         numUserWalletsAllowed=_numUserWalletsAllowed,
         enforceCreatorWhitelist=_enforceCreatorWhitelist,
         minKeyActionTimeLock=_minKeyActionTimeLock,
@@ -1100,13 +1058,6 @@ def _setPendingUserWalletConfig(
         log PendingUserWalletTemplatesChange(
             walletTemplate=_walletTemplate,
             configTemplate=_configTemplate,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
-    elif _actionType == ActionType.TRIAL_FUNDS:
-        log PendingTrialFundsChange(
-            trialAsset=_trialAsset,
-            trialAmount=_trialAmount,
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
@@ -1235,14 +1186,6 @@ def executePendingAction(_aid: uint256) -> bool:
         config.configTemplate = p.configTemplate
         extcall MissionControl(mc).setUserWalletConfig(config)
         log UserWalletTemplatesSet(walletTemplate=p.walletTemplate, configTemplate=p.configTemplate)
-
-    elif actionType == ActionType.TRIAL_FUNDS:
-        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
-        p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
-        config.trialAsset = p.trialAsset
-        config.trialAmount = p.trialAmount
-        extcall MissionControl(mc).setUserWalletConfig(config)
-        log TrialFundsSet(trialAsset=p.trialAsset, trialAmount=p.trialAmount)
 
     elif actionType == ActionType.WALLET_CREATION_LIMITS:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()

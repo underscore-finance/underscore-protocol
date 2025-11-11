@@ -260,15 +260,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
-    if asset != _underlyingAsset:
-        return False
-    return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
-
-
-@view
-@external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return self.isEligible 
 

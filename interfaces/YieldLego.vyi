@@ -73,10 +73,6 @@ def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
     ...
 
 
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    ...
 
 
 @view

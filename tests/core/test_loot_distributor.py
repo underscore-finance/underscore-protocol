@@ -340,20 +340,20 @@ def test_add_loot_multiple_ambassadors(loot_distributor, hatchery, env, alpha_to
     ambassador2_eoa = env.generate_address("ambassador2")
     
     # Create ambassador wallets (no ambassador for them)
-    ambassador1_addr = hatchery.createUserWallet(ambassador1_eoa, ZERO_ADDRESS, False, 1, sender=ambassador1_eoa)
+    ambassador1_addr = hatchery.createUserWallet(ambassador1_eoa, ZERO_ADDRESS, 1, sender=ambassador1_eoa)
     ambassador1_wallet = UserWallet.at(ambassador1_addr)
-    
-    ambassador2_addr = hatchery.createUserWallet(ambassador2_eoa, ZERO_ADDRESS, False, 1, sender=ambassador2_eoa)
+
+    ambassador2_addr = hatchery.createUserWallet(ambassador2_eoa, ZERO_ADDRESS, 1, sender=ambassador2_eoa)
     ambassador2_wallet = UserWallet.at(ambassador2_addr)
-    
+
     # Create user wallets with different ambassadors
     user1_eoa = env.generate_address("user1")
     user2_eoa = env.generate_address("user2")
-    
-    user1_addr = hatchery.createUserWallet(user1_eoa, ambassador1_wallet, False, 1, sender=user1_eoa)
+
+    user1_addr = hatchery.createUserWallet(user1_eoa, ambassador1_wallet, 1, sender=user1_eoa)
     user1_wallet = UserWallet.at(user1_addr)
-    
-    user2_addr = hatchery.createUserWallet(user2_eoa, ambassador2_wallet, False, 1, sender=user2_eoa)
+
+    user2_addr = hatchery.createUserWallet(user2_eoa, ambassador2_wallet, 1, sender=user2_eoa)
     user2_wallet = UserWallet.at(user2_addr)
     
     # Set up different rev shares for different assets
@@ -1087,7 +1087,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_no_ambassador(loot_distribut
     """ Test yield bonus with alt bonus asset when there's no ambassador - user still gets bonus """
     
     # Create a new user wallet without ambassador (explicitly pass ZERO_ADDRESS as ambassador)
-    wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, True, 1, sender=charlie)
+    wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, 1, sender=charlie)
     user_wallet_no_ambassador = UserWallet.at(wallet_addr)
    
     # Verify no ambassador is set
@@ -2753,7 +2753,7 @@ def test_claim_deposit_rewards_multiple_users(loot_distributor, user_wallet, amb
     """ Test multiple users claiming deposit rewards """
     
     # Create another user wallet
-    wallet2_addr = hatchery.createUserWallet(charlie, ambassador_wallet, False, 1, sender=charlie)
+    wallet2_addr = hatchery.createUserWallet(charlie, ambassador_wallet, 1, sender=charlie)
     wallet2 = UserWallet.at(wallet2_addr)
     
     # Configure deposit rewards asset
@@ -2847,10 +2847,10 @@ def test_claim_deposit_rewards_zero_user_share(loot_distributor, user_wallet, am
     """ Test claiming when user's share rounds down to zero """
     
     # Create two fresh wallets
-    fresh_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, False, 1, sender=charlie)
+    fresh_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, 1, sender=charlie)
     fresh_wallet = UserWallet.at(fresh_wallet_addr)
-    
-    another_wallet_addr = hatchery.createUserWallet(sally, ambassador_wallet, False, 1, sender=sally)
+
+    another_wallet_addr = hatchery.createUserWallet(sally, ambassador_wallet, 1, sender=sally)
     another_wallet = UserWallet.at(another_wallet_addr)
     
     # Configure and add rewards
@@ -3127,7 +3127,7 @@ def test_claim_deposit_rewards_twice(loot_distributor, user_wallet, ambassador_w
     """ Test user cannot claim rewards twice """
     
     # Create another wallet to ensure global points remain
-    another_wallet_addr = hatchery.createUserWallet(charlie, ambassador_wallet, False, 1, sender=charlie)
+    another_wallet_addr = hatchery.createUserWallet(charlie, ambassador_wallet, 1, sender=charlie)
     another_wallet = UserWallet.at(another_wallet_addr)
     
     # Setup rewards and points
@@ -3644,7 +3644,7 @@ def test_ripe_token_yield_bonus_user_only(loot_distributor, yield_vault_token, y
     """ Test RIPE token yield bonus for user only (no ambassador) """
     
     # Create user wallet without ambassador
-    user_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, False, 1, sender=charlie)
+    user_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, 1, sender=charlie)
     user_wallet = UserWallet.at(user_wallet_addr)
     
     # Set mock_ripe prices
@@ -3843,7 +3843,7 @@ def test_ripe_token_deposit_rewards_with_multiple_users(loot_distributor, user_w
     """ Test RIPE token deposit rewards distributed among multiple users """
     
     # Create additional user wallet
-    wallet2_addr = hatchery.createUserWallet(sally, ambassador_wallet, False, 1, sender=sally)
+    wallet2_addr = hatchery.createUserWallet(sally, ambassador_wallet, 1, sender=sally)
     wallet2 = UserWallet.at(wallet2_addr)
     
     # Set mock_ripe price
@@ -4199,11 +4199,11 @@ def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_tok
     """ Test claimAllLoot with multiple different assets """
     
     # Create a fresh ambassador wallet for this test to avoid state from other tests
-    fresh_ambassador = hatchery.createUserWallet(charlie, charlie, False, 0, sender=charlie)
+    fresh_ambassador = hatchery.createUserWallet(charlie, charlie, 0, sender=charlie)
     fresh_ambassador_wallet = UserWallet.at(fresh_ambassador)
-    
+
     # Create a fresh user wallet with the new ambassador
-    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, False, 1, sender=alice)
+    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 1, sender=alice)
     fresh_user_wallet = UserWallet.at(fresh_user)
     
     # Set up ambassador config
@@ -4395,7 +4395,7 @@ def test_governance_receives_leftover_when_no_ambassador(loot_distributor, hatch
     """ Test that governance receives ALL fees when there's no ambassador """
     
     # Create user wallet WITHOUT ambassador
-    user_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, False, 1, sender=charlie)
+    user_wallet_addr = hatchery.createUserWallet(charlie, ZERO_ADDRESS, 1, sender=charlie)
     user_wallet = UserWallet.at(user_wallet_addr)
     
     # Transfer tokens and approve

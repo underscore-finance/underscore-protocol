@@ -14,8 +14,6 @@ def migrate(migration: Migration):
         user_wallet_config_template,
         agent_template,
         migration.blueprint.CONSTANTS.ZERO_ADDRESS,  # starting agent
-        migration.blueprint.TOKENS["USDC"],  # trial asset
-        10 * 10**6,  # trial amount
         migration.blueprint.TOKENS["RIPE"],  # rewards asset
     )
 

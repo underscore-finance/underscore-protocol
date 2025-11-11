@@ -413,11 +413,11 @@ def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, ali
     # Set configs
     wallet_template = alice
     config_template = bob
-    trial_asset = alice
+    trial_asset = ZERO_ADDRESS
     starting_agent = bob
     
     mission_control.setUserWalletConfig((
-        wallet_template, config_template, trial_asset, 100, 10, False, 200, 2000, 150, ZERO_ADDRESS,
+        wallet_template, config_template, trial_asset, 0, 10, False, 200, 2000, 150, ZERO_ADDRESS,
         createTxFees(), createAmbassadorRevShare(), 15000, 1500, 600, 1200, ZERO_ADDRESS, 172800
     ), sender=switchboard_alpha.address)
     
@@ -448,8 +448,8 @@ def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, ali
     assert creation_config.chequePeriodLength == 172800
     assert creation_config.chequeExpensiveDelayBlocks == 200
     assert creation_config.chequeDefaultExpiryBlocks == 2000
-    assert creation_config.trialAsset == trial_asset
-    assert creation_config.trialAmount == 100
+    assert creation_config.trialAsset == ZERO_ADDRESS  # Trial funds always return empty
+    assert creation_config.trialAmount == 0  # Trial funds always return zero
     assert creation_config.minKeyActionTimeLock == 200
     assert creation_config.maxKeyActionTimeLock == 2000
 

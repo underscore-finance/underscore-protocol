@@ -41,9 +41,6 @@ interface UserWalletConfig:
     def updateAllAssetData(_shouldCheckYield: bool) -> uint256: nonpayable
     def setEjectionMode(_shouldEject: bool): nonpayable
 
-interface Hatchery:
-    def clawBackTrialFunds(_user: address) -> uint256: nonpayable
-
 interface MissionControl:
     def canPerformSecurityAction(_signer: address) -> bool: view
 
@@ -172,9 +169,6 @@ event RecoverNftExecuted:
     collection: indexed(address)
     nftTokenId: uint256
     recipient: indexed(address)
-
-event ClawbackTrialFundsExecuted:
-    numUsers: uint256
 
 event DepositPointsUpdated:
     numUsers: uint256
@@ -335,25 +329,6 @@ def recoverNft(_addr: address, _collection: address, _nftTokenId: uint256, _reci
         actionId=aid
     )
     return aid
-
-
-###############
-# Trial Funds #
-###############
-
-
-@external
-def clawBackTrialFunds(_users: DynArray[address, MAX_USERS]) -> bool:
-    assert self._hasPerms(msg.sender, True) # dev: no perms
-
-    hatchery: address = addys._getHatcheryAddr()
-    ledger: address = addys._getLedgerAddr()
-    for u: address in _users:
-        if not staticcall Ledger(ledger).isUserWallet(u):
-            continue
-        extcall Hatchery(hatchery).clawBackTrialFunds(u)
-    log ClawbackTrialFundsExecuted(numUsers=len(_users))
-    return True
 
 
 ####################

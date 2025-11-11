@@ -12,7 +12,7 @@ def bob_user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
 
-    wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 1, sender=bob)
+    wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob)
     assert wallet_addr != ZERO_ADDRESS
     return UserWallet.at(wallet_addr)
 

@@ -133,7 +133,7 @@ def test_cannot_copy_config_with_pending_owner_change(migrator, user_wallet, use
 def test_cannot_copy_config_different_group_ids(migrator, user_wallet, hatchery, bob):
     """Test that wallets must have the same group ID to copy config"""
     # Create new wallet with different group ID
-    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 2, sender=bob))
+    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 2, sender=bob))
     
     # Cannot copy config between different group IDs
     assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
@@ -326,28 +326,6 @@ def test_migration_bundle_data_for_config(migrator, user_wallet, user_wallet_con
 
 
 # Additional test specific to config copy - no trial funds restriction
-def test_can_copy_config_with_trial_funds(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig):
-    """Test that wallets with trial funds CAN have their config copied (unlike fund migration)"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds as source
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # CAN copy config from wallet with trial funds (unlike fund migration)
-    assert migrator.canCopyWalletConfig(wallet_with_trial, new_wallet, bob)
-
-
 def test_config_copy_validation_caller_validation(migrator, hatchery, bob, alice):
     """Test that caller must be owner of toWallet to initiate config copy"""
     # Create two wallets owned by bob
@@ -775,7 +753,7 @@ def test_migrate_all_nothing_to_migrate(migrator, hatchery, bob):
     """Test migrateAll fails when neither funds nor config can be migrated"""
     # Create two empty wallets with different group IDs (blocks config migration)
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    to_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 2, sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 2, sender=bob))
     
     # Verify no assets to migrate and config migration blocked by different group IDs
     assert from_wallet.numAssets() == 1  # Only ETH

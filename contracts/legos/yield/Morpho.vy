@@ -308,12 +308,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
-
-
-@view
-@external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
 

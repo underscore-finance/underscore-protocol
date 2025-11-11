@@ -94,7 +94,6 @@ def test_set_user_wallet_templates_success(switchboard_alpha, governance, missio
     assert updated_config.configTemplate == user_wallet_config_template_v2.address
     
     # Verify other config fields remain unchanged
-    assert updated_config.trialAmount == initial_config.trialAmount
     assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
     
     # Step 9: Verify action is cleared
@@ -289,151 +288,6 @@ def test_multiple_pending_wallet_template_updates(switchboard_alpha, governance,
     assert final_config.configTemplate == config1.address
 
 
-################
-# Trial Funds  #
-################
-
-
-def test_set_trial_funds_success(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test successful trial funds update through full lifecycle"""
-    # Get initial config
-    initial_config = mission_control.userWalletConfig()
-    
-    # Step 1: Initiate trial funds change
-    trial_amount = 1000 * 10**18  # 1000 tokens
-    aid = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        trial_amount,
-        sender=governance.address
-    )
-    
-    # Step 2: Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingTrialFundsChange")
-    assert len(logs) == 1
-    assert logs[0].trialAsset == alpha_token.address
-    assert logs[0].trialAmount == trial_amount
-    assert logs[0].actionId == aid
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
-    
-    # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.trialAsset == alpha_token.address
-    assert pending_config.trialAmount == trial_amount
-    
-    # Step 4: Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Step 5: Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "TrialFundsSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].trialAsset == alpha_token.address
-    assert exec_logs[0].trialAmount == trial_amount
-    
-    # Step 6: Verify state changes in MissionControl
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.trialAsset == alpha_token.address
-    assert updated_config.trialAmount == trial_amount
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
-    
-    # Step 7: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0
-
-
-def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test that zero amount and zero address are allowed for trial funds"""
-    # Test with zero amount
-    aid = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        0,  # Zero amount
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.userWalletConfig()
-    assert config.trialAsset == alpha_token.address
-    assert config.trialAmount == 0
-    
-    # Test with zero address
-    aid2 = switchboard_alpha.setTrialFunds(
-        ZERO_ADDRESS,  # Zero address
-        100,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.userWalletConfig()
-    assert final_config.trialAsset == ZERO_ADDRESS
-    assert final_config.trialAmount == 100
-
-
-def test_set_trial_funds_non_governance_reverts(switchboard_alpha, alice, alpha_token):
-    """Test that non-governance addresses cannot set trial funds"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setTrialFunds(
-            alpha_token.address,
-            1000,
-            sender=alice
-        )
-
-
-def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governance, mission_control, alpha_token, wallet_template_v2, config_template_v2):
-    """Test that trial funds and template updates can coexist as separate actions"""
-    # Create pending template update
-    aid1 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Create pending trial funds update
-    aid2 = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        2000,
-        sender=governance.address
-    )
-    
-    # Verify different action types
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    
-    # Execute trial funds first
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify only trial funds changed
-    config = mission_control.userWalletConfig()
-    assert config.trialAsset == alpha_token.address
-    assert config.trialAmount == 2000
-    # Templates should be unchanged
-    initial_config = mission_control.userWalletConfig()
-    assert config.walletTemplate == initial_config.walletTemplate
-    
-    # Execute template update
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-    
-    # Verify both changes are applied
-    final_config = mission_control.userWalletConfig()
-    assert final_config.walletTemplate == wallet_template_v2.address
-    assert final_config.configTemplate == config_template_v2.address
-    assert final_config.trialAsset == alpha_token.address
-    assert final_config.trialAmount == 2000
-
-
 ##########################
 # Wallet Creation Limits #
 ##########################
@@ -482,7 +336,6 @@ def test_set_wallet_creation_limits_success(switchboard_alpha, governance, missi
     
     # Verify other fields unchanged
     assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.trialAmount == initial_config.trialAmount
 
 
 def test_set_wallet_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
@@ -540,25 +393,26 @@ def test_set_wallet_creation_limits_mixed_with_other_updates(switchboard_alpha, 
     """Test that wallet creation limits can be updated alongside other configs"""
     # Set wallet creation limits
     aid1 = switchboard_alpha.setWalletCreationLimits(3, True, sender=governance.address)
-    
-    # Set trial funds
-    aid2 = switchboard_alpha.setTrialFunds(ZERO_ADDRESS, 500, sender=governance.address)
-    
+
+    # Set tx fees as another config update
+    aid2 = switchboard_alpha.setTxFees(100, 50, 25, sender=governance.address)
+
     # Execute both
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    
+
     result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result1 == True
-    
+
     result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result2 == True
-    
+
     # Verify both changes applied
     config = mission_control.userWalletConfig()
     assert config.numUserWalletsAllowed == 3
     assert config.enforceCreatorWhitelist == True
-    assert config.trialAsset == ZERO_ADDRESS
-    assert config.trialAmount == 500
+    assert config.txFees.swapFee == 100
+    assert config.txFees.stableSwapFee == 50
+    assert config.txFees.rewardsFee == 25
 
 
 ###############################
