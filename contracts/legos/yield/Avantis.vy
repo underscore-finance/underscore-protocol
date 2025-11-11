@@ -36,10 +36,6 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20Detailed
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
@@ -51,6 +47,9 @@ interface Registry:
 
 interface AvantisVault:
     def getWithdrawalFeesTotal(_amount: uint256) -> uint256: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -232,7 +231,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -449,7 +448,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log AvantisDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -518,7 +517,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log AvantisWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

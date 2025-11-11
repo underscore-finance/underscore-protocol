@@ -31,6 +31,7 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import WalletConfigStructs as wcs
+from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
@@ -54,9 +55,6 @@ interface UserWallet:
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
-
-interface Appraiser:
-    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
 
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
@@ -301,14 +299,11 @@ def _withdrawFromYieldOpportunities(
         if config.underlyingAsset != _paymentAsset or config.legoId == 0:
             continue
 
-        # get price per share for this vault token
-        pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks, config.decimals)
-        if pricePerShare == 0:
-            continue
-
-        # calculate how many vault tokens we need to withdraw
+        # skip if vault tokens needed rounds to 0 (dust)
         amountStillNeeded: uint256 = targetWithdrawalAmount - amountWithdraw
-        vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** config.decimals) // pricePerShare
+        vaultTokensNeeded: uint256 = staticcall YieldLego(config.legoAddr).getVaultTokenAmount(config.underlyingAsset, amountStillNeeded, asset)
+        if vaultTokensNeeded == 0:
+            continue
 
         # withdraw vault tokens to get underlying
         underlyingAmount: uint256 = 0

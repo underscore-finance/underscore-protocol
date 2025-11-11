@@ -39,18 +39,11 @@ from ethereum.ercs import IERC20Detailed
 
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
-    def isRegisteredBackpackItem(_addr: address) -> bool: view
     def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
     def createAgent(_agent: address): nonpayable
     def numUserWallets() -> uint256: view
     def numAgents() -> uint256: view
-
-interface UserWalletConfig:
-    def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
-    def deregisterAsset(_asset: address) -> bool: nonpayable
-    def setWallet(_wallet: address) -> bool: nonpayable
-    def owner() -> address: view
 
 interface WalletBackpack:
     def highCommand() -> address: view
@@ -64,13 +57,6 @@ interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
-    def canPerformSecurityAction(_addr: address) -> bool: view
-
-interface UserWallet:
-    def assetData(asset: address) -> WalletAssetData: view
-    def assets(i: uint256) -> address: view
-    def walletConfig() -> address: view
-    def numAssets() -> uint256: view
 
 interface HighCommand:
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
@@ -82,8 +68,8 @@ interface ChequeBook:
 interface Paymaster:
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
 
-interface Appraiser:
-    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
+interface UserWalletConfig:
+    def setWallet(_wallet: address) -> bool: nonpayable
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view

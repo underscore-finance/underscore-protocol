@@ -17,13 +17,12 @@ import contracts.modules.DexLegoData as dld
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
-interface Appraiser:
-    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface MockToken:
     def mint(_to: address, _value: uint256): nonpayable
     def burn(_value: uint256) -> bool: nonpayable
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 struct BestPool:
     pool: address
@@ -173,9 +172,9 @@ def swapTokens(
     extcall MockToken(tokenOut).mint(_recipient, amount)
 
     # get usd values
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenIn, amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(tokenIn, amount)
     if usdValue == 0:
-        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenOut, amount, miniAddys.missionControl, miniAddys.legoBook)
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(tokenOut, amount)
 
     return amount, amount, usdValue
     
@@ -208,7 +207,7 @@ def mintOrRedeemAsset(
     usdValue: uint256 = 0
     if self.immediateMintOrRedeem:
         extcall MockToken(_tokenOut).mint(_recipient, amount)
-        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenOut, amount, miniAddys.missionControl, miniAddys.legoBook)
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_tokenOut, amount)
 
     # create pending mint
     else:
@@ -240,7 +239,7 @@ def confirmMintOrRedeemAsset(
     extcall MockToken(pending.tokenOut).mint(_recipient, pending.amount)
     self.pendingMintOrRedeem[msg.sender] = empty(PendingMintOrRedeem)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenOut, pending.amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_tokenOut, pending.amount)
     return pending.amount, usdValue
 
 
@@ -269,7 +268,7 @@ def addCollateral(
 
     extcall MockToken(_asset).burn(amount)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, amount)
     return amount, usdValue
 
 
@@ -289,7 +288,7 @@ def removeCollateral(
 
     extcall MockToken(_asset).mint(_recipient, _amount)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, _amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, _amount)
     return _amount, usdValue
 
 
@@ -312,7 +311,7 @@ def borrow(
 
     extcall MockToken(_borrowAsset).mint(_recipient, _amount)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_borrowAsset, _amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_borrowAsset, _amount)
     return _amount, usdValue
 
 
@@ -336,7 +335,7 @@ def repayDebt(
 
     extcall MockToken(_paymentAsset).burn(amount)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_paymentAsset, amount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_paymentAsset, amount)
     return amount, usdValue
 
 
@@ -355,7 +354,7 @@ def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint25
 
     extcall MockToken(_rewardToken).mint(_user, _rewardAmount)
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, _rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, _rewardAmount)
     return _rewardAmount, usdValue
 
 
@@ -473,11 +472,11 @@ def _getUsdValue(
 
     usdValueA: uint256 = 0
     if _amountA != 0:
-        usdValueA = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueA = staticcall Appraiser(_miniAddys.appraiser).getUnderlyingUsdValue(_tokenA, _amountA)
 
     usdValueB: uint256 = 0
     if _amountB != 0:
-        usdValueB = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueB = staticcall Appraiser(_miniAddys.appraiser).getUnderlyingUsdValue(_tokenB, _amountB)
 
     return usdValueA + usdValueB
 

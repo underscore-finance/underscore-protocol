@@ -66,7 +66,7 @@ interface RipeRegistry:
 
 interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
@@ -305,7 +305,7 @@ def _getUsdValueViaAppraiser(_asset: address, _amount: uint256, _appraiser: addr
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -508,7 +508,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log RipeSavingsGreenDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -577,7 +577,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log RipeSavingsGreenWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
@@ -658,7 +658,7 @@ def addCollateral(
         refundAssetAmount = currentLegoBalance - preLegoBalance
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
     log RipeCollateralDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -697,7 +697,7 @@ def removeCollateral(
     amountRemoved: uint256 = extcall RipeTeller(teller).withdraw(_asset, _amount, _recipient, empty(address), vaultId)
     assert amountRemoved != 0 # dev: no asset amount received
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, amountRemoved, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(_asset, amountRemoved, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
     log RipeCollateralWithdrawal(
         sender = msg.sender,
         asset = _asset,
@@ -735,7 +735,7 @@ def borrow(
     borrowAmount: uint256 = extcall RipeTeller(teller).borrow(_amount, _recipient, wantsSavingsGreen, False)
     assert borrowAmount != 0 # dev: no borrow amount received
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_borrowAsset, borrowAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_borrowAsset, borrowAmount)
     log RipeBorrow(
         sender = msg.sender,
         asset = _borrowAsset,
@@ -787,7 +787,7 @@ def repayDebt(
         refundAssetAmount = currentLegoBalance - preLegoBalance
         assert extcall IERC20(_paymentAsset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_paymentAsset, paymentAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(_paymentAsset, paymentAmount, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
     log RipeRepay(
         sender = msg.sender,
         asset = _paymentAsset,
@@ -865,7 +865,7 @@ def _claimRewards(
     totalRipe: uint256 = extcall RipeTeller(teller).claimLoot(_user, True)
     assert totalRipe != 0 # dev: no ripe tokens received
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, totalRipe, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, totalRipe)
     log RipeClaimRewards(
         sender = msg.sender,
         asset = _rewardToken,

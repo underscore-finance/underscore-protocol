@@ -41,16 +41,15 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
 
 interface MorphoRewardsDistributor:
     def claim(_user: address, _rewardToken: address, _claimable: uint256, _proofs: DynArray[bytes32, MAX_PROOFS]) -> uint256: nonpayable
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -251,7 +250,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -470,7 +469,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log MorphoDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -539,7 +538,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log MorphoWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
@@ -591,7 +590,7 @@ def claimIncentives(
     assert morphoRewards != empty(address) # dev: no morpho rewards addr set
 
     rewardAmount: uint256 = extcall MorphoRewardsDistributor(morphoRewards).claim(_user, _rewardToken, _rewardAmount, _proofs)
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, rewardAmount)
     return rewardAmount, usdValue
 
 

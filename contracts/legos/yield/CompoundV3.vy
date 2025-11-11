@@ -47,10 +47,6 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface CompoundV3Rewards:
     def getRewardOwed(_comet: address, _user: address) -> RewardOwed: nonpayable
     def claim(_comet: address, _user: address, _shouldAccrue: bool): nonpayable
@@ -58,6 +54,9 @@ interface CompoundV3Rewards:
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -243,7 +242,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -453,7 +452,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log CompoundV3Deposit(
         sender = msg.sender,
         asset = _asset,
@@ -521,7 +520,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log CompoundV3Withdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
@@ -603,7 +602,7 @@ def _claimIncentives(
 
     rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
     assert rewardAmount != 0 # dev: no rewards received
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, rewardAmount)
     return rewardAmount, usdValue
 
 
