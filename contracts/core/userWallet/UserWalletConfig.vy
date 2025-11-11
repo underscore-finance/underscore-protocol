@@ -424,11 +424,14 @@ def validateCheque(
     # IMPORTANT -- make sure this recipient has valid cheque
     assert isValidCheque # dev: invalid cheque
 
-    # only save if data was updated  
+    # only save if data was updated
     if data.lastChequePaidBlock != 0:
         self.chequePeriodData = data
         self.numActiveCheques -= 1
-    
+
+        # deactivate cheque after payment to prevent double-pulling
+        self.cheques[_recipient] = empty(wcs.Cheque)
+
     return True
 
 

@@ -86,12 +86,196 @@ def test_pullPaymentAsCheque_success_basic(
     assert event.userWallet == user_wallet.address
 
 
+def test_pullPaymentAsCheque_prevents_double_pulling(
+    billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book,
+    user_wallet_config, mock_ripe
+):
+    """Cheque cannot be pulled multiple times (vulnerability mitigation)"""
+    # Setup cheque settings with canBePulled enabled
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled - Enable pull payments
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)  # $1 per token
+
+    # Create cheque with canBePulled enabled
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,  # canManagerPay
+        True,  # canBePulled - Enable for this specific cheque
+        sender=bob
+    )
+
+    # Advance time to unlock the cheque
+    boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
+
+    # Fund the wallet with MORE than enough for double payment (to test the protection)
+    total_funds = 150 * EIGHTEEN_DECIMALS  # 3x the cheque amount
+    alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
+
+    # Verify cheque exists and is active before first pull
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque[10] == True  # active flag is at index 10 in the Cheque struct
+    initial_num_active = user_wallet_config.numActiveCheques()
+    assert initial_num_active == 1
+
+    # FIRST PULL: Alice pulls payment successfully
+    initial_balance = alpha_token.balanceOf(alice)
+    tx_amount, tx_usd_value = billing.pullPaymentAsCheque(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+
+    # Verify first payment succeeded
+    assert tx_amount == amount
+    assert tx_usd_value == amount
+    assert alpha_token.balanceOf(alice) == initial_balance + amount
+
+    # Verify wallet still has funds (100 tokens remaining)
+    assert alpha_token.balanceOf(user_wallet.address) == 100 * EIGHTEEN_DECIMALS
+
+    # Verify cheque was deactivated after first pull (FIX H-01)
+    cheque_after = user_wallet_config.cheques(alice)
+    assert cheque_after[10] == False  # active flag should now be False
+    assert user_wallet_config.numActiveCheques() == 0
+
+    # SECOND PULL ATTEMPT: Alice tries to pull the same cheque again (should FAIL)
+    balance_before_second_attempt = alpha_token.balanceOf(alice)
+
+    with boa.reverts():
+        billing.pullPaymentAsCheque(
+            user_wallet.address,
+            alpha_token.address,
+            amount,
+            sender=alice
+        )
+
+    # Verify second pull failed - no funds transferred
+    assert alpha_token.balanceOf(alice) == balance_before_second_attempt
+
+    # Verify wallet funds unchanged after failed second pull
+    assert alpha_token.balanceOf(user_wallet.address) == 100 * EIGHTEEN_DECIMALS
+
+    # Verify cheque remains inactive
+    assert user_wallet_config.numActiveCheques() == 0
+
+
+def test_pullPaymentAsCheque_multiple_cheques_each_work_once(
+    billing, bob, alice, charlie, sally, alpha_token, alpha_token_whale, user_wallet,
+    cheque_book, user_wallet_config, mock_ripe
+):
+    """Test that multiple different cheques can each be pulled once, but not twice"""
+    # Setup cheque settings
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        200 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create cheques for three recipients
+    amount = 30 * EIGHTEEN_DECIMALS
+    for recipient in [alice, charlie, sally]:
+        cheque_book.createCheque(
+            user_wallet.address,
+            recipient,
+            alpha_token.address,
+            amount,
+            ONE_DAY_IN_BLOCKS,
+            ONE_WEEK_IN_BLOCKS,
+            True,
+            True,
+            sender=bob
+        )
+
+    # Advance time to unlock the cheques
+    boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
+
+    # Fund the wallet with enough for all three cheques
+    total_funds = 100 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
+
+    # Verify all three cheques are active
+    assert user_wallet_config.numActiveCheques() == 3
+
+    # Each recipient pulls their cheque once
+    for recipient in [alice, charlie, sally]:
+        initial_balance = alpha_token.balanceOf(recipient)
+        billing.pullPaymentAsCheque(
+            user_wallet.address,
+            alpha_token.address,
+            amount,
+            sender=recipient
+        )
+        # Verify payment succeeded
+        assert alpha_token.balanceOf(recipient) == initial_balance + amount
+
+    # Verify all cheques were deactivated
+    assert user_wallet_config.numActiveCheques() == 0
+
+    # Verify each recipient cannot pull again
+    for recipient in [alice, charlie, sally]:
+        balance_before = alpha_token.balanceOf(recipient)
+        with boa.reverts():
+            billing.pullPaymentAsCheque(
+                user_wallet.address,
+                alpha_token.address,
+                amount,
+                sender=recipient
+            )
+        # Verify no funds transferred
+        assert alpha_token.balanceOf(recipient) == balance_before
+
+
 def test_pullPaymentAsCheque_fails_not_user_wallet(
     billing, alice, alpha_token
 ):
     """Test that pull payment fails when address is not a user wallet"""
     invalid_wallet = boa.env.generate_address()
-    
+
     with boa.reverts("not a user wallet"):
         billing.pullPaymentAsCheque(
             invalid_wallet,
