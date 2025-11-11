@@ -1766,11 +1766,181 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
         amount,
         sender=alice
     )
-    
+
     # Verify payment was pulled
     assert tx_amount == amount
-    
+
     # Verify vault was emptied and deregistered
     assert alpha_token_vault.balanceOf(user_wallet.address) == 0
     assert user_wallet.indexOfAsset(alpha_token_vault.address) == 0
+
+
+def test_pullPaymentAsPayee_blocked_in_eject_mode(
+    billing,
+    user_wallet,
+    user_wallet_config,
+    alpha_token,
+    alpha_token_whale,
+    paymaster,
+    switchboard_alpha,
+    bob,
+    alice,
+    createPayeeLimits,
+    createGlobalPayeeSettings,
+    mock_ripe
+):
+    """Test that payees cannot pull payments while wallet is in eject mode (FIX M-09)"""
+    # Setup global payee settings with canPull enabled
+    global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+
+    # Add alice as payee with canPull enabled
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,
+        True,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        False,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        createPayeeLimits(_perTxCap=100 * EIGHTEEN_DECIMALS),  # usdLimits
+        0,  # startDelay
+        2**256 - 1,  # activationLength
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Time travel to activate payee
+    boa.env.time_travel(blocks=22000)
+
+    # Fund wallet with tokens
+    amount = 50 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    # Verify payee can pull payment in normal mode
+    tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
+        user_wallet.address,
+        alpha_token.address,
+        amount // 2,
+        sender=alice
+    )
+    assert tx_amount == amount // 2
+
+    # Set wallet to eject mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True  # Verify mode was set
+
+    # Verify payee cannot pull payment in eject mode
+    with boa.reverts("cannot pull payment in eject mode"):
+        billing.pullPaymentAsPayee(
+            user_wallet.address,
+            alpha_token.address,
+            amount // 2,
+            sender=alice
+        )
+
+
+def test_pullPaymentAsCheque_blocked_in_eject_mode(
+    billing,
+    user_wallet,
+    user_wallet_config,
+    alpha_token,
+    alpha_token_whale,
+    cheque_book,
+    switchboard_alpha,
+    bob,
+    alice,
+    mock_ripe
+):
+    """Test that cheque recipients cannot pull payments while wallet is in eject mode (FIX M-09)"""
+    # Setup cheque settings with canBePulled enabled
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create cheque with canBePulled enabled
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Advance time to unlock the cheque
+    boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
+
+    # Fund the wallet
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    # Verify cheque recipient can pull payment in normal mode
+    tx_amount, tx_usd_value = billing.pullPaymentAsCheque(
+        user_wallet.address,
+        alpha_token.address,
+        amount,
+        sender=alice
+    )
+    assert tx_amount == amount
+
+    # Fund wallet again for second pull attempt
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    # Create second cheque since first one is used
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Advance time to unlock the second cheque
+    boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
+
+    # Set wallet to eject mode
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True  # Verify mode was set
+
+    # Verify cheque recipient cannot pull payment in eject mode
+    with boa.reverts("cannot pull payment in eject mode"):
+        billing.pullPaymentAsCheque(
+            user_wallet.address,
+            alpha_token.address,
+            amount,
+            sender=alice
+        )
 

@@ -42,6 +42,7 @@ interface UserWalletConfig:
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def cheques(_recipient: address) -> wcs.Cheque: view
     def chequeSettings() -> wcs.ChequeSettings: view
+    def inEjectMode() -> bool: view
 
 interface UserWallet:
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
@@ -128,6 +129,9 @@ def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAm
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     assert self._canPullPaymentAsCheque(chequeRecipient, walletConfig) # dev: no perms
 
+    # block payment pulls in eject mode
+    assert not staticcall UserWalletConfig(walletConfig).inEjectMode() # dev: cannot pull payment in eject mode
+
     # pull payment
     amount: uint256 = 0
     usdValue: uint256 = 0
@@ -175,6 +179,9 @@ def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmo
     payee: address = msg.sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     assert self._canPullPaymentAsPayee(payee, walletConfig) # dev: no perms
+
+    # block payment pulls in eject mode
+    assert not staticcall UserWalletConfig(walletConfig).inEjectMode() # dev: cannot pull payment in eject mode
 
     # pull payment
     amount: uint256 = 0
