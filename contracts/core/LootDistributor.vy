@@ -350,13 +350,15 @@ def _handleYieldBonus(
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
 
-    # get usd value
+    # convert yield realized to USD value
     usdValue: uint256 = 0
     if _config.underlyingAsset != empty(address):
         underlyingAmount: uint256 = staticcall YieldLego(_config.legoAddr).getUnderlyingAmount(_asset, _yieldRealized)
         usdValue = staticcall Appraiser(appraiser).getUnderlyingUsdValue(_config.underlyingAsset, underlyingAmount)
     else:
         usdValue = staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _yieldRealized)
+    if usdValue == 0:
+        return
 
     # convert USD value to RIPE token amount
     bonusAsset: address = _config.altBonusAsset # RIPE token
