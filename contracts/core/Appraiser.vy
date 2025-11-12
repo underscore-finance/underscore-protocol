@@ -31,15 +31,16 @@ from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20Detailed
 
+interface RipePriceDesk:
+    def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
+    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
+    def addPriceSnapshot(_asset: address) -> bool: nonpayable
+
 interface Ledger:
     def isRegisteredBackpackItem(_user: address) -> bool: view
     def vaultTokens(_vaultToken: address) -> VaultToken: view
     def isUserWallet(_user: address) -> bool: view
-
-interface RipePriceDesk:
-    def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
-    def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256: view
-    def addPriceSnapshot(_asset: address) -> bool: nonpayable
 
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
@@ -103,26 +104,6 @@ def __init__(
 
     WETH = _wethAddr
     ETH = _ethAddr
-
-
-# TODO: LootDistributor stuff
-
-
-@view
-@external
-def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256:
-    return 0
-
-@view
-@external
-def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256:
-    return 0
-
-
-@view
-@external
-def getPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256:
-    return 0
 
 
 ##################
@@ -409,6 +390,15 @@ def _getUnderlyingUsdValueFromRipe(_asset: address, _amount: uint256) -> (uint25
         return 0, empty(address)
     usdValue: uint256 = staticcall RipePriceDesk(ripePriceDesk).getUsdValue(_asset, _amount, False)
     return usdValue, ripePriceDesk
+
+
+@view
+@external
+def getAssetAmountFromRipe(_asset: address, _usdValue: uint256) -> uint256:
+    ripePriceDesk: address = staticcall Registry(RIPE_HQ).getAddr(RIPE_PRICE_DESK_ID)
+    if ripePriceDesk == empty(address):
+        return 0
+    return staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(_asset, _usdValue, False)
 
 
 #########
