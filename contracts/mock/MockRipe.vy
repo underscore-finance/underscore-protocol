@@ -11,6 +11,7 @@ interface MockToken:
 mockPrices: public(HashMap[address, uint256]) # asset -> price in USD (18 decimals)
 userCollateral: public(HashMap[address, HashMap[address, uint256]]) # user -> asset -> amount
 userDebt: public(HashMap[address, uint256]) # user -> debt amount
+snapshotsCalled: public(HashMap[address, uint256]) # Track snapshot calls for testing
 
 GREEN_TOKEN: public(immutable(address))
 SAVINGS_GREEN: public(immutable(address))
@@ -246,6 +247,7 @@ def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool:
 
 @external
 def addPriceSnapshot(_asset: address) -> bool:
+    self.snapshotsCalled[_asset] += 1
     return True
 
 
