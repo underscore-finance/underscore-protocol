@@ -445,12 +445,9 @@ def test_multiple_yield_deposits(prepareAssetForWalletTx, user_wallet, bob, yiel
     assert vault_data.assetBalance == final_total
 
 
-def test_yield_asset_data_tracking(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
+def test_yield_asset_data_tracking(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
     """Test yield asset data is properly tracked with isYieldAsset and lastPricePerShare"""
-    
-    # set stale blocks to a known value
-    setUserWalletConfig(_staleBlocks=10)
-    
+
     # setup: prepare underlying tokens in wallet
     deposit_amount = prepareAssetForWalletTx(
         _asset=yield_underlying_token,
@@ -494,10 +491,10 @@ def test_yield_asset_data_tracking(prepareAssetForWalletTx, user_wallet, bob, yi
 
 def test_yield_price_per_share_update_via_updateAssetData(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, switchboard_alpha):
     """Test that price per share updates when calling updateAssetData with _shouldCheckYield=True"""
-    
-    # set stale blocks to a known value
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
-    
+
+    # set performance fee to 0 for easier calculation
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
+
     # setup: prepare underlying tokens in wallet
     deposit_amount = prepareAssetForWalletTx(
         _asset=yield_underlying_token,
@@ -552,7 +549,7 @@ def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_walle
     """Test that yield profits are detected when transferring yield assets"""
     
     # set stale blocks to a known value and disable yield fee
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup and initial deposit
     deposit_amount = prepareAssetForWalletTx(
@@ -607,7 +604,7 @@ def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, b
     """Test that yield performance fee is deducted when yield profits are detected"""
     
     # set stale blocks, 20% yield performance fee, and remove yield cap
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=20_00, _defaultYieldMaxIncrease=0)  # 20% fee, no cap
+    setUserWalletConfig(_defaultYieldPerformanceFee=20_00, _defaultYieldMaxIncrease=0)  # 20% fee, no cap
     
     # setup and initial deposit
     deposit_amount = prepareAssetForWalletTx(
@@ -675,74 +672,6 @@ def test_yield_performance_fee_deduction(prepareAssetForWalletTx, user_wallet, b
     assert gov_balance_increase == expected_fee
 
 
-def test_yield_no_update_within_stale_blocks(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
-    """Test that price per share doesn't update within stale blocks period"""
-    
-    # set stale blocks to 20
-    setUserWalletConfig(_staleBlocks=20)
-    
-    # setup and initial deposit
-    deposit_amount = prepareAssetForWalletTx(
-        _asset=yield_underlying_token,
-        _amount=100 * EIGHTEEN_DECIMALS,
-        _whale=yield_underlying_token_whale,
-        _price=10 * EIGHTEEN_DECIMALS,
-        _shouldCheckYield=False
-    )
-    
-    lego_id = 2
-    _, _, vault_tokens_received, _ = user_wallet.depositForYield(
-        lego_id,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        deposit_amount,
-        sender=bob
-    )
-    
-    initial_vault_data = user_wallet.assetData(yield_vault_token.address)
-    initial_price_per_share = initial_vault_data.lastPricePerShare
-    
-    # time travel less than stale blocks (10 < 20)
-    boa.env.time_travel(blocks=10)
-    
-    # simulate yield accrual
-    yield_underlying_token.transfer(yield_vault_token.address, 30 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    
-    # verify actual price per share increased
-    new_actual_price_per_share = yield_vault_token.convertToAssets(EIGHTEEN_DECIMALS)
-    assert new_actual_price_per_share > initial_price_per_share
-    
-    # deposit more - price per share should NOT update (within stale blocks)
-    yield_underlying_token.transfer(user_wallet, 50 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    
-    _, _, _, _ = user_wallet.depositForYield(
-        lego_id,
-        yield_underlying_token.address,
-        yield_vault_token.address,
-        50 * EIGHTEEN_DECIMALS,
-        sender=bob
-    )
-    
-    # verify price per share was NOT updated (still using cached value)
-    vault_data = user_wallet.assetData(yield_vault_token.address)
-    assert vault_data.lastPricePerShare == initial_price_per_share  # unchanged
-    
-    # time travel beyond stale blocks
-    boa.env.time_travel(blocks=15)  # total 25 blocks > 20 stale blocks
-    
-    # now transfer should update price per share
-    _, _ = user_wallet.transferFunds(
-        bob,
-        yield_vault_token.address,
-        10 * EIGHTEEN_DECIMALS,
-        sender=bob
-    )
-    
-    # verify price per share was finally updated
-    final_vault_data = user_wallet.assetData(yield_vault_token.address)
-    assert final_vault_data.lastPricePerShare == new_actual_price_per_share
-
-
 #######################
 # Withdraw from Yield #
 #######################
@@ -782,7 +711,7 @@ def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underl
     """Test basic withdrawal from yield position"""
     
     # disable yield fees for simplicity
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup position
     vault_tokens = setupYieldPosition()
@@ -836,7 +765,7 @@ def test_withdraw_yield_basic(setupYieldPosition, user_wallet, bob, yield_underl
 def test_withdraw_yield_entire_balance(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
     """Test withdrawing entire yield position deregisters vault token"""
     
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup position
     vault_tokens = setupYieldPosition()
@@ -872,7 +801,7 @@ def test_withdraw_yield_entire_balance(setupYieldPosition, user_wallet, bob, yie
 def test_withdraw_yield_with_max_value(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
     """Test withdrawing with max_value withdraws entire balance"""
     
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup position
     vault_tokens = setupYieldPosition()
@@ -894,7 +823,7 @@ def test_withdraw_yield_with_max_value(setupYieldPosition, user_wallet, bob, yie
 def test_withdraw_yield_with_accrued_yield(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
     """Test withdrawal after yield has accrued updates price per share"""
     
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup position
     vault_tokens = setupYieldPosition()
@@ -928,7 +857,7 @@ def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bo
     """Test withdrawal with yield accrued deducts performance fee"""
     
     # 20% performance fee, no yield cap
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=20_00, _defaultYieldMaxIncrease=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=20_00, _defaultYieldMaxIncrease=0)
     
     # setup position
     vault_tokens = setupYieldPosition()
@@ -966,7 +895,7 @@ def test_withdraw_yield_with_performance_fee(setupYieldPosition, user_wallet, bo
 def test_withdraw_yield_multiple_sequential(setupYieldPosition, user_wallet, bob, yield_underlying_token, yield_vault_token, setUserWalletConfig):
     """Test multiple sequential withdrawals"""
     
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # setup position with 90 tokens (divisible by 3)
     vault_tokens = setupYieldPosition(_deposit_amount=90 * EIGHTEEN_DECIMALS)

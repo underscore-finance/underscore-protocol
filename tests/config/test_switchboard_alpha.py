@@ -519,86 +519,10 @@ def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance
     assert final_config.maxKeyActionTimeLock == large_max
 
 
-#########################
-# Default Stale Blocks  #
-#########################
+# REMOVED: Default Stale Blocks tests - functionality no longer exists
+# The defaultStaleBlocks configuration has been removed from the protocol
 
 
-def test_set_default_stale_blocks_success(switchboard_alpha, governance, mission_control):
-    """Test successful default stale blocks update"""
-    # Set new value
-    stale_blocks = 43200  # ~1 day
-    
-    aid = switchboard_alpha.setDefaultStaleBlocks(
-        stale_blocks,
-        sender=governance.address
-    )
-    
-    # Verify event
-    logs = filter_logs(switchboard_alpha, "PendingDefaultStaleBlocksChange")
-    assert len(logs) == 1
-    assert logs[0].defaultStaleBlocks == stale_blocks
-    assert logs[0].actionId == aid
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_STALE_BLOCKS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultStaleBlocks == stale_blocks
-    
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "DefaultStaleBlocksSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].defaultStaleBlocks == stale_blocks
-    
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultStaleBlocks == stale_blocks
-
-
-def test_set_default_stale_blocks_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values are rejected"""
-    # Test with 0
-    with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(0, sender=governance.address)
-    
-    # Test with max_value
-    with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(MAX_UINT256, sender=governance.address)
-
-
-def test_set_default_stale_blocks_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance addresses cannot set default stale blocks"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setDefaultStaleBlocks(100, sender=alice)
-
-
-def test_set_default_stale_blocks_edge_cases(switchboard_alpha, governance, mission_control):
-    """Test edge cases for default stale blocks"""
-    # Test with 1 (minimum valid)
-    aid = switchboard_alpha.setDefaultStaleBlocks(1, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.userWalletConfig()
-    assert config.defaultStaleBlocks == 1
-    
-    # Test with max_value - 1
-    large_blocks = 2**256 - 2
-    aid2 = switchboard_alpha.setDefaultStaleBlocks(large_blocks, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.userWalletConfig()
-    assert final_config.defaultStaleBlocks == large_blocks
 
 
 ###########
@@ -1192,17 +1116,12 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     """Test successful asset configuration update"""
     # Set new asset config
     asset = alpha_token.address
-    lego_id = 2  # Assuming valid lego ID
-    stale_blocks = 100
     swap_fee = 30  # 0.3%
     stable_swap_fee = 10  # 0.1%
     rewards_fee = 50  # 0.5%
     ambassador_swap_ratio = 1000  # 10%
     ambassador_rewards_ratio = 2000  # 20%
     ambassador_yield_ratio = 1500  # 15%
-    is_yield_asset = True
-    is_rebasing = False
-    underlying_asset = ZERO_ADDRESS
     max_yield_increase = 500  # 5%
     performance_fee = 1000  # 10%
     ambassador_bonus_ratio = 5000  # 50%
@@ -1211,17 +1130,12 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     
     aid = switchboard_alpha.setAssetConfig(
         asset,
-        lego_id,
-        stale_blocks,
         swap_fee,
         stable_swap_fee,
         rewards_fee,
         ambassador_swap_ratio,
         ambassador_rewards_ratio,
         ambassador_yield_ratio,
-        is_yield_asset,
-        is_rebasing,
-        underlying_asset,
         max_yield_increase,
         performance_fee,
         ambassador_bonus_ratio,
@@ -1234,17 +1148,12 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     logs = filter_logs(switchboard_alpha, "PendingAssetConfigChange")
     assert len(logs) == 1
     assert logs[0].asset == asset
-    assert logs[0].legoId == lego_id
-    assert logs[0].staleBlocks == stale_blocks
     assert logs[0].txFeesSwapFee == swap_fee
     assert logs[0].txFeesStableSwapFee == stable_swap_fee
     assert logs[0].txFeesRewardsFee == rewards_fee
     assert logs[0].ambassadorRevShareSwapRatio == ambassador_swap_ratio
     assert logs[0].ambassadorRevShareRewardsRatio == ambassador_rewards_ratio
     assert logs[0].ambassadorRevShareYieldRatio == ambassador_yield_ratio
-    assert logs[0].isYieldAsset == is_yield_asset
-    assert logs[0].isRebasing == is_rebasing
-    assert logs[0].underlyingAsset == underlying_asset
     assert logs[0].maxYieldIncrease == max_yield_increase
     assert logs[0].performanceFee == performance_fee
     assert logs[0].ambassadorBonusRatio == ambassador_bonus_ratio
@@ -1264,9 +1173,8 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     
     # Verify the asset config was saved in MissionControl
     saved_config = mission_control.assetConfig(asset)
-    assert saved_config.legoId == lego_id
+    assert saved_config.hasConfig == True
     assert saved_config.decimals == 18  # Alpha token has 18 decimals
-    assert saved_config.staleBlocks == stale_blocks
     
     # Verify tx fees
     assert saved_config.txFees.swapFee == swap_fee
@@ -1279,9 +1187,6 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     assert saved_config.ambassadorRevShare.yieldRatio == ambassador_yield_ratio
     
     # Verify yield config
-    assert saved_config.yieldConfig.isYieldAsset == is_yield_asset
-    assert saved_config.yieldConfig.isRebasing == is_rebasing
-    assert saved_config.yieldConfig.underlyingAsset == underlying_asset
     assert saved_config.yieldConfig.maxYieldIncrease == max_yield_increase
     assert saved_config.yieldConfig.performanceFee == performance_fee
     assert saved_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus_ratio
@@ -1294,8 +1199,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test swap fee > 5%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 501, 0, 0,  # swap fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 501, 0, 0,  # swap fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1303,8 +1208,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test stable swap fee > 2%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 0, 201, 0,  # stable swap fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 0, 201, 0,  # stable swap fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1312,8 +1217,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test rewards fee > 25%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 0, 0, 2501,  # rewards fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 0, 0, 2501,  # rewards fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1324,8 +1229,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test max increase > 10%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             1001, 0, 0, 0, ZERO_ADDRESS,  # max increase too high
             sender=governance.address
         )
@@ -1333,8 +1238,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test performance fee > 25%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 2501, 0, 0, ZERO_ADDRESS,  # performance fee too high
             sender=governance.address
         )
@@ -1342,8 +1247,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test ambassador bonus > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 1000, 10001, 0, ZERO_ADDRESS,  # ambassador bonus too high
             sender=governance.address
         )
@@ -1351,8 +1256,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test bonus ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 1000, 5000, 10001, ZERO_ADDRESS,  # bonus ratio too high
             sender=governance.address
         )
@@ -1363,26 +1268,26 @@ def test_set_asset_config_invalid_ambassador_rev_share_revert(switchboard_alpha,
     # Test swap ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            10001, 0, 0, False, False, ZERO_ADDRESS,  # swap ratio too high
+            alpha_token.address, 50, 10, 100,
+            10001, 0, 0,  # swap ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
-    
+
     # Test rewards ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            0, 10001, 0, False, False, ZERO_ADDRESS,  # rewards ratio too high
+            alpha_token.address, 50, 10, 100,
+            0, 10001, 0,  # rewards ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
-    
+
     # Test yield ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            0, 0, 10001, False, False, ZERO_ADDRESS,  # yield ratio too high
+            alpha_token.address, 50, 10, 100,
+            0, 0, 10001,  # yield ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1392,50 +1297,31 @@ def test_set_asset_config_invalid_asset_revert(switchboard_alpha, governance):
     """Test that asset config with invalid asset address is rejected"""
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            ZERO_ADDRESS, 1, 100, 50, 10, 100,  # zero address asset
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            ZERO_ADDRESS, 50, 10, 100,  # zero address asset
+            1000, 2000, 1500,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
 
 
-def test_set_asset_config_invalid_stale_blocks_revert(switchboard_alpha, governance, alpha_token):
-    """Test that asset config with invalid stale blocks is rejected"""
-    # Test stale blocks = 0
-    with boa.reverts("invalid asset config"):
-        switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 0, 50, 10, 100,  # stale blocks = 0
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
-            0, 0, 0, 0, ZERO_ADDRESS,
-            sender=governance.address
-        )
-    
-    # Test stale blocks = max_value(uint256)
-    with boa.reverts("invalid asset config"):
-        switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 2**256 - 1, 50, 10, 100,  # stale blocks = max uint256
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
-            0, 0, 0, 0, ZERO_ADDRESS,
-            sender=governance.address
-        )
+# Note: test_set_asset_config_invalid_stale_blocks_revert was removed as staleBlocks is no longer part of AssetConfig
 
 
 def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission_control, alpha_token):
     """Test setting config for non-yield asset"""
     aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 100, 50, 10, 100,
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,  # is_yield_asset = False
-        999, 2499, 9999, 9999, alpha_token.address,  # These should be ignored
+        alpha_token.address, 50, 10, 100,
+        1000, 2000, 1500,
+        0, 0, 0, 0, ZERO_ADDRESS,  # All yield params set to 0 for non-yield asset
         sender=governance.address
     )
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     
-    # Verify the yield config is empty when is_yield_asset is False
+    # Verify the yield config is empty for non-yield asset
     exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].isYieldAsset == False
     assert exec_logs[0].maxYieldIncrease == 0
     assert exec_logs[0].performanceFee == 0
     assert exec_logs[0].ambassadorBonusRatio == 0
@@ -1445,8 +1331,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     
     # Verify the config was saved in MissionControl
     saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.legoId == 1  # lego_ripe
-    assert saved_config.staleBlocks == 100
+    assert saved_config.hasConfig == True
     assert saved_config.txFees.swapFee == 50
     assert saved_config.txFees.stableSwapFee == 10
     assert saved_config.txFees.rewardsFee == 100
@@ -1454,10 +1339,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     assert saved_config.ambassadorRevShare.rewardsRatio == 2000
     assert saved_config.ambassadorRevShare.yieldRatio == 1500
     
-    # Verify yield config is not set when is_yield_asset is False
-    assert saved_config.yieldConfig.isYieldAsset == False
-    assert saved_config.yieldConfig.isRebasing == False
-    assert saved_config.yieldConfig.underlyingAsset == ZERO_ADDRESS
+    # Verify yield config defaults
     assert saved_config.yieldConfig.maxYieldIncrease == 0
     assert saved_config.yieldConfig.performanceFee == 0
     assert saved_config.yieldConfig.ambassadorBonusRatio == 0
@@ -1468,10 +1350,9 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
 def test_set_asset_config_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):
     """Test setting all percentages to their maximum allowed values"""
     aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 100,
+        alpha_token.address,
         500, 200, 2500,  # Max tx fees: 5%, 2%, 25%
         10000, 10000, 10000,  # Max ambassador rev share: 100% each
-        True, False, ZERO_ADDRESS,
         1000, 2500, 10000, 10000, alpha_token.address,  # Max yield params: 10%, 25%, 100%, 100%
         sender=governance.address
     )
@@ -1511,56 +1392,14 @@ def test_set_asset_config_non_governance_reverts(switchboard_alpha, alice, alpha
     """Test that non-governance addresses cannot set asset config"""
     with boa.reverts("no perms"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=alice
         )
 
 
-def test_set_asset_config_edge_case_stale_blocks(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test setting asset config with edge case stale blocks values"""
-    # Test with stale blocks = 1 (minimum valid value)
-    aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 1, 50, 10, 100,  # stale blocks = 1
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,
-        0, 0, 0, 0, ZERO_ADDRESS,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    
-    # Must use filter_logs immediately after the transaction
-    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].staleBlocks == 1
-    assert result == True
-    
-    # Verify MissionControl saved the minimum stale blocks value
-    saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.staleBlocks == 1
-    
-    # Test with stale blocks = max_value - 1 (maximum valid value)
-    aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 2**256 - 2, 50, 10, 100,  # stale blocks = max - 1
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,
-        0, 0, 0, 0, ZERO_ADDRESS,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    
-    # Must use filter_logs immediately after the transaction
-    exec_logs2 = filter_logs(switchboard_alpha, "AssetConfigSet")
-    assert len(exec_logs2) == 1
-    assert exec_logs2[0].staleBlocks == 2**256 - 2
-    assert result == True
-    
-    # Verify MissionControl saved the maximum stale blocks value
-    saved_config2 = mission_control.assetConfig(alpha_token.address)
-    assert saved_config2.staleBlocks == 2**256 - 2
+# Note: test_set_asset_config_edge_case_stale_blocks was removed as staleBlocks is no longer part of AssetConfig
 
 
 ##################

@@ -1070,19 +1070,23 @@ def _getLootDistroConfig(
     config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
     config.ambassador = _ambassador
 
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
+    # Always check if this is a yield asset by checking Ledger.vaultTokens
+    # Since underlyingAsset and legoId are no longer in config
+    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+    if vaultToken.underlyingAsset != empty(address):
+        # This is a yield asset registered in Ledger
+        config.legoId = vaultToken.legoId
+        config.underlyingAsset = vaultToken.underlyingAsset
+
+        # Use vault token decimals if config doesn't have them
+        if config.decimals == 0:
             config.decimals = vaultToken.decimals
-            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr
     if _shouldGetLegoInfo and config.legoId != 0 and legoBook != empty(address) and config.legoAddr == empty(address):
         config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
 
-    # get decimals if needed
+    # get decimals if still needed
     if config.decimals == 0:
         config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
 

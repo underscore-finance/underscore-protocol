@@ -36,7 +36,6 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _enforceCreatorWhitelist = False,
         _minTimeLock = ONE_DAY_IN_BLOCKS // 2,
         _maxTimeLock = 7 * ONE_DAY_IN_BLOCKS,
-        _staleBlocks = 0,
         _depositRewardsAsset = ZERO_ADDRESS,
         _txFees = createTxFees(),
         _ambassadorRevShare = createAmbassadorRevShare(),
@@ -50,13 +49,10 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         config = (
             _walletTemplate,
             _configTemplate,
-            ZERO_ADDRESS,  # trialAsset
-            0,  # trialAmount
             _numUserWalletsAllowed,
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
-            _staleBlocks,
             _depositRewardsAsset,
             _txFees,
             _ambassadorRevShare,
@@ -108,16 +104,13 @@ def createAmbassadorRevShare():
 def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     def setAssetConfig(
         _asset,
-        _legoId = 1,
-        _staleBlocks = 0,
         _txFees = createTxFees(),
         _ambassadorRevShare = createAmbassadorRevShare(),
         _yieldConfig = createAssetYieldConfig(),
     ):
         config = (
-            _legoId,
+            True,  # hasConfig - always True when setting config
             _asset.decimals(),
-            _staleBlocks,
             _txFees,
             _ambassadorRevShare,
             _yieldConfig,
@@ -129,9 +122,6 @@ def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbas
 @pytest.fixture(scope="session")
 def createAssetYieldConfig():
     def createAssetYieldConfig(
-        _isYieldAsset = False,
-        _isRebasing = False,
-        _underlyingAsset = ZERO_ADDRESS,
         _maxYieldIncrease = 5_00,
         _performanceFee = 20_00,
         _ambassadorBonusRatio = 0,
@@ -139,9 +129,6 @@ def createAssetYieldConfig():
         _altBonusAsset = ZERO_ADDRESS,
     ):
         return (
-            _isYieldAsset,
-            _isRebasing,
-            _underlyingAsset,
             _maxYieldIncrease,
             _performanceFee,
             _ambassadorBonusRatio,

@@ -291,19 +291,28 @@ def test_update_price_and_get_usd_value_and_is_yield_asset_yield(appraiser, yiel
 
 def test_calculate_yield_profits_no_update_rebasing_profit(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
     """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with profit """
-    
+
     # Configure as rebasing yield asset with 25% performance fee
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=0,  # no cap
         _performanceFee=25_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Current balance increased to 1100 (10% increase)
@@ -330,20 +339,29 @@ def test_calculate_yield_profits_no_update_rebasing_profit(appraiser, yield_vaul
     assert performance_fee == 25_00
 
 
-def test_calculate_yield_profits_no_update_rebasing_balance_decreased(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_calculate_yield_profits_no_update_rebasing_balance_decreased(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
     """ Test calculateYieldProfitsNoUpdate for rebasing yield asset when balance decreased or stayed same """
-    
+
     # Configure as rebasing yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Test 1: Current balance less than last balance
@@ -382,21 +400,30 @@ def test_calculate_yield_profits_no_update_rebasing_balance_decreased(appraiser,
     assert performance_fee == 0
 
 
-def test_calculate_yield_profits_no_update_rebasing_with_cap(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_calculate_yield_profits_no_update_rebasing_with_cap(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
     """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with max yield cap """
-    
+
     # Configure as rebasing yield asset with 3% max yield increase
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=3_00,  # 3%
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Current balance increased by 10% (exceeds 3% cap)
@@ -434,21 +461,30 @@ def test_calculate_yield_profits_no_update_rebasing_with_cap(appraiser, yield_va
     assert actual_profit == expected_capped_profit
 
 
-def test_calculate_yield_profits_no_update_rebasing_no_cap_huge_increase(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_calculate_yield_profits_no_update_rebasing_no_cap_huge_increase(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
     """ Test calculateYieldProfitsNoUpdate for rebasing yield asset with no cap and huge increase """
-    
+
     # Configure as rebasing yield asset with no cap
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=0,  # No cap
         _performanceFee=15_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Current balance increased by 500%
@@ -470,20 +506,29 @@ def test_calculate_yield_profits_no_update_rebasing_no_cap_huge_increase(apprais
     assert performance_fee == 15_00
 
 
-def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig):
     """ Test calculateYieldProfitsNoUpdate for rebasing yield asset when lastBalance is zero """
-    
+
     # Configure as rebasing yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Last balance is zero
@@ -505,21 +550,30 @@ def test_calculate_yield_profits_no_update_rebasing_last_balance_zero(appraiser,
     assert performance_fee == 0
 
 
-def test_calculate_yield_profits_external_rebasing(appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig, user_wallet):
+def test_calculate_yield_profits_external_rebasing(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAssetYieldConfig, user_wallet):
     """ Test calculateYieldProfits external function for rebasing yield assets """
-    
+
     # Configure as rebasing yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=True,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=5_00,  # 5%
         _performanceFee=25_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
+    )
+
+    # Set vault to be rebasing (must be done before registration)
+    mock_yield_lego.setIsRebasing(True)
+
+    # Register vault token via deposit
+    deposit_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.approve(mock_yield_lego, deposit_amount, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        deposit_amount,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
     
     # Call external function from user wallet
@@ -550,14 +604,10 @@ def test_calculate_yield_profits_no_update_normal_first_time(appraiser, yield_va
     
     # Configure as normal (non-rebasing) yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -600,14 +650,10 @@ def test_calculate_yield_profits_no_update_normal_price_decreased(appraiser, yie
     
     # Configure as normal yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -650,15 +696,11 @@ def test_calculate_yield_profits_no_update_normal_with_cap(appraiser, yield_vaul
     
     # Configure as normal yield asset with 5% max yield increase
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=5_00,  # 5%
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -718,15 +760,11 @@ def test_calculate_yield_profits_no_update_normal_no_cap(appraiser, yield_vault_
     
     # Configure as normal yield asset with no cap
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=0,  # No cap
         _performanceFee=15_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -781,14 +819,10 @@ def test_handle_normal_yield_current_price_per_share_zero(appraiser, yield_vault
     
     # Configure as normal yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -817,15 +851,11 @@ def test_calculate_yield_profits_external_normal_yield(appraiser, yield_vault_to
     
     # Configure as normal yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=10_00,  # 10%
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -891,15 +921,11 @@ def test_handle_normal_yield_different_balances(appraiser, yield_vault_token, yi
     
     # Configure as normal yield asset
     yield_config = createAssetYieldConfig(
-        _isYieldAsset=True,
-        _isRebasing=False,
-        _underlyingAsset=yield_underlying_token,
         _maxYieldIncrease=0,  # No cap
         _performanceFee=20_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId=2,
         _yieldConfig=yield_config,
     )
     
@@ -957,37 +983,42 @@ def test_appraiser_get_profit_calc_config_no_config(appraiser, yield_vault_token
     config = appraiser.getProfitCalcConfig(yield_vault_token)
     assert config.legoId == 0
 
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    # staleBlocks removed from config - no longer tested
     assert config.maxYieldIncrease == 5_00
     assert config.performanceFee == 20_00
 
-    # because not a yield asset, will not get decimals
-    assert config.decimals == 0
+    # decimals now always come from the token itself
+    assert config.decimals == yield_vault_token.decimals()
 
 
-def test_appraiser_get_profit_calc_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_appraiser_get_profit_calc_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig):
     """ mission control asset config is set, no ledger vault token registration, will use mission control config """
+
+    # Register vault token first (needed for yield properties to be derived from Ledger)
+    mock_yield_lego.setIsRebasing(True)
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
+    )
 
     # set mission control asset config
     yield_config = createAssetYieldConfig(
-        _isYieldAsset = True,
-        _isRebasing = True,
-        _underlyingAsset = yield_underlying_token,
         _maxYieldIncrease = 9_00,
         _performanceFee = 26_00,
     )
     setAssetConfig(
         yield_vault_token,
-        _legoId = 2,  # mock_yield_lego
-        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
         _yieldConfig = yield_config,
     )
 
     config = appraiser.getProfitCalcConfig(yield_vault_token)
-    assert config.legoId == 2  # mock_yield_lego
+    assert config.legoId == 2  # mock_yield_lego (from vault registration)
     assert config.legoAddr == mock_yield_lego.address
 
-    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
+    # staleBlocks removed from config - no longer tested
     assert config.maxYieldIncrease == 9_00
     assert config.performanceFee == 26_00
 
@@ -1023,8 +1054,7 @@ def test_appraiser_get_profit_calc_config_with_vault_registration(appraiser, yie
     assert config.isRebasing == False
     assert config.underlyingAsset == yield_underlying_token.address
 
-    # will use global defaults
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    # will use global defaults (staleBlocks removed from config - no longer tested)
     assert config.maxYieldIncrease == 5_00
     assert config.performanceFee == 20_00
 
@@ -1039,31 +1069,35 @@ def test_appraiser_get_asset_usd_value_config_no_config(appraiser, yield_vault_t
     assert config.legoId == 0
     assert config.legoAddr == ZERO_ADDRESS
     assert config.decimals == yield_vault_token.decimals()
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    # staleBlocks removed from config - no longer tested
     assert config.isYieldAsset == False
     assert config.underlyingAsset == ZERO_ADDRESS
 
 
-def test_appraiser_get_asset_usd_value_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, setAssetConfig, createAssetYieldConfig):
+def test_appraiser_get_asset_usd_value_config_with_asset_config(mock_yield_lego, appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig):
     """ mission control asset config is set, no ledger vault token registration, will use mission control config """
 
-    # set mission control asset config
-    yield_config = createAssetYieldConfig(
-        _isYieldAsset = True,
-        _underlyingAsset = yield_underlying_token,
+    # Register vault token first (needed for yield properties to be derived from Ledger)
+    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+    mock_yield_lego.depositForYield(
+        yield_underlying_token,
+        1_000 * EIGHTEEN_DECIMALS,
+        yield_vault_token,
+        sender=yield_underlying_token_whale,
     )
+
+    # set mission control asset config
+    yield_config = createAssetYieldConfig()
     setAssetConfig(
         yield_vault_token,
-        _legoId = 2,  # mock_yield_lego
-        _staleBlocks = 2 * ONE_DAY_IN_BLOCKS,
         _yieldConfig = yield_config,
     )
 
     config = appraiser.getAssetUsdValueConfig(yield_vault_token)
-    assert config.legoId == 2  # mock_yield_lego
+    assert config.legoId == 2  # mock_yield_lego (from vault registration)
     assert config.legoAddr == mock_yield_lego.address
     assert config.decimals == yield_vault_token.decimals()
-    assert config.staleBlocks == 2 * ONE_DAY_IN_BLOCKS
+    # staleBlocks removed from config - no longer tested
     assert config.isYieldAsset == True
     assert config.underlyingAsset == yield_underlying_token.address
 
@@ -1095,8 +1129,7 @@ def test_appraiser_get_asset_usd_value_config_with_vault_registration(appraiser,
     assert config.isYieldAsset == True
     assert config.underlyingAsset == yield_underlying_token.address
 
-    # will use global defaults
-    assert config.staleBlocks == ONE_DAY_IN_BLOCKS // 2
+    # will use global defaults (staleBlocks removed from config - no longer tested)
 
 
 #########

@@ -45,13 +45,10 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        trialAsset = empty(address),
-        trialAmount = 0,
         numUserWalletsAllowed = max_value(uint256),
         enforceCreatorWhitelist = False,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
         maxKeyActionTimeLock = 7 * DAY_IN_BLOCKS,
-        defaultStaleBlocks = DAY_IN_BLOCKS // 2,
         depositRewardsAsset = empty(address),
         txFees = cs.TxFees(
             swapFee = 0,

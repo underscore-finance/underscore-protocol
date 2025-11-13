@@ -426,22 +426,26 @@ def _getProfitCalcConfig(
 ) -> ProfitCalcConfig:
     config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
 
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
+    # Always check if this is a yield asset by checking Ledger.vaultTokens
+    # Since isYieldAsset, isRebasing, and underlyingAsset are no longer in config
+    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+    if vaultToken.underlyingAsset != empty(address):
+        # This is a yield asset registered in Ledger
+        config.legoId = vaultToken.legoId
+        config.isYieldAsset = True
+        config.isRebasing = vaultToken.isRebasing
+        config.underlyingAsset = vaultToken.underlyingAsset
+
+        # Use vault token decimals if config doesn't have them
+        if config.decimals == 0:
             config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.isRebasing = vaultToken.isRebasing
-            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):
         config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
 
-    # get decimals if needed
-    if config.isYieldAsset and config.decimals == 0:
+    # get decimals if still needed
+    if config.decimals == 0:
         config.decimals = self._getDecimals(_asset)
 
     return config
@@ -467,14 +471,18 @@ def _getAssetUsdValueConfig(
 ) -> AssetUsdValueConfig:
     config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
 
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
+    # Always check if this is a yield asset by checking Ledger.vaultTokens
+    # Since isYieldAsset and underlyingAsset are no longer in config
+    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+    if vaultToken.underlyingAsset != empty(address):
+        # This is a yield asset registered in Ledger
+        config.legoId = vaultToken.legoId
+        config.isYieldAsset = True
+        config.underlyingAsset = vaultToken.underlyingAsset
+
+        # Use vault token decimals if config doesn't have them
+        if config.decimals == 0:
             config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):

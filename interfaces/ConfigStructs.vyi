@@ -3,27 +3,19 @@
 struct UserWalletConfig:
     walletTemplate: address
     configTemplate: address
-    trialAsset: address
-    trialAmount: uint256
     numUserWalletsAllowed: uint256
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-    defaultStaleBlocks: uint256
     depositRewardsAsset: address
+    lootClaimCoolOffPeriod: uint256
     txFees: TxFees
     ambassadorRevShare: AmbassadorRevShare
-    defaultYieldMaxIncrease: uint256
-    defaultYieldPerformanceFee: uint256
-    defaultYieldAmbassadorBonusRatio: uint256
-    defaultYieldBonusRatio: uint256
-    defaultYieldAltBonusAsset: address
-    lootClaimCoolOffPeriod: uint256
+    yieldConfig: YieldConfig
 
 struct AssetConfig:
-    legoId: uint256
+    hasConfig: bool
     decimals: uint256
-    staleBlocks: uint256
     txFees: TxFees
     ambassadorRevShare: AmbassadorRevShare
     yieldConfig: YieldConfig
@@ -39,14 +31,11 @@ struct AmbassadorRevShare:
     yieldRatio: uint256
 
 struct YieldConfig:
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
     maxYieldIncrease: uint256
     performanceFee: uint256
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
 
 struct AgentConfig:
     agentTemplate: address

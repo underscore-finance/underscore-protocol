@@ -215,7 +215,7 @@ def isRebasing() -> bool:
 @view
 @internal
 def _isRebasing() -> bool:
-    return False
+    return self.mockIsRebasing
 
 
 # price per share

@@ -103,8 +103,6 @@ struct UserWalletCreationConfig:
     chequePeriodLength: uint256
     chequeExpensiveDelayBlocks: uint256
     chequeDefaultExpiryBlocks: uint256
-    trialAsset: address
-    trialAmount: uint256
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
 
@@ -290,20 +288,24 @@ def _getAssetUsdValueConfig(
 ) -> AssetUsdValueConfig:
     config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
 
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
+    # Always check if this is a yield asset by checking Ledger.vaultTokens
+    # Since isYieldAsset and underlyingAsset are no longer in config
+    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
+    if vaultToken.underlyingAsset != empty(address):
+        # This is a yield asset registered in Ledger
+        config.legoId = vaultToken.legoId
+        config.isYieldAsset = True
+        config.underlyingAsset = vaultToken.underlyingAsset
+
+        # Use vault token decimals if config doesn't have them
+        if config.decimals == 0:
             config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.underlyingAsset = vaultToken.underlyingAsset
 
     # get lego addr if needed
     if config.legoId != 0 and config.legoAddr == empty(address):
         config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
 
-    # get decimals if needed
+    # get decimals if still needed
     if config.decimals == 0:
         config.decimals = self._getDecimals(_asset)
 
