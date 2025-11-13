@@ -63,12 +63,6 @@ struct BestPool:
     liquidity: uint256
     numCoins: uint256
 
-struct Route:
-    from_: address
-    to: address 
-    stable: bool
-    factory: address
-
 event UniswapV2Swap:
     sender: indexed(address)
     tokenIn: indexed(address)

@@ -33,8 +33,6 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import WalletConfigStructs as wcs
 
-from ethereum.ercs import IERC20
-
 interface WalletBackpack:
     def highCommand() -> address: view
     def chequeBook() -> address: view
@@ -67,12 +65,6 @@ interface Paymaster:
 
 interface UserWalletConfig:
     def setWallet(_wallet: address) -> bool: nonpayable
-
-struct WalletAssetData:
-    assetBalance: uint256
-    usdValue: uint256
-    isYieldAsset: bool
-    lastYieldPrice: uint256
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -114,9 +106,6 @@ event AgentCreated:
     owner: indexed(address)
     creator: indexed(address)
     groupId: uint256
-
-HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
-MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))

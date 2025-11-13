@@ -1,15 +1,13 @@
 #     ╔════════════════════════════════════════════════════════════════════════════════╗
-#     ║  ** Signature Helper **                                                       ║
+#     ║  ** Signature Helper **                                                        ║
 #     ║  Generates message hashes for AgentWrapper signatures                          ║
 #     ╚════════════════════════════════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
-# pragma optimize codesize
 
 import contracts.modules.SigHelper as sigHelper
-
 from interfaces import Wallet
 
 struct ActionInstruction:

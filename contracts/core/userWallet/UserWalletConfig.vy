@@ -33,7 +33,6 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC721
-from ethereum.ercs import IERC20
 
 interface UserWallet:
     def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable

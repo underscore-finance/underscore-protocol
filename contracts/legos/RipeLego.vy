@@ -136,9 +136,7 @@ RIPE_SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
-RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
-RIPE_DELEVERAGE_ID: constant(uint256) = 18
 
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5

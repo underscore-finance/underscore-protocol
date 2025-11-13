@@ -47,7 +47,6 @@ immediateMintOrRedeem: public(bool)
 # mock price config
 price: public(HashMap[address, uint256])
 
-EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_TOKEN_PATH: constant(uint256) = 5
 LEGO_ACCESS_ABI: constant(String[64]) = "setLegoAccess(address)"
 MAX_PROOFS: constant(uint256) = 25

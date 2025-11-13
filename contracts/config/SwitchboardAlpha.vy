@@ -25,7 +25,6 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 import interfaces.ConfigStructs as cs
-from ethereum.ercs import IERC20Detailed
 
 interface MissionControl:
     def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
@@ -44,9 +43,6 @@ interface MissionControl:
 
 interface LootDistributor:
     def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256): nonpayable
-
-interface Registry:
-    def isValidRegId(_regId: uint256) -> bool: view
 
 flag ActionType:
     USER_WALLET_TEMPLATES

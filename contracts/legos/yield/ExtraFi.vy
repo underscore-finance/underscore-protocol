@@ -82,8 +82,6 @@ vaultTokenToReserveId: public(HashMap[address, uint256]) # vault token -> reserv
 EXTRAFI_POOL: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
-MAX_MARKETS: constant(uint256) = 50
-MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 

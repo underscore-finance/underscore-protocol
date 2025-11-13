@@ -100,7 +100,6 @@ event ApprovedVaultTokenSet:
 vaultConfigs: public(HashMap[address, VaultConfig]) # vault addr -> vault config
 isApprovedVaultToken: public(HashMap[address, HashMap[address, bool]]) # vault addr -> vault token -> is approved
 
-ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
 HUNDRED_PERCENT: constant(uint256) = 100_00
 
 

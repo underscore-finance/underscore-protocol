@@ -7,7 +7,6 @@ from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view

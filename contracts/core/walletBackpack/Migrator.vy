@@ -18,7 +18,6 @@
 
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
-
 from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
@@ -74,9 +73,7 @@ event ConfigCloned:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
-HATCHERY_ID: constant(uint256) = 5
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
-HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
 
 @deploy

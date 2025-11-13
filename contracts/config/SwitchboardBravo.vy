@@ -44,9 +44,6 @@ interface UserWalletConfig:
 interface MissionControl:
     def canPerformSecurityAction(_signer: address) -> bool: view
 
-interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
-
 interface UserWallet:
     def walletConfig() -> address: view
 
