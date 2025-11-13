@@ -49,13 +49,12 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -83,8 +82,6 @@ vaultTokenToReserveId: public(HashMap[address, uint256]) # vault token -> reserv
 EXTRAFI_POOL: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
 
-MAX_MARKETS: constant(uint256) = 50
-MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 
@@ -244,7 +241,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -303,12 +300,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 
 
 # extras
-
-
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
 
 
 @view
@@ -490,7 +481,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log ExtraFiDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -549,7 +540,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log ExtraFiWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

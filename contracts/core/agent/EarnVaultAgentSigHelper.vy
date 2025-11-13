@@ -8,7 +8,6 @@
 # @version 0.4.3
 
 import contracts.modules.SigHelper as sigHelper
-
 from interfaces import Wallet
 
 struct ActionInstruction:

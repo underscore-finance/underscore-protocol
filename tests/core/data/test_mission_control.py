@@ -8,27 +8,20 @@ from constants import ZERO_ADDRESS
 ########################
 
 
-def test_set_user_wallet_config_access(mission_control, bob, createTxFees, createAmbassadorRevShare):
+def test_set_user_wallet_config_access(mission_control, bob, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Only switchboard_alpha should be able to set user wallet config"""
     config = (
         ZERO_ADDRESS,  # walletTemplate
         ZERO_ADDRESS,  # configTemplate
-        ZERO_ADDRESS,  # trialAsset
-        0,             # trialAmount
         10,            # numUserWalletsAllowed
         False,         # enforceCreatorWhitelist
         100,           # minKeyActionTimeLock
         1000,          # maxKeyActionTimeLock
-        100,           # defaultStaleBlocks
         ZERO_ADDRESS,  # depositRewardsAsset
+        86400,         # lootClaimCoolOffPeriod
         createTxFees(30, 10, 50),  # txFees
         createAmbassadorRevShare(100, 200, 300),  # ambassadorRevShare
-        10000,         # defaultYieldMaxIncrease
-        1000,          # defaultYieldPerformanceFee
-        500,           # defaultYieldAmbassadorBonusRatio
-        1000,          # defaultYieldBonusRatio
-        ZERO_ADDRESS,  # defaultYieldAltBonusAsset
-        86400,         # lootClaimCoolOffPeriod
+        createAssetYieldConfig(10000, 1000, 500, 1000, ZERO_ADDRESS),  # yieldConfig
     )
     
     # Non-switchboard_alpha address should fail
@@ -100,20 +93,15 @@ def test_set_starter_agent_access(mission_control, bob, alice):
 def test_set_asset_config_access(mission_control, bob, alice, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """Only switchboard_alpha should be able to set asset config"""
     config = (
-        1,   # legoId
-        18,  # decimals
-        100, # staleBlocks
+        True,  # hasConfig
         createTxFees(30, 10, 50),  # txFees
         createAmbassadorRevShare(100, 200, 300),  # ambassadorRevShare
         createAssetYieldConfig(
-            True,          # isYieldAsset
-            False,         # isRebasing
-            ZERO_ADDRESS,  # underlyingAsset
             10000,         # maxYieldIncrease
             1000,          # performanceFee
             500,           # ambassadorBonusRatio
             1000,          # bonusRatio
-            ZERO_ADDRESS,  # altBonusAsset
+            ZERO_ADDRESS,  # bonusAsset
         ),
     )
     
@@ -150,16 +138,16 @@ def test_set_locked_signer_access(mission_control, bob, alice):
         mission_control.setLockedSigner(alice, True, sender=bob)
 
 
-def test_paused_state_blocks_changes(mission_control, switchboard_alpha, createTxFees, createAmbassadorRevShare):
+def test_paused_state_blocks_changes(mission_control, switchboard_alpha, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """All setter functions should fail when protocol is paused"""
     # Pause the protocol
     mission_control.pause(True, sender=switchboard_alpha.address)
-    
+
     # All these should fail when paused
     with boa.reverts("not activated"):
         mission_control.setUserWalletConfig((
-            ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, 0, 10, False, 100, 1000, 100, ZERO_ADDRESS,
-            createTxFees(), createAmbassadorRevShare(), 10000, 1000, 500, 1000, ZERO_ADDRESS, 86400
+            ZERO_ADDRESS, ZERO_ADDRESS, 100, False, 1000, 10000, ZERO_ADDRESS, 86400,
+            createTxFees(), createAmbassadorRevShare(), createAssetYieldConfig()
         ), sender=switchboard_alpha.address)
     
     with boa.reverts("not activated"):
@@ -180,62 +168,51 @@ def test_paused_state_blocks_changes(mission_control, switchboard_alpha, createT
 ###########################
 
 
-def test_user_wallet_config_persistence(mission_control, switchboard_alpha, alice, createTxFees, createAmbassadorRevShare):
+def test_user_wallet_config_persistence(mission_control, switchboard_alpha, alice, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """User wallet config should persist after being set"""
     wallet_template = alice
     config_template = alice
-    trial_asset = alice
     deposit_rewards_asset = alice
     alt_bonus_asset = alice
-    
+
     config = (
         wallet_template,
         config_template,
-        trial_asset,
-        100,           # trialAmount
         10,            # numUserWalletsAllowed
         True,          # enforceCreatorWhitelist
         200,           # minKeyActionTimeLock
         2000,          # maxKeyActionTimeLock
-        150,           # defaultStaleBlocks
         deposit_rewards_asset,
+        172800,        # lootClaimCoolOffPeriod
         createTxFees(30, 10, 50),
         createAmbassadorRevShare(100, 200, 300),
-        15000,         # defaultYieldMaxIncrease
-        1500,          # defaultYieldPerformanceFee
-        600,           # defaultYieldAmbassadorBonusRatio
-        1200,          # defaultYieldBonusRatio
-        alt_bonus_asset,
-        172800,        # lootClaimCoolOffPeriod
+        createAssetYieldConfig(15000, 1500, 600, 1200, alt_bonus_asset),
     )
-    
+
     # Set config
     mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
-    
+
     # Verify each field persists
     saved_config = mission_control.userWalletConfig()
     assert saved_config.walletTemplate == wallet_template
     assert saved_config.configTemplate == config_template
-    assert saved_config.trialAsset == trial_asset
-    assert saved_config.trialAmount == 100
     assert saved_config.numUserWalletsAllowed == 10
     assert saved_config.enforceCreatorWhitelist == True
     assert saved_config.minKeyActionTimeLock == 200
     assert saved_config.maxKeyActionTimeLock == 2000
-    assert saved_config.defaultStaleBlocks == 150
     assert saved_config.depositRewardsAsset == deposit_rewards_asset
+    assert saved_config.lootClaimCoolOffPeriod == 172800
     assert saved_config.txFees.swapFee == 30
     assert saved_config.txFees.stableSwapFee == 10
     assert saved_config.txFees.rewardsFee == 50
     assert saved_config.ambassadorRevShare.swapRatio == 100
     assert saved_config.ambassadorRevShare.rewardsRatio == 200
     assert saved_config.ambassadorRevShare.yieldRatio == 300
-    assert saved_config.defaultYieldMaxIncrease == 15000
-    assert saved_config.defaultYieldPerformanceFee == 1500
-    assert saved_config.defaultYieldAmbassadorBonusRatio == 600
-    assert saved_config.defaultYieldBonusRatio == 1200
-    assert saved_config.defaultYieldAltBonusAsset == alt_bonus_asset
-    assert saved_config.lootClaimCoolOffPeriod == 172800
+    assert saved_config.yieldConfig.maxYieldIncrease == 15000
+    assert saved_config.yieldConfig.performanceFee == 1500
+    assert saved_config.yieldConfig.ambassadorBonusRatio == 600
+    assert saved_config.yieldConfig.bonusRatio == 1200
+    assert saved_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_agent_config_persistence(mission_control, switchboard_alpha, alice):
@@ -328,15 +305,10 @@ def test_asset_config_persistence(mission_control, switchboard_alpha, alice, cre
     alt_bonus_asset = alice
     
     config = (
-        2,      # legoId
-        18,     # decimals
-        200,    # staleBlocks
+        True,   # hasConfig
         createTxFees(40, 20, 60),
         createAmbassadorRevShare(150, 250, 350),
         createAssetYieldConfig(
-            True,            # isYieldAsset
-            True,            # isRebasing
-            underlying_asset,
             20000,           # maxYieldIncrease
             2000,            # performanceFee
             700,             # ambassadorBonusRatio
@@ -344,29 +316,25 @@ def test_asset_config_persistence(mission_control, switchboard_alpha, alice, cre
             alt_bonus_asset,
         ),
     )
-    
+
     # Set config
     mission_control.setAssetConfig(asset, config, sender=switchboard_alpha.address)
-    
+
     # Verify fields persist
     saved_config = mission_control.assetConfig(asset)
-    assert saved_config.legoId == 2
-    assert saved_config.decimals == 18
-    assert saved_config.staleBlocks == 200
+    assert saved_config.hasConfig == True
     assert saved_config.txFees.swapFee == 40
     assert saved_config.txFees.stableSwapFee == 20
     assert saved_config.txFees.rewardsFee == 60
     assert saved_config.ambassadorRevShare.swapRatio == 150
     assert saved_config.ambassadorRevShare.rewardsRatio == 250
     assert saved_config.ambassadorRevShare.yieldRatio == 350
-    assert saved_config.yieldConfig.isYieldAsset == True
-    assert saved_config.yieldConfig.isRebasing == True
-    assert saved_config.yieldConfig.underlyingAsset == underlying_asset
+    # isYieldAsset, isRebasing, and underlyingAsset are now derived from Ledger
     assert saved_config.yieldConfig.maxYieldIncrease == 20000
     assert saved_config.yieldConfig.performanceFee == 2000
     assert saved_config.yieldConfig.ambassadorBonusRatio == 700
     assert saved_config.yieldConfig.bonusRatio == 1400
-    assert saved_config.yieldConfig.altBonusAsset == alt_bonus_asset
+    assert saved_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_stablecoin_status_persistence(mission_control, switchboard_alpha, alice):
@@ -408,17 +376,16 @@ def test_security_settings_persistence(mission_control, switchboard_alpha, alice
 #########################
 
 
-def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, alice, bob, createTxFees, createAmbassadorRevShare):
+def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, alice, bob, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """getUserWalletCreationConfig should return correct aggregated data"""
     # Set configs
     wallet_template = alice
     config_template = bob
-    trial_asset = alice
     starting_agent = bob
     
     mission_control.setUserWalletConfig((
-        wallet_template, config_template, trial_asset, 100, 10, False, 200, 2000, 150, ZERO_ADDRESS,
-        createTxFees(), createAmbassadorRevShare(), 15000, 1500, 600, 1200, ZERO_ADDRESS, 172800
+        wallet_template, config_template, 10, False, 200, 2000, ZERO_ADDRESS, 172800,
+        createTxFees(), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
     
     mission_control.setAgentConfig((
@@ -448,18 +415,17 @@ def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, ali
     assert creation_config.chequePeriodLength == 172800
     assert creation_config.chequeExpensiveDelayBlocks == 200
     assert creation_config.chequeDefaultExpiryBlocks == 2000
-    assert creation_config.trialAsset == trial_asset
-    assert creation_config.trialAmount == 100
+    # trialAsset and trialAmount have been removed from the struct
     assert creation_config.minKeyActionTimeLock == 200
     assert creation_config.maxKeyActionTimeLock == 2000
 
 
-def test_get_user_wallet_creation_config_whitelist_enforced(mission_control, switchboard_alpha, alice, createTxFees, createAmbassadorRevShare):
+def test_get_user_wallet_creation_config_whitelist_enforced(mission_control, switchboard_alpha, alice, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """When whitelist is enforced, only whitelisted creators should be allowed"""
     # Enable whitelist enforcement
     mission_control.setUserWalletConfig((
-        ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, 0, 10, True, 100, 1000, 100, ZERO_ADDRESS,
-        createTxFees(), createAmbassadorRevShare(), 10000, 1000, 500, 1000, ZERO_ADDRESS, 86400
+        ZERO_ADDRESS, ZERO_ADDRESS, 10, True, 100, 1000, ZERO_ADDRESS, 86400,
+        createTxFees(), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
     
     # Non-whitelisted creator should not be allowed
@@ -478,8 +444,8 @@ def test_get_swap_fee_logic(mission_control, switchboard_alpha, alice, bob, char
     """Test swap fee calculation logic"""
     # Set user wallet config
     mission_control.setUserWalletConfig((
-        ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, 0, 10, False, 100, 1000, 100, ZERO_ADDRESS,
-        createTxFees(30, 10, 50), createAmbassadorRevShare(), 10000, 1000, 500, 1000, ZERO_ADDRESS, 86400
+        ZERO_ADDRESS, ZERO_ADDRESS, 10, False, 100, 1000, ZERO_ADDRESS, 86400,
+        createTxFees(30, 10, 50), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
     
     # Test default swap fee (no asset configs)
@@ -494,7 +460,7 @@ def test_get_swap_fee_logic(mission_control, switchboard_alpha, alice, bob, char
     
     # Set asset config for tokenOut
     mission_control.setAssetConfig(charlie, (
-        1, 18, 100, createTxFees(100, 50, 200), createAmbassadorRevShare(), createAssetYieldConfig()
+        True, createTxFees(100, 50, 200), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
     
     # Asset swap fee should take precedence

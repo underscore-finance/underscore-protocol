@@ -108,7 +108,7 @@ def test_agent_withdraw_from_yield_basic(
     """Test AgentWrapper withdrawFromYield function"""
     
     # disable yield fees for simplicity
-    setUserWalletConfig(_staleBlocks=10, _defaultYieldPerformanceFee=0)
+    setUserWalletConfig(_defaultYieldPerformanceFee=0)
     
     # Setup: first deposit to create yield position
     amount = setupAgentTestAsset(

@@ -54,8 +54,8 @@ interface AeroNftPositionManager:
     def burn(_tokenId: uint256): nonpayable
 
 interface Appraiser:
-    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def getRipePrice(_asset: address) -> uint256: view
 
 interface AeroQuoter:
     def quoteExactOutputSingle(_params: QuoteExactOutputSingleParams) -> (uint256, uint160, uint32, uint256): nonpayable
@@ -346,9 +346,9 @@ def swapTokens(
         amountIn -= refundAssetAmount
 
     # get usd values
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
     if usdValue == 0:
-        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook)
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
 
     log AeroSlipStreamSwap(
         sender = msg.sender,
@@ -764,11 +764,11 @@ def _getUsdValue(
 
     usdValueA: uint256 = 0
     if _amountA != 0:
-        usdValueA = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueA = staticcall Appraiser(_miniAddys.appraiser).getUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook, _miniAddys.ledger)
 
     usdValueB: uint256 = 0
     if _amountB != 0:
-        usdValueB = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueB = staticcall Appraiser(_miniAddys.appraiser).getUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook, _miniAddys.ledger)
 
     return usdValueA + usdValueB
 
@@ -999,9 +999,9 @@ def getPriceUnsafe(_pool: address, _targetToken: address, _appraiser: address = 
     # alt price
     altPrice: uint256 = 0
     if _targetToken == token0:
-        altPrice = staticcall Appraiser(appraiser).getNormalAssetPrice(token1)
+        altPrice = staticcall Appraiser(appraiser).getRipePrice(token1)
     else:
-        altPrice = staticcall Appraiser(appraiser).getNormalAssetPrice(token0)
+        altPrice = staticcall Appraiser(appraiser).getRipePrice(token0)
 
     # return early if no alt price
     if altPrice == 0:

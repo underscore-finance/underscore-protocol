@@ -882,14 +882,11 @@ def test_frozen_and_ejection_mode_independence(user_wallet_config, switchboard_a
 
 
 def test_ejection_mode_no_trial_funds(user_wallet_config, switchboard_alpha):
-    """Can set ejection mode when wallet has no trial funds"""
-    # This wallet should have no trial funds
-    assert user_wallet_config.trialFundsAmount() == 0
-    
+    """Can set ejection mode"""
     # Should be able to set ejection mode
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
-    
+
     # Reset back
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == False

@@ -245,11 +245,9 @@ def defaults(fork, user_wallet_template, user_wallet_config_template, agent_temp
                      user_wallet_config_template, agent_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
-        trial_funds_asset = TOKENS[fork]["USDC"]
-        trial_funds_amount = 10 * (10 ** 6)
         rewards_asset = TOKENS[fork]["RIPE"]
         d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template,
-                     agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
+                     agent_template, agent_eoa, rewards_asset)
     return d
 
 
@@ -335,13 +333,10 @@ def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
 @pytest.fixture(scope="session")
 def appraiser(undy_hq_deploy, fork, mock_ripe):
     ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-
     return boa.load(
         "contracts/core/Appraiser.vy",
         undy_hq_deploy,
         ripe_hq,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="appraiser",
     )
 
@@ -350,12 +345,10 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
 
 
 @pytest.fixture(scope="session")
-def billing(undy_hq_deploy, fork):
+def billing(undy_hq_deploy):
     return boa.load(
         "contracts/core/Billing.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="billing",
     )
 

@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs
 
@@ -54,53 +54,6 @@ def test_cannot_migrate_with_different_owners(migrator, user_wallet, hatchery, b
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
-# Test trial funds are automatically handled during migration
-def test_migrate_with_trial_funds_clawback(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test that migration automatically claws back trial funds and proceeds"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Verify can migrate (trial funds will be handled automatically)
-    assert migrator.canMigrateFundsToNewWallet(wallet_with_trial, new_wallet, bob)
-    
-    # Record hatchery balance before migration
-    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
-    
-    # Migrate funds - should automatically claw back trial funds first
-    num_migrated = migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-    
-    # Verify trial funds were clawed back to hatchery
-    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + trial_amount
-    
-    # Verify trial funds config was cleared
-    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
-    assert wallet_config.trialFundsAmount() == 0
-    
-    # Verify other assets were migrated
-    assert num_migrated == 1  # Only bravo token (trial funds were clawed back, not migrated)
-    assert bravo_token.balanceOf(wallet_with_trial) == 0
-    assert bravo_token.balanceOf(new_wallet) == bravo_amount
-
-
 # Test frozen wallet restriction
 def test_cannot_migrate_frozen_wallets(migrator, user_wallet, user_wallet_config, hatchery, bob):
     """Test that frozen wallets cannot be migrated (either from or to)"""
@@ -151,7 +104,7 @@ def test_cannot_migrate_with_pending_owner_change(migrator, user_wallet, user_wa
 def test_cannot_migrate_different_group_ids(migrator, user_wallet, hatchery, bob):
     """Test that wallets must have the same group ID to migrate"""
     # Create new wallet with different group ID
-    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 2, sender=bob))
+    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 2, sender=bob))
     
     # Cannot migrate between different group IDs
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
@@ -186,6 +139,67 @@ def test_cannot_migrate_with_whitelisted_addresses(migrator, user_wallet, hatche
     
     # Cannot migrate to wallet with whitelisted addresses
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+
+
+# Test cheque restrictions
+def test_cannot_migrate_with_active_cheques(migrator, hatchery, bob, alice, user_wallet, user_wallet_config, cheque_book, alpha_token, mock_ripe):
+    """Test that toWallet cannot have active cheques"""
+    ONE_WEEK_IN_BLOCKS = 7 * ONE_DAY_IN_BLOCKS
+
+    # Get timeLock value
+    timeLock = user_wallet_config.timeLock()
+
+    # Travel past timelock to allow cheque settings change
+    import boa
+    boa.env.time_travel(blocks=timeLock + 1)
+
+    # Setup cheque settings
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)  # $1 per token
+
+    # Create an active cheque on user_wallet
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,  # delayBlocks
+        ONE_WEEK_IN_BLOCKS,  # expiryBlocks
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Verify cheque is active
+    assert user_wallet_config.numActiveCheques() == 1
+
+    # Create a new source wallet
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    # Cannot migrate from new wallet to user_wallet (which has active cheques)
+    assert not migrator.canMigrateFundsToNewWallet(from_wallet, user_wallet, bob)
 
 
 # Test manager restrictions - no starting agent
@@ -499,326 +513,4 @@ def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wall
     assert user_wallet.assets(0) == ZERO_ADDRESS  # ETH placeholder
 
 
-def test_migrate_funds_with_trial_funds_all_spent(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test migration fails when all trial funds have been spent"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Spend all trial funds
-    alpha_token.transfer(bob, trial_amount, sender=wallet_with_trial.address)
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Migration should fail because all trial funds (100%) remain unrecovered
-    # which exceeds acceptable dust threshold (1%)
-    with boa.reverts("trial funds could not be removed"):
-        migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-
-
-def test_migrate_funds_with_trial_funds_partial_spent(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test migration fails when too many trial funds have been spent"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Spend part of trial funds (3 units), leaving 7 units
-    alpha_token.transfer(bob, 3 * EIGHTEEN_DECIMALS, sender=wallet_with_trial.address)
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Migration should fail because after clawback, 3 units (30%) remain unrecovered
-    # which exceeds acceptable dust threshold (1%)
-    with boa.reverts("trial funds could not be removed"):
-        migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-
-
-def test_migrate_funds_with_trial_funds_partial_spent_within_dust(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test successful migration when only a small amount of trial funds were spent"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Spend only 0.08 units, leaving 9.92 units available for clawback
-    # After clawback, only 0.08 units (0.8%) will remain unrecovered - within 1% threshold
-    alpha_token.transfer(bob, 8 * 10**16, sender=wallet_with_trial.address)
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Record hatchery balance before migration
-    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
-    
-    # Migrate funds - should succeed because only 0.8% remains unrecovered after clawback
-    num_migrated = migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-    
-    # Verify most trial funds were clawed back (9.92 units)
-    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + trial_amount - 8 * 10**16
-    
-    # Verify trial funds config shows small remaining unrecovered amount (0.08 units = 0.8%)
-    assert wallet_config.trialFundsAsset() == alpha_token.address
-    assert wallet_config.trialFundsAmount() == 8 * 10**16
-    
-    # Verify other assets were migrated
-    assert num_migrated == 1  # Only bravo token
-    assert bravo_token.balanceOf(wallet_with_trial) == 0
-    assert bravo_token.balanceOf(new_wallet) == bravo_amount
-
-
-def test_migrate_funds_with_trial_funds_in_vault(migrator, hatchery, bob, alice, alpha_token, alpha_token_whale, setUserWalletConfig, alpha_token_vault, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test migration when trial funds are in yield vault"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Deposit all trial funds into vault
-    wallet_with_trial.depositForYield(
-        2,  # legoId for mock_yield_lego
-        alpha_token.address,
-        alpha_token_vault.address,
-        sender=bob,
-    )
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Record hatchery balance before migration
-    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
-    
-    # Migrate funds - should claw back trial funds from vault
-    num_migrated = migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-    
-    # Verify trial funds were clawed back from vault
-    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + trial_amount
-    assert alpha_token_vault.balanceOf(wallet_with_trial) == 0
-    
-    # Verify trial funds config was cleared
-    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
-    assert wallet_config.trialFundsAmount() == 0
-    
-    # Verify other assets were migrated
-    assert num_migrated == 1  # Only bravo token
-    assert bravo_token.balanceOf(wallet_with_trial) == 0
-    assert bravo_token.balanceOf(new_wallet) == bravo_amount
-
-
-def test_migrate_funds_with_acceptable_dust(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test migration succeeds when nearly all trial funds can be recovered"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Spend a tiny amount, leaving 9.95 units (99.5% recoverable)
-    # After clawback, only 0.05 units (0.5%) will remain unrecovered - within 1% threshold
-    alpha_token.transfer(bob, 5 * 10**16, sender=wallet_with_trial.address)  # Spend 0.05 units
-    
-    # Add another asset to migrate
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Record hatchery balance before migration
-    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
-    
-    # Migrate funds - should succeed because after clawback only 0.5% remains unrecovered
-    num_migrated = migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-    
-    # Verify most trial funds were clawed back (9.95 units)
-    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before + trial_amount - 5 * 10**16
-    
-    # Verify trial funds config shows small remaining unrecovered amount (0.05 units = 0.5%)
-    assert wallet_config.trialFundsAsset() == alpha_token.address
-    assert wallet_config.trialFundsAmount() == 5 * 10**16  # 0.05 units unrecovered
-    
-    # Verify other assets were migrated
-    assert num_migrated == 1  # Only bravo token
-    assert bravo_token.balanceOf(wallet_with_trial) == 0
-    assert bravo_token.balanceOf(new_wallet) == bravo_amount
-
-
-def test_migrate_funds_fails_with_too_much_trial_funds_remaining(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, bravo_token, bravo_token_whale, switchboard_alpha):
-    """Test migration fails when too much trial funds remain after clawback attempt"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet_with_trial.walletConfig())
-    
-    # Spend some trial funds, leaving 8.5 units (after clawback, 1.5 units unrecovered = 15% > 1% threshold)
-    alpha_token.transfer(bob, 15 * 10**17, sender=wallet_with_trial.address)  # Spend 1.5 units
-    
-    # Add another asset to ensure we pass the "no assets to migrate" check
-    bravo_amount = 50 * EIGHTEEN_DECIMALS
-    bravo_token.transfer(wallet_with_trial, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Migration should fail because after clawback 1.5 units (15%) remain unrecovered
-    with boa.reverts("trial funds could not be removed"):
-        migrator.migrateFunds(wallet_with_trial, new_wallet, sender=bob)
-
-
-def test_migrate_funds_no_trial_funds_configured(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha):
-    """Test migration works normally when no trial funds are configured"""
-    # Configure with no trial funds
-    setUserWalletConfig(
-        _trialAsset=ZERO_ADDRESS,
-        _trialAmount=0
-    )
-    
-    # Create wallet without trial funds
-    wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet.walletConfig())
-    
-    # Add asset to migrate
-    amount = 100 * EIGHTEEN_DECIMALS
-    alpha_token.transfer(wallet, amount, sender=alpha_token_whale)
-    wallet_config.updateAssetData(0, alpha_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Record hatchery balance before migration
-    hatchery_balance_before = alpha_token.balanceOf(hatchery.address)
-    
-    # Migrate funds - no trial funds to handle
-    num_migrated = migrator.migrateFunds(wallet, new_wallet, sender=bob)
-    
-    # Verify no funds went to hatchery
-    assert alpha_token.balanceOf(hatchery.address) == hatchery_balance_before
-    
-    # Verify normal migration occurred
-    assert num_migrated == 1
-    assert alpha_token.balanceOf(wallet) == 0
-    assert alpha_token.balanceOf(new_wallet) == amount
-
-
-def test_migrate_funds_trial_funds_already_cleared(migrator, hatchery, bob, charlie_token, charlie_token_whale, setUserWalletConfig, switchboard_alpha, bravo_token, bravo_token_whale, alpha_token, alpha_token_whale):
-    """Test migration when trial funds were already clawed back previously"""
-    # Configure trial funds with alpha token
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds
-    wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    wallet_config = UserWalletConfig.at(wallet.walletConfig())
-    
-    # Manually claw back trial funds first
-    hatchery.clawBackTrialFunds(wallet.address, sender=bob)
-    
-    # Verify trial funds were cleared
-    assert wallet_config.trialFundsAsset() == ZERO_ADDRESS
-    assert wallet_config.trialFundsAmount() == 0
-    
-    # Add different assets to migrate (not the trial funds asset)
-    charlie_amount = 50 * 10**6  # Charlie has 6 decimals
-    bravo_amount = 30 * EIGHTEEN_DECIMALS
-    charlie_token.transfer(wallet, charlie_amount, sender=charlie_token_whale)
-    bravo_token.transfer(wallet, bravo_amount, sender=bravo_token_whale)
-    wallet_config.updateAssetData(0, charlie_token, False, sender=switchboard_alpha.address)
-    wallet_config.updateAssetData(0, bravo_token, False, sender=switchboard_alpha.address)
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Migrate funds - should work normally since trial funds already cleared
-    num_migrated = migrator.migrateFunds(wallet, new_wallet, sender=bob)
-    
-    # Verify migration succeeded
-    assert num_migrated == 2
-    assert charlie_token.balanceOf(wallet) == 0
-    assert bravo_token.balanceOf(wallet) == 0
-    assert charlie_token.balanceOf(new_wallet) == charlie_amount
-    assert bravo_token.balanceOf(new_wallet) == bravo_amount
     

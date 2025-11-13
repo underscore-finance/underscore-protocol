@@ -25,7 +25,6 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 import interfaces.ConfigStructs as cs
-from ethereum.ercs import IERC20Detailed
 
 interface MissionControl:
     def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
@@ -40,19 +39,15 @@ interface MissionControl:
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
     def agentConfig() -> cs.AgentConfig: view
+    def assetConfig(_asset: address) -> cs.AssetConfig: view
 
 interface LootDistributor:
     def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256): nonpayable
 
-interface Registry:
-    def isValidRegId(_regId: uint256) -> bool: view
-
 flag ActionType:
     USER_WALLET_TEMPLATES
-    TRIAL_FUNDS
     WALLET_CREATION_LIMITS
     KEY_ACTION_TIMELOCK_BOUNDS
-    DEFAULT_STALE_BLOCKS
     TX_FEES
     AMBASSADOR_REV_SHARE
     DEFAULT_YIELD_PARAMS
@@ -64,6 +59,9 @@ flag ActionType:
     PAYEE_CONFIG
     CAN_PERFORM_SECURITY_ACTION
     ASSET_CONFIG
+    ASSET_TX_FEES
+    ASSET_AMBASSADOR_REV_SHARE
+    ASSET_YIELD_CONFIG
     IS_STABLECOIN
 
 struct IsAddrAllowed:
@@ -74,6 +72,18 @@ struct PendingAssetConfig:
     asset: address
     config: cs.AssetConfig
 
+struct PendingAssetTxFees:
+    asset: address
+    txFees: cs.TxFees
+
+struct PendingAssetAmbassadorRevShare:
+    asset: address
+    ambassadorRevShare: cs.AmbassadorRevShare
+
+struct PendingAssetYieldConfig:
+    asset: address
+    yieldConfig: cs.YieldConfig
+
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
     configTemplate: address
@@ -83,16 +93,6 @@ event PendingUserWalletTemplatesChange:
 event UserWalletTemplatesSet:
     walletTemplate: address
     configTemplate: address
-
-event PendingTrialFundsChange:
-    trialAsset: address
-    trialAmount: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event TrialFundsSet:
-    trialAsset: address
-    trialAmount: uint256
 
 event PendingWalletCreationLimitsChange:
     numUserWalletsAllowed: uint256
@@ -113,14 +113,6 @@ event PendingKeyActionTimelockBoundsChange:
 event KeyActionTimelockBoundsSet:
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-
-event PendingDefaultStaleBlocksChange:
-    defaultStaleBlocks: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event DefaultStaleBlocksSet:
-    defaultStaleBlocks: uint256
 
 event PendingTxFeesChange:
     swapFee: uint256
@@ -151,7 +143,7 @@ event PendingDefaultYieldParamsChange:
     defaultYieldPerformanceFee: uint256
     defaultYieldAmbassadorBonusRatio: uint256
     defaultYieldBonusRatio: uint256
-    defaultYieldAltBonusAsset: address
+    defaultYieldBonusAsset: address
     confirmationBlock: uint256
     actionId: uint256
 
@@ -160,7 +152,7 @@ event DefaultYieldParamsSet:
     defaultYieldPerformanceFee: uint256
     defaultYieldAmbassadorBonusRatio: uint256
     defaultYieldBonusRatio: uint256
-    defaultYieldAltBonusAsset: address
+    defaultYieldBonusAsset: address
 
 event PendingLootParamsChange:
     depositRewardsAsset: address
@@ -174,22 +166,17 @@ event LootParamsSet:
 
 event PendingAssetConfigChange:
     asset: address
-    legoId: uint256
-    staleBlocks: uint256
     txFeesSwapFee: uint256
     txFeesStableSwapFee: uint256
     txFeesRewardsFee: uint256
     ambassadorRevShareSwapRatio: uint256
     ambassadorRevShareRewardsRatio: uint256
     ambassadorRevShareYieldRatio: uint256
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
     maxYieldIncrease: uint256
     performanceFee: uint256
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
     confirmationBlock: uint256
     actionId: uint256
 
@@ -205,22 +192,63 @@ event IsStablecoinSet:
 
 event AssetConfigSet:
     asset: address
-    legoId: uint256
-    staleBlocks: uint256
     txFeesSwapFee: uint256
     txFeesStableSwapFee: uint256
     txFeesRewardsFee: uint256
     ambassadorRevShareSwapRatio: uint256
     ambassadorRevShareRewardsRatio: uint256
     ambassadorRevShareYieldRatio: uint256
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
     maxYieldIncrease: uint256
     performanceFee: uint256
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
+
+event PendingAssetTxFeesChange:
+    asset: address
+    swapFee: uint256
+    stableSwapFee: uint256
+    rewardsFee: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AssetTxFeesSet:
+    asset: address
+    swapFee: uint256
+    stableSwapFee: uint256
+    rewardsFee: uint256
+
+event PendingAssetAmbassadorRevShareChange:
+    asset: address
+    swapRatio: uint256
+    rewardsRatio: uint256
+    yieldRatio: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AssetAmbassadorRevShareSet:
+    asset: address
+    swapRatio: uint256
+    rewardsRatio: uint256
+    yieldRatio: uint256
+
+event PendingAssetYieldConfigChange:
+    asset: address
+    maxYieldIncrease: uint256
+    performanceFee: uint256
+    ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    bonusAsset: address
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AssetYieldConfigSet:
+    asset: address
+    maxYieldIncrease: uint256
+    performanceFee: uint256
+    ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    bonusAsset: address
 
 event PendingAgentTemplateChange:
     agentTemplate: address
@@ -298,6 +326,9 @@ event RipeRewardsConfigSetFromSwitchboard:
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingUserWalletConfig: public(HashMap[uint256, cs.UserWalletConfig]) # aid -> config
 pendingAssetConfig: public(HashMap[uint256, PendingAssetConfig]) # aid -> config
+pendingAssetTxFees: public(HashMap[uint256, PendingAssetTxFees]) # aid -> tx fees
+pendingAssetAmbassadorRevShare: public(HashMap[uint256, PendingAssetAmbassadorRevShare]) # aid -> ambassador rev share
+pendingAssetYieldConfig: public(HashMap[uint256, PendingAssetYieldConfig]) # aid -> yield config
 pendingAgentConfig: public(HashMap[uint256, cs.AgentConfig]) # aid -> config
 pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
 pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
@@ -357,21 +388,6 @@ def _areValidUserWalletTemplates(_walletTemplate: address, _configTemplate: addr
     return True
 
 
-# trial funds
-
-
-@external
-def setTrialFunds(_trialAsset: address, _trialAmount: uint256) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    return self._setPendingUserWalletConfig(
-        ActionType.TRIAL_FUNDS,
-        empty(address),
-        empty(address),
-        _trialAsset,
-        _trialAmount
-    )
-
-
 # wallet creation limits
 
 
@@ -384,8 +400,6 @@ def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhit
         ActionType.WALLET_CREATION_LIMITS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         _numUserWalletsAllowed,
         _enforceCreatorWhitelist
     )
@@ -413,8 +427,6 @@ def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTime
         ActionType.KEY_ACTION_TIMELOCK_BOUNDS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         _minKeyActionTimeLock,
@@ -434,38 +446,6 @@ def _areValidKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActi
     return True
 
 
-# default stale blocks
-
-
-@external
-def setDefaultStaleBlocks(_defaultStaleBlocks: uint256) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    
-    assert self._isValidStaleBlocks(_defaultStaleBlocks) # dev: invalid default stale blocks
-    return self._setPendingUserWalletConfig(
-        ActionType.DEFAULT_STALE_BLOCKS,
-        empty(address),
-        empty(address),
-        empty(address),
-        0,
-        0,
-        False,
-        0,
-        0,
-        _defaultStaleBlocks
-    )
-
-
-@view
-@internal
-def _isValidStaleBlocks(_staleBlocks: uint256) -> bool:
-    if _staleBlocks == 0:
-        return False
-    if _staleBlocks == max_value(uint256):
-        return False
-    return True
-
-
 # tx fees
 
 
@@ -478,14 +458,12 @@ def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256) 
         ActionType.TX_FEES,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
         0,
-        0,
         empty(address),
+        0,
         _swapFee,
         _stableSwapFee,
         _rewardsFee
@@ -516,14 +494,12 @@ def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRat
         ActionType.AMBASSADOR_REV_SHARE,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
         0,
-        0,
         empty(address),
+        0,
         0,
         0,
         0,
@@ -554,29 +530,27 @@ def setDefaultYieldParams(
     _defaultYieldPerformanceFee: uint256,
     _defaultYieldAmbassadorBonusRatio: uint256,
     _defaultYieldBonusRatio: uint256,
-    _defaultYieldAltBonusAsset: address
+    _defaultYieldBonusAsset: address
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
     assert self._areValidYieldParams(
         _defaultYieldMaxIncrease,
         _defaultYieldPerformanceFee,
         _defaultYieldAmbassadorBonusRatio,
         _defaultYieldBonusRatio
     ) # dev: invalid default yield params
-    
+
     return self._setPendingUserWalletConfig(
         ActionType.DEFAULT_YIELD_PARAMS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
         0,
-        0,
         empty(address),
+        0,
         0,
         0,
         0,
@@ -587,7 +561,7 @@ def setDefaultYieldParams(
         _defaultYieldPerformanceFee,
         _defaultYieldAmbassadorBonusRatio,
         _defaultYieldBonusRatio,
-        _defaultYieldAltBonusAsset
+        _defaultYieldBonusAsset
     )
 
 
@@ -622,14 +596,12 @@ def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint25
         ActionType.LOOT_PARAMS,
         empty(address),
         empty(address),
-        empty(address),
-        0,
         0,
         False,
         0,
         0,
-        0,
         _depositRewardsAsset,
+        _lootClaimCoolOffPeriod,
         0,
         0,
         0,
@@ -640,8 +612,7 @@ def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint25
         0,
         0,
         0,
-        empty(address),
-        _lootClaimCoolOffPeriod
+        empty(address)
     )
 
 
@@ -663,66 +634,49 @@ def _areValidLootParams(_lootClaimCoolOffPeriod: uint256) -> bool:
 @external
 def setAssetConfig(
     _asset: address,
-    _legoId: uint256,
-    _staleBlocks: uint256,
     _txFeesSwapFee: uint256,
     _txFeesStableSwapFee: uint256,
     _txFeesRewardsFee: uint256,
     _ambassadorRevShareSwapRatio: uint256,
     _ambassadorRevShareRewardsRatio: uint256,
     _ambassadorRevShareYieldRatio: uint256,
-    _isYieldAsset: bool,
-    _isRebasing: bool,
-    _underlyingAsset: address,
     _maxYieldIncrease: uint256,
     _performanceFee: uint256,
     _ambassadorBonusRatio: uint256,
     _bonusRatio: uint256,
-    _altBonusAsset: address
+    _bonusAsset: address
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
     assert self._isValidAssetConfig(
         _asset,
-        _legoId,
-        _staleBlocks,
         _txFeesSwapFee,
         _txFeesStableSwapFee,
         _txFeesRewardsFee,
         _ambassadorRevShareSwapRatio,
         _ambassadorRevShareRewardsRatio,
         _ambassadorRevShareYieldRatio,
-        _isYieldAsset,
-        _isRebasing,
-        _underlyingAsset,
         _maxYieldIncrease,
         _performanceFee,
         _ambassadorBonusRatio,
         _bonusRatio,
-        _altBonusAsset
+        _bonusAsset
     ) # dev: invalid asset config
 
-    yieldConfig: cs.YieldConfig = empty(cs.YieldConfig)
-    if _isYieldAsset:
-        yieldConfig = cs.YieldConfig(
-            isYieldAsset=_isYieldAsset,
-            isRebasing=_isRebasing,
-            underlyingAsset=_underlyingAsset,
-            maxYieldIncrease=_maxYieldIncrease,
-            performanceFee=_performanceFee,
-            ambassadorBonusRatio=_ambassadorBonusRatio,
-            bonusRatio=_bonusRatio,
-            altBonusAsset=_altBonusAsset
-        )
+    yieldConfig: cs.YieldConfig = cs.YieldConfig(
+        maxYieldIncrease=_maxYieldIncrease,
+        performanceFee=_performanceFee,
+        ambassadorBonusRatio=_ambassadorBonusRatio,
+        bonusRatio=_bonusRatio,
+        bonusAsset=_bonusAsset
+    )
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_CONFIG
     self.pendingAssetConfig[aid] = PendingAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
-            legoId=_legoId,
-            decimals=convert(staticcall IERC20Detailed(_asset).decimals(), uint256),
-            staleBlocks=_staleBlocks,
+            hasConfig=True,
             txFees=cs.TxFees(
                 swapFee=_txFeesSwapFee,
                 stableSwapFee=_txFeesStableSwapFee,
@@ -739,22 +693,17 @@ def setAssetConfig(
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingAssetConfigChange(
         asset=_asset,
-        legoId=_legoId,
-        staleBlocks=_staleBlocks,
         txFeesSwapFee=_txFeesSwapFee,
         txFeesStableSwapFee=_txFeesStableSwapFee,
         txFeesRewardsFee=_txFeesRewardsFee,
         ambassadorRevShareSwapRatio=_ambassadorRevShareSwapRatio,
         ambassadorRevShareRewardsRatio=_ambassadorRevShareRewardsRatio,
         ambassadorRevShareYieldRatio=_ambassadorRevShareYieldRatio,
-        isYieldAsset=_isYieldAsset,
-        isRebasing=_isRebasing,
-        underlyingAsset=_underlyingAsset,
         maxYieldIncrease=_maxYieldIncrease,
         performanceFee=_performanceFee,
         ambassadorBonusRatio=_ambassadorBonusRatio,
         bonusRatio=_bonusRatio,
-        altBonusAsset=_altBonusAsset,
+        bonusAsset=_bonusAsset,
         confirmationBlock=confirmationBlock,
         actionId=aid,
     )
@@ -765,30 +714,19 @@ def setAssetConfig(
 @internal
 def _isValidAssetConfig(
     _asset: address,
-    _legoId: uint256,
-    _staleBlocks: uint256,
     _txFeesSwapFee: uint256,
     _txFeesStableSwapFee: uint256,
     _txFeesRewardsFee: uint256,
     _ambassadorRevShareSwapRatio: uint256,
     _ambassadorRevShareRewardsRatio: uint256,
     _ambassadorRevShareYieldRatio: uint256,
-    _isYieldAsset: bool,
-    _isRebasing: bool,
-    _underlyingAsset: address,
     _maxYieldIncrease: uint256,
     _performanceFee: uint256,
     _ambassadorBonusRatio: uint256,
     _bonusRatio: uint256,
-    _altBonusAsset: address
+    _bonusAsset: address
 ) -> bool:
     if _asset == empty(address):
-        return False
-
-    if not staticcall Registry(addys._getLegoBookAddr()).isValidRegId(_legoId):
-        return False
-
-    if not self._isValidStaleBlocks(_staleBlocks):
         return False
 
     if not self._areValidTxFees(_txFeesSwapFee, _txFeesStableSwapFee, _txFeesRewardsFee):
@@ -797,10 +735,136 @@ def _isValidAssetConfig(
     if not self._areValidAmbassadorRevShareRatios(_ambassadorRevShareSwapRatio, _ambassadorRevShareRewardsRatio, _ambassadorRevShareYieldRatio):
         return False
 
-    if _isYieldAsset and not self._areValidYieldParams(_maxYieldIncrease, _performanceFee, _ambassadorBonusRatio, _bonusRatio):
+    if not self._areValidYieldParams(_maxYieldIncrease, _performanceFee, _ambassadorBonusRatio, _bonusRatio):
         return False
 
     return True
+
+
+# granular asset config setters
+
+
+@external
+def setAssetTxFees(
+    _asset: address,
+    _swapFee: uint256,
+    _stableSwapFee: uint256,
+    _rewardsFee: uint256
+) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+
+    # Ensure full asset config has been set first
+    mc: address = addys._getMissionControlAddr()
+    existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
+    assert existingConfig.hasConfig # dev: must set full asset config first
+
+    assert self._areValidTxFees(_swapFee, _stableSwapFee, _rewardsFee) # dev: invalid tx fees
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ASSET_TX_FEES
+    self.pendingAssetTxFees[aid] = PendingAssetTxFees(
+        asset=_asset,
+        txFees=cs.TxFees(
+            swapFee=_swapFee,
+            stableSwapFee=_stableSwapFee,
+            rewardsFee=_rewardsFee
+        )
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingAssetTxFeesChange(
+        asset=_asset,
+        swapFee=_swapFee,
+        stableSwapFee=_stableSwapFee,
+        rewardsFee=_rewardsFee,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+@external
+def setAssetAmbassadorRevShare(
+    _asset: address,
+    _swapRatio: uint256,
+    _rewardsRatio: uint256,
+    _yieldRatio: uint256
+) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+
+    # Ensure full asset config has been set first
+    mc: address = addys._getMissionControlAddr()
+    existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
+    assert existingConfig.hasConfig # dev: must set full asset config first
+
+    assert self._areValidAmbassadorRevShareRatios(_swapRatio, _rewardsRatio, _yieldRatio) # dev: invalid ratios
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ASSET_AMBASSADOR_REV_SHARE
+    self.pendingAssetAmbassadorRevShare[aid] = PendingAssetAmbassadorRevShare(
+        asset=_asset,
+        ambassadorRevShare=cs.AmbassadorRevShare(
+            swapRatio=_swapRatio,
+            rewardsRatio=_rewardsRatio,
+            yieldRatio=_yieldRatio
+        )
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingAssetAmbassadorRevShareChange(
+        asset=_asset,
+        swapRatio=_swapRatio,
+        rewardsRatio=_rewardsRatio,
+        yieldRatio=_yieldRatio,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+@external
+def setAssetYieldConfig(
+    _asset: address,
+    _maxYieldIncrease: uint256,
+    _performanceFee: uint256,
+    _ambassadorBonusRatio: uint256,
+    _bonusRatio: uint256,
+    _bonusAsset: address
+) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+
+    # Ensure full asset config has been set first
+    mc: address = addys._getMissionControlAddr()
+    existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
+    assert existingConfig.hasConfig # dev: must set full asset config first
+
+    assert self._areValidYieldParams(_maxYieldIncrease, _performanceFee, _ambassadorBonusRatio, _bonusRatio) # dev: invalid yield params
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ASSET_YIELD_CONFIG
+    self.pendingAssetYieldConfig[aid] = PendingAssetYieldConfig(
+        asset=_asset,
+        yieldConfig=cs.YieldConfig(
+            maxYieldIncrease=_maxYieldIncrease,
+            performanceFee=_performanceFee,
+            ambassadorBonusRatio=_ambassadorBonusRatio,
+            bonusRatio=_bonusRatio,
+            bonusAsset=_bonusAsset
+        )
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingAssetYieldConfigChange(
+        asset=_asset,
+        maxYieldIncrease=_maxYieldIncrease,
+        performanceFee=_performanceFee,
+        ambassadorBonusRatio=_ambassadorBonusRatio,
+        bonusRatio=_bonusRatio,
+        bonusAsset=_bonusAsset,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
 
 
 # is stablecoin
@@ -1042,26 +1106,23 @@ def _setPendingUserWalletConfig(
     _actionType: ActionType,
     _walletTemplate: address = empty(address),
     _configTemplate: address = empty(address),
-    _trialAsset: address = empty(address),
-    _trialAmount: uint256 = 0,
     _numUserWalletsAllowed: uint256 = 0,
     _enforceCreatorWhitelist: bool = False,
     _minKeyActionTimeLock: uint256 = 0,
     _maxKeyActionTimeLock: uint256 = 0,
-    _defaultStaleBlocks: uint256 = 0,
     _depositRewardsAsset: address = empty(address),
+    _lootClaimCoolOffPeriod: uint256 = 0,
     _txFeesSwapFee: uint256 = 0,
     _txFeesStableSwapFee: uint256 = 0,
     _txFeesRewardsFee: uint256 = 0,
     _ambassadorRevShareSwapRatio: uint256 = 0,
     _ambassadorRevShareRewardsRatio: uint256 = 0,
     _ambassadorRevShareYieldRatio: uint256 = 0,
-    _defaultYieldMaxIncrease: uint256 = 0,
-    _defaultYieldPerformanceFee: uint256 = 0,
-    _defaultYieldAmbassadorBonusRatio: uint256 = 0,
-    _defaultYieldBonusRatio: uint256 = 0,
-    _defaultYieldAltBonusAsset: address = empty(address),
-    _lootClaimCoolOffPeriod: uint256 = 0,
+    _yieldMaxIncrease: uint256 = 0,
+    _yieldPerformanceFee: uint256 = 0,
+    _yieldAmbassadorBonusRatio: uint256 = 0,
+    _yieldBonusRatio: uint256 = 0,
+    _yieldBonusAsset: address = empty(address),
 ) -> uint256:
     aid: uint256 = timeLock._initiateAction()
 
@@ -1069,14 +1130,12 @@ def _setPendingUserWalletConfig(
     self.pendingUserWalletConfig[aid] = cs.UserWalletConfig(
         walletTemplate=_walletTemplate,
         configTemplate=_configTemplate,
-        trialAsset=_trialAsset,
-        trialAmount=_trialAmount,
         numUserWalletsAllowed=_numUserWalletsAllowed,
         enforceCreatorWhitelist=_enforceCreatorWhitelist,
         minKeyActionTimeLock=_minKeyActionTimeLock,
         maxKeyActionTimeLock=_maxKeyActionTimeLock,
-        defaultStaleBlocks=_defaultStaleBlocks,
         depositRewardsAsset=_depositRewardsAsset,
+        lootClaimCoolOffPeriod=_lootClaimCoolOffPeriod,
         txFees=cs.TxFees(
             swapFee=_txFeesSwapFee,
             stableSwapFee=_txFeesStableSwapFee,
@@ -1087,12 +1146,13 @@ def _setPendingUserWalletConfig(
             rewardsRatio=_ambassadorRevShareRewardsRatio,
             yieldRatio=_ambassadorRevShareYieldRatio,
         ),
-        defaultYieldMaxIncrease=_defaultYieldMaxIncrease,
-        defaultYieldPerformanceFee=_defaultYieldPerformanceFee,
-        defaultYieldAmbassadorBonusRatio=_defaultYieldAmbassadorBonusRatio,
-        defaultYieldBonusRatio=_defaultYieldBonusRatio,
-        defaultYieldAltBonusAsset=_defaultYieldAltBonusAsset,
-        lootClaimCoolOffPeriod=_lootClaimCoolOffPeriod,
+        yieldConfig=cs.YieldConfig(
+            maxYieldIncrease=_yieldMaxIncrease,
+            performanceFee=_yieldPerformanceFee,
+            ambassadorBonusRatio=_yieldAmbassadorBonusRatio,
+            bonusRatio=_yieldBonusRatio,
+            bonusAsset=_yieldBonusAsset,
+        ),
     )
 
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
@@ -1100,13 +1160,6 @@ def _setPendingUserWalletConfig(
         log PendingUserWalletTemplatesChange(
             walletTemplate=_walletTemplate,
             configTemplate=_configTemplate,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
-    elif _actionType == ActionType.TRIAL_FUNDS:
-        log PendingTrialFundsChange(
-            trialAsset=_trialAsset,
-            trialAmount=_trialAmount,
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
@@ -1121,12 +1174,6 @@ def _setPendingUserWalletConfig(
         log PendingKeyActionTimelockBoundsChange(
             minKeyActionTimeLock=_minKeyActionTimeLock,
             maxKeyActionTimeLock=_maxKeyActionTimeLock,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
-    elif _actionType == ActionType.DEFAULT_STALE_BLOCKS:
-        log PendingDefaultStaleBlocksChange(
-            defaultStaleBlocks=_defaultStaleBlocks,
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
@@ -1148,11 +1195,11 @@ def _setPendingUserWalletConfig(
         )
     elif _actionType == ActionType.DEFAULT_YIELD_PARAMS:
         log PendingDefaultYieldParamsChange(
-            defaultYieldMaxIncrease=_defaultYieldMaxIncrease,
-            defaultYieldPerformanceFee=_defaultYieldPerformanceFee,
-            defaultYieldAmbassadorBonusRatio=_defaultYieldAmbassadorBonusRatio,
-            defaultYieldBonusRatio=_defaultYieldBonusRatio,
-            defaultYieldAltBonusAsset=_defaultYieldAltBonusAsset,
+            defaultYieldMaxIncrease=_yieldMaxIncrease,
+            defaultYieldPerformanceFee=_yieldPerformanceFee,
+            defaultYieldAmbassadorBonusRatio=_yieldAmbassadorBonusRatio,
+            defaultYieldBonusRatio=_yieldBonusRatio,
+            defaultYieldBonusAsset=_yieldBonusAsset,
             confirmationBlock=confirmationBlock,
             actionId=aid,
         )
@@ -1236,14 +1283,6 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall MissionControl(mc).setUserWalletConfig(config)
         log UserWalletTemplatesSet(walletTemplate=p.walletTemplate, configTemplate=p.configTemplate)
 
-    elif actionType == ActionType.TRIAL_FUNDS:
-        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
-        p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
-        config.trialAsset = p.trialAsset
-        config.trialAmount = p.trialAmount
-        extcall MissionControl(mc).setUserWalletConfig(config)
-        log TrialFundsSet(trialAsset=p.trialAsset, trialAmount=p.trialAmount)
-
     elif actionType == ActionType.WALLET_CREATION_LIMITS:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
         p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
@@ -1259,13 +1298,6 @@ def executePendingAction(_aid: uint256) -> bool:
         config.maxKeyActionTimeLock = p.maxKeyActionTimeLock
         extcall MissionControl(mc).setUserWalletConfig(config)
         log KeyActionTimelockBoundsSet(minKeyActionTimeLock=p.minKeyActionTimeLock, maxKeyActionTimeLock=p.maxKeyActionTimeLock)
-
-    elif actionType == ActionType.DEFAULT_STALE_BLOCKS:
-        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
-        p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
-        config.defaultStaleBlocks = p.defaultStaleBlocks
-        extcall MissionControl(mc).setUserWalletConfig(config)
-        log DefaultStaleBlocksSet(defaultStaleBlocks=p.defaultStaleBlocks)
 
     elif actionType == ActionType.TX_FEES:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
@@ -1284,18 +1316,14 @@ def executePendingAction(_aid: uint256) -> bool:
     elif actionType == ActionType.DEFAULT_YIELD_PARAMS:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
         p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
-        config.defaultYieldMaxIncrease = p.defaultYieldMaxIncrease
-        config.defaultYieldPerformanceFee = p.defaultYieldPerformanceFee
-        config.defaultYieldAmbassadorBonusRatio = p.defaultYieldAmbassadorBonusRatio
-        config.defaultYieldBonusRatio = p.defaultYieldBonusRatio
-        config.defaultYieldAltBonusAsset = p.defaultYieldAltBonusAsset
+        config.yieldConfig = p.yieldConfig
         extcall MissionControl(mc).setUserWalletConfig(config)
         log DefaultYieldParamsSet(
-            defaultYieldMaxIncrease=p.defaultYieldMaxIncrease,
-            defaultYieldPerformanceFee=p.defaultYieldPerformanceFee,
-            defaultYieldAmbassadorBonusRatio=p.defaultYieldAmbassadorBonusRatio,
-            defaultYieldBonusRatio=p.defaultYieldBonusRatio,
-            defaultYieldAltBonusAsset=p.defaultYieldAltBonusAsset
+            defaultYieldMaxIncrease=p.yieldConfig.maxYieldIncrease,
+            defaultYieldPerformanceFee=p.yieldConfig.performanceFee,
+            defaultYieldAmbassadorBonusRatio=p.yieldConfig.ambassadorBonusRatio,
+            defaultYieldBonusRatio=p.yieldConfig.bonusRatio,
+            defaultYieldBonusAsset=p.yieldConfig.bonusAsset
         )
 
     elif actionType == ActionType.LOOT_PARAMS:
@@ -1311,22 +1339,55 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall MissionControl(mc).setAssetConfig(p.asset, p.config)
         log AssetConfigSet(
             asset=p.asset,
-            legoId=p.config.legoId,
-            staleBlocks=p.config.staleBlocks,
             txFeesSwapFee=p.config.txFees.swapFee,
             txFeesStableSwapFee=p.config.txFees.stableSwapFee,
             txFeesRewardsFee=p.config.txFees.rewardsFee,
             ambassadorRevShareSwapRatio=p.config.ambassadorRevShare.swapRatio,
             ambassadorRevShareRewardsRatio=p.config.ambassadorRevShare.rewardsRatio,
             ambassadorRevShareYieldRatio=p.config.ambassadorRevShare.yieldRatio,
-            isYieldAsset=p.config.yieldConfig.isYieldAsset,
-            isRebasing=p.config.yieldConfig.isRebasing,
-            underlyingAsset=p.config.yieldConfig.underlyingAsset,
             maxYieldIncrease=p.config.yieldConfig.maxYieldIncrease,
             performanceFee=p.config.yieldConfig.performanceFee,
             ambassadorBonusRatio=p.config.yieldConfig.ambassadorBonusRatio,
             bonusRatio=p.config.yieldConfig.bonusRatio,
-            altBonusAsset=p.config.yieldConfig.altBonusAsset,
+            bonusAsset=p.config.yieldConfig.bonusAsset,
+        )
+
+    elif actionType == ActionType.ASSET_TX_FEES:
+        p: PendingAssetTxFees = self.pendingAssetTxFees[_aid]
+        config: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(p.asset)
+        config.txFees = p.txFees
+        extcall MissionControl(mc).setAssetConfig(p.asset, config)
+        log AssetTxFeesSet(
+            asset=p.asset,
+            swapFee=p.txFees.swapFee,
+            stableSwapFee=p.txFees.stableSwapFee,
+            rewardsFee=p.txFees.rewardsFee
+        )
+
+    elif actionType == ActionType.ASSET_AMBASSADOR_REV_SHARE:
+        p: PendingAssetAmbassadorRevShare = self.pendingAssetAmbassadorRevShare[_aid]
+        config: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(p.asset)
+        config.ambassadorRevShare = p.ambassadorRevShare
+        extcall MissionControl(mc).setAssetConfig(p.asset, config)
+        log AssetAmbassadorRevShareSet(
+            asset=p.asset,
+            swapRatio=p.ambassadorRevShare.swapRatio,
+            rewardsRatio=p.ambassadorRevShare.rewardsRatio,
+            yieldRatio=p.ambassadorRevShare.yieldRatio
+        )
+
+    elif actionType == ActionType.ASSET_YIELD_CONFIG:
+        p: PendingAssetYieldConfig = self.pendingAssetYieldConfig[_aid]
+        config: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(p.asset)
+        config.yieldConfig = p.yieldConfig
+        extcall MissionControl(mc).setAssetConfig(p.asset, config)
+        log AssetYieldConfigSet(
+            asset=p.asset,
+            maxYieldIncrease=p.yieldConfig.maxYieldIncrease,
+            performanceFee=p.yieldConfig.performanceFee,
+            ambassadorBonusRatio=p.yieldConfig.ambassadorBonusRatio,
+            bonusRatio=p.yieldConfig.bonusRatio,
+            bonusAsset=p.yieldConfig.bonusAsset
         )
 
     elif actionType == ActionType.IS_STABLECOIN:

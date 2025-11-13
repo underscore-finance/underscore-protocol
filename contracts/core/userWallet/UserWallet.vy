@@ -56,9 +56,6 @@ interface WethContract:
     def withdraw(_amount: uint256): nonpayable
     def deposit(): payable
 
-interface Hatchery:
-    def doesWalletStillHaveTrialFundsWithAddys(_user: address, _walletConfig: address, _missionControl: address, _legoBook: address, _appraiser: address, _ledger: address) -> bool: view
-
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
@@ -146,6 +143,7 @@ def apiVersion() -> String[28]:
 ##################
 
 
+@nonreentrant
 @external
 def transferFunds(
     _recipient: address,
@@ -237,6 +235,7 @@ def _validateCanTransfer(
 # deposit
 
 
+@nonreentrant
 @external
 def depositForYield(
     _legoId: uint256,
@@ -290,6 +289,7 @@ def _depositForYield(
 # withdraw
 
 
+@nonreentrant
 @external
 def withdrawFromYield(
     _legoId: uint256,
@@ -363,6 +363,7 @@ def _withdrawFromYield(
 # rebalance position
 
 
+@nonreentrant
 @external
 def rebalanceYieldPosition(
     _fromLegoId: uint256,
@@ -409,6 +410,7 @@ def rebalanceYieldPosition(
 ###################
 
 
+@nonreentrant
 @external
 def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):
     tokenIn: address = empty(address)
@@ -509,6 +511,7 @@ def _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP
 # mint / redeem
 
 
+@nonreentrant
 @external
 def mintOrRedeemAsset(
     _legoId: uint256,
@@ -542,6 +545,7 @@ def mintOrRedeemAsset(
     return tokenInAmount, tokenOutAmount, isPending, txUsdValue
 
 
+@nonreentrant
 @external
 def confirmMintOrRedeemAsset(
     _legoId: uint256,
@@ -582,6 +586,7 @@ def confirmMintOrRedeemAsset(
 # add collateral
 
 
+@nonreentrant
 @external
 def addCollateral(
     _legoId: uint256,
@@ -618,6 +623,7 @@ def addCollateral(
 # remove collateral
 
 
+@nonreentrant
 @external
 def removeCollateral(
     _legoId: uint256,
@@ -649,6 +655,7 @@ def removeCollateral(
 # borrow
 
 
+@nonreentrant
 @external
 def borrow(
     _legoId: uint256,
@@ -680,6 +687,7 @@ def borrow(
 # repay debt
 
 
+@nonreentrant
 @external
 def repayDebt(
     _legoId: uint256,
@@ -715,6 +723,7 @@ def repayDebt(
 ####################
 
 
+@nonreentrant
 @external
 def claimIncentives(
     _legoId: uint256,
@@ -769,6 +778,7 @@ def claimIncentives(
 # weth -> eth
 
 
+@nonreentrant
 @external
 def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     weth: address = WETH
@@ -797,6 +807,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 # eth -> weth
 
 
+@nonreentrant
 @payable
 @external
 def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
@@ -832,6 +843,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 # add / remove liquidity (simple)
 
 
+@nonreentrant
 @external
 def addLiquidity(
     _legoId: uint256,
@@ -883,6 +895,7 @@ def addLiquidity(
     return lpAmountReceived, addedTokenA, addedTokenB, txUsdValue
 
 
+@nonreentrant
 @external
 def removeLiquidity(
     _legoId: uint256,
@@ -923,6 +936,7 @@ def removeLiquidity(
 # concentrated liquidity
 
 
+@nonreentrant
 @external
 def addLiquidityConcentrated(
     _legoId: uint256,
@@ -985,6 +999,7 @@ def addLiquidityConcentrated(
     return liqAdded, addedTokenA, addedTokenB, nftTokenId, txUsdValue
 
 
+@nonreentrant
 @external
 def removeLiquidityConcentrated(
     _legoId: uint256,
@@ -1059,6 +1074,7 @@ def _performPreActionTasks(
     # eject mode can only do transfer and eth conversions
     if ad.inEjectMode:
         assert _action in (ws.ActionType.TRANSFER | ws.ActionType.ETH_TO_WETH | ws.ActionType.WETH_TO_ETH) # dev: invalid action in eject mode
+        assert _signer == ad.walletOwner # dev: only owner can act in eject mode
         return ad
 
     # make sure lego can perform the action
@@ -1102,10 +1118,6 @@ def _performPostActionTasks(
 
     if not _ad.inEjectMode:
         extcall LootDistributor(_ad.lootDistributor).updateDepositPointsWithNewValue(self, newTotalUsdValue)
-
-        # check if wallet still has trial funds
-        if not _isSpecialTx:
-            assert staticcall Hatchery(_ad.hatchery).doesWalletStillHaveTrialFundsWithAddys(self, _ad.walletConfig, _ad.missionControl, _ad.legoBook, _ad.appraiser, _ad.ledger) # dev: wallet has no trial funds
 
 
 ##################
@@ -1302,6 +1314,10 @@ def _payYieldFee(
     if _ad.lootDistributor == empty(address):
         return
 
+    # do not charge fees in eject mode
+    if _ad.inEjectMode:
+        return
+
     feeAmount: uint256 = _yieldRealized * min(_feeRatio, 25_00) // HUNDRED_PERCENT
     if feeAmount != 0:
         assert extcall IERC20(_asset).transfer(_ad.lootDistributor, feeAmount, default_return_value = True) # dev: xfer
@@ -1366,6 +1382,7 @@ def _resetApproval(_token: address, _legoAddr: address):
 # recover nft
 
 
+@nonreentrant
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     assert msg.sender == self.walletConfig # dev: perms

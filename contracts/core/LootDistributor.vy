@@ -37,7 +37,6 @@ from interfaces import WalletConfigStructs as wcs
 import interfaces.ConfigStructs as cs
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 
 interface MissionControl:
     def getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256: view
@@ -49,18 +48,15 @@ interface MissionControl:
 interface Ledger:
     def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
     def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
     def ambassadors(_user: address) -> address: view
     def isUserWallet(_user: address) -> bool: view
 
 interface Appraiser:
-    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def getPricePerShare(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def getPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def getAssetAmountFromRipe(_asset: address, _usdValue: uint256) -> uint256: view
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface UserWalletConfig:
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
-    def wallet() -> address: view
     def owner() -> address: view
 
 interface RipeTeller:
@@ -81,25 +77,18 @@ struct PointsData:
     lastUpdate: uint256
 
 struct LootDistroConfig:
+    legoId: uint256
+    legoAddr: address
+    underlyingAsset: address
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
-    underlyingAsset: address
-    decimals: uint256
-    legoId: uint256
-    legoAddr: address
+    bonusAsset: address
 
 struct DepositRewards:
     asset: address
     amount: uint256
-
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
 
 event TransactionFeePaid:
     user: indexed(address)
@@ -243,7 +232,9 @@ def addLootFromSwapOrRewards(
     ambFee: uint256 = 0
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
     if ambassador != empty(address):
-        config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, empty(address), ledger, False)
+        missionControl: address = _missionControl if _missionControl != empty(address) else addys._getMissionControlAddr()
+        config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+        config.ambassador = ambassador
         ambFee = self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
     # transfer leftover revenue to gov
@@ -273,7 +264,9 @@ def addLootFromYieldProfit(
     log YieldPerformanceFeePaid(user = msg.sender, asset = _asset, feeAmount = _feeAmount, yieldRealized = _yieldRealized)
 
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, _legoBook, ledger, True)
+    missionControl: address = _missionControl if _missionControl != empty(address) else addys._getMissionControlAddr()
+    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+    config.ambassador = ambassador
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     ambFee: uint256 = 0
@@ -287,7 +280,7 @@ def addLootFromYieldProfit(
 
     # yield bonus -- must be eligible
     if config.legoAddr != empty(address) and staticcall YieldLego(config.legoAddr).isEligibleForYieldBonus(_asset):
-        self._handleYieldBonus(msg.sender, _asset, _yieldRealized, config, _missionControl, _appraiser, _legoBook, ledger)
+        self._handleYieldBonus(msg.sender, _asset, _yieldRealized, config, _appraiser)
 
 
 # ambassador rev share (transaction fees)
@@ -341,40 +334,30 @@ def _handleYieldBonus(
     _asset: address,
     _yieldRealized: uint256,
     _config: LootDistroConfig,
-    _missionControl: address,
     _appraiser: address,
-    _legoBook: address,
-    _ledger: address,
 ):
+    # early return if no bonusAsset (RIPE token) configured
+    if empty(address) in [_config.bonusAsset, _asset] or _yieldRealized == 0:
+        return
+
     # get addys (if necessary)
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    legoBook: address = _legoBook
-    if _legoBook == empty(address):
-        legoBook = addys._getLegoBookAddr()
 
-    # get price info of `_asset`
-    pricePerShare: uint256 = staticcall Appraiser(appraiser).getPricePerShare(_asset, missionControl, legoBook, _ledger)
-    if pricePerShare == 0:
+    # convert yield realized to USD value
+    usdValue: uint256 = 0
+    if _config.underlyingAsset != empty(address):
+        underlyingAmount: uint256 = staticcall YieldLego(_config.legoAddr).getUnderlyingAmount(_asset, _yieldRealized)
+        usdValue = staticcall Appraiser(appraiser).getUnderlyingUsdValue(_config.underlyingAsset, underlyingAmount)
+    else:
+        usdValue = staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _yieldRealized)
+    if usdValue == 0:
         return
 
-    # default will be in-kind bonus -- same as the `_asset`
-    bonusAsset: address = _asset
-    bonusAssetYieldRealized: uint256 = _yieldRealized
-
-    # alt bonus asset -- (i.e. UNDY or RIPE tokens)
-    if _config.altBonusAsset != empty(address):
-        bonusAsset = _config.altBonusAsset
-        bonusAssetYieldRealized = self._getAltBonusAssetAmount(pricePerShare, _yieldRealized, _config, missionControl, appraiser, legoBook, _ledger)
-
-    # if an underlying asset exists
-    elif _config.underlyingAsset != empty(address):
-        bonusAsset = _config.underlyingAsset
-        bonusAssetYieldRealized = _yieldRealized * pricePerShare // (10 ** _config.decimals)
+    # convert USD value to RIPE token amount
+    bonusAsset: address = _config.bonusAsset # RIPE token
+    bonusAssetYieldRealized: uint256 = staticcall Appraiser(appraiser).getAssetAmountFromRipe(bonusAsset, usdValue)
 
     # no bonus to distribute
     currentBalance: uint256 = staticcall IERC20(bonusAsset).balanceOf(self)
@@ -394,40 +377,6 @@ def _handleYieldBonus(
     # ambassador bonus
     if _config.ambassador != empty(address) and _config.ambassadorBonusRatio != 0:
         self._handleSpecificYieldBonus(True, bonusAsset, bonusAssetYieldRealized, _config.ambassadorBonusRatio, _config.ambassador, currentBalance, reservedForDepositRewards)
-
-
-# alt bonus asset
-
-
-@view
-@internal
-def _getAltBonusAssetAmount(
-    _pricePerShare: uint256,
-    _yieldRealized: uint256,
-    _config: LootDistroConfig,
-    _missionControl: address,
-    _appraiser: address,
-    _legoBook: address,
-    _ledger: address,
-) -> uint256:
-    price: uint256 = _pricePerShare
-    if _config.underlyingAsset != empty(address):
-        underlyingPrice: uint256 = staticcall Appraiser(_appraiser).getNormalAssetPrice(_config.underlyingAsset, _missionControl, _legoBook, _ledger)
-        underlyingDecimals: uint256 = convert(staticcall IERC20Detailed(_config.underlyingAsset).decimals(), uint256)
-        price = underlyingPrice * _pricePerShare // (10 ** underlyingDecimals)
-
-    # get total usd value of yield amount
-    usdValue: uint256 = price * _yieldRealized // (10 ** _config.decimals)
-    if usdValue == 0:
-        return 0
-
-    # make sure we can get price info for alt bonus asset
-    altBonusAssetPrice: uint256 = staticcall Appraiser(_appraiser).getPrice(_config.altBonusAsset, _missionControl, _legoBook, _ledger)
-    if altBonusAssetPrice == 0:
-        return 0
-
-    altDecimals: uint256 = convert(staticcall IERC20Detailed(_config.altBonusAsset).decimals(), uint256)
-    return usdValue * (10 ** altDecimals) // altBonusAssetPrice
 
 
 # handle specific yield bonus
@@ -1079,60 +1028,6 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         return True
 
     return isSwitchboard
-
-
-# loot config
-
-
-@view
-@external
-def getLootDistroConfig(_wallet: address, _asset: address, _shouldGetLegoInfo: bool = False) -> LootDistroConfig:
-    ledger: address = addys._getLedgerAddr()
-    ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
-    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), ledger, _shouldGetLegoInfo)
-
-
-@view
-@internal
-def _getLootDistroConfig(
-    _wallet: address,
-    _ambassador: address,
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-    _shouldGetLegoInfo: bool,
-) -> LootDistroConfig:
-
-    # get addys
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
-    legoBook: address = _legoBook
-    if _legoBook == empty(address):
-        legoBook = addys._getLegoBookAddr()
-
-    # config
-    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
-    config.ambassador = _ambassador
-
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.decimals = vaultToken.decimals
-            config.underlyingAsset = vaultToken.underlyingAsset
-            config.legoId = vaultToken.legoId
-
-    # get lego addr
-    if _shouldGetLegoInfo and config.legoId != 0 and legoBook != empty(address) and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
-
-    # get decimals if needed
-    if config.decimals == 0:
-        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-
-    return config
 
 
 # set ripe rewards config

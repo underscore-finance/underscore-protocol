@@ -33,7 +33,6 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC721
-from ethereum.ercs import IERC20
 
 interface UserWallet:
     def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
@@ -93,10 +92,6 @@ highCommand: public(address)
 paymaster: public(address)
 chequeBook: public(address)
 migrator: public(address)
-
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
 
 # managers
 managerSettings: public(HashMap[address, wcs.ManagerSettings])
@@ -164,9 +159,6 @@ def __init__(
     _undyHq: address,
     _owner: address,
     _groupId: uint256,
-    # trial funds
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
     # manager / payee settings
     _globalManagerSettings: wcs.GlobalManagerSettings,
     _globalPayeeSettings: wcs.GlobalPayeeSettings,
@@ -208,10 +200,8 @@ def __init__(
     self.numPayees = 1
     self.numWhitelisted = 1
 
-    # trial funds / group id
+    # group id
     self.groupId = _groupId
-    self.trialFundsAsset = _trialFundsAsset
-    self.trialFundsAmount = _trialFundsAmount
 
     # timelock
     assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -424,11 +414,14 @@ def validateCheque(
     # IMPORTANT -- make sure this recipient has valid cheque
     assert isValidCheque # dev: invalid cheque
 
-    # only save if data was updated  
+    # only save if data was updated
     if data.lastChequePaidBlock != 0:
         self.chequePeriodData = data
         self.numActiveCheques -= 1
-    
+
+        # deactivate cheque after payment to prevent double-pulling
+        self.cheques[_recipient] = empty(wcs.Cheque)
+
     return True
 
 
@@ -771,39 +764,6 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     return newTotalUsdValue
 
 
-# remove trial funds
-
-
-@external
-def removeTrialFunds() -> uint256:
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert msg.sender == hatchery # dev: no perms
-
-    # trial funds info
-    trialFundsAmount: uint256 = self.trialFundsAmount
-    trialFundsAsset: address = self.trialFundsAsset
-    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
-
-    # transfer assets
-    amount: uint256 = 0
-    na: uint256 = 0
-    amount, na = extcall UserWallet(self.wallet).transferFunds(hatchery, trialFundsAsset, trialFundsAmount, False, True)
-
-    # update trial funds info
-    remainingAmount: uint256 = trialFundsAmount - min(trialFundsAmount, amount)
-    self.trialFundsAmount = remainingAmount
-    if remainingAmount == 0:
-        self.trialFundsAsset = empty(address)
-
-    return amount
-
-
-@view
-@external
-def getTrialFundsInfo() -> (address, uint256):
-    return self.trialFundsAsset, self.trialFundsAmount
-
-
 # migrate funds
 
 
@@ -883,7 +843,6 @@ def setFrozen(_isFrozen: bool):
 def setEjectionMode(_shouldEject: bool):
     # NOTE: this needs to be triggered from Switchboard, as it has other side effects / reactions
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self.trialFundsAmount == 0 # dev: has trial funds
 
     assert _shouldEject != self.inEjectMode # dev: nothing to change
     self.inEjectMode = _shouldEject
