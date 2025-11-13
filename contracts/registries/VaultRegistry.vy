@@ -225,7 +225,7 @@ def startAddNewAddressToRegistry(_undyVaultAddr: address, _description: String[6
 @external
 def confirmNewAddressToRegistry(
     _undyVaultAddr: address,
-    _isLeveragedVault: bool,
+    _isLeveragedVault: bool = False,
     _approvedVaultTokens: DynArray[address, MAX_VAULT_TOKENS] = [],
     _maxDepositAmount: uint256 = max_value(uint256),
     _minYieldWithdrawAmount: uint256 = 0,
@@ -859,11 +859,10 @@ def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
 @view
 @internal
 def _getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
-    a: addys.Addys = addys._getAddys()
-    data: VaultToken = staticcall Ledger(a.ledger).vaultTokens(_vaultToken)
+    data: VaultToken = staticcall Ledger(addys._getLedgerAddr()).vaultTokens(_vaultToken)
     if data.legoId == 0:
         return 0, empty(address)
-    return data.legoId, staticcall Registry(a.legoBook).getAddr(data.legoId)
+    return data.legoId, staticcall Registry(addys._getLegoBookAddr()).getAddr(data.legoId)
 
 
 @view

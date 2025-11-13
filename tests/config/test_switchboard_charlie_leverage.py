@@ -39,7 +39,7 @@ def test_set_collateral_vault_success(switchboard_charlie, undy_levg_vault_usdc,
     assert logs[-1].confirmationBlock == expected_confirmation_block
 
     # Step 3: Verify pending state
-    assert switchboard_charlie.actionType(aid) == 128  # COLLATERAL_VAULT (2^7)
+    assert switchboard_charlie.actionType(aid) == 512  # COLLATERAL_VAULT (2^9)
     pending = switchboard_charlie.pendingCollateralVault(aid)
     assert pending.vaultAddr == vault.address
     assert pending.vaultToken == new_vault_token
@@ -176,7 +176,7 @@ def test_set_leverage_vault_success(switchboard_charlie, undy_levg_vault_usdc, m
     assert logs[-1].actionId == aid
 
     # Step 3: Verify pending state
-    assert switchboard_charlie.actionType(aid) == 256  # LEVERAGE_VAULT (2^8)
+    assert switchboard_charlie.actionType(aid) == 1024  # LEVERAGE_VAULT (2^10)
     pending = switchboard_charlie.pendingLeverageVault(aid)
     assert pending.vaultAddr == vault.address
     assert pending.vaultToken == new_vault_token
@@ -258,7 +258,7 @@ def test_set_usdc_slippage_success_zero_percent(switchboard_charlie, undy_levg_v
     aid = switchboard_charlie.setUsdcSlippageAllowed(vault.address, slippage, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 512  # USDC_SLIPPAGE (2^9)
+    assert switchboard_charlie.actionType(aid) == 2048  # USDC_SLIPPAGE (2^11)
     pending = switchboard_charlie.pendingUsdcSlippage(aid)
     assert pending.vaultAddr == vault.address
     assert pending.slippage == slippage
@@ -348,7 +348,7 @@ def test_set_green_slippage_success_zero_percent(switchboard_charlie, undy_levg_
     aid = switchboard_charlie.setGreenSlippageAllowed(vault.address, slippage, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 1024  # GREEN_SLIPPAGE (2^10)
+    assert switchboard_charlie.actionType(aid) == 4096  # GREEN_SLIPPAGE (2^12)
     pending = switchboard_charlie.pendingGreenSlippage(aid)
     assert pending.vaultAddr == vault.address
     assert pending.slippage == slippage
@@ -435,7 +435,7 @@ def test_set_levg_vault_helper_success(switchboard_charlie, undy_levg_vault_usdc
     aid = switchboard_charlie.setLevgVaultHelper(vault.address, new_helper, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 2048  # LEVG_VAULT_HELPER (2^11)
+    assert switchboard_charlie.actionType(aid) == 8192  # LEVG_VAULT_HELPER (2^13)
     pending = switchboard_charlie.pendingLevgVaultHelper(aid)
     assert pending.vaultAddr == vault.address
     assert pending.levgVaultHelper == new_helper
@@ -497,7 +497,7 @@ def test_set_max_debt_ratio_success_zero_percent(switchboard_charlie, undy_levg_
     aid = switchboard_charlie.setMaxDebtRatio(vault.address, ratio, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 4096  # MAX_DEBT_RATIO (2^12)
+    assert switchboard_charlie.actionType(aid) == 16384  # MAX_DEBT_RATIO (2^14)
     pending = switchboard_charlie.pendingMaxDebtRatio(aid)
     assert pending.vaultAddr == vault.address
     assert pending.ratio == ratio
@@ -586,7 +586,7 @@ def test_add_vault_manager_success_leverage_vault(switchboard_charlie, undy_levg
     aid = switchboard_charlie.addVaultManager(vault.address, alice, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 8192  # ADD_MANAGER (2^13)
+    assert switchboard_charlie.actionType(aid) == 32768  # ADD_MANAGER (2^15)
     pending = switchboard_charlie.pendingAddManager(aid)
     assert pending.vaultAddr == vault.address
     assert pending.manager == alice
@@ -703,7 +703,7 @@ def test_remove_vault_manager_success_leverage_vault(switchboard_charlie, undy_l
     aid_remove = switchboard_charlie.removeVaultManager(vault.address, alice, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid_remove) == 16384  # REMOVE_MANAGER (2^14)
+    assert switchboard_charlie.actionType(aid_remove) == 65536  # REMOVE_MANAGER (2^16)
     pending = switchboard_charlie.pendingRemoveManager(aid_remove)
     assert pending.vaultAddr == vault.address
     assert pending.manager == alice

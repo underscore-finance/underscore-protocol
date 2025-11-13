@@ -797,7 +797,7 @@ def test_set_performance_fee_success(switchboard_charlie, vault_registry, undy_u
     assert logs[-1].actionId == aid
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 16  # PERFORMANCE_FEE (2^4)
+    assert switchboard_charlie.actionType(aid) == 32  # PERFORMANCE_FEE (2^5)
     pending = switchboard_charlie.pendingPerformanceFee(aid)
     assert pending.vaultAddr == undy_usd_vault.address
     assert pending.performanceFee == new_fee
@@ -872,7 +872,7 @@ def test_set_default_target_vault_token_success(switchboard_charlie, vault_regis
     assert logs[-1].actionId == aid
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 32  # DEFAULT_TARGET_VAULT_TOKEN (2^5)
+    assert switchboard_charlie.actionType(aid) == 64  # DEFAULT_TARGET_VAULT_TOKEN (2^6)
     pending = switchboard_charlie.pendingDefaultTargetVaultToken(aid)
     assert pending.vaultAddr == undy_usd_vault.address
     assert pending.targetVaultToken == target_token
@@ -949,7 +949,7 @@ def test_set_max_deposit_amount_success(switchboard_charlie, vault_registry, und
     assert logs[-1].actionId == aid
 
     # Verify pending state
-    assert switchboard_charlie.actionType(aid) == 64  # MAX_DEPOSIT_AMOUNT (2^6)
+    assert switchboard_charlie.actionType(aid) == 128  # MAX_DEPOSIT_AMOUNT (2^7)
     pending = switchboard_charlie.pendingMaxDepositAmount(aid)
     assert pending.vaultAddr == undy_usd_vault.address
     assert pending.maxDepositAmount == new_max

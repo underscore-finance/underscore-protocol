@@ -27,10 +27,12 @@ from interfaces import LegoStructs as ls
 from ethereum.ercs import IERC4626
 
 interface VaultRegistry:
+    def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool): nonpayable
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
     def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
     def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
     def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
+    def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool): nonpayable
     def isApprovedVaultToken(_vaultAddr: address, _vaultToken: address) -> bool: view
     def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256): nonpayable
     def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256): nonpayable
@@ -40,7 +42,6 @@ interface VaultRegistry:
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
     def isValidPerformanceFee(_performanceFee: uint256) -> bool: view
     def isValidRedemptionBuffer(_buffer: uint256) -> bool: view
-    def isValidVaultToken(_vaultToken: address) -> bool: view
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface LevgVault:
@@ -73,9 +74,11 @@ flag ActionType:
     MIN_YIELD_WITHDRAW_AMOUNT
     SNAPSHOT_PRICE_CONFIG
     APPROVED_VAULT_TOKEN
+    APPROVED_VAULT_TOKENS
     PERFORMANCE_FEE
     DEFAULT_TARGET_VAULT_TOKEN
     MAX_DEPOSIT_AMOUNT
+    IS_LEVERAGED_VAULT
     COLLATERAL_VAULT
     LEVERAGE_VAULT
     USDC_SLIPPAGE
@@ -102,6 +105,11 @@ struct PendingApprovedVaultToken:
     vaultToken: address
     isApproved: bool
 
+struct PendingApprovedVaultTokens:
+    vaultAddr: address
+    vaultTokens: DynArray[address, MAX_VAULT_TOKENS]
+    isApproved: bool
+
 struct PendingPerformanceFee:
     vaultAddr: address
     performanceFee: uint256
@@ -113,6 +121,10 @@ struct PendingDefaultTargetVaultToken:
 struct PendingMaxDepositAmount:
     vaultAddr: address
     maxDepositAmount: uint256
+
+struct PendingIsLeveragedVault:
+    vaultAddr: address
+    isLeveragedVault: bool
 
 struct PendingCollateralVault:
     vaultAddr: address
@@ -199,6 +211,18 @@ event ApprovedVaultTokenSet:
     vaultToken: indexed(address)
     isApproved: bool
 
+event PendingApprovedVaultTokensChange:
+    vaultAddr: indexed(address)
+    numTokens: uint256
+    isApproved: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event ApprovedVaultTokensSet:
+    vaultAddr: indexed(address)
+    numTokens: uint256
+    isApproved: bool
+
 event PendingPerformanceFeeChange:
     vaultAddr: indexed(address)
     performanceFee: uint256
@@ -228,6 +252,16 @@ event PendingMaxDepositAmountChange:
 event MaxDepositAmountSet:
     vaultAddr: indexed(address)
     maxDepositAmount: uint256
+
+event PendingIsLeveragedVaultChange:
+    vaultAddr: indexed(address)
+    isLeveragedVault: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event IsLeveragedVaultSet:
+    vaultAddr: indexed(address)
+    isLeveragedVault: bool
 
 event CanDepositSet:
     vaultAddr: indexed(address)
@@ -343,9 +377,11 @@ pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid
 pendingMinYieldWithdrawAmount: public(HashMap[uint256, PendingMinYieldWithdrawAmount]) # aid -> config
 pendingSnapShotPriceConfig: public(HashMap[uint256, PendingSnapShotPriceConfig]) # aid -> config
 pendingApprovedVaultToken: public(HashMap[uint256, PendingApprovedVaultToken]) # aid -> config
+pendingApprovedVaultTokens: public(HashMap[uint256, PendingApprovedVaultTokens]) # aid -> config
 pendingPerformanceFee: public(HashMap[uint256, PendingPerformanceFee]) # aid -> config
 pendingDefaultTargetVaultToken: public(HashMap[uint256, PendingDefaultTargetVaultToken]) # aid -> config
 pendingMaxDepositAmount: public(HashMap[uint256, PendingMaxDepositAmount]) # aid -> config
+pendingIsLeveragedVault: public(HashMap[uint256, PendingIsLeveragedVault]) # aid -> config
 pendingCollateralVault: public(HashMap[uint256, PendingCollateralVault]) # aid -> config
 pendingLeverageVault: public(HashMap[uint256, PendingLeverageVault]) # aid -> config
 pendingUsdcSlippage: public(HashMap[uint256, PendingUsdcSlippage]) # aid -> config
@@ -354,6 +390,8 @@ pendingLevgVaultHelper: public(HashMap[uint256, PendingLevgVaultHelper]) # aid -
 pendingMaxDebtRatio: public(HashMap[uint256, PendingMaxDebtRatio]) # aid -> config
 pendingAddManager: public(HashMap[uint256, PendingAddManager]) # aid -> config
 pendingRemoveManager: public(HashMap[uint256, PendingRemoveManager]) # aid -> config
+
+MAX_VAULT_TOKENS: constant(uint256) = 50
 
 
 @deploy
@@ -534,7 +572,7 @@ def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert staticcall VaultRegistry(vr).isValidVaultToken(_vaultToken) # dev: invalid vault token
+    assert _vaultToken != empty(address) # dev: invalid vault token
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.APPROVED_VAULT_TOKEN
@@ -547,6 +585,34 @@ def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved
     log PendingApprovedVaultTokenChange(
         vaultAddr=_vaultAddr,
         vaultToken=_vaultToken,
+        isApproved=_isApproved,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+@external
+def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # validate all vault tokens
+    assert empty(address) not in _vaultTokens # dev: invalid vault tokens
+    assert len(_vaultTokens) != 0 # dev: no vault tokens
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.APPROVED_VAULT_TOKENS
+    self.pendingApprovedVaultTokens[aid] = PendingApprovedVaultTokens(
+        vaultAddr=_vaultAddr,
+        vaultTokens=_vaultTokens,
+        isApproved=_isApproved
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingApprovedVaultTokensChange(
+        vaultAddr=_vaultAddr,
+        numTokens=len(_vaultTokens),
         isApproved=_isApproved,
         confirmationBlock=confirmationBlock,
         actionId=aid
@@ -625,6 +691,31 @@ def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256) -> uint
     log PendingMaxDepositAmountChange(
         vaultAddr=_vaultAddr,
         maxDepositAmount=_maxDepositAmount,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# is leveraged vault
+
+
+@external
+def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.IS_LEVERAGED_VAULT
+    self.pendingIsLeveragedVault[aid] = PendingIsLeveragedVault(
+        vaultAddr=_vaultAddr,
+        isLeveragedVault=_isLeveragedVault
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingIsLeveragedVaultChange(
+        vaultAddr=_vaultAddr,
+        isLeveragedVault=_isLeveragedVault,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -897,6 +988,11 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved)
         log ApprovedVaultTokenSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, isApproved=p.isApproved)
 
+    elif actionType == ActionType.APPROVED_VAULT_TOKENS:
+        p: PendingApprovedVaultTokens = self.pendingApprovedVaultTokens[_aid]
+        extcall VaultRegistry(vr).setApprovedVaultTokens(p.vaultAddr, p.vaultTokens, p.isApproved)
+        log ApprovedVaultTokensSet(vaultAddr=p.vaultAddr, numTokens=len(p.vaultTokens), isApproved=p.isApproved)
+
     elif actionType == ActionType.PERFORMANCE_FEE:
         p: PendingPerformanceFee = self.pendingPerformanceFee[_aid]
         extcall VaultRegistry(vr).setPerformanceFee(p.vaultAddr, p.performanceFee)
@@ -911,6 +1007,11 @@ def executePendingAction(_aid: uint256) -> bool:
         p: PendingMaxDepositAmount = self.pendingMaxDepositAmount[_aid]
         extcall VaultRegistry(vr).setMaxDepositAmount(p.vaultAddr, p.maxDepositAmount)
         log MaxDepositAmountSet(vaultAddr=p.vaultAddr, maxDepositAmount=p.maxDepositAmount)
+
+    elif actionType == ActionType.IS_LEVERAGED_VAULT:
+        p: PendingIsLeveragedVault = self.pendingIsLeveragedVault[_aid]
+        extcall VaultRegistry(vr).setIsLeveragedVault(p.vaultAddr, p.isLeveragedVault)
+        log IsLeveragedVaultSet(vaultAddr=p.vaultAddr, isLeveragedVault=p.isLeveragedVault)
 
     elif actionType == ActionType.COLLATERAL_VAULT:
         p: PendingCollateralVault = self.pendingCollateralVault[_aid]

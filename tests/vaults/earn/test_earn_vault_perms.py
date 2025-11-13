@@ -41,7 +41,7 @@ def test_set_approved_vault_token_non_switchboard_fails(undy_usd_vault, vault_re
 def test_set_approved_vault_token_invalid_address(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that empty address cannot be approved as vault token"""
 
-    with boa.reverts("invalid vault token"):
+    with boa.reverts("invalid params"):
         vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, sender=switchboard_alpha.address)
 
 
@@ -140,12 +140,12 @@ def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
     # Find the ApprovedVaultTokenSet event
     vault_token_event = None
     for event in events:
-        if hasattr(event, 'vaultToken'):
+        if hasattr(event, 'isApproved'):
             vault_token_event = event
             break
 
     assert vault_token_event is not None
-    assert vault_token_event.vaultAddr == undy_usd_vault.address
+    assert vault_token_event.undyVaultAddr == undy_usd_vault.address
     assert vault_token_event.vaultToken == new_vault_token.address
     assert vault_token_event.isApproved == True
 

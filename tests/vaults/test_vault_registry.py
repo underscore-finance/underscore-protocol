@@ -803,7 +803,7 @@ def test_set_approved_vault_token_non_switchboard_fails(vault_registry, undy_usd
 
 def test_set_approved_vault_token_zero_address_fails(vault_registry, undy_usd_vault, switchboard_alpha):
     """Test that empty address cannot be approved"""
-    with boa.reverts("invalid vault token"):
+    with boa.reverts("invalid params"):
         vault_registry.setApprovedVaultToken(
             undy_usd_vault.address,
             ZERO_ADDRESS,
@@ -827,7 +827,7 @@ def test_set_approved_vault_token_emits_event(vault_registry, undy_usd_vault, sw
     assert len(events) > 0
 
     latest_event = events[-1]
-    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.undyVaultAddr == undy_usd_vault.address
     assert latest_event.vaultToken == new_vault_token
     assert latest_event.isApproved == True
 
@@ -894,6 +894,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     # Confirm and initialize vault 1 with custom config
     vault_registry.confirmNewAddressToRegistry(
         vault_1.address,
+        False,  # isLeveragedVault
         [vault_token_1],  # approvedVaultTokens
         500_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         10000,  # minYieldWithdrawAmount
@@ -919,6 +920,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     # Confirm and initialize vault 2 with different config
     vault_registry.confirmNewAddressToRegistry(
         vault_2.address,
+        False,  # isLeveragedVault
         [vault_token_2],  # approvedVaultTokens
         1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         20000,  # minYieldWithdrawAmount
@@ -1379,6 +1381,7 @@ def test_disable_vault_without_config_fails(vault_registry, governance, deploy_t
     # Confirm without full initialization (minimal config)
     reg_id = vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
+        False,  # isLeveragedVault
         [],  # no approved vault tokens
         0,  # no max deposit
         0,  # no min yield withdraw
