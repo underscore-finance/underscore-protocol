@@ -78,7 +78,7 @@ struct LootDistroConfig:
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
     underlyingAsset: address  # Kept for backward compatibility - fetched from Ledger
     decimals: uint256
     legoId: uint256  # Kept for backward compatibility - fetched from Ledger
@@ -187,20 +187,20 @@ def getLootDistroConfig(_asset: address) -> LootDistroConfig:
     ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
     ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
     bonusRatio: uint256 = assetConfig.yieldConfig.bonusRatio
-    altBonusAsset: address = assetConfig.yieldConfig.altBonusAsset
+    bonusAsset: address = assetConfig.yieldConfig.bonusAsset
     if not assetConfig.hasConfig:
         walletConfig: cs.UserWalletConfig = self.userWalletConfig
         ambassadorRevShare = walletConfig.ambassadorRevShare
-        ambassadorBonusRatio = walletConfig.defaultYieldAmbassadorBonusRatio
-        bonusRatio = walletConfig.defaultYieldBonusRatio
-        altBonusAsset = walletConfig.defaultYieldAltBonusAsset
+        ambassadorBonusRatio = walletConfig.yieldConfig.ambassadorBonusRatio
+        bonusRatio = walletConfig.yieldConfig.bonusRatio
+        bonusAsset = walletConfig.yieldConfig.bonusAsset
 
     return LootDistroConfig(
         ambassador = empty(address),
         ambassadorRevShare = ambassadorRevShare,
         ambassadorBonusRatio = ambassadorBonusRatio,
         bonusRatio = bonusRatio,
-        altBonusAsset = altBonusAsset,
+        bonusAsset = bonusAsset,
         underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
         decimals = assetConfig.decimals,
         legoId = 0,  # Will be fetched from Ledger.vaultTokens
@@ -287,8 +287,8 @@ def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
     performanceFee: uint256 = assetConfig.yieldConfig.performanceFee
     if not assetConfig.hasConfig:
         walletConfig: cs.UserWalletConfig = self.userWalletConfig
-        maxYieldIncrease = walletConfig.defaultYieldMaxIncrease
-        performanceFee = walletConfig.defaultYieldPerformanceFee
+        maxYieldIncrease = walletConfig.yieldConfig.maxYieldIncrease
+        performanceFee = walletConfig.yieldConfig.performanceFee
 
     return ProfitCalcConfig(
         legoId = 0,  # Will be fetched from Ledger.vaultTokens

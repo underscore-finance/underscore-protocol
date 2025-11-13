@@ -28,7 +28,7 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, createTxFees, createAmbassadorRevShare):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     def setUserWalletConfig(
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
@@ -37,15 +37,37 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
         _minTimeLock = ONE_DAY_IN_BLOCKS // 2,
         _maxTimeLock = 7 * ONE_DAY_IN_BLOCKS,
         _depositRewardsAsset = ZERO_ADDRESS,
-        _txFees = createTxFees(),
-        _ambassadorRevShare = createAmbassadorRevShare(),
-        _defaultYieldMaxIncrease = 5_00,
-        _defaultYieldPerformanceFee = 20_00,
-        _defaultYieldAmbassadorBonusRatio = 0,
-        _defaultYieldBonusRatio = 0,
-        _defaultYieldAltBonusAsset = ZERO_ADDRESS,
         _lootClaimCoolOffPeriod = 0,
+        _txFees = None,
+        _ambassadorRevShare = None,
+        _yieldConfig = None,
+        # Legacy parameters for backwards compatibility
+        _defaultYieldMaxIncrease = None,
+        _defaultYieldPerformanceFee = None,
+        _defaultYieldAmbassadorBonusRatio = None,
+        _defaultYieldBonusRatio = None,
+        _defaultYieldBonusAsset = None,
+        _defaultYieldAltBonusAsset = None,  # Old name for bonusAsset
     ):
+        # Handle backwards compatibility
+        if _txFees is None:
+            _txFees = createTxFees()
+        if _ambassadorRevShare is None:
+            _ambassadorRevShare = createAmbassadorRevShare()
+        if _yieldConfig is None:
+            # Use legacy parameters if provided, otherwise use defaults
+            # Handle old _defaultYieldAltBonusAsset parameter name
+            bonus_asset = _defaultYieldBonusAsset if _defaultYieldBonusAsset is not None else (
+                _defaultYieldAltBonusAsset if _defaultYieldAltBonusAsset is not None else ZERO_ADDRESS
+            )
+            _yieldConfig = createAssetYieldConfig(
+                _maxYieldIncrease = _defaultYieldMaxIncrease if _defaultYieldMaxIncrease is not None else 5_00,
+                _performanceFee = _defaultYieldPerformanceFee if _defaultYieldPerformanceFee is not None else 20_00,
+                _ambassadorBonusRatio = _defaultYieldAmbassadorBonusRatio if _defaultYieldAmbassadorBonusRatio is not None else 0,
+                _bonusRatio = _defaultYieldBonusRatio if _defaultYieldBonusRatio is not None else 0,
+                _bonusAsset = bonus_asset,
+            )
+
         config = (
             _walletTemplate,
             _configTemplate,
@@ -54,14 +76,10 @@ def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template
             _minTimeLock,
             _maxTimeLock,
             _depositRewardsAsset,
+            _lootClaimCoolOffPeriod,
             _txFees,
             _ambassadorRevShare,
-            _defaultYieldMaxIncrease,
-            _defaultYieldPerformanceFee,
-            _defaultYieldAmbassadorBonusRatio,
-            _defaultYieldBonusRatio,
-            _defaultYieldAltBonusAsset,
-            _lootClaimCoolOffPeriod,
+            _yieldConfig,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
@@ -126,14 +144,14 @@ def createAssetYieldConfig():
         _performanceFee = 20_00,
         _ambassadorBonusRatio = 0,
         _bonusRatio = 0,
-        _altBonusAsset = ZERO_ADDRESS,
+        _bonusAsset = ZERO_ADDRESS,
     ):
         return (
             _maxYieldIncrease,
             _performanceFee,
             _ambassadorBonusRatio,
             _bonusRatio,
-            _altBonusAsset,
+            _bonusAsset,
         )
     yield createAssetYieldConfig
 

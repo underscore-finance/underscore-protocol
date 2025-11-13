@@ -460,7 +460,7 @@ def test_add_loot_from_yield_profit_no_bonus_insufficient_balance(loot_distribut
 
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=15_00,  # 15% bonus ratio
-        _altBonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
+        _bonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
     )
 
     setAssetConfig(
@@ -566,7 +566,7 @@ def test_add_loot_from_yield_profit_only_fee_no_bonus_config(loot_distributor, u
 
 
 def test_add_loot_from_yield_profit_no_alt_bonus_asset_configured(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
-    """ Test that NO yield bonuses are paid when altBonusAsset is not configured, even with bonus ratios set """
+    """ Test that NO yield bonuses are paid when bonusAsset is not configured, even with bonus ratios set """
 
     # Set up ambassador config with bonus ratios
     ambassadorRevShare = createAmbassadorRevShare(
@@ -575,11 +575,11 @@ def test_add_loot_from_yield_profit_no_alt_bonus_asset_configured(loot_distribut
         _yieldRatio=35_00,
     )
 
-    # Config has bonus ratios but NO altBonusAsset
+    # Config has bonus ratios but NO bonusAsset
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=20_00,  # 20% bonus ratio configured
         _bonusRatio=30_00,            # 30% bonus ratio configured
-        # NO altBonusAsset! This is the key test
+        # NO bonusAsset! This is the key test
     )
 
     setAssetConfig(
@@ -615,7 +615,7 @@ def test_add_loot_from_yield_profit_no_alt_bonus_asset_configured(loot_distribut
         sender=user_wallet.address
     )
 
-    # Verify only performance fee share (no bonuses because no altBonusAsset)
+    # Verify only performance fee share (no bonuses because no bonusAsset)
     expected_fee_share = performance_fee * 35_00 // 100_00
     assert loot_distributor.claimableLoot(ambassador_wallet, yield_vault_token) == expected_fee_share
 
@@ -647,7 +647,7 @@ def test_add_loot_from_yield_profit_non_eligible_asset_no_bonus(loot_distributor
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=10_00,  # 10% bonus ratio (should be ignored)
         _bonusRatio=20_00,            # 20% user bonus ratio (should be ignored)
-        _altBonusAsset=mock_ripe_token.address,  # RIPE configured but should be ignored
+        _bonusAsset=mock_ripe_token.address,  # RIPE configured but should be ignored
     )
 
     setAssetConfig(
@@ -737,7 +737,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_config(loot_distributor, use
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=10_00,  # 10% ambassador bonus
         _bonusRatio=20_00,            # 20% user bonus
-        _altBonusAsset=undy_token.address,  # Use UNDY as bonus asset
+        _bonusAsset=undy_token.address,  # Use UNDY as bonus asset
     )
     
     setAssetConfig(
@@ -884,7 +884,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_no_ambassador(loot_distribut
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=10_00,  # Will be ignored since no ambassador
         _bonusRatio=25_00,            # 25% user bonus
-        _altBonusAsset=undy_token.address,
+        _bonusAsset=undy_token.address,
     )
     
     setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)  # mock_yield_lego
@@ -943,7 +943,7 @@ def test_add_loot_from_yield_profit_alt_bonus_asset_insufficient_balance(loot_di
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
         _bonusRatio=30_00,            # 30% user bonus
-        _altBonusAsset=undy_token.address,
+        _bonusAsset=undy_token.address,
     )
     
     setAssetConfig(
@@ -1026,7 +1026,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_reservation(loot_distributor
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
         _bonusRatio=30_00,            # 30% user bonus
-        _altBonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
+        _bonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
     )
 
     setAssetConfig(
@@ -1108,7 +1108,7 @@ def test_add_loot_from_yield_profit_deposit_rewards_limits_bonuses(loot_distribu
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=20_00,  # 20% ambassador bonus
         _bonusRatio=30_00,            # 30% user bonus
-        _altBonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
+        _bonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
     )
 
     setAssetConfig(
@@ -1180,7 +1180,7 @@ def test_add_loot_from_yield_profit_zero_price_scenario(loot_distributor, user_w
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=20_00,
         _bonusRatio=30_00,
-        _altBonusAsset=undy_token.address,  # UNDY as alt asset
+        _bonusAsset=undy_token.address,  # UNDY as alt asset
     )
     
     setAssetConfig(
@@ -1260,7 +1260,7 @@ def test_event_emissions_tx_fee_and_yield_bonus(loot_distributor, user_wallet, a
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=15_00,  # 15% ambassador bonus
         _bonusRatio=25_00,            # 25% user bonus
-        _altBonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
+        _bonusAsset=mock_ripe_token.address,  # Use RIPE for bonuses
     )
     
     setAssetConfig(
@@ -1390,7 +1390,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     yieldConfig = createAssetYieldConfig(
         _ambassadorBonusRatio=10_00,  # 10%
         _bonusRatio=20_00,            # 20%
-        _altBonusAsset=delta_token.address,  # Delta as alt bonus
+        _bonusAsset=delta_token.address,  # Delta as alt bonus
     )
     
     setAssetConfig(
@@ -1434,7 +1434,7 @@ def test_add_loot_from_yield_profit_different_decimal_precision(loot_distributor
     yieldConfig2 = createAssetYieldConfig(
         _ambassadorBonusRatio=5_00,   # 5%
         _bonusRatio=15_00,            # 15%
-        _altBonusAsset=charlie_token.address,  # Charlie as alt bonus
+        _bonusAsset=charlie_token.address,  # Charlie as alt bonus
     )
 
     setAssetConfig(
@@ -2982,7 +2982,7 @@ def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, 
     # Configure yield asset with RIPE bonus
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=30_00,  # 30% bonus for user
-        _altBonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
+        _bonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
     )
     setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)  # mock_yield_lego
 
@@ -3058,7 +3058,7 @@ def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_com
     # Configure yield asset with RIPE bonus
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=30_00,  # 30% bonus for user
-        _altBonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
+        _bonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
     )
     setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)  # mock_yield_lego
 
@@ -3159,7 +3159,7 @@ def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_comma
     # Configure yield asset with RIPE bonus
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=30_00,  # 30% bonus for user
-        _altBonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
+        _bonusAsset=mock_ripe_token.address,  # Pay bonuses in RIPE
     )
     setAssetConfig(yield_vault_token, _yieldConfig=yieldConfig)  # mock_yield_lego
 
@@ -3432,7 +3432,7 @@ def test_ripe_token_yield_bonus_user_only(loot_distributor, yield_vault_token, y
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=30_00,  # 30% user bonus
         _ambassadorBonusRatio=0,  # No ambassador bonus
-        _altBonusAsset=mock_ripe_token.address,
+        _bonusAsset=mock_ripe_token.address,
     )
     
     # Set asset config for vault token
@@ -3516,7 +3516,7 @@ def test_ripe_token_yield_bonus_ambassador_zero_rev_share(loot_distributor, user
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=15_00,  # 15% user bonus
         _ambassadorBonusRatio=25_00,  # 25% ambassador bonus (higher than user!)
-        _altBonusAsset=mock_ripe_token.address,
+        _bonusAsset=mock_ripe_token.address,
     )
     
     # Set asset config
@@ -4322,7 +4322,7 @@ def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user
     ambassadorRevShare = createAmbassadorRevShare(_yieldRatio=35_00)
     yieldConfig = createAssetYieldConfig(
         _bonusRatio=20_00,  # 20% user bonus in RIPE
-        _altBonusAsset=mock_ripe_token.address,
+        _bonusAsset=mock_ripe_token.address,
     )
     setAssetConfig(yield_vault_token, _ambassadorRevShare=ambassadorRevShare, _yieldConfig=yieldConfig)
 

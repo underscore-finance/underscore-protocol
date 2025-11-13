@@ -83,7 +83,7 @@ struct LootDistroConfig:
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
     underlyingAsset: address
     decimals: uint256
     legoId: uint256
@@ -341,8 +341,8 @@ def _handleYieldBonus(
     _config: LootDistroConfig,
     _appraiser: address,
 ):
-    # early return if no altBonusAsset (RIPE token) configured
-    if empty(address) in [_config.altBonusAsset, _asset] or _yieldRealized == 0:
+    # early return if no bonusAsset (RIPE token) configured
+    if empty(address) in [_config.bonusAsset, _asset] or _yieldRealized == 0:
         return
 
     # get addys (if necessary)
@@ -361,7 +361,7 @@ def _handleYieldBonus(
         return
 
     # convert USD value to RIPE token amount
-    bonusAsset: address = _config.altBonusAsset # RIPE token
+    bonusAsset: address = _config.bonusAsset # RIPE token
     bonusAssetYieldRealized: uint256 = staticcall Appraiser(appraiser).getAssetAmountFromRipe(bonusAsset, usdValue)
 
     # no bonus to distribute

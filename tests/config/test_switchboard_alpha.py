@@ -811,7 +811,7 @@ def test_set_default_yield_params_success(switchboard_alpha, governance, mission
     assert logs[0].defaultYieldPerformanceFee == performance_fee
     assert logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
     assert logs[0].defaultYieldBonusRatio == bonus_ratio
-    assert logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
+    assert logs[0].defaultYieldBonusAsset == alt_bonus_asset
     assert logs[0].actionId == aid
     
     # Execute after timelock
@@ -826,15 +826,15 @@ def test_set_default_yield_params_success(switchboard_alpha, governance, mission
     assert exec_logs[0].defaultYieldPerformanceFee == performance_fee
     assert exec_logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
     assert exec_logs[0].defaultYieldBonusRatio == bonus_ratio
-    assert exec_logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
+    assert exec_logs[0].defaultYieldBonusAsset == alt_bonus_asset
     
     # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == max_increase
-    assert updated_config.defaultYieldPerformanceFee == performance_fee
-    assert updated_config.defaultYieldAmbassadorBonusRatio == ambassador_bonus
-    assert updated_config.defaultYieldBonusRatio == bonus_ratio
-    assert updated_config.defaultYieldAltBonusAsset == alt_bonus_asset
+    assert updated_config.yieldConfig.maxYieldIncrease == max_increase
+    assert updated_config.yieldConfig.performanceFee == performance_fee
+    assert updated_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus
+    assert updated_config.yieldConfig.bonusRatio == bonus_ratio
+    assert updated_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_set_default_yield_params_invalid_values_revert(switchboard_alpha, governance, alpha_token):
@@ -868,11 +868,11 @@ def test_set_default_yield_params_zero_values_allowed(switchboard_alpha, governa
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 0
-    assert config.defaultYieldPerformanceFee == 0
-    assert config.defaultYieldAmbassadorBonusRatio == 0
-    assert config.defaultYieldBonusRatio == 0
-    assert config.defaultYieldAltBonusAsset == ZERO_ADDRESS
+    assert config.yieldConfig.maxYieldIncrease == 0
+    assert config.yieldConfig.performanceFee == 0
+    assert config.yieldConfig.ambassadorBonusRatio == 0
+    assert config.yieldConfig.bonusRatio == 0
+    assert config.yieldConfig.bonusAsset == ZERO_ADDRESS
 
 
 def test_set_default_yield_params_non_governance_reverts(switchboard_alpha, alice, alpha_token):
@@ -896,11 +896,11 @@ def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, gove
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 1000
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 10000
-    assert config.defaultYieldBonusRatio == 10000
-    assert config.defaultYieldAltBonusAsset == alpha_token.address
+    assert config.yieldConfig.maxYieldIncrease == 1000
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 10000
+    assert config.yieldConfig.bonusRatio == 10000
+    assert config.yieldConfig.bonusAsset == alpha_token.address
 
 
 def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mission_control, alice):
@@ -919,11 +919,11 @@ def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mi
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 500
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 7500
-    assert config.defaultYieldBonusRatio == 3333
-    assert config.defaultYieldAltBonusAsset == alice
+    assert config.yieldConfig.maxYieldIncrease == 500
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 7500
+    assert config.yieldConfig.bonusRatio == 3333
+    assert config.yieldConfig.bonusAsset == alice
 
 
 def test_set_default_yield_params_edge_cases(switchboard_alpha, governance, mission_control, alpha_token):
@@ -954,11 +954,11 @@ def test_set_default_yield_params_edge_cases(switchboard_alpha, governance, miss
     assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 1000
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 10000
-    assert config.defaultYieldBonusRatio == 10000
-    assert config.defaultYieldAltBonusAsset == alpha_token.address
+    assert config.yieldConfig.maxYieldIncrease == 1000
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 10000
+    assert config.yieldConfig.bonusRatio == 10000
+    assert config.yieldConfig.bonusAsset == alpha_token.address
 
 
 #################
@@ -1158,7 +1158,7 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     assert logs[0].performanceFee == performance_fee
     assert logs[0].ambassadorBonusRatio == ambassador_bonus_ratio
     assert logs[0].bonusRatio == bonus_ratio
-    assert logs[0].altBonusAsset == alt_bonus_asset
+    assert logs[0].bonusAsset == alt_bonus_asset
     assert logs[0].actionId == aid
     
     # Execute after timelock
@@ -1191,7 +1191,7 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     assert saved_config.yieldConfig.performanceFee == performance_fee
     assert saved_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus_ratio
     assert saved_config.yieldConfig.bonusRatio == bonus_ratio
-    assert saved_config.yieldConfig.altBonusAsset == alt_bonus_asset
+    assert saved_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, alpha_token):
@@ -1326,7 +1326,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     assert exec_logs[0].performanceFee == 0
     assert exec_logs[0].ambassadorBonusRatio == 0
     assert exec_logs[0].bonusRatio == 0
-    assert exec_logs[0].altBonusAsset == ZERO_ADDRESS
+    assert exec_logs[0].bonusAsset == ZERO_ADDRESS
     assert result == True
     
     # Verify the config was saved in MissionControl
@@ -1344,7 +1344,7 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     assert saved_config.yieldConfig.performanceFee == 0
     assert saved_config.yieldConfig.ambassadorBonusRatio == 0
     assert saved_config.yieldConfig.bonusRatio == 0
-    assert saved_config.yieldConfig.altBonusAsset == ZERO_ADDRESS
+    assert saved_config.yieldConfig.bonusAsset == ZERO_ADDRESS
 
 
 def test_set_asset_config_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):

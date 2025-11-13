@@ -56,6 +56,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
         maxKeyActionTimeLock = 7 * DAY_IN_BLOCKS,
         depositRewardsAsset = REWARDS_ASSET,
+        lootClaimCoolOffPeriod = 0,
         txFees = cs.TxFees(
             swapFee = 0,
             stableSwapFee = 0,
@@ -66,12 +67,13 @@ def userWalletConfig() -> cs.UserWalletConfig:
             rewardsRatio = 0,
             yieldRatio = 0,
         ),
-        defaultYieldMaxIncrease = 5_00,
-        defaultYieldPerformanceFee = 20_00,
-        defaultYieldAmbassadorBonusRatio = 0,
-        defaultYieldBonusRatio = 0,
-        defaultYieldAltBonusAsset = empty(address),
-        lootClaimCoolOffPeriod = 0,
+        yieldConfig = cs.YieldConfig(
+            maxYieldIncrease = 5_00,
+            performanceFee = 20_00,
+            ambassadorBonusRatio = 0,
+            bonusRatio = 0,
+            bonusAsset = empty(address),
+        ),
     )
 
 
