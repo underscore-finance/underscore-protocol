@@ -3199,3 +3199,341 @@ def test_set_ripe_lock_duration_multiple_updates(switchboard_alpha, governance, 
         logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
         assert logs[-1].ripeStakeRatio == stake_ratio
         assert logs[-1].ripeLockDuration == duration
+
+
+###################################
+# Granular Asset Config Setters #
+###################################
+
+
+def test_set_asset_tx_fees_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset tx fees"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only tx fees
+    new_swap_fee = 50  # 0.5%
+    new_stable_swap_fee = 15  # 0.15%
+    new_rewards_fee = 100  # 1%
+
+    aid = switchboard_alpha.setAssetTxFees(
+        asset,
+        new_swap_fee,
+        new_stable_swap_fee,
+        new_rewards_fee,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetTxFeesChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].swapFee == new_swap_fee
+    assert logs[0].stableSwapFee == new_stable_swap_fee
+    assert logs[0].rewardsFee == new_rewards_fee
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetTxFeesSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].swapFee == new_swap_fee
+    assert result == True
+
+    # Verify only tx fees changed, everything else stayed the same
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.txFees.swapFee == new_swap_fee
+    assert saved_config.txFees.stableSwapFee == new_stable_swap_fee
+    assert saved_config.txFees.rewardsFee == new_rewards_fee
+
+    # Verify ambassador rev share unchanged
+    assert saved_config.ambassadorRevShare.swapRatio == 1000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 2000
+    assert saved_config.ambassadorRevShare.yieldRatio == 1500
+
+    # Verify yield config unchanged
+    assert saved_config.yieldConfig.maxYieldIncrease == 500
+    assert saved_config.yieldConfig.performanceFee == 1000
+
+
+def test_set_asset_tx_fees_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid tx fees are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test swap fee > 5%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 501, 10, 20, sender=governance.address)
+
+    # Test stable swap fee > 2%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 50, 201, 20, sender=governance.address)
+
+    # Test rewards fee > 25%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 50, 10, 2501, sender=governance.address)
+
+
+def test_set_asset_tx_fees_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance cannot update asset tx fees"""
+    import boa
+
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAssetTxFees(alpha_token.address, 50, 10, 20, sender=alice)
+
+
+def test_set_asset_tx_fees_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular tx fees update fails if full config not set first"""
+    import boa
+
+    # Try to update tx fees without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetTxFees(alpha_token.address, 50, 10, 20, sender=governance.address)
+
+
+def test_set_asset_ambassador_rev_share_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular ambassador rev share update fails if full config not set first"""
+    import boa
+
+    # Try to update ambassador rev share without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetAmbassadorRevShare(alpha_token.address, 1000, 2000, 1500, sender=governance.address)
+
+
+def test_set_asset_yield_config_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular yield config update fails if full config not set first"""
+    import boa
+
+    # Try to update yield config without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetYieldConfig(alpha_token.address, 500, 1000, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+
+def test_set_asset_ambassador_rev_share_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset ambassador rev share"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only ambassador rev share
+    new_swap_ratio = 3000  # 30%
+    new_rewards_ratio = 4000  # 40%
+    new_yield_ratio = 2500  # 25%
+
+    aid = switchboard_alpha.setAssetAmbassadorRevShare(
+        asset,
+        new_swap_ratio,
+        new_rewards_ratio,
+        new_yield_ratio,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetAmbassadorRevShareChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].swapRatio == new_swap_ratio
+    assert logs[0].rewardsRatio == new_rewards_ratio
+    assert logs[0].yieldRatio == new_yield_ratio
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetAmbassadorRevShareSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].swapRatio == new_swap_ratio
+    assert result == True
+
+    # Verify only ambassador rev share changed
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.ambassadorRevShare.swapRatio == new_swap_ratio
+    assert saved_config.ambassadorRevShare.rewardsRatio == new_rewards_ratio
+    assert saved_config.ambassadorRevShare.yieldRatio == new_yield_ratio
+
+    # Verify tx fees unchanged
+    assert saved_config.txFees.swapFee == 10
+    assert saved_config.txFees.stableSwapFee == 5
+    assert saved_config.txFees.rewardsFee == 20
+
+    # Verify yield config unchanged
+    assert saved_config.yieldConfig.maxYieldIncrease == 500
+    assert saved_config.yieldConfig.performanceFee == 1000
+
+
+def test_set_asset_ambassador_rev_share_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid ambassador rev share ratios are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test swap ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 10001, 2000, 1500, sender=governance.address)
+
+    # Test rewards ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 1000, 10001, 1500, sender=governance.address)
+
+    # Test yield ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 1000, 2000, 10001, sender=governance.address)
+
+
+def test_set_asset_yield_config_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset yield config"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only yield config
+    new_max_yield_increase = 800  # 8%
+    new_performance_fee = 2000  # 20%
+    new_ambassador_bonus_ratio = 7000  # 70%
+    new_bonus_ratio = 4000  # 40%
+    new_bonus_asset = alpha_token.address
+
+    aid = switchboard_alpha.setAssetYieldConfig(
+        asset,
+        new_max_yield_increase,
+        new_performance_fee,
+        new_ambassador_bonus_ratio,
+        new_bonus_ratio,
+        new_bonus_asset,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetYieldConfigChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].maxYieldIncrease == new_max_yield_increase
+    assert logs[0].performanceFee == new_performance_fee
+    assert logs[0].ambassadorBonusRatio == new_ambassador_bonus_ratio
+    assert logs[0].bonusRatio == new_bonus_ratio
+    assert logs[0].bonusAsset == new_bonus_asset
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetYieldConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].maxYieldIncrease == new_max_yield_increase
+    assert result == True
+
+    # Verify only yield config changed
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.yieldConfig.maxYieldIncrease == new_max_yield_increase
+    assert saved_config.yieldConfig.performanceFee == new_performance_fee
+    assert saved_config.yieldConfig.ambassadorBonusRatio == new_ambassador_bonus_ratio
+    assert saved_config.yieldConfig.bonusRatio == new_bonus_ratio
+    assert saved_config.yieldConfig.bonusAsset == new_bonus_asset
+
+    # Verify tx fees unchanged
+    assert saved_config.txFees.swapFee == 10
+    assert saved_config.txFees.stableSwapFee == 5
+    assert saved_config.txFees.rewardsFee == 20
+
+    # Verify ambassador rev share unchanged
+    assert saved_config.ambassadorRevShare.swapRatio == 1000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 2000
+    assert saved_config.ambassadorRevShare.yieldRatio == 1500
+
+
+def test_set_asset_yield_config_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid yield config values are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test max yield increase > 10%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 1001, 1000, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test performance fee > 25%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 2501, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test ambassador bonus ratio > 100%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 1000, 10001, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test bonus ratio > 100%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 1000, 5000, 10001, ZERO_ADDRESS, sender=governance.address)
