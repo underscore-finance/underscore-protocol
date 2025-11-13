@@ -27,12 +27,15 @@ def test_create_user_wallet_basic(hatchery, alice):
     assert wallet_config.owner() == alice
 
 
-def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger):
+def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger, mission_control, switchboard_alpha):
     """Test that ambassador is properly set when provided"""
 
     # First create an ambassador wallet
     ambassador_wallet_addr = hatchery.createUserWallet(sender=alice)
-    
+
+    # Add bob to creator whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
+
     # Create a user wallet with ambassador
     user_wallet_addr = hatchery.createUserWallet(
         bob,
@@ -44,6 +47,32 @@ def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger):
     assert ledger.ambassadors(user_wallet_addr) == ambassador_wallet_addr
     
     # Verify ambassador is a valid user wallet
+    assert ledger.isUserWallet(ambassador_wallet_addr) == True
+
+
+def test_create_user_wallet_non_whitelisted_creator_no_ambassador(hatchery, alice, bob, charlie, ledger, mission_control, switchboard_alpha):
+    """Test that non-whitelisted creators cannot set ambassadors"""
+
+    # First create an ambassador wallet
+    ambassador_wallet_addr = hatchery.createUserWallet(sender=alice)
+
+    # Ensure charlie is NOT on the creator whitelist
+    # (by default they shouldn't be, but let's be explicit)
+    mission_control.setCreatorWhitelist(charlie, False, sender=switchboard_alpha.address)
+
+    # Create a user wallet with ambassador from non-whitelisted creator
+    # The ambassador should be ignored and set to ZERO_ADDRESS
+    user_wallet_addr = hatchery.createUserWallet(
+        bob,
+        ambassador_wallet_addr,
+        sender=charlie
+    )
+
+    # Verify the wallet was created but ambassador is ZERO_ADDRESS
+    assert ledger.isUserWallet(user_wallet_addr) == True
+    assert ledger.ambassadors(user_wallet_addr) == ZERO_ADDRESS
+
+    # Verify the ambassador wallet itself is still valid
     assert ledger.isUserWallet(ambassador_wallet_addr) == True
 
 
@@ -162,13 +191,16 @@ def test_create_user_wallet_invalid_ambassador(hatchery, alice, bob, ledger):
     assert ledger.ambassadors(user_wallet_addr) == ZERO_ADDRESS
 
 
-def test_create_user_wallet_events(hatchery, alice, charlie, bob, ambassador_wallet, setAgentConfig):
+def test_create_user_wallet_events(hatchery, alice, charlie, bob, ambassador_wallet, setAgentConfig, mission_control, switchboard_alpha):
     """Test that correct events are emitted during wallet creation"""
 
     # Setup agent config
     setAgentConfig(
         _startingAgent=charlie
     )
+
+    # Add bob to creator whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
 
     # Create user wallet and capture events
     wallet_addr = hatchery.createUserWallet(

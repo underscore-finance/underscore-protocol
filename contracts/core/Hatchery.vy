@@ -57,6 +57,7 @@ interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
+    def creatorWhitelist(_creator: address) -> bool: view
 
 interface HighCommand:
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256) -> wcs.GlobalManagerSettings: view
@@ -179,7 +180,7 @@ def createUserWallet(
 
     # ambassador
     ambassador: address = empty(address)
-    if _ambassador != empty(address) and staticcall Ledger(a.ledger).isUserWallet(_ambassador):
+    if _ambassador != empty(address) and staticcall Ledger(a.ledger).isUserWallet(_ambassador) and staticcall MissionControl(a.missionControl).creatorWhitelist(msg.sender):
         ambassador = _ambassador
 
     # get wallet backpack addys

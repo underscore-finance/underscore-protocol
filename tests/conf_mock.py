@@ -20,6 +20,8 @@ def ambassador_wallet(hatchery, alice, mission_control, switchboard_alpha, start
 @pytest.fixture(scope="session")
 def user_wallet(hatchery, bob, ambassador_wallet, mission_control, switchboard_alpha, starter_agent):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
+    # Add creator to whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(switchboard_alpha.address, True, sender=switchboard_alpha.address)
     wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, 1, sender=switchboard_alpha.address)
     return UserWallet.at(wallet_addr)
 

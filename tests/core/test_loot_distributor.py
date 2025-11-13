@@ -332,13 +332,13 @@ def test_add_loot_accumulates_for_same_asset(loot_distributor, user_wallet, amba
     assert loot_distributor.indexOfClaimableAsset(ambassador_wallet, alpha_token) == 1
 
 
-def test_add_loot_multiple_ambassadors(loot_distributor, hatchery, env, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, setAssetConfig, createAmbassadorRevShare):
+def test_add_loot_multiple_ambassadors(loot_distributor, hatchery, env, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, setAssetConfig, createAmbassadorRevShare, mission_control, switchboard_alpha):
     """ Test adding loot with multiple ambassadors to verify separate tracking """
-    
+
     # Create two new ambassadors
     ambassador1_eoa = env.generate_address("ambassador1")
     ambassador2_eoa = env.generate_address("ambassador2")
-    
+
     # Create ambassador wallets (no ambassador for them)
     ambassador1_addr = hatchery.createUserWallet(ambassador1_eoa, ZERO_ADDRESS, 1, sender=ambassador1_eoa)
     ambassador1_wallet = UserWallet.at(ambassador1_addr)
@@ -349,6 +349,10 @@ def test_add_loot_multiple_ambassadors(loot_distributor, hatchery, env, alpha_to
     # Create user wallets with different ambassadors
     user1_eoa = env.generate_address("user1")
     user2_eoa = env.generate_address("user2")
+
+    # Add users to creator whitelist so they can set ambassadors
+    mission_control.setCreatorWhitelist(user1_eoa, True, sender=switchboard_alpha.address)
+    mission_control.setCreatorWhitelist(user2_eoa, True, sender=switchboard_alpha.address)
 
     user1_addr = hatchery.createUserWallet(user1_eoa, ambassador1_wallet, 1, sender=user1_eoa)
     user1_wallet = UserWallet.at(user1_addr)
@@ -4009,12 +4013,18 @@ def test_update_deposit_points_on_ejection(loot_distributor, user_wallet, ledger
     assert userData.depositPoints > initial_points  # Points should have increased from the time travel
 
 
-def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, alice, setAssetConfig, createAmbassadorRevShare, hatchery, charlie):
+def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_token, alpha_token_whale, bravo_token_whale, alice, setAssetConfig, createAmbassadorRevShare, hatchery, charlie, mission_control, switchboard_alpha):
     """ Test claimAllLoot with multiple different assets """
-    
+
+    # Add charlie to creator whitelist so they can set themself as ambassador
+    mission_control.setCreatorWhitelist(charlie, True, sender=switchboard_alpha.address)
+
     # Create a fresh ambassador wallet for this test to avoid state from other tests
     fresh_ambassador = hatchery.createUserWallet(charlie, charlie, 0, sender=charlie)
     fresh_ambassador_wallet = UserWallet.at(fresh_ambassador)
+
+    # Add alice to creator whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
 
     # Create a fresh user wallet with the new ambassador
     fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 1, sender=alice)
@@ -4416,12 +4426,16 @@ def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user
 ##############################
 
 
-def test_claim_with_max_deregister_assets(loot_distributor, hatchery, alice, charlie, fork, switchboard_alpha, setAssetConfig, createAmbassadorRevShare, governance):
+def test_claim_with_max_deregister_assets(loot_distributor, hatchery, alice, charlie, fork, switchboard_alpha, setAssetConfig, createAmbassadorRevShare, governance, mission_control):
     """ Test claiming loot with exactly MAX_DEREGISTER_ASSETS (20 assets) to deregister """
 
     # Create fresh wallets for this test
     fresh_ambassador = hatchery.createUserWallet(charlie, ZERO_ADDRESS, 0, sender=charlie)
     fresh_ambassador_wallet = UserWallet.at(fresh_ambassador)
+
+    # Add alice to creator whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+
     fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 1, sender=alice)
     fresh_user_wallet = UserWallet.at(fresh_user)
 
@@ -5015,12 +5029,15 @@ def test_totalClaimableLoot_accounting_consistency(loot_distributor, hatchery, a
     assert total_from_individuals >= 0  # Individual sum should never be negative
 
 
-def test_ambassador_is_user_wallet(loot_distributor, hatchery, alice, charlie, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare):
+def test_ambassador_is_user_wallet(loot_distributor, hatchery, alice, charlie, alpha_token, alpha_token_whale, setAssetConfig, createAmbassadorRevShare, mission_control, switchboard_alpha):
     """ Test when an ambassador wallet is also a user wallet """
 
     # Create ambassador wallet first
     ambassador_wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, 0, sender=alice)
     ambassador_wallet = UserWallet.at(ambassador_wallet_addr)
+
+    # Add charlie to creator whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(charlie, True, sender=switchboard_alpha.address)
 
     # Create another wallet that uses the first wallet as ambassador
     user_wallet_addr = hatchery.createUserWallet(charlie, ambassador_wallet, 1, sender=charlie)
