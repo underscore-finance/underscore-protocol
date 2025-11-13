@@ -97,6 +97,12 @@ def getTotalAssets(_shouldGetMax: bool) -> uint256:
     return vaultWallet._getTotalAssets(_shouldGetMax)
 
 
+@view
+@external
+def isLeveragedVault() -> bool:
+    return True
+
+
 ############
 # Deposits #
 ############

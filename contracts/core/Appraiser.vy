@@ -45,7 +45,7 @@ interface MissionControl:
     def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig: view
 
 interface VaultRegistry:
-    def isEarnVault(_vaultAddr: address) -> bool: view
+    def isBasicEarnVault(_vaultAddr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -283,8 +283,8 @@ def updatePriceAndGetUsdValue(
     ripePriceDesk: address = empty(address)
     usdValue, na, ripePriceDesk = self._getUsdValueAndIsYieldAsset(_asset, _amount, ledger, _missionControl, _legoBook)
 
-    # add snapshot to Ripe if earn vault
-    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_asset):
+    # add snapshot to Ripe if earn vault (not leverage vault)
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isBasicEarnVault(_asset):
         self._updateRipeSnapshot(_asset)
 
     return usdValue
@@ -307,8 +307,8 @@ def updatePriceAndGetUsdValueAndIsYieldAsset(
     ripePriceDesk: address = empty(address)
     usdValue, isYieldAsset, ripePriceDesk = self._getUsdValueAndIsYieldAsset(_asset, _amount, ledger, _missionControl, _legoBook)
 
-    # add snapshot to Ripe if earn vault
-    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_asset):
+    # add snapshot to Ripe if earn vault (not leverage vault)
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isBasicEarnVault(_asset):
         self._updateRipeSnapshot(_asset)
 
     return usdValue, isYieldAsset
