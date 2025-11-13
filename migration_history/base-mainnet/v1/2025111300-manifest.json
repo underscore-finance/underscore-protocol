@@ -1,0 +1,1183 @@
+{
+  "contracts": {
+    "EarnVaultAgentSigHelper": {
+      "address": "0x2E9e0BB2A734d0B025843FAf27CbfF648E848F8B",
+      "abi": [
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositForYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getWithdrawFromYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getWithdrawFromYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getWithdrawFromYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getWithdrawFromYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getWithdrawFromYieldHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getSwapTokensHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_swapInstructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getSwapTokensHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_swapInstructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getSwapTokensHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_swapInstructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_proofs",
+              "type": "bytes32[]"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_proofs",
+              "type": "bytes32[]"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_proofs",
+              "type": "bytes32[]"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBatchActionsHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_instructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "usePrevAmountOut",
+                  "type": "bool"
+                },
+                {
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "name": "legoId",
+                  "type": "uint16"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "extraData",
+                  "type": "bytes32"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBatchActionsHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_instructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "usePrevAmountOut",
+                  "type": "bool"
+                },
+                {
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "name": "legoId",
+                  "type": "uint16"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "extraData",
+                  "type": "bytes32"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBatchActionsHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_instructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "usePrevAmountOut",
+                  "type": "bool"
+                },
+                {
+                  "name": "action",
+                  "type": "uint8"
+                },
+                {
+                  "name": "legoId",
+                  "type": "uint16"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "extraData",
+                  "type": "bytes32"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/modules/SigHelper.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\ninterface AgentWrapper:\n    def getNonce(_userWallet: address) -> uint256: view\n\n# unified signature validation\nSIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000000000000000000000\n\n\n@view\n@internal\ndef _domainSeparator(_agentWrapper: address) -> bytes32:\n    return keccak256(abi_encode(\n        keccak256('EIP712Domain(string name,uint256 chainId,address verifyingContract)'),\n        keccak256('UnderscoreAgent'),\n        chain.id,\n        _agentWrapper\n    ))\n\n\n@view\n@internal\ndef _getFullDigest(_agentWrapper: address, _messageHash: bytes32) -> bytes32:\n    \"\"\"\n    Get the full EIP-712 digest that needs to be signed\n    \"\"\"\n    domain_separator: bytes32 = self._domainSeparator(_agentWrapper)\n    return keccak256(concat(SIG_PREFIX, domain_separator, _messageHash))\n\n\n@view\n@internal\ndef _getNonce(_agentWrapper: address, _userWallet: address) -> uint256:\n    return staticcall AgentWrapper(_agentWrapper).getNonce(_userWallet)\n\n\n@view\n@internal\ndef _getNonceAndExpiration(_agentWrapper: address, _userWallet: address, _nonce: uint256, _expiration: uint256) -> (uint256, uint256):\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    if _nonce == 0:\n        nonce = self._getNonce(_agentWrapper, _userWallet)\n    if _expiration == 0:\n        expiration = block.timestamp + 3600  # 1 hour default\n    \n    return (nonce, expiration)\n\n",
+            "sha256sum": "1f2fcb41c73900a88471bc25a89c4df569f21d409ad8aca4763178b16b180e3c"
+          },
+          "interfaces/Wallet.vyi": {
+            "content": "# @version 0.4.3\n\nstruct SwapInstruction:\n    legoId: uint256\n    amountIn: uint256\n    minAmountOut: uint256\n    tokenPath: DynArray[address, MAX_TOKEN_PATH]\n    poolPath: DynArray[address, MAX_TOKEN_PATH - 1]\n\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_TOKEN_PATH: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n@view\n@external\ndef onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _data: Bytes[1024]) -> bytes4:\n    ...\n\n\n@pure\n@external\ndef apiVersion() -> String[28]:\n    ...\n\n##################\n# Transfer Funds #\n##################\n\n\n@external\ndef transferFunds(\n    _recipient: address,\n    _asset: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _isCheque: bool = False,\n    _isTrustedTx: bool = False,\n) -> (uint256, uint256):\n    ...\n\n\n#########\n# Yield #\n#########\n\n\n# deposit\n\n\n@external\ndef depositForYield(\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# withdraw\n\n\n@external\ndef withdrawFromYield(\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _isTrustedTx: bool = False,\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# rebalance position\n\n\n@external\ndef rebalanceYieldPosition(\n    _fromLegoId: uint256,\n    _fromVaultToken: address,\n    _toLegoId: uint256,\n    _toVaultAddr: address = empty(address),\n    _fromVaultAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@external\ndef swapTokens(_instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):\n    ...\n\n\n# mint / redeem\n\n\n@external\ndef mintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _amountIn: uint256 = max_value(uint256),\n    _minAmountOut: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, bool, uint256):\n    ...\n\n\n@external\ndef confirmMintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n###################\n# Debt Management #\n###################\n\n\n# add collateral\n\n\n@external\ndef addCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# remove collateral\n\n\n@external\ndef removeCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# borrow\n\n\n@external\ndef borrow(\n    _legoId: uint256,\n    _borrowAsset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# repay debt\n\n\n@external\ndef repayDebt(\n    _legoId: uint256,\n    _paymentAsset: address,\n    _paymentAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n#################\n# Claim Rewards #\n#################\n\n\n@external\ndef claimIncentives(\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n) -> (uint256, uint256):\n    ...\n\n\n################\n# Wrapped ETH #\n################\n\n\n# eth -> weth\n\n\n@payable\n@external\ndef convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n# weth -> eth\n\n\n@external\ndef convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n#################\n# Add Liquidity #\n#################\n\n\n# add / remove liquidity (simple)\n\n\n@external\ndef addLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _minLpAmount: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _lpToken: address,\n    _lpAmount: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n# add / remove liquidity (concentrated)\n\n\n@external\ndef addLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _tickLower: int24 = min_value(int24),\n    _tickUpper: int24 = max_value(int24),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _liqToRemove: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n#############\n# Utilities #\n#############\n\n\n# recover nft\n\n\n@external\ndef recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):\n    ...\n",
+            "sha256sum": "6b119f1d406de3ccd02c8eefe7a34902dc862e13a67caadbd74dc6e82b071081"
+          },
+          "contracts/core/agent/EarnVaultAgentSigHelper.vy": {
+            "content": "#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Earn Vault Agent Signature Helper **                                       \u2551\n#     \u2551  Generates message hashes for Earn Vault Agent signatures                      \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimport contracts.modules.SigHelper as sigHelper\n\nfrom interfaces import Wallet\n\nstruct ActionInstruction:\n    usePrevAmountOut: bool     # Use output from previous instruction as amount\n    action: uint8              # Action type: 10=depositYield, 11=withdrawYield\n    legoId: uint16             # Protocol/Lego ID\n    asset: address             # Primary asset/token (or vaultToken for withdrawals)\n    target: address            # vaultAddr for deposits, unused for withdrawals\n    amount: uint256            # Primary amount (or max_value for \"all\")\n    extraData: bytes32         # Protocol-specific extra data\n\n\nMAX_INSTRUCTIONS: constant(uint256) = 15\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n#########\n# Yield #\n#########\n\n@view\n@external\ndef getDepositForYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for depositForYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n@view\n@external\ndef getWithdrawFromYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for withdrawFromYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@view\n@external\ndef getSwapTokensHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for swapTokens function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Claim Rewards #\n#################\n\n@view\n@external\ndef getClaimIncentivesHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for claimIncentives function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Batch Actions #\n#################\n\n\n@view\n@external\ndef getBatchActionsHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _instructions: DynArray[ActionInstruction, MAX_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for performBatchActions function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)\n",
+            "sha256sum": "1f8a20d0045f283ad842783dfa9793270c30dcf8c2e22eaeda834d3e5576b114"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/core/agent/EarnVaultAgentSigHelper.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "bf05726f45619e395ed895192a416e0649d5bed3640d87e66eeb4e7632454d07"
+      },
+      "args": "",
+      "file": "contracts/core/agent/EarnVaultAgentSigHelper.vy"
+    }
+  }
+}
