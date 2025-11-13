@@ -51,16 +51,16 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        numUserWalletsAllowed = 25,
+        numUserWalletsAllowed = 100_000,
         enforceCreatorWhitelist = True,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
-        maxKeyActionTimeLock = 7 * DAY_IN_BLOCKS,
+        maxKeyActionTimeLock = 2 * WEEK_IN_BLOCKS,
         depositRewardsAsset = REWARDS_ASSET,
         lootClaimCoolOffPeriod = 0,
         txFees = cs.TxFees(
-            swapFee = 0,
-            stableSwapFee = 0,
-            rewardsFee = 0,
+            swapFee = 25,
+            stableSwapFee = 25,
+            rewardsFee = 20_00,
         ),
         ambassadorRevShare = cs.AmbassadorRevShare(
             swapRatio = 0,
@@ -70,9 +70,9 @@ def userWalletConfig() -> cs.UserWalletConfig:
         yieldConfig = cs.YieldConfig(
             maxYieldIncrease = 5_00,
             performanceFee = 20_00,
-            ambassadorBonusRatio = 0,
-            bonusRatio = 0,
-            bonusAsset = empty(address),
+            ambassadorBonusRatio = 100_00,
+            bonusRatio = 100_00,
+            bonusAsset = REWARDS_ASSET,
         ),
     )
 
@@ -82,8 +82,8 @@ def userWalletConfig() -> cs.UserWalletConfig:
 def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
         agentTemplate = AGENT_TEMPLATE,
-        numAgentsAllowed = 25,
-        enforceCreatorWhitelist = False,
+        numAgentsAllowed = 1000,
+        enforceCreatorWhitelist = True,
         startingAgent = STARTING_AGENT,
         startingAgentActivationLength = 2 * YEAR_IN_BLOCKS,
     )
