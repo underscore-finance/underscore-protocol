@@ -615,7 +615,7 @@ def setAssetConfig(
     self.pendingAssetConfig[aid] = PendingAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
-            hasConfig=True,  # Set this to true for all configured assets
+            hasConfig=True,
             txFees=cs.TxFees(
                 swapFee=_txFeesSwapFee,
                 stableSwapFee=_txFeesStableSwapFee,

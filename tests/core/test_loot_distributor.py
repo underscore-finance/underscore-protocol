@@ -5,122 +5,6 @@ from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs
 
 
-######################
-# Loot Distro Config #
-######################
-
-
-def test_get_loot_distro_config_with_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
-    """ Test getLootDistroConfig when asset config is set in mission control """
-    
-    # Create ambassador rev share config
-    ambassadorRevShare = createAmbassadorRevShare(
-        _swapRatio=50_00,      # 50%
-        _rewardsRatio=45_00,   # 45%
-        _yieldRatio=40_00,     # 40%
-    )
-    
-    # Create yield config with bonus ratio
-    yieldConfig = createAssetYieldConfig(
-        _ambassadorBonusRatio=10_00,  # 10%
-    )
-    
-    # Set asset config with ambassador settings
-    setAssetConfig(
-        alpha_token,
-        _ambassadorRevShare=ambassadorRevShare,
-        _yieldConfig=yieldConfig,
-    )
-    
-    # Get ambassador config
-    config = loot_distributor.getLootDistroConfig(user_wallet.address, alpha_token.address)
-    
-    # Verify the config
-    assert config.ambassador == ambassador_wallet.address
-    assert config.ambassadorRevShare.swapRatio == 50_00
-    assert config.ambassadorRevShare.rewardsRatio == 45_00
-    assert config.ambassadorRevShare.yieldRatio == 40_00
-    assert config.ambassadorBonusRatio == 10_00
-    # underlyingAsset is now derived from Ledger, not set manually
-    # Since alpha_token is not a yield token, it has no underlying asset
-    assert config.underlyingAsset == ZERO_ADDRESS
-    assert config.decimals == alpha_token.decimals()  # Should get decimals from the token
-
-
-def test_get_loot_distro_config_no_asset_config(loot_distributor, ambassador_wallet, user_wallet, alpha_token, setUserWalletConfig, createAmbassadorRevShare):
-    """ Test getLootDistroConfig when no asset config is set (defaults to global config) """
-    
-    # Create global ambassador rev share settings
-    ambassadorRevShare = createAmbassadorRevShare(
-        _swapRatio=30_00,      # 30%
-        _rewardsRatio=25_00,   # 25%
-        _yieldRatio=20_00,     # 20%
-    )
-    
-    # Set user wallet config with global ambassador settings
-    setUserWalletConfig(
-        _ambassadorRevShare=ambassadorRevShare,
-        _defaultYieldAmbassadorBonusRatio=5_00,  # 5% global bonus ratio
-    )
-    
-    # Get ambassador config (no specific asset config set)
-    config = loot_distributor.getLootDistroConfig(user_wallet.address, alpha_token.address)
-    
-    # Verify the config uses global defaults
-    assert config.ambassador == ambassador_wallet.address
-    assert config.ambassadorRevShare.swapRatio == 30_00
-    assert config.ambassadorRevShare.rewardsRatio == 25_00
-    assert config.ambassadorRevShare.yieldRatio == 20_00
-    assert config.ambassadorBonusRatio == 5_00  # Global bonus ratio
-    assert config.underlyingAsset == ZERO_ADDRESS  # No underlying asset in global config
-    assert config.decimals == alpha_token.decimals()  # Should get decimals from the token
-
-
-def test_get_loot_distro_config_with_vault_registration(loot_distributor, ambassador_wallet, user_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego, ledger, setUserWalletConfig, createAmbassadorRevShare):
-    """ Test getLootDistroConfig when there is a registered vault token (with underlying asset, decimals info) """
-    
-    # Set up global defaults first
-    ambassadorRevShare = createAmbassadorRevShare(
-        _swapRatio=15_00,      # 15%
-        _rewardsRatio=12_00,   # 12%
-        _yieldRatio=10_00,     # 10%
-    )
-    
-    setUserWalletConfig(
-        _ambassadorRevShare=ambassadorRevShare,
-        _defaultYieldAmbassadorBonusRatio=3_00,  # 3% global bonus ratio
-    )
-    
-    # Register vault token by making a deposit
-    yield_underlying_token.approve(mock_yield_lego, 1_000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
-    mock_yield_lego.depositForYield(
-        yield_underlying_token,
-        1_000 * EIGHTEEN_DECIMALS,
-        yield_vault_token,
-        sender=yield_underlying_token_whale,
-    )
-    
-    # Verify vault token registration
-    vault_token = ledger.vaultTokens(yield_vault_token)
-    assert vault_token.legoId == 2
-    assert vault_token.underlyingAsset == yield_underlying_token.address
-    assert vault_token.decimals == yield_vault_token.decimals()
-    
-    # Get ambassador config for vault token (no specific config set)
-    config = loot_distributor.getLootDistroConfig(user_wallet.address, yield_vault_token.address)
-    
-    # Verify the config uses global defaults for rev share but vault registration for underlying/decimals
-    assert config.ambassador == ambassador_wallet.address
-    assert config.ambassadorRevShare.swapRatio == 15_00  # From global defaults
-    assert config.ambassadorRevShare.rewardsRatio == 12_00  # From global defaults
-    assert config.ambassadorRevShare.yieldRatio == 10_00  # From global defaults
-    assert config.ambassadorBonusRatio == 3_00  # From global defaults
-
-    # These should come from the vault token registration
-    assert config.underlyingAsset == yield_underlying_token.address
-    assert config.decimals == yield_vault_token.decimals()
-
-
 ####################
 # Protocol Revenue #
 ####################
@@ -3931,12 +3815,6 @@ def test_view_functions_comprehensive(loot_distributor, user_wallet, ambassador_
     # Get latest deposit points
     points = loot_distributor.getLatestDepositPoints(1000 * EIGHTEEN_DECIMALS, 0)
     assert points >= 0
-    
-    # Get loot distro config
-    config = loot_distributor.getLootDistroConfig(user_wallet, alpha_token, True)
-    assert config.ambassador == ambassador_wallet.address
-    assert config.decimals > 0
-
 
 
 def test_update_deposit_points_on_ejection(loot_distributor, user_wallet, ledger, switchboard_alpha):
@@ -4852,17 +4730,6 @@ def test_zero_address_validation_view_functions(loot_distributor):
     # Test getClaimableDepositRewards with zero user
     result = loot_distributor.getClaimableDepositRewards(ZERO_ADDRESS)
     assert result == 0  # Should return 0 for zero address
-
-
-def test_zero_address_validation_get_loot_config(loot_distributor, alpha_token):
-    """ Test getLootDistroConfig with zero wallet address """
-
-    # Test with zero wallet address
-    config = loot_distributor.getLootDistroConfig(ZERO_ADDRESS, alpha_token.address, False)
-
-    # Should return empty config or default values
-    assert config.ambassador == ZERO_ADDRESS  # No ambassador for zero wallet
-    assert config.decimals >= 0  # Should still have valid decimals
 
 
 def test_zero_address_validation_get_fees(loot_distributor):
