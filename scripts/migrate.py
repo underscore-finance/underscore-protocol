@@ -82,14 +82,14 @@ CLICK_PROMPTS = {
 
 
 ETHERSCAN_API_KEYS = {
-    "base-mainnet": os.environ["BASESCAN_API_KEY"],
-    "base-sepolia": os.environ["BASESCAN_API_KEY"],
+    "base-mainnet": os.environ["ETHERSCAN_API_KEY"],
+    "base-sepolia": os.environ["ETHERSCAN_API_KEY"],
 }
 ETHERSCAN_URLS = {
-    "eth-mainnet": "https://api.etherscan.io/api",
+    "eth-mainnet": "https://api.etherscan.io/v2/api?chainid=1",
     "eth-goerli": "https://api-goerli.etherscan.io/api",
     "eth-sepolia": "https://api-sepolia.etherscan.io/api",
-    "base-mainnet": "https://api.basescan.org/api",
+    "base-mainnet": "https://api.etherscan.io/v2/api?chainid=8453",
     "base-goerli": "https://api-goerli.basescan.org/api",
     "base-sepolia": "https://api-sepolia.basescan.org/api",
 }
