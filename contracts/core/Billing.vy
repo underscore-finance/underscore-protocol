@@ -34,7 +34,6 @@ from interfaces import WalletConfigStructs as wcs
 from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 
 interface UserWalletConfig:
     def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
@@ -52,15 +51,11 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface Ledger:
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-    def isUserWallet(_user: address) -> bool: view
-
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
 
 struct WalletAssetData:
     assetBalance: uint256
@@ -68,17 +63,9 @@ struct WalletAssetData:
     isYieldAsset: bool
     lastYieldPrice: uint256
 
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
-
 struct AssetUsdValueConfig:
     legoId: uint256
     legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256
     isYieldAsset: bool
     underlyingAsset: address
 
@@ -99,17 +86,11 @@ event PayeePaymentPulled:
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
-WETH: public(immutable(address))
-ETH: public(immutable(address))
-
 
 @deploy
-def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
+def __init__(_undyHq: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
-
-    WETH = _wethAddr
-    ETH = _ethAddr
 
 
 #########################
@@ -295,7 +276,7 @@ def _withdrawFromYieldOpportunities(
             continue
 
         # get underlying details
-        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook, _ledger)
+        config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(asset)
         if config.underlyingAsset != _paymentAsset or config.legoId == 0:
             continue
 
@@ -322,54 +303,3 @@ def _withdrawFromYieldOpportunities(
         extcall UserWalletConfig(_userWalletConfig).deregisterAsset(asset)
 
     return amountWithdraw
-
-        
-# get asset usd value config
-
-
-@view
-@external
-def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    a: addys.Addys = addys._getAddys()
-    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-
-
-@view
-@internal
-def _getAssetUsdValueConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> AssetUsdValueConfig:
-    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
-
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
-            config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.underlyingAsset = vaultToken.underlyingAsset
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if needed
-    if config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
-# get decimals
-
-
-@view
-@internal
-def _getDecimals(_asset: address) -> uint256:
-    if _asset in [WETH, ETH]:
-        return 18
-    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)

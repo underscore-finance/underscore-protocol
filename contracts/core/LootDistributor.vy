@@ -37,14 +37,6 @@ from interfaces import WalletConfigStructs as wcs
 import interfaces.ConfigStructs as cs
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
-
-interface Ledger:
-    def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
-    def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-    def ambassadors(_user: address) -> address: view
-    def isUserWallet(_user: address) -> bool: view
 
 interface MissionControl:
     def getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256: view
@@ -52,6 +44,12 @@ interface MissionControl:
     def getRewardsFee(_asset: address) -> uint256: view
     def getLootClaimCoolOffPeriod() -> uint256: view
     def getDepositRewardsAsset() -> address: view
+
+interface Ledger:
+    def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
+    def getUserAndGlobalPoints(_user: address) -> (PointsData, PointsData): view
+    def ambassadors(_user: address) -> address: view
+    def isUserWallet(_user: address) -> bool: view
 
 interface Appraiser:
     def getAssetAmountFromRipe(_asset: address, _usdValue: uint256) -> uint256: view
@@ -79,25 +77,18 @@ struct PointsData:
     lastUpdate: uint256
 
 struct LootDistroConfig:
+    legoId: uint256
+    legoAddr: address
+    underlyingAsset: address
     ambassador: address
     ambassadorRevShare: cs.AmbassadorRevShare
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
     bonusAsset: address
-    underlyingAsset: address
-    decimals: uint256
-    legoId: uint256
-    legoAddr: address
 
 struct DepositRewards:
     asset: address
     amount: uint256
-
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
 
 event TransactionFeePaid:
     user: indexed(address)
@@ -241,7 +232,9 @@ def addLootFromSwapOrRewards(
     ambFee: uint256 = 0
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
     if ambassador != empty(address):
-        config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, empty(address), ledger, False)
+        missionControl: address = _missionControl if _missionControl != empty(address) else addys._getMissionControlAddr()
+        config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+        config.ambassador = ambassador
         ambFee = self._handleAmbassadorTxFee(_asset, feeAmount, _action, config)
 
     # transfer leftover revenue to gov
@@ -271,7 +264,9 @@ def addLootFromYieldProfit(
     log YieldPerformanceFeePaid(user = msg.sender, asset = _asset, feeAmount = _feeAmount, yieldRealized = _yieldRealized)
 
     ambassador: address = staticcall Ledger(ledger).ambassadors(msg.sender)
-    config: LootDistroConfig = self._getLootDistroConfig(msg.sender, ambassador, _asset, _missionControl, _legoBook, ledger, True)
+    missionControl: address = _missionControl if _missionControl != empty(address) else addys._getMissionControlAddr()
+    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
+    config.ambassador = ambassador
     
     # handle fee (this may be 0) -- no need to `transferFrom` in this case, it's already in this contract
     ambFee: uint256 = 0
@@ -1033,64 +1028,6 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         return True
 
     return isSwitchboard
-
-
-# loot config
-
-
-@view
-@external
-def getLootDistroConfig(_wallet: address, _asset: address, _shouldGetLegoInfo: bool = False) -> LootDistroConfig:
-    ledger: address = addys._getLedgerAddr()
-    ambassador: address = staticcall Ledger(ledger).ambassadors(_wallet)
-    return self._getLootDistroConfig(_wallet, ambassador, _asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), ledger, _shouldGetLegoInfo)
-
-
-@view
-@internal
-def _getLootDistroConfig(
-    _wallet: address,
-    _ambassador: address,
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-    _shouldGetLegoInfo: bool,
-) -> LootDistroConfig:
-
-    # get addys
-    missionControl: address = _missionControl
-    if _missionControl == empty(address):
-        missionControl = addys._getMissionControlAddr()
-    legoBook: address = _legoBook
-    if _legoBook == empty(address):
-        legoBook = addys._getLegoBookAddr()
-
-    # config
-    config: LootDistroConfig = staticcall MissionControl(missionControl).getLootDistroConfig(_asset)
-    config.ambassador = _ambassador
-
-    # Always check if this is a yield asset by checking Ledger.vaultTokens
-    # Since underlyingAsset and legoId are no longer in config
-    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-    if vaultToken.underlyingAsset != empty(address):
-        # This is a yield asset registered in Ledger
-        config.legoId = vaultToken.legoId
-        config.underlyingAsset = vaultToken.underlyingAsset
-
-        # Use vault token decimals if config doesn't have them
-        if config.decimals == 0:
-            config.decimals = vaultToken.decimals
-
-    # get lego addr
-    if _shouldGetLegoInfo and config.legoId != 0 and legoBook != empty(address) and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(legoBook).getAddr(config.legoId)
-
-    # get decimals if still needed
-    if config.decimals == 0:
-        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
-
-    return config
 
 
 # set ripe rewards config

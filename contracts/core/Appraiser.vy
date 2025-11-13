@@ -26,9 +26,7 @@ initializes: deptBasics[addys := addys]
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
-from interfaces import DexLego as DexLego
 from interfaces import YieldLego as YieldLego
-
 from ethereum.ercs import IERC20Detailed
 
 interface RipePriceDesk:
@@ -63,21 +61,18 @@ struct VaultToken:
 struct AssetUsdValueConfig:
     legoId: uint256
     legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256
     isYieldAsset: bool
     underlyingAsset: address
 
 struct ProfitCalcConfig:
     legoId: uint256
     legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256
     isYieldAsset: bool
-    isRebasing: bool
     underlyingAsset: address
     maxYieldIncrease: uint256
     performanceFee: uint256
+    isRebasing: bool
+    decimals: uint256
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
@@ -85,25 +80,17 @@ HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 RIPE_HQ: immutable(address)
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
 
-WETH: public(immutable(address))
-ETH: public(immutable(address))
-
 
 @deploy
 def __init__(
     _undyHq: address,
     _ripeHq: address,
-    _wethAddr: address,
-    _ethAddr: address,
 ):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
 
     assert _ripeHq != empty(address) # dev: invalid ripe hq
     RIPE_HQ = _ripeHq
-
-    WETH = _wethAddr
-    ETH = _ethAddr
 
 
 ##################
@@ -135,10 +122,15 @@ def calculateYieldProfits(
     if _legoBook == empty(address):
         legoBook = addys._getLegoBookAddr()
 
-    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, missionControl, legoBook, ledger)
+    config: ProfitCalcConfig = staticcall MissionControl(missionControl).getProfitCalcConfig(_asset)
     if not config.isYieldAsset:
         return 0, 0, 0
 
+    # get decimals if not provided
+    if config.decimals == 0:
+        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # calculate profits
     if config.isRebasing:
         return self._handleRebaseYieldAsset(_currentBalance, _lastBalance, config.maxYieldIncrease, config.performanceFee)
     else:
@@ -156,10 +148,15 @@ def calculateYieldProfitsNoUpdate(
     _lastBalance: uint256,
     _lastPricePerShare: uint256,
 ) -> (uint256, uint256, uint256):
-    config: ProfitCalcConfig = self._getProfitCalcConfig(_asset, addys._getMissionControlAddr(), addys._getLegoBookAddr(), addys._getLedgerAddr())
+    config: ProfitCalcConfig = staticcall MissionControl(addys._getMissionControlAddr()).getProfitCalcConfig(_asset)
     if not config.isYieldAsset:
         return 0, 0, 0
 
+    # get decimals if not provided
+    if config.decimals == 0:
+        config.decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # calculate profits
     if config.isRebasing:
         return self._handleRebaseYieldAsset(_currentBalance, _lastBalance, config.maxYieldIncrease, config.performanceFee)
     else:
@@ -240,11 +237,13 @@ def _handleNormalYieldAsset(
 @view
 @external
 def lastPricePerShare(_asset: address) -> uint256:
-    a: addys.Addys = addys._getAddys()
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-    if not config.isYieldAsset or config.legoAddr == empty(address):
+    vaultToken: VaultToken = staticcall Ledger(addys._getLedgerAddr()).vaultTokens(_asset)
+    if vaultToken.legoId == 0 or vaultToken.underlyingAsset == empty(address):
         return 0
-    return staticcall YieldLego(config.legoAddr).getPricePerShare(_asset, config.decimals)
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(vaultToken.legoId)
+    if legoAddr == empty(address):
+        return 0
+    return staticcall YieldLego(legoAddr).getPricePerShare(_asset, vaultToken.decimals)
 
 
 #############
@@ -340,7 +339,7 @@ def _getUsdValueAndIsYieldAsset(
         legoBook = addys._getLegoBookAddr()
 
     # get config
-    config: AssetUsdValueConfig = self._getAssetUsdValueConfig(_asset, missionControl, legoBook, ledger)
+    config: AssetUsdValueConfig = staticcall MissionControl(missionControl).getAssetUsdValueConfig(_asset)
 
     # get usd value
     usdValue: uint256 = 0
@@ -399,108 +398,3 @@ def getAssetAmountFromRipe(_asset: address, _usdValue: uint256) -> uint256:
     if ripePriceDesk == empty(address):
         return 0
     return staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(_asset, _usdValue, False)
-
-
-#########
-# Utils #
-#########
-
-
-# get profit calc config
-
-
-@view
-@external
-def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
-    a: addys.Addys = addys._getAddys()
-    return self._getProfitCalcConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-
-
-@view
-@internal
-def _getProfitCalcConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> ProfitCalcConfig:
-    config: ProfitCalcConfig = staticcall MissionControl(_missionControl).getProfitCalcConfig(_asset)
-
-    # Always check if this is a yield asset by checking Ledger.vaultTokens
-    # Since isYieldAsset, isRebasing, and underlyingAsset are no longer in config
-    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-    if vaultToken.underlyingAsset != empty(address):
-        # This is a yield asset registered in Ledger
-        config.legoId = vaultToken.legoId
-        config.isYieldAsset = True
-        config.isRebasing = vaultToken.isRebasing
-        config.underlyingAsset = vaultToken.underlyingAsset
-
-        # Use vault token decimals if config doesn't have them
-        if config.decimals == 0:
-            config.decimals = vaultToken.decimals
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if still needed
-    if config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
-# get asset usd value config
-
-
-@view
-@external
-def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    a: addys.Addys = addys._getAddys()
-    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-
-
-@view
-@internal
-def _getAssetUsdValueConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> AssetUsdValueConfig:
-    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
-
-    # Always check if this is a yield asset by checking Ledger.vaultTokens
-    # Since isYieldAsset and underlyingAsset are no longer in config
-    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-    if vaultToken.underlyingAsset != empty(address):
-        # This is a yield asset registered in Ledger
-        config.legoId = vaultToken.legoId
-        config.isYieldAsset = True
-        config.underlyingAsset = vaultToken.underlyingAsset
-
-        # Use vault token decimals if config doesn't have them
-        if config.decimals == 0:
-            config.decimals = vaultToken.decimals
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if needed
-    if config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
-# get decimals
-
-
-@view
-@internal
-def _getDecimals(_asset: address) -> uint256:
-    if _asset in [WETH, ETH]:
-        return 18
-    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)

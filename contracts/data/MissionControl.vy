@@ -26,7 +26,43 @@ from interfaces import Department
 import interfaces.ConfigStructs as cs
 from interfaces import Defaults
 
-# helpers
+interface Ledger:
+    def vaultTokens(_vaultToken: address) -> VaultToken: view
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
+
+struct VaultToken:
+    legoId: uint256
+    underlyingAsset: address
+    decimals: uint256
+    isRebasing: bool
+
+struct AssetUsdValueConfig:
+    legoId: uint256
+    legoAddr: address
+    isYieldAsset: bool
+    underlyingAsset: address
+
+struct ProfitCalcConfig:
+    legoId: uint256
+    legoAddr: address
+    isYieldAsset: bool
+    underlyingAsset: address
+    maxYieldIncrease: uint256
+    performanceFee: uint256
+    isRebasing: bool
+    decimals: uint256
+
+struct LootDistroConfig:
+    legoId: uint256
+    legoAddr: address
+    underlyingAsset: address
+    ambassador: address
+    ambassadorRevShare: cs.AmbassadorRevShare
+    ambassadorBonusRatio: uint256
+    bonusRatio: uint256
+    bonusAsset: address
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -53,36 +89,6 @@ struct AgentCreationConfig:
     isCreatorAllowed: bool
     minTimeLock: uint256
     maxTimeLock: uint256
-
-struct AssetUsdValueConfig:
-    legoId: uint256
-    legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256  # Kept for backward compatibility but always returns 0
-    isYieldAsset: bool
-    underlyingAsset: address
-
-struct ProfitCalcConfig:
-    legoId: uint256
-    legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256  # Kept for backward compatibility but always returns 0
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
-    maxYieldIncrease: uint256
-    performanceFee: uint256
-
-struct LootDistroConfig:
-    ambassador: address
-    ambassadorRevShare: cs.AmbassadorRevShare
-    ambassadorBonusRatio: uint256
-    bonusRatio: uint256
-    bonusAsset: address
-    underlyingAsset: address  # Kept for backward compatibility - fetched from Ledger
-    decimals: uint256
-    legoId: uint256  # Kept for backward compatibility - fetched from Ledger
-    legoAddr: address
 
 # global configs
 userWalletConfig: public(cs.UserWalletConfig)
@@ -181,35 +187,6 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
 
 @view
 @external
-def getLootDistroConfig(_asset: address) -> LootDistroConfig:
-    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
-
-    ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
-    ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
-    bonusRatio: uint256 = assetConfig.yieldConfig.bonusRatio
-    bonusAsset: address = assetConfig.yieldConfig.bonusAsset
-    if not assetConfig.hasConfig:
-        walletConfig: cs.UserWalletConfig = self.userWalletConfig
-        ambassadorRevShare = walletConfig.ambassadorRevShare
-        ambassadorBonusRatio = walletConfig.yieldConfig.ambassadorBonusRatio
-        bonusRatio = walletConfig.yieldConfig.bonusRatio
-        bonusAsset = walletConfig.yieldConfig.bonusAsset
-
-    return LootDistroConfig(
-        ambassador = empty(address),
-        ambassadorRevShare = ambassadorRevShare,
-        ambassadorBonusRatio = ambassadorBonusRatio,
-        bonusRatio = bonusRatio,
-        bonusAsset = bonusAsset,
-        underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
-        decimals = 0,  # Will be fetched from token via fallback logic
-        legoId = 0,  # Will be fetched from Ledger.vaultTokens
-        legoAddr = empty(address),
-    )
-
-
-@view
-@external
 def getDepositRewardsAsset() -> address:
     return self.userWalletConfig.depositRewardsAsset
 
@@ -275,47 +252,7 @@ def setIsStablecoin(_asset: address, _isStablecoin: bool):
     self.isStablecoin[_asset] = _isStablecoin
 
 
-# helpers
-
-
-@view
-@external
-def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
-    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
-
-    maxYieldIncrease: uint256 = assetConfig.yieldConfig.maxYieldIncrease
-    performanceFee: uint256 = assetConfig.yieldConfig.performanceFee
-    if not assetConfig.hasConfig:
-        walletConfig: cs.UserWalletConfig = self.userWalletConfig
-        maxYieldIncrease = walletConfig.yieldConfig.maxYieldIncrease
-        performanceFee = walletConfig.yieldConfig.performanceFee
-
-    return ProfitCalcConfig(
-        legoId = 0,  # Will be fetched from Ledger.vaultTokens
-        legoAddr = empty(address),
-        decimals = 0,  # Will be fetched from token via fallback logic
-        staleBlocks = 0,  # Removed - no longer used
-        isYieldAsset = False,  # Will be derived from Ledger.vaultTokens
-        isRebasing = False,  # Will be fetched from Ledger.vaultTokens
-        underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
-        maxYieldIncrease = maxYieldIncrease,
-        performanceFee = performanceFee,
-    )
-
-
-@view
-@external
-def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
-
-    return AssetUsdValueConfig(
-        legoId = 0,  # Will be fetched from Ledger.vaultTokens
-        legoAddr = empty(address),
-        decimals = 0,  # Will be fetched from token via fallback logic
-        staleBlocks = 0,  # Removed - no longer used
-        isYieldAsset = False,  # Will be derived from Ledger.vaultTokens
-        underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
-    )
+# swap fee
 
 
 @view
@@ -334,6 +271,9 @@ def getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256:
     return self.userWalletConfig.txFees.swapFee
 
 
+# rewards fee
+
+
 @view
 @external
 def getRewardsFee(_asset: address) -> uint256:
@@ -341,6 +281,99 @@ def getRewardsFee(_asset: address) -> uint256:
     if config.hasConfig:
         return config.txFees.rewardsFee
     return self.userWalletConfig.txFees.rewardsFee
+
+
+# helpers
+
+
+@view
+@external
+def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
+    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
+    maxYieldIncrease: uint256 = assetConfig.yieldConfig.maxYieldIncrease
+    performanceFee: uint256 = assetConfig.yieldConfig.performanceFee
+    if not assetConfig.hasConfig:
+        walletConfig: cs.UserWalletConfig = self.userWalletConfig
+        maxYieldIncrease = walletConfig.yieldConfig.maxYieldIncrease
+        performanceFee = walletConfig.yieldConfig.performanceFee
+
+    # vault token
+    ledger: address = addys._getLedgerAddr()
+    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)
+
+    # get lego addr
+    legoAddr: address = empty(address)
+    if vaultToken.legoId != 0:
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)
+
+    return ProfitCalcConfig(
+        legoId = vaultToken.legoId,
+        legoAddr = legoAddr,
+        isYieldAsset = vaultToken.underlyingAsset != empty(address),
+        underlyingAsset = vaultToken.underlyingAsset,
+        maxYieldIncrease = maxYieldIncrease,
+        performanceFee = performanceFee,
+        isRebasing = vaultToken.isRebasing,
+        decimals = vaultToken.decimals,
+    )
+
+
+@view
+@external
+def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
+    ledger: address = addys._getLedgerAddr()
+    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)
+
+    # get lego addr
+    legoAddr: address = empty(address)
+    if vaultToken.legoId != 0:
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)
+
+    return AssetUsdValueConfig(
+        legoId = vaultToken.legoId,
+        legoAddr = legoAddr,
+        isYieldAsset = vaultToken.underlyingAsset != empty(address),
+        underlyingAsset = vaultToken.underlyingAsset,
+    )
+
+
+@view
+@external
+def getLootDistroConfig(_asset: address) -> LootDistroConfig:
+    assetConfig: cs.AssetConfig = self.assetConfig[_asset]
+    ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare
+    ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio
+    bonusRatio: uint256 = assetConfig.yieldConfig.bonusRatio
+    bonusAsset: address = assetConfig.yieldConfig.bonusAsset
+    if not assetConfig.hasConfig:
+        walletConfig: cs.UserWalletConfig = self.userWalletConfig
+        ambassadorRevShare = walletConfig.ambassadorRevShare
+        ambassadorBonusRatio = walletConfig.yieldConfig.ambassadorBonusRatio
+        bonusRatio = walletConfig.yieldConfig.bonusRatio
+        bonusAsset = walletConfig.yieldConfig.bonusAsset
+
+    # vault token
+    ledger: address = addys._getLedgerAddr()
+    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)
+
+    # get lego addr
+    legoAddr: address = empty(address)
+    if vaultToken.legoId != 0:
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)
+
+    return LootDistroConfig(
+        legoId = vaultToken.legoId,
+        legoAddr = legoAddr,
+        underlyingAsset = vaultToken.underlyingAsset,
+        ambassador = empty(address),
+        ambassadorRevShare = ambassadorRevShare,
+        ambassadorBonusRatio = ambassadorBonusRatio,
+        bonusRatio = bonusRatio,
+        bonusAsset = bonusAsset,
+    )
 
 
 #########

@@ -331,18 +331,12 @@ def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
 
 
 @pytest.fixture(scope="session")
-def appraiser(undy_hq_deploy, fork, mock_ripe, weth):
+def appraiser(undy_hq_deploy, fork, mock_ripe):
     ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-
-    # Use mock_weth address for local fork, otherwise use the configured WETH address
-    weth_addr = weth.address if fork == "local" else TOKENS[fork]["WETH"]
-
     return boa.load(
         "contracts/core/Appraiser.vy",
         undy_hq_deploy,
         ripe_hq,
-        weth_addr,
-        TOKENS[fork]["ETH"],
         name="appraiser",
     )
 
@@ -351,12 +345,10 @@ def appraiser(undy_hq_deploy, fork, mock_ripe, weth):
 
 
 @pytest.fixture(scope="session")
-def billing(undy_hq_deploy, fork):
+def billing(undy_hq_deploy):
     return boa.load(
         "contracts/core/Billing.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="billing",
     )
 

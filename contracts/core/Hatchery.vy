@@ -31,19 +31,9 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
-from interfaces import YieldLego as YieldLego
 from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
-
-interface Ledger:
-    def createUserWallet(_user: address, _ambassador: address): nonpayable
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-    def isUserWallet(_user: address) -> bool: view
-    def createAgent(_agent: address): nonpayable
-    def numUserWallets() -> uint256: view
-    def numAgents() -> uint256: view
 
 interface WalletBackpack:
     def highCommand() -> address: view
@@ -53,10 +43,16 @@ interface WalletBackpack:
     def sentinel() -> address: view
     def kernel() -> address: view
 
+interface Ledger:
+    def createUserWallet(_user: address, _ambassador: address): nonpayable
+    def isUserWallet(_user: address) -> bool: view
+    def createAgent(_agent: address): nonpayable
+    def numUserWallets() -> uint256: view
+    def numAgents() -> uint256: view
+
 interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
-    def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
     def creatorWhitelist(_creator: address) -> bool: view
 
 interface HighCommand:
@@ -72,20 +68,11 @@ interface Paymaster:
 interface UserWalletConfig:
     def setWallet(_wallet: address) -> bool: nonpayable
 
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
-
 struct WalletAssetData:
     assetBalance: uint256
     usdValue: uint256
     isYieldAsset: bool
     lastYieldPrice: uint256
-
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -112,14 +99,6 @@ struct AgentCreationConfig:
     isCreatorAllowed: bool
     minTimeLock: uint256
     maxTimeLock: uint256
-
-struct AssetUsdValueConfig:
-    legoId: uint256
-    legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256
-    isYieldAsset: bool
-    underlyingAsset: address
 
 event UserWalletCreated:
     mainAddr: indexed(address)
@@ -266,61 +245,6 @@ def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
         groupId=_groupId,
     )
     return agentAddr
-
-
-# get asset usd value config
-
-
-@view
-@external
-def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    a: addys.Addys = addys._getAddys()
-    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-
-
-@view
-@internal
-def _getAssetUsdValueConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> AssetUsdValueConfig:
-    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
-
-    # Always check if this is a yield asset by checking Ledger.vaultTokens
-    # Since isYieldAsset and underlyingAsset are no longer in config
-    vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-    if vaultToken.underlyingAsset != empty(address):
-        # This is a yield asset registered in Ledger
-        config.legoId = vaultToken.legoId
-        config.isYieldAsset = True
-        config.underlyingAsset = vaultToken.underlyingAsset
-
-        # Use vault token decimals if config doesn't have them
-        if config.decimals == 0:
-            config.decimals = vaultToken.decimals
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if still needed
-    if config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
-# get decimals
-
-
-@view
-@internal
-def _getDecimals(_asset: address) -> uint256:
-    if _asset in [WETH, ETH]:
-        return 18
-    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
 
 
 # trial funds (legacy wallets)
