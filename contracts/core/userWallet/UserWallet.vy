@@ -438,6 +438,8 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
+    assert lastTokenOutAmount != 0 # dev: no output amount
+
     # handle swap fee
     if lastTokenOut != empty(address):
         swapFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getSwapFee(self, tokenIn, lastTokenOut, ad.missionControl)
