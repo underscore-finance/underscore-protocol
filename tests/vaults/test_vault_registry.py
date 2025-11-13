@@ -1846,3 +1846,1462 @@ def test_event_ordering_for_disable_workflow(vault_registry, undy_usd_vault, gov
     # Verify final state - vault should be disabled (removed from address registry)
     assert vault_registry.isValidAddr(undy_usd_vault.address) == False
     assert vault_registry.getAddr(reg_id) == ZERO_ADDRESS
+
+
+####################################
+# PHASE 1: Iterable List Tests    #
+####################################
+
+
+def test_get_approved_vault_tokens_empty_list(vault_registry, governance, deploy_test_vault):
+    """Test getApprovedVaultTokens returns empty list when vault has no approved tokens"""
+    # Deploy and register a vault with no approved tokens
+    new_vault = deploy_test_vault()
+
+    vault_registry.startAddNewAddressToRegistry(
+        new_vault.address,
+        "Empty Vault",
+        sender=governance.address
+    )
+
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm with empty approved tokens list
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False,  # isLeveragedVault
+        [],  # no approved vault tokens
+        0,  # maxDepositAmount
+        0,  # minYieldWithdrawAmount
+        0,  # performanceFee
+        ZERO_ADDRESS,  # defaultTargetVaultToken
+        False,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        200,  # redemptionBuffer
+        sender=governance.address
+    )
+
+    # Verify empty list
+    tokens = vault_registry.getApprovedVaultTokens(new_vault.address)
+    assert len(tokens) == 0
+
+
+def test_get_approved_vault_tokens_single_token(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test getApprovedVaultTokens returns single token"""
+    new_vault = deploy_test_vault()
+    token = boa.env.generate_address()
+
+    # Register vault
+    vault_registry.startAddNewAddressToRegistry(
+        new_vault.address,
+        "Single Token Vault",
+        sender=governance.address
+    )
+
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm with one token
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False,
+        [token],  # single token
+        0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Verify single token in list
+    tokens = vault_registry.getApprovedVaultTokens(new_vault.address)
+    assert len(tokens) == 1
+    assert tokens[0] == token
+
+
+def test_get_approved_vault_tokens_multiple_tokens(vault_registry, governance, deploy_test_vault):
+    """Test getApprovedVaultTokens returns multiple tokens"""
+    new_vault = deploy_test_vault()
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Register vault
+    vault_registry.startAddNewAddressToRegistry(
+        new_vault.address,
+        "Multi Token Vault",
+        sender=governance.address
+    )
+
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    # Confirm with multiple tokens
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False,
+        [token1, token2, token3],
+        0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Verify all tokens in list
+    tokens = vault_registry.getApprovedVaultTokens(new_vault.address)
+    assert len(tokens) == 3
+    assert token1 in tokens
+    assert token2 in tokens
+    assert token3 in tokens
+
+
+def test_get_approved_vault_tokens_after_adding_tokens(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getApprovedVaultTokens after dynamically adding tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+
+    # Get initial tokens
+    initial_tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    initial_count = len(initial_tokens)
+
+    # Add token1
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        token1,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    tokens_after_1 = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert len(tokens_after_1) == initial_count + 1
+    assert token1 in tokens_after_1
+
+    # Add token2
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        token2,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    tokens_after_2 = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert len(tokens_after_2) == initial_count + 2
+    assert token1 in tokens_after_2
+    assert token2 in tokens_after_2
+
+
+def test_get_approved_vault_tokens_after_removing_tokens(vault_registry, undy_usd_vault, switchboard_alpha, yield_vault_token):
+    """Test getApprovedVaultTokens after removing tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+
+    # Add two tokens
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+
+    # Get tokens before removal
+    tokens_before = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    count_before = len(tokens_before)
+
+    # Remove token1
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, sender=switchboard_alpha.address)
+
+    # Verify token1 removed
+    tokens_after = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert len(tokens_after) == count_before - 1
+    assert token1 not in tokens_after
+    assert token2 in tokens_after
+
+
+def test_get_approved_vault_tokens_swap_and_pop_logic(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test swap-and-pop implementation when removing tokens from middle of list"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Add three tokens
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+
+    # Remove middle token (token2)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+
+    # Verify list still contains token1 and token3
+    tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert token1 in tokens
+    assert token2 not in tokens
+    assert token3 in tokens
+
+
+def test_get_num_approved_vault_tokens_zero(vault_registry, governance, deploy_test_vault):
+    """Test getNumApprovedVaultTokens returns 0 for vault with no tokens"""
+    new_vault = deploy_test_vault()
+
+    vault_registry.startAddNewAddressToRegistry(new_vault.address, "Empty", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False, [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    count = vault_registry.getNumApprovedVaultTokens(new_vault.address)
+    assert count == 0
+
+
+def test_get_num_approved_vault_tokens_increments(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getNumApprovedVaultTokens increments correctly"""
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    token1 = boa.env.generate_address()
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+
+    count_after_1 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    assert count_after_1 == initial_count + 1
+
+    token2 = boa.env.generate_address()
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+
+    count_after_2 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    assert count_after_2 == initial_count + 2
+
+
+def test_get_num_approved_vault_tokens_decrements(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getNumApprovedVaultTokens decrements correctly when removing tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+
+    count_before = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, sender=switchboard_alpha.address)
+
+    count_after = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    assert count_after == count_before - 1
+
+
+def test_get_asset_vault_tokens_empty_list(vault_registry, yield_underlying_token):
+    """Test getAssetVaultTokens returns empty for asset with no vault tokens"""
+    # Generate a random asset that has no vaults
+    random_asset = boa.env.generate_address()
+
+    tokens = vault_registry.getAssetVaultTokens(random_asset)
+    assert len(tokens) == 0
+
+
+def test_get_asset_vault_tokens_single_vault(vault_registry, undy_usd_vault, switchboard_alpha, yield_underlying_token):
+    """Test getAssetVaultTokens for single vault using an asset"""
+    token = boa.env.generate_address()
+
+    # Add token to vault
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    # Get asset from vault
+    asset = undy_usd_vault.asset()
+
+    # Check asset vault tokens
+    asset_tokens = vault_registry.getAssetVaultTokens(asset)
+    assert token in asset_tokens
+
+
+def test_get_asset_vault_tokens_multiple_vaults_same_asset(vault_registry, governance, undy_hq_deploy, switchboard_alpha):
+    """Test getAssetVaultTokens aggregates tokens across multiple vaults with same asset"""
+    # Deploy a shared asset that both vaults will use
+    shared_asset = boa.load(
+        "contracts/mock/MockErc20.vy",
+        boa.env.generate_address(),
+        "Shared Asset",
+        "SHARED",
+        18,
+        1_000_000,
+    )
+
+    # Deploy two vaults with the same underlying asset
+    vault1 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 1",
+        "V1",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault1",
+    )
+
+    vault2 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 2",
+        "V2",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault2",
+    )
+
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Register vault1 with token1
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [token1], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Register vault2 with token2 and token3
+    vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault2.address, False, [token2, token3], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Asset should have all three tokens
+    asset_tokens = vault_registry.getAssetVaultTokens(shared_asset.address)
+    assert token1 in asset_tokens
+    assert token2 in asset_tokens
+    assert token3 in asset_tokens
+
+
+def test_get_asset_vault_tokens_reference_counting(vault_registry, governance, undy_hq_deploy, switchboard_alpha):
+    """Test asset vault tokens use reference counting correctly"""
+    # Deploy a shared asset that both vaults will use
+    shared_asset = boa.load(
+        "contracts/mock/MockErc20.vy",
+        boa.env.generate_address(),  # whale
+        "Shared Asset",
+        "SHARED",
+        18,
+        1_000_000,
+    )
+
+    # Deploy two vaults with the same asset
+    vault1 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 1",
+        "V1",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault1",
+    )
+
+    vault2 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 2",
+        "V2",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault2",
+    )
+
+    shared_token = boa.env.generate_address()
+
+    # Register both vaults with the same shared token
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Check reference count
+    ref_count = vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token)
+    assert ref_count == 2
+
+    # Asset tokens should contain shared_token only once
+    asset_tokens = vault_registry.getAssetVaultTokens(shared_asset.address)
+    assert shared_token in asset_tokens
+
+    # Remove from vault1
+    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, sender=switchboard_alpha.address)
+
+    # Reference count should decrement
+    ref_count_after = vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token)
+    assert ref_count_after == 1
+
+    # Token should still be in asset list (vault2 still uses it)
+    asset_tokens_after = vault_registry.getAssetVaultTokens(shared_asset.address)
+    assert shared_token in asset_tokens_after
+
+
+def test_get_asset_vault_tokens_removed_when_no_vaults_use_it(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test asset vault token is removed when last vault stops using it"""
+    vault1 = deploy_test_vault()
+    token = boa.env.generate_address()
+
+    # Register vault with token
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    asset = vault1.asset()
+
+    # Verify token in asset list
+    asset_tokens_before = vault_registry.getAssetVaultTokens(asset)
+    assert token in asset_tokens_before
+
+    # Remove token from vault
+    vault_registry.setApprovedVaultToken(vault1.address, token, False, sender=switchboard_alpha.address)
+
+    # Token should be removed from asset list
+    asset_tokens_after = vault_registry.getAssetVaultTokens(asset)
+    assert token not in asset_tokens_after
+
+
+def test_get_num_asset_vault_tokens_zero(vault_registry):
+    """Test getNumAssetVaultTokens returns 0 for asset with no tokens"""
+    random_asset = boa.env.generate_address()
+    count = vault_registry.getNumAssetVaultTokens(random_asset)
+    assert count == 0
+
+
+def test_get_num_asset_vault_tokens_increments(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getNumAssetVaultTokens increments when adding tokens"""
+    asset = undy_usd_vault.asset()
+    initial_count = vault_registry.getNumAssetVaultTokens(asset)
+
+    token = boa.env.generate_address()
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    count_after = vault_registry.getNumAssetVaultTokens(asset)
+    assert count_after == initial_count + 1
+
+
+def test_get_num_asset_vault_tokens_with_reference_counting(vault_registry, governance, undy_hq_deploy, switchboard_alpha):
+    """Test getNumAssetVaultTokens doesn't increment when additional vault adds same token"""
+    # Deploy a shared asset
+    shared_asset = boa.load(
+        "contracts/mock/MockErc20.vy",
+        boa.env.generate_address(),
+        "Shared Asset",
+        "SHARED",
+        18,
+        1_000_000,
+    )
+
+    vault1 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 1",
+        "V1",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault1",
+    )
+
+    vault2 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 2",
+        "V2",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault2",
+    )
+
+    token = boa.env.generate_address()
+
+    # Register vault1 with token
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    count_after_vault1 = vault_registry.getNumAssetVaultTokens(shared_asset.address)
+
+    # Register vault2 with same token
+    vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault2.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Count should NOT increase (same token, different vault)
+    count_after_vault2 = vault_registry.getNumAssetVaultTokens(shared_asset.address)
+    assert count_after_vault2 == count_after_vault1
+
+
+def test_is_approved_vault_token_for_asset(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test isApprovedVaultTokenForAsset returns correct values"""
+    token = boa.env.generate_address()
+    asset = undy_usd_vault.asset()
+
+    # Token not yet approved
+    assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == False
+
+    # Approve token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    # Should now be approved for asset
+    assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == True
+
+    # Disapprove token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+
+    # Should no longer be approved
+    assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == False
+
+
+def test_adding_duplicate_token_is_idempotent(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that adding the same token twice doesn't create duplicates"""
+    token = boa.env.generate_address()
+
+    # Add token first time
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    count_after_1 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Add same token again
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    count_after_2 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Count should not change
+    assert count_after_2 == count_after_1
+
+    # Token should appear only once in list
+    tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    token_occurrences = sum(1 for t in tokens if t == token)
+    assert token_occurrences == 1
+
+
+#################################################
+# PHASE 2: Missing Config Setter Tests         #
+#################################################
+
+
+def test_set_default_target_vault_token_basic(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setDefaultTargetVaultToken basic functionality"""
+    token = boa.env.generate_address()
+
+    # First approve the token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    # Set as default target
+    vault_registry.setDefaultTargetVaultToken(
+        undy_usd_vault.address,
+        token,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify it was set
+    default_token = vault_registry.getDefaultTargetVaultToken(undy_usd_vault.address)
+    assert default_token == token
+
+
+def test_set_default_target_vault_token_to_empty_address(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setting default target to empty address (should be valid)"""
+    # Set to empty address (should succeed per _isValidDefaultTargetVaultToken)
+    vault_registry.setDefaultTargetVaultToken(
+        undy_usd_vault.address,
+        ZERO_ADDRESS,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify it was set
+    default_token = vault_registry.getDefaultTargetVaultToken(undy_usd_vault.address)
+    assert default_token == ZERO_ADDRESS
+
+
+def test_set_default_target_vault_token_non_approved_fails(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setting non-approved token as default fails"""
+    non_approved_token = boa.env.generate_address()
+
+    # Try to set non-approved token as default
+    with boa.reverts("invalid default target vault token"):
+        vault_registry.setDefaultTargetVaultToken(
+            undy_usd_vault.address,
+            non_approved_token,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_default_target_vault_token_change_multiple_times(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test changing default target token multiple times"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+
+    # Approve both tokens
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+
+    # Set token1 as default
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, token1, sender=switchboard_alpha.address)
+    assert vault_registry.getDefaultTargetVaultToken(undy_usd_vault.address) == token1
+
+    # Change to token2
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, token2, sender=switchboard_alpha.address)
+    assert vault_registry.getDefaultTargetVaultToken(undy_usd_vault.address) == token2
+
+    # Change to empty
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, ZERO_ADDRESS, sender=switchboard_alpha.address)
+    assert vault_registry.getDefaultTargetVaultToken(undy_usd_vault.address) == ZERO_ADDRESS
+
+
+def test_set_default_target_vault_token_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot set default target vault token"""
+    with boa.reverts("no perms"):
+        vault_registry.setDefaultTargetVaultToken(
+            undy_usd_vault.address,
+            ZERO_ADDRESS,
+            sender=bob
+        )
+
+
+def test_set_default_target_vault_token_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that setDefaultTargetVaultToken emits event"""
+    token = boa.env.generate_address()
+
+    # Approve and set
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setDefaultTargetVaultToken(
+        undy_usd_vault.address,
+        token,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "DefaultTargetVaultTokenSet")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.targetVaultToken == token
+
+
+def test_is_valid_default_target_vault_token(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test isValidDefaultTargetVaultToken view function"""
+    token = boa.env.generate_address()
+
+    # Empty address is always valid
+    assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, ZERO_ADDRESS) == True
+
+    # Non-approved token is invalid
+    assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == False
+
+    # Approve token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    # Now it should be valid
+    assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == True
+
+    # Disapprove token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+
+    # Should be invalid again
+    assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == False
+
+
+def test_set_should_auto_deposit_basic(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setShouldAutoDeposit basic functionality"""
+    # Get initial value
+    initial_value = vault_registry.shouldAutoDeposit(undy_usd_vault.address)
+
+    # Toggle it
+    new_value = not initial_value
+    vault_registry.setShouldAutoDeposit(
+        undy_usd_vault.address,
+        new_value,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify change
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == new_value
+
+    # Toggle back
+    vault_registry.setShouldAutoDeposit(
+        undy_usd_vault.address,
+        initial_value,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.shouldAutoDeposit(undy_usd_vault.address) == initial_value
+
+
+def test_set_should_auto_deposit_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot set shouldAutoDeposit"""
+    with boa.reverts("no perms"):
+        vault_registry.setShouldAutoDeposit(
+            undy_usd_vault.address,
+            True,
+            sender=bob
+        )
+
+
+def test_set_should_auto_deposit_invalid_vault_fails(vault_registry, switchboard_alpha):
+    """Test that setting shouldAutoDeposit for invalid vault fails"""
+    random_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setShouldAutoDeposit(
+            random_vault,
+            True,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_should_auto_deposit_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that setShouldAutoDeposit emits event"""
+    vault_registry.setShouldAutoDeposit(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "ShouldAutoDepositSet")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.shouldAutoDeposit == False
+
+
+def test_set_is_leveraged_vault_basic(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test setIsLeveragedVault basic functionality"""
+    # Note: For this test to work with real leveraged vault, we'd need to deploy a mock leveraged vault
+    # For now, we test setting to False which doesn't require validation
+    new_vault = deploy_test_vault()
+
+    # Register vault as non-leveraged
+    vault_registry.startAddNewAddressToRegistry(new_vault.address, "Basic Vault", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False,  # not leveraged
+        [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Verify it's not leveraged
+    assert vault_registry.isLeveragedVault(new_vault.address) == False
+
+    # Set to False (should work without validation)
+    vault_registry.setIsLeveragedVault(
+        new_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Still should be False
+    assert vault_registry.isLeveragedVault(new_vault.address) == False
+
+
+def test_set_is_leveraged_vault_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot set isLeveragedVault"""
+    with boa.reverts("no perms"):
+        vault_registry.setIsLeveragedVault(
+            undy_usd_vault.address,
+            False,
+            sender=bob
+        )
+
+
+def test_set_is_leveraged_vault_invalid_vault_fails(vault_registry, switchboard_alpha):
+    """Test that setting isLeveragedVault for invalid vault fails"""
+    random_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setIsLeveragedVault(
+            random_vault,
+            False,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_is_leveraged_vault_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that setIsLeveragedVault emits event"""
+    # Set to False (safe for non-leveraged vault)
+    vault_registry.setIsLeveragedVault(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "IsLeveragedVaultSet")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.vaultAddr == undy_usd_vault.address
+    assert latest_event.isLeveragedVault == False
+
+
+def test_is_basic_earn_vault(vault_registry, undy_usd_vault):
+    """Test isBasicEarnVault returns true for non-leveraged vaults"""
+    # undy_usd_vault should be a basic earn vault (not leveraged)
+    assert vault_registry.isBasicEarnVault(undy_usd_vault.address) == True
+
+
+def test_is_basic_earn_vault_returns_false_for_no_config(vault_registry):
+    """Test isBasicEarnVault returns false for vaults without config"""
+    random_vault = boa.env.generate_address()
+    assert vault_registry.isBasicEarnVault(random_vault) == False
+
+
+#########################################
+# PHASE 3: Batch Operations Tests      #
+#########################################
+
+
+def test_set_approved_vault_tokens_empty_array(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setApprovedVaultTokens with empty array (should be no-op)"""
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Call with empty array
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Count should not change
+    final_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    assert final_count == initial_count
+
+
+def test_set_approved_vault_tokens_single_token(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test approving single token via batch"""
+    token = boa.env.generate_address()
+
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Approve single token via batch
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify it was approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == True
+    assert vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address) == initial_count + 1
+
+
+def test_set_approved_vault_tokens_multiple_tokens(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test approving multiple tokens via batch"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Approve multiple tokens
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token1, token2, token3],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify all were approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token1) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token2) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token3) == True
+    assert vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address) == initial_count + 3
+
+
+def test_set_approved_vault_tokens_disapprove_multiple(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test disapproving multiple tokens via batch"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # First approve them
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token1, token2, token3],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    count_before = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Disapprove all via batch
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token1, token2, token3],
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify all were disapproved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token1) == False
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token2) == False
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token3) == False
+    assert vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address) == count_before - 3
+
+
+def test_set_approved_vault_tokens_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test that non-switchboard cannot use batch approval"""
+    token = boa.env.generate_address()
+
+    with boa.reverts("no perms"):
+        vault_registry.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            [token],
+            True,
+            sender=bob
+        )
+
+
+def test_set_approved_vault_tokens_emits_events_for_each(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that batch approval emits event for each token"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+
+    # Clear existing events by calling it first
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token1, token2],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Check events
+    events = filter_logs(vault_registry, "ApprovedVaultTokenSet")
+
+    # Should have at least 2 events (one for each token)
+    assert len(events) >= 2
+
+    # Check last two events are for our tokens
+    recent_events = events[-2:]
+    event_tokens = [e.vaultToken for e in recent_events]
+    assert token1 in event_tokens
+    assert token2 in event_tokens
+
+
+def test_set_approved_vault_tokens_with_zero_address_fails(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that batch approval with zero address fails"""
+    token1 = boa.env.generate_address()
+
+    with boa.reverts("invalid params"):
+        vault_registry.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            [token1, ZERO_ADDRESS],
+            True,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_approved_vault_tokens_with_duplicates(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test batch approval with duplicate tokens"""
+    token = boa.env.generate_address()
+
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Approve same token twice in batch
+    vault_registry.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        [token, token],
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Should only be approved once (idempotent)
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == True
+    # Count should only increase by 1
+    assert vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address) == initial_count + 1
+
+
+def test_set_approved_vault_tokens_max_tokens(vault_registry, governance, deploy_test_vault, switchboard_alpha):
+    """Test batch approval at MAX_VAULT_TOKENS limit"""
+    new_vault = deploy_test_vault()
+
+    # Generate 10 tokens (testing with smaller number for performance)
+    num_tokens = 10
+    tokens = [boa.env.generate_address() for _ in range(num_tokens)]
+
+    # Register vault
+    vault_registry.startAddNewAddressToRegistry(new_vault.address, "Max Tokens Vault", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False, [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Approve all tokens via batch
+    vault_registry.setApprovedVaultTokens(
+        new_vault.address,
+        tokens,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify all were approved
+    assert vault_registry.getNumApprovedVaultTokens(new_vault.address) == num_tokens
+
+    approved_tokens = vault_registry.getApprovedVaultTokens(new_vault.address)
+    for token in tokens:
+        assert token in approved_tokens
+
+
+##################################################
+# PHASE 4: Event Emission Tests for New Events  #
+##################################################
+
+
+def test_vault_token_added_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test VaultTokenAdded event is emitted when adding vault token"""
+    token = boa.env.generate_address()
+
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        token,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "VaultTokenAdded")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.undyVaultAddr == undy_usd_vault.address
+    assert latest_event.vaultToken == token
+
+
+def test_vault_token_removed_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test VaultTokenRemoved event is emitted when removing vault token"""
+    token = boa.env.generate_address()
+
+    # Add then remove
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+
+    events = filter_logs(vault_registry, "VaultTokenRemoved")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.undyVaultAddr == undy_usd_vault.address
+    assert latest_event.vaultToken == token
+
+
+def test_asset_vault_token_added_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test AssetVaultTokenAdded event is emitted"""
+    token = boa.env.generate_address()
+    asset = undy_usd_vault.asset()
+
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        token,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    events = filter_logs(vault_registry, "AssetVaultTokenAdded")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.asset == asset
+    assert latest_event.vaultToken == token
+
+
+def test_asset_vault_token_removed_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test AssetVaultTokenRemoved event is emitted when last vault removes token"""
+    token = boa.env.generate_address()
+    asset = undy_usd_vault.asset()
+
+    # Add then remove (this is the only vault using this token)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+
+    events = filter_logs(vault_registry, "AssetVaultTokenRemoved")
+    assert len(events) > 0
+
+    latest_event = events[-1]
+    assert latest_event.asset == asset
+    assert latest_event.vaultToken == token
+
+
+def test_asset_vault_token_removed_not_emitted_when_ref_count_positive(vault_registry, governance, undy_hq_deploy, switchboard_alpha):
+    """Test AssetVaultTokenRemoved is NOT emitted when other vaults still use the token"""
+    # Deploy a shared asset
+    shared_asset = boa.load(
+        "contracts/mock/MockErc20.vy",
+        boa.env.generate_address(),
+        "Shared Asset",
+        "SHARED",
+        18,
+        1_000_000,
+    )
+
+    vault1 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 1",
+        "V1",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault1",
+    )
+
+    vault2 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 2",
+        "V2",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault2",
+    )
+
+    shared_token = boa.env.generate_address()
+
+    # Register both vaults with shared token
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Count AssetVaultTokenRemoved events before removal
+    events_before = filter_logs(vault_registry, "AssetVaultTokenRemoved")
+    count_before = len(events_before)
+
+    # Remove from vault1 only
+    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, sender=switchboard_alpha.address)
+
+    # AssetVaultTokenRemoved should NOT be emitted (vault2 still uses it)
+    events_after = filter_logs(vault_registry, "AssetVaultTokenRemoved")
+    count_after = len(events_after)
+
+    # Count should be the same (no new AssetVaultTokenRemoved event)
+    assert count_after == count_before
+
+
+#########################################
+# PHASE 5: Edge Cases & Integration    #
+#########################################
+
+
+def test_list_consistency_after_complex_operations(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test list consistency after adding, removing, and re-adding tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Add three tokens
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+
+    # Remove token2
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+
+    # Add new token4
+    token4 = boa.env.generate_address()
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token4, True, sender=switchboard_alpha.address)
+
+    # Re-add token2
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+
+    # Verify list consistency
+    tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert token1 in tokens
+    assert token2 in tokens
+    assert token3 in tokens
+    assert token4 in tokens
+
+
+def test_state_consistency_between_boolean_and_list(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that isApprovedVaultToken boolean matches presence in approvedVaultTokens list"""
+    token = boa.env.generate_address()
+
+    # Add token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+
+    # Boolean should be true
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == True
+
+    # Token should be in list
+    tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert token in tokens
+
+    # Remove token
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+
+    # Boolean should be false
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == False
+
+    # Token should not be in list
+    tokens_after = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert token not in tokens_after
+
+
+def test_count_matches_actual_list_length(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that getNumApprovedVaultTokens matches actual list length"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Add tokens
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+
+    # Count should match list length
+    count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert count == len(tokens)
+
+    # Remove one
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+
+    # Still should match
+    count_after = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    tokens_after = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
+    assert count_after == len(tokens_after)
+
+
+def test_reference_count_accuracy(vault_registry, governance, undy_hq_deploy, switchboard_alpha):
+    """Test asset vault token reference counting is accurate"""
+    # Deploy a shared asset
+    shared_asset = boa.load(
+        "contracts/mock/MockErc20.vy",
+        boa.env.generate_address(),
+        "Shared Asset",
+        "SHARED",
+        18,
+        1_000_000,
+    )
+
+    vault1 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 1",
+        "V1",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault1",
+    )
+
+    vault2 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 2",
+        "V2",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault2",
+    )
+
+    vault3 = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        shared_asset.address,
+        "Vault 3",
+        "V3",
+        undy_hq_deploy.address,
+        0, 0,
+        boa.env.generate_address(),
+        name="vault3",
+    )
+
+    shared_token = boa.env.generate_address()
+
+    # Register vault1
+    vault_registry.startAddNewAddressToRegistry(vault1.address, "Vault1", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Ref count should be 1
+    assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 1
+
+    # Add vault2
+    vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Ref count should be 2
+    assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 2
+
+    # Add vault3
+    vault_registry.startAddNewAddressToRegistry(vault3.address, "Vault3", sender=governance.address)
+    boa.env.time_travel(blocks=timelock + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault3.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        sender=governance.address
+    )
+
+    # Ref count should be 3
+    assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 3
+
+    # Remove from vault2
+    vault_registry.setApprovedVaultToken(vault2.address, shared_token, False, sender=switchboard_alpha.address)
+
+    # Ref count should be 2
+    assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 2
+
+
+def test_get_deposit_config_bundle(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test getDepositConfig returns correct tuple"""
+    token = boa.env.generate_address()
+
+    # Set specific config values
+    vault_registry.setCanDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setMaxDepositAmount(undy_usd_vault.address, 1000000, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, token, sender=switchboard_alpha.address)
+
+    # Get bundle
+    can_deposit, max_deposit, should_auto, default_target = vault_registry.getDepositConfig(undy_usd_vault.address)
+
+    # Verify values
+    assert can_deposit == True
+    assert max_deposit == 1000000
+    assert should_auto == False
+    assert default_target == token
+
+
+def test_initialization_with_multiple_approved_tokens(vault_registry, governance, deploy_test_vault):
+    """Test vault initialization with multiple approved tokens sets everything up correctly"""
+    new_vault = deploy_test_vault()
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+
+    # Register with multiple tokens
+    vault_registry.startAddNewAddressToRegistry(new_vault.address, "Multi Token", sender=governance.address)
+    timelock = vault_registry.registryChangeTimeLock()
+    boa.env.time_travel(blocks=timelock + 1)
+
+    vault_registry.confirmNewAddressToRegistry(
+        new_vault.address,
+        False,  # isLeveragedVault
+        [token1, token2, token3],  # approved tokens
+        1_000_000,  # maxDepositAmount
+        10_000,  # minYieldWithdrawAmount
+        25_00,  # performanceFee
+        token1,  # defaultTargetVaultToken
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        300,  # redemptionBuffer
+        sender=governance.address
+    )
+
+    # Verify all tokens approved
+    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, token1) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, token2) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(new_vault.address, token3) == True
+
+    # Verify tokens in list
+    tokens = vault_registry.getApprovedVaultTokens(new_vault.address)
+    assert len(tokens) == 3
+    assert token1 in tokens
+    assert token2 in tokens
+    assert token3 in tokens
+
+    # Verify config
+    config = vault_registry.getVaultConfigByAddr(new_vault.address)
+    assert config.maxDepositAmount == 1_000_000
+    assert config.minYieldWithdrawAmount == 10_000
+    assert config.performanceFee == 25_00
+    assert config.defaultTargetVaultToken == token1
+    assert config.shouldAutoDeposit == True
+
+
+def test_removing_non_existent_token_is_safe(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test that removing a token that was never added is safe (no-op)"""
+    non_existent_token = boa.env.generate_address()
+
+    initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+
+    # Try to remove token that was never added
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        non_existent_token,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Count should not change
+    final_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
+    assert final_count == initial_count
+
+
+def test_max_deposit_amount_boundary(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setting maxDepositAmount at max uint256"""
+    max_uint256 = 2**256 - 1
+
+    vault_registry.setMaxDepositAmount(
+        undy_usd_vault.address,
+        max_uint256,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.maxDepositAmount(undy_usd_vault.address) == max_uint256
+
+
+def test_redemption_buffer_at_boundary(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test redemption buffer at exactly 10% boundary"""
+    # 10% should work
+    vault_registry.setRedemptionBuffer(
+        undy_usd_vault.address,
+        1000,  # exactly 10%
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.redemptionBuffer(undy_usd_vault.address) == 1000
+
+
+def test_performance_fee_at_boundary(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test performance fee at exactly 100% boundary"""
+    # 100% should work
+    vault_registry.setPerformanceFee(
+        undy_usd_vault.address,
+        10000,  # exactly 100%
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 10000
