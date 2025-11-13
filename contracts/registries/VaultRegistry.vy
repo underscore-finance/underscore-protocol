@@ -96,6 +96,10 @@ event ShouldAutoDepositSet:
     vaultAddr: indexed(address)
     shouldAutoDeposit: bool
 
+event IsLeveragedVaultSet:
+    vaultAddr: indexed(address)
+    isLeveragedVault: bool
+
 event ApprovedVaultTokenSet:
     undyVaultAddr: indexed(address)
     underlyingAsset: indexed(address)
@@ -421,6 +425,21 @@ def setMinYieldWithdrawAmount(_undyVaultAddr: address, _amount: uint256):
     config.minYieldWithdrawAmount = _amount
     self.vaultConfigs[_undyVaultAddr] = config
     log MinYieldWithdrawAmountSet(vaultAddr=_undyVaultAddr, amount=_amount)
+
+
+@external
+def setIsLeveragedVault(_undyVaultAddr: address, _isLeveragedVault: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    # validate leveraged vault
+    if _isLeveragedVault:
+        assert staticcall LevgVault(_undyVaultAddr).isLeveragedVault() # dev: invalid leveraged vault
+
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    config.isLeveragedVault = _isLeveragedVault
+    self.vaultConfigs[_undyVaultAddr] = config
+    log IsLeveragedVaultSet(vaultAddr=_undyVaultAddr, isLeveragedVault=_isLeveragedVault)
 
 
 ######################
