@@ -1,5 +1,5 @@
 #     ╔════════════════════════════════════════════════════════════════════════════════╗
-#     ║  ** Signature Helper **                                                        ║
+#     ║  ** Signature Helper **                                                       ║
 #     ║  Generates message hashes for AgentWrapper signatures                          ║
 #     ╚════════════════════════════════════════════════════════════════════════════════╝
 #
@@ -28,9 +28,11 @@ struct ActionInstruction:
     extraData: bytes32         # Protocol-specific extra data (LSB used for isCheque in transfers)
     auxData: bytes32           # Packed data: lpToken addr (action 15) or pool+nftId (16-17)
     swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS]
+    proofs: DynArray[bytes32, MAX_PROOFS]  # Merkle proofs for claimIncentives (action 50)
 
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
+MAX_PROOFS: constant(uint256) = 25
 
 
 ##################
@@ -465,6 +467,34 @@ def getRemoveLiquidityConcentratedHash(
     expiration: uint256 = _expiration
     nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(33, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData, nonce, expiration))), nonce, expiration)
+
+
+
+#################
+# Claim Rewards #
+#################
+
+
+@view
+@external
+def getClaimIncentivesHash(
+    _agentWrapper: address,
+    _userWallet: address,
+    _legoId: uint256,
+    _rewardToken: address = empty(address),
+    _rewardAmount: uint256 = max_value(uint256),
+    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
+    _nonce: uint256 = 0,
+    _expiration: uint256 = 0,
+) -> (bytes32, uint256, uint256):
+    """
+    Get message hash for claimIncentives function
+    """
+    nonce: uint256 = _nonce
+    expiration: uint256 = _expiration
+    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
+    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, nonce, expiration))), nonce, expiration)
+
 
 
 #################
