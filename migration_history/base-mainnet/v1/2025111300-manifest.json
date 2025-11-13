@@ -1,7 +1,7 @@
 {
   "contracts": {
     "EarnVaultAgentSigHelper": {
-      "address": "0xC6Acb7D16D51f72eAA659668F30A40d87E2E0551",
+      "address": "0xf6be1A6ce0bCDF2fBb57A0eb116A0E62c386c71B",
       "abi": [
         {
           "stateMutability": "nonpayable",
