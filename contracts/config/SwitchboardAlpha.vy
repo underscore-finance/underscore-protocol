@@ -616,7 +616,6 @@ def setAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
             hasConfig=True,  # Set this to true for all configured assets
-            decimals=convert(staticcall IERC20Detailed(_asset).decimals(), uint256),
             txFees=cs.TxFees(
                 swapFee=_txFeesSwapFee,
                 stableSwapFee=_txFeesStableSwapFee,

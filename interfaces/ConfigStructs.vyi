@@ -15,7 +15,6 @@ struct UserWalletConfig:
 
 struct AssetConfig:
     hasConfig: bool
-    decimals: uint256
     txFees: TxFees
     ambassadorRevShare: AmbassadorRevShare
     yieldConfig: YieldConfig

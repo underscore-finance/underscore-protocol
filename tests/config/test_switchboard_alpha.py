@@ -1174,8 +1174,7 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     # Verify the asset config was saved in MissionControl
     saved_config = mission_control.assetConfig(asset)
     assert saved_config.hasConfig == True
-    assert saved_config.decimals == 18  # Alpha token has 18 decimals
-    
+
     # Verify tx fees
     assert saved_config.txFees.swapFee == swap_fee
     assert saved_config.txFees.stableSwapFee == stable_swap_fee

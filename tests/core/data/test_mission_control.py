@@ -94,7 +94,6 @@ def test_set_asset_config_access(mission_control, bob, alice, createTxFees, crea
     """Only switchboard_alpha should be able to set asset config"""
     config = (
         True,  # hasConfig
-        18,    # decimals
         createTxFees(30, 10, 50),  # txFees
         createAmbassadorRevShare(100, 200, 300),  # ambassadorRevShare
         createAssetYieldConfig(
@@ -307,7 +306,6 @@ def test_asset_config_persistence(mission_control, switchboard_alpha, alice, cre
     
     config = (
         True,   # hasConfig
-        18,     # decimals
         createTxFees(40, 20, 60),
         createAmbassadorRevShare(150, 250, 350),
         createAssetYieldConfig(
@@ -325,7 +323,6 @@ def test_asset_config_persistence(mission_control, switchboard_alpha, alice, cre
     # Verify fields persist
     saved_config = mission_control.assetConfig(asset)
     assert saved_config.hasConfig == True
-    assert saved_config.decimals == 18
     assert saved_config.txFees.swapFee == 40
     assert saved_config.txFees.stableSwapFee == 20
     assert saved_config.txFees.rewardsFee == 60
@@ -463,7 +460,7 @@ def test_get_swap_fee_logic(mission_control, switchboard_alpha, alice, bob, char
     
     # Set asset config for tokenOut
     mission_control.setAssetConfig(charlie, (
-        True, 18, createTxFees(100, 50, 200), createAmbassadorRevShare(), createAssetYieldConfig()
+        True, createTxFees(100, 50, 200), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
     
     # Asset swap fee should take precedence

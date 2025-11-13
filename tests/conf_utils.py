@@ -128,7 +128,6 @@ def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbas
     ):
         config = (
             True,  # hasConfig - always True when setting config
-            _asset.decimals(),
             _txFees,
             _ambassadorRevShare,
             _yieldConfig,

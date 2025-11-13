@@ -202,7 +202,7 @@ def getLootDistroConfig(_asset: address) -> LootDistroConfig:
         bonusRatio = bonusRatio,
         bonusAsset = bonusAsset,
         underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
-        decimals = assetConfig.decimals,
+        decimals = 0,  # Will be fetched from token via fallback logic
         legoId = 0,  # Will be fetched from Ledger.vaultTokens
         legoAddr = empty(address),
     )
@@ -293,7 +293,7 @@ def getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:
     return ProfitCalcConfig(
         legoId = 0,  # Will be fetched from Ledger.vaultTokens
         legoAddr = empty(address),
-        decimals = assetConfig.decimals,
+        decimals = 0,  # Will be fetched from token via fallback logic
         staleBlocks = 0,  # Removed - no longer used
         isYieldAsset = False,  # Will be derived from Ledger.vaultTokens
         isRebasing = False,  # Will be fetched from Ledger.vaultTokens
@@ -311,7 +311,7 @@ def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
     return AssetUsdValueConfig(
         legoId = 0,  # Will be fetched from Ledger.vaultTokens
         legoAddr = empty(address),
-        decimals = assetConfig.decimals,
+        decimals = 0,  # Will be fetched from token via fallback logic
         staleBlocks = 0,  # Removed - no longer used
         isYieldAsset = False,  # Will be derived from Ledger.vaultTokens
         underlyingAsset = empty(address),  # Will be fetched from Ledger.vaultTokens
