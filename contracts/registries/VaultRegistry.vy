@@ -667,9 +667,9 @@ def getApprovedVaultTokens(_undyVaultAddr: address) -> DynArray[address, MAX_VAU
 
     tokens: DynArray[address, MAX_VAULT_TOKENS] = []
     for i: uint256 in range(1, numTokens, bound=MAX_VAULT_TOKENS):
-        vaulToken: address = self.approvedVaultTokens[_undyVaultAddr][i]
-        if vaulToken != empty(address) and vaulToken not in tokens:
-            tokens.append(vaulToken)
+        vaultToken: address = self.approvedVaultTokens[_undyVaultAddr][i]
+        if vaultToken != empty(address) and vaultToken not in tokens:
+            tokens.append(vaultToken)
     return tokens
 
 
