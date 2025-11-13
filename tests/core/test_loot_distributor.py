@@ -4571,6 +4571,9 @@ def test_integer_overflow_deposit_points(loot_distributor, user_wallet, switchbo
     # Use 2**128 instead of 2**255 to avoid overflow in multiplication
     large_usd_value = 2**128
 
+    # Capture initial block number
+    initial_block = boa.env.evm.patch.block_number
+
     # Update deposit points with large value
     loot_distributor.updateDepositPointsWithNewValue(
         user_wallet.address,
@@ -4581,6 +4584,10 @@ def test_integer_overflow_deposit_points(loot_distributor, user_wallet, switchbo
     # Travel some blocks to accumulate points
     boa.env.time_travel(blocks=100)
 
+    # Capture block after travel
+    current_block = boa.env.evm.patch.block_number
+    actual_block_delta = current_block - initial_block
+
     # Update points again - should handle accumulation without overflow
     loot_distributor.updateDepositPoints(
         user_wallet.address,
@@ -4588,13 +4595,12 @@ def test_integer_overflow_deposit_points(loot_distributor, user_wallet, switchbo
     )
 
     # Get latest points - calculation should handle large values
-    # points = usdValue * blockDelta / EIGHTEEN_DECIMALS
-    # With 2**128 * 100 this should not overflow
-    points = loot_distributor.getLatestDepositPoints(large_usd_value, 100)
+    # The function expects lastUpdate block number, not delta
+    # It calculates: (usdValue * (block.number - lastUpdate)) / EIGHTEEN_DECIMALS
+    points = loot_distributor.getLatestDepositPoints(large_usd_value, initial_block)
     assert points >= 0  # Should not overflow to negative
-    # The function returns (usdValue * blockDelta) / (EIGHTEEN_DECIMALS * 100)
-    # which is effectively (usdValue * blockDelta) / 10^20
-    expected = (large_usd_value * 100) // (EIGHTEEN_DECIMALS * 100)
+    # The function returns (usdValue * blockDelta) / EIGHTEEN_DECIMALS
+    expected = (large_usd_value * actual_block_delta) // EIGHTEEN_DECIMALS
     assert points == expected
 
 
@@ -4743,6 +4749,9 @@ def test_dust_yield_bonus_calculations(loot_distributor, user_wallet, yield_vaul
 def test_dust_deposit_points(loot_distributor, user_wallet, switchboard_alpha):
     """ Test deposit points with dust USD values """
 
+    # Capture initial block number
+    initial_block = boa.env.evm.patch.block_number
+
     # Update with 1 wei USD value
     loot_distributor.updateDepositPointsWithNewValue(
         user_wallet.address,
@@ -4753,22 +4762,29 @@ def test_dust_deposit_points(loot_distributor, user_wallet, switchboard_alpha):
     # Travel 1 block
     boa.env.time_travel(blocks=1)
 
+    # Capture block after travel
+    current_block = boa.env.evm.patch.block_number
+    actual_block_delta = current_block - initial_block
+
     # Update points
     loot_distributor.updateDepositPoints(
         user_wallet.address,
         sender=switchboard_alpha.address
     )
 
-    # Points = 1 wei * 1 block = 1, then divided by EIGHTEEN_DECIMALS = 0
+    # The function expects lastUpdate block number, not delta
+    # Points = 1 wei * actual_block_delta, then divided by EIGHTEEN_DECIMALS
     # Dust amounts below 10**18 are truncated to 0
-    points = loot_distributor.getLatestDepositPoints(1, 1)
+    points = loot_distributor.getLatestDepositPoints(1, initial_block)
     assert points == 0  # Dust is truncated
 
     # Test with value that survives division
-    # Need at least 10**18 points to get 1 after division
+    # Need at least 10**18 / actual_block_delta to get >= 1 after division
     large_value = 10**18
-    points = loot_distributor.getLatestDepositPoints(large_value, 1)
-    assert points == 1  # 10**18 * 1 / 10**18 = 1
+    points = loot_distributor.getLatestDepositPoints(large_value, initial_block)
+    # (10**18 * actual_block_delta) / 10**18 = actual_block_delta
+    expected = actual_block_delta
+    assert points == expected
 
 
 def test_dust_claim_and_transfer(loot_distributor, user_wallet, ambassador_wallet, alpha_token, alpha_token_whale, alice, setAssetConfig, createAmbassadorRevShare):

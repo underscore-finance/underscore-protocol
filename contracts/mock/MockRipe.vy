@@ -265,7 +265,12 @@ def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = Fal
         if _shouldRaise:
             raise "no price set"
         return 0
-    decimals: uint256 = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # Handle ETH specially (ETH placeholder address doesn't have decimals() method)
+    decimals: uint256 = 18
+    if _asset != 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
     return _usdValue * (10 ** decimals) // price
 
 
@@ -277,7 +282,12 @@ def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -
         if _shouldRaise:
             raise "no price set"
         return 0
-    decimals: uint256 = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # Handle ETH specially (ETH placeholder address doesn't have decimals() method)
+    decimals: uint256 = 18
+    if _asset != 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
     return price * _amount // (10 ** decimals)
 
 
