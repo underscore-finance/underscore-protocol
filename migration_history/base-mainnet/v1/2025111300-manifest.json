@@ -1,10 +1,10 @@
 {
   "contracts": {
     "EarnVaultAgentSigHelper": {
-      "address": "0xf6be1A6ce0bCDF2fBb57A0eb116A0E62c386c71B",
+      "address": "0x2E9e0BB2A734d0B025843FAf27CbfF648E848F8B",
       "abi": [
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -41,7 +41,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -82,7 +82,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -127,7 +127,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -176,7 +176,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -229,7 +229,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getDepositForYieldHash",
           "inputs": [
@@ -688,7 +688,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getClaimIncentivesHash",
           "inputs": [
@@ -721,44 +721,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
-          "type": "function",
-          "name": "getClaimIncentivesHash",
-          "inputs": [
-            {
-              "name": "_agentWrapper",
-              "type": "address"
-            },
-            {
-              "name": "_userWallet",
-              "type": "address"
-            },
-            {
-              "name": "_legoId",
-              "type": "uint256"
-            },
-            {
-              "name": "_rewardToken",
-              "type": "address"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bytes32"
-            },
-            {
-              "name": "",
-              "type": "uint256"
-            },
-            {
-              "name": "",
-              "type": "uint256"
-            }
-          ]
-        },
-        {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getClaimIncentivesHash",
           "inputs": [
@@ -777,10 +740,6 @@
             {
               "name": "_rewardToken",
               "type": "address"
-            },
-            {
-              "name": "_rewardAmount",
-              "type": "uint256"
             }
           ],
           "outputs": [
@@ -799,7 +758,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getClaimIncentivesHash",
           "inputs": [
@@ -822,10 +781,6 @@
             {
               "name": "_rewardAmount",
               "type": "uint256"
-            },
-            {
-              "name": "_proofs",
-              "type": "bytes32[]"
             }
           ],
           "outputs": [
@@ -844,7 +799,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getClaimIncentivesHash",
           "inputs": [
@@ -871,6 +826,51 @@
             {
               "name": "_proofs",
               "type": "bytes32[]"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getClaimIncentivesHash",
+          "inputs": [
+            {
+              "name": "_agentWrapper",
+              "type": "address"
+            },
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_proofs",
+              "type": "bytes32[]"
             },
             {
               "name": "_nonce",
@@ -893,7 +893,7 @@
           ]
         },
         {
-          "stateMutability": "nonpayable",
+          "stateMutability": "view",
           "type": "function",
           "name": "getClaimIncentivesHash",
           "inputs": [
@@ -1159,8 +1159,8 @@
             "sha256sum": "6b119f1d406de3ccd02c8eefe7a34902dc862e13a67caadbd74dc6e82b071081"
           },
           "contracts/core/agent/EarnVaultAgentSigHelper.vy": {
-            "content": "#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Earn Vault Agent Signature Helper **                                       \u2551\n#     \u2551  Generates message hashes for Earn Vault Agent signatures                      \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n# pragma optimize codesize\n\nimport contracts.modules.SigHelper as sigHelper\n\nfrom interfaces import Wallet\n\nstruct ActionInstruction:\n    usePrevAmountOut: bool     # Use output from previous instruction as amount\n    action: uint8              # Action type: 10=depositYield, 11=withdrawYield\n    legoId: uint16             # Protocol/Lego ID\n    asset: address             # Primary asset/token (or vaultToken for withdrawals)\n    target: address            # vaultAddr for deposits, unused for withdrawals\n    amount: uint256            # Primary amount (or max_value for \"all\")\n    extraData: bytes32         # Protocol-specific extra data\n\n\nMAX_INSTRUCTIONS: constant(uint256) = 15\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n#########\n# Yield #\n#########\n\n\n@external\ndef getDepositForYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for depositForYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n@view\n@external\ndef getWithdrawFromYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for withdrawFromYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@view\n@external\ndef getSwapTokensHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for swapTokens function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Claim Rewards #\n#################\n\n\n@external\ndef getClaimIncentivesHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for claimIncentives function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Batch Actions #\n#################\n\n\n@view\n@external\ndef getBatchActionsHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _instructions: DynArray[ActionInstruction, MAX_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for performBatchActions function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)\n\n",
-            "sha256sum": "1876e2d695f294c0816ab8f4e4c5152f230f02cbf2d8dc3e25bb6d2e338c99c6"
+            "content": "#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Earn Vault Agent Signature Helper **                                       \u2551\n#     \u2551  Generates message hashes for Earn Vault Agent signatures                      \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimport contracts.modules.SigHelper as sigHelper\n\nfrom interfaces import Wallet\n\nstruct ActionInstruction:\n    usePrevAmountOut: bool     # Use output from previous instruction as amount\n    action: uint8              # Action type: 10=depositYield, 11=withdrawYield\n    legoId: uint16             # Protocol/Lego ID\n    asset: address             # Primary asset/token (or vaultToken for withdrawals)\n    target: address            # vaultAddr for deposits, unused for withdrawals\n    amount: uint256            # Primary amount (or max_value for \"all\")\n    extraData: bytes32         # Protocol-specific extra data\n\n\nMAX_INSTRUCTIONS: constant(uint256) = 15\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n#########\n# Yield #\n#########\n\n@view\n@external\ndef getDepositForYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for depositForYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n@view\n@external\ndef getWithdrawFromYieldHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for withdrawFromYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, nonce, expiration))), nonce, expiration)\n\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@view\n@external\ndef getSwapTokensHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for swapTokens function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Claim Rewards #\n#################\n\n@view\n@external\ndef getClaimIncentivesHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for claimIncentives function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, nonce, expiration))), nonce, expiration)\n\n\n\n#################\n# Batch Actions #\n#################\n\n\n@view\n@external\ndef getBatchActionsHash(\n    _agentWrapper: address,\n    _userWallet: address,\n    _instructions: DynArray[ActionInstruction, MAX_INSTRUCTIONS],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for performBatchActions function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)\n    return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)\n",
+            "sha256sum": "1f8a20d0045f283ad842783dfa9793270c30dcf8c2e22eaeda834d3e5576b114"
           }
         },
         "settings": {
@@ -1174,7 +1174,7 @@
           ]
         },
         "compiler_version": "v0.4.3+commit.bff19ea2",
-        "integrity": "b39e4c2536778c0e34dbea05f58d83583634f80bb3b28f9f91b19ffe3e4819d1"
+        "integrity": "bf05726f45619e395ed895192a416e0649d5bed3640d87e66eeb4e7632454d07"
       },
       "args": "",
       "file": "contracts/core/agent/EarnVaultAgentSigHelper.vy"

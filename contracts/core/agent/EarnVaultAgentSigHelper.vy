@@ -6,7 +6,6 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
-# pragma optimize codesize
 
 import contracts.modules.SigHelper as sigHelper
 
@@ -31,7 +30,7 @@ MAX_PROOFS: constant(uint256) = 25
 # Yield #
 #########
 
-
+@view
 @external
 def getDepositForYieldHash(
     _agentWrapper: address,
@@ -103,7 +102,7 @@ def getSwapTokensHash(
 # Claim Rewards #
 #################
 
-
+@view
 @external
 def getClaimIncentivesHash(
     _agentWrapper: address,
@@ -146,4 +145,3 @@ def getBatchActionsHash(
     expiration: uint256 = _expiration
     nonce, expiration = sigHelper._getNonceAndExpiration(_agentWrapper, _userWallet, _nonce, _expiration)
     return (sigHelper._getFullDigest(_agentWrapper, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)
-
