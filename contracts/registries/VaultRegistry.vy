@@ -725,6 +725,12 @@ def getNumAssetVaultTokens(_asset: address) -> uint256:
     return numTokens - 1
 
 
+@view
+@external
+def isApprovedVaultTokenForAsset(_underlyingAsset: address, _vaultToken: address) -> bool:
+    return self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] != 0
+
+
 ######################
 # Vault Config Views #
 ######################
