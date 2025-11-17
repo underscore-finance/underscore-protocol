@@ -55,6 +55,14 @@ def bob_wallet_with_ripe(bob_user_wallet, mock_ripe_token, whale):
     return bob_user_wallet
 
 
+@pytest.fixture(scope="module")
+def bob_wallet_with_usdc(bob_user_wallet, mock_usdc, governance):
+    """Give bob's wallet some USDC tokens"""
+    amount = 100_000 * (10 ** 6)  # 100k USDC (6 decimals)
+    mock_usdc.mint(bob_user_wallet.address, amount, sender=governance.address)
+    return bob_user_wallet
+
+
 #################################
 # 1. Yield Operations Tests #
 #################################
@@ -960,3 +968,371 @@ def test_ripe_total_assets(
     # Get total assets
     total = lego_ripe.totalAssets(mock_savings_green_token)
     assert total > 0
+
+
+###################################
+# 7. Swap Tokens Tests (via PSM) #
+###################################
+
+
+def test_swap_green_to_usdc_full(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+    _test,
+):
+    """Test swapping all GREEN tokens to USDC via swapTokens"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    # Pre balances
+    pre_green_balance = mock_green_token.balanceOf(bob_wallet_with_green)
+    pre_usdc_balance = mock_usdc.balanceOf(bob_wallet_with_green)
+
+    # Create swap instruction
+    instruction = (
+        lego_id,
+        MAX_UINT256,  # amountIn - use all GREEN
+        0,  # minAmountOut
+        [mock_green_token.address, mock_usdc.address],  # tokenPath
+        []  # poolPath (empty for RipeLego)
+    )
+
+    # Execute swap
+    tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usd_value = bob_wallet_with_green.swapTokens(
+        [instruction],
+        sender=bob
+    )
+
+    # Verify results
+    assert origAmountIn > 0
+    assert lastTokenOutAmount > 0
+    assert tokenIn == mock_green_token.address
+    assert lastTokenOut == mock_usdc.address
+
+    # Verify balances - GREEN should be fully swapped
+    _test(mock_green_token.balanceOf(bob_wallet_with_green), 0)
+    # Expected USDC = GREEN / 10^12 (due to decimal conversion 18->6)
+    expected_usdc = pre_green_balance // (10 ** 12)
+    _test(mock_usdc.balanceOf(bob_wallet_with_green), pre_usdc_balance + expected_usdc)
+
+    # Verify no leftover in lego
+    assert mock_green_token.balanceOf(lego_ripe) == 0
+    assert mock_usdc.balanceOf(lego_ripe) == 0
+
+
+def test_swap_usdc_to_green_partial(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_usdc,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+    _test,
+):
+    """Test swapping partial USDC to GREEN"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    # Pre balances
+    pre_usdc_balance = mock_usdc.balanceOf(bob_wallet_with_usdc)
+    pre_green_balance = mock_green_token.balanceOf(bob_wallet_with_usdc)
+
+    swap_amount = 500 * (10 ** 6)  # Swap 500 USDC
+
+    instruction = (
+        lego_id,
+        swap_amount,
+        0,
+        [mock_usdc.address, mock_green_token.address],
+        []
+    )
+
+    tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usd_value = bob_wallet_with_usdc.swapTokens(
+        [instruction],
+        sender=bob
+    )
+
+    # Verify
+    _test(origAmountIn, swap_amount)
+    expected_green = swap_amount * (10 ** 12)  # USDC 6 decimals -> GREEN 18 decimals
+    _test(lastTokenOutAmount, expected_green)
+    _test(mock_usdc.balanceOf(bob_wallet_with_usdc), pre_usdc_balance - swap_amount)
+    _test(mock_green_token.balanceOf(bob_wallet_with_usdc), pre_green_balance + expected_green)
+
+
+def test_swap_zero_amount_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    """Test that swapping 0 amount fails"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    instruction = (
+        lego_id,
+        0,  # Zero amount
+        0,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert with "dev: nothing to transfer"
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_min_amount_out_not_met(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    """Test that swap fails when min amount out is not met"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    swap_amount = 1_000 * EIGHTEEN_DECIMALS
+    impossible_min_out = 10_000 * (10 ** 6)  # Expecting way more USDC than possible
+
+    instruction = (
+        lego_id,
+        swap_amount,
+        impossible_min_out,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert with "dev: min amount out not met"
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_same_token_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    lego_book,
+    bob,
+):
+    """Test that swapping same token fails"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    instruction = (
+        lego_id,
+        1_000 * EIGHTEEN_DECIMALS,
+        0,
+        [mock_green_token.address, mock_green_token.address],  # Same token!
+        []
+    )
+
+    with boa.reverts():  # Should revert with "dev: same token"
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_invalid_path_length_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    mock_ripe_token,
+    lego_book,
+    bob,
+):
+    """Test that path with != 2 tokens fails"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    # Try 3-token path
+    instruction = (
+        lego_id,
+        1_000 * EIGHTEEN_DECIMALS,
+        0,
+        [mock_green_token.address, mock_usdc.address, mock_ripe_token.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert with "dev: invalid token path"
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_unsupported_token_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    bravo_token,
+    lego_book,
+    bob,
+):
+    """Test that swapping unsupported tokens fails"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    instruction = (
+        lego_id,
+        1_000 * EIGHTEEN_DECIMALS,
+        0,
+        [mock_green_token.address, bravo_token.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert with "dev: invalid tokens"
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_green_to_savings_green_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_savings_green_token,
+    lego_book,
+    bob,
+):
+    """Test that swapping GREEN to SAVINGS_GREEN fails (must use depositForYield)"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    instruction = (
+        lego_id,
+        1_000 * EIGHTEEN_DECIMALS,
+        0,
+        [mock_green_token.address, mock_savings_green_token.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert - cannot swap into/out of savings green
+        bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+
+def test_swap_without_permission_fails(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    alice,
+):
+    """Test that swap fails without proper permissions"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    instruction = (
+        lego_id,
+        1_000 * EIGHTEEN_DECIMALS,
+        0,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    with boa.reverts():  # Should revert with permission error
+        bob_wallet_with_green.swapTokens([instruction], sender=alice)
+
+
+def test_swap_usd_value_calculation(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+    _test,
+):
+    """Test that USD value is correctly calculated"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    swap_amount = 1_000 * EIGHTEEN_DECIMALS  # 1000 GREEN
+
+    instruction = (
+        lego_id,
+        swap_amount,
+        0,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usd_value = bob_wallet_with_green.swapTokens(
+        [instruction],
+        sender=bob
+    )
+
+    # With price of 1 GREEN = $1, USD value should be ~1000
+    expected_usd_value = 1_000 * EIGHTEEN_DECIMALS
+    _test(usd_value, expected_usd_value)
+
+
+def test_swap_return_values(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+    _test,
+):
+    """Test that swap returns correct values"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    swap_amount = 1_000 * EIGHTEEN_DECIMALS
+
+    instruction = (
+        lego_id,
+        swap_amount,
+        0,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    # Execute swap and verify return values
+    tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, usd_value = bob_wallet_with_green.swapTokens(
+        [instruction],
+        sender=bob
+    )
+
+    # Verify return values are correct
+    assert tokenIn == mock_green_token.address
+    assert lastTokenOut == mock_usdc.address
+    _test(origAmountIn, swap_amount)
+    # Expected USDC = GREEN / 10^12 (decimal conversion)
+    expected_usdc = swap_amount // (10 ** 12)
+    _test(lastTokenOutAmount, expected_usdc)
+    assert usd_value > 0
+
+
+def test_swap_no_leftover_balance(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    """Test that no tokens are left stuck in the lego contract after swap"""
+    lego_id = lego_book.getRegId(lego_ripe)
+
+    swap_amount = 5_000 * EIGHTEEN_DECIMALS
+
+    instruction = (
+        lego_id,
+        swap_amount,
+        0,
+        [mock_green_token.address, mock_usdc.address],
+        []
+    )
+
+    # Pre lego balances
+    pre_lego_green = mock_green_token.balanceOf(lego_ripe)
+    pre_lego_usdc = mock_usdc.balanceOf(lego_ripe)
+
+    bob_wallet_with_green.swapTokens([instruction], sender=bob)
+
+    # Post lego balances - should be unchanged (no stuck tokens)
+    post_lego_green = mock_green_token.balanceOf(lego_ripe)
+    post_lego_usdc = mock_usdc.balanceOf(lego_ripe)
+
+    assert post_lego_green == pre_lego_green
+    assert post_lego_usdc == pre_lego_usdc

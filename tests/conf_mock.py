@@ -332,10 +332,11 @@ def another_rando_contract():
 
 
 @pytest.fixture(scope="session")
-def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale):
-    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, name="mock_ripe")
+def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale, mock_usdc):
+    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, mock_usdc, name="mock_ripe")
     mock_green_token.setMinter(ripe_registry, True, sender=governance.address)
     mock_ripe_token.setMinter(ripe_registry, True, sender=governance.address)
+    mock_usdc.setMinter(ripe_registry, True, sender=governance.address)
     return ripe_registry
 
 
