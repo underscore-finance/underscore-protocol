@@ -189,6 +189,15 @@ event UniswapV3NftRecovered:
     nftTokenId: uint256
     recipient: indexed(address)
 
+event UniswapV3FeesCollected:
+    sender: indexed(address)
+    nftTokenId: uint256
+    token0: indexed(address)
+    token1: indexed(address)
+    amount0: uint256
+    amount1: uint256
+    recipient: address
+
 # transient storage
 poolSwapData: transient(PoolSwapData)
 
@@ -474,6 +483,18 @@ def addLiquidityConcentrated(
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
     nftPositionManager: address = UNIV3_NFT_MANAGER
 
+    # detect fee collection mode: if both tokens are empty and both amounts are zero
+    # this is a workaround to allow collecting fees without adding liquidity
+    isFeeCollectionMode: bool = (
+        _tokenA == empty(address) and
+        _tokenB == empty(address) and
+        _amountA == 0 and
+        _amountB == 0 and
+        _nftTokenId != 0
+    )
+    if isFeeCollectionMode:
+        return self._collectFeesOnly(_nftTokenId, _recipient, nftPositionManager, miniAddys)
+
     # validate tokens
     tokens: address[2] = [staticcall UniV3Pool(_pool).token0(), staticcall UniV3Pool(_pool).token1()]
     assert _tokenA in tokens # dev: invalid tokenA
@@ -676,6 +697,44 @@ def _collectFees(_nftPositionManager: address, _tokenId: uint256, _recipient: ad
         amount1Max=max_value(uint128),
     )
     return extcall UniV3NftPositionManager(_nftPositionManager).collect(params)
+
+
+# collect fees only (for empty positions)
+
+
+@internal
+def _collectFeesOnly(
+    _nftTokenId: uint256,
+    _recipient: address,
+    _nftPositionManager: address,
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256, uint256, uint256, uint256):
+    assert staticcall IERC721(_nftPositionManager).ownerOf(_nftTokenId) == self # dev: nft not here
+
+    # get position data
+    positionData: PositionData = staticcall UniV3NftPositionManager(_nftPositionManager).positions(_nftTokenId)
+
+    # collect fees
+    amount0: uint256 = 0
+    amount1: uint256 = 0
+    amount0, amount1 = self._collectFees(_nftPositionManager, _nftTokenId, _recipient, positionData)
+
+    # transfer nft back to recipient
+    extcall IERC721(_nftPositionManager).safeTransferFrom(self, _recipient, _nftTokenId)
+
+    # calculate usd value of fees collected
+    usdValue: uint256 = self._getUsdValue(positionData.token0, amount0, positionData.token1, amount1, _miniAddys)
+
+    log UniswapV3FeesCollected(
+        sender=msg.sender,
+        nftTokenId=_nftTokenId,
+        token0=positionData.token0,
+        token1=positionData.token1,
+        amount0=amount0,
+        amount1=amount1,
+        recipient=_recipient,
+    )
+    return 0, amount0, amount1, _nftTokenId, usdValue
 
 
 ####################
