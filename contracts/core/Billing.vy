@@ -253,8 +253,8 @@ def _withdrawFromYieldOpportunities(
     _ledger: address,
 ) -> uint256:
 
-    # add 1% buffer to make sure there is enough
-    targetWithdrawalAmount: uint256 = _amountNeeded * 101_00 // HUNDRED_PERCENT
+    # add 2% buffer to make sure there is enough
+    targetWithdrawalAmount: uint256 = _amountNeeded * 102_00 // HUNDRED_PERCENT
 
     numAssets: uint256 = staticcall UserWallet(_userWallet).numAssets()
     if numAssets == 0:
@@ -264,7 +264,7 @@ def _withdrawFromYieldOpportunities(
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
-        if amountWithdraw >= targetWithdrawalAmount:
+        if amountWithdraw >= _amountNeeded:
             break
 
         asset: address = staticcall UserWallet(_userWallet).assets(i)
