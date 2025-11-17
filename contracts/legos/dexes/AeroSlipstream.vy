@@ -79,7 +79,8 @@ interface Registry:
 struct PoolSwapData:
     pool: address
     tokenIn: address
-    amountIn: uint256
+    amountInDesired: uint256
+    sender: address
 
 struct BestPool:
     pool: address
@@ -331,7 +332,7 @@ def swapTokens(
             recipient = self
 
         # swap
-        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, recipient, aeroFactory)
+        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, msg.sender, recipient, aeroFactory)
 
     # final amount
     amountOut: uint256 = tempAmountIn
@@ -372,6 +373,7 @@ def _swapTokensInPool(
     _tokenIn: address,
     _tokenOut: address,
     _amountIn: uint256,
+    _sender: address,
     _recipient: address,
     _aeroFactory: address,
 ) -> uint256:
@@ -387,7 +389,8 @@ def _swapTokensInPool(
     self.poolSwapData = PoolSwapData(
         pool=_pool,
         tokenIn=_tokenIn,
-        amountIn=_amountIn,
+        amountInDesired=_amountIn,
+        sender=_sender,
     )
 
     zeroForOne: bool = _tokenIn == tokens[0]
@@ -419,8 +422,30 @@ def uniswapV3SwapCallback(_amount0Delta: int256, _amount1Delta: int256, _data: B
     poolSwapData: PoolSwapData = self.poolSwapData
     assert msg.sender == poolSwapData.pool # dev: no perms
 
+    # determine the amount to transfer based on deltas
+    # Positive delta = amount we owe the pool
+    # Negative delta = amount we receive from the pool
+    token0: address = staticcall AeroSlipStreamPool(poolSwapData.pool).token0()
+    amountToSend: uint256 = 0
+
+    # we're selling token0 for token1
+    if poolSwapData.tokenIn == token0:
+        assert _amount0Delta != 0 # dev: invalid delta
+        amountToSend = convert(_amount0Delta, uint256)
+
+    # we're selling token1 for token0
+    else:
+        assert _amount1Delta != 0 # dev: invalid delta
+        amountToSend = convert(_amount1Delta, uint256)
+
     # transfer tokens to pool
-    assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.pool, poolSwapData.amountIn, default_return_value=True) # dev: transfer failed
+    assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.pool, amountToSend, default_return_value=True) # dev: transfer failed
+
+    # refund unused tokens immediately (handles partial swaps in multi-hop routes)
+    if amountToSend < poolSwapData.amountInDesired:
+        refundAmount: uint256 = min(poolSwapData.amountInDesired - amountToSend, staticcall IERC20(poolSwapData.tokenIn).balanceOf(self))
+        assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.sender, refundAmount, default_return_value=True) # dev: refund failed
+
     self.poolSwapData = empty(PoolSwapData)
 
 

@@ -970,10 +970,6 @@ def test_get_ripe_price_external(appraiser, alpha_token, mock_ripe):
 ################################
 
 
-# NOTE: Removed test_stub_functions_return_zero as these functions don't exist
-# getNormalAssetPrice, getPricePerShare, and getPrice were completely removed from Appraiser
-
-
 def test_last_price_per_share_returns_fresh_value(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_yield_lego):
     """ Test that lastPricePerShare() returns fresh price from YieldLego without caching """
 
