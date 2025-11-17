@@ -89,7 +89,8 @@ def test_valid_limits_per_tx_less_than_lifetime(high_command, user_wallet, charl
     # This test shows that per_tx vs lifetime is not validated
     valid_limits = createManagerLimits(
         _maxUsdValuePerTx=10000 * 10**6,  # $10,000
-        _maxUsdValueLifetime=1000 * 10**6  # $1,000
+        _maxUsdValueLifetime=1000 * 10**6,  # $1,000
+        _failOnZeroPrice=True  # Required when USD limits are set
     )
     
     result = high_command.isValidNewManager(
@@ -144,7 +145,8 @@ def test_valid_limits_unlimited_values(high_command, user_wallet, charlie, creat
     valid_limits = createManagerLimits(
         _maxUsdValuePerTx=1000 * 10**6,  # $1,000
         _maxUsdValuePerPeriod=0,  # unlimited
-        _maxUsdValueLifetime=0  # unlimited
+        _maxUsdValueLifetime=0,  # unlimited
+        _failOnZeroPrice=True  # Required when USD limits are set
     )
     
     result = high_command.isValidNewManager(
@@ -791,6 +793,238 @@ def test_global_settings_multiple_validation_failures(high_command, user_wallet,
         invalid_transfer_perms,
         [alpha_token.address, ZERO_ADDRESS],  # invalid assets
     )
-    
+
     assert result == False
+
+
+#################################################
+# failOnZeroPrice Validation with USD Limits #
+#################################################
+
+
+def test_invalid_new_manager_usd_limits_without_fail_on_zero_price(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that new manager with USD limits requires failOnZeroPrice=True"""
+    # Setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create limits with USD limit but failOnZeroPrice=False (default)
+    invalid_limits = createManagerLimits(
+        _maxUsdValuePerTx=5000 * 10**6,  # USD limit set
+        _failOnZeroPrice=False  # Invalid with USD limits
+    )
+
+    # Should be invalid: USD limit set but failOnZeroPrice=False
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        invalid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_valid_new_manager_usd_limits_with_fail_on_zero_price(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that new manager with USD limits works with failOnZeroPrice=True"""
+    # Setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create limits with USD limit and failOnZeroPrice=True
+    valid_limits = createManagerLimits(
+        _maxUsdValuePerTx=5000 * 10**6,
+        _failOnZeroPrice=True  # Required with USD limits
+    )
+
+    # Should be valid: USD limit set and failOnZeroPrice=True
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        valid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_new_manager_no_usd_limits_fail_on_zero_price_false(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that failOnZeroPrice=False is valid when no USD limits are set"""
+    # Setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create limits with all zeros (no USD limits) and failOnZeroPrice=False
+    valid_limits = createManagerLimits(
+        _maxUsdValuePerTx=0,  # No limit
+        _maxUsdValuePerPeriod=0,  # No limit
+        _maxUsdValueLifetime=0,  # No limit
+        _failOnZeroPrice=False  # OK when no USD limits
+    )
+
+    # Should be valid: No USD limits, so failOnZeroPrice can be False
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        valid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_invalid_update_manager_usd_limits_without_fail_on_zero_price(high_command, user_wallet, alice, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that manager update with USD limits requires failOnZeroPrice=True"""
+    # Setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Add alice as manager first
+    new_manager_settings = createManagerSettings()
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    # Create limits with USD limit but failOnZeroPrice=False
+    invalid_limits = createManagerLimits(
+        _maxUsdValuePerPeriod=10000 * 10**6,  # USD limit set
+        _failOnZeroPrice=False  # Invalid with USD limits
+    )
+
+    # Should be invalid: USD limit set but failOnZeroPrice=False
+    result = high_command.validateManagerOnUpdate(
+        user_wallet,
+        alice,
+        invalid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_valid_update_manager_usd_limits_with_fail_on_zero_price(high_command, user_wallet, alice, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that manager update with USD limits works with failOnZeroPrice=True"""
+    # Setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Add alice as manager first
+    new_manager_settings = createManagerSettings()
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    # Create limits with USD limit and failOnZeroPrice=True
+    valid_limits = createManagerLimits(
+        _maxUsdValuePerPeriod=10000 * 10**6,
+        _failOnZeroPrice=True  # Required with USD limits
+    )
+
+    # Should be valid: USD limit set and failOnZeroPrice=True
+    result = high_command.validateManagerOnUpdate(
+        user_wallet,
+        alice,
+        valid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_invalid_global_settings_usd_limits_without_fail_on_zero_price(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+    """Test that global manager settings with USD limits requires failOnZeroPrice=True"""
+    # Create limits with USD lifetime limit but failOnZeroPrice=False
+    invalid_limits = createManagerLimits(
+        _maxUsdValueLifetime=100000 * 10**6,  # USD limit set
+        _failOnZeroPrice=False  # Invalid with USD limits
+    )
+
+    # Should be invalid: USD limit set but failOnZeroPrice=False
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        invalid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == False
+
+
+def test_valid_global_settings_usd_limits_with_fail_on_zero_price(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+    """Test that global manager settings with USD limits works with failOnZeroPrice=True"""
+    # Create limits with USD limits and failOnZeroPrice=True
+    valid_limits = createManagerLimits(
+        _maxUsdValuePerTx=5000 * 10**6,
+        _maxUsdValuePerPeriod=50000 * 10**6,
+        _maxUsdValueLifetime=500000 * 10**6,
+        _failOnZeroPrice=True  # Required with USD limits
+    )
+
+    # Should be valid: USD limits set and failOnZeroPrice=True
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        valid_limits,
+        createLegoPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == True
+
+
+def test_invalid_any_usd_limit_requires_fail_on_zero_price(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+    """Test that ANY non-zero USD limit (perTx, perPeriod, or lifetime) requires failOnZeroPrice=True"""
+    # Test with only maxUsdValuePerTx set
+    limits_1 = createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=False)
+    assert not high_command.validateGlobalManagerSettings(
+        user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
+        True, limits_1, createLegoPerms(), createWhitelistPerms(), createTransferPerms(), []
+    )
+
+    # Test with only maxUsdValuePerPeriod set
+    limits_2 = createManagerLimits(_maxUsdValuePerPeriod=10000 * 10**6, _failOnZeroPrice=False)
+    assert not high_command.validateGlobalManagerSettings(
+        user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
+        True, limits_2, createLegoPerms(), createWhitelistPerms(), createTransferPerms(), []
+    )
+
+    # Test with only maxUsdValueLifetime set
+    limits_3 = createManagerLimits(_maxUsdValueLifetime=50000 * 10**6, _failOnZeroPrice=False)
+    assert not high_command.validateGlobalManagerSettings(
+        user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
+        True, limits_3, createLegoPerms(), createWhitelistPerms(), createTransferPerms(), []
+    )
 

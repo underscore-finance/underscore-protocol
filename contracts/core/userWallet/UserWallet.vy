@@ -439,6 +439,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
     assert lastTokenOutAmount != 0 # dev: no output amount
+    assert lastTokenOut == tokenOut # dev: must swap into token out
 
     # handle swap fee
     if lastTokenOut != empty(address):

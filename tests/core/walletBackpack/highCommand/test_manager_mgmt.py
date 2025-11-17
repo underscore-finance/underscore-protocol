@@ -677,7 +677,7 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
     high_command.updateManager(
         user_wallet,
         alice,
-        createManagerLimits(_maxUsdValuePerTx=5000 * 10**6),
+        createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=True),
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
@@ -720,7 +720,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
     high_command.updateManager(
         user_wallet,
         alice,
-        createManagerLimits(_maxUsdValuePerTx=5000 * 10**6),
+        createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=True),
         createLegoPerms(),
         createWhitelistPerms(),
         createTransferPerms(),

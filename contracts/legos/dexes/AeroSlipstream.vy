@@ -448,6 +448,7 @@ def addLiquidityConcentrated(
     assert not dld.isPaused # dev: paused
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
+    nftPositionManager: address = AERO_SLIPSTREAM_NFT_MANAGER
 
     # validate tokens
     tokens: address[2] = [staticcall AeroSlipStreamPool(_pool).token0(), staticcall AeroSlipStreamPool(_pool).token1()]
@@ -461,18 +462,15 @@ def addLiquidityConcentrated(
 
     # token a
     liqAmountA: uint256 = min(_amountA, staticcall IERC20(_tokenA).balanceOf(msg.sender))
-    assert liqAmountA != 0 # dev: nothing to transfer
-    assert extcall IERC20(_tokenA).transferFrom(msg.sender, self, liqAmountA, default_return_value=True) # dev: transfer failed
+    if liqAmountA != 0:
+        assert extcall IERC20(_tokenA).transferFrom(msg.sender, self, liqAmountA, default_return_value=True) # dev: transfer failed
+        assert extcall IERC20(_tokenA).approve(nftPositionManager, liqAmountA, default_return_value=True) # dev: approval failed
 
     # token b
     liqAmountB: uint256 = min(_amountB, staticcall IERC20(_tokenB).balanceOf(msg.sender))
-    assert liqAmountB != 0 # dev: nothing to transfer
-    assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, liqAmountB, default_return_value=True) # dev: transfer failed
-
-    # approvals
-    nftPositionManager: address = AERO_SLIPSTREAM_NFT_MANAGER
-    assert extcall IERC20(_tokenA).approve(nftPositionManager, liqAmountA, default_return_value=True) # dev: approval failed
-    assert extcall IERC20(_tokenB).approve(nftPositionManager, liqAmountB, default_return_value=True) # dev: approval failed
+    if liqAmountB != 0:
+        assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, liqAmountB, default_return_value=True) # dev: transfer failed
+        assert extcall IERC20(_tokenB).approve(nftPositionManager, liqAmountB, default_return_value=True) # dev: approval failed
 
     # organized the index of tokens
     token0: address = _tokenA
@@ -502,8 +500,10 @@ def addLiquidityConcentrated(
     assert liquidityAdded != 0 # dev: no liquidity added
 
     # reset approvals
-    assert extcall IERC20(_tokenA).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
-    assert extcall IERC20(_tokenB).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
+    if liqAmountA != 0:
+        assert extcall IERC20(_tokenA).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
+    if liqAmountB != 0:
+        assert extcall IERC20(_tokenB).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
 
     # refund if full liquidity was not added
     currentLegoBalanceA: uint256 = staticcall IERC20(_tokenA).balanceOf(self)
@@ -710,7 +710,7 @@ def removeLiquidityConcentrated(
     amount0: uint256 = 0
     amount1: uint256 = 0
     amount0, amount1 = extcall AeroNftPositionManager(nftPositionManager).decreaseLiquidity(params)
-    assert amount0 != 0 and amount1 != 0 # dev: no liquidity removed
+    assert amount0 != 0 or amount1 != 0 # dev: no liquidity removed
 
     # a/b amounts
     amountA: uint256 = amount0

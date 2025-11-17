@@ -611,6 +611,10 @@ def _isValidNewPayee(
     if not self._validatePayeeLimits(_usdLimits):
         return False, empty(wcs.PayeeSettings)
 
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
+        return False, empty(wcs.PayeeSettings)
+
     # validate pull payee
     if not self._validatePullPayee(_canPull, _config.globalPayeeSettings.canPull, _unitLimits, _usdLimits):
         return False, empty(wcs.PayeeSettings)
@@ -695,6 +699,10 @@ def _isValidPayeeUpdate(
 
     # validate usd limits
     if not self._validatePayeeLimits(_usdLimits):
+        return False
+
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
         return False
 
     # validate pull payee
@@ -785,6 +793,10 @@ def _isValidGlobalPayeeSettings(
 
     # validate usd limits
     if not self._validatePayeeLimits(_usdLimits):
+        return False
+
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
         return False
 
     # validate activation length
@@ -886,6 +898,27 @@ def _validatePayeeLimits(_limits: wcs.PayeeLimits) -> bool:
     if _limits.perTxCap != 0 and _limits.lifetimeCap != 0:
         if _limits.perTxCap > _limits.lifetimeCap:
             return False
+
+    return True
+
+
+@pure
+@internal
+def _validateFailOnZeroPriceWithUsdLimits(
+    _failOnZeroPrice: bool,
+    _usdLimits: wcs.PayeeLimits
+) -> bool:
+    # if any USD limits are set (non-zero = limit is active)
+    hasUsdLimits: bool = (
+        _usdLimits.perTxCap != 0 or
+        _usdLimits.perPeriodCap != 0 or
+        _usdLimits.lifetimeCap != 0
+    )
+    
+    # If USD limits are set, failOnZeroPrice must be True
+    # to prevent bypassing limits when price data is unavailable
+    if hasUsdLimits and not _failOnZeroPrice:
+        return False
 
     return True
 

@@ -670,7 +670,17 @@ def _validateManagerLimits(_limits: wcs.ManagerLimits, _managerPeriod: uint256) 
     # cooldown cannot exceed period length (unless cooldown is 0 = no cooldown)
     if _limits.txCooldownBlocks != 0 and _limits.txCooldownBlocks > _managerPeriod:
         return False
-    
+
+    # if any USD limits are set, failOnZeroPrice must be True
+    # to prevent bypassing limits when price data is unavailable
+    hasUsdLimits: bool = (
+        _limits.maxUsdValuePerTx != 0 or
+        _limits.maxUsdValuePerPeriod != 0 or
+        _limits.maxUsdValueLifetime != 0
+    )
+    if hasUsdLimits and not _limits.failOnZeroPrice:
+        return False
+
     return True
 
 
