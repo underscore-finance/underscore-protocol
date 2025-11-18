@@ -820,6 +820,7 @@ def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.WhitelistPerms, wcs.Tra
         canManageDebt = True,
         canManageLiq = True,
         canClaimRewards = True,
+        onlyApprovedYieldOpps = True,
         allowedLegos = [],
     ), wcs.WhitelistPerms(
         canAddPending = False,

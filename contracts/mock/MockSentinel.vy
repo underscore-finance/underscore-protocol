@@ -52,12 +52,16 @@ def isValidPayeeAndGetData(
 
 @view
 @external
-def checkManagerUsdLimitsAndUpdateData(
+def checkManagerLimitsPostTx(
     _txUsdValue: uint256,
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
     _data: wcs.ManagerData,
+    _requiresVaultApproval: bool,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
     if self.fail_validation:
         return False, _data

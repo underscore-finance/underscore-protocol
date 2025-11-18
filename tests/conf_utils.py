@@ -351,6 +351,7 @@ def createLegoPerms():
         _canManageDebt = True,
         _canManageLiq = True,
         _canClaimRewards = True,
+        _onlyApprovedYieldOpps = False,
         _allowedLegos = [],
     ):
         return (
@@ -359,6 +360,7 @@ def createLegoPerms():
             _canManageDebt,
             _canManageLiq,
             _canClaimRewards,
+            _onlyApprovedYieldOpps,
             _allowedLegos,
         )
     yield createLegoPerms
