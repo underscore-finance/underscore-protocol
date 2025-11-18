@@ -281,6 +281,9 @@ event StarterAgentParamsSet:
 event PendingManagerConfigChange:
     managerPeriod: uint256
     managerActivationLength: uint256
+    mustHaveUsdValueOnSwaps: bool
+    maxNumSwapsPerPeriod: uint256
+    maxSlippageOnSwaps: uint256
     confirmationBlock: uint256
     actionId: uint256
 
@@ -980,7 +983,13 @@ def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivatio
 
 
 @external
-def setManagerConfig(_managerPeriod: uint256, _managerActivationLength: uint256) -> uint256:
+def setManagerConfig(
+    _managerPeriod: uint256,
+    _managerActivationLength: uint256,
+    _mustHaveUsdValueOnSwaps: bool,
+    _maxNumSwapsPerPeriod: uint256,
+    _maxSlippageOnSwaps: uint256,
+) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     
     assert 0 not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
@@ -990,12 +999,18 @@ def setManagerConfig(_managerPeriod: uint256, _managerActivationLength: uint256)
     self.actionType[aid] = ActionType.MANAGER_CONFIG
     self.pendingManagerConfig[aid] = cs.ManagerConfig(
         managerPeriod=_managerPeriod,
-        managerActivationLength=_managerActivationLength
+        managerActivationLength=_managerActivationLength,
+        mustHaveUsdValueOnSwaps=_mustHaveUsdValueOnSwaps,
+        maxNumSwapsPerPeriod=_maxNumSwapsPerPeriod,
+        maxSlippageOnSwaps=_maxSlippageOnSwaps,
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingManagerConfigChange(
         managerPeriod=_managerPeriod,
         managerActivationLength=_managerActivationLength,
+        mustHaveUsdValueOnSwaps=_mustHaveUsdValueOnSwaps,
+        maxNumSwapsPerPeriod=_maxNumSwapsPerPeriod,
+        maxSlippageOnSwaps=_maxSlippageOnSwaps,
         confirmationBlock=confirmationBlock,
         actionId=aid,
     )

@@ -818,13 +818,16 @@ def createDefaultGlobalManagerSettings(
     _managerPeriod: uint256,
     _minTimeLock: uint256,
     _defaultActivationLength: uint256,
+    _mustHaveUsdValueOnSwaps: bool,
+    _maxNumSwapsPerPeriod: uint256,
+    _maxSlippageOnSwaps: uint256,
 ) -> wcs.GlobalManagerSettings:
     config: wcs.GlobalManagerSettings = empty(wcs.GlobalManagerSettings)
     config.managerPeriod = _managerPeriod
     config.startDelay = _minTimeLock
     config.activationLength = _defaultActivationLength
     config.canOwnerManage = True
-    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
+    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(_mustHaveUsdValueOnSwaps, _maxNumSwapsPerPeriod, _maxSlippageOnSwaps)
     return config
 
 
@@ -845,7 +848,7 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
         allowedAssets = [],
         canClaimLoot = True,
     )
-    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults()
+    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(False, 0, 0)
     return config
 
 
@@ -854,7 +857,11 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
 
 @pure
 @internal
-def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.SwapPerms, wcs.WhitelistPerms, wcs.TransferPerms):
+def _createHappyManagerDefaults(
+    _mustHaveUsdValueOnSwaps: bool,
+    _maxNumSwapsPerPeriod: uint256,
+    _maxSlippageOnSwaps: uint256,
+) -> (wcs.LegoPerms, wcs.SwapPerms, wcs.WhitelistPerms, wcs.TransferPerms):
     return wcs.LegoPerms(
         canManageYield = True,
         canBuyAndSell = True,
@@ -864,9 +871,9 @@ def _createHappyManagerDefaults() -> (wcs.LegoPerms, wcs.SwapPerms, wcs.Whitelis
         onlyApprovedYieldOpps = True,
         allowedLegos = [],
     ), wcs.SwapPerms(
-        mustHaveUsdValue = True,
-        maxNumSwapsPerPeriod = 1,
-        maxSlippage = 5_00, # 5%
+        mustHaveUsdValue = _mustHaveUsdValueOnSwaps,
+        maxNumSwapsPerPeriod = _maxNumSwapsPerPeriod,
+        maxSlippage = _maxSlippageOnSwaps,
     ), wcs.WhitelistPerms(
         canAddPending = False,
         canConfirm = True,

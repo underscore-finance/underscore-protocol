@@ -89,6 +89,9 @@ def managerConfig() -> cs.ManagerConfig:
     return cs.ManagerConfig(
         managerPeriod = MONTH_IN_BLOCKS,
         managerActivationLength = YEAR_IN_BLOCKS,
+        mustHaveUsdValueOnSwaps = False,
+        maxNumSwapsPerPeriod = 0,
+        maxSlippageOnSwaps = 0,
     )
 
 

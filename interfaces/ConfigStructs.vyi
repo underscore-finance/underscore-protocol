@@ -46,6 +46,9 @@ struct AgentConfig:
 struct ManagerConfig:
     managerPeriod: uint256
     managerActivationLength: uint256
+    mustHaveUsdValueOnSwaps: bool
+    maxNumSwapsPerPeriod: uint256
+    maxSlippageOnSwaps: uint256
 
 struct PayeeConfig:
     payeePeriod: uint256

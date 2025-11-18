@@ -73,6 +73,9 @@ struct UserWalletCreationConfig:
     startingAgentActivationLength: uint256
     managerPeriod: uint256
     managerActivationLength: uint256
+    mustHaveUsdValueOnSwaps: bool
+    maxNumSwapsPerPeriod: uint256
+    maxSlippageOnSwaps: uint256
     payeePeriod: uint256
     payeeActivationLength: uint256
     chequeMaxNumActiveCheques: uint256
@@ -173,6 +176,9 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         startingAgentActivationLength = agentConfig.startingAgentActivationLength,
         managerPeriod = managerConfig.managerPeriod,
         managerActivationLength = managerConfig.managerActivationLength,
+        mustHaveUsdValueOnSwaps = managerConfig.mustHaveUsdValueOnSwaps,
+        maxNumSwapsPerPeriod = managerConfig.maxNumSwapsPerPeriod,
+        maxSlippageOnSwaps = managerConfig.maxSlippageOnSwaps,
         payeePeriod = payeeConfig.payeePeriod,
         payeeActivationLength = payeeConfig.payeeActivationLength,
         chequeMaxNumActiveCheques = chequeConfig.maxNumActiveCheques,
