@@ -1073,7 +1073,7 @@ def test_pullPaymentAsPayee_success_basic(
         2 * ONE_DAY_IN_BLOCKS,  # periodLength
         10,  # maxNumTxsPerPeriod
         0,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
@@ -1260,7 +1260,7 @@ def test_pullPaymentAsPayee_insufficient_funds_reverts(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1269,13 +1269,13 @@ def test_pullPaymentAsPayee_insufficient_funds_reverts(
         2**256 - 1,  # activationLength - no expiry
         sender=bob
     )
-    
+
     # Set price for the asset
     mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
-    
+
     # Time travel to make the payee active
     boa.env.time_travel(blocks=22000)  # Travel past startBlock
-    
+
     # Register the asset in the wallet config
     user_wallet_config.updateAssetData(
         0,  # _op (lego_id)
@@ -1283,9 +1283,9 @@ def test_pullPaymentAsPayee_insufficient_funds_reverts(
         False,  # _shouldCheckYield
         sender=switchboard_alpha.address
     )
-    
+
     # Don't fund the wallet - leave it empty
-    
+
     # Alice tries to pull payment - should revert with insufficient funds
     with boa.reverts("insufficient funds"):
         billing.pullPaymentAsPayee(
@@ -1313,7 +1313,7 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1322,13 +1322,13 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
         2**256 - 1,  # activationLength - no expiry
         sender=bob
     )
-    
+
     # Set price for the asset
     mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
-    
+
     # Time travel to make the payee active
     boa.env.time_travel(blocks=22000)  # Travel past startBlock
-    
+
     # Fund the wallet with tokens and deposit into vault
     total_funds = 60 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
@@ -1395,7 +1395,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1404,13 +1404,13 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
         2**256 - 1,  # activationLength - no expiry
         sender=bob
     )
-    
+
     # Set price for the asset
     mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
-    
+
     # Time travel to make the payee active
     boa.env.time_travel(blocks=22000)  # Travel past startBlock
-    
+
     # Fund the wallet and split across vaults
     total_funds = 120 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
@@ -1492,7 +1492,7 @@ def test_pullPaymentAsPayee_partial_funds_succeeds(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1501,13 +1501,13 @@ def test_pullPaymentAsPayee_partial_funds_succeeds(
         2**256 - 1,  # activationLength - no expiry
         sender=bob
     )
-    
+
     # Set price for the asset
     mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
-    
+
     # Time travel to make the payee active
     boa.env.time_travel(blocks=22000)  # Travel past startBlock
-    
+
     # Fund the wallet with partial amount (30 tokens)
     partial_amount = 30 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, partial_amount, sender=alpha_token_whale)
@@ -1550,7 +1550,7 @@ def test_pullPaymentAsPayee_with_yield_gains(
     # Set global payee settings with canPull enabled
     global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
     user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
-    
+
     # Add alice as payee with canPull enabled
     paymaster.addPayee(
         user_wallet.address,
@@ -1559,7 +1559,7 @@ def test_pullPaymentAsPayee_with_yield_gains(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1723,7 +1723,7 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
     # Set global payee settings with canPull enabled
     global_settings = createGlobalPayeeSettings(_canPull=True, _failOnZeroPrice=False)
     user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
-    
+
     # Add alice as payee with canPull enabled
     paymaster.addPayee(
         user_wallet.address,
@@ -1732,7 +1732,7 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
         2 * ONE_DAY_IN_BLOCKS,
         10,
         0,
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
@@ -1814,7 +1814,7 @@ def test_pullPaymentAsPayee_blocked_in_eject_mode(
         2 * ONE_DAY_IN_BLOCKS,  # periodLength
         10,  # maxNumTxsPerPeriod
         0,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice - Must be True when USD limits are set
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits

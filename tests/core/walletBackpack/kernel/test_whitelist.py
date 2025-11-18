@@ -262,7 +262,7 @@ def test_add_pending_whitelist_fails_for_payee(
         2 * ONE_DAY_IN_BLOCKS,  # periodLength
         10,  # maxNumTxsPerPeriod
         0,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
@@ -471,7 +471,7 @@ def test_confirm_whitelist_fails_if_address_becomes_payee_during_timelock(
         2 * ONE_DAY_IN_BLOCKS,  # periodLength
         10,  # maxNumTxsPerPeriod
         0,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits

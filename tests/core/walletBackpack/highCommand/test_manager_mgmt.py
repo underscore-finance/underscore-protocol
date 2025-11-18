@@ -134,7 +134,8 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
         _maxUsdValuePerPeriod=10000 * 10**6,
         _maxUsdValueLifetime=100000 * 10**6,
         _maxNumTxsPerPeriod=50,
-        _txCooldownBlocks=100
+        _txCooldownBlocks=100,
+        _failOnZeroPrice=True
     )
     
     lego_perms = createLegoPerms(
@@ -222,7 +223,8 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         _maxUsdValuePerPeriod=20000 * 10**6,
         _maxUsdValueLifetime=200000 * 10**6,
         _maxNumTxsPerPeriod=100,
-        _txCooldownBlocks=200
+        _txCooldownBlocks=200,
+        _failOnZeroPrice=True
     )
     
     # Add manager
@@ -481,7 +483,8 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     
     initial_limits = createManagerLimits(
         _maxUsdValuePerTx=500 * 10**6,
-        _maxUsdValuePerPeriod=5000 * 10**6
+        _maxUsdValuePerPeriod=5000 * 10**6,
+        _failOnZeroPrice=True
     )
     
     high_command.addManager(
@@ -510,7 +513,8 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         _maxUsdValuePerPeriod=10000 * 10**6,
         _maxUsdValueLifetime=100000 * 10**6,
         _maxNumTxsPerPeriod=75,
-        _txCooldownBlocks=150
+        _txCooldownBlocks=150,
+        _failOnZeroPrice=True
     )
     
     new_lego_perms = createLegoPerms(
@@ -612,7 +616,8 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
         _maxUsdValuePerPeriod=30000 * 10**6,
         _maxUsdValueLifetime=300000 * 10**6,
         _maxNumTxsPerPeriod=150,
-        _txCooldownBlocks=300
+        _txCooldownBlocks=300,
+        _failOnZeroPrice=True
     )
     
     # Update manager
@@ -942,7 +947,8 @@ def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wall
         alice,
         createManagerLimits(
             _maxUsdValuePerTx=1000 * 10**6,
-            _maxNumTxsPerPeriod=50
+            _maxNumTxsPerPeriod=50,
+            _failOnZeroPrice=True
         ),
         createLegoPerms(_canManageYield=True, _allowedLegos=[1, 2]),
         createWhitelistPerms(_canAddPending=True),
@@ -1856,7 +1862,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
         _maxUsdValueLifetime=200000 * 10**6,
         _maxNumTxsPerPeriod=100,
         _txCooldownBlocks=200,
-        _failOnZeroPrice=False
+        _failOnZeroPrice=True
     )
     
     lego_perms = createLegoPerms(
@@ -1912,7 +1918,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     assert event.maxUsdValueLifetime == 200000 * 10**6
     assert event.maxNumTxsPerPeriod == 100
     assert event.txCooldownBlocks == 200
-    assert event.failOnZeroPrice == False
+    assert event.failOnZeroPrice == True
     assert event.canManageYield == False
     assert event.canBuyAndSell == True
     assert event.canManageDebt == True
@@ -2047,7 +2053,8 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
         createManagerLimits(
             _maxUsdValuePerTx=100 * 10**6,
             _maxUsdValuePerPeriod=1000 * 10**6,
-            _maxUsdValueLifetime=10000 * 10**6
+            _maxUsdValueLifetime=10000 * 10**6,
+            _failOnZeroPrice=True
         ),
         createLegoPerms(
             _canManageYield=False,

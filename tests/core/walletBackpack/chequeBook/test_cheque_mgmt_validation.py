@@ -674,7 +674,7 @@ def test_isValidNewCheque_fails_when_recipient_is_payee(
         2 * ONE_DAY_IN_BLOCKS,  # periodLength
         10,  # maxNumTxsPerPeriod
         0,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
