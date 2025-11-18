@@ -221,7 +221,7 @@ def setMissionControlPayeeConfig(mission_control, switchboard_alpha):
 
 
 @pytest.fixture(scope="session")
-def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     def createGlobalManagerSettings(
         _managerPeriod = ONE_MONTH_IN_BLOCKS,
         _startDelay = ONE_DAY_IN_BLOCKS // 2,
@@ -229,6 +229,7 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
         _canOwnerManage = True,
         _limits = None,
         _legoPerms = None,
+        _swapPerms = None,
         _whitelistPerms = None,
         _transferPerms = None,
         _allowedAssets = [],
@@ -237,11 +238,13 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
             _limits = createManagerLimits()
         if _legoPerms is None:
             _legoPerms = createLegoPerms()
+        if _swapPerms is None:
+            _swapPerms = createSwapPerms()
         if _whitelistPerms is None:
             _whitelistPerms = createWhitelistPerms()
         if _transferPerms is None:
             _transferPerms = createTransferPerms()
-            
+
         return (
             _managerPeriod,
             _startDelay,
@@ -249,6 +252,7 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
             _canOwnerManage,
             _limits,
             _legoPerms,
+            _swapPerms,
             _whitelistPerms,
             _transferPerms,
             _allowedAssets,
@@ -268,6 +272,7 @@ def createManagerData():
         _totalUsdValue = 0,
         _lastTxBlock = 0,
         _periodStartBlock = 0,
+        _numSwapsInPeriod = 0,
     ):
         return (
             _numTxsInPeriod,
@@ -276,6 +281,7 @@ def createManagerData():
             _totalUsdValue,
             _lastTxBlock,
             _periodStartBlock,
+            _numSwapsInPeriod,
         )
     yield createManagerData
 
@@ -284,12 +290,13 @@ def createManagerData():
 
 
 @pytest.fixture(scope="session")
-def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+def createManagerSettings(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     def createManagerSettings(
         _startBlock = 0,
         _expiryBlock = 0,
         _limits = None,
         _legoPerms = None,
+        _swapPerms = None,
         _whitelistPerms = None,
         _transferPerms = None,
         _allowedAssets = [],
@@ -299,21 +306,24 @@ def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistP
             _startBlock = boa.env.evm.patch.block_number
         if _expiryBlock == 0:
             _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
-        
+
         if _limits is None:
             _limits = createManagerLimits()
         if _legoPerms is None:
             _legoPerms = createLegoPerms()
+        if _swapPerms is None:
+            _swapPerms = createSwapPerms()
         if _whitelistPerms is None:
             _whitelistPerms = createWhitelistPerms()
         if _transferPerms is None:
             _transferPerms = createTransferPerms()
-            
+
         return (
             _startBlock,
             _expiryBlock,
             _limits,
             _legoPerms,
+            _swapPerms,
             _whitelistPerms,
             _transferPerms,
             _allowedAssets,
@@ -364,6 +374,21 @@ def createLegoPerms():
             _allowedLegos,
         )
     yield createLegoPerms
+
+
+@pytest.fixture(scope="session")
+def createSwapPerms():
+    def createSwapPerms(
+        _mustHaveUsdValue = False,
+        _maxNumSwapsPerPeriod = 0,
+        _maxSlippage = 0,
+    ):
+        return (
+            _mustHaveUsdValue,
+            _maxNumSwapsPerPeriod,
+            _maxSlippage,
+        )
+    yield createSwapPerms
 
 
 @pytest.fixture(scope="session")

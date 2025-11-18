@@ -172,12 +172,14 @@ struct ManagerData:
     totalUsdValue: uint256
     lastTxBlock: uint256
     periodStartBlock: uint256
+    numSwapsInPeriod: uint256
 
 struct ManagerSettings:
     startBlock: uint256
     expiryBlock: uint256
     limits: ManagerLimits
     legoPerms: LegoPerms
+    swapPerms: SwapPerms
     whitelistPerms: WhitelistPerms
     transferPerms: TransferPerms
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
@@ -190,6 +192,7 @@ struct GlobalManagerSettings:
     canOwnerManage: bool
     limits: ManagerLimits
     legoPerms: LegoPerms
+    swapPerms: SwapPerms
     whitelistPerms: WhitelistPerms
     transferPerms: TransferPerms
     allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]
@@ -210,6 +213,11 @@ struct LegoPerms:
     canClaimRewards: bool
     onlyApprovedYieldOpps: bool
     allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]
+
+struct SwapPerms:
+    mustHaveUsdValue: bool
+    maxNumSwapsPerPeriod: uint256
+    maxSlippage: uint256
 
 struct WhitelistPerms:
     canAddPending: bool

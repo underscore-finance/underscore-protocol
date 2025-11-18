@@ -34,7 +34,7 @@ from ethereum.ercs import IERC721
 
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
-    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _vaultRegistry: address) -> bool: nonpayable
+    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _isSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> bool: nonpayable
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
     def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
@@ -49,6 +49,7 @@ interface LootDistributor:
 interface Appraiser:
     def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
     def lastPricePerShare(_asset: address) -> uint256: view
 
@@ -422,10 +423,13 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.SWAP, False, [tokenIn, tokenOut], legoIds)
     origAmountIn: uint256 = self._getAmountAndApprove(tokenIn, _instructions[0].amountIn, empty(address)) # not approving here
 
+    # capture input USD value for slippage check
+    fromAssetUsdValue: uint256 = staticcall Appraiser(ad.appraiser).getUsdValue(tokenIn, origAmountIn, ad.missionControl, ad.legoBook, ad.ledger)
+
     amountIn: uint256 = origAmountIn
     lastTokenOut: address = empty(address)
     lastTokenOutAmount: uint256 = 0
-    maxTxUsdValue: uint256 = 0
+    maxTxUsdValue: uint256 = fromAssetUsdValue
 
     # perform swaps
     for i: wi.SwapInstruction in _instructions:
@@ -433,7 +437,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
             newTokenIn: address = i.tokenPath[0]
             assert lastTokenOut == newTokenIn # dev: path
             amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))
-        
+
         thisTxUsdValue: uint256 = 0
         lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
@@ -442,13 +446,16 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     assert lastTokenOut == tokenOut # dev: must swap into token out
 
     # handle swap fee
-    if lastTokenOut != empty(address):
-        swapFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getSwapFee(self, tokenIn, lastTokenOut, ad.missionControl)
-        if swapFee != 0 and lastTokenOutAmount != 0:
-            swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, 5_00), ws.ActionType.SWAP, ad.lootDistributor, ad.missionControl)
-            lastTokenOutAmount -= swapFee
+    swapFee: uint256 = staticcall LootDistributor(ad.lootDistributor).getSwapFee(self, tokenIn, lastTokenOut, ad.missionControl)
+    if swapFee != 0:
+        swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, 5_00), ws.ActionType.SWAP, ad.lootDistributor, ad.missionControl)
+        lastTokenOutAmount -= swapFee
 
-    self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ws.ActionType.SWAP, ad)
+    # capture output USD value for slippage check (after fees)
+    toAssetUsdValue: uint256 = staticcall Appraiser(ad.appraiser).getUsdValue(lastTokenOut, lastTokenOutAmount, ad.missionControl, ad.legoBook, ad.ledger)
+    maxTxUsdValue = max(maxTxUsdValue, toAssetUsdValue)
+
+    self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ws.ActionType.SWAP, ad, False, fromAssetUsdValue, toAssetUsdValue)
     log WalletAction(
         op = 20,
         asset1 = tokenIn,
@@ -1105,6 +1112,8 @@ def _performPostActionTasks(
     _action: ws.ActionType,
     _ad: ws.ActionData,
     _isSpecialTx: bool = False,
+    _fromAssetUsdValue: uint256 = 0,
+    _toAssetUsdValue: uint256 = 0,
 ):
     # get underlying asset and vault token if needed
     underlyingAsset: address = empty(address)
@@ -1115,7 +1124,8 @@ def _performPostActionTasks(
 
     # first, check and update manager caps
     if not _isSpecialTx and _ad.signer != _ad.billing:
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, _ad.vaultRegistry) # dev: manager limits not allowed
+        isSwap: bool = _action == ws.ActionType.SWAP
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, isSwap, _fromAssetUsdValue, _toAssetUsdValue, _ad.vaultRegistry) # dev: manager limits not allowed
 
     # can immediately deregister assets on zero balance
     canDeregister: bool = True
