@@ -48,9 +48,9 @@ interface UserWallet:
 
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
+    def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
-    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -145,6 +145,7 @@ HATCHERY_ID: constant(uint256) = 5
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 APPRAISER_ID: constant(uint256) = 7
 BILLING_ID: constant(uint256) = 9
+VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -296,7 +297,13 @@ def checkSignerPermissionsAndGetBundle(
 
 
 @external
-def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool:
+def checkManagerLimitsPostTx(
+    _manager: address,
+    _txUsdValue: uint256,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _vaultRegistry: address,
+) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
     # required data / config
@@ -306,12 +313,16 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
     # check usd value limits
     canFinishTx: bool = False
-    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerUsdLimitsAndUpdateData(
+    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerLimitsPostTx(
         _txUsdValue,
         config.limits,
         globalConfig.limits,
         globalConfig.managerPeriod,
         managerData,
+        (config.legoPerms.onlyApprovedYieldOpps or globalConfig.legoPerms.onlyApprovedYieldOpps),
+        _underlyingAsset,
+        _vaultToken,
+        _vaultRegistry,
     )
 
     # IMPORTANT -- this checks manager limits (usd values)
@@ -973,6 +984,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
         lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
         billing = staticcall Registry(hq).getAddr(BILLING_ID),
+        vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
         wallet = wallet,
         walletConfig = self,
         walletOwner = owner,

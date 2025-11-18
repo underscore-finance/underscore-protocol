@@ -32,17 +32,11 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
-interface Appraiser:
-    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
-    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-    def lastPricePerShare(_asset: address) -> uint256: view
-
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
+    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _vaultRegistry: address) -> bool: nonpayable
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
     def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
-    def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
 
 interface LootDistributor:
@@ -51,6 +45,12 @@ interface LootDistributor:
     def getSwapFee(_user: address, _tokenIn: address, _tokenOut: address, _missionControl: address = empty(address)) -> uint256: view
     def getRewardsFee(_user: address, _asset: address, _missionControl: address = empty(address)) -> uint256: view
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
+
+interface Appraiser:
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
+    def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
+    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+    def lastPricePerShare(_asset: address) -> uint256: view
 
 interface WethContract:
     def withdraw(_amount: uint256): nonpayable
@@ -180,7 +180,7 @@ def transferFunds(
     else:
         assert extcall IERC20(asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
     
-    self._performPostActionTasks([asset], txUsdValue, ad, _isSpecialTx)
+    self._performPostActionTasks([asset], txUsdValue, ws.ActionType.TRANSFER, ad, _isSpecialTx)
     log WalletAction(
         op = 1,
         asset1 = asset,
@@ -270,7 +270,7 @@ def _depositForYield(
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
-        self._performPostActionTasks([_asset, vaultToken], txUsdValue, _ad)
+        self._performPostActionTasks([_asset, vaultToken], txUsdValue, ws.ActionType.EARN_DEPOSIT, _ad)
 
     if _shouldGenerateEvent:
         log WalletAction(
@@ -344,7 +344,7 @@ def _withdrawFromYield(
 
     # perform post action tasks
     if _shouldPerformPostActionTasks:
-        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, _ad, _isSpecialTx)
+        self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, ws.ActionType.EARN_WITHDRAW, _ad, _isSpecialTx)
 
     if _shouldGenerateEvent:
         log WalletAction(
@@ -391,7 +391,7 @@ def rebalanceYieldPosition(
     underlyingAmount, toVaultToken, toVaultTokenAmountReceived, depositTxUsdValue = self._depositForYield(underlyingAsset, _toVaultAddr, underlyingAmount, _extraData, False, False, ad)
 
     maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
-    self._performPostActionTasks([underlyingAsset, _fromVaultToken, toVaultToken], maxUsdValue, ad)
+    self._performPostActionTasks([underlyingAsset, toVaultToken, _fromVaultToken], maxUsdValue, ws.ActionType.EARN_REBALANCE, ad)
     log WalletAction(
         op = 12,
         asset1 = _fromVaultToken,
@@ -448,7 +448,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
             swapFee = self._payTransactionFee(lastTokenOut, lastTokenOutAmount, min(swapFee, 5_00), ws.ActionType.SWAP, ad.lootDistributor, ad.missionControl)
             lastTokenOutAmount -= swapFee
 
-    self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ad)
+    self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ws.ActionType.SWAP, ad)
     log WalletAction(
         op = 20,
         asset1 = tokenIn,
@@ -534,7 +534,7 @@ def mintOrRedeemAsset(
     tokenInAmount, tokenOutAmount, isPending, txUsdValue = extcall Lego(ad.legoAddr).mintOrRedeemAsset(_tokenIn, _tokenOut, tokenInAmount, _minAmountOut, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
     self._resetApproval(_tokenIn, ad.legoAddr)
 
-    self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ad)
+    self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ws.ActionType.MINT_REDEEM, ad)
     log WalletAction(
         op = 21,
         asset1 = _tokenIn,
@@ -563,7 +563,7 @@ def confirmMintOrRedeemAsset(
     txUsdValue: uint256 = 0
     tokenOutAmount, txUsdValue = extcall Lego(ad.legoAddr).confirmMintOrRedeemAsset(_tokenIn, _tokenOut, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ad)
+    self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ws.ActionType.CONFIRM_MINT_REDEEM, ad)
     log WalletAction(
         op = 22,
         asset1 = _tokenIn,
@@ -609,7 +609,7 @@ def addCollateral(
     amountDeposited, txUsdValue = extcall Lego(ad.legoAddr).addCollateral(_asset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
     self._resetApproval(_asset, ad.legoAddr)
 
-    self._performPostActionTasks([_asset], txUsdValue, ad)
+    self._performPostActionTasks([_asset], txUsdValue, ws.ActionType.ADD_COLLATERAL, ad)
     log WalletAction(
         op = 40,
         asset1 = _asset,
@@ -641,7 +641,7 @@ def removeCollateral(
     txUsdValue: uint256 = 0   
     amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    self._performPostActionTasks([_asset], txUsdValue, ad)
+    self._performPostActionTasks([_asset], txUsdValue, ws.ActionType.REMOVE_COLLATERAL, ad)
     log WalletAction(
         op = 41,
         asset1 = _asset,
@@ -673,7 +673,7 @@ def borrow(
     txUsdValue: uint256 = 0
     borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    self._performPostActionTasks([_borrowAsset], txUsdValue, ad)
+    self._performPostActionTasks([_borrowAsset], txUsdValue, ws.ActionType.BORROW, ad)
     log WalletAction(
         op = 42,
         asset1 = _borrowAsset,
@@ -707,7 +707,7 @@ def repayDebt(
     repaidAmount, txUsdValue = extcall Lego(ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
     self._resetApproval(_paymentAsset, ad.legoAddr)
 
-    self._performPostActionTasks([_paymentAsset], txUsdValue, ad)
+    self._performPostActionTasks([_paymentAsset], txUsdValue, ws.ActionType.REPAY_DEBT, ad)
     log WalletAction(
         op = 43,
         asset1 = _paymentAsset,
@@ -759,7 +759,7 @@ def claimIncentives(
             rewardsFee = self._payTransactionFee(_rewardToken, actualRewardAmount, min(rewardsFee, 25_00), ws.ActionType.REWARDS, ad.lootDistributor, ad.missionControl)
             actualRewardAmount -= rewardsFee
 
-    self._performPostActionTasks([_rewardToken], txUsdValue, ad)
+    self._performPostActionTasks([_rewardToken], txUsdValue, ws.ActionType.REWARDS, ad)
     log WalletAction(
         op = 50,
         asset1 = _rewardToken,
@@ -793,7 +793,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     extcall WethContract(weth).withdraw(amount)
 
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
-    self._performPostActionTasks([weth, eth], txUsdValue, ad)
+    self._performPostActionTasks([weth, eth], txUsdValue, ws.ActionType.WETH_TO_ETH, ad)
     log WalletAction(
         op = 2,
         asset1 = weth,
@@ -824,7 +824,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
     extcall WethContract(weth).deposit(value = amount)
 
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
-    self._performPostActionTasks([eth, weth], txUsdValue, ad)
+    self._performPostActionTasks([eth, weth], txUsdValue, ws.ActionType.ETH_TO_WETH, ad)
     log WalletAction(
         op = 3,
         asset1 = eth,
@@ -884,7 +884,7 @@ def addLiquidity(
     if amountB != 0:
         self._resetApproval(_tokenB, ad.legoAddr)
 
-    self._performPostActionTasks([_tokenA, _tokenB, lpToken], txUsdValue, ad)
+    self._performPostActionTasks([_tokenA, _tokenB, lpToken], txUsdValue, ws.ActionType.ADD_LIQ, ad)
     log WalletAction(
         op = 30,
         asset1 = _tokenA,
@@ -922,7 +922,7 @@ def removeLiquidity(
     amountAReceived, amountBReceived, lpAmountBurned, txUsdValue = extcall Lego(ad.legoAddr).removeLiquidity(_pool, _tokenA, _tokenB, _lpToken, lpAmount, _minAmountA, _minAmountB, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
     self._resetApproval(_lpToken, ad.legoAddr)
 
-    self._performPostActionTasks([_tokenA, _tokenB, _lpToken], txUsdValue, ad)
+    self._performPostActionTasks([_tokenA, _tokenB, _lpToken], txUsdValue, ws.ActionType.REMOVE_LIQ, ad)
     log WalletAction(
         op = 31,
         asset1 = _tokenA,
@@ -988,7 +988,7 @@ def addLiquidityConcentrated(
     if amountB != 0:
         self._resetApproval(_tokenB, ad.legoAddr)
 
-    self._performPostActionTasks([_tokenA, _tokenB], txUsdValue, ad)
+    self._performPostActionTasks([_tokenA, _tokenB], txUsdValue, ws.ActionType.ADD_LIQ_CONC, ad)
     log WalletActionExt(
         op = 32,
         asset1 = _tokenA,
@@ -1035,7 +1035,7 @@ def removeLiquidityConcentrated(
     if not isDepleted:
         assert staticcall IERC721(_nftAddr).ownerOf(_nftTokenId) == self # dev: nft not returned
 
-    self._performPostActionTasks([_tokenA, _tokenB], txUsdValue, ad)
+    self._performPostActionTasks([_tokenA, _tokenB], txUsdValue, ws.ActionType.REMOVE_LIQ_CONC, ad)
     log WalletActionExt(
         op = 33,
         asset1 = _tokenA,
@@ -1102,12 +1102,20 @@ def _performPreActionTasks(
 def _performPostActionTasks(
     _assets: DynArray[address, MAX_ASSETS],
     _txUsdValue: uint256,
+    _action: ws.ActionType,
     _ad: ws.ActionData,
     _isSpecialTx: bool = False,
 ):
+    # get underlying asset and vault token if needed
+    underlyingAsset: address = empty(address)
+    vaultToken: address = empty(address)
+    if _action in (ws.ActionType.EARN_DEPOSIT | ws.ActionType.EARN_REBALANCE):
+        underlyingAsset = _assets[0]
+        vaultToken = _assets[1]
+
     # first, check and update manager caps
     if not _isSpecialTx and _ad.signer != _ad.billing:
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerUsdLimitsAndUpdateData(_ad.signer, _txUsdValue) # dev: manager limits not allowed
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, _ad.vaultRegistry) # dev: manager limits not allowed
 
     # can immediately deregister assets on zero balance
     canDeregister: bool = True

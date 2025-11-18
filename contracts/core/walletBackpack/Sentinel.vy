@@ -31,6 +31,9 @@ interface UserWalletConfig:
     def indexOfPayee(_addr: address) -> uint256: view
     def owner() -> address: view
 
+interface VaultRegistry:
+    def isApprovedVaultTokenForAsset(_underlyingAsset: address, _vaultToken: address) -> bool: view
+
 interface UserWallet:
     def walletConfig() -> address: view
 
@@ -226,38 +229,50 @@ def _checkTransactionLimits(
 
 @view
 @external
-def checkManagerUsdLimits(
+def canManagerFinishTx(
     _user: address,
     _manager: address,
     _txUsdValue: uint256,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _vaultRegistry: address,
 ) -> bool:
     c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _manager)
     canFinishTx: bool = False
     na: wcs.ManagerData = empty(wcs.ManagerData)
-    canFinishTx, na = self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data)
+    requiresVaultApproval: bool = (c.config.legoPerms.onlyApprovedYieldOpps or c.globalConfig.legoPerms.onlyApprovedYieldOpps)
+    canFinishTx, na = self._checkManagerLimitsPostTx(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data, requiresVaultApproval, _underlyingAsset, _vaultToken, _vaultRegistry)
     return canFinishTx
 
 
 @view
 @external
-def checkManagerUsdLimitsAndUpdateData(
+def checkManagerLimitsPostTx(
     _txUsdValue: uint256,
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
     _managerData: wcs.ManagerData,
+    _requiresVaultApproval: bool,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
-    return self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData)
+    return self._checkManagerLimitsPostTx(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData, _requiresVaultApproval, _underlyingAsset, _vaultToken, _vaultRegistry)
 
 
 @view
 @internal
-def _checkManagerUsdLimitsAndUpdateData(
+def _checkManagerLimitsPostTx(
     _txUsdValue: uint256,
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
     _managerData: wcs.ManagerData,
+    _requiresVaultApproval: bool,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
     managerData: wcs.ManagerData = self._getLatestManagerData(_managerData, _managerPeriod)
 
@@ -268,6 +283,11 @@ def _checkManagerUsdLimitsAndUpdateData(
     # global usd value limits
     if not self._checkManagerUsdLimits(_txUsdValue, _globalLimits, managerData):
         return False, empty(wcs.ManagerData)
+
+    # vault token approval
+    if _requiresVaultApproval and empty(address) not in [_underlyingAsset, _vaultToken, _vaultRegistry]:
+        if not staticcall VaultRegistry(_vaultRegistry).isApprovedVaultTokenForAsset(_underlyingAsset, _vaultToken):
+            return False, empty(wcs.ManagerData)
 
     # update manager data
     managerData.numTxsInPeriod += 1

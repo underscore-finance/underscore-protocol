@@ -208,6 +208,7 @@ struct LegoPerms:
     canManageDebt: bool
     canManageLiq: bool
     canClaimRewards: bool
+    onlyApprovedYieldOpps: bool
     allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]
 
 struct WhitelistPerms:
