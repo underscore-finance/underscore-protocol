@@ -20,6 +20,7 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
+from interfaces import YieldLego as YieldLego
 from ethereum.ercs import IERC4626
 
 interface Ledger:
@@ -171,6 +172,12 @@ def _canPerformAction(_caller: address) -> bool:
 @view
 @external
 def isEarnVault(_undyVaultAddr: address) -> bool:
+    return self._isEarnVault(_undyVaultAddr)
+
+
+@view
+@internal
+def _isEarnVault(_undyVaultAddr: address) -> bool:
     return registry._isValidAddr(_undyVaultAddr) or self._hasConfig(_undyVaultAddr)
 
 
@@ -728,7 +735,18 @@ def getNumAssetVaultTokens(_asset: address) -> uint256:
 @view
 @external
 def isApprovedVaultTokenForAsset(_underlyingAsset: address, _vaultToken: address) -> bool:
-    return self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] != 0
+    isRegisteredUnderlyingVault: bool = self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] != 0
+    if isRegisteredUnderlyingVault:
+        return True
+    
+    # underscore vault
+    isEarnVault: bool = self._isEarnVault(_vaultToken)
+    if isEarnVault:
+        return True
+
+    # ripe lego -- GREEN / SAVINGS GREEN
+    ripeLegoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(1) # Ripe Lego
+    return staticcall YieldLego(ripeLegoAddr).canRegisterVaultToken(_underlyingAsset, _vaultToken)
 
 
 ######################

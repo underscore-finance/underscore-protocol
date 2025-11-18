@@ -485,7 +485,7 @@ def test_pullPaymentAsCheque_insufficient_funds_reverts(
 
 def test_pullPaymentAsCheque_with_vault_withdrawal(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book, mock_ripe,
-    alpha_token_vault
+    alpha_token_vault, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment that requires withdrawal from vault"""
     # Setup cheque settings
@@ -530,10 +530,16 @@ def test_pullPaymentAsCheque_with_vault_withdrawal(
     # Advance time to unlock the cheque
     boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
     
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
     # Fund the wallet with tokens and deposit into vault
     total_funds = 60 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
-    
+
     # Deposit 40 tokens into vault, keep 20 in wallet
     user_wallet.depositForYield(
         2,  # legoId for mock_yield_lego
@@ -574,7 +580,7 @@ def test_pullPaymentAsCheque_with_vault_withdrawal(
 
 def test_pullPaymentAsCheque_with_multiple_vaults(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book, mock_ripe,
-    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3
+    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment that withdraws from multiple vaults"""
     # Setup cheque settings
@@ -618,11 +624,17 @@ def test_pullPaymentAsCheque_with_multiple_vaults(
     
     # Advance time to unlock the cheque
     boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
-    
+
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
     # Fund the wallet and split across vaults
     total_funds = 120 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
-    
+
     # Deposit into multiple vaults: 30 in each vault, keep 30 in wallet
     user_wallet.depositForYield(
         2,  # legoId
@@ -742,7 +754,7 @@ def test_pullPaymentAsCheque_partial_funds_reverts(
 
 def test_pullPaymentAsCheque_with_yield_gains(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book,
-    mock_ripe, alpha_token_vault
+    mock_ripe, alpha_token_vault, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment when vault has generated yield"""
     # Setup cheque settings
@@ -786,10 +798,16 @@ def test_pullPaymentAsCheque_with_yield_gains(
     
     # Advance time to unlock the cheque
     boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
-    
+
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
     # Fund the wallet and deposit all into vault
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -797,7 +815,7 @@ def test_pullPaymentAsCheque_with_yield_gains(
         amount,
         sender=bob
     )
-    
+
     # Simulate yield generation: add 20% to vault
     yield_amount = 10 * EIGHTEEN_DECIMALS
     alpha_token.transfer(alpha_token_vault.address, yield_amount, sender=alpha_token_whale)
@@ -968,7 +986,7 @@ def test_canPullPaymentAsCheque_view_function(
 
 def test_pullPaymentAsCheque_deregisters_empty_vault(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book,
-    mock_ripe, alpha_token_vault
+    mock_ripe, alpha_token_vault, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test that empty vault assets are deregistered after withdrawal"""
     # Setup cheque settings
@@ -1012,10 +1030,16 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
     
     # Advance time to unlock the cheque
     boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
-    
+
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
     # Fund the wallet and deposit all into vault
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -1023,7 +1047,7 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
         amount,
         sender=bob
     )
-    
+
     # Verify vault is registered
     assert user_wallet.indexOfAsset(alpha_token_vault.address) > 0
     
@@ -1298,7 +1322,7 @@ def test_pullPaymentAsPayee_insufficient_funds_reverts(
 
 def test_pullPaymentAsPayee_with_vault_withdrawal(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
-    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment that requires withdrawal from vault"""
     # Set global payee settings with canPull enabled
@@ -1333,6 +1357,12 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
     total_funds = 60 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
     
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_manager_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
+
     # Register the asset in the wallet config
     user_wallet_config.updateAssetData(
         0,  # _op (lego_id)
@@ -1340,7 +1370,7 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
         False,  # _shouldCheckYield
         sender=switchboard_alpha.address
     )
-    
+
     # Deposit 40 tokens into vault, keep 20 in wallet
     user_wallet.depositForYield(
         2,  # legoId for mock_yield_lego
@@ -1380,7 +1410,7 @@ def test_pullPaymentAsPayee_with_vault_withdrawal(
 def test_pullPaymentAsPayee_with_multiple_vaults(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
     paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings,
-    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3, switchboard_alpha
+    alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3, switchboard_alpha, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment that withdraws from multiple vaults"""
     # Set global payee settings with canPull enabled
@@ -1415,6 +1445,12 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
     total_funds = 120 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, total_funds, sender=alpha_token_whale)
     
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_manager_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
+
     # Register the asset in the wallet config
     user_wallet_config.updateAssetData(
         0,  # _op (lego_id)
@@ -1422,7 +1458,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
         False,  # _shouldCheckYield
         sender=switchboard_alpha.address
     )
-    
+
     # Deposit into multiple vaults: 30 in each vault, keep 30 in wallet
     user_wallet.depositForYield(
         2,  # legoId
@@ -1431,7 +1467,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
         30 * EIGHTEEN_DECIMALS,
         sender=bob
     )
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -1439,7 +1475,7 @@ def test_pullPaymentAsPayee_with_multiple_vaults(
         30 * EIGHTEEN_DECIMALS,
         sender=bob
     )
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -1544,7 +1580,7 @@ def test_pullPaymentAsPayee_partial_funds_succeeds(
 
 def test_pullPaymentAsPayee_with_yield_gains(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
-    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test pull payment when vault has generated yield"""
     # Set global payee settings with canPull enabled
@@ -1579,6 +1615,12 @@ def test_pullPaymentAsPayee_with_yield_gains(
     amount = 50 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
     
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_manager_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
+
     # Register the asset in the wallet config
     user_wallet_config.updateAssetData(
         0,  # _op (lego_id)
@@ -1586,7 +1628,7 @@ def test_pullPaymentAsPayee_with_yield_gains(
         False,  # _shouldCheckYield
         sender=switchboard_alpha.address
     )
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -1594,7 +1636,7 @@ def test_pullPaymentAsPayee_with_yield_gains(
         amount,
         sender=bob
     )
-    
+
     # Simulate yield generation: add 20% to vault
     yield_amount = 10 * EIGHTEEN_DECIMALS
     alpha_token.transfer(alpha_token_vault.address, yield_amount, sender=alpha_token_whale)
@@ -1717,7 +1759,7 @@ def test_canPullPaymentAsPayee_view_function(
 
 def test_pullPaymentAsPayee_deregisters_empty_vault(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, user_wallet_config,
-    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha
+    paymaster, mock_ripe, createPayeeLimits, createGlobalPayeeSettings, alpha_token_vault, switchboard_alpha, high_command, createGlobalManagerSettings, createLegoPerms
 ):
     """Test that empty vault assets are deregistered after withdrawal"""
     # Set global payee settings with canPull enabled
@@ -1752,6 +1794,12 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
     amount = 50 * EIGHTEEN_DECIMALS
     alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
     
+    # Disable onlyApprovedYieldOpps for test (billing tests use mock vaults)
+    global_manager_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
+
     # Register the asset in the wallet config
     user_wallet_config.updateAssetData(
         0,  # _op (lego_id)
@@ -1759,7 +1807,7 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
         False,  # _shouldCheckYield
         sender=switchboard_alpha.address
     )
-    
+
     user_wallet.depositForYield(
         2,  # legoId
         alpha_token.address,
@@ -1767,10 +1815,10 @@ def test_pullPaymentAsPayee_deregisters_empty_vault(
         amount,
         sender=bob
     )
-    
+
     # Verify vault is registered
     assert user_wallet.indexOfAsset(alpha_token_vault.address) > 0
-    
+
     # Alice pulls full payment (empties the vault)
     tx_amount, tx_usd_value = billing.pullPaymentAsPayee(
         user_wallet.address,
