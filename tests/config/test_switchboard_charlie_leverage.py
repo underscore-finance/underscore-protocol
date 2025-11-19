@@ -687,7 +687,7 @@ def test_add_vault_manager_non_governance_fails(switchboard_charlie, undy_levg_v
 ###########################################
 
 def test_remove_vault_manager_success_leverage_vault(switchboard_charlie, undy_levg_vault_usdc, alice, governance):
-    """Test removing manager from leverage vault"""
+    """Test removing manager from leverage vault - executes immediately"""
     vault = undy_levg_vault_usdc
 
     # First add alice as manager
@@ -699,31 +699,24 @@ def test_remove_vault_manager_success_leverage_vault(switchboard_charlie, undy_l
     assert vault.indexOfManager(alice) > 0
     initial_count = vault.numManagers()
 
-    # Remove alice
+    # Remove alice - executes immediately (no timelock)
     aid_remove = switchboard_charlie.removeVaultManager(vault.address, alice, sender=governance.address)
 
-    # Verify pending
-    assert switchboard_charlie.actionType(aid_remove) == 65536  # REMOVE_MANAGER (2^16)
-    pending = switchboard_charlie.pendingRemoveManager(aid_remove)
-    assert pending.vaultAddr == vault.address
-    assert pending.manager == alice
+    # Should return 0 (no action ID) for immediate execution
+    assert aid_remove == 0
 
-    # Execute
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid_remove, sender=governance.address)
-    assert result == True
-
-    # Verify state
+    # Verify state immediately (no timelock wait)
     assert vault.numManagers() == initial_count - 1
     assert vault.indexOfManager(alice) == 0
 
     # Verify event
     logs = filter_logs(switchboard_charlie, "ManagerRemoved")
+    assert logs[-1].vaultAddr == vault.address
     assert logs[-1].manager == alice
 
 
 def test_remove_vault_manager_success_earn_vault(switchboard_charlie, undy_usd_vault, alice, governance):
-    """Test removing manager from earn vault (shared functionality)"""
+    """Test removing manager from earn vault - executes immediately"""
     vault = undy_usd_vault
 
     # Add alice
@@ -733,18 +726,19 @@ def test_remove_vault_manager_success_earn_vault(switchboard_charlie, undy_usd_v
 
     initial_count = vault.numManagers()
 
-    # Remove alice
+    # Remove alice - executes immediately (no timelock)
     aid_remove = switchboard_charlie.removeVaultManager(vault.address, alice, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid_remove, sender=governance.address)
-    assert result == True
 
+    # Should return 0 (no action ID) for immediate execution
+    assert aid_remove == 0
+
+    # Verify state immediately (no timelock wait)
     assert vault.numManagers() == initial_count - 1
     assert vault.indexOfManager(alice) == 0
 
 
 def test_remove_vault_manager_multiple_sequential(switchboard_charlie, undy_levg_vault_usdc, alice, bob, governance):
-    """Test removing multiple managers sequentially"""
+    """Test removing multiple managers sequentially - executes immediately"""
     vault = undy_levg_vault_usdc
 
     # Add both alice and bob
@@ -756,15 +750,15 @@ def test_remove_vault_manager_multiple_sequential(switchboard_charlie, undy_levg
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
     switchboard_charlie.executePendingAction(aid2, sender=governance.address)
 
-    # Remove alice
+    # Remove alice - executes immediately (no timelock)
     aid3 = switchboard_charlie.removeVaultManager(vault.address, alice, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    switchboard_charlie.executePendingAction(aid3, sender=governance.address)
+    assert aid3 == 0
+    assert vault.indexOfManager(alice) == 0
 
-    # Remove bob
+    # Remove bob - executes immediately (no timelock)
     aid4 = switchboard_charlie.removeVaultManager(vault.address, bob, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    switchboard_charlie.executePendingAction(aid4, sender=governance.address)
+    assert aid4 == 0
+    assert vault.indexOfManager(bob) == 0
 
     # Verify both removed
     assert vault.indexOfManager(alice) == 0
@@ -772,19 +766,17 @@ def test_remove_vault_manager_multiple_sequential(switchboard_charlie, undy_levg
 
 
 def test_remove_vault_manager_non_existent_graceful(switchboard_charlie, undy_levg_vault_usdc, alice, governance):
-    """Test removing non-existent manager is graceful (no error)"""
+    """Test removing non-existent manager is graceful (no error) - executes immediately"""
     vault = undy_levg_vault_usdc
 
     # Ensure alice is not a manager
     assert vault.indexOfManager(alice) == 0
 
-    # Try to remove alice (should not error)
+    # Try to remove alice (should not error) - executes immediately
     aid = switchboard_charlie.removeVaultManager(vault.address, alice, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
 
-    # Should succeed without error
-    assert result == True
+    # Should return 0 and succeed without error
+    assert aid == 0
 
 
 def test_remove_vault_manager_invalid_vault_fails(switchboard_charlie, alice, governance):

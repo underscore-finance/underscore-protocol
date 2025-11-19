@@ -858,14 +858,15 @@ def _deregisterYieldPosition(_vaultToken: address) -> bool:
 
 @internal
 def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
-    assert self.indexOfManager[_signer] != 0 # dev: not manager
+    vaultRegistry: address = self._getVaultRegistry()
+    if msg.sender != vaultRegistry:
+        assert self.indexOfManager[_signer] != 0 # dev: not manager
 
     # main data for this transaction - get action data and frozen status in single call
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
-    vaultRegistry: address = self._getVaultRegistry()
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)

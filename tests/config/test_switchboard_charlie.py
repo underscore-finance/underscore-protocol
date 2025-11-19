@@ -499,11 +499,11 @@ def test_set_approved_vault_token_success(switchboard_charlie, vault_registry, u
 
 
 def test_set_approved_vault_token_disapprove(switchboard_charlie, vault_registry, undy_usd_vault, governance, yield_vault_token):
-    """Test disapproving a vault token"""
+    """Test disapproving a vault token - executes immediately without timelock"""
     # yield_vault_token is already approved in fixtures
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
 
-    # Initiate disapproval
+    # Disapproval executes immediately (no timelock)
     aid = switchboard_charlie.setApprovedVaultToken(
         undy_usd_vault.address,
         yield_vault_token.address,
@@ -511,13 +511,18 @@ def test_set_approved_vault_token_disapprove(switchboard_charlie, vault_registry
         sender=governance.address
     )
 
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
-    assert result == True
+    # Should return 0 (no action ID) for immediate execution
+    assert aid == 0
 
-    # Verify disapproved
+    # Verify immediately disapproved (no timelock wait)
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == False
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "ApprovedVaultTokenSet")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].isApproved == False
 
 
 def test_set_approved_vault_token_zero_address_fails(switchboard_charlie, undy_usd_vault, governance):
@@ -545,8 +550,55 @@ def test_set_approved_vault_token_invalid_vault_fails(switchboard_charlie, gover
         )
 
 
-def test_set_approved_vault_token_non_governance_fails(switchboard_charlie, undy_usd_vault, alice):
-    """Test that non-governance cannot approve vault tokens"""
+def test_set_approved_vault_token_security_action_can_disapprove(switchboard_charlie, vault_registry, undy_usd_vault, mission_control, switchboard_alpha, alice, yield_vault_token):
+    """Test that security action users can disapprove vault tokens immediately"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # yield_vault_token is already approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
+
+    # Alice (security action user) disapproves immediately
+    aid = switchboard_charlie.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        False,
+        sender=alice
+    )
+
+    # Should return 0 (no action ID) for immediate execution
+    assert aid == 0
+
+    # Verify immediately disapproved (no timelock wait)
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == False
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "ApprovedVaultTokenSet")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].isApproved == False
+
+
+def test_set_approved_vault_token_security_action_cannot_approve(switchboard_charlie, undy_usd_vault, mission_control, switchboard_alpha, alice):
+    """Test that security action users cannot approve vault tokens"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    new_vault_token = boa.env.generate_address()
+
+    # Alice tries to approve - should fail
+    with boa.reverts("no perms"):
+        switchboard_charlie.setApprovedVaultToken(
+            undy_usd_vault.address,
+            new_vault_token,
+            True,
+            sender=alice
+        )
+
+
+def test_set_approved_vault_token_unauthorized_cannot_approve(switchboard_charlie, undy_usd_vault, alice):
+    """Test that unauthorized users cannot approve vault tokens"""
     vault_token = boa.env.generate_address()
 
     with boa.reverts("no perms"):
@@ -555,6 +607,208 @@ def test_set_approved_vault_token_non_governance_fails(switchboard_charlie, undy
             vault_token,
             True,
             sender=alice
+        )
+
+
+def test_set_approved_vault_token_unauthorized_cannot_disapprove(switchboard_charlie, undy_usd_vault, alice, yield_vault_token):
+    """Test that unauthorized users cannot disapprove vault tokens"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.setApprovedVaultToken(
+            undy_usd_vault.address,
+            yield_vault_token.address,
+            False,
+            sender=alice
+        )
+
+
+# setApprovedVaultTokens tests (plural)
+
+
+def test_set_approved_vault_tokens_governance_can_approve(switchboard_charlie, vault_registry, undy_usd_vault, governance):
+    """Test that governance can approve multiple vault tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    token3 = boa.env.generate_address()
+    vault_tokens = [token1, token2, token3]
+
+    # Initially not approved
+    for token in vault_tokens:
+        assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == False
+
+    # Initiate approval
+    aid = switchboard_charlie.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        vault_tokens,
+        True,
+        sender=governance.address
+    )
+
+    # Verify event
+    logs = filter_logs(switchboard_charlie, "PendingApprovedVaultTokensChange")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].numTokens == 3
+    assert logs[-1].isApproved == True
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify all tokens are approved
+    for token in vault_tokens:
+        assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == True
+
+
+def test_set_approved_vault_tokens_governance_can_disapprove(switchboard_charlie, vault_registry, undy_usd_vault, governance, yield_vault_token, yield_vault_token_2):
+    """Test that governance can disapprove multiple vault tokens immediately"""
+    # Both tokens should be approved in fixtures
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token_2.address) == True
+
+    vault_tokens = [yield_vault_token.address, yield_vault_token_2.address]
+
+    # Disapproval executes immediately (no timelock)
+    aid = switchboard_charlie.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        vault_tokens,
+        False,
+        sender=governance.address
+    )
+
+    # Should return 0 (no action ID) for immediate execution
+    assert aid == 0
+
+    # Verify all tokens are immediately disapproved (no timelock wait)
+    for token in vault_tokens:
+        assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == False
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "ApprovedVaultTokensSet")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].numTokens == 2
+    assert logs[-1].isApproved == False
+
+
+def test_set_approved_vault_tokens_security_action_can_disapprove(switchboard_charlie, vault_registry, undy_usd_vault, mission_control, switchboard_alpha, alice, yield_vault_token, yield_vault_token_2):
+    """Test that security action users can disapprove multiple vault tokens immediately"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Both tokens should be approved
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
+    assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token_2.address) == True
+
+    vault_tokens = [yield_vault_token.address, yield_vault_token_2.address]
+
+    # Alice (security action user) disapproves immediately
+    aid = switchboard_charlie.setApprovedVaultTokens(
+        undy_usd_vault.address,
+        vault_tokens,
+        False,
+        sender=alice
+    )
+
+    # Should return 0 (no action ID) for immediate execution
+    assert aid == 0
+
+    # Verify all tokens are immediately disapproved (no timelock wait)
+    for token in vault_tokens:
+        assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == False
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "ApprovedVaultTokensSet")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].numTokens == 2
+    assert logs[-1].isApproved == False
+
+
+def test_set_approved_vault_tokens_security_action_cannot_approve(switchboard_charlie, undy_usd_vault, mission_control, switchboard_alpha, alice):
+    """Test that security action users cannot approve multiple vault tokens"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    vault_tokens = [token1, token2]
+
+    # Alice tries to approve - should fail
+    with boa.reverts("no perms"):
+        switchboard_charlie.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            vault_tokens,
+            True,
+            sender=alice
+        )
+
+
+def test_set_approved_vault_tokens_unauthorized_cannot_approve(switchboard_charlie, undy_usd_vault, alice):
+    """Test that unauthorized users cannot approve multiple vault tokens"""
+    token1 = boa.env.generate_address()
+    token2 = boa.env.generate_address()
+    vault_tokens = [token1, token2]
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            vault_tokens,
+            True,
+            sender=alice
+        )
+
+
+def test_set_approved_vault_tokens_unauthorized_cannot_disapprove(switchboard_charlie, undy_usd_vault, alice, yield_vault_token, yield_vault_token_2):
+    """Test that unauthorized users cannot disapprove multiple vault tokens"""
+    vault_tokens = [yield_vault_token.address, yield_vault_token_2.address]
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            vault_tokens,
+            False,
+            sender=alice
+        )
+
+
+def test_set_approved_vault_tokens_empty_list_fails(switchboard_charlie, undy_usd_vault, governance):
+    """Test that empty vault tokens list is rejected"""
+    with boa.reverts("no vault tokens"):
+        switchboard_charlie.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            [],
+            True,
+            sender=governance.address
+        )
+
+
+def test_set_approved_vault_tokens_zero_address_fails(switchboard_charlie, undy_usd_vault, governance):
+    """Test that vault tokens list containing zero address is rejected"""
+    token1 = boa.env.generate_address()
+    vault_tokens = [token1, ZERO_ADDRESS]
+
+    with boa.reverts("invalid vault tokens"):
+        switchboard_charlie.setApprovedVaultTokens(
+            undy_usd_vault.address,
+            vault_tokens,
+            True,
+            sender=governance.address
+        )
+
+
+def test_set_approved_vault_tokens_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+    token1 = boa.env.generate_address()
+    vault_tokens = [token1]
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.setApprovedVaultTokens(
+            invalid_vault,
+            vault_tokens,
+            True,
+            sender=governance.address
         )
 
 
@@ -989,4 +1243,298 @@ def test_set_max_deposit_amount_non_governance_fails(switchboard_charlie, undy_u
             undy_usd_vault.address,
             1_000_000 * EIGHTEEN_DECIMALS,
             sender=alice
+        )
+
+
+# addPriceSnapshot tests
+
+
+def test_add_price_snapshot_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    user_wallet,
+    bob,
+    lego_book,
+    governance
+):
+    """Test that governance can call addPriceSnapshot"""
+    lego_id = lego_book.getRegId(mock_yield_lego)  # Get actual lego ID
+
+    # Register vault token via deposit
+    amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet.address, amount, sender=yield_underlying_token_whale)
+    user_wallet.depositForYield(lego_id, yield_underlying_token, yield_vault_token, amount, sender=bob)
+
+    # Time travel to allow another snapshot
+    boa.env.time_travel(seconds=301)
+
+    # Governance calls addPriceSnapshot
+    result = switchboard_charlie.addPriceSnapshot(
+        lego_id,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+
+    # Verify it returns a boolean
+    assert isinstance(result, bool)
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "PriceSnapshotAdded")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].success == result
+    assert logs[-1].caller == governance.address
+
+
+def test_add_price_snapshot_security_action_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    user_wallet,
+    bob,
+    lego_book,
+    mission_control,
+    switchboard_alpha,
+    alice
+):
+    """Test that security action users can call addPriceSnapshot"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    lego_id = lego_book.getRegId(mock_yield_lego)  # Get actual lego ID
+
+    # Register vault token via deposit
+    amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet.address, amount, sender=yield_underlying_token_whale)
+    user_wallet.depositForYield(lego_id, yield_underlying_token, yield_vault_token, amount, sender=bob)
+
+    # Time travel to allow another snapshot
+    boa.env.time_travel(seconds=301)
+
+    # Alice (security action user) calls addPriceSnapshot
+    result = switchboard_charlie.addPriceSnapshot(
+        lego_id,
+        yield_vault_token.address,
+        sender=alice
+    )
+
+    # Verify it returns a boolean
+    assert isinstance(result, bool)
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "PriceSnapshotAdded")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].success == result
+    assert logs[-1].caller == alice
+
+
+def test_add_price_snapshot_unauthorized_fails(switchboard_charlie, yield_vault_token, alice):
+    """Test that unauthorized users cannot call addPriceSnapshot"""
+    lego_id = 2  # mock_yield_lego
+
+    # Unauthorized user tries to call
+    with boa.reverts("no perms"):
+        switchboard_charlie.addPriceSnapshot(
+            lego_id,
+            yield_vault_token.address,
+            sender=alice
+        )
+
+
+def test_add_price_snapshot_invalid_lego_id_fails(switchboard_charlie, yield_vault_token, governance):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999  # non-existent lego
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.addPriceSnapshot(
+            invalid_lego_id,
+            yield_vault_token.address,
+            sender=governance.address
+        )
+
+
+def test_add_price_snapshot_multiple_calls(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    user_wallet,
+    bob,
+    lego_book,
+    governance
+):
+    """Test multiple consecutive addPriceSnapshot calls"""
+    lego_id = lego_book.getRegId(mock_yield_lego)  # Get actual lego ID
+
+    # Register vault token via deposit
+    amount = 100 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet.address, amount, sender=yield_underlying_token_whale)
+    user_wallet.depositForYield(lego_id, yield_underlying_token, yield_vault_token, amount, sender=bob)
+
+    # Time travel to allow another snapshot
+    boa.env.time_travel(seconds=301)
+
+    # First call
+    result1 = switchboard_charlie.addPriceSnapshot(
+        lego_id,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+    assert isinstance(result1, bool)
+
+    # Verify first event was emitted
+    logs1 = filter_logs(switchboard_charlie, "PriceSnapshotAdded")
+    assert len(logs1) >= 1
+    assert logs1[-1].caller == governance.address
+
+    # Time travel to allow another snapshot
+    boa.env.time_travel(seconds=301)
+
+    # Second call - should succeed without reverting
+    result2 = switchboard_charlie.addPriceSnapshot(
+        lego_id,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+    assert isinstance(result2, bool)
+
+    # Verify we can call it twice successfully (no revert)
+
+
+# updateYieldPosition tests
+
+
+def test_update_yield_position_governance_can_call(switchboard_charlie, undy_usd_vault, yield_vault_token, governance):
+    """Test that governance can call updateYieldPosition"""
+    # Call updateYieldPosition
+    switchboard_charlie.updateYieldPosition(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "YieldPositionUpdated")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].caller == governance.address
+
+
+def test_update_yield_position_security_action_can_call(switchboard_charlie, undy_usd_vault, yield_vault_token, mission_control, switchboard_alpha, alice):
+    """Test that security action users can call updateYieldPosition"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Alice (security action user) calls updateYieldPosition
+    switchboard_charlie.updateYieldPosition(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        sender=alice
+    )
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "YieldPositionUpdated")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].caller == alice
+
+
+def test_update_yield_position_unauthorized_fails(switchboard_charlie, undy_usd_vault, yield_vault_token, alice):
+    """Test that unauthorized users cannot call updateYieldPosition"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.updateYieldPosition(
+            undy_usd_vault.address,
+            yield_vault_token.address,
+            sender=alice
+        )
+
+
+def test_update_yield_position_invalid_vault_fails(switchboard_charlie, yield_vault_token, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.updateYieldPosition(
+            invalid_vault,
+            yield_vault_token.address,
+            sender=governance.address
+        )
+
+
+# claimPerformanceFees tests
+
+
+def test_claim_performance_fees_governance_can_call(switchboard_charlie, undy_usd_vault, governance):
+    """Test that governance can call claimPerformanceFees"""
+    # Call claimPerformanceFees
+    amount = switchboard_charlie.claimPerformanceFees(
+        undy_usd_vault.address,
+        sender=governance.address
+    )
+
+    # Verify it returns a uint256
+    assert isinstance(amount, int)
+    assert amount >= 0
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "PerformanceFeesClaimed")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].amount == amount
+    assert logs[-1].caller == governance.address
+
+
+def test_claim_performance_fees_security_action_can_call(switchboard_charlie, undy_usd_vault, mission_control, switchboard_alpha, alice):
+    """Test that security action users can call claimPerformanceFees"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Alice (security action user) calls claimPerformanceFees
+    amount = switchboard_charlie.claimPerformanceFees(
+        undy_usd_vault.address,
+        sender=alice
+    )
+
+    # Verify it returns a uint256
+    assert isinstance(amount, int)
+    assert amount >= 0
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "PerformanceFeesClaimed")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].amount == amount
+    assert logs[-1].caller == alice
+
+
+def test_claim_performance_fees_unauthorized_fails(switchboard_charlie, undy_usd_vault, alice):
+    """Test that unauthorized users cannot call claimPerformanceFees"""
+    with boa.reverts("no perms"):
+        switchboard_charlie.claimPerformanceFees(
+            undy_usd_vault.address,
+            sender=alice
+        )
+
+
+def test_claim_performance_fees_invalid_vault_fails(switchboard_charlie, governance):
+    """Test that invalid vault address is rejected"""
+    invalid_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.claimPerformanceFees(
+            invalid_vault,
+            sender=governance.address
         )

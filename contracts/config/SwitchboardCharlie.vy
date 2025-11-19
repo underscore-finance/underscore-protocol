@@ -53,12 +53,15 @@ interface LevgVault:
     def setMaxDebtRatio(_ratio: uint256): nonpayable
     def addManager(_manager: address): nonpayable
     def removeManager(_manager: address): nonpayable
+    def updateYieldPosition(_vaultToken: address): nonpayable
+    def claimPerformanceFees() -> uint256: nonpayable
     def levgVaultHelper() -> address: view
     def USDC() -> address: view
 
 interface YieldLego:
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
     def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
+    def addPriceSnapshot(_vaultToken: address) -> bool: nonpayable
 
 interface LevgVaultHelper:
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
@@ -371,6 +374,23 @@ event ManagerRemoved:
     vaultAddr: indexed(address)
     manager: indexed(address)
 
+event PriceSnapshotAdded:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    vaultToken: indexed(address)
+    success: bool
+    caller: address
+
+event YieldPositionUpdated:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    caller: address
+
+event PerformanceFeesClaimed:
+    vaultAddr: indexed(address)
+    amount: uint256
+    caller: address
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
@@ -411,10 +431,10 @@ def __init__(
 
 @view
 @internal
-def _hasPermsToFreeze(_caller: address, _shouldFreeze: bool) -> bool:
+def _hasPermission(_caller: address, _isLiteAction: bool) -> bool:
     if gov._canGovern(_caller):
         return True
-    if _shouldFreeze:
+    if _isLiteAction:
         return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
     return False
 
@@ -429,7 +449,7 @@ def _hasPermsToFreeze(_caller: address, _shouldFreeze: bool) -> bool:
 
 @external
 def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _canDeposit) # dev: no perms
+    assert self._hasPermission(msg.sender, not _canDeposit) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setCanDeposit(_vaultAddr, _canDeposit)
     log CanDepositSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit, caller=msg.sender)
 
@@ -439,7 +459,7 @@ def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
 
 @external
 def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _canWithdraw) # dev: no perms
+    assert self._hasPermission(msg.sender, not _canWithdraw) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setCanWithdraw(_vaultAddr, _canWithdraw)
     log CanWithdrawSet(vaultAddr=_vaultAddr, canWithdraw=_canWithdraw, caller=msg.sender)
 
@@ -449,7 +469,7 @@ def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
 
 @external
 def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
-    assert self._hasPermsToFreeze(msg.sender, _isFrozen) # dev: no perms
+    assert self._hasPermission(msg.sender, _isFrozen) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setVaultOpsFrozen(_vaultAddr, _isFrozen)
     log VaultOpsFrozenSet(vaultAddr=_vaultAddr, isFrozen=_isFrozen, caller=msg.sender)
 
@@ -459,9 +479,60 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
 
 @external
 def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _shouldAutoDeposit) # dev: no perms
+    assert self._hasPermission(msg.sender, not _shouldAutoDeposit) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldAutoDeposit(_vaultAddr, _shouldAutoDeposit)
     log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit, caller=msg.sender)
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_legoId: uint256, _vaultToken: address) -> bool:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    # get lego address from lego book
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # call addPriceSnapshot on the lego
+    result: bool = extcall YieldLego(legoAddr).addPriceSnapshot(_vaultToken)
+
+    log PriceSnapshotAdded(legoId=_legoId, legoAddr=legoAddr, vaultToken=_vaultToken, success=result, caller=msg.sender)
+    return result
+
+
+# update yield position
+
+
+@external
+def updateYieldPosition(_vaultAddr: address, _vaultToken: address):
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # call updateYieldPosition on the vault
+    extcall LevgVault(_vaultAddr).updateYieldPosition(_vaultToken)
+
+    log YieldPositionUpdated(vaultAddr=_vaultAddr, vaultToken=_vaultToken, caller=msg.sender)
+
+
+# claim performance fees
+
+
+@external
+def claimPerformanceFees(_vaultAddr: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # call claimPerformanceFees on the vault
+    amount: uint256 = extcall LevgVault(_vaultAddr).claimPerformanceFees()
+
+    log PerformanceFeesClaimed(vaultAddr=_vaultAddr, amount=amount, caller=msg.sender)
+    return amount
 
 
 ##############
@@ -568,22 +639,30 @@ def setSnapShotPriceConfig(
 
 
 @external
-def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
+def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool) -> uint256:
+    assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
+
     vr: address = addys._getVaultRegistryAddr()
-    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert staticcall VaultRegistry(vr).isEarnVault(_undyVaultAddr) # dev: invalid vault addr
     assert _vaultToken != empty(address) # dev: invalid vault token
 
+    # if disapproving, execute immediately (no timelock for emergency removals)
+    if not _isApproved:
+        extcall VaultRegistry(vr).setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved)
+        log ApprovedVaultTokenSet(vaultAddr=_undyVaultAddr, vaultToken=_vaultToken, isApproved=_isApproved)
+        return 0
+
+    # if approving, use timelock
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.APPROVED_VAULT_TOKEN
     self.pendingApprovedVaultToken[aid] = PendingApprovedVaultToken(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         vaultToken=_vaultToken,
         isApproved=_isApproved
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingApprovedVaultTokenChange(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         vaultToken=_vaultToken,
         isApproved=_isApproved,
         confirmationBlock=confirmationBlock,
@@ -593,25 +672,33 @@ def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved
 
 
 @external
-def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
+def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool) -> uint256:
+    assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
+
     vr: address = addys._getVaultRegistryAddr()
-    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+    assert staticcall VaultRegistry(vr).isEarnVault(_undyVaultAddr) # dev: invalid vault addr
 
     # validate all vault tokens
     assert empty(address) not in _vaultTokens # dev: invalid vault tokens
     assert len(_vaultTokens) != 0 # dev: no vault tokens
 
+    # if disapproving, execute immediately (no timelock for emergency removals)
+    if not _isApproved:
+        extcall VaultRegistry(vr).setApprovedVaultTokens(_undyVaultAddr, _vaultTokens, _isApproved)
+        log ApprovedVaultTokensSet(vaultAddr=_undyVaultAddr, numTokens=len(_vaultTokens), isApproved=_isApproved)
+        return 0
+
+    # if approving, use timelock
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.APPROVED_VAULT_TOKENS
     self.pendingApprovedVaultTokens[aid] = PendingApprovedVaultTokens(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         vaultTokens=_vaultTokens,
         isApproved=_isApproved
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingApprovedVaultTokensChange(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         numTokens=len(_vaultTokens),
         isApproved=_isApproved,
         confirmationBlock=confirmationBlock,
@@ -920,23 +1007,13 @@ def addVaultManager(_vaultAddr: address, _manager: address) -> uint256:
 
 @external
 def removeVaultManager(_vaultAddr: address, _manager: address) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._hasPermission(msg.sender, True) # dev: no perms
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
 
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.REMOVE_MANAGER
-    self.pendingRemoveManager[aid] = PendingRemoveManager(
-        vaultAddr=_vaultAddr,
-        manager=_manager
-    )
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingRemoveManagerChange(
-        vaultAddr=_vaultAddr,
-        manager=_manager,
-        confirmationBlock=confirmationBlock,
-        actionId=aid
-    )
-    return aid
+    # execute immediately (no timelock for emergency manager removals)
+    extcall LevgVault(_vaultAddr).removeManager(_manager)
+    log ManagerRemoved(vaultAddr=_vaultAddr, manager=_manager)
+    return 0
 
 
 #############
