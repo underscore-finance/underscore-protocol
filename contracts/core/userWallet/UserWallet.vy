@@ -34,7 +34,7 @@ from ethereum.ercs import IERC721
 
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
-    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _isSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> bool: nonpayable
+    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> bool: nonpayable
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
     def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
@@ -1123,9 +1123,9 @@ def _performPostActionTasks(
         vaultToken = _assets[1]
 
     # first, check and update manager caps
-    if not _isSpecialTx and _ad.signer != _ad.billing:
-        isSwap: bool = _action == ws.ActionType.SWAP
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, isSwap, _fromAssetUsdValue, _toAssetUsdValue, _ad.vaultRegistry) # dev: manager limits not allowed
+    if _ad.isManager and not _isSpecialTx:
+        shouldCheckSwap: bool = _action == ws.ActionType.SWAP
+        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, shouldCheckSwap, _fromAssetUsdValue, _toAssetUsdValue, _ad.vaultRegistry) # dev: manager limits not allowed
 
     # can immediately deregister assets on zero balance
     canDeregister: bool = True

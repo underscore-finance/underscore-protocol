@@ -2524,3 +2524,175 @@ def test_swap_passes_all_three_restrictions(createGlobalManagerSettings, createM
     )
     assert success
     assert updated_data.numSwapsInPeriod == 3  # Counter incremented
+
+
+def test_swap_owner_bypasses_restrictions_when_can_owner_manage(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, bob, sentinel, user_wallet_config, high_command):
+    """Test that owner bypasses SwapPerms restrictions when canOwnerManage=True"""
+    # Setup global with canOwnerManage=True and restrictive SwapPerms
+    global_swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=1,
+        _maxSlippage=100  # 1% - very restrictive
+    )
+    global_settings = createGlobalManagerSettings(
+        _canOwnerManage=True,  # Owner can bypass
+        _swapPerms=global_swap_perms
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Setup manager with restrictive SwapPerms
+    manager_swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=1,
+        _maxSlippage=100
+    )
+    manager_settings_obj = createManagerSettings(_swapPerms=manager_swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Owner should bypass all restrictions because isSwap=False for owner
+    # (isSwap = _action == SWAP and _ad.isManager, and owner is not a manager)
+
+    # Test 1: Bypass mustHaveUsdValue (zero USD values should pass for owner)
+    manager_data = createManagerData(_numSwapsInPeriod=0, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,  # _requiresVaultApproval
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,  # isSwap=False for owner (owner is not a manager)
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue (zero - would fail for manager)
+        0,  # toAssetUsdValue (zero - would fail for manager)
+        ZERO_ADDRESS,
+    )
+    assert success  # Owner bypasses mustHaveUsdValue check
+
+    # Test 2: Bypass maxNumSwapsPerPeriod (should work even at limit)
+    manager_data = createManagerData(_numSwapsInPeriod=1, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,  # _requiresVaultApproval
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,  # isSwap=False for owner
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,
+        90 * 10**6,
+        ZERO_ADDRESS,
+    )
+    assert success  # Owner bypasses swap count limit
+
+    # Test 3: Bypass maxSlippage (10% slippage should pass for owner despite 1% limit)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,  # _requiresVaultApproval
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,  # isSwap=False for owner
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        90 * 10**6,   # toAssetUsdValue (10% slippage - exceeds 1% limit)
+        ZERO_ADDRESS,
+    )
+    assert success  # Owner bypasses slippage limit
+
+
+def test_swap_count_resets_on_period_rollover(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap counter resets when period rolls over"""
+    # Setup manager with swap count limit of 3
+    swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=3)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Perform 3 swaps to reach the limit
+    current_block = boa.env.evm.patch.block_number
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=current_block)
+
+    # Third swap should pass
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 3  # At limit
+
+    # Fourth swap at same period should fail
+    manager_data = createManagerData(_numSwapsInPeriod=3, _periodStartBlock=current_block)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert not success  # Blocked by limit
+
+    # Advance blocks beyond the manager period to trigger rollover
+    manager_period = global_manager_settings.managerPeriod
+    boa.env.time_travel(blocks=manager_period + 1)
+    new_period_block = boa.env.evm.patch.block_number
+
+    # After period rollover, counter should reset and swap should pass
+    # Manager data still shows 3 swaps but in OLD period
+    manager_data = createManagerData(_numSwapsInPeriod=3, _periodStartBlock=current_block)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success  # Passes because period rolled over
+    assert updated_data.numSwapsInPeriod == 1  # Counter reset and incremented
+    assert updated_data.periodStartBlock == new_period_block  # New period started

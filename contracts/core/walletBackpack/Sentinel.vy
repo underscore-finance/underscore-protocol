@@ -237,7 +237,7 @@ def canManagerFinishTx(
     _txUsdValue: uint256,
     _underlyingAsset: address,
     _vaultToken: address,
-    _isSwap: bool,
+    _shouldCheckSwap: bool,
     _specificSwapPerms: wcs.SwapPerms,
     _globalSwapPerms: wcs.SwapPerms,
     _fromAssetUsdValue: uint256,
@@ -248,7 +248,7 @@ def canManagerFinishTx(
     canFinishTx: bool = False
     na: wcs.ManagerData = empty(wcs.ManagerData)
     requiresVaultApproval: bool = (c.config.legoPerms.onlyApprovedYieldOpps or c.globalConfig.legoPerms.onlyApprovedYieldOpps)
-    canFinishTx, na = self._checkManagerLimitsPostTx(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data, requiresVaultApproval, _underlyingAsset, _vaultToken, _isSwap, c.config.swapPerms, c.globalConfig.swapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
+    canFinishTx, na = self._checkManagerLimitsPostTx(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data, requiresVaultApproval, _underlyingAsset, _vaultToken, _shouldCheckSwap, c.config.swapPerms, c.globalConfig.swapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
     return canFinishTx
 
 
@@ -263,14 +263,14 @@ def checkManagerLimitsPostTx(
     _requiresVaultApproval: bool,
     _underlyingAsset: address,
     _vaultToken: address,
-    _isSwap: bool,
+    _shouldCheckSwap: bool,
     _specificSwapPerms: wcs.SwapPerms,
     _globalSwapPerms: wcs.SwapPerms,
     _fromAssetUsdValue: uint256,
     _toAssetUsdValue: uint256,
     _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
-    return self._checkManagerLimitsPostTx(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData, _requiresVaultApproval, _underlyingAsset, _vaultToken, _isSwap, _specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
+    return self._checkManagerLimitsPostTx(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData, _requiresVaultApproval, _underlyingAsset, _vaultToken, _shouldCheckSwap, _specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
 
 
 @view
@@ -284,7 +284,7 @@ def _checkManagerLimitsPostTx(
     _requiresVaultApproval: bool,
     _underlyingAsset: address,
     _vaultToken: address,
-    _isSwap: bool,
+    _shouldCheckSwap: bool,
     _specificSwapPerms: wcs.SwapPerms,
     _globalSwapPerms: wcs.SwapPerms,
     _fromAssetUsdValue: uint256,
@@ -307,7 +307,7 @@ def _checkManagerLimitsPostTx(
             return False, empty(wcs.ManagerData)
 
     # swap-specific validations
-    if _isSwap:
+    if _shouldCheckSwap:
 
         # check if USD values are required and present (non-zero)
         if not self._checkSwapHasUsdValue(_specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue):
