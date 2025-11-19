@@ -56,8 +56,6 @@ event LeftoversSwept:
     amount: uint256
     recipient: indexed(address)
 
-HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
-
 
 @deploy
 def __init__(
@@ -377,7 +375,7 @@ def _redeemFromVault(
 @internal
 def _isRedemptionCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:
     # extra check to make sure what was sent was actually close-ish to what was requested
-    buffer: uint256 = _requestedAmount * 10 // HUNDRED_PERCENT  # 0.1%
+    buffer: uint256 = _requestedAmount * 10 // 100_00  # 0.1%
     lowerBound: uint256 = _requestedAmount - buffer
     return _actualAmount >= lowerBound
 

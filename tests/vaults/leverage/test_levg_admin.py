@@ -2,6 +2,7 @@ import pytest
 import boa
 
 from constants import MAX_UINT256, EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from conf_utils import filter_logs
 
 # Decimal constants
 SIX_DECIMALS = 10 ** 6
@@ -80,8 +81,9 @@ def test_set_collateral_vault_success(
     # Set new collateral vault
     wallet.setCollateralVault(
         new_usdc_collateral_vault.address,
-        ripe_vault_id,
         lego_id,
+        ripe_vault_id,
+        False,  # shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -102,7 +104,7 @@ def test_set_collateral_vault_with_existing_balance_fails(
     starter_agent,
     governance,
 ):
-    """Test that setting collateral vault fails when old vault has balance"""
+    """Test that setting collateral vault succeeds with local balance but no ripe balance"""
     wallet = undy_levg_vault_usdc
     lego_id = MOCK_YIELD_LEGO_ID
 
@@ -124,14 +126,21 @@ def test_set_collateral_vault_with_existing_balance_fails(
     vault_balance = mock_usdc_collateral_vault.balanceOf(wallet.address)
     assert vault_balance > 0
 
-    # Try to set new collateral vault - should fail due to existing balance
-    with boa.reverts():  # dev: old vault has local balance
-        wallet.setCollateralVault(
-            new_usdc_collateral_vault.address,
-            1,
-            lego_id,
-            sender=switchboard_alpha.address
-        )
+    # Setting new collateral vault should succeed even with local balance (no ripe balance)
+    wallet.setCollateralVault(
+        new_usdc_collateral_vault.address,
+        lego_id,
+        1,
+        False,  # shouldMaxWithdraw - won't auto-withdraw old balance
+        sender=switchboard_alpha.address
+    )
+
+    # Verify state updated
+    new_collateral = wallet.collateralAsset()
+    assert new_collateral.vaultToken == new_usdc_collateral_vault.address
+
+    # Old vault tokens still exist since we didn't max withdraw
+    assert mock_usdc_collateral_vault.balanceOf(wallet.address) == vault_balance
 
 
 def test_set_collateral_vault_unauthorized_fails(
@@ -148,8 +157,9 @@ def test_set_collateral_vault_unauthorized_fails(
     with boa.reverts():  # dev: no perms
         wallet.setCollateralVault(
             new_usdc_collateral_vault.address,
-            1,
             MOCK_YIELD_LEGO_ID,
+            1,
+            False,  # shouldMaxWithdraw
             sender=starter_agent.address
         )
 
@@ -157,8 +167,9 @@ def test_set_collateral_vault_unauthorized_fails(
     with boa.reverts():  # dev: no perms
         wallet.setCollateralVault(
             new_usdc_collateral_vault.address,
-            1,
             MOCK_YIELD_LEGO_ID,
+            1,
+            False,  # shouldMaxWithdraw
             sender=alice
         )
 
@@ -187,6 +198,7 @@ def test_set_leverage_vault_success(
         new_usdc_leverage_vault.address,
         lego_id,
         ripe_vault_id,
+        False,  # shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -207,7 +219,7 @@ def test_set_leverage_vault_with_existing_balance_fails(
     starter_agent,
     governance,
 ):
-    """Test that setting leverage vault fails when old vault has balance"""
+    """Test that setting leverage vault succeeds with local balance but no ripe balance"""
     wallet = undy_levg_vault_usdc
     lego_id = MOCK_YIELD_LEGO_ID
 
@@ -229,14 +241,21 @@ def test_set_leverage_vault_with_existing_balance_fails(
     vault_balance = mock_usdc_leverage_vault.balanceOf(wallet.address)
     assert vault_balance > 0
 
-    # Try to set new leverage vault - should fail due to existing balance
-    with boa.reverts():  # dev: old vault has local balance
-        wallet.setLeverageVault(
-            new_usdc_leverage_vault.address,
-            lego_id,
-            1,
-            sender=switchboard_alpha.address
-        )
+    # Setting new leverage vault should succeed even with local balance (no ripe balance)
+    wallet.setLeverageVault(
+        new_usdc_leverage_vault.address,
+        lego_id,
+        1,
+        False,  # shouldMaxWithdraw - won't auto-withdraw old balance
+        sender=switchboard_alpha.address
+    )
+
+    # Verify state updated
+    new_leverage = wallet.leverageAsset()
+    assert new_leverage.vaultToken == new_usdc_leverage_vault.address
+
+    # Old vault tokens still exist since we didn't max withdraw
+    assert mock_usdc_leverage_vault.balanceOf(wallet.address) == vault_balance
 
 
 def test_set_leverage_vault_unauthorized_fails(
@@ -255,6 +274,7 @@ def test_set_leverage_vault_unauthorized_fails(
             new_usdc_leverage_vault.address,
             MOCK_YIELD_LEGO_ID,
             1,
+            False,  # shouldMaxWithdraw
             sender=starter_agent.address
         )
 
@@ -264,6 +284,7 @@ def test_set_leverage_vault_unauthorized_fails(
             new_usdc_leverage_vault.address,
             MOCK_YIELD_LEGO_ID,
             1,
+            False,  # shouldMaxWithdraw
             sender=alice
         )
 
@@ -280,20 +301,21 @@ def test_set_usdc_slippage_allowed_success(
     """Test successfully setting USDC slippage allowed"""
     wallet = undy_levg_vault_usdc
 
-    # Set slippage to 1% (100 basis points)
-    new_slippage = 100  # 1%
-    wallet.setUsdcSlippageAllowed(new_slippage, sender=switchboard_alpha.address)
+    # Set slippage to 1% (100 basis points) for USDC, keep GREEN at default
+    usdc_slippage = 100  # 1%
+    green_slippage = wallet.greenSlippageAllowed()  # Keep current value
+    wallet.setSlippagesAllowed(usdc_slippage, green_slippage, sender=switchboard_alpha.address)
 
     # Verify state updated
-    assert wallet.usdcSlippageAllowed() == new_slippage
+    assert wallet.usdcSlippageAllowed() == usdc_slippage
 
 
     # Test setting to 0% (0 basis points)
-    wallet.setUsdcSlippageAllowed(0, sender=switchboard_alpha.address)
+    wallet.setSlippagesAllowed(0, green_slippage, sender=switchboard_alpha.address)
     assert wallet.usdcSlippageAllowed() == 0
 
     # Test setting to max (10% = 1000 basis points)
-    wallet.setUsdcSlippageAllowed(1000, sender=switchboard_alpha.address)
+    wallet.setSlippagesAllowed(1000, green_slippage, sender=switchboard_alpha.address)
     assert wallet.usdcSlippageAllowed() == 1000
 
 
@@ -304,20 +326,21 @@ def test_set_green_slippage_allowed_success(
     """Test successfully setting GREEN slippage allowed"""
     wallet = undy_levg_vault_usdc
 
-    # Set slippage to 2% (200 basis points)
-    new_slippage = 200  # 2%
-    wallet.setGreenSlippageAllowed(new_slippage, sender=switchboard_alpha.address)
+    # Set slippage to 2% (200 basis points) for GREEN, keep USDC at current value
+    usdc_slippage = wallet.usdcSlippageAllowed()  # Keep current value
+    green_slippage = 200  # 2%
+    wallet.setSlippagesAllowed(usdc_slippage, green_slippage, sender=switchboard_alpha.address)
 
     # Verify state updated
-    assert wallet.greenSlippageAllowed() == new_slippage
+    assert wallet.greenSlippageAllowed() == green_slippage
 
 
     # Test setting to 0% (0 basis points)
-    wallet.setGreenSlippageAllowed(0, sender=switchboard_alpha.address)
+    wallet.setSlippagesAllowed(usdc_slippage, 0, sender=switchboard_alpha.address)
     assert wallet.greenSlippageAllowed() == 0
 
     # Test setting to max (10% = 1000 basis points)
-    wallet.setGreenSlippageAllowed(1000, sender=switchboard_alpha.address)
+    wallet.setSlippagesAllowed(usdc_slippage, 1000, sender=switchboard_alpha.address)
     assert wallet.greenSlippageAllowed() == 1000
 
 
@@ -329,16 +352,50 @@ def test_set_slippage_exceeds_max_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to set USDC slippage above 10% - should fail
-    with boa.reverts():  # dev: slippage too high (max 10%)
-        wallet.setUsdcSlippageAllowed(1001, sender=switchboard_alpha.address)
+    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+        wallet.setSlippagesAllowed(1001, 100, sender=switchboard_alpha.address)
 
     # Try to set GREEN slippage above 10% - should fail
-    with boa.reverts():  # dev: slippage too high (max 10%)
-        wallet.setGreenSlippageAllowed(1001, sender=switchboard_alpha.address)
+    with boa.reverts():  # dev: green slippage too high (max 10%)
+        wallet.setSlippagesAllowed(100, 1001, sender=switchboard_alpha.address)
 
-    # Try with a very large value
-    with boa.reverts():  # dev: slippage too high (max 10%)
-        wallet.setUsdcSlippageAllowed(10000, sender=switchboard_alpha.address)
+    # Try with a very large value for USDC
+    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+        wallet.setSlippagesAllowed(10000, 100, sender=switchboard_alpha.address)
+
+    # Try with both values too high
+    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+        wallet.setSlippagesAllowed(1001, 1001, sender=switchboard_alpha.address)
+
+
+def test_set_slippages_allowed_comprehensive(
+    undy_levg_vault_usdc,
+    switchboard_alpha,
+    alice,
+):
+    """Test setting both slippages together with event verification and authorization"""
+    wallet = undy_levg_vault_usdc
+
+    # Test setting both values together (main use case)
+    usdc_slippage = 300  # 3%
+    green_slippage = 500  # 5%
+
+    # Set and capture event
+    wallet.setSlippagesAllowed(usdc_slippage, green_slippage, sender=switchboard_alpha.address)
+    logs = filter_logs(wallet, "SlippagesSet")
+
+    # Verify both state variables updated
+    assert wallet.usdcSlippageAllowed() == usdc_slippage
+    assert wallet.greenSlippageAllowed() == green_slippage
+
+    # Verify event emission
+    assert len(logs) >= 1
+    assert logs[-1].usdcSlippage == usdc_slippage
+    assert logs[-1].greenSlippage == green_slippage
+
+    # Test unauthorized access fails
+    with boa.reverts():  # dev: no perms
+        wallet.setSlippagesAllowed(100, 100, sender=alice)
 
 
 ######################################
@@ -559,8 +616,9 @@ def test_set_collateral_vault_parametrized(
     # Set new collateral vault
     wallet.setCollateralVault(
         new_vault.address,
-        1,
         MOCK_YIELD_LEGO_ID,
+        1,
+        False,  # shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 

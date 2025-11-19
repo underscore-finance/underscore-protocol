@@ -22,8 +22,9 @@ def test_set_collateral_vault_success(switchboard_charlie, undy_levg_vault_usdc,
     aid = switchboard_charlie.setCollateralVault(
         vault.address,
         new_vault_token,
-        ripe_vault_id,
         lego_id,
+        ripe_vault_id,
+        False,  # shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -34,6 +35,7 @@ def test_set_collateral_vault_success(switchboard_charlie, undy_levg_vault_usdc,
     assert logs[-1].vaultToken == new_vault_token
     assert logs[-1].ripeVaultId == ripe_vault_id
     assert logs[-1].legoId == lego_id
+    assert logs[-1].shouldMaxWithdraw == False
     assert logs[-1].actionId == aid
     expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_charlie.actionTimeLock()
     assert logs[-1].confirmationBlock == expected_confirmation_block
@@ -45,6 +47,7 @@ def test_set_collateral_vault_success(switchboard_charlie, undy_levg_vault_usdc,
     assert pending.vaultToken == new_vault_token
     assert pending.ripeVaultId == ripe_vault_id
     assert pending.legoId == lego_id
+    assert pending.shouldMaxWithdraw == False
 
     # Step 4: Try to execute before timelock
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -89,6 +92,7 @@ def test_set_collateral_vault_empty_address_success(switchboard_charlie, undy_le
         ZERO_ADDRESS,
         0,
         0,
+        False,  # shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -110,8 +114,9 @@ def test_set_collateral_vault_invalid_vault_fails(switchboard_charlie, governanc
         switchboard_charlie.setCollateralVault(
             invalid_vault,
             boa.env.generate_address(),
-            1,
             2,
+            1,
+            False,  # shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -125,8 +130,9 @@ def test_set_collateral_vault_invalid_token_fails(switchboard_charlie, undy_levg
         switchboard_charlie.setCollateralVault(
             vault.address,
             invalid_token,
-            999,  # Invalid ripe vault ID
             999,  # Invalid lego ID
+            999,  # Invalid ripe vault ID
+            False,  # shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -137,8 +143,9 @@ def test_set_collateral_vault_non_governance_fails(switchboard_charlie, undy_lev
         switchboard_charlie.setCollateralVault(
             undy_levg_vault_usdc.address,
             boa.env.generate_address(),
-            1,
             2,
+            1,
+            False,  # shouldMaxWithdraw
             sender=alice
         )
 
@@ -163,6 +170,7 @@ def test_set_leverage_vault_success(switchboard_charlie, undy_levg_vault_usdc, m
         new_vault_token,
         lego_id,
         ripe_vault_id,
+        False,  # shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -173,6 +181,7 @@ def test_set_leverage_vault_success(switchboard_charlie, undy_levg_vault_usdc, m
     assert logs[-1].vaultToken == new_vault_token
     assert logs[-1].legoId == lego_id
     assert logs[-1].ripeVaultId == ripe_vault_id
+    assert logs[-1].shouldMaxWithdraw == False
     assert logs[-1].actionId == aid
 
     # Step 3: Verify pending state
@@ -180,6 +189,7 @@ def test_set_leverage_vault_success(switchboard_charlie, undy_levg_vault_usdc, m
     pending = switchboard_charlie.pendingLeverageVault(aid)
     assert pending.vaultAddr == vault.address
     assert pending.vaultToken == new_vault_token
+    assert pending.shouldMaxWithdraw == False
 
     # Step 4: Try to execute before timelock
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -215,6 +225,7 @@ def test_set_leverage_vault_invalid_vault_fails(switchboard_charlie, governance)
             boa.env.generate_address(),
             1,
             2,
+            False,  # shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -230,6 +241,7 @@ def test_set_leverage_vault_invalid_token_fails(switchboard_charlie, undy_levg_v
             invalid_token,
             999,  # Invalid lego ID
             999,  # Invalid ripe vault ID
+            False,  # shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -242,6 +254,7 @@ def test_set_leverage_vault_non_governance_fails(switchboard_charlie, undy_levg_
             boa.env.generate_address(),
             1,
             2,
+            False,  # shouldMaxWithdraw
             sender=alice
         )
 
@@ -254,14 +267,16 @@ def test_set_usdc_slippage_success_zero_percent(switchboard_charlie, undy_levg_v
     """Test setting USDC slippage to 0%"""
     vault = undy_levg_vault_usdc
     slippage = 0  # 0%
+    current_green_slippage = vault.greenSlippageAllowed()
 
-    aid = switchboard_charlie.setUsdcSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, slippage, current_green_slippage, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 2048  # USDC_SLIPPAGE (2^11)
-    pending = switchboard_charlie.pendingUsdcSlippage(aid)
+    assert switchboard_charlie.actionType(aid) == 2048  # SLIPPAGES (2^11)
+    pending = switchboard_charlie.pendingSlippages(aid)
     assert pending.vaultAddr == vault.address
-    assert pending.slippage == slippage
+    assert pending.usdcSlippage == slippage
+    assert pending.greenSlippage == current_green_slippage
 
     # Execute
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -272,16 +287,18 @@ def test_set_usdc_slippage_success_zero_percent(switchboard_charlie, undy_levg_v
     assert vault.usdcSlippageAllowed() == slippage
 
     # Verify event
-    logs = filter_logs(switchboard_charlie, "UsdcSlippageSet")
-    assert logs[-1].slippage == slippage
+    logs = filter_logs(switchboard_charlie, "SlippagesSet")
+    assert logs[-1].usdcSlippage == slippage
+    assert logs[-1].greenSlippage == current_green_slippage
 
 
 def test_set_usdc_slippage_success_five_percent(switchboard_charlie, undy_levg_vault_usdc, governance):
     """Test setting USDC slippage to 5%"""
     vault = undy_levg_vault_usdc
     slippage = 500  # 5%
+    current_green_slippage = vault.greenSlippageAllowed()
 
-    aid = switchboard_charlie.setUsdcSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, slippage, current_green_slippage, sender=governance.address)
 
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -294,8 +311,9 @@ def test_set_usdc_slippage_success_max_ten_percent(switchboard_charlie, undy_lev
     """Test setting USDC slippage to max 10%"""
     vault = undy_levg_vault_usdc
     slippage = 1000  # 10%
+    current_green_slippage = vault.greenSlippageAllowed()
 
-    aid = switchboard_charlie.setUsdcSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, slippage, current_green_slippage, sender=governance.address)
 
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -306,10 +324,14 @@ def test_set_usdc_slippage_success_max_ten_percent(switchboard_charlie, undy_lev
 
 def test_set_usdc_slippage_exceeds_max_fails(switchboard_charlie, undy_levg_vault_usdc, governance):
     """Test that slippage > 10% is rejected"""
-    with boa.reverts():  # dev: slippage too high (max 10%)
-        switchboard_charlie.setUsdcSlippageAllowed(
-            undy_levg_vault_usdc.address,
+    vault = undy_levg_vault_usdc
+    current_green_slippage = vault.greenSlippageAllowed()
+
+    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+        switchboard_charlie.setSlippagesAllowed(
+            vault.address,
             1001,  # 10.01%
+            current_green_slippage,
             sender=governance.address
         )
 
@@ -319,19 +341,24 @@ def test_set_usdc_slippage_invalid_vault_fails(switchboard_charlie, governance):
     invalid_vault = boa.env.generate_address()
 
     with boa.reverts("invalid vault addr"):
-        switchboard_charlie.setUsdcSlippageAllowed(
+        switchboard_charlie.setSlippagesAllowed(
             invalid_vault,
-            500,
+            500,  # usdc slippage
+            500,  # green slippage
             sender=governance.address
         )
 
 
 def test_set_usdc_slippage_non_governance_fails(switchboard_charlie, undy_levg_vault_usdc, alice):
     """Test that non-governance cannot set USDC slippage"""
+    vault = undy_levg_vault_usdc
+    current_green_slippage = vault.greenSlippageAllowed()
+
     with boa.reverts("no perms"):
-        switchboard_charlie.setUsdcSlippageAllowed(
-            undy_levg_vault_usdc.address,
-            500,
+        switchboard_charlie.setSlippagesAllowed(
+            vault.address,
+            500,  # usdc slippage
+            current_green_slippage,
             sender=alice
         )
 
@@ -344,14 +371,16 @@ def test_set_green_slippage_success_zero_percent(switchboard_charlie, undy_levg_
     """Test setting GREEN slippage to 0%"""
     vault = undy_levg_vault_usdc
     slippage = 0  # 0%
+    current_usdc_slippage = vault.usdcSlippageAllowed()
 
-    aid = switchboard_charlie.setGreenSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, current_usdc_slippage, slippage, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 4096  # GREEN_SLIPPAGE (2^12)
-    pending = switchboard_charlie.pendingGreenSlippage(aid)
+    assert switchboard_charlie.actionType(aid) == 2048  # SLIPPAGES (2^11)
+    pending = switchboard_charlie.pendingSlippages(aid)
     assert pending.vaultAddr == vault.address
-    assert pending.slippage == slippage
+    assert pending.usdcSlippage == current_usdc_slippage
+    assert pending.greenSlippage == slippage
 
     # Execute
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
@@ -366,8 +395,9 @@ def test_set_green_slippage_success_five_percent(switchboard_charlie, undy_levg_
     """Test setting GREEN slippage to 5%"""
     vault = undy_levg_vault_usdc
     slippage = 500  # 5%
+    current_usdc_slippage = vault.usdcSlippageAllowed()
 
-    aid = switchboard_charlie.setGreenSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, current_usdc_slippage, slippage, sender=governance.address)
 
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -380,8 +410,9 @@ def test_set_green_slippage_success_max_ten_percent(switchboard_charlie, undy_le
     """Test setting GREEN slippage to max 10%"""
     vault = undy_levg_vault_usdc
     slippage = 1000  # 10%
+    current_usdc_slippage = vault.usdcSlippageAllowed()
 
-    aid = switchboard_charlie.setGreenSlippageAllowed(vault.address, slippage, sender=governance.address)
+    aid = switchboard_charlie.setSlippagesAllowed(vault.address, current_usdc_slippage, slippage, sender=governance.address)
 
     boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
     result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
@@ -392,9 +423,13 @@ def test_set_green_slippage_success_max_ten_percent(switchboard_charlie, undy_le
 
 def test_set_green_slippage_exceeds_max_fails(switchboard_charlie, undy_levg_vault_usdc, governance):
     """Test that slippage > 10% is rejected"""
-    with boa.reverts():  # dev: slippage too high (max 10%)
-        switchboard_charlie.setGreenSlippageAllowed(
-            undy_levg_vault_usdc.address,
+    vault = undy_levg_vault_usdc
+    current_usdc_slippage = vault.usdcSlippageAllowed()
+
+    with boa.reverts():  # dev: green slippage too high (max 10%)
+        switchboard_charlie.setSlippagesAllowed(
+            vault.address,
+            current_usdc_slippage,
             1001,  # 10.01%
             sender=governance.address
         )
@@ -405,19 +440,24 @@ def test_set_green_slippage_invalid_vault_fails(switchboard_charlie, governance)
     invalid_vault = boa.env.generate_address()
 
     with boa.reverts("invalid vault addr"):
-        switchboard_charlie.setGreenSlippageAllowed(
+        switchboard_charlie.setSlippagesAllowed(
             invalid_vault,
-            500,
+            500,  # usdc slippage
+            500,  # green slippage
             sender=governance.address
         )
 
 
 def test_set_green_slippage_non_governance_fails(switchboard_charlie, undy_levg_vault_usdc, alice):
     """Test that non-governance cannot set GREEN slippage"""
+    vault = undy_levg_vault_usdc
+    current_usdc_slippage = vault.usdcSlippageAllowed()
+
     with boa.reverts("no perms"):
-        switchboard_charlie.setGreenSlippageAllowed(
-            undy_levg_vault_usdc.address,
-            500,
+        switchboard_charlie.setSlippagesAllowed(
+            vault.address,
+            current_usdc_slippage,
+            500,  # green slippage
             sender=alice
         )
 
@@ -435,7 +475,7 @@ def test_set_levg_vault_helper_success(switchboard_charlie, undy_levg_vault_usdc
     aid = switchboard_charlie.setLevgVaultHelper(vault.address, new_helper, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 8192  # LEVG_VAULT_HELPER (2^13)
+    assert switchboard_charlie.actionType(aid) == 4096  # LEVG_VAULT_HELPER (2^12)
     pending = switchboard_charlie.pendingLevgVaultHelper(aid)
     assert pending.vaultAddr == vault.address
     assert pending.levgVaultHelper == new_helper
@@ -497,7 +537,7 @@ def test_set_max_debt_ratio_success_zero_percent(switchboard_charlie, undy_levg_
     aid = switchboard_charlie.setMaxDebtRatio(vault.address, ratio, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 16384  # MAX_DEBT_RATIO (2^14)
+    assert switchboard_charlie.actionType(aid) == 8192  # MAX_DEBT_RATIO (2^13)
     pending = switchboard_charlie.pendingMaxDebtRatio(aid)
     assert pending.vaultAddr == vault.address
     assert pending.ratio == ratio
@@ -586,7 +626,7 @@ def test_add_vault_manager_success_leverage_vault(switchboard_charlie, undy_levg
     aid = switchboard_charlie.addVaultManager(vault.address, alice, sender=governance.address)
 
     # Verify pending
-    assert switchboard_charlie.actionType(aid) == 32768  # ADD_MANAGER (2^15)
+    assert switchboard_charlie.actionType(aid) == 16384  # ADD_MANAGER (2^14)
     pending = switchboard_charlie.pendingAddManager(aid)
     assert pending.vaultAddr == vault.address
     assert pending.manager == alice
