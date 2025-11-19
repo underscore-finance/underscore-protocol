@@ -1149,44 +1149,17 @@ def _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
     success: bool = False
     response: Bytes[32] = b""
 
-    # assumes input is: lego addr (operator)
-    if numInputs == 1:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
-    
-    # assumes input (and order) is: user (self), lego addr (operator)
-    elif numInputs == 2:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
-
-    # assumes input (and order) is: user (self), lego addr (operator), allowed bool
-    elif numInputs == 3:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-                convert(True, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
+    # ripe protocol is only one that needs this in leverage vault
+    assert numInputs == 1 # dev: invalid number of inputs
+    success, response = raw_call(
+        targetAddr,
+        concat(
+            method_abi,
+            convert(_legoAddr, bytes32),
+        ),
+        revert_on_failure = False,
+        max_outsize = 32,
+    )
 
     assert success # dev: failed to set operator
     return True

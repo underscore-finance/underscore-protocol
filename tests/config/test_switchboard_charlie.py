@@ -2046,3 +2046,123 @@ def test_set_comp_rewards_addr_execution(
     assert logs[-1].legoId == lego_id
     assert logs[-1].legoAddr == mock_yield_lego.address
     assert logs[-1].rewardsAddr == rewards_addr
+
+
+##########################
+# Sweep Leftovers Tests  #
+##########################
+
+
+def test_sweep_leftovers_success_by_governance(switchboard_charlie, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, governance):
+    """Test that governance can successfully sweep leftovers from empty vault"""
+    # Ensure vault has no shares
+    assert undy_usd_vault.totalSupply() == 0
+
+    # Give vault some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Verify vault has balance
+    assert yield_underlying_token.balanceOf(undy_usd_vault.address) == leftover_amount
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep leftovers via switchboard
+    amount = switchboard_charlie.sweepLeftovers(undy_usd_vault.address, sender=governance.address)
+
+    # Verify amount returned
+    assert amount == leftover_amount
+
+    # Verify vault balance is 0
+    assert yield_underlying_token.balanceOf(undy_usd_vault.address) == 0
+
+    # Verify governance received the funds
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "LeftoversSwept")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].amount == leftover_amount
+    assert logs[-1].caller == governance.address
+
+
+def test_sweep_leftovers_success_by_security_action(switchboard_charlie, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, governance, mission_control, switchboard_alpha, alice):
+    """Test that security action users can sweep leftovers from empty vault"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    # Ensure vault has no shares
+    assert undy_usd_vault.totalSupply() == 0
+
+    # Give vault some leftover tokens
+    leftover_amount = 500 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep leftovers via switchboard as security action user
+    amount = switchboard_charlie.sweepLeftovers(undy_usd_vault.address, sender=alice)
+
+    # Verify success
+    assert amount == leftover_amount
+    assert yield_underlying_token.balanceOf(undy_usd_vault.address) == 0
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+    # Verify event was emitted with alice as caller
+    logs = filter_logs(switchboard_charlie, "LeftoversSwept")
+    assert len(logs) >= 1
+    assert logs[-1].vaultAddr == undy_usd_vault.address
+    assert logs[-1].amount == leftover_amount
+    assert logs[-1].caller == alice
+
+
+def test_sweep_leftovers_fails_with_shares_outstanding(switchboard_charlie, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, governance, alice):
+    """Test that sweeping fails when vault has shares outstanding"""
+    # Have Alice deposit to get shares
+    deposit_amount = 10_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(alice, deposit_amount, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(undy_usd_vault.address, deposit_amount, sender=alice)
+    undy_usd_vault.deposit(deposit_amount, alice, sender=alice)
+
+    # Verify totalSupply is not 0
+    assert undy_usd_vault.totalSupply() > 0
+
+    # Give vault some additional leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep - should fail because shares are outstanding
+    with boa.reverts("shares outstanding"):
+        switchboard_charlie.sweepLeftovers(undy_usd_vault.address, sender=governance.address)
+
+
+def test_sweep_leftovers_fails_unauthorized(switchboard_charlie, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, alice):
+    """Test that unauthorized users cannot sweep leftovers"""
+    # Give vault some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(undy_usd_vault.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep as unauthorized user - should fail
+    with boa.reverts("no perms"):
+        switchboard_charlie.sweepLeftovers(undy_usd_vault.address, sender=alice)
+
+
+def test_sweep_leftovers_fails_no_balance(switchboard_charlie, undy_usd_vault, yield_underlying_token, governance):
+    """Test that sweeping fails when there's no balance to sweep"""
+    # Ensure vault has no shares and no balance
+    assert undy_usd_vault.totalSupply() == 0
+    assert yield_underlying_token.balanceOf(undy_usd_vault.address) == 0
+
+    # Try to sweep - should fail because no balance
+    with boa.reverts("no balance"):
+        switchboard_charlie.sweepLeftovers(undy_usd_vault.address, sender=governance.address)
+
+
+def test_sweep_leftovers_fails_invalid_vault(switchboard_charlie, governance):
+    """Test that sweeping fails for invalid vault address"""
+    # Try to sweep from a non-vault address - should fail
+    with boa.reverts("invalid vault addr"):
+        switchboard_charlie.sweepLeftovers(boa.env.generate_address(), sender=governance.address)

@@ -568,3 +568,189 @@ def test_set_collateral_vault_parametrized(
     new_collateral = wallet.collateralAsset()
     assert new_collateral.vaultToken == new_vault.address
 
+
+##################################
+# Sweep Leftovers Tests          #
+##################################
+
+
+def test_sweep_leftovers_success(
+    undy_levg_vault_usdc,
+    mock_usdc,
+    switchboard_alpha,
+    governance,
+):
+    """Test successfully sweeping leftover USDC when totalSupply is 0"""
+    wallet = undy_levg_vault_usdc
+
+    # Verify totalSupply is 0 (no shares minted)
+    assert wallet.totalSupply() == 0
+
+    # Give wallet some leftover USDC
+    leftover_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
+
+    # Verify wallet has balance
+    assert mock_usdc.balanceOf(wallet.address) == leftover_amount
+
+    # Get governance balance before sweep
+    gov_balance_before = mock_usdc.balanceOf(governance.address)
+
+    # Sweep leftovers
+    swept_amount = wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Verify amount returned
+    assert swept_amount == leftover_amount
+
+    # Verify wallet balance is 0
+    assert mock_usdc.balanceOf(wallet.address) == 0
+
+    # Verify governance received the funds
+    assert mock_usdc.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+
+def test_sweep_leftovers_event_emission(
+    undy_levg_vault_usdc,
+    mock_usdc,
+    switchboard_alpha,
+    governance,
+):
+    """Test that sweepLeftovers emits the correct event"""
+    wallet = undy_levg_vault_usdc
+
+    # Give wallet some leftover USDC
+    leftover_amount = 500 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
+
+    # Sweep and capture logs
+    wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Check that LeftoversSwept event was emitted (Boa will auto-verify event data)
+    # The event should have amount=leftover_amount and recipient=governance.address
+
+
+def test_sweep_leftovers_with_shares_outstanding_fails(
+    undy_levg_vault_usdc,
+    mock_usdc,
+    switchboard_alpha,
+    governance,
+    alice,
+):
+    """Test that sweeping fails when there are shares outstanding"""
+    wallet = undy_levg_vault_usdc
+
+    # Give wallet some USDC and have Alice deposit to get shares
+    deposit_amount = 10_000 * SIX_DECIMALS
+    mock_usdc.mint(alice, deposit_amount, sender=governance.address)
+    mock_usdc.approve(wallet.address, deposit_amount, sender=alice)
+    wallet.deposit(deposit_amount, alice, sender=alice)
+
+    # Verify totalSupply is not 0
+    assert wallet.totalSupply() > 0
+
+    # Give wallet some additional leftover USDC
+    leftover_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
+
+    # Try to sweep - should fail because shares are outstanding
+    with boa.reverts():  # dev: shares outstanding
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+
+def test_sweep_leftovers_unauthorized_fails(
+    undy_levg_vault_usdc,
+    mock_usdc,
+    governance,
+    alice,
+    starter_agent,
+):
+    """Test that only switchboard can sweep leftovers"""
+    wallet = undy_levg_vault_usdc
+
+    # Give wallet some leftover USDC
+    leftover_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
+
+    # Try to sweep from starter_agent (not switchboard) - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=starter_agent.address)
+
+    # Try to sweep from random user - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=alice)
+
+
+def test_sweep_leftovers_no_balance_fails(
+    undy_levg_vault_usdc,
+    mock_usdc,
+    switchboard_alpha,
+):
+    """Test that sweeping fails when there's no balance to sweep"""
+    wallet = undy_levg_vault_usdc
+
+    # Verify wallet has no USDC balance
+    assert mock_usdc.balanceOf(wallet.address) == 0
+
+    # Try to sweep - should fail because no balance
+    with boa.reverts():  # dev: no balance
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+
+@pytest.mark.parametrize("vault_type,asset_type", [("usdc", "mock_usdc"), ("cbbtc", "mock_cbbtc"), ("weth", "mock_weth")])
+def test_sweep_leftovers_parametrized(
+    vault_type,
+    asset_type,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    switchboard_alpha,
+    governance,
+    request,
+):
+    """Test sweeping leftovers for all vault types"""
+    vaults = {
+        "usdc": undy_levg_vault_usdc,
+        "cbbtc": undy_levg_vault_cbbtc,
+        "weth": undy_levg_vault_weth,
+    }
+    assets = {
+        "mock_usdc": mock_usdc,
+        "mock_cbbtc": mock_cbbtc,
+        "mock_weth": mock_weth,
+    }
+    decimals = {
+        "mock_usdc": SIX_DECIMALS,
+        "mock_cbbtc": EIGHT_DECIMALS,
+        "mock_weth": EIGHTEEN_DECIMALS,
+    }
+
+    wallet = vaults[vault_type]
+    asset = assets[asset_type]
+    decimal = decimals[asset_type]
+
+    # Give wallet some leftover asset
+    leftover_amount = 100 * decimal
+
+    # WETH requires different handling (deposit ETH then transfer)
+    if asset_type == "mock_weth":
+        # Give governance ETH first
+        boa.env.set_balance(governance.address, leftover_amount)
+        asset.deposit(value=leftover_amount, sender=governance.address)
+        asset.transfer(wallet.address, leftover_amount, sender=governance.address)
+    else:
+        asset.mint(wallet.address, leftover_amount, sender=governance.address)
+
+    # Get governance balance before sweep
+    gov_balance_before = asset.balanceOf(governance.address)
+
+    # Sweep leftovers
+    swept_amount = wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Verify amount returned and transferred
+    assert swept_amount == leftover_amount
+    assert asset.balanceOf(wallet.address) == 0
+    assert asset.balanceOf(governance.address) == gov_balance_before + leftover_amount
+

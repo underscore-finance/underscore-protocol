@@ -78,6 +78,9 @@ interface MissionControl:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface EarnVault:
+    def sweepLeftovers() -> uint256: nonpayable
+
 flag ActionType:
     REDEMPTION_BUFFER
     MIN_YIELD_WITHDRAW_AMOUNT
@@ -471,6 +474,11 @@ event CompRewardsAddrSet:
     legoAddr: indexed(address)
     rewardsAddr: indexed(address)
 
+event LeftoversSwept:
+    vaultAddr: indexed(address)
+    amount: uint256
+    caller: address
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
@@ -636,6 +644,21 @@ def claimPerformanceFees(_vaultAddr: address) -> uint256:
     amount: uint256 = extcall LevgVault(_vaultAddr).claimPerformanceFees()
 
     log PerformanceFeesClaimed(vaultAddr=_vaultAddr, amount=amount, caller=msg.sender)
+    return amount
+
+
+# sweep leftovers
+
+
+@external
+def sweepLeftovers(_vaultAddr: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    amount: uint256 = extcall EarnVault(_vaultAddr).sweepLeftovers()
+    log LeftoversSwept(vaultAddr=_vaultAddr, amount=amount, caller=msg.sender)
     return amount
 
 

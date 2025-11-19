@@ -529,3 +529,159 @@ def test_manager_array_indexing_consistency(undy_usd_vault, switchboard_alpha, a
         index = undy_usd_vault.indexOfManager(manager)
         assert index != 0
         assert undy_usd_vault.managers(index) == manager
+
+
+##################################
+# Sweep Leftovers Tests          #
+##################################
+
+
+def test_sweep_leftovers_success(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+):
+    """Test successfully sweeping leftover VAULT_ASSET when totalSupply is 0"""
+    wallet = undy_usd_vault
+
+    # Verify totalSupply is 0 (no shares minted)
+    assert wallet.totalSupply() == 0
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Verify wallet has balance
+    assert yield_underlying_token.balanceOf(wallet.address) == leftover_amount
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep leftovers
+    swept_amount = wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Verify amount returned
+    assert swept_amount == leftover_amount
+
+    # Verify wallet balance is 0
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+
+    # Verify governance received the funds
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+
+def test_sweep_leftovers_event_emission(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+):
+    """Test that sweepLeftovers emits the correct event"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 500 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Sweep and capture logs
+    wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Check that LeftoversSwept event was emitted (Boa will auto-verify event data)
+    # The event should have amount=leftover_amount and recipient=governance.address
+
+
+def test_sweep_leftovers_with_shares_outstanding_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+    alice,
+):
+    """Test that sweeping fails when there are shares outstanding"""
+    wallet = undy_usd_vault
+
+    # Give wallet some tokens and have Alice deposit to get shares
+    deposit_amount = 10_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(alice, deposit_amount, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(wallet.address, deposit_amount, sender=alice)
+    wallet.deposit(deposit_amount, alice, sender=alice)
+
+    # Verify totalSupply is not 0
+    assert wallet.totalSupply() > 0
+
+    # Give wallet some additional leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep - should fail because shares are outstanding
+    with boa.reverts():  # dev: shares outstanding
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+
+def test_sweep_leftovers_unauthorized_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    governance,
+    alice,
+    starter_agent,
+):
+    """Test that only switchboard or governance can sweep leftovers"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep from starter_agent (manager but not switchboard/governance) - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=starter_agent.address)
+
+    # Try to sweep from random user - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=alice)
+
+
+def test_sweep_leftovers_governance_can_call(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    governance,
+):
+    """Test that governance can also call sweepLeftovers (not just switchboard)"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep as governance (not switchboard)
+    swept_amount = wallet.sweepLeftovers(sender=governance.address)
+
+    # Verify success
+    assert swept_amount == leftover_amount
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+
+def test_sweep_leftovers_no_balance_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    switchboard_alpha,
+):
+    """Test that sweeping fails when there's no balance to sweep"""
+    wallet = undy_usd_vault
+
+    # Verify wallet has no balance
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+
+    # Try to sweep - should fail because no balance
+    with boa.reverts():  # dev: no balance
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)
