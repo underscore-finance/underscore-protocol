@@ -62,6 +62,12 @@ interface YieldLego:
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
     def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
     def addPriceSnapshot(_vaultToken: address) -> bool: nonpayable
+    def registerVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def deregisterVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
+    def setMorphoRewardsAddr(_rewardsAddr: address): nonpayable
+    def setEulerRewardsAddr(_rewardsAddr: address): nonpayable
+    def setCompRewardsAddr(_rewardsAddr: address): nonpayable
 
 interface LevgVaultHelper:
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
@@ -90,6 +96,10 @@ flag ActionType:
     MAX_DEBT_RATIO
     ADD_MANAGER
     REMOVE_MANAGER
+    REGISTER_VAULT_TOKEN_ON_LEGO
+    SET_MORPHO_REWARDS_ADDR
+    SET_EULER_REWARDS_ADDR
+    SET_COMP_REWARDS_ADDR
 
 struct PendingRedemptionBuffer:
     vaultAddr: address
@@ -164,6 +174,23 @@ struct PendingAddManager:
 struct PendingRemoveManager:
     vaultAddr: address
     manager: address
+
+struct PendingRegisterVaultTokenOnLego:
+    legoId: uint256
+    asset: address
+    vaultToken: address
+
+struct PendingMorphoRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
+
+struct PendingEulerRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
+
+struct PendingCompRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
 
 event PendingRedemptionBufferChange:
     vaultAddr: indexed(address)
@@ -391,6 +418,59 @@ event PerformanceFeesClaimed:
     amount: uint256
     caller: address
 
+event PendingRegisterVaultTokenOnLegoChange:
+    legoId: indexed(uint256)
+    asset: indexed(address)
+    vaultToken: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event VaultTokenRegisteredOnLego:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    asset: indexed(address)
+    vaultToken: address
+
+event VaultTokenDeregisteredOnLego:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    asset: indexed(address)
+    vaultToken: address
+    caller: address
+
+event PendingMorphoRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event MorphoRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
+event PendingEulerRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event EulerRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
+event PendingCompRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event CompRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
@@ -410,6 +490,10 @@ pendingLevgVaultHelper: public(HashMap[uint256, PendingLevgVaultHelper]) # aid -
 pendingMaxDebtRatio: public(HashMap[uint256, PendingMaxDebtRatio]) # aid -> config
 pendingAddManager: public(HashMap[uint256, PendingAddManager]) # aid -> config
 pendingRemoveManager: public(HashMap[uint256, PendingRemoveManager]) # aid -> config
+pendingRegisterVaultTokenOnLego: public(HashMap[uint256, PendingRegisterVaultTokenOnLego]) # aid -> config
+pendingMorphoRewardsAddr: public(HashMap[uint256, PendingMorphoRewardsAddr]) # aid -> config
+pendingEulerRewardsAddr: public(HashMap[uint256, PendingEulerRewardsAddr]) # aid -> config
+pendingCompRewardsAddr: public(HashMap[uint256, PendingCompRewardsAddr]) # aid -> config
 
 MAX_VAULT_TOKENS: constant(uint256) = 50
 
@@ -500,6 +584,26 @@ def addPriceSnapshot(_legoId: uint256, _vaultToken: address) -> bool:
 
     log PriceSnapshotAdded(legoId=_legoId, legoAddr=legoAddr, vaultToken=_vaultToken, success=result, caller=msg.sender)
     return result
+
+
+# deregister vault token on lego
+
+
+@external
+def deregisterVaultTokenOnLego(_legoId: uint256, _asset: address, _vaultToken: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+    assert _vaultToken != empty(address) # dev: invalid vault token
+
+    # get lego address from lego book
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # execute immediately (no timelock for emergency vault token removals)
+    extcall YieldLego(legoAddr).deregisterVaultTokenLocally(_asset, _vaultToken)
+
+    log VaultTokenDeregisteredOnLego(legoId=_legoId, legoAddr=legoAddr, asset=_asset, vaultToken=_vaultToken, caller=msg.sender)
+    return 0
 
 
 # update yield position
@@ -1016,6 +1120,125 @@ def removeVaultManager(_vaultAddr: address, _manager: address) -> uint256:
     return 0
 
 
+# register vault token on lego
+
+
+@external
+def registerVaultTokenOnLego(_legoId: uint256, _asset: address, _vaultToken: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+    assert _vaultToken != empty(address) # dev: invalid vault token
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # validate that the vault token can be registered
+    assert staticcall YieldLego(legoAddr).canRegisterVaultToken(_asset, _vaultToken) # dev: cannot register vault token
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.REGISTER_VAULT_TOKEN_ON_LEGO
+    self.pendingRegisterVaultTokenOnLego[aid] = PendingRegisterVaultTokenOnLego(
+        legoId=_legoId,
+        asset=_asset,
+        vaultToken=_vaultToken
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingRegisterVaultTokenOnLegoChange(
+        legoId=_legoId,
+        asset=_asset,
+        vaultToken=_vaultToken,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set morpho rewards address
+
+
+@external
+def setMorphoRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_MORPHO_REWARDS_ADDR
+    self.pendingMorphoRewardsAddr[aid] = PendingMorphoRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingMorphoRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set euler rewards address
+
+
+@external
+def setEulerRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_EULER_REWARDS_ADDR
+    self.pendingEulerRewardsAddr[aid] = PendingEulerRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEulerRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set compound rewards address
+
+
+@external
+def setCompRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_COMP_REWARDS_ADDR
+    self.pendingCompRewardsAddr[aid] = PendingCompRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingCompRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
 #############
 # Execution #
 #############
@@ -1129,6 +1352,42 @@ def executePendingAction(_aid: uint256) -> bool:
         p: PendingRemoveManager = self.pendingRemoveManager[_aid]
         extcall LevgVault(p.vaultAddr).removeManager(p.manager)
         log ManagerRemoved(vaultAddr=p.vaultAddr, manager=p.manager)
+
+    elif actionType == ActionType.REGISTER_VAULT_TOKEN_ON_LEGO:
+        p: PendingRegisterVaultTokenOnLego = self.pendingRegisterVaultTokenOnLego[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # register vault token on the lego
+        extcall YieldLego(legoAddr).registerVaultTokenLocally(p.asset, p.vaultToken)
+        log VaultTokenRegisteredOnLego(legoId=p.legoId, legoAddr=legoAddr, asset=p.asset, vaultToken=p.vaultToken)
+
+    elif actionType == ActionType.SET_MORPHO_REWARDS_ADDR:
+        p: PendingMorphoRewardsAddr = self.pendingMorphoRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setMorphoRewardsAddr(p.rewardsAddr)
+        log MorphoRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
+
+    elif actionType == ActionType.SET_EULER_REWARDS_ADDR:
+        p: PendingEulerRewardsAddr = self.pendingEulerRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setEulerRewardsAddr(p.rewardsAddr)
+        log EulerRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
+
+    elif actionType == ActionType.SET_COMP_REWARDS_ADDR:
+        p: PendingCompRewardsAddr = self.pendingCompRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setCompRewardsAddr(p.rewardsAddr)
+        log CompRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
 
     self.actionType[_aid] = empty(ActionType)
     return True

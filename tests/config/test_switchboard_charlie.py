@@ -1538,3 +1538,511 @@ def test_claim_performance_fees_invalid_vault_fails(switchboard_charlie, governa
             invalid_vault,
             sender=governance.address
         )
+
+
+# deregisterVaultTokenOnLego tests
+
+
+def test_deregister_vault_token_on_lego_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    lego_book,
+    governance
+):
+    """Test that governance can call deregisterVaultTokenOnLego"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+
+    # First register the vault token
+    mock_yield_lego.registerVaultTokenLocally(
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=switchboard_charlie.address
+    )
+
+    # Execute deregister (immediate, no timelock)
+    result = switchboard_charlie.deregisterVaultTokenOnLego(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+
+    # Verify it returns 0 (immediate execution)
+    assert result == 0
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "VaultTokenDeregisteredOnLego")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].asset == yield_underlying_token.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].caller == governance.address
+
+
+def test_deregister_vault_token_on_lego_security_action_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    lego_book,
+    mission_control,
+    switchboard_alpha,
+    alice
+):
+    """Test that security action users can call deregisterVaultTokenOnLego"""
+    # Setup alice as security action user
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    lego_id = lego_book.getRegId(mock_yield_lego)
+
+    # First register the vault token
+    mock_yield_lego.registerVaultTokenLocally(
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=switchboard_charlie.address
+    )
+
+    # Alice (security action user) calls deregisterVaultTokenOnLego
+    result = switchboard_charlie.deregisterVaultTokenOnLego(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=alice
+    )
+
+    # Verify it returns 0 (immediate execution)
+    assert result == 0
+
+    # Verify event was emitted
+    logs = filter_logs(switchboard_charlie, "VaultTokenDeregisteredOnLego")
+    assert len(logs) >= 1
+    assert logs[-1].caller == alice
+
+
+def test_deregister_vault_token_on_lego_unauthorized_fails(
+    switchboard_charlie,
+    yield_vault_token,
+    yield_underlying_token,
+    alice
+):
+    """Test that unauthorized users cannot call deregisterVaultTokenOnLego"""
+    lego_id = 2  # mock_yield_lego
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.deregisterVaultTokenOnLego(
+            lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            sender=alice
+        )
+
+
+def test_deregister_vault_token_on_lego_invalid_lego_id_fails(
+    switchboard_charlie,
+    yield_vault_token,
+    yield_underlying_token,
+    governance
+):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.deregisterVaultTokenOnLego(
+            invalid_lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            sender=governance.address
+        )
+
+
+# registerVaultTokenOnLego tests
+
+
+def test_register_vault_token_on_lego_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    lego_book,
+    governance
+):
+    """Test that governance can call registerVaultTokenOnLego"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+
+    # Initiate registration (timelocked)
+    aid = switchboard_charlie.registerVaultTokenOnLego(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+
+    # Verify it returns an action ID (timelocked)
+    assert aid > 0
+
+    # Verify pending event was emitted
+    logs = filter_logs(switchboard_charlie, "PendingRegisterVaultTokenOnLegoChange")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].asset == yield_underlying_token.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+    assert logs[-1].actionId == aid
+
+
+def test_register_vault_token_on_lego_unauthorized_fails(
+    switchboard_charlie,
+    yield_vault_token,
+    yield_underlying_token,
+    alice
+):
+    """Test that unauthorized users cannot call registerVaultTokenOnLego"""
+    lego_id = 2  # mock_yield_lego
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.registerVaultTokenOnLego(
+            lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            sender=alice
+        )
+
+
+def test_register_vault_token_on_lego_invalid_lego_id_fails(
+    switchboard_charlie,
+    yield_vault_token,
+    yield_underlying_token,
+    governance
+):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.registerVaultTokenOnLego(
+            invalid_lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            sender=governance.address
+        )
+
+
+def test_register_vault_token_on_lego_execution(
+    switchboard_charlie,
+    mock_yield_lego,
+    yield_vault_token,
+    yield_underlying_token,
+    lego_book,
+    governance
+):
+    """Test executing a registerVaultTokenOnLego action"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+
+    # Initiate registration
+    aid = switchboard_charlie.registerVaultTokenOnLego(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        sender=governance.address
+    )
+
+    # Fast forward past timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+
+    # Execute the action
+    success = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert success
+
+    # Verify execution event was emitted
+    logs = filter_logs(switchboard_charlie, "VaultTokenRegisteredOnLego")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].asset == yield_underlying_token.address
+    assert logs[-1].vaultToken == yield_vault_token.address
+
+
+# setMorphoRewardsAddr tests
+
+
+def test_set_morpho_rewards_addr_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test that governance can call setMorphoRewardsAddr"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address (timelocked)
+    aid = switchboard_charlie.setMorphoRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Verify it returns an action ID (timelocked)
+    assert aid > 0
+
+    # Verify pending event was emitted
+    logs = filter_logs(switchboard_charlie, "PendingMorphoRewardsAddrChange")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].rewardsAddr == rewards_addr
+    assert logs[-1].actionId == aid
+
+
+def test_set_morpho_rewards_addr_unauthorized_fails(
+    switchboard_charlie,
+    alice
+):
+    """Test that unauthorized users cannot call setMorphoRewardsAddr"""
+    lego_id = 2
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setMorphoRewardsAddr(
+            lego_id,
+            rewards_addr,
+            sender=alice
+        )
+
+
+def test_set_morpho_rewards_addr_invalid_lego_id_fails(
+    switchboard_charlie,
+    governance
+):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.setMorphoRewardsAddr(
+            invalid_lego_id,
+            rewards_addr,
+            sender=governance.address
+        )
+
+
+def test_set_morpho_rewards_addr_execution(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test executing a setMorphoRewardsAddr action"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address
+    aid = switchboard_charlie.setMorphoRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Fast forward past timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+
+    # Execute the action
+    success = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert success
+
+    # Verify execution event was emitted
+    logs = filter_logs(switchboard_charlie, "MorphoRewardsAddrSet")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].rewardsAddr == rewards_addr
+
+
+# setEulerRewardsAddr tests
+
+
+def test_set_euler_rewards_addr_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test that governance can call setEulerRewardsAddr"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address (timelocked)
+    aid = switchboard_charlie.setEulerRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Verify it returns an action ID (timelocked)
+    assert aid > 0
+
+    # Verify pending event was emitted
+    logs = filter_logs(switchboard_charlie, "PendingEulerRewardsAddrChange")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].rewardsAddr == rewards_addr
+    assert logs[-1].actionId == aid
+
+
+def test_set_euler_rewards_addr_unauthorized_fails(
+    switchboard_charlie,
+    alice
+):
+    """Test that unauthorized users cannot call setEulerRewardsAddr"""
+    lego_id = 2
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setEulerRewardsAddr(
+            lego_id,
+            rewards_addr,
+            sender=alice
+        )
+
+
+def test_set_euler_rewards_addr_invalid_lego_id_fails(
+    switchboard_charlie,
+    governance
+):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.setEulerRewardsAddr(
+            invalid_lego_id,
+            rewards_addr,
+            sender=governance.address
+        )
+
+
+def test_set_euler_rewards_addr_execution(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test executing a setEulerRewardsAddr action"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address
+    aid = switchboard_charlie.setEulerRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Fast forward past timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+
+    # Execute the action
+    success = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert success
+
+    # Verify execution event was emitted
+    logs = filter_logs(switchboard_charlie, "EulerRewardsAddrSet")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].rewardsAddr == rewards_addr
+
+
+# setCompRewardsAddr tests
+
+
+def test_set_comp_rewards_addr_governance_can_call(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test that governance can call setCompRewardsAddr"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address (timelocked)
+    aid = switchboard_charlie.setCompRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Verify it returns an action ID (timelocked)
+    assert aid > 0
+
+    # Verify pending event was emitted
+    logs = filter_logs(switchboard_charlie, "PendingCompRewardsAddrChange")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].rewardsAddr == rewards_addr
+    assert logs[-1].actionId == aid
+
+
+def test_set_comp_rewards_addr_unauthorized_fails(
+    switchboard_charlie,
+    alice
+):
+    """Test that unauthorized users cannot call setCompRewardsAddr"""
+    lego_id = 2
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("no perms"):
+        switchboard_charlie.setCompRewardsAddr(
+            lego_id,
+            rewards_addr,
+            sender=alice
+        )
+
+
+def test_set_comp_rewards_addr_invalid_lego_id_fails(
+    switchboard_charlie,
+    governance
+):
+    """Test that invalid lego id fails"""
+    invalid_lego_id = 999
+    rewards_addr = boa.env.generate_address()
+
+    with boa.reverts("invalid lego id"):
+        switchboard_charlie.setCompRewardsAddr(
+            invalid_lego_id,
+            rewards_addr,
+            sender=governance.address
+        )
+
+
+def test_set_comp_rewards_addr_execution(
+    switchboard_charlie,
+    mock_yield_lego,
+    lego_book,
+    governance
+):
+    """Test executing a setCompRewardsAddr action"""
+    lego_id = lego_book.getRegId(mock_yield_lego)
+    rewards_addr = boa.env.generate_address()
+
+    # Initiate setting rewards address
+    aid = switchboard_charlie.setCompRewardsAddr(
+        lego_id,
+        rewards_addr,
+        sender=governance.address
+    )
+
+    # Fast forward past timelock
+    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
+
+    # Execute the action
+    success = switchboard_charlie.executePendingAction(aid, sender=governance.address)
+    assert success
+
+    # Verify execution event was emitted
+    logs = filter_logs(switchboard_charlie, "CompRewardsAddrSet")
+    assert len(logs) >= 1
+    assert logs[-1].legoId == lego_id
+    assert logs[-1].legoAddr == mock_yield_lego.address
+    assert logs[-1].rewardsAddr == rewards_addr

@@ -698,3 +698,21 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
+
+
+@external
+def setMorphoRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing
+
+
+@external
+def setEulerRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing
+
+
+@external
+def setCompRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing
