@@ -470,3 +470,264 @@ def test_starter_agent_settings_has_approval_enabled(high_command):
 
     # Check that onlyApprovedYieldOpps is False by default for starter agent
     assert starter_settings.legoPerms.onlyApprovedYieldOpps == False
+
+
+##########################
+# Edge Case Tests        #
+##########################
+
+
+def test_multiple_managers_different_approval_settings(
+    user_wallet,
+    user_wallet_config,
+    high_command,
+    yield_underlying_token,
+    yield_vault_token,
+    yield_underlying_token_whale,
+    vault_registry,
+    undy_usd_vault,
+    switchboard_alpha,
+    createManagerSettings,
+    createManagerLimits,
+    createLegoPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+    alice,
+    charlie,
+):
+    """Test multiple managers with different onlyApprovedYieldOpps settings"""
+    # Add alice as manager with onlyApprovedYieldOpps=True
+    manager_settings_strict = createManagerSettings(
+        _limits=createManagerLimits(),
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=True),
+        _whitelistPerms=createWhitelistPerms(),
+        _transferPerms=createTransferPerms(),
+        _allowedAssets=[],
+        _canClaimLoot=False,
+    )
+    user_wallet_config.addManager(alice, manager_settings_strict, sender=high_command.address)
+
+    # Add charlie as manager with onlyApprovedYieldOpps=False
+    manager_settings_permissive = createManagerSettings(
+        _limits=createManagerLimits(),
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False),
+        _whitelistPerms=createWhitelistPerms(),
+        _transferPerms=createTransferPerms(),
+        _allowedAssets=[],
+        _canClaimLoot=False,
+    )
+    user_wallet_config.addManager(charlie, manager_settings_permissive, sender=high_command.address)
+
+    # UNAPPROVE the vault token
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Fund the user wallet
+    amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet, amount * 2, sender=yield_underlying_token_whale)
+
+    lego_id = 2  # mock_yield_lego
+
+    # Alice (strict) should NOT be able to deposit to unapproved vault
+    with boa.reverts("manager limits not allowed"):
+        user_wallet.depositForYield(
+            lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            amount,
+            sender=alice
+        )
+
+    # Charlie (permissive) SHOULD be able to deposit to unapproved vault
+    user_wallet.depositForYield(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        amount,
+        sender=charlie
+    )
+
+    # Verify the deposit succeeded
+    assert yield_vault_token.balanceOf(user_wallet.address) > 0
+
+
+def test_vault_approval_revoked_after_deposit(
+    user_wallet,
+    yield_underlying_token,
+    yield_vault_token,
+    yield_underlying_token_whale,
+    setup_manager_with_approval_flag,
+    setup_approved_vault_token,
+    vault_registry,
+    undy_usd_vault,
+    switchboard_alpha,
+):
+    """Test that revoking approval after deposit doesn't affect existing positions (withdrawals still work)"""
+    # Setup manager with approval flag enabled
+    manager = setup_manager_with_approval_flag(only_approved=True)
+
+    # Approve the vault token
+    setup_approved_vault_token(yield_underlying_token, yield_vault_token)
+
+    # Fund the user wallet and deposit
+    amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet, amount, sender=yield_underlying_token_whale)
+
+    lego_id = 2  # mock_yield_lego
+    user_wallet.depositForYield(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        amount,
+        sender=manager
+    )
+
+    vault_balance = yield_vault_token.balanceOf(user_wallet.address)
+    assert vault_balance > 0
+
+    # REVOKE approval after deposit
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        False,  # revoke approval
+        sender=switchboard_alpha.address
+    )
+
+    # Manager should still be able to withdraw from the vault (withdrawals not restricted)
+    user_wallet.withdrawFromYield(
+        lego_id,
+        yield_vault_token.address,
+        vault_balance,
+        sender=manager
+    )
+
+    # Verify withdrawal succeeded
+    assert yield_vault_token.balanceOf(user_wallet.address) == 0
+
+
+def test_vault_approval_granted_enables_deposits(
+    user_wallet,
+    yield_underlying_token,
+    yield_vault_token,
+    yield_underlying_token_whale,
+    setup_manager_with_approval_flag,
+    vault_registry,
+    undy_usd_vault,
+    switchboard_alpha,
+):
+    """Test that granting approval enables previously blocked deposits"""
+    # Setup manager with approval flag enabled
+    manager = setup_manager_with_approval_flag(only_approved=True)
+
+    # UNAPPROVE the vault token
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Fund the user wallet
+    amount = 1000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(user_wallet, amount * 2, sender=yield_underlying_token_whale)
+
+    lego_id = 2  # mock_yield_lego
+
+    # First deposit should fail (not approved)
+    with boa.reverts("manager limits not allowed"):
+        user_wallet.depositForYield(
+            lego_id,
+            yield_underlying_token.address,
+            yield_vault_token.address,
+            amount,
+            sender=manager
+        )
+
+    # APPROVE the vault token
+    vault_registry.setApprovedVaultToken(
+        undy_usd_vault.address,
+        yield_vault_token.address,
+        True,  # approve
+        sender=switchboard_alpha.address
+    )
+
+    # Now the deposit should succeed
+    user_wallet.depositForYield(
+        lego_id,
+        yield_underlying_token.address,
+        yield_vault_token.address,
+        amount,
+        sender=manager
+    )
+
+    # Verify the deposit succeeded
+    assert yield_vault_token.balanceOf(user_wallet.address) > 0
+
+
+def test_remove_and_readd_manager_preserves_setting(
+    user_wallet,
+    user_wallet_config,
+    high_command,
+    yield_underlying_token,
+    yield_vault_token,
+    yield_underlying_token_whale,
+    vault_registry,
+    undy_usd_vault,
+    switchboard_alpha,
+    createManagerSettings,
+    createManagerLimits,
+    createLegoPerms,
+    createSwapPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+    createGlobalManagerSettings,
+    alice,
+    bob,
+):
+    """Test that removing and re-adding a manager can have different onlyApprovedYieldOpps settings"""
+    # Set global settings first
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Add alice as manager with onlyApprovedYieldOpps=True
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(_onlyApprovedYieldOpps=True),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    # Verify the setting
+    settings_1 = user_wallet_config.managerSettings(alice)
+    assert settings_1.legoPerms.onlyApprovedYieldOpps == True
+
+    # Remove alice
+    high_command.removeManager(user_wallet, alice, sender=bob)
+
+    # Re-add alice with onlyApprovedYieldOpps=False
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(_onlyApprovedYieldOpps=False),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    # Verify the new setting
+    settings_2 = user_wallet_config.managerSettings(alice)
+    assert settings_2.legoPerms.onlyApprovedYieldOpps == False

@@ -350,7 +350,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
     # First set global settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # Add alice as manager
     high_command.addManager(
         user_wallet,
@@ -364,7 +364,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
         False,  # canClaimLoot
         sender=bob
     )
-    
+
     # Try to add alice again
     with boa.reverts("invalid manager"):
         high_command.addManager(
@@ -379,6 +379,79 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
             False,  # canClaimLoot
             sender=bob
         )
+
+
+#################################################
+# Add Manager - onlyApprovedYieldOpps Property #
+#################################################
+
+
+def test_add_manager_with_only_approved_yield_opps_true(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with onlyApprovedYieldOpps=True saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create lego perms with onlyApprovedYieldOpps=True
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _canBuyAndSell=False,
+        _onlyApprovedYieldOpps=True
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the setting was saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.legoPerms.onlyApprovedYieldOpps == True
+
+
+def test_add_manager_with_only_approved_yield_opps_false(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with onlyApprovedYieldOpps=False saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create lego perms with onlyApprovedYieldOpps=False
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _canBuyAndSell=False,
+        _onlyApprovedYieldOpps=False
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the setting was saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.legoPerms.onlyApprovedYieldOpps == False
 
 
 ##################
@@ -732,7 +805,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     high_command.addManager(
         user_wallet,
         alice,
@@ -745,13 +818,13 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         False,  # canClaimLoot
         sender=bob
     )
-    
+
     # Get initial index
     initial_index = user_wallet_config.indexOfManager(alice)
-    
+
     # Advance some blocks to ensure update happens at a different block
     boa.env.time_travel(blocks=25)
-    
+
     # Update manager
     high_command.updateManager(
         user_wallet,
@@ -765,9 +838,122 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         False,  # canClaimLoot
         sender=bob
     )
-    
+
     # Verify index unchanged
     assert user_wallet_config.indexOfManager(alice) == initial_index
+
+
+####################################################
+# Update Manager - onlyApprovedYieldOpps Property #
+####################################################
+
+
+def test_update_manager_changes_only_approved_yield_opps_false_to_true(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test updating onlyApprovedYieldOpps from False to True"""
+    # Setup: add alice as manager with onlyApprovedYieldOpps=False
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    initial_lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=False
+    )
+
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        initial_lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    # Verify initial setting
+    initial_settings = user_wallet_config.managerSettings(alice)
+    assert initial_settings.legoPerms.onlyApprovedYieldOpps == False
+
+    # Update to True
+    updated_lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=True
+    )
+
+    result = high_command.updateManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        updated_lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the update
+    updated_settings = user_wallet_config.managerSettings(alice)
+    assert updated_settings.legoPerms.onlyApprovedYieldOpps == True
+
+
+def test_update_manager_changes_only_approved_yield_opps_true_to_false(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test updating onlyApprovedYieldOpps from True to False"""
+    # Setup: add alice as manager with onlyApprovedYieldOpps=True
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    initial_lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=True
+    )
+
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        initial_lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    # Verify initial setting
+    initial_settings = user_wallet_config.managerSettings(alice)
+    assert initial_settings.legoPerms.onlyApprovedYieldOpps == True
+
+    # Update to False
+    updated_lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=False
+    )
+
+    result = high_command.updateManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        updated_lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the update
+    updated_settings = user_wallet_config.managerSettings(alice)
+    assert updated_settings.legoPerms.onlyApprovedYieldOpps == False
 
 
 ##################
@@ -2252,9 +2438,9 @@ def test_set_global_manager_settings_affects_new_managers(high_command, user_wal
         [],
         sender=bob
     )
-    
+
     current_block = boa.env.evm.patch.block_number
-    
+
     # Add a new manager without specifying start delay or activation length
     high_command.addManager(
         user_wallet,
@@ -2270,10 +2456,46 @@ def test_set_global_manager_settings_affects_new_managers(high_command, user_wal
         0,  # activation length
         sender=bob
     )
-    
+
     # Verify manager got global defaults
     settings = user_wallet_config.managerSettings(alice)
     assert settings.startBlock == current_block + ONE_DAY_IN_BLOCKS * 3  # Global start delay
     assert settings.expiryBlock == settings.startBlock + ONE_MONTH_IN_BLOCKS * 3  # Global activation
+
+
+##############################################################
+# Global Manager Settings - onlyApprovedYieldOpps Property #
+##############################################################
+
+
+def test_set_global_manager_settings_only_approved_yield_opps_saved(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
+    """Test that global settings correctly saves onlyApprovedYieldOpps property"""
+    # Set global settings with onlyApprovedYieldOpps=True
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _canBuyAndSell=True,
+        _onlyApprovedYieldOpps=True
+    )
+
+    result = high_command.setGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the property was saved
+    global_settings = user_wallet_config.globalManagerSettings()
+    assert global_settings.legoPerms.onlyApprovedYieldOpps == True
 
 

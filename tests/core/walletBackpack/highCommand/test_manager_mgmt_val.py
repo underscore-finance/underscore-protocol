@@ -1069,3 +1069,119 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(high_command, user_wa
         createWhitelistPerms(), createTransferPerms(), []
     )
 
+
+##########################################################
+# Manager Validation - onlyApprovedYieldOpps Property #
+##########################################################
+
+
+def test_valid_new_manager_with_only_approved_yield_opps_true(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that validation passes with onlyApprovedYieldOpps=True"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create lego perms with onlyApprovedYieldOpps=True
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _canBuyAndSell=True,
+        _onlyApprovedYieldOpps=True
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_new_manager_with_only_approved_yield_opps_false(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that validation passes with onlyApprovedYieldOpps=False"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create lego perms with onlyApprovedYieldOpps=False
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _canBuyAndSell=True,
+        _onlyApprovedYieldOpps=False
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_validate_global_settings_with_only_approved_yield_opps_true(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    """Test that global settings validation passes with onlyApprovedYieldOpps=True"""
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=True
+    )
+
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == True
+
+
+def test_validate_global_settings_with_only_approved_yield_opps_false(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    """Test that global settings validation passes with onlyApprovedYieldOpps=False"""
+    lego_perms = createLegoPerms(
+        _canManageYield=True,
+        _onlyApprovedYieldOpps=False
+    )
+
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        lego_perms,
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == True
+
+
