@@ -154,7 +154,7 @@ def test_set_collateral_vault_unauthorized_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to set from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setCollateralVault(
             new_usdc_collateral_vault.address,
             MOCK_YIELD_LEGO_ID,
@@ -164,7 +164,7 @@ def test_set_collateral_vault_unauthorized_fails(
         )
 
     # Try to set from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setCollateralVault(
             new_usdc_collateral_vault.address,
             MOCK_YIELD_LEGO_ID,
@@ -416,7 +416,7 @@ def test_set_collateral_vault_fails_with_ripe_balance(
     assert ripe_balance > 0, "Ripe balance should be non-zero for this test"
 
     # CRITICAL TEST: Try to change vault - should FAIL
-    with boa.reverts():  # dev: old vault has ripe balance
+    with boa.reverts("old vault has ripe balance"):
         wallet.setCollateralVault(
             new_usdc_collateral_vault.address,
             lego_id,
@@ -525,7 +525,7 @@ def test_set_leverage_vault_unauthorized_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to set from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setLeverageVault(
             new_usdc_leverage_vault.address,
             MOCK_YIELD_LEGO_ID,
@@ -535,7 +535,7 @@ def test_set_leverage_vault_unauthorized_fails(
         )
 
     # Try to set from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setLeverageVault(
             new_usdc_leverage_vault.address,
             MOCK_YIELD_LEGO_ID,
@@ -676,7 +676,7 @@ def test_set_leverage_vault_fails_with_ripe_balance(
     assert ripe_balance > 0, "Ripe balance should be non-zero for this test"
 
     # CRITICAL TEST: Try to change leverage vault - should FAIL
-    with boa.reverts():  # dev: old vault has ripe balance
+    with boa.reverts("old vault has ripe balance"):
         wallet.setLeverageVault(
             new_usdc_leverage_vault.address,
             lego_id,
@@ -753,19 +753,19 @@ def test_set_slippage_exceeds_max_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to set USDC slippage above 10% - should fail
-    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+    with boa.reverts("usdc slippage too high (max 10%)"):
         wallet.setSlippagesAllowed(1001, 100, sender=switchboard_alpha.address)
 
     # Try to set GREEN slippage above 10% - should fail
-    with boa.reverts():  # dev: green slippage too high (max 10%)
+    with boa.reverts("green slippage too high (max 10%)"):
         wallet.setSlippagesAllowed(100, 1001, sender=switchboard_alpha.address)
 
     # Try with a very large value for USDC
-    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+    with boa.reverts("usdc slippage too high (max 10%)"):
         wallet.setSlippagesAllowed(10000, 100, sender=switchboard_alpha.address)
 
     # Try with both values too high
-    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+    with boa.reverts("usdc slippage too high (max 10%)"):
         wallet.setSlippagesAllowed(1001, 1001, sender=switchboard_alpha.address)
 
 
@@ -795,7 +795,7 @@ def test_set_slippages_allowed_comprehensive(
     assert logs[-1].greenSlippage == green_slippage
 
     # Test unauthorized access fails
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setSlippagesAllowed(100, 100, sender=alice)
 
 
@@ -838,14 +838,14 @@ def test_set_levg_vault_helper_unauthorized_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to set from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setLevgVaultHelper(
             new_levg_vault_helper.address,
             sender=starter_agent.address
         )
 
     # Try to set from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.setLevgVaultHelper(
             new_levg_vault_helper.address,
             sender=alice
@@ -920,11 +920,11 @@ def test_add_manager_unauthorized_fails(
     wallet = undy_levg_vault_usdc
 
     # Try to add from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.addManager(alice, sender=starter_agent.address)
 
     # Try to add from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.addManager(alice, sender=bob)
 
 
@@ -974,11 +974,11 @@ def test_remove_manager_unauthorized_fails(
     wallet.addManager(alice, sender=switchboard_alpha.address)
 
     # Try to remove from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.removeManager(alice, sender=starter_agent.address)
 
     # Try to remove from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.removeManager(alice, sender=bob)
 
 
@@ -1112,7 +1112,7 @@ def test_sweep_leftovers_with_shares_outstanding_fails(
     mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
 
     # Try to sweep - should fail because shares are outstanding
-    with boa.reverts():  # dev: shares outstanding
+    with boa.reverts("shares outstanding"):
         wallet.sweepLeftovers(sender=switchboard_alpha.address)
 
 
@@ -1131,11 +1131,11 @@ def test_sweep_leftovers_unauthorized_fails(
     mock_usdc.mint(wallet.address, leftover_amount, sender=governance.address)
 
     # Try to sweep from starter_agent (not switchboard) - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.sweepLeftovers(sender=starter_agent.address)
 
     # Try to sweep from random user - should fail
-    with boa.reverts():  # dev: no perms
+    with boa.reverts("no perms"):
         wallet.sweepLeftovers(sender=alice)
 
 
@@ -1151,7 +1151,7 @@ def test_sweep_leftovers_no_balance_fails(
     assert mock_usdc.balanceOf(wallet.address) == 0
 
     # Try to sweep - should fail because no balance
-    with boa.reverts():  # dev: no balance
+    with boa.reverts("no balance"):
         wallet.sweepLeftovers(sender=switchboard_alpha.address)
 
 

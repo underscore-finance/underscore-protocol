@@ -327,7 +327,7 @@ def test_set_usdc_slippage_exceeds_max_fails(switchboard_charlie, undy_levg_vaul
     vault = undy_levg_vault_usdc
     current_green_slippage = vault.greenSlippageAllowed()
 
-    with boa.reverts():  # dev: usdc slippage too high (max 10%)
+    with boa.reverts("usdc slippage too high (max 10%)"):
         switchboard_charlie.setSlippagesAllowed(
             vault.address,
             1001,  # 10.01%
@@ -426,7 +426,7 @@ def test_set_green_slippage_exceeds_max_fails(switchboard_charlie, undy_levg_vau
     vault = undy_levg_vault_usdc
     current_usdc_slippage = vault.usdcSlippageAllowed()
 
-    with boa.reverts():  # dev: green slippage too high (max 10%)
+    with boa.reverts("green slippage too high (max 10%)"):
         switchboard_charlie.setSlippagesAllowed(
             vault.address,
             current_usdc_slippage,
@@ -495,7 +495,7 @@ def test_set_levg_vault_helper_success(switchboard_charlie, undy_levg_vault_usdc
 
 def test_set_levg_vault_helper_empty_address_fails(switchboard_charlie, undy_levg_vault_usdc, governance):
     """Test that empty helper address is rejected"""
-    with boa.reverts():  # dev: invalid helper address
+    with boa.reverts("invalid helper address"):
         switchboard_charlie.setLevgVaultHelper(
             undy_levg_vault_usdc.address,
             ZERO_ADDRESS,
@@ -581,7 +581,7 @@ def test_set_max_debt_ratio_success_max_hundred_percent(switchboard_charlie, und
 
 def test_set_max_debt_ratio_exceeds_max_fails(switchboard_charlie, undy_levg_vault_usdc, governance):
     """Test that ratio > 100% is rejected"""
-    with boa.reverts():  # dev: ratio too high (max 100%)
+    with boa.reverts("ratio too high (max 100%)"):
         switchboard_charlie.setMaxDebtRatio(
             undy_levg_vault_usdc.address,
             10001,  # 100.01%
