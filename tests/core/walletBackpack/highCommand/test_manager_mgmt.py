@@ -2499,3 +2499,296 @@ def test_set_global_manager_settings_only_approved_yield_opps_saved(high_command
     assert global_settings.legoPerms.onlyApprovedYieldOpps == True
 
 
+##############################################
+# Add Manager - SwapPerms Property          #
+##############################################
+
+
+def test_add_manager_with_must_have_usd_value_true(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with mustHaveUsdValue=True saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with mustHaveUsdValue=True
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=0,
+        _maxSlippage=0
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the setting was saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.swapPerms.mustHaveUsdValue == True
+
+
+def test_add_manager_with_max_swaps_per_period(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with maxNumSwapsPerPeriod limit saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with swap count limit
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=False,
+        _maxNumSwapsPerPeriod=10,
+        _maxSlippage=0
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the setting was saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.swapPerms.maxNumSwapsPerPeriod == 10
+
+
+def test_add_manager_with_max_slippage(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with maxSlippage saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with slippage limit (requires mustHaveUsdValue)
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=0,
+        _maxSlippage=500  # 5%
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the setting was saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.swapPerms.maxSlippage == 500
+
+
+def test_add_manager_saves_all_swap_perms_correctly(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test adding manager with all SwapPerms fields saves correctly"""
+    # Setup global settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with all restrictions
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=15,
+        _maxSlippage=300  # 3%
+    )
+
+    # Add manager
+    result = high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify all settings were saved correctly
+    saved_settings = user_wallet_config.managerSettings(alice)
+    assert saved_settings.swapPerms.mustHaveUsdValue == True
+    assert saved_settings.swapPerms.maxNumSwapsPerPeriod == 15
+    assert saved_settings.swapPerms.maxSlippage == 300
+
+
+###################################################
+# Update Manager - SwapPerms Property            #
+###################################################
+
+
+def test_update_manager_changes_swap_perms(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test updating manager SwapPerms changes settings correctly"""
+    # Setup: add alice as manager with default SwapPerms
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    initial_swap_perms = createSwapPerms(
+        _mustHaveUsdValue=False,
+        _maxNumSwapsPerPeriod=0,
+        _maxSlippage=0
+    )
+
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        initial_swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    # Verify initial settings
+    initial_settings = user_wallet_config.managerSettings(alice)
+    assert initial_settings.swapPerms.mustHaveUsdValue == False
+    assert initial_settings.swapPerms.maxNumSwapsPerPeriod == 0
+    assert initial_settings.swapPerms.maxSlippage == 0
+
+    # Update to restricted SwapPerms
+    updated_swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=5,
+        _maxSlippage=1000  # 10%
+    )
+
+    result = high_command.updateManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        updated_swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,  # canClaimLoot
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify the update
+    updated_settings = user_wallet_config.managerSettings(alice)
+    assert updated_settings.swapPerms.mustHaveUsdValue == True
+    assert updated_settings.swapPerms.maxNumSwapsPerPeriod == 5
+    assert updated_settings.swapPerms.maxSlippage == 1000
+
+
+def test_update_manager_swap_perms_preserved_in_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """Test that updated SwapPerms persist correctly"""
+    # Setup
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Add manager with specific SwapPerms
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=20,
+        _maxSlippage=250  # 2.5%
+    )
+
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+
+    # Update other settings but keep SwapPerms the same
+    high_command.updateManager(
+        user_wallet,
+        alice,
+        createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=True),  # Change limits
+        createLegoPerms(),
+        swap_perms,  # Keep same SwapPerms
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+
+    # Verify SwapPerms persisted correctly
+    settings = user_wallet_config.managerSettings(alice)
+    assert settings.swapPerms.mustHaveUsdValue == True
+    assert settings.swapPerms.maxNumSwapsPerPeriod == 20
+    assert settings.swapPerms.maxSlippage == 250
+
+
+##########################################################
+# Global Manager Settings - SwapPerms Property          #
+##########################################################
+
+
+def test_set_global_swap_perms(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
+    """Test that global settings correctly saves SwapPerms"""
+    # Set global settings with all SwapPerms restrictions
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=30,
+        _maxSlippage=500  # 5%
+    )
+
+    result = high_command.setGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        sender=bob
+    )
+
+    assert result == True
+
+    # Verify all SwapPerms fields were saved
+    global_settings = user_wallet_config.globalManagerSettings()
+    assert global_settings.swapPerms.mustHaveUsdValue == True
+    assert global_settings.swapPerms.maxNumSwapsPerPeriod == 30
+    assert global_settings.swapPerms.maxSlippage == 500
+
+

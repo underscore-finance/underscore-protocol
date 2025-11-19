@@ -1920,3 +1920,607 @@ def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSett
         ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
+
+
+######################################
+# Manager Validation - Swap Limits   #
+######################################
+
+
+def test_swap_with_must_have_usd_value_requires_both_values(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap with mustHaveUsdValue=True requires both USD values to be non-zero"""
+    # Setup manager with mustHaveUsdValue=True
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Should pass when both USD values are non-zero
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue (non-zero)
+        95 * 10**6,   # toAssetUsdValue (non-zero)
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_swap_with_must_have_usd_value_fails_missing_from_value(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap with mustHaveUsdValue=True fails when fromUsdValue=0"""
+    # Setup manager with mustHaveUsdValue=True
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Should fail when fromAssetUsdValue is zero
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue (zero - invalid!)
+        95 * 10**6,   # toAssetUsdValue (non-zero)
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_with_must_have_usd_value_fails_missing_to_value(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap with mustHaveUsdValue=True fails when toUsdValue=0"""
+    # Setup manager with mustHaveUsdValue=True
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Should fail when toAssetUsdValue is zero
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue (non-zero)
+        0,  # toAssetUsdValue (zero - invalid!)
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_without_must_have_usd_value_allows_zero_prices(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap with mustHaveUsdValue=False allows zero USD values"""
+    # Setup manager with mustHaveUsdValue=False (default)
+    swap_perms = createSwapPerms(_mustHaveUsdValue=False)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Should pass even with zero USD values
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue (zero - allowed!)
+        0,  # toAssetUsdValue (zero - allowed!)
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_swap_must_have_usd_value_enforced_from_global(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that global mustHaveUsdValue=True is enforced even when manager-specific is False"""
+    # Setup global with mustHaveUsdValue=True
+    global_swap_perms = createSwapPerms(_mustHaveUsdValue=True)
+    global_settings = createGlobalManagerSettings(_swapPerms=global_swap_perms)
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Setup manager with mustHaveUsdValue=False
+    manager_swap_perms = createSwapPerms(_mustHaveUsdValue=False)
+    manager_settings_obj = createManagerSettings(_swapPerms=manager_swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Should fail because global requires USD values (OR logic)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue (zero - invalid!)
+        0,  # toAssetUsdValue (zero - invalid!)
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_count_limit_allows_swaps_within_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swaps within maxNumSwapsPerPeriod limit are allowed"""
+    # Setup manager with swap count limit of 3
+    swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=3)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # First swap (count=0) should pass
+    manager_data = createManagerData(_numSwapsInPeriod=0, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 1  # Counter incremented
+
+    # Second swap (count=1) should pass
+    manager_data = createManagerData(_numSwapsInPeriod=1, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 2
+
+    # Third swap (count=2) should pass
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 3
+
+
+def test_swap_count_limit_blocks_swap_at_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap at maxNumSwapsPerPeriod limit is blocked"""
+    # Setup manager with swap count limit of 3
+    swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=3)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Fourth swap (count=3, at limit) should fail
+    manager_data = createManagerData(_numSwapsInPeriod=3, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_count_manager_specific_takes_precedence(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that manager-specific swap count limit takes precedence over global"""
+    # Setup global with swap count limit of 10
+    global_swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=10)
+    global_settings = createGlobalManagerSettings(_swapPerms=global_swap_perms)
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Setup manager with more restrictive limit of 2
+    manager_swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=2)
+    manager_settings_obj = createManagerSettings(_swapPerms=manager_swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Third swap (count=2) should fail due to manager-specific limit
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_count_global_used_when_manager_zero(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that global swap count limit is used when manager-specific is zero"""
+    # Setup global with swap count limit of 2
+    global_swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=2)
+    global_settings = createGlobalManagerSettings(_swapPerms=global_swap_perms)
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Setup manager with no limit (0 = use global)
+    manager_swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=0)
+    manager_settings_obj = createManagerSettings(_swapPerms=manager_swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Third swap should fail due to global limit
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_count_unlimited_when_zero(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap count limit of 0 (both manager and global) allows unlimited swaps"""
+    # Setup both manager and global with no limit
+    swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=0)
+    global_settings = createGlobalManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Even with high swap count, should pass
+    manager_data = createManagerData(_numSwapsInPeriod=1000, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_non_swap_transactions_do_not_increment_counter(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that non-swap transactions don't increment the swap counter"""
+    # Setup manager with swap count limit
+    swap_perms = createSwapPerms(_maxNumSwapsPerPeriod=3)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Non-swap transaction should not increment counter
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,  # isSwap=False
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 2  # Counter NOT incremented
+
+
+def test_swap_slippage_within_limit_passes(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap with acceptable slippage passes"""
+    # Setup manager with 5% max slippage
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=500)  # 5%
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Swap with 3% slippage should pass (from 100 to 97)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        97 * 10**6,   # toAssetUsdValue (3% loss - within 5% limit)
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_swap_slippage_at_exact_limit_passes(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap at exact slippage limit passes"""
+    # Setup manager with 5% max slippage
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=500)  # 5%
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Swap with exactly 5% slippage should pass (from 100 to 95)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        95 * 10**6,   # toAssetUsdValue (exactly 5% loss)
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_swap_slippage_exceeding_limit_fails(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap exceeding slippage limit fails"""
+    # Setup manager with 5% max slippage
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=500)  # 5%
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Swap with 6% slippage should fail (from 100 to 94)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        94 * 10**6,   # toAssetUsdValue (6% loss - exceeds 5% limit)
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_slippage_uses_tighter_limit(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that tighter (lower) slippage limit between manager and global is used"""
+    # Setup global with 10% slippage
+    global_swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=1000)  # 10%
+    global_settings = createGlobalManagerSettings(_swapPerms=global_swap_perms)
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Setup manager with tighter 5% slippage
+    manager_swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=500)  # 5%
+    manager_settings_obj = createManagerSettings(_swapPerms=manager_swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Swap with 7% slippage should fail (within global 10% but exceeds manager 5%)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        93 * 10**6,   # toAssetUsdValue (7% loss)
+        ZERO_ADDRESS,
+    )
+    assert not success
+
+
+def test_swap_slippage_zero_allows_any_slippage(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that slippage limit of 0 allows any slippage"""
+    # Setup manager with no slippage limit (but must have USD values)
+    swap_perms = createSwapPerms(_mustHaveUsdValue=True, _maxSlippage=0)
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData()
+
+    # Even extreme slippage should pass (from 100 to 1)
+    success, _ = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue
+        1 * 10**6,    # toAssetUsdValue (99% loss - allowed!)
+        ZERO_ADDRESS,
+    )
+    assert success
+
+
+def test_swap_passes_all_three_restrictions(createGlobalManagerSettings, createManagerSettings, createManagerLimits, createManagerData, createSwapPerms, alice, sentinel, user_wallet_config, high_command):
+    """Test that swap passing all three SwapPerms checks succeeds"""
+    # Setup manager with all three restrictions
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=5,
+        _maxSlippage=300  # 3%
+    )
+    manager_settings_obj = createManagerSettings(_swapPerms=swap_perms)
+    user_wallet_config.addManager(alice, manager_settings_obj, sender=high_command.address)
+
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+
+    # Swap should pass all checks
+    manager_data = createManagerData(_numSwapsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        1000,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        True,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        100 * 10**6,  # fromAssetUsdValue (non-zero - passes USD check)
+        98 * 10**6,   # toAssetUsdValue (2% loss - within 3% limit)
+        ZERO_ADDRESS,
+    )
+    assert success
+    assert updated_data.numSwapsInPeriod == 3  # Counter incremented

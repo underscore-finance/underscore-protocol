@@ -1185,3 +1185,359 @@ def test_validate_global_settings_with_only_approved_yield_opps_false(high_comma
     assert result == True
 
 
+##################################################
+# Manager Validation - SwapPerms Property       #
+##################################################
+
+
+def test_invalid_swap_perms_slippage_exceeds_100_percent(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxSlippage > 10000 (100%) is rejected"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with maxSlippage > 100%
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxSlippage=10001  # Invalid: exceeds 100%
+    )
+
+    # Should fail validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_valid_swap_perms_slippage_at_100_percent(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxSlippage = 10000 (exactly 100%) is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with maxSlippage at exactly 100%
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxSlippage=10000  # Valid: exactly 100%
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_slippage_below_100_percent(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxSlippage < 10000 is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with reasonable slippage limit
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxSlippage=500  # Valid: 5%
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_invalid_swap_perms_slippage_without_must_have_usd(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxSlippage > 0 requires mustHaveUsdValue = True"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with slippage but without mustHaveUsdValue
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=False,  # Invalid combination
+        _maxSlippage=500  # Cannot validate slippage without USD values
+    )
+
+    # Should fail validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_valid_swap_perms_slippage_with_must_have_usd(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxSlippage with mustHaveUsdValue = True is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with slippage AND mustHaveUsdValue
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,  # Required for slippage validation
+        _maxSlippage=500  # Valid: 5%
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_must_have_usd_without_slippage(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that mustHaveUsdValue alone (without slippage) is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with mustHaveUsdValue but no slippage limit
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxSlippage=0  # No slippage limit
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_with_swap_count_limit(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxNumSwapsPerPeriod limit is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with swap count limit
+    swap_perms = createSwapPerms(
+        _maxNumSwapsPerPeriod=10  # Limit to 10 swaps per period
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_unlimited_swaps(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that maxNumSwapsPerPeriod = 0 (unlimited) is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with unlimited swaps
+    swap_perms = createSwapPerms(
+        _maxNumSwapsPerPeriod=0  # Unlimited
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_all_restrictions_enabled(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that all three SwapPerms restrictions together is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with all restrictions
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=5,
+        _maxSlippage=300  # 3%
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_valid_swap_perms_all_defaults(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    """Test that default SwapPerms (all zeros/false) is valid"""
+    # Setup global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # Create swap perms with all defaults (most permissive)
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=False,
+        _maxNumSwapsPerPeriod=0,
+        _maxSlippage=0
+    )
+
+    # Should pass validation
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_validate_global_settings_with_invalid_swap_perms(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    """Test that invalid SwapPerms in global settings are rejected"""
+    # Create invalid swap perms (slippage without mustHaveUsdValue)
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=False,
+        _maxSlippage=500
+    )
+
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == False
+
+
+def test_validate_global_settings_with_valid_swap_perms(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    """Test that valid SwapPerms in global settings are accepted"""
+    # Create valid swap perms
+    swap_perms = createSwapPerms(
+        _mustHaveUsdValue=True,
+        _maxNumSwapsPerPeriod=20,
+        _maxSlippage=1000  # 10%
+    )
+
+    result = high_command.validateGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        createLegoPerms(),
+        swap_perms,
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+    )
+
+    assert result == True
+
+
