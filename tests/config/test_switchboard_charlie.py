@@ -469,6 +469,7 @@ def test_set_approved_vault_token_success(switchboard_charlie, vault_registry, u
         undy_usd_vault.address,
         new_vault_token,
         True,
+        False,  # _shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -508,6 +509,7 @@ def test_set_approved_vault_token_disapprove(switchboard_charlie, vault_registry
         undy_usd_vault.address,
         yield_vault_token.address,
         False,
+        False,  # _shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -532,6 +534,7 @@ def test_set_approved_vault_token_zero_address_fails(switchboard_charlie, undy_u
             undy_usd_vault.address,
             ZERO_ADDRESS,
             True,
+            False,  # _shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -546,6 +549,7 @@ def test_set_approved_vault_token_invalid_vault_fails(switchboard_charlie, gover
             invalid_vault,
             vault_token,
             True,
+            False,  # _shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -563,6 +567,7 @@ def test_set_approved_vault_token_security_action_can_disapprove(switchboard_cha
         undy_usd_vault.address,
         yield_vault_token.address,
         False,
+        False,  # _shouldMaxWithdraw
         sender=alice
     )
 
@@ -593,6 +598,7 @@ def test_set_approved_vault_token_security_action_cannot_approve(switchboard_cha
             undy_usd_vault.address,
             new_vault_token,
             True,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -606,6 +612,7 @@ def test_set_approved_vault_token_unauthorized_cannot_approve(switchboard_charli
             undy_usd_vault.address,
             vault_token,
             True,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -617,6 +624,7 @@ def test_set_approved_vault_token_unauthorized_cannot_disapprove(switchboard_cha
             undy_usd_vault.address,
             yield_vault_token.address,
             False,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -640,6 +648,7 @@ def test_set_approved_vault_tokens_governance_can_approve(switchboard_charlie, v
         undy_usd_vault.address,
         vault_tokens,
         True,
+        False,  # _shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -673,6 +682,7 @@ def test_set_approved_vault_tokens_governance_can_disapprove(switchboard_charlie
         undy_usd_vault.address,
         vault_tokens,
         False,
+        False,  # _shouldMaxWithdraw
         sender=governance.address
     )
 
@@ -707,6 +717,7 @@ def test_set_approved_vault_tokens_security_action_can_disapprove(switchboard_ch
         undy_usd_vault.address,
         vault_tokens,
         False,
+        False,  # _shouldMaxWithdraw
         sender=alice
     )
 
@@ -740,6 +751,7 @@ def test_set_approved_vault_tokens_security_action_cannot_approve(switchboard_ch
             undy_usd_vault.address,
             vault_tokens,
             True,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -755,6 +767,7 @@ def test_set_approved_vault_tokens_unauthorized_cannot_approve(switchboard_charl
             undy_usd_vault.address,
             vault_tokens,
             True,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -768,6 +781,7 @@ def test_set_approved_vault_tokens_unauthorized_cannot_disapprove(switchboard_ch
             undy_usd_vault.address,
             vault_tokens,
             False,
+            False,  # _shouldMaxWithdraw
             sender=alice
         )
 
@@ -779,6 +793,7 @@ def test_set_approved_vault_tokens_empty_list_fails(switchboard_charlie, undy_us
             undy_usd_vault.address,
             [],
             True,
+            False,  # _shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -793,6 +808,7 @@ def test_set_approved_vault_tokens_zero_address_fails(switchboard_charlie, undy_
             undy_usd_vault.address,
             vault_tokens,
             True,
+            False,  # _shouldMaxWithdraw
             sender=governance.address
         )
 
@@ -808,6 +824,7 @@ def test_set_approved_vault_tokens_invalid_vault_fails(switchboard_charlie, gove
             invalid_vault,
             vault_tokens,
             True,
+            False,  # _shouldMaxWithdraw
             sender=governance.address
         )
 

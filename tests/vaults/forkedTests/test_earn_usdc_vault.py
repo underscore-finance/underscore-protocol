@@ -80,7 +80,7 @@ def prepareYieldDeposit(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         return lego_id, lego, vault_addr, asset, amount
 
@@ -379,7 +379,7 @@ def test_usdc_vault_deposit_multiple_protocols(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         # deposit for yield
         asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -432,7 +432,7 @@ def test_usdc_vault_withdraw_from_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
             lego_id,
@@ -665,7 +665,7 @@ def test_usdc_vault_all_seven_protocols_sequential(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # approve lego and vault via VaultRegistry
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         # deposit for yield
         asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -736,7 +736,7 @@ def test_usdc_vault_rebasing_vs_nonrebasing_behavior(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
             lego_id,
@@ -863,7 +863,7 @@ def test_usdc_vault_whale_deposit_10m_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         # deposit whale amount
         asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -917,7 +917,7 @@ def test_usdc_vault_emergency_withdrawal_multiple_protocols(
         asset.approve(undy_usd_vault, MAX_UINT256, sender=bob)
         undy_usd_vault.deposit(amount_per_protocol, bob, sender=bob)
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         undy_usd_vault.depositForYield(
             lego_id,
@@ -1128,7 +1128,7 @@ def test_usdc_vault_decimal_precision_dust_amounts(
         if protocol not in approved_protocols:
             lego_id, lego = getLegoId(protocol)
             vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
-            vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+            vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
             approved_protocols.add(protocol)
 
     for protocol, usdc_amount in test_cases:
@@ -1286,7 +1286,7 @@ def test_usdc_vault_multiple_deregister_reregister_cycles(
         vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
         protocol_data.append((protocol, lego_id, vault_addr))
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # Perform 3 cycles of deposit/withdraw for each protocol
     for cycle in range(3):
@@ -1381,7 +1381,7 @@ def test_usdc_vault_random_deposits_total_assets_accuracy(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # Approve lego and vault
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         # Deposit for yield
         asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -1475,7 +1475,7 @@ def test_usdc_vault_total_assets_after_partial_withdrawals(
         undy_usd_vault.deposit(amount, bob, sender=bob)
 
         # Approve lego and vault
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         # Deposit for yield
         asset_deposited, _, vault_tokens_received, _ = undy_usd_vault.depositForYield(
@@ -1596,7 +1596,7 @@ def test_usdc_vault_multiple_users_random_operations(
         lego_id, lego = getLegoId(protocol)
         vault_addr = boa.from_etherscan(ALL_VAULT_TOKENS[fork][protocol])
 
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
         protocol_info[protocol] = {
             "lego_id": lego_id,

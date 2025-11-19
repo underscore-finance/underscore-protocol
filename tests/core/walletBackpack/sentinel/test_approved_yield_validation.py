@@ -59,6 +59,7 @@ def setup_approved_vault_token(
             undy_usd_vault.address,
             vault_token.address if hasattr(vault_token, 'address') else vault_token,
             True,  # approved
+            False,  # _shouldMaxWithdraw
             sender=switchboard_alpha.address
         )
     return _setup
@@ -123,6 +124,7 @@ def test_manager_cannot_deposit_to_unapproved_vault(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,  # unapproved
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -250,6 +252,7 @@ def test_manager_can_withdraw_from_unapproved_vault(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,  # unapproved
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -345,6 +348,7 @@ def test_manager_cannot_rebalance_to_unapproved_vault(
         undy_usd_vault.address,
         yield_vault_token_2.address,
         False,  # unapproved
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -422,6 +426,7 @@ def test_global_setting_enforces_approval(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,  # unapproved
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -523,6 +528,7 @@ def test_multiple_managers_different_approval_settings(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -594,6 +600,7 @@ def test_vault_approval_revoked_after_deposit(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,  # revoke approval
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -628,6 +635,7 @@ def test_vault_approval_granted_enables_deposits(
         undy_usd_vault.address,
         yield_vault_token.address,
         False,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -652,6 +660,7 @@ def test_vault_approval_granted_enables_deposits(
         undy_usd_vault.address,
         yield_vault_token.address,
         True,  # approve
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 

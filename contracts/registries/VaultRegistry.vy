@@ -23,6 +23,9 @@ from interfaces import Department
 from interfaces import YieldLego as YieldLego
 from ethereum.ercs import IERC4626
 
+interface EarnVault:
+    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
+
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
 
@@ -106,6 +109,7 @@ event ApprovedVaultTokenSet:
     underlyingAsset: indexed(address)
     vaultToken: indexed(address)
     isApproved: bool
+    shouldMaxWithdraw: bool
 
 event VaultTokenAdded:
     undyVaultAddr: indexed(address)
@@ -544,23 +548,23 @@ def _isValidRedemptionBuffer(_buffer: uint256) -> bool:
 
 
 @external
-def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool):
+def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    self._setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved)
+    self._setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved, _shouldMaxWithdraw)
 
 
 @external
-def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool):
+def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     for vaultToken: address in _vaultTokens:
-        self._setApprovedVaultToken(_undyVaultAddr, vaultToken, _isApproved)
+        self._setApprovedVaultToken(_undyVaultAddr, vaultToken, _isApproved, _shouldMaxWithdraw)
 
 
 # set approved
 
 
 @internal
-def _setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool):
+def _setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool):
     assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
     underlyingAsset: address = staticcall IERC4626(_undyVaultAddr).asset()
@@ -575,7 +579,15 @@ def _setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApp
     else:
         self._removeApprovedVaultToken(_undyVaultAddr, underlyingAsset, _vaultToken)
 
-    log ApprovedVaultTokenSet(undyVaultAddr=_undyVaultAddr, underlyingAsset=underlyingAsset, vaultToken=_vaultToken, isApproved=_isApproved)
+        # withdraw from yield if requested
+        if _shouldMaxWithdraw:
+            legoId: uint256 = 0
+            legoAddr: address = empty(address)
+            legoId, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
+            if legoId != 0 and legoAddr != empty(address):
+                extcall EarnVault(_undyVaultAddr).withdrawFromYield(legoId, _vaultToken, max_value(uint256), empty(bytes32), False)
+
+    log ApprovedVaultTokenSet(undyVaultAddr=_undyVaultAddr, underlyingAsset=underlyingAsset, vaultToken=_vaultToken, isApproved=_isApproved, shouldMaxWithdraw=_shouldMaxWithdraw)
 
 
 # vault management

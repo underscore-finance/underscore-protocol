@@ -27,8 +27,8 @@ from interfaces import LegoStructs as ls
 from ethereum.ercs import IERC4626
 
 interface VaultRegistry:
-    def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool): nonpayable
-    def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
+    def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
+    def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
     def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
     def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
     def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
@@ -49,21 +49,21 @@ interface LevgVault:
     def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool): nonpayable
     def setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256): nonpayable
     def setLevgVaultHelper(_levgVaultHelper: address): nonpayable
-    def setMaxDebtRatio(_ratio: uint256): nonpayable
-    def addManager(_manager: address): nonpayable
-    def removeManager(_manager: address): nonpayable
     def updateYieldPosition(_vaultToken: address): nonpayable
     def claimPerformanceFees() -> uint256: nonpayable
+    def removeManager(_manager: address): nonpayable
+    def setMaxDebtRatio(_ratio: uint256): nonpayable
+    def addManager(_manager: address): nonpayable
     def levgVaultHelper() -> address: view
     def USDC() -> address: view
 
 interface YieldLego:
+    def deregisterVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def registerVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
     def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
     def addPriceSnapshot(_vaultToken: address) -> bool: nonpayable
-    def registerVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
-    def deregisterVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
-    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
     def setMorphoRewardsAddr(_rewardsAddr: address): nonpayable
     def setEulerRewardsAddr(_rewardsAddr: address): nonpayable
     def setCompRewardsAddr(_rewardsAddr: address): nonpayable
@@ -118,11 +118,13 @@ struct PendingApprovedVaultToken:
     vaultAddr: address
     vaultToken: address
     isApproved: bool
+    shouldMaxWithdraw: bool
 
 struct PendingApprovedVaultTokens:
     vaultAddr: address
     vaultTokens: DynArray[address, MAX_VAULT_TOKENS]
     isApproved: bool
+    shouldMaxWithdraw: bool
 
 struct PendingPerformanceFee:
     vaultAddr: address
@@ -756,7 +758,7 @@ def setSnapShotPriceConfig(
 
 
 @external
-def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool) -> uint256:
+def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool) -> uint256:
     assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
 
     vr: address = addys._getVaultRegistryAddr()
@@ -765,7 +767,7 @@ def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isAppr
 
     # if disapproving, execute immediately (no timelock for emergency removals)
     if not _isApproved:
-        extcall VaultRegistry(vr).setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved)
+        extcall VaultRegistry(vr).setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved, _shouldMaxWithdraw)
         log ApprovedVaultTokenSet(vaultAddr=_undyVaultAddr, vaultToken=_vaultToken, isApproved=_isApproved)
         return 0
 
@@ -775,7 +777,8 @@ def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isAppr
     self.pendingApprovedVaultToken[aid] = PendingApprovedVaultToken(
         vaultAddr=_undyVaultAddr,
         vaultToken=_vaultToken,
-        isApproved=_isApproved
+        isApproved=_isApproved,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingApprovedVaultTokenChange(
@@ -789,7 +792,7 @@ def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isAppr
 
 
 @external
-def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool) -> uint256:
+def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool) -> uint256:
     assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
 
     vr: address = addys._getVaultRegistryAddr()
@@ -801,7 +804,7 @@ def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[addre
 
     # if disapproving, execute immediately (no timelock for emergency removals)
     if not _isApproved:
-        extcall VaultRegistry(vr).setApprovedVaultTokens(_undyVaultAddr, _vaultTokens, _isApproved)
+        extcall VaultRegistry(vr).setApprovedVaultTokens(_undyVaultAddr, _vaultTokens, _isApproved, _shouldMaxWithdraw)
         log ApprovedVaultTokensSet(vaultAddr=_undyVaultAddr, numTokens=len(_vaultTokens), isApproved=_isApproved)
         return 0
 
@@ -811,7 +814,8 @@ def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[addre
     self.pendingApprovedVaultTokens[aid] = PendingApprovedVaultTokens(
         vaultAddr=_undyVaultAddr,
         vaultTokens=_vaultTokens,
-        isApproved=_isApproved
+        isApproved=_isApproved,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingApprovedVaultTokensChange(
@@ -1280,12 +1284,12 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.APPROVED_VAULT_TOKEN:
         p: PendingApprovedVaultToken = self.pendingApprovedVaultToken[_aid]
-        extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved)
+        extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved, p.shouldMaxWithdraw)
         log ApprovedVaultTokenSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, isApproved=p.isApproved)
 
     elif actionType == ActionType.APPROVED_VAULT_TOKENS:
         p: PendingApprovedVaultTokens = self.pendingApprovedVaultTokens[_aid]
-        extcall VaultRegistry(vr).setApprovedVaultTokens(p.vaultAddr, p.vaultTokens, p.isApproved)
+        extcall VaultRegistry(vr).setApprovedVaultTokens(p.vaultAddr, p.vaultTokens, p.isApproved, p.shouldMaxWithdraw)
         log ApprovedVaultTokensSet(vaultAddr=p.vaultAddr, numTokens=len(p.vaultTokens), isApproved=p.isApproved)
 
     elif actionType == ActionType.PERFORMANCE_FEE:

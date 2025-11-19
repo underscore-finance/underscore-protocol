@@ -16,11 +16,11 @@ def test_set_approved_vault_token_by_switchboard(undy_usd_vault, vault_registry,
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Approve the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Disapprove the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, False, False, sender=switchboard_alpha.address)
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
 
@@ -31,18 +31,18 @@ def test_set_approved_vault_token_non_switchboard_fails(undy_usd_vault, vault_re
 
     # Bob (non-switchboard) cannot approve
     with boa.reverts("no perms"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=bob)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=bob)
 
     # Even starter_agent (manager) cannot approve vault tokens
     with boa.reverts("no perms"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=starter_agent.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=starter_agent.address)
 
 
 def test_set_approved_vault_token_invalid_address(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that empty address cannot be approved as vault token"""
 
     with boa.reverts("invalid params"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, False, sender=switchboard_alpha.address)
 
 
 # Test deposit restrictions with unapproved tokens/legos
@@ -68,7 +68,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, vault_registr
         )
 
     # Now approve the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
 
     # Deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -103,7 +103,7 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry,
     assert vault_balance > 0
 
     # Now disapprove the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, False, False, sender=switchboard_alpha.address)
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address)
 
     # Withdrawals should still work (no approval check on withdrawals)
@@ -131,7 +131,7 @@ def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", boa.load("contracts/mock/MockErc20.vy", boa.env.generate_address(), "Test", "TST", 18, 1_000_000))
 
     # Test vault token approval event
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
 
     # Check event was emitted on VaultRegistry
     events = vault_registry.get_logs()
@@ -159,7 +159,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         vt = boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token)
         vault_tokens.append(vt)
         # Approve each one
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vt.address, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vt.address, True, False, sender=switchboard_alpha.address)
 
     # All should be approved
     for vt in vault_tokens:
@@ -182,7 +182,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         assert vault_tokens_received > 0
 
     # Disapprove the middle one
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_tokens[1].address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_tokens[1].address, False, False, sender=switchboard_alpha.address)
 
     # Can still deposit to first and third
     for vt in [vault_tokens[0], vault_tokens[2]]:

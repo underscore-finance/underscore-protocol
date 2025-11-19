@@ -772,6 +772,7 @@ def test_set_approved_vault_token(vault_registry, undy_usd_vault, switchboard_al
         undy_usd_vault.address,
         new_vault_token,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -782,6 +783,7 @@ def test_set_approved_vault_token(vault_registry, undy_usd_vault, switchboard_al
         undy_usd_vault.address,
         new_vault_token,
         False,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -797,6 +799,7 @@ def test_set_approved_vault_token_non_switchboard_fails(vault_registry, undy_usd
             undy_usd_vault.address,
             new_vault_token,
             True,
+            False,  # _shouldMaxWithdraw
             sender=bob
         )
 
@@ -808,6 +811,7 @@ def test_set_approved_vault_token_zero_address_fails(vault_registry, undy_usd_va
             undy_usd_vault.address,
             ZERO_ADDRESS,
             True,
+            False,  # _shouldMaxWithdraw
             sender=switchboard_alpha.address
         )
 
@@ -820,6 +824,7 @@ def test_set_approved_vault_token_emits_event(vault_registry, undy_usd_vault, sw
         undy_usd_vault.address,
         new_vault_token,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -1512,8 +1517,8 @@ def test_vault_token_approvals_persist_after_disable(vault_registry, undy_usd_va
     new_token1 = boa.env.generate_address()
     new_token2 = boa.env.generate_address()
 
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_token2, True, False, sender=switchboard_alpha.address)
 
     # Verify tokens are approved
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address) == True
@@ -1967,6 +1972,7 @@ def test_get_approved_vault_tokens_after_adding_tokens(vault_registry, undy_usd_
         undy_usd_vault.address,
         token1,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -1979,6 +1985,7 @@ def test_get_approved_vault_tokens_after_adding_tokens(vault_registry, undy_usd_
         undy_usd_vault.address,
         token2,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -1994,15 +2001,15 @@ def test_get_approved_vault_tokens_after_removing_tokens(vault_registry, undy_us
     token2 = boa.env.generate_address()
 
     # Add two tokens
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
 
     # Get tokens before removal
     tokens_before = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
     count_before = len(tokens_before)
 
     # Remove token1
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, False, sender=switchboard_alpha.address)
 
     # Verify token1 removed
     tokens_after = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
@@ -2018,12 +2025,12 @@ def test_get_approved_vault_tokens_swap_and_pop_logic(vault_registry, undy_usd_v
     token3 = boa.env.generate_address()
 
     # Add three tokens
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, False, sender=switchboard_alpha.address)
 
     # Remove middle token (token2)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, False, sender=switchboard_alpha.address)
 
     # Verify list still contains token1 and token3
     tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
@@ -2055,13 +2062,13 @@ def test_get_num_approved_vault_tokens_increments(vault_registry, undy_usd_vault
     initial_count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
 
     token1 = boa.env.generate_address()
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
 
     count_after_1 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
     assert count_after_1 == initial_count + 1
 
     token2 = boa.env.generate_address()
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
 
     count_after_2 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
     assert count_after_2 == initial_count + 2
@@ -2072,12 +2079,12 @@ def test_get_num_approved_vault_tokens_decrements(vault_registry, undy_usd_vault
     token1 = boa.env.generate_address()
     token2 = boa.env.generate_address()
 
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
 
     count_before = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
 
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, False, False, sender=switchboard_alpha.address)
 
     count_after = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
     assert count_after == count_before - 1
@@ -2097,7 +2104,7 @@ def test_get_asset_vault_tokens_single_vault(vault_registry, undy_usd_vault, swi
     token = boa.env.generate_address()
 
     # Add token to vault
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     # Get asset from vault
     asset = undy_usd_vault.asset()
@@ -2232,7 +2239,7 @@ def test_get_asset_vault_tokens_reference_counting(vault_registry, governance, u
     assert shared_token in asset_tokens
 
     # Remove from vault1
-    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, False, sender=switchboard_alpha.address)
 
     # Reference count should decrement
     ref_count_after = vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token)
@@ -2264,7 +2271,7 @@ def test_get_asset_vault_tokens_removed_when_no_vaults_use_it(vault_registry, go
     assert token in asset_tokens_before
 
     # Remove token from vault
-    vault_registry.setApprovedVaultToken(vault1.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(vault1.address, token, False, False, sender=switchboard_alpha.address)
 
     # Token should be removed from asset list
     asset_tokens_after = vault_registry.getAssetVaultTokens(asset)
@@ -2284,7 +2291,7 @@ def test_get_num_asset_vault_tokens_increments(vault_registry, undy_usd_vault, s
     initial_count = vault_registry.getNumAssetVaultTokens(asset)
 
     token = boa.env.generate_address()
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     count_after = vault_registry.getNumAssetVaultTokens(asset)
     assert count_after == initial_count + 1
@@ -2359,13 +2366,13 @@ def test_is_approved_vault_token_for_asset(vault_registry, undy_usd_vault, switc
     assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == False
 
     # Approve token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     # Should now be approved for asset
     assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == True
 
     # Disapprove token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, False, sender=switchboard_alpha.address)
 
     # Should no longer be approved
     assert vault_registry.isApprovedVaultTokenForAsset(asset, token) == False
@@ -2376,11 +2383,11 @@ def test_adding_duplicate_token_is_idempotent(vault_registry, undy_usd_vault, sw
     token = boa.env.generate_address()
 
     # Add token first time
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
     count_after_1 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
 
     # Add same token again
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
     count_after_2 = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
 
     # Count should not change
@@ -2402,7 +2409,7 @@ def test_set_default_target_vault_token_basic(vault_registry, undy_usd_vault, sw
     token = boa.env.generate_address()
 
     # First approve the token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     # Set as default target
     vault_registry.setDefaultTargetVaultToken(
@@ -2449,8 +2456,8 @@ def test_set_default_target_vault_token_change_multiple_times(vault_registry, un
     token2 = boa.env.generate_address()
 
     # Approve both tokens
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
 
     # Set token1 as default
     vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, token1, sender=switchboard_alpha.address)
@@ -2480,7 +2487,7 @@ def test_set_default_target_vault_token_emits_event(vault_registry, undy_usd_vau
     token = boa.env.generate_address()
 
     # Approve and set
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
     vault_registry.setDefaultTargetVaultToken(
         undy_usd_vault.address,
         token,
@@ -2506,13 +2513,13 @@ def test_is_valid_default_target_vault_token(vault_registry, undy_usd_vault, swi
     assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == False
 
     # Approve token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     # Now it should be valid
     assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == True
 
     # Disapprove token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, False, sender=switchboard_alpha.address)
 
     # Should be invalid again
     assert vault_registry.isValidDefaultTargetVaultToken(undy_usd_vault.address, token) == False
@@ -2678,6 +2685,7 @@ def test_set_approved_vault_tokens_empty_array(vault_registry, undy_usd_vault, s
         undy_usd_vault.address,
         [],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2697,6 +2705,7 @@ def test_set_approved_vault_tokens_single_token(vault_registry, undy_usd_vault, 
         undy_usd_vault.address,
         [token],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2718,6 +2727,7 @@ def test_set_approved_vault_tokens_multiple_tokens(vault_registry, undy_usd_vaul
         undy_usd_vault.address,
         [token1, token2, token3],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2739,6 +2749,7 @@ def test_set_approved_vault_tokens_disapprove_multiple(vault_registry, undy_usd_
         undy_usd_vault.address,
         [token1, token2, token3],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2749,6 +2760,7 @@ def test_set_approved_vault_tokens_disapprove_multiple(vault_registry, undy_usd_
         undy_usd_vault.address,
         [token1, token2, token3],
         False,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2768,6 +2780,7 @@ def test_set_approved_vault_tokens_non_switchboard_fails(vault_registry, undy_us
             undy_usd_vault.address,
             [token],
             True,
+            False,  # _shouldMaxWithdraw
             sender=bob
         )
 
@@ -2782,6 +2795,7 @@ def test_set_approved_vault_tokens_emits_events_for_each(vault_registry, undy_us
         undy_usd_vault.address,
         [token1, token2],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2807,6 +2821,7 @@ def test_set_approved_vault_tokens_with_zero_address_fails(vault_registry, undy_
             undy_usd_vault.address,
             [token1, ZERO_ADDRESS],
             True,
+            False,  # _shouldMaxWithdraw
             sender=switchboard_alpha.address
         )
 
@@ -2822,6 +2837,7 @@ def test_set_approved_vault_tokens_with_duplicates(vault_registry, undy_usd_vaul
         undy_usd_vault.address,
         [token, token],
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2854,6 +2870,7 @@ def test_set_approved_vault_tokens_max_tokens(vault_registry, governance, deploy
         new_vault.address,
         tokens,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2878,6 +2895,7 @@ def test_vault_token_added_event(vault_registry, undy_usd_vault, switchboard_alp
         undy_usd_vault.address,
         token,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2894,8 +2912,8 @@ def test_vault_token_removed_event(vault_registry, undy_usd_vault, switchboard_a
     token = boa.env.generate_address()
 
     # Add then remove
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, False, sender=switchboard_alpha.address)
 
     events = filter_logs(vault_registry, "VaultTokenRemoved")
     assert len(events) > 0
@@ -2914,6 +2932,7 @@ def test_asset_vault_token_added_event(vault_registry, undy_usd_vault, switchboa
         undy_usd_vault.address,
         token,
         True,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
@@ -2931,8 +2950,8 @@ def test_asset_vault_token_removed_event(vault_registry, undy_usd_vault, switchb
     asset = undy_usd_vault.asset()
 
     # Add then remove (this is the only vault using this token)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, False, sender=switchboard_alpha.address)
 
     events = filter_logs(vault_registry, "AssetVaultTokenRemoved")
     assert len(events) > 0
@@ -2999,7 +3018,7 @@ def test_asset_vault_token_removed_not_emitted_when_ref_count_positive(vault_reg
     count_before = len(events_before)
 
     # Remove from vault1 only
-    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(vault1.address, shared_token, False, False, sender=switchboard_alpha.address)
 
     # AssetVaultTokenRemoved should NOT be emitted (vault2 still uses it)
     events_after = filter_logs(vault_registry, "AssetVaultTokenRemoved")
@@ -3021,19 +3040,19 @@ def test_list_consistency_after_complex_operations(vault_registry, undy_usd_vaul
     token3 = boa.env.generate_address()
 
     # Add three tokens
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, False, sender=switchboard_alpha.address)
 
     # Remove token2
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, False, sender=switchboard_alpha.address)
 
     # Add new token4
     token4 = boa.env.generate_address()
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token4, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token4, True, False, sender=switchboard_alpha.address)
 
     # Re-add token2
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
 
     # Verify list consistency
     tokens = vault_registry.getApprovedVaultTokens(undy_usd_vault.address)
@@ -3048,7 +3067,7 @@ def test_state_consistency_between_boolean_and_list(vault_registry, undy_usd_vau
     token = boa.env.generate_address()
 
     # Add token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
 
     # Boolean should be true
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == True
@@ -3058,7 +3077,7 @@ def test_state_consistency_between_boolean_and_list(vault_registry, undy_usd_vau
     assert token in tokens
 
     # Remove token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, False, False, sender=switchboard_alpha.address)
 
     # Boolean should be false
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, token) == False
@@ -3075,9 +3094,9 @@ def test_count_matches_actual_list_length(vault_registry, undy_usd_vault, switch
     token3 = boa.env.generate_address()
 
     # Add tokens
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token1, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, True, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token3, True, False, sender=switchboard_alpha.address)
 
     # Count should match list length
     count = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
@@ -3085,7 +3104,7 @@ def test_count_matches_actual_list_length(vault_registry, undy_usd_vault, switch
     assert count == len(tokens)
 
     # Remove one
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token2, False, False, sender=switchboard_alpha.address)
 
     # Still should match
     count_after = vault_registry.getNumApprovedVaultTokens(undy_usd_vault.address)
@@ -3175,7 +3194,7 @@ def test_reference_count_accuracy(vault_registry, governance, undy_hq_deploy, sw
     assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 3
 
     # Remove from vault2
-    vault_registry.setApprovedVaultToken(vault2.address, shared_token, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(vault2.address, shared_token, False, False, sender=switchboard_alpha.address)
 
     # Ref count should be 2
     assert vault_registry.assetVaultTokenRefCount(shared_asset.address, shared_token) == 2
@@ -3189,7 +3208,7 @@ def test_get_deposit_config_bundle(vault_registry, undy_usd_vault, switchboard_a
     vault_registry.setCanDeposit(undy_usd_vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setMaxDepositAmount(undy_usd_vault.address, 1000000, sender=switchboard_alpha.address)
     vault_registry.setShouldAutoDeposit(undy_usd_vault.address, False, sender=switchboard_alpha.address)
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, token, True, False, sender=switchboard_alpha.address)
     vault_registry.setDefaultTargetVaultToken(undy_usd_vault.address, token, sender=switchboard_alpha.address)
 
     # Get bundle
@@ -3262,6 +3281,7 @@ def test_removing_non_existent_token_is_safe(vault_registry, undy_usd_vault, swi
         undy_usd_vault.address,
         non_existent_token,
         False,
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 
