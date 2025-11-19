@@ -77,11 +77,9 @@ event LeverageVaultTokenSet:
     legoId: uint256
     ripeVaultId: uint256
 
-event UsdcSlippageAllowedSet:
-    slippage: uint256
-
-event GreenSlippageAllowedSet:
-    slippage: uint256
+event SlippagesSet:
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 event LevgVaultHelperSet:
     levgVaultHelper: indexed(address)
@@ -655,34 +653,34 @@ def _repayDebt(
 ####################
 
 
-@external
-def claimIncentives(
-    _legoId: uint256,
-    _rewardToken: address = empty(address),
-    _rewardAmount: uint256 = max_value(uint256),
-    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
-) -> (uint256, uint256):
-    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
+# @external
+# def claimIncentives(
+#     _legoId: uint256,
+#     _rewardToken: address = empty(address),
+#     _rewardAmount: uint256 = max_value(uint256),
+#     _proofs: DynArray[bytes32, MAX_PROOFS] = [],
+# ) -> (uint256, uint256):
+#     ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])
 
-    # make sure can access
-    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
+#     # make sure can access
+#     self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)
 
-    # claim rewards
-    rewardAmount: uint256 = 0
-    txUsdValue: uint256 = 0
-    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+#     # claim rewards
+#     rewardAmount: uint256 = 0
+#     txUsdValue: uint256 = 0
+#     rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
-    log LevgVaultAction(
-        op = 50,
-        asset1 = _rewardToken,
-        asset2 = ad.legoAddr,
-        amount1 = rewardAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
-    return rewardAmount, txUsdValue
+#     log LevgVaultAction(
+#         op = 50,
+#         asset1 = _rewardToken,
+#         asset2 = ad.legoAddr,
+#         amount1 = rewardAmount,
+#         amount2 = 0,
+#         usdValue = txUsdValue,
+#         legoId = ad.legoId,
+#         signer = ad.signer,
+#     )
+#     return rewardAmount, txUsdValue
 
 
 #####################
@@ -915,66 +913,72 @@ def _withdrawVaultTokenForRedemption(
 
 
 @external
-def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256):
+def setCollateralVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    levgVaultHelper: address = self.levgVaultHelper
-    oldCollData: RipeAsset = self.collateralAsset
-
-    # validate new collateral vault token
-    if _vaultToken != empty(address):
-        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(UNDERLYING_ASSET, _vaultToken, _ripeVaultId, _legoId) # dev: invalid collateral vault token
-        self.vaultToLegoId[_vaultToken] = _legoId
-
-    # validate old collateral vault token has no balances
-    if oldCollData.vaultToken != empty(address):
-        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
-        if oldCollData.vaultToken != _vaultToken:
-            assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
-
-    # update state
-    self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
-    log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+    self._setVault(_vaultToken, _ripeVaultId, _legoId, UNDERLYING_ASSET, self.collateralAsset, True, _shouldMaxWithdraw)
 
 
 # leverage vault token
 
 
 @external
-def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256):
+def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self._setVault(_vaultToken, _ripeVaultId, _legoId, USDC, self.leverageAsset, False, _shouldMaxWithdraw)
+
+
+# set vault internal
+
+
+@internal
+def _setVault(
+    _vaultToken: address,
+    _ripeVaultId: uint256,
+    _legoId: uint256,
+    _underlyingAsset: address,
+    _oldVaultData: RipeAsset,
+    _isCollateralVault: bool,
+    _shouldMaxWithdraw: bool,
+):
     levgVaultHelper: address = self.levgVaultHelper
-    oldCollData: RipeAsset = self.leverageAsset
 
-    assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(USDC, _vaultToken, _ripeVaultId, _legoId) # dev: invalid leverage vault token
-    self.vaultToLegoId[_vaultToken] = _legoId
+    # validate new vault token
+    if _vaultToken != empty(address):
+        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(_underlyingAsset, _vaultToken, _ripeVaultId, _legoId) # dev: invalid vault token
+        self.vaultToLegoId[_vaultToken] = _legoId
 
-    # validate old leverage vault token has no balances
-    assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
-    if oldCollData.vaultToken != _vaultToken:
-        assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
+    # handle old vault token if needed
+    if _oldVaultData.vaultToken != empty(address):
+        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _oldVaultData.vaultToken, _oldVaultData.ripeVaultId) == 0 # dev: old vault has ripe balance
 
-    # update state
-    self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
-    log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+        # max withdraw underlying assets from old vault if needed
+        if _shouldMaxWithdraw and _oldVaultData.vaultToken != _vaultToken:
+            localBalance: uint256 = staticcall IERC20(_oldVaultData.vaultToken).balanceOf(self)
+            if localBalance != 0:
+                ad: VaultActionData = staticcall VaultRegistry(self._getVaultRegistry()).getVaultActionDataBundle(self.vaultToLegoId[_oldVaultData.vaultToken], msg.sender)
+                self._withdrawFromYield(_oldVaultData.vaultToken, max_value(uint256), empty(bytes32), ad)
+
+    # update state and emit event
+    if _isCollateralVault:
+        self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+        log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+
+    else:
+        self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+        log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
 
 
 # slippage settings (USDC <--> GREEN)
 
 
 @external
-def setUsdcSlippageAllowed(_slippage: uint256):
+def setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.usdcSlippageAllowed = _slippage
-    log UsdcSlippageAllowedSet(slippage=_slippage)
-
-
-@external
-def setGreenSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.greenSlippageAllowed = _slippage
-    log GreenSlippageAllowedSet(slippage=_slippage)
+    assert _usdcSlippage <= 10_00 # dev: usdc slippage too high (max 10%)
+    assert _greenSlippage <= 10_00 # dev: green slippage too high (max 10%)
+    self.usdcSlippageAllowed = _usdcSlippage
+    self.greenSlippageAllowed = _greenSlippage
+    log SlippagesSet(usdcSlippage=_usdcSlippage, greenSlippage=_greenSlippage)
 
 
 # leverage vault helper

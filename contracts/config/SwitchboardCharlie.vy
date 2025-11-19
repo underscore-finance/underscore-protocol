@@ -45,10 +45,9 @@ interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface LevgVault:
-    def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256): nonpayable
-    def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256): nonpayable
-    def setUsdcSlippageAllowed(_slippage: uint256): nonpayable
-    def setGreenSlippageAllowed(_slippage: uint256): nonpayable
+    def setCollateralVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool): nonpayable
+    def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool): nonpayable
+    def setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256): nonpayable
     def setLevgVaultHelper(_levgVaultHelper: address): nonpayable
     def setMaxDebtRatio(_ratio: uint256): nonpayable
     def addManager(_manager: address): nonpayable
@@ -93,8 +92,7 @@ flag ActionType:
     IS_LEVERAGED_VAULT
     COLLATERAL_VAULT
     LEVERAGE_VAULT
-    USDC_SLIPPAGE
-    GREEN_SLIPPAGE
+    SLIPPAGES
     LEVG_VAULT_HELPER
     MAX_DEBT_RATIO
     ADD_MANAGER
@@ -147,20 +145,19 @@ struct PendingCollateralVault:
     vaultToken: address
     ripeVaultId: uint256
     legoId: uint256
+    shouldMaxWithdraw: bool
 
 struct PendingLeverageVault:
     vaultAddr: address
     vaultToken: address
     legoId: uint256
     ripeVaultId: uint256
+    shouldMaxWithdraw: bool
 
-struct PendingUsdcSlippage:
+struct PendingSlippages:
     vaultAddr: address
-    slippage: uint256
-
-struct PendingGreenSlippage:
-    vaultAddr: address
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 struct PendingLevgVaultHelper:
     vaultAddr: address
@@ -321,6 +318,7 @@ event PendingCollateralVaultChange:
     vaultToken: indexed(address)
     ripeVaultId: uint256
     legoId: uint256
+    shouldMaxWithdraw: bool
     confirmationBlock: uint256
     actionId: uint256
 
@@ -335,6 +333,7 @@ event PendingLeverageVaultChange:
     vaultToken: indexed(address)
     legoId: uint256
     ripeVaultId: uint256
+    shouldMaxWithdraw: bool
     confirmationBlock: uint256
     actionId: uint256
 
@@ -344,25 +343,17 @@ event LeverageVaultSet:
     legoId: uint256
     ripeVaultId: uint256
 
-event PendingUsdcSlippageChange:
+event PendingSlippagesChange:
     vaultAddr: indexed(address)
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
     confirmationBlock: uint256
     actionId: uint256
 
-event UsdcSlippageSet:
+event SlippagesSet:
     vaultAddr: indexed(address)
-    slippage: uint256
-
-event PendingGreenSlippageChange:
-    vaultAddr: indexed(address)
-    slippage: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event GreenSlippageSet:
-    vaultAddr: indexed(address)
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 event PendingLevgVaultHelperChange:
     vaultAddr: indexed(address)
@@ -492,8 +483,7 @@ pendingMaxDepositAmount: public(HashMap[uint256, PendingMaxDepositAmount]) # aid
 pendingIsLeveragedVault: public(HashMap[uint256, PendingIsLeveragedVault]) # aid -> config
 pendingCollateralVault: public(HashMap[uint256, PendingCollateralVault]) # aid -> config
 pendingLeverageVault: public(HashMap[uint256, PendingLeverageVault]) # aid -> config
-pendingUsdcSlippage: public(HashMap[uint256, PendingUsdcSlippage]) # aid -> config
-pendingGreenSlippage: public(HashMap[uint256, PendingGreenSlippage]) # aid -> config
+pendingSlippages: public(HashMap[uint256, PendingSlippages]) # aid -> config
 pendingLevgVaultHelper: public(HashMap[uint256, PendingLevgVaultHelper]) # aid -> config
 pendingMaxDebtRatio: public(HashMap[uint256, PendingMaxDebtRatio]) # aid -> config
 pendingAddManager: public(HashMap[uint256, PendingAddManager]) # aid -> config
@@ -940,7 +930,7 @@ def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool) -> uint256
 
 
 @external
-def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> uint256:
+def setCollateralVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
@@ -957,7 +947,8 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
         vaultAddr=_vaultAddr,
         vaultToken=_vaultToken,
         ripeVaultId=_ripeVaultId,
-        legoId=_legoId
+        legoId=_legoId,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingCollateralVaultChange(
@@ -965,6 +956,7 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
         vaultToken=_vaultToken,
         ripeVaultId=_ripeVaultId,
         legoId=_legoId,
+        shouldMaxWithdraw=_shouldMaxWithdraw,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -975,7 +967,7 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
 
 
 @external
-def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256) -> uint256:
+def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
@@ -991,7 +983,8 @@ def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256
         vaultAddr=_vaultAddr,
         vaultToken=_vaultToken,
         legoId=_legoId,
-        ripeVaultId=_ripeVaultId
+        ripeVaultId=_ripeVaultId,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingLeverageVaultChange(
@@ -999,56 +992,35 @@ def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256
         vaultToken=_vaultToken,
         legoId=_legoId,
         ripeVaultId=_ripeVaultId,
+        shouldMaxWithdraw=_shouldMaxWithdraw,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
     return aid
 
 
-# usdc slippage
+# slippages
 
 
 @external
-def setUsdcSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
+def setSlippagesAllowed(_vaultAddr: address, _usdcSlippage: uint256, _greenSlippage: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+    assert _usdcSlippage <= 10_00 # dev: usdc slippage too high (max 10%)
+    assert _greenSlippage <= 10_00 # dev: green slippage too high (max 10%)
 
     aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.USDC_SLIPPAGE
-    self.pendingUsdcSlippage[aid] = PendingUsdcSlippage(
+    self.actionType[aid] = ActionType.SLIPPAGES
+    self.pendingSlippages[aid] = PendingSlippages(
         vaultAddr=_vaultAddr,
-        slippage=_slippage
+        usdcSlippage=_usdcSlippage,
+        greenSlippage=_greenSlippage
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingUsdcSlippageChange(
+    log PendingSlippagesChange(
         vaultAddr=_vaultAddr,
-        slippage=_slippage,
-        confirmationBlock=confirmationBlock,
-        actionId=aid
-    )
-    return aid
-
-
-# green slippage
-
-
-@external
-def setGreenSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.GREEN_SLIPPAGE
-    self.pendingGreenSlippage[aid] = PendingGreenSlippage(
-        vaultAddr=_vaultAddr,
-        slippage=_slippage
-    )
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingGreenSlippageChange(
-        vaultAddr=_vaultAddr,
-        slippage=_slippage,
+        usdcSlippage=_usdcSlippage,
+        greenSlippage=_greenSlippage,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -1338,23 +1310,18 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.COLLATERAL_VAULT:
         p: PendingCollateralVault = self.pendingCollateralVault[_aid]
-        extcall LevgVault(p.vaultAddr).setCollateralVault(p.vaultToken, p.ripeVaultId, p.legoId)
+        extcall LevgVault(p.vaultAddr).setCollateralVault(p.vaultToken, p.legoId, p.ripeVaultId, p.shouldMaxWithdraw)
         log CollateralVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, ripeVaultId=p.ripeVaultId, legoId=p.legoId)
 
     elif actionType == ActionType.LEVERAGE_VAULT:
         p: PendingLeverageVault = self.pendingLeverageVault[_aid]
-        extcall LevgVault(p.vaultAddr).setLeverageVault(p.vaultToken, p.legoId, p.ripeVaultId)
+        extcall LevgVault(p.vaultAddr).setLeverageVault(p.vaultToken, p.legoId, p.ripeVaultId, p.shouldMaxWithdraw)
         log LeverageVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, legoId=p.legoId, ripeVaultId=p.ripeVaultId)
 
-    elif actionType == ActionType.USDC_SLIPPAGE:
-        p: PendingUsdcSlippage = self.pendingUsdcSlippage[_aid]
-        extcall LevgVault(p.vaultAddr).setUsdcSlippageAllowed(p.slippage)
-        log UsdcSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
-
-    elif actionType == ActionType.GREEN_SLIPPAGE:
-        p: PendingGreenSlippage = self.pendingGreenSlippage[_aid]
-        extcall LevgVault(p.vaultAddr).setGreenSlippageAllowed(p.slippage)
-        log GreenSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
+    elif actionType == ActionType.SLIPPAGES:
+        p: PendingSlippages = self.pendingSlippages[_aid]
+        extcall LevgVault(p.vaultAddr).setSlippagesAllowed(p.usdcSlippage, p.greenSlippage)
+        log SlippagesSet(vaultAddr=p.vaultAddr, usdcSlippage=p.usdcSlippage, greenSlippage=p.greenSlippage)
 
     elif actionType == ActionType.LEVG_VAULT_HELPER:
         p: PendingLevgVaultHelper = self.pendingLevgVaultHelper[_aid]
