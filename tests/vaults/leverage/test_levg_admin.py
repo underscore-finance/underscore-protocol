@@ -174,6 +174,262 @@ def test_set_collateral_vault_unauthorized_fails(
         )
 
 
+def test_set_collateral_vault_auto_withdraws_with_balance(
+    setup_prices,
+    undy_levg_vault_usdc,
+    new_usdc_collateral_vault,
+    mock_usdc_collateral_vault,
+    mock_usdc,
+    switchboard_alpha,
+    starter_agent,
+    governance,
+):
+    """Test auto-withdrawal when setting collateral vault with _shouldMaxWithdraw=True
+
+    This is the primary use case for the _shouldMaxWithdraw parameter:
+    - Wallet has local balance in old vault (not deposited to Ripe)
+    - Setting new vault with _shouldMaxWithdraw=True
+    - Should automatically withdraw all funds from old vault
+    - Old vault tokens should be burned, underlying assets should be in wallet
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # Give wallet some USDC
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, usdc_amount, sender=governance.address)
+
+    # Deposit to old collateral vault to create vault token balance (locally, not to Ripe)
+    wallet.depositForYield(
+        lego_id,
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        usdc_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # Verify wallet has vault tokens in old vault
+    old_vault_balance = mock_usdc_collateral_vault.balanceOf(wallet.address)
+    assert old_vault_balance > 0
+
+    # Verify no USDC in wallet (it's all in vault tokens)
+    assert mock_usdc.balanceOf(wallet.address) == 0
+
+    # Set new collateral vault with _shouldMaxWithdraw=True
+    wallet.setCollateralVault(
+        new_usdc_collateral_vault.address,
+        lego_id,
+        ripe_vault_id,
+        True,  # shouldMaxWithdraw - CRITICAL: This triggers auto-withdrawal
+        sender=switchboard_alpha.address
+    )
+
+    # Verify state updated to new vault
+    new_collateral = wallet.collateralAsset()
+    assert new_collateral.vaultToken == new_usdc_collateral_vault.address
+    assert new_collateral.ripeVaultId == ripe_vault_id
+    assert wallet.vaultToLegoId(new_usdc_collateral_vault.address) == lego_id
+
+    # CRITICAL VERIFICATION: Old vault tokens should be burned (withdrawn)
+    assert mock_usdc_collateral_vault.balanceOf(wallet.address) == 0, "Old vault tokens should be zero after auto-withdrawal"
+
+    # CRITICAL VERIFICATION: Underlying USDC should be back in wallet
+    usdc_balance_after = mock_usdc.balanceOf(wallet.address)
+    assert usdc_balance_after > 0, "Wallet should have underlying USDC after withdrawal"
+    # Allow for small rounding differences in vault exchange rate
+    assert abs(usdc_balance_after - usdc_amount) < 100, f"Expected ~{usdc_amount} USDC, got {usdc_balance_after}"
+
+
+def test_set_collateral_vault_auto_withdraw_with_zero_balance(
+    setup_prices,
+    undy_levg_vault_usdc,
+    new_usdc_collateral_vault,
+    mock_usdc_collateral_vault,
+    switchboard_alpha,
+):
+    """Test that _shouldMaxWithdraw=True succeeds gracefully when there's no balance to withdraw
+
+    Edge case: Setting vault with _shouldMaxWithdraw=True but no local balance exists.
+    Should succeed without attempting withdrawal (zero balance check in implementation).
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # First set the old collateral vault (but don't deposit anything)
+    wallet.setCollateralVault(
+        mock_usdc_collateral_vault.address,
+        lego_id,
+        ripe_vault_id,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify no balance in old vault
+    assert mock_usdc_collateral_vault.balanceOf(wallet.address) == 0
+
+    # Now set new collateral vault with _shouldMaxWithdraw=True despite zero balance
+    # Should succeed without errors (no withdrawal attempted since balance == 0)
+    wallet.setCollateralVault(
+        new_usdc_collateral_vault.address,
+        lego_id,
+        ripe_vault_id,
+        True,  # shouldMaxWithdraw=True even though no balance
+        sender=switchboard_alpha.address
+    )
+
+    # Verify state updated successfully
+    new_collateral = wallet.collateralAsset()
+    assert new_collateral.vaultToken == new_usdc_collateral_vault.address
+    assert new_collateral.ripeVaultId == ripe_vault_id
+
+
+def test_set_collateral_vault_no_auto_withdraw_when_same_vault(
+    setup_prices,
+    undy_levg_vault_usdc,
+    mock_usdc_collateral_vault,
+    mock_usdc,
+    switchboard_alpha,
+    starter_agent,
+    governance,
+):
+    """Test that setting same vault doesn't trigger auto-withdrawal even with _shouldMaxWithdraw=True
+
+    Critical edge case: When updating vault parameters (e.g., legoId, ripeVaultId) for the SAME vault,
+    withdrawal should NOT occur even if _shouldMaxWithdraw=True.
+    Implementation check: (_oldVaultData.vaultToken != _vaultToken)
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # First, set the collateral vault
+    wallet.setCollateralVault(
+        mock_usdc_collateral_vault.address,
+        lego_id,
+        ripe_vault_id,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Give wallet some USDC and deposit to create vault token balance
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, usdc_amount, sender=governance.address)
+    wallet.depositForYield(
+        lego_id,
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        usdc_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # Verify wallet has vault tokens
+    vault_balance_before = mock_usdc_collateral_vault.balanceOf(wallet.address)
+    assert vault_balance_before > 0
+
+    # Now "update" the SAME vault with different ripe vault ID and _shouldMaxWithdraw=True
+    # Keep same lego_id since changing it would require a valid lego in the test environment
+    new_ripe_vault_id = 2  # Different ripe vault ID
+
+    wallet.setCollateralVault(
+        mock_usdc_collateral_vault.address,  # SAME vault address
+        lego_id,  # Same lego ID
+        new_ripe_vault_id,  # Different ripe vault ID
+        True,  # shouldMaxWithdraw=True
+        sender=switchboard_alpha.address
+    )
+
+    # CRITICAL VERIFICATION: Vault tokens should STILL EXIST (no withdrawal occurred)
+    vault_balance_after = mock_usdc_collateral_vault.balanceOf(wallet.address)
+    assert vault_balance_after == vault_balance_before, "Vault tokens should remain when updating same vault"
+
+    # Verify the parameters were updated
+    updated_collateral = wallet.collateralAsset()
+    assert updated_collateral.vaultToken == mock_usdc_collateral_vault.address
+    assert updated_collateral.ripeVaultId == new_ripe_vault_id
+    # Lego ID should still map correctly (even though it didn't change)
+    assert wallet.vaultToLegoId(mock_usdc_collateral_vault.address) == lego_id
+
+
+def test_set_collateral_vault_fails_with_ripe_balance(
+    setup_prices,
+    undy_levg_vault_usdc,
+    new_usdc_collateral_vault,
+    mock_usdc_collateral_vault,
+    mock_usdc,
+    mock_ripe,
+    switchboard_alpha,
+    starter_agent,
+    governance,
+):
+    """Test that setting collateral vault FAILS when old vault has Ripe balance (deposited as collateral)
+
+    CRITICAL SAFETY TEST: The implementation has a safety check to prevent changing vaults
+    when funds are actively deposited in Ripe. This prevents accidental loss of collateral.
+
+    Implementation line: assert getCollateralBalance(...) == 0  # dev: old vault has ripe balance
+
+    This test verifies this critical safety mechanism works correctly.
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # Set up: Use old vault
+    wallet.setCollateralVault(
+        mock_usdc_collateral_vault.address,
+        lego_id,
+        ripe_vault_id,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Give wallet USDC and deposit to old collateral vault
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, usdc_amount, sender=governance.address)
+    wallet.depositForYield(
+        lego_id,
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        usdc_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # CRITICAL SETUP: Deposit vault tokens to Ripe as collateral (non-zero Ripe balance)
+    vault_token_balance = mock_usdc_collateral_vault.balanceOf(wallet.address)
+    assert vault_token_balance > 0
+
+    # Mock that these tokens are now deposited in Ripe as collateral
+    # The mock_ripe.setCollateralBalance simulates vault tokens being deposited to Ripe protocol
+    mock_ripe.setUserCollateral(
+        wallet.address,
+        mock_usdc_collateral_vault.address,
+        vault_token_balance
+    )
+
+    # Verify Ripe balance is non-zero
+    ripe_balance = mock_ripe.userCollateral(wallet.address, mock_usdc_collateral_vault.address)
+    assert ripe_balance > 0, "Ripe balance should be non-zero for this test"
+
+    # CRITICAL TEST: Try to change vault - should FAIL
+    with boa.reverts():  # dev: old vault has ripe balance
+        wallet.setCollateralVault(
+            new_usdc_collateral_vault.address,
+            lego_id,
+            ripe_vault_id,
+            True,  # Even with shouldMaxWithdraw=True, should fail due to Ripe balance
+            sender=switchboard_alpha.address
+        )
+
+    # Verify state did NOT change (still using old vault)
+    current_collateral = wallet.collateralAsset()
+    assert current_collateral.vaultToken == mock_usdc_collateral_vault.address, "Vault should not have changed"
+
+
 #########################################
 # Configuration Tests - Leverage Vault #
 #########################################
@@ -287,6 +543,151 @@ def test_set_leverage_vault_unauthorized_fails(
             False,  # shouldMaxWithdraw
             sender=alice
         )
+
+
+def test_set_leverage_vault_auto_withdraws_with_balance(
+    setup_prices,
+    undy_levg_vault_usdc,
+    new_usdc_leverage_vault,
+    mock_usdc_leverage_vault,
+    mock_usdc,
+    switchboard_alpha,
+    starter_agent,
+    governance,
+):
+    """Test auto-withdrawal when setting leverage vault with _shouldMaxWithdraw=True
+
+    This is the primary use case for the _shouldMaxWithdraw parameter on leverage side:
+    - Wallet has local balance in old leverage vault (not deposited to Ripe)
+    - Setting new leverage vault with _shouldMaxWithdraw=True
+    - Should automatically withdraw all funds from old vault
+    - Old vault tokens should be burned, underlying USDC should be in wallet
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # Give wallet some USDC
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, usdc_amount, sender=governance.address)
+
+    # Deposit to old leverage vault to create vault token balance (locally, not to Ripe)
+    wallet.depositForYield(
+        lego_id,
+        mock_usdc.address,
+        mock_usdc_leverage_vault.address,
+        usdc_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # Verify wallet has vault tokens in old vault
+    old_vault_balance = mock_usdc_leverage_vault.balanceOf(wallet.address)
+    assert old_vault_balance > 0
+
+    # Verify no USDC in wallet (it's all in vault tokens)
+    assert mock_usdc.balanceOf(wallet.address) == 0
+
+    # Set new leverage vault with _shouldMaxWithdraw=True
+    wallet.setLeverageVault(
+        new_usdc_leverage_vault.address,
+        lego_id,
+        ripe_vault_id,
+        True,  # shouldMaxWithdraw - CRITICAL: This triggers auto-withdrawal
+        sender=switchboard_alpha.address
+    )
+
+    # Verify state updated to new vault
+    new_leverage = wallet.leverageAsset()
+    assert new_leverage.vaultToken == new_usdc_leverage_vault.address
+    assert new_leverage.ripeVaultId == ripe_vault_id
+    assert wallet.vaultToLegoId(new_usdc_leverage_vault.address) == lego_id
+
+    # CRITICAL VERIFICATION: Old vault tokens should be burned (withdrawn)
+    assert mock_usdc_leverage_vault.balanceOf(wallet.address) == 0, "Old vault tokens should be zero after auto-withdrawal"
+
+    # CRITICAL VERIFICATION: Underlying USDC should be back in wallet
+    usdc_balance_after = mock_usdc.balanceOf(wallet.address)
+    assert usdc_balance_after > 0, "Wallet should have underlying USDC after withdrawal"
+    # Allow for small rounding differences in vault exchange rate
+    assert abs(usdc_balance_after - usdc_amount) < 100, f"Expected ~{usdc_amount} USDC, got {usdc_balance_after}"
+
+
+def test_set_leverage_vault_fails_with_ripe_balance(
+    setup_prices,
+    undy_levg_vault_usdc,
+    new_usdc_leverage_vault,
+    mock_usdc_leverage_vault,
+    mock_usdc,
+    mock_ripe,
+    switchboard_alpha,
+    starter_agent,
+    governance,
+):
+    """Test that setting leverage vault FAILS when old vault has Ripe balance (deposited as leverage)
+
+    CRITICAL SAFETY TEST: The implementation has a safety check to prevent changing vaults
+    when funds are actively deposited in Ripe. This prevents accidental loss of leverage position.
+
+    Implementation line: assert getCollateralBalance(...) == 0  # dev: old vault has ripe balance
+    (Note: Same function is used for both collateral and leverage vault tokens)
+
+    This test verifies this critical safety mechanism works correctly for leverage vaults.
+    """
+    wallet = undy_levg_vault_usdc
+    lego_id = MOCK_YIELD_LEGO_ID
+    ripe_vault_id = 1
+
+    # Set up: Use old leverage vault
+    wallet.setLeverageVault(
+        mock_usdc_leverage_vault.address,
+        lego_id,
+        ripe_vault_id,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Give wallet USDC and deposit to old leverage vault
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(wallet.address, usdc_amount, sender=governance.address)
+    wallet.depositForYield(
+        lego_id,
+        mock_usdc.address,
+        mock_usdc_leverage_vault.address,
+        usdc_amount,
+        b"",
+        sender=starter_agent.address
+    )
+
+    # CRITICAL SETUP: Deposit vault tokens to Ripe as leverage (non-zero Ripe balance)
+    vault_token_balance = mock_usdc_leverage_vault.balanceOf(wallet.address)
+    assert vault_token_balance > 0
+
+    # Mock that these tokens are now deposited in Ripe as leverage
+    # The mock_ripe.setUserCollateral simulates vault tokens being deposited to Ripe protocol
+    mock_ripe.setUserCollateral(
+        wallet.address,
+        mock_usdc_leverage_vault.address,
+        vault_token_balance
+    )
+
+    # Verify Ripe balance is non-zero
+    ripe_balance = mock_ripe.userCollateral(wallet.address, mock_usdc_leverage_vault.address)
+    assert ripe_balance > 0, "Ripe balance should be non-zero for this test"
+
+    # CRITICAL TEST: Try to change leverage vault - should FAIL
+    with boa.reverts():  # dev: old vault has ripe balance
+        wallet.setLeverageVault(
+            new_usdc_leverage_vault.address,
+            lego_id,
+            ripe_vault_id,
+            True,  # Even with shouldMaxWithdraw=True, should fail due to Ripe balance
+            sender=switchboard_alpha.address
+        )
+
+    # Verify state did NOT change (still using old vault)
+    current_leverage = wallet.leverageAsset()
+    assert current_leverage.vaultToken == mock_usdc_leverage_vault.address, "Vault should not have changed"
 
 
 ######################################
