@@ -832,7 +832,12 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, cr
         False,  # no vault approval check
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -845,7 +850,12 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, cr
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -859,7 +869,12 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, cr
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -872,7 +887,12 @@ def test_manager_usd_per_tx_limit(createManagerSettings, createManagerLimits, cr
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -898,7 +918,12 @@ def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 3000
@@ -913,7 +938,12 @@ def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 4999
@@ -928,7 +958,12 @@ def test_manager_usd_per_period_limit(createManagerSettings, createManagerLimits
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -954,7 +989,12 @@ def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, 
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValue == 4000
@@ -969,7 +1009,12 @@ def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, 
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValue == 8000
@@ -984,7 +1029,12 @@ def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, 
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValue == 9999
@@ -999,7 +1049,12 @@ def test_manager_usd_lifetime_limit(createManagerSettings, createManagerLimits, 
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1025,7 +1080,12 @@ def test_manager_zero_price_fails_when_configured(createManagerSettings, createM
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1039,7 +1099,12 @@ def test_manager_zero_price_fails_when_configured(createManagerSettings, createM
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1065,7 +1130,12 @@ def test_manager_zero_price_allowed_when_not_configured(createManagerSettings, c
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1099,7 +1169,12 @@ def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSetti
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1112,7 +1187,12 @@ def test_global_usd_per_tx_limit(createGlobalManagerSettings, createManagerSetti
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1143,7 +1223,12 @@ def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerS
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 1500
@@ -1158,7 +1243,12 @@ def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerS
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 1999
@@ -1173,7 +1263,12 @@ def test_global_usd_per_period_limit(createGlobalManagerSettings, createManagerS
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1204,7 +1299,12 @@ def test_global_zero_price_fails(createGlobalManagerSettings, createManagerSetti
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1240,7 +1340,12 @@ def test_manager_data_updates_on_successful_tx(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
 
     assert success
@@ -1288,7 +1393,12 @@ def test_manager_period_reset_clears_period_data(createGlobalManagerSettings, cr
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1328,7 +1438,12 @@ def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManager
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 4999
@@ -1347,7 +1462,12 @@ def test_manager_per_period_limit_blocks_tx(createManagerSettings, createManager
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1387,7 +1507,12 @@ def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSetti
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValue == 10000
@@ -1406,7 +1531,12 @@ def test_manager_lifetime_limit_persists_across_periods(createGlobalManagerSetti
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1442,7 +1572,12 @@ def test_manager_multiple_limits_all_must_pass(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1461,7 +1596,12 @@ def test_manager_multiple_limits_all_must_pass(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1480,7 +1620,12 @@ def test_manager_multiple_limits_all_must_pass(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1499,7 +1644,12 @@ def test_manager_multiple_limits_all_must_pass(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1535,7 +1685,12 @@ def test_manager_zero_limits_mean_unlimited(createManagerSettings, createManager
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
     assert updated_data.totalUsdValueInPeriod == 1500000
@@ -1564,7 +1719,12 @@ def test_manager_first_tx_initializes_period_start(createManagerSettings, create
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
 
     assert success
@@ -1603,7 +1763,12 @@ def test_manager_data_not_updated_on_failed_tx(createManagerSettings, createMana
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
 
     assert not success
@@ -1636,7 +1801,12 @@ def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimi
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1654,7 +1824,12 @@ def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimi
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1672,7 +1847,12 @@ def test_manager_exact_limit_boundaries(createManagerSettings, createManagerLimi
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert success
 
@@ -1709,7 +1889,12 @@ def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSett
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success
 
@@ -1727,6 +1912,11 @@ def test_manager_global_and_specific_limits_both_checked(createGlobalManagerSett
         False,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        ZERO_ADDRESS,
+        False,  # isSwap
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,  # fromAssetUsdValue
+        0,  # toAssetUsdValue
+        ZERO_ADDRESS,  # vaultRegistry
     )
     assert not success

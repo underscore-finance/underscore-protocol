@@ -34,8 +34,12 @@ def test_set_manager_config_access(mission_control, bob):
     config = (
         86400,  # managerPeriod
         100,    # managerActivationLength
+        False,  # mustHaveUsdValueOnSwaps
+        0,      # maxNumSwapsPerPeriod
+        0,      # maxSlippageOnSwaps
+        False,  # onlyApprovedYieldOpps
     )
-    
+
     # Non-switchboard_alpha address should fail
     with boa.reverts("no perms"):
         mission_control.setManagerConfig(config, sender=bob)
@@ -151,7 +155,7 @@ def test_paused_state_blocks_changes(mission_control, switchboard_alpha, createT
         ), sender=switchboard_alpha.address)
     
     with boa.reverts("not activated"):
-        mission_control.setManagerConfig((86400, 100), sender=switchboard_alpha.address)
+        mission_control.setManagerConfig((86400, 100, False, 0, 0, False), sender=switchboard_alpha.address)
     
     with boa.reverts("not activated"):
         mission_control.setPayeeConfig((86400, 100), sender=switchboard_alpha.address)
@@ -249,15 +253,23 @@ def test_manager_config_persistence(mission_control, switchboard_alpha):
     config = (
         172800,  # managerPeriod
         200,     # managerActivationLength
+        True,    # mustHaveUsdValueOnSwaps
+        10,      # maxNumSwapsPerPeriod
+        500,     # maxSlippageOnSwaps
+        True,    # onlyApprovedYieldOpps
     )
-    
+
     # Set config
     mission_control.setManagerConfig(config, sender=switchboard_alpha.address)
-    
+
     # Verify fields persist
     saved_config = mission_control.managerConfig()
     assert saved_config.managerPeriod == 172800
     assert saved_config.managerActivationLength == 200
+    assert saved_config.mustHaveUsdValueOnSwaps == True
+    assert saved_config.maxNumSwapsPerPeriod == 10
+    assert saved_config.maxSlippageOnSwaps == 500
+    assert saved_config.onlyApprovedYieldOpps == True
 
 
 def test_payee_config_persistence(mission_control, switchboard_alpha):
@@ -391,8 +403,8 @@ def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, ali
     mission_control.setAgentConfig((
         alice, 5, False, starting_agent, 300
     ), sender=switchboard_alpha.address)
-    
-    mission_control.setManagerConfig((172800, 200), sender=switchboard_alpha.address)
+
+    mission_control.setManagerConfig((172800, 200, False, 0, 0, False), sender=switchboard_alpha.address)
     mission_control.setPayeeConfig((172800, 200), sender=switchboard_alpha.address)
     mission_control.setChequeConfig((20, 2000, 172800, 200, 2000), sender=switchboard_alpha.address)
     

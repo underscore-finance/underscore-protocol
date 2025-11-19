@@ -2158,6 +2158,10 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     aid = switchboard_alpha.setManagerConfig(
         new_manager_period,
         new_activation_length,
+        False,  # mustHaveUsdValueOnSwaps
+        0,  # maxNumSwapsPerPeriod
+        0,  # maxSlippageOnSwaps
+        False,  # onlyApprovedYieldOpps
         sender=governance.address
     )
     
@@ -2166,15 +2170,23 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     assert len(logs) == 1
     assert logs[0].managerPeriod == new_manager_period
     assert logs[0].managerActivationLength == new_activation_length
+    assert logs[0].mustHaveUsdValueOnSwaps == False
+    assert logs[0].maxNumSwapsPerPeriod == 0
+    assert logs[0].maxSlippageOnSwaps == 0
+    assert logs[0].onlyApprovedYieldOpps == False
     assert logs[0].actionId == aid
     expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
     assert logs[0].confirmationBlock == expected_confirmation_block
-    
+
     # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
     pending_config = switchboard_alpha.pendingManagerConfig(aid)
     assert pending_config.managerPeriod == new_manager_period
     assert pending_config.managerActivationLength == new_activation_length
+    assert pending_config.mustHaveUsdValueOnSwaps == False
+    assert pending_config.maxNumSwapsPerPeriod == 0
+    assert pending_config.maxSlippageOnSwaps == 0
+    assert pending_config.onlyApprovedYieldOpps == False
     
     # Try to execute before timelock - should fail
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
@@ -2184,24 +2196,28 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     current_config = mission_control.managerConfig()
     assert current_config.managerPeriod == initial_config.managerPeriod
     assert current_config.managerActivationLength == initial_config.managerActivationLength
-    
+
     # Time travel to reach timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    
+
     # Execute the action
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
-    
+
     # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "ManagerConfigSet")
     assert len(exec_logs) == 1
     assert exec_logs[0].managerPeriod == new_manager_period
     assert exec_logs[0].managerActivationLength == new_activation_length
-    
+
     # Verify state changes in MissionControl
     updated_config = mission_control.managerConfig()
     assert updated_config.managerPeriod == new_manager_period
     assert updated_config.managerActivationLength == new_activation_length
+    assert updated_config.mustHaveUsdValueOnSwaps == False
+    assert updated_config.maxNumSwapsPerPeriod == 0
+    assert updated_config.maxSlippageOnSwaps == 0
+    assert updated_config.onlyApprovedYieldOpps == False
     
     # Verify action is cleared
     assert switchboard_alpha.actionType(aid) == 0
@@ -2211,52 +2227,52 @@ def test_set_manager_config_invalid_params_revert(switchboard_alpha, governance)
     """Test that invalid manager config parameters are rejected"""
     # Test with zero manager period
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(0, 86400, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(0, 86400, False, 0, 0, False, sender=governance.address)
+
     # Test with zero activation length
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(86400, 0, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(86400, 0, False, 0, 0, False, sender=governance.address)
+
     # Test with both zero
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(0, 0, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(0, 0, False, 0, 0, False, sender=governance.address)
+
     # Test with max_value manager period
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(MAX_UINT256, 86400, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(MAX_UINT256, 86400, False, 0, 0, False, sender=governance.address)
+
     # Test with max_value activation length
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(86400, MAX_UINT256, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(86400, MAX_UINT256, False, 0, 0, False, sender=governance.address)
+
     # Test with both max_value
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, sender=governance.address)
+        switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, False, 0, 0, False, sender=governance.address)
 
 
 def test_set_manager_config_non_governance_reverts(switchboard_alpha, alice):
     """Test that non-governance addresses cannot set manager config"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setManagerConfig(86400, 43200, sender=alice)
+        switchboard_alpha.setManagerConfig(86400, 43200, False, 0, 0, False, sender=alice)
 
 
 def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_control):
     """Test edge cases for manager config"""
     # Test with minimum values (1, 1)
-    aid1 = switchboard_alpha.setManagerConfig(1, 1, sender=governance.address)
-    
+    aid1 = switchboard_alpha.setManagerConfig(1, 1, False, 0, 0, False, sender=governance.address)
+
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
-    
+
     config = mission_control.managerConfig()
     assert config.managerPeriod == 1
     assert config.managerActivationLength == 1
-    
+
     # Test with large values (but not max)
     large_period = 2**256 - 2
     large_activation = 2**256 - 3
-    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, sender=governance.address)
+    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, False, 0, 0, False, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
@@ -2270,10 +2286,10 @@ def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_co
 def test_set_manager_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
     """Test creating multiple pending manager config actions"""
     # Create first pending action
-    aid1 = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
-    
+    aid1 = switchboard_alpha.setManagerConfig(100000, 50000, False, 0, 0, False, sender=governance.address)
+
     # Create second pending action with different values
-    aid2 = switchboard_alpha.setManagerConfig(200000, 100000, sender=governance.address)
+    aid2 = switchboard_alpha.setManagerConfig(200000, 100000, False, 0, 0, False, sender=governance.address)
     
     # Verify both are stored separately
     pending1 = switchboard_alpha.pendingManagerConfig(aid1)
@@ -2307,9 +2323,9 @@ def test_set_manager_config_cancel_pending_action(switchboard_alpha, governance,
     """Test canceling a pending manager config action"""
     # Get initial config
     initial_config = mission_control.managerConfig()
-    
+
     # Create pending action
-    aid = switchboard_alpha.setManagerConfig(150000, 75000, sender=governance.address)
+    aid = switchboard_alpha.setManagerConfig(150000, 75000, False, 0, 0, False, sender=governance.address)
     
     # Cancel the action
     result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
@@ -2520,7 +2536,7 @@ def test_set_payee_config_cancel_pending_action(switchboard_alpha, governance, m
 def test_set_payee_config_different_from_manager_config(switchboard_alpha, governance, mission_control):
     """Test that payee config is independent from manager config"""
     # Set manager config
-    manager_aid = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
+    manager_aid = switchboard_alpha.setManagerConfig(100000, 50000, False, 0, 0, False, sender=governance.address)
     
     # Set payee config with different values
     payee_aid = switchboard_alpha.setPayeeConfig(200000, 100000, sender=governance.address)

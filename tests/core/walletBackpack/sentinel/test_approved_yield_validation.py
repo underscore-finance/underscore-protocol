@@ -447,22 +447,26 @@ def test_global_setting_enforces_approval(
 
 
 def test_default_global_manager_settings_has_approval_enabled(high_command):
-    """Default global manager settings should have onlyApprovedYieldOpps=True"""
+    """Default global manager settings should have onlyApprovedYieldOpps=True when explicitly set"""
     default_settings = high_command.createDefaultGlobalManagerSettings(
         ONE_DAY_IN_BLOCKS,  # manager period
         ONE_DAY_IN_BLOCKS,  # min time lock
         ONE_DAY_IN_BLOCKS * 30,  # default activation length
+        False,  # mustHaveUsdValueOnSwaps
+        0,  # maxNumSwapsPerPeriod
+        0,  # maxSlippageOnSwaps
+        True,  # onlyApprovedYieldOpps
     )
 
-    # Check that onlyApprovedYieldOpps is True by default
+    # Check that onlyApprovedYieldOpps is True when explicitly set to True
     assert default_settings.legoPerms.onlyApprovedYieldOpps == True
 
 
 def test_starter_agent_settings_has_approval_enabled(high_command):
-    """Starter agent settings should have onlyApprovedYieldOpps=True"""
+    """Starter agent settings should have onlyApprovedYieldOpps=False by default"""
     starter_settings = high_command.createStarterAgentSettings(
         ONE_DAY_IN_BLOCKS * 365  # activation length
     )
 
-    # Check that onlyApprovedYieldOpps is True by default
-    assert starter_settings.legoPerms.onlyApprovedYieldOpps == True
+    # Check that onlyApprovedYieldOpps is False by default for starter agent
+    assert starter_settings.legoPerms.onlyApprovedYieldOpps == False

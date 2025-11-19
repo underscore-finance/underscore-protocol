@@ -76,6 +76,7 @@ struct UserWalletCreationConfig:
     mustHaveUsdValueOnSwaps: bool
     maxNumSwapsPerPeriod: uint256
     maxSlippageOnSwaps: uint256
+    onlyApprovedYieldOpps: bool
     payeePeriod: uint256
     payeeActivationLength: uint256
     chequeMaxNumActiveCheques: uint256
@@ -179,6 +180,7 @@ def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:
         mustHaveUsdValueOnSwaps = managerConfig.mustHaveUsdValueOnSwaps,
         maxNumSwapsPerPeriod = managerConfig.maxNumSwapsPerPeriod,
         maxSlippageOnSwaps = managerConfig.maxSlippageOnSwaps,
+        onlyApprovedYieldOpps = managerConfig.onlyApprovedYieldOpps,
         payeePeriod = payeeConfig.payeePeriod,
         payeeActivationLength = payeeConfig.payeeActivationLength,
         chequeMaxNumActiveCheques = chequeConfig.maxNumActiveCheques,

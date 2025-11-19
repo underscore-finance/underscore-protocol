@@ -821,13 +821,14 @@ def createDefaultGlobalManagerSettings(
     _mustHaveUsdValueOnSwaps: bool,
     _maxNumSwapsPerPeriod: uint256,
     _maxSlippageOnSwaps: uint256,
+    _onlyApprovedYieldOpps: bool,
 ) -> wcs.GlobalManagerSettings:
     config: wcs.GlobalManagerSettings = empty(wcs.GlobalManagerSettings)
     config.managerPeriod = _managerPeriod
     config.startDelay = _minTimeLock
     config.activationLength = _defaultActivationLength
     config.canOwnerManage = True
-    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(_mustHaveUsdValueOnSwaps, _maxNumSwapsPerPeriod, _maxSlippageOnSwaps)
+    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(_mustHaveUsdValueOnSwaps, _maxNumSwapsPerPeriod, _maxSlippageOnSwaps, _onlyApprovedYieldOpps)
     return config
 
 
@@ -848,7 +849,7 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
         allowedAssets = [],
         canClaimLoot = True,
     )
-    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(False, 0, 0)
+    config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(False, 0, 0, False)
     return config
 
 
@@ -861,6 +862,7 @@ def _createHappyManagerDefaults(
     _mustHaveUsdValueOnSwaps: bool,
     _maxNumSwapsPerPeriod: uint256,
     _maxSlippageOnSwaps: uint256,
+    _onlyApprovedYieldOpps: bool,
 ) -> (wcs.LegoPerms, wcs.SwapPerms, wcs.WhitelistPerms, wcs.TransferPerms):
     return wcs.LegoPerms(
         canManageYield = True,
@@ -868,7 +870,7 @@ def _createHappyManagerDefaults(
         canManageDebt = True,
         canManageLiq = True,
         canClaimRewards = True,
-        onlyApprovedYieldOpps = True,
+        onlyApprovedYieldOpps = _onlyApprovedYieldOpps,
         allowedLegos = [],
     ), wcs.SwapPerms(
         mustHaveUsdValue = _mustHaveUsdValueOnSwaps,

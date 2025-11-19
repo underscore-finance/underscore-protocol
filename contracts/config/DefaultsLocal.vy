@@ -92,6 +92,7 @@ def managerConfig() -> cs.ManagerConfig:
         mustHaveUsdValueOnSwaps = False,
         maxNumSwapsPerPeriod = 0,
         maxSlippageOnSwaps = 0,
+        onlyApprovedYieldOpps = False,
     )
 
 

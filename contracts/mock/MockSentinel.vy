@@ -61,6 +61,11 @@ def checkManagerLimitsPostTx(
     _requiresVaultApproval: bool,
     _underlyingAsset: address,
     _vaultToken: address,
+    _isSwap: bool,
+    _specificSwapPerms: wcs.SwapPerms,
+    _globalSwapPerms: wcs.SwapPerms,
+    _fromAssetUsdValue: uint256,
+    _toAssetUsdValue: uint256,
     _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
     if self.fail_validation:

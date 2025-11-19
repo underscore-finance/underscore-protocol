@@ -186,10 +186,18 @@ def setManagerConfig(mission_control, switchboard_alpha):
     def setManagerConfig(
         _managerPeriod = ONE_MONTH_IN_BLOCKS,
         _defaultActivationLength = ONE_YEAR_IN_BLOCKS,
+        _mustHaveUsdValueOnSwaps = False,
+        _maxNumSwapsPerPeriod = 0,
+        _maxSlippageOnSwaps = 0,
+        _onlyApprovedYieldOpps = False,
     ):
         config = (
             _managerPeriod,
             _defaultActivationLength,
+            _mustHaveUsdValueOnSwaps,
+            _maxNumSwapsPerPeriod,
+            _maxSlippageOnSwaps,
+            _onlyApprovedYieldOpps,
         )
         mission_control.setManagerConfig(config, sender=switchboard_alpha.address)
     yield setManagerConfig

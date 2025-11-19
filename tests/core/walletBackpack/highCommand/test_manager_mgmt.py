@@ -11,7 +11,7 @@ from config.BluePrint import PARAMS
 ###############
 
 
-def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that addManager verifies it's a real user wallet"""
     # Try to add manager to a non-wallet address (bob's EOA)
     with boa.reverts("invalid user wallet"):
@@ -20,6 +20,7 @@ def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits
             alice,  # manager
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],  # allowed assets
@@ -28,7 +29,7 @@ def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits
         )
 
 
-def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, charlie):
+def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, charlie):
     """Test that only the owner can add a manager"""
     # Try to add manager as non-owner (alice)
     with boa.reverts("no perms"):
@@ -37,6 +38,7 @@ def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createM
             charlie,  # manager
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -45,7 +47,7 @@ def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createM
         )
 
 
-def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that certain addresses cannot be managers"""
     # Cannot add zero address
     with boa.reverts("invalid manager"):
@@ -54,6 +56,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             ZERO_ADDRESS,  # invalid
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -68,6 +71,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             bob,  # owner cannot be manager
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -82,6 +86,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             user_wallet_config.address,  # invalid
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -96,6 +101,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             user_wallet,  # invalid
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -104,7 +110,7 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
         )
 
 
-def test_add_manager_validation_failure(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_add_manager_validation_failure(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that invalid manager settings are rejected"""
     # Invalid limits: per tx > per period
     invalid_limits = createManagerLimits(
@@ -118,6 +124,7 @@ def test_add_manager_validation_failure(high_command, user_wallet, createManager
             alice,
             invalid_limits,
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -126,7 +133,7 @@ def test_add_manager_validation_failure(high_command, user_wallet, createManager
         )
 
 
-def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token):
+def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token):
     """Test that addManager correctly saves all manager settings in user wallet config"""
     # Create specific settings to verify they're saved correctly
     limits = createManagerLimits(
@@ -143,26 +150,29 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
         _canBuyAndSell=False,
         _allowedLegos=[1, 2]
     )
-    
+
+    swap_perms = createSwapPerms()
+
     whitelist_perms = createWhitelistPerms(
         _canAddPending=True,
         _canConfirm=True,
         _canCancel=False,
         _canRemove=False
     )
-    
+
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
         _allowedPayees=[]
     )
-    
+
     # Add manager with specific settings
     result = high_command.addManager(
         user_wallet,
         alice,
         limits,
         lego_perms,
+        swap_perms,
         whitelist_perms,
         transfer_perms,
         [alpha_token.address, bravo_token.address],  # allowed assets
@@ -216,7 +226,7 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     assert saved_settings.allowedAssets[1] == bravo_token.address
 
 
-def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that addManager emits the correct event"""
     limits = createManagerLimits(
         _maxUsdValuePerTx=2000 * 10**6,
@@ -233,6 +243,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         alice,
         limits,
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -259,7 +270,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
     assert event.expiryBlock > event.startBlock
 
 
-def test_add_manager_uses_global_settings_when_zero(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_add_manager_uses_global_settings_when_zero(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that zero start delay and activation length use global settings"""
     # Set global manager settings
     global_settings = createGlobalManagerSettings(
@@ -274,6 +285,7 @@ def test_add_manager_uses_global_settings_when_zero(high_command, user_wallet, u
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -292,7 +304,7 @@ def test_add_manager_uses_global_settings_when_zero(high_command, user_wallet, u
     assert saved_settings.expiryBlock == expected_start_block + (ONE_MONTH_IN_BLOCKS * 6)
 
 
-def test_add_manager_increments_index(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
+def test_add_manager_increments_index(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
     """Test that adding managers increments the index properly"""
     # Check initial state
     assert user_wallet_config.indexOfManager(alice) == 0
@@ -304,6 +316,7 @@ def test_add_manager_increments_index(high_command, user_wallet, user_wallet_con
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -320,6 +333,7 @@ def test_add_manager_increments_index(high_command, user_wallet, user_wallet_con
         charlie,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -331,7 +345,7 @@ def test_add_manager_increments_index(high_command, user_wallet, user_wallet_con
     assert charlie_index > alice_index
 
 
-def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, user_wallet_config):
+def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, user_wallet_config):
     """Test that cannot add a manager that already exists"""
     # First set global settings
     global_settings = createGlobalManagerSettings()
@@ -343,6 +357,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -357,6 +372,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
             alice,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -370,7 +386,7 @@ def test_add_manager_cannot_add_existing_manager(high_command, user_wallet, crea
 ##################
 
 
-def test_update_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that updateManager verifies it's a real user wallet"""
     # Try to update manager on a non-wallet address (bob's EOA)
     with boa.reverts("invalid user wallet"):
@@ -379,6 +395,7 @@ def test_update_manager_verifies_real_user_wallet(high_command, createManagerLim
             alice,  # manager
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -387,7 +404,7 @@ def test_update_manager_verifies_real_user_wallet(high_command, createManagerLim
         )
 
 
-def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
+def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
     """Test that only the owner can update a manager"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -398,6 +415,7 @@ def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -412,6 +430,7 @@ def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user
             alice,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -420,7 +439,7 @@ def test_update_manager_verifies_caller_is_owner(high_command, user_wallet, user
         )
 
 
-def test_update_manager_must_exist(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_must_exist(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that can only update existing managers"""
     # Try to update a non-existent manager
     with boa.reverts("invalid settings"):
@@ -429,6 +448,7 @@ def test_update_manager_must_exist(high_command, user_wallet, createManagerLimit
             alice,  # not a manager
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -437,7 +457,7 @@ def test_update_manager_must_exist(high_command, user_wallet, createManagerLimit
         )
 
 
-def test_update_manager_validation_failure(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_validation_failure(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that invalid manager settings are rejected on update"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -448,6 +468,7 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -467,6 +488,7 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
             alice,
             invalid_limits,
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -475,7 +497,7 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
         )
 
 
-def test_update_manager_saves_new_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token, charlie_token):
+def test_update_manager_saves_new_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token, charlie_token):
     """Test that updateManager correctly saves all new settings"""
     # Setup: add alice as manager with initial settings
     global_settings = createGlobalManagerSettings()
@@ -492,6 +514,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         alice,
         initial_limits,
         createLegoPerms(_canManageYield=True, _canBuyAndSell=False),
+        createSwapPerms(),
         createWhitelistPerms(_canAddPending=False, _canConfirm=True),
         createTransferPerms(_canTransfer=False, _canCreateCheque=True),
         [alpha_token.address],
@@ -523,26 +546,29 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         _canManageDebt=True,
         _allowedLegos=[1, 2]
     )
-    
+
+    new_swap_perms = createSwapPerms()
+
     new_whitelist_perms = createWhitelistPerms(
         _canAddPending=True,
         _canConfirm=False,
         _canCancel=True,
         _canRemove=False
     )
-    
+
     new_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
         _canAddPendingPayee=True,
         _allowedPayees=[]  # Use empty list instead of token address
     )
-    
+
     result = high_command.updateManager(
         user_wallet,
         alice,
         new_limits,
         new_lego_perms,
+        new_swap_perms,
         new_whitelist_perms,
         new_transfer_perms,
         [bravo_token.address, charlie_token.address],
@@ -592,7 +618,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     assert updated_settings.allowedAssets[1] == charlie_token.address
 
 
-def test_update_manager_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that updateManager emits the correct event"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -603,6 +629,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -626,6 +653,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
         alice,
         new_limits,
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -650,7 +678,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
     assert event.txCooldownBlocks == 300
 
 
-def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that updating a manager preserves start and expiry blocks"""
     # Setup: add alice as manager with specific timing
     global_settings = createGlobalManagerSettings()
@@ -661,6 +689,7 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -684,6 +713,7 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
         alice,
         createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=True),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -697,7 +727,7 @@ def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_
     assert updated_settings.expiryBlock == initial_expiry
 
 
-def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that updating a manager doesn't change their index"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -708,6 +738,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -727,6 +758,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
         alice,
         createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=True),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -743,7 +775,7 @@ def test_update_manager_index_unchanged(high_command, user_wallet, user_wallet_c
 ##################
 
 
-def test_remove_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_remove_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that removeManager verifies it's a real user wallet"""
     # Try to remove manager from a non-wallet address (bob's EOA)
     with boa.reverts("invalid user wallet"):
@@ -754,7 +786,7 @@ def test_remove_manager_verifies_real_user_wallet(high_command, createManagerLim
         )
 
 
-def test_remove_manager_by_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_remove_manager_by_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that owner can remove a manager"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -765,6 +797,7 @@ def test_remove_manager_by_owner(high_command, user_wallet, user_wallet_config, 
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -788,7 +821,7 @@ def test_remove_manager_by_owner(high_command, user_wallet, user_wallet_config, 
     assert user_wallet_config.indexOfManager(alice) == 0
 
 
-def test_remove_manager_by_self(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_remove_manager_by_self(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that a manager can remove themselves"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -799,6 +832,7 @@ def test_remove_manager_by_self(high_command, user_wallet, user_wallet_config, c
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -822,7 +856,7 @@ def test_remove_manager_by_self(high_command, user_wallet, user_wallet_config, c
     assert user_wallet_config.indexOfManager(alice) == 0
 
 
-def test_remove_manager_by_unauthorized(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie):
+def test_remove_manager_by_unauthorized(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie):
     """Test that unauthorized users cannot remove a manager"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -833,6 +867,7 @@ def test_remove_manager_by_unauthorized(high_command, user_wallet, user_wallet_c
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -849,7 +884,7 @@ def test_remove_manager_by_unauthorized(high_command, user_wallet, user_wallet_c
         )
 
 
-def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie, mission_control, switchboard_alpha):
+def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie, mission_control, switchboard_alpha):
     """Test that security admin can remove a manager"""
     # Set charlie as security operator
     mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
@@ -863,6 +898,7 @@ def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -901,7 +937,7 @@ def test_remove_manager_not_found(high_command, user_wallet, user_wallet_config,
         )
 
 
-def test_remove_manager_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_remove_manager_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that removeManager emits the correct event"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -912,6 +948,7 @@ def test_remove_manager_emits_event(high_command, user_wallet, user_wallet_confi
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -936,7 +973,7 @@ def test_remove_manager_emits_event(high_command, user_wallet, user_wallet_confi
     assert event.manager == alice
 
 
-def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token):
+def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token):
     """Test that removing a manager clears all their settings"""
     # Setup: add alice as manager with specific settings
     global_settings = createGlobalManagerSettings()
@@ -951,6 +988,7 @@ def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wall
             _failOnZeroPrice=True
         ),
         createLegoPerms(_canManageYield=True, _allowedLegos=[1, 2]),
+        createSwapPerms(),
         createWhitelistPerms(_canAddPending=True),
         createTransferPerms(_canTransfer=True),
         [alpha_token.address],
@@ -979,7 +1017,7 @@ def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wall
     assert len(settings_after.legoPerms.allowedLegos) == 0
 
 
-def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
+def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, charlie, bob):
     """Test that removing a manager properly updates indices"""
     # Setup: add multiple managers
     global_settings = createGlobalManagerSettings()
@@ -991,6 +1029,7 @@ def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_c
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1004,6 +1043,7 @@ def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_c
         charlie,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1033,7 +1073,7 @@ def test_remove_manager_updates_indices(high_command, user_wallet, user_wallet_c
     assert charlie_index_after == alice_index_before
 
 
-def test_remove_multiple_managers_sequentially(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, charlie, sally, bob):
+def test_remove_multiple_managers_sequentially(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, charlie, sally, bob):
     """Test removing multiple managers one by one"""
     # Setup: add three managers
     global_settings = createGlobalManagerSettings()
@@ -1046,6 +1086,7 @@ def test_remove_multiple_managers_sequentially(high_command, user_wallet, user_w
             manager,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -1086,7 +1127,7 @@ def test_adjust_activation_length_verifies_real_user_wallet(high_command, alice,
         )
 
 
-def test_adjust_activation_length_verifies_caller_is_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie):
+def test_adjust_activation_length_verifies_caller_is_owner(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie):
     """Test that only the owner can adjust manager activation length"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1097,6 +1138,7 @@ def test_adjust_activation_length_verifies_caller_is_owner(high_command, user_wa
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1133,7 +1175,7 @@ def test_adjust_activation_length_manager_must_exist(high_command, user_wallet, 
         )
 
 
-def test_adjust_activation_length_manager_not_active_yet(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_manager_not_active_yet(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that cannot adjust activation for manager not yet active"""
     # Setup: add alice as manager with future start block
     global_settings = createGlobalManagerSettings()
@@ -1144,6 +1186,7 @@ def test_adjust_activation_length_manager_not_active_yet(high_command, user_wall
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1163,7 +1206,7 @@ def test_adjust_activation_length_manager_not_active_yet(high_command, user_wall
         )
 
 
-def test_adjust_activation_length_invalid_length(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
+def test_adjust_activation_length_invalid_length(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
     """Test that invalid activation lengths are rejected"""
     # Setup: add alice as manager with immediate start
     global_settings = createGlobalManagerSettings()
@@ -1177,6 +1220,7 @@ def test_adjust_activation_length_invalid_length(high_command, user_wallet, user
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1212,7 +1256,7 @@ def test_adjust_activation_length_invalid_length(high_command, user_wallet, user
         )
 
 
-def test_adjust_activation_length_extends_active_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_extends_active_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test extending activation length for active manager"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1226,6 +1270,7 @@ def test_adjust_activation_length_extends_active_manager(high_command, user_wall
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1262,7 +1307,7 @@ def test_adjust_activation_length_extends_active_manager(high_command, user_wall
     assert updated_settings.expiryBlock == initial_start + new_activation_length  # New expiry
 
 
-def test_adjust_activation_length_with_reset_start_block(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_with_reset_start_block(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test adjusting activation with reset start block flag"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1276,6 +1321,7 @@ def test_adjust_activation_length_with_reset_start_block(high_command, user_wall
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1311,7 +1357,7 @@ def test_adjust_activation_length_with_reset_start_block(high_command, user_wall
     assert updated_settings.expiryBlock == current_block + new_activation_length
 
 
-def test_adjust_activation_length_expired_manager_auto_resets(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_expired_manager_auto_resets(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that adjusting expired manager automatically resets start block"""
     # Setup: add alice as manager with short activation
     global_settings = createGlobalManagerSettings()
@@ -1324,6 +1370,7 @@ def test_adjust_activation_length_expired_manager_auto_resets(high_command, user
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1362,7 +1409,7 @@ def test_adjust_activation_length_expired_manager_auto_resets(high_command, user
     assert updated_settings.expiryBlock == current_block + new_activation_length
 
 
-def test_adjust_activation_length_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_emits_event(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that adjustManagerActivationLength emits correct event"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1375,6 +1422,7 @@ def test_adjust_activation_length_emits_event(high_command, user_wallet, user_wa
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1409,7 +1457,7 @@ def test_adjust_activation_length_emits_event(high_command, user_wallet, user_wa
     assert event.didRestart == False  # No restart
 
 
-def test_adjust_activation_length_emits_event_with_restart(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_emits_event_with_restart(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test event emission when restart occurs"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1422,6 +1470,7 @@ def test_adjust_activation_length_emits_event_with_restart(high_command, user_wa
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1457,7 +1506,7 @@ def test_adjust_activation_length_emits_event_with_restart(high_command, user_wa
 
 
 
-def test_adjust_activation_length_invalid_expiry(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
+def test_adjust_activation_length_invalid_expiry(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
     """Test that adjustment resulting in invalid expiry is rejected"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1470,6 +1519,7 @@ def test_adjust_activation_length_invalid_expiry(high_command, user_wallet, user
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1497,7 +1547,7 @@ def test_adjust_activation_length_invalid_expiry(high_command, user_wallet, user
         )
 
 
-def test_adjust_activation_length_shortens_active_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_shortens_active_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test shortening activation length for active manager"""
     # Setup: add alice as manager with long activation
     global_settings = createGlobalManagerSettings()
@@ -1510,6 +1560,7 @@ def test_adjust_activation_length_shortens_active_manager(high_command, user_wal
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1545,7 +1596,7 @@ def test_adjust_activation_length_shortens_active_manager(high_command, user_wal
     assert updated_settings.expiryBlock == initial_start + new_activation_length  # Shortened
 
 
-def test_adjust_activation_length_boundary_values(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
+def test_adjust_activation_length_boundary_values(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, fork):
     """Test setting exactly MIN and MAX activation lengths"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1558,6 +1609,7 @@ def test_adjust_activation_length_boundary_values(high_command, user_wallet, use
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1601,7 +1653,7 @@ def test_adjust_activation_length_boundary_values(high_command, user_wallet, use
     assert final_settings.expiryBlock == final_settings.startBlock + max_activation
 
 
-def test_adjust_activation_length_near_expiry_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_near_expiry_manager(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test adjusting manager who is near expiry but not yet expired"""
     # Setup: add alice as manager with short activation
     global_settings = createGlobalManagerSettings()
@@ -1614,6 +1666,7 @@ def test_adjust_activation_length_near_expiry_manager(high_command, user_wallet,
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1649,7 +1702,7 @@ def test_adjust_activation_length_near_expiry_manager(high_command, user_wallet,
     assert updated_settings.expiryBlock == updated_settings.startBlock + new_activation_length
 
 
-def test_adjust_activation_length_multiple_adjustments(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_adjust_activation_length_multiple_adjustments(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test multiple consecutive adjustments to the same manager"""
     # Setup: add alice as manager
     global_settings = createGlobalManagerSettings()
@@ -1662,6 +1715,7 @@ def test_adjust_activation_length_multiple_adjustments(high_command, user_wallet
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -1716,7 +1770,7 @@ def test_adjust_activation_length_multiple_adjustments(high_command, user_wallet
 ###########################
 
 
-def test_set_global_manager_settings_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_set_global_manager_settings_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that setGlobalManagerSettings verifies it's a real user wallet"""
     # Try to set global settings on a non-wallet address (bob's EOA)
     with boa.reverts("invalid user wallet"):
@@ -1728,6 +1782,7 @@ def test_set_global_manager_settings_verifies_real_user_wallet(high_command, cre
             True,  # canOwnerManage
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],  # allowedAssets
@@ -1735,7 +1790,7 @@ def test_set_global_manager_settings_verifies_real_user_wallet(high_command, cre
         )
 
 
-def test_set_global_manager_settings_verifies_caller_is_owner(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_set_global_manager_settings_verifies_caller_is_owner(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that only the owner can set global manager settings"""
     # Try to set global settings as non-owner
     with boa.reverts("no perms"):
@@ -1747,6 +1802,7 @@ def test_set_global_manager_settings_verifies_caller_is_owner(high_command, user
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -1754,7 +1810,7 @@ def test_set_global_manager_settings_verifies_caller_is_owner(high_command, user
         )
 
 
-def test_set_global_manager_settings_basic(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alpha_token, bravo_token, bob):
+def test_set_global_manager_settings_basic(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alpha_token, bravo_token, bob):
     """Test setting basic global manager settings"""
     # Set up custom limits
     limits = createManagerLimits(
@@ -1775,7 +1831,10 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
         _canClaimRewards=True,
         _allowedLegos=[1, 2]
     )
-    
+
+    # Set up swap permissions
+    swap_perms = createSwapPerms()
+
     # Set up whitelist permissions
     whitelist_perms = createWhitelistPerms(
         _canAddPending=True,
@@ -1783,7 +1842,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
         _canCancel=False,
         _canRemove=False
     )
-    
+
     # Set up transfer permissions
     transfer_perms = createTransferPerms(
         _canTransfer=True,
@@ -1791,7 +1850,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
         _canAddPendingPayee=True,
         _allowedPayees=[]
     )
-    
+
     # Set global manager settings
     result = high_command.setGlobalManagerSettings(
         user_wallet,
@@ -1801,6 +1860,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
         False,  # canOwnerManage
         limits,
         lego_perms,
+        swap_perms,
         whitelist_perms,
         transfer_perms,
         [alpha_token.address, bravo_token.address],  # allowedAssets
@@ -1854,7 +1914,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     assert global_settings.allowedAssets[1] == bravo_token.address
 
 
-def test_set_global_manager_settings_emits_event(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_set_global_manager_settings_emits_event(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that setGlobalManagerSettings emits the correct event"""
     limits = createManagerLimits(
         _maxUsdValuePerTx=2000 * 10**6,
@@ -1873,21 +1933,23 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
         _canClaimRewards=True,
         _allowedLegos=[]
     )
-    
+
+    swap_perms = createSwapPerms()
+
     whitelist_perms = createWhitelistPerms(
         _canAddPending=False,
         _canConfirm=True,
         _canCancel=True,
         _canRemove=True
     )
-    
+
     transfer_perms = createTransferPerms(
         _canTransfer=False,
         _canCreateCheque=True,
         _canAddPendingPayee=False,
         _allowedPayees=[]
     )
-    
+
     # Set global settings
     high_command.setGlobalManagerSettings(
         user_wallet,
@@ -1897,6 +1959,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
         True,
         limits,
         lego_perms,
+        swap_perms,
         whitelist_perms,
         transfer_perms,
         [],
@@ -1936,7 +1999,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     assert event.numAllowedAssets == 0
 
 
-def test_set_global_manager_settings_validates_inputs(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob, fork):
+def test_set_global_manager_settings_validates_inputs(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob, fork):
     """Test that invalid global settings are rejected"""
     # Test invalid manager period (too short)
     with boa.reverts("invalid settings"):
@@ -1948,6 +2011,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -1964,6 +2028,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -1980,6 +2045,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -1996,6 +2062,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -2012,6 +2079,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -2019,7 +2087,7 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
         )
 
 
-def test_set_global_manager_settings_respects_timelock(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_set_global_manager_settings_respects_timelock(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that start delay must respect user's timelock"""
     # Get the current timelock from user wallet config
     timelock = user_wallet_config.timeLock()
@@ -2034,6 +2102,7 @@ def test_set_global_manager_settings_respects_timelock(high_command, user_wallet
             True,
             createManagerLimits(),
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -2041,7 +2110,7 @@ def test_set_global_manager_settings_respects_timelock(high_command, user_wallet
         )
 
 
-def test_set_global_manager_settings_multiple_updates(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_set_global_manager_settings_multiple_updates(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test multiple updates to global manager settings"""
     # First update - restrictive settings
     high_command.setGlobalManagerSettings(
@@ -2064,6 +2133,7 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
             _canClaimRewards=True,
             _allowedLegos=[]
         ),
+        createSwapPerms(),
         createWhitelistPerms(
             _canAddPending=False,
             _canConfirm=False,
@@ -2095,6 +2165,7 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
         True,
         createManagerLimits(),  # No limits
         createLegoPerms(),  # All permissions
+        createSwapPerms(),
         createWhitelistPerms(),  # Default permissions
         createTransferPerms(),  # All permissions
         [],
@@ -2109,7 +2180,7 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
     assert settings2.managerPeriod == ONE_MONTH_IN_BLOCKS * 2
 
 
-def test_set_global_manager_settings_with_invalid_lego_ids(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_set_global_manager_settings_with_invalid_lego_ids(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that invalid lego IDs are rejected"""
     # Try with invalid lego ID (99999 doesn't exist)
     lego_perms = createLegoPerms(
@@ -2130,6 +2201,7 @@ def test_set_global_manager_settings_with_invalid_lego_ids(high_command, user_wa
             True,
             createManagerLimits(),
             lego_perms,
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -2137,7 +2209,7 @@ def test_set_global_manager_settings_with_invalid_lego_ids(high_command, user_wa
         )
 
 
-def test_set_global_manager_settings_cooldown_exceeds_period(high_command, user_wallet, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_set_global_manager_settings_cooldown_exceeds_period(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that cooldown cannot exceed manager period"""
     manager_period = ONE_DAY_IN_BLOCKS * 7  # 7 days
     
@@ -2155,6 +2227,7 @@ def test_set_global_manager_settings_cooldown_exceeds_period(high_command, user_
             True,
             limits,
             createLegoPerms(),
+            createSwapPerms(),
             createWhitelistPerms(),
             createTransferPerms(),
             [],
@@ -2162,7 +2235,7 @@ def test_set_global_manager_settings_cooldown_exceeds_period(high_command, user_
         )
 
 
-def test_set_global_manager_settings_affects_new_managers(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+def test_set_global_manager_settings_affects_new_managers(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that global settings affect new managers added after"""
     # Set global settings with specific defaults
     high_command.setGlobalManagerSettings(
@@ -2173,6 +2246,7 @@ def test_set_global_manager_settings_affects_new_managers(high_command, user_wal
         True,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -2187,6 +2261,7 @@ def test_set_global_manager_settings_affects_new_managers(high_command, user_wal
         alice,
         createManagerLimits(),
         createLegoPerms(),
+            createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],

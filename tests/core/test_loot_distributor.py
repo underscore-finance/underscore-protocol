@@ -2860,7 +2860,7 @@ def test_adjust_loot_zero_and_deregistration(loot_distributor, ambassador_wallet
 #################################
 
 
-def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setAssetConfig, createAssetYieldConfig):
+def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setAssetConfig, createAssetYieldConfig):
     """ Test that a manager with canClaimLoot permission can claim loot """
 
     # Configure yield asset with RIPE bonus
@@ -2891,20 +2891,21 @@ def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, 
         100 * EIGHTEEN_DECIMALS,  # total yield
         sender=user_wallet.address
     )
-    
+
     # Add manager with canClaimLoot permission
     high_command.addManager(
         user_wallet.address,
         charlie,  # manager
         createManagerLimits(),
         createLegoPerms(),
+        createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],  # allowed assets
         True,  # canClaimLoot = True
         sender=bob  # bob is the owner of user_wallet
     )
-    
+
     # Verify manager can claim loot for user_wallet
     initial_balance_ripe = mock_ripe_token.balanceOf(user_wallet)
     initial_balance_fee = yield_vault_token.balanceOf(user_wallet)
@@ -2936,7 +2937,7 @@ def test_manager_can_claim_loot_with_permission(loot_distributor, high_command, 
     assert loot_distributor.lastClaim(user_wallet) == boa.env.evm.patch.block_number
 
 
-def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setAssetConfig, createAssetYieldConfig):
+def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_command, user_wallet, bob, charlie, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setAssetConfig, createAssetYieldConfig):
     """ Test that a manager without canClaimLoot permission cannot claim loot """
 
     # Configure yield asset with RIPE bonus
@@ -2967,20 +2968,21 @@ def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_com
         100 * EIGHTEEN_DECIMALS,  # total yield
         sender=user_wallet.address
     )
-    
+
     # Add manager WITHOUT canClaimLoot permission
     high_command.addManager(
         user_wallet.address,
         charlie,  # manager
         createManagerLimits(),
         createLegoPerms(),
+        createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],  # allowed assets
         False,  # canClaimLoot = False
         sender=bob  # bob is the owner of user_wallet
     )
-    
+
     # Verify manager cannot claim loot
     with boa.reverts("no perms"):
         loot_distributor.claimRevShareAndBonusLoot(user_wallet.address, sender=charlie)
@@ -2996,7 +2998,7 @@ def test_manager_cannot_claim_loot_without_permission(loot_distributor, high_com
     assert loot_distributor.lastClaim(user_wallet) == 0
 
 
-def test_manager_can_claim_deposit_rewards_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, alpha_token, alpha_token_whale, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, setUserWalletConfig):
+def test_manager_can_claim_deposit_rewards_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, alpha_token, alpha_token_whale, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, setUserWalletConfig):
     """ Test that a manager with canClaimLoot permission can claim deposit rewards """
     
     # Set deposit rewards asset
@@ -3010,20 +3012,21 @@ def test_manager_can_claim_deposit_rewards_with_permission(loot_distributor, hig
     # Update deposit points for the user_wallet
     loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet_config.address)
     boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
-    
+
     # Add manager with canClaimLoot permission
     high_command.addManager(
         user_wallet.address,
         charlie,  # manager
         createManagerLimits(),
         createLegoPerms(),
+        createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],  # allowed assets
         True,  # canClaimLoot = True
         sender=bob  # bob is the owner of user_wallet
     )
-    
+
     # Manager can claim deposit rewards
     initial_balance = alpha_token.balanceOf(user_wallet)
     result = loot_distributor.claimDepositRewards(user_wallet.address, sender=charlie)
@@ -3034,7 +3037,7 @@ def test_manager_can_claim_deposit_rewards_with_permission(loot_distributor, hig
     assert loot_distributor.lastClaim(user_wallet) == boa.env.evm.patch.block_number
 
 
-def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, bravo_token, bravo_token_whale, createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setUserWalletConfig, setAssetConfig, createAssetYieldConfig):
+def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_command, user_wallet, user_wallet_config, bob, charlie, bravo_token, bravo_token_whale, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, mock_yield_lego, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, mock_ripe, whale, setUserWalletConfig, setAssetConfig, createAssetYieldConfig):
     """ Test that a manager with canClaimLoot permission can claim all loot types """
     
     # Set deposit rewards asset
@@ -3077,20 +3080,21 @@ def test_manager_can_claim_all_loot_with_permission(loot_distributor, high_comma
     # Update deposit points
     loot_distributor.updateDepositPointsWithNewValue(user_wallet.address, 1000 * EIGHTEEN_DECIMALS, sender=user_wallet_config.address)
     boa.env.time_travel(seconds=7 * 24 * 60 * 60)  # 7 days
-    
+
     # Add manager with canClaimLoot permission
     high_command.addManager(
         user_wallet.address,
         charlie,  # manager
         createManagerLimits(),
         createLegoPerms(),
+        createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],  # allowed assets
         True,  # canClaimLoot = True
         sender=bob  # bob is the owner of user_wallet
     )
-    
+
     # Manager can claim all loot
     initial_ripe_balance = mock_ripe_token.balanceOf(user_wallet)  # Yield bonus in RIPE
     initial_fee_balance = yield_vault_token.balanceOf(user_wallet)  # Performance fee

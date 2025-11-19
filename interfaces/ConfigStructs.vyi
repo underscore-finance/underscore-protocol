@@ -49,6 +49,7 @@ struct ManagerConfig:
     mustHaveUsdValueOnSwaps: bool
     maxNumSwapsPerPeriod: uint256
     maxSlippageOnSwaps: uint256
+    onlyApprovedYieldOpps: bool
 
 struct PayeeConfig:
     payeePeriod: uint256

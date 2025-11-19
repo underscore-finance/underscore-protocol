@@ -284,6 +284,7 @@ event PendingManagerConfigChange:
     mustHaveUsdValueOnSwaps: bool
     maxNumSwapsPerPeriod: uint256
     maxSlippageOnSwaps: uint256
+    onlyApprovedYieldOpps: bool
     confirmationBlock: uint256
     actionId: uint256
 
@@ -989,6 +990,7 @@ def setManagerConfig(
     _mustHaveUsdValueOnSwaps: bool,
     _maxNumSwapsPerPeriod: uint256,
     _maxSlippageOnSwaps: uint256,
+    _onlyApprovedYieldOpps: bool,
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     
@@ -1003,6 +1005,7 @@ def setManagerConfig(
         mustHaveUsdValueOnSwaps=_mustHaveUsdValueOnSwaps,
         maxNumSwapsPerPeriod=_maxNumSwapsPerPeriod,
         maxSlippageOnSwaps=_maxSlippageOnSwaps,
+        onlyApprovedYieldOpps=_onlyApprovedYieldOpps,
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingManagerConfigChange(
@@ -1011,6 +1014,7 @@ def setManagerConfig(
         mustHaveUsdValueOnSwaps=_mustHaveUsdValueOnSwaps,
         maxNumSwapsPerPeriod=_maxNumSwapsPerPeriod,
         maxSlippageOnSwaps=_maxSlippageOnSwaps,
+        onlyApprovedYieldOpps=_onlyApprovedYieldOpps,
         confirmationBlock=confirmationBlock,
         actionId=aid,
     )

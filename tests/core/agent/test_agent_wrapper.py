@@ -222,7 +222,8 @@ def test_agent_swap_tokens_basic(
     assert amount_in == swap_amount
     assert token_out == mock_dex_asset_alt.address
     assert amount_out == swap_amount  # MockDexLego does 1:1 swap
-    assert usd_value == 200 * EIGHTEEN_DECIMALS  # 100 tokens * $2
+    # USD value is the max of input ($200) and output ($300) values
+    assert usd_value == 300 * EIGHTEEN_DECIMALS  # max(100 * $2, 100 * $3)
     
     # Verify balances changed
     assert mock_dex_asset.balanceOf(user_wallet) == amount - swap_amount
