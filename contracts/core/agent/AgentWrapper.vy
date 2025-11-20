@@ -30,6 +30,11 @@ interface Switchboard:
 interface UndyHq:
     def getAddr(_regId: uint256) -> address: view
 
+event AgentAction:
+    action: uint8
+    userWallet: indexed(address)
+    sender: indexed(address)
+
 groupId: public(uint256)
 
 # senders management
@@ -70,6 +75,7 @@ def transferFunds(
     _isCheque: bool = False,
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 1, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, _isCheque, False)
 
 
@@ -88,6 +94,7 @@ def depositForYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 10, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData)
 
 
@@ -100,6 +107,7 @@ def withdrawFromYield(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 11, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraData, False)
 
 
@@ -114,6 +122,7 @@ def rebalanceYieldPosition(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 12, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).rebalanceYieldPosition(_fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData)
 
 
@@ -128,6 +137,7 @@ def swapTokens(
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
 ) -> (address, uint256, address, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 20, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).swapTokens(_swapInstructions)
 
 
@@ -142,6 +152,7 @@ def mintOrRedeemAsset(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, bool, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 21, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
 
 
@@ -154,6 +165,7 @@ def confirmMintOrRedeemAsset(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 22, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).confirmMintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _extraData)
 
 
@@ -171,6 +183,7 @@ def addCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 40, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addCollateral(_legoId, _asset, _amount, _extraData)
 
 
@@ -183,6 +196,7 @@ def removeCollateral(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 41, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeCollateral(_legoId, _asset, _amount, _extraData)
 
 
@@ -195,6 +209,7 @@ def borrow(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 42, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).borrow(_legoId, _borrowAsset, _amount, _extraData)
 
 
@@ -207,6 +222,7 @@ def repayDebt(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 43, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraData)
 
 
@@ -224,6 +240,7 @@ def claimIncentives(
     _proofs: DynArray[bytes32, MAX_PROOFS] = [],
 ) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 50, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).claimIncentives(_legoId, _rewardToken, _rewardAmount, _proofs)
 
 
@@ -235,12 +252,14 @@ def claimIncentives(
 @external
 def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 2, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).convertWethToEth(_amount)
 
 
 @external
 def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 3, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).convertEthToWeth(_amount)
 
 
@@ -264,6 +283,7 @@ def addLiquidity(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 30, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addLiquidity(_legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
 
 
@@ -281,6 +301,7 @@ def removeLiquidity(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 31, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeLiquidity(_legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
 
 
@@ -302,6 +323,7 @@ def addLiquidityConcentrated(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 32, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
 
 
@@ -320,6 +342,7 @@ def removeLiquidityConcentrated(
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 33, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData)
 
 
