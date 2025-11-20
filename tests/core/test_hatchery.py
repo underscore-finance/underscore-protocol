@@ -296,18 +296,15 @@ def test_create_agent_basic(hatchery, alice, ledger):
 
 def test_create_agent_custom_owner(hatchery, alice, bob, ledger):
     """Test agent creation with custom owner"""
-    
+
     # Create agent for bob (different from sender)
     agent_address = hatchery.createAgent(bob, sender=alice)
-    
+
     # Verify agent was created
     assert agent_address != ZERO_ADDRESS
-    
+
     # Verify agent is registered in ledger
     assert ledger.isAgent(agent_address) == True
-    
-    # Verify owner is bob
-    assert AgentWrapper.at(agent_address).owner() == bob
 
 
 def test_create_agent_custom_group_id(hatchery, alice):
@@ -451,21 +448,18 @@ def test_create_agent_multiple_creators(hatchery, alice, bob, charlie, ledger):
 
 def test_create_agent_time_lock_config(hatchery, alice, setUserWalletConfig):
     """Test agent creation with different time lock configurations"""
-    
+
     # Set specific time lock values
     min_lock = 100
     max_lock = 1000
-    
+
     setUserWalletConfig(
         _minTimeLock=min_lock,
         _maxTimeLock=max_lock
     )
-    
+
     # Create agent
     agent_address = hatchery.createAgent(sender=alice)
-    
+
     # Verify agent was created
     assert agent_address != ZERO_ADDRESS
-    
-    assert AgentWrapper.at(agent_address).MIN_OWNERSHIP_TIMELOCK() == min_lock
-    assert AgentWrapper.at(agent_address).MAX_OWNERSHIP_TIMELOCK() == max_lock

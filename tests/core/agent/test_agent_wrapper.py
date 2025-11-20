@@ -43,16 +43,17 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
 
 
 def test_agent_deposit_for_yield_basic(
-    setupAgentTestAsset, 
-    starter_agent, 
-    user_wallet, 
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
     charlie,
     yield_underlying_token,
     yield_vault_token,
     yield_underlying_token_whale
 ):
     """Test AgentWrapper depositForYield function"""
-    
+
     # Setup underlying tokens in wallet
     amount = setupAgentTestAsset(
         _asset=yield_underlying_token,
@@ -62,18 +63,20 @@ def test_agent_deposit_for_yield_basic(
         _lego_id=2,  # mock_yield_lego
         _shouldCheckYield=False
     )
-    
-    # Deposit for yield through agent wrapper (no signature needed when called by owner)
-    asset_deposited, vault_token, vault_tokens_received, usd_value = starter_agent.depositForYield(
+
+    # Deposit for yield through agent sender (no signature needed when called by owner)
+    asset_deposited, vault_token, vault_tokens_received, usd_value = starter_agent_sender.depositForYield(
+        starter_agent.address,  # _agentWrapper
         user_wallet.address,
         2,
         yield_underlying_token.address,
         yield_vault_token.address,
         amount,
         b"",
-        sender=charlie  # charlie is the owner of starter_agent
+        (b"", 0, 0),  # empty signature (owner bypass)
+        sender=charlie  # charlie is the owner of starter_agent_sender
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 10  # deposit for yield
@@ -98,6 +101,7 @@ def test_agent_deposit_for_yield_basic(
 def test_agent_withdraw_from_yield_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     yield_underlying_token,
@@ -106,10 +110,10 @@ def test_agent_withdraw_from_yield_basic(
     setUserWalletConfig
 ):
     """Test AgentWrapper withdrawFromYield function"""
-    
+
     # disable yield fees for simplicity
     setUserWalletConfig(_defaultYieldPerformanceFee=0)
-    
+
     # Setup: first deposit to create yield position
     amount = setupAgentTestAsset(
         _asset=yield_underlying_token,
@@ -119,29 +123,33 @@ def test_agent_withdraw_from_yield_basic(
         _lego_id=2,
         _shouldCheckYield=False
     )
-    
-    # Deposit through agent wrapper
-    _, _, vault_tokens, _ = starter_agent.depositForYield(
+
+    # Deposit through agent sender
+    _, _, vault_tokens, _ = starter_agent_sender.depositForYield(
+        starter_agent.address,
         user_wallet.address,
         2,
         yield_underlying_token.address,
         yield_vault_token.address,
         amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    
-    # Now withdraw half through agent wrapper
+
+    # Now withdraw half through agent sender
     withdraw_amount = vault_tokens // 2
-    vault_burned, underlying_asset, underlying_received, usd_value = starter_agent.withdrawFromYield(
+    vault_burned, underlying_asset, underlying_received, usd_value = starter_agent_sender.withdrawFromYield(
+        starter_agent.address,
         user_wallet.address,
         2,
         yield_vault_token.address,
         withdraw_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    withdraw_log = filter_logs(starter_agent, "WalletAction")[0]
+    withdraw_log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert withdraw_log.op == 11  # withdraw from yield (EARN_WITHDRAW)
@@ -166,6 +174,7 @@ def test_agent_withdraw_from_yield_basic(
 def test_agent_swap_tokens_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -174,7 +183,7 @@ def test_agent_swap_tokens_basic(
     mock_ripe
 ):
     """Test AgentWrapper swapTokens function"""
-    
+
     # Setup mock_dex_asset in wallet
     amount = setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -184,10 +193,10 @@ def test_agent_swap_tokens_basic(
         _lego_id=3,  # mock_dex_lego
         _shouldCheckYield=False
     )
-    
+
     # Setup mock_dex_asset_alt price and register it
     mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)  # $3
-    
+
     # Create swap instruction
     swap_amount = 100 * EIGHTEEN_DECIMALS
     swap_instructions = [
@@ -199,14 +208,16 @@ def test_agent_swap_tokens_basic(
             []  # poolPath (not used in mock)
         )
     ]
-    
-    # Perform swap through agent wrapper
-    token_in, amount_in, token_out, amount_out, usd_value = starter_agent.swapTokens(
+
+    # Perform swap through agent sender
+    token_in, amount_in, token_out, amount_out, usd_value = starter_agent_sender.swapTokens(
+        starter_agent.address,
         user_wallet.address,
         swap_instructions,
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 20  # swap operation
@@ -233,6 +244,7 @@ def test_agent_swap_tokens_basic(
 def test_agent_mint_or_redeem_asset_immediate(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -242,7 +254,7 @@ def test_agent_mint_or_redeem_asset_immediate(
     mock_ripe
 ):
     """Test AgentWrapper mintOrRedeemAsset function (immediate mode)"""
-    
+
     # Setup assets
     initial_amount = setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -252,17 +264,18 @@ def test_agent_mint_or_redeem_asset_immediate(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     # Set prices
     mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)  # $3
-    
+
     # Set immediate mint/redeem mode
     mock_dex_lego.setImmediateMintOrRedeem(True)
-    
+
     mint_amount = 100 * EIGHTEEN_DECIMALS
-    
-    # Mint through agent wrapper
-    token_out_received, output_amount, is_pending, usd_value = starter_agent.mintOrRedeemAsset(
+
+    # Mint through agent sender
+    token_out_received, output_amount, is_pending, usd_value = starter_agent_sender.mintOrRedeemAsset(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_asset.address,
@@ -270,9 +283,10 @@ def test_agent_mint_or_redeem_asset_immediate(
         mint_amount,
         0,  # minAmountOut
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 21  # MINT_REDEEM operation
@@ -297,6 +311,7 @@ def test_agent_mint_or_redeem_asset_immediate(
 def test_agent_confirm_mint_or_redeem_asset_pending(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -306,7 +321,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     mock_ripe
 ):
     """Test AgentWrapper confirmMintOrRedeemAsset function (pending mode)"""
-    
+
     # Setup assets
     initial_amount = setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -316,18 +331,19 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     # Set prices
     mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)  # $3
-    
+
     # Set pending mint/redeem mode (not immediate)
     mock_dex_lego.setImmediateMintOrRedeem(False)
 
     lego_id = 3
     mint_amount = 150 * EIGHTEEN_DECIMALS
-    
+
     # Initiate mint - should go to pending state
-    amount_in, output_amount, is_pending, usd_value = starter_agent.mintOrRedeemAsset(
+    amount_in, output_amount, is_pending, usd_value = starter_agent_sender.mintOrRedeemAsset(
+        starter_agent.address,
         user_wallet.address,
         lego_id,
         mock_dex_asset.address,
@@ -335,29 +351,32 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
         mint_amount,
         0,  # minAmountOut
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    
+
     # Verify return values for pending mint
     assert amount_in == mint_amount
     assert output_amount == 0
     assert is_pending == True  # Pending mode
     assert usd_value == 0  # No value yet
-    
+
     # Check that input tokens were taken but output not received yet
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - mint_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == 0  # No change yet
-    
+
     # Now confirm the mint
-    confirmed_amount, confirmed_usd_value = starter_agent.confirmMintOrRedeemAsset(
+    confirmed_amount, confirmed_usd_value = starter_agent_sender.confirmMintOrRedeemAsset(
+        starter_agent.address,
         user_wallet.address,
         lego_id,
         mock_dex_asset.address,
         mock_dex_asset_alt.address,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events for confirmation
     assert log.op == 22  # CONFIRM_MINT_REDEEM operation
@@ -380,6 +399,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
 def test_agent_add_liquidity_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -390,7 +410,7 @@ def test_agent_add_liquidity_basic(
     mock_ripe
 ):
     """Test AgentWrapper addLiquidity function"""
-    
+
     # Setup assets
     setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -400,7 +420,7 @@ def test_agent_add_liquidity_basic(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     setupAgentTestAsset(
         _asset=mock_dex_asset_alt,
         _amount=1000 * EIGHTEEN_DECIMALS,
@@ -409,19 +429,20 @@ def test_agent_add_liquidity_basic(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     # Set LP token price
     mock_ripe.setPrice(mock_dex_lp_token, 5 * EIGHTEEN_DECIMALS)  # $5 per LP token
-    
+
     amount_a = 100 * EIGHTEEN_DECIMALS
     amount_b = 150 * EIGHTEEN_DECIMALS
-    
+
     # Get initial balances
     initial_asset_balance = mock_dex_asset.balanceOf(user_wallet)
     initial_alt_balance = mock_dex_asset_alt.balanceOf(user_wallet)
-    
-    # Add liquidity through agent wrapper
-    lp_received, added_a, added_b, usd_value = starter_agent.addLiquidity(
+
+    # Add liquidity through agent sender
+    lp_received, added_a, added_b, usd_value = starter_agent_sender.addLiquidity(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_lego.address,  # pool address
@@ -433,9 +454,10 @@ def test_agent_add_liquidity_basic(
         0,  # minAmountB
         0,  # minLpAmount
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 30  # ADD_LIQ operation
@@ -461,6 +483,7 @@ def test_agent_add_liquidity_basic(
 def test_agent_remove_liquidity_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -470,7 +493,7 @@ def test_agent_remove_liquidity_basic(
     whale
 ):
     """Test AgentWrapper removeLiquidity function"""
-    
+
     # Setup assets and add liquidity first
     setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -480,7 +503,7 @@ def test_agent_remove_liquidity_basic(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     setupAgentTestAsset(
         _asset=mock_dex_asset_alt,
         _amount=1000 * EIGHTEEN_DECIMALS,
@@ -489,12 +512,13 @@ def test_agent_remove_liquidity_basic(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     amount_a = 100 * EIGHTEEN_DECIMALS
     amount_b = 100 * EIGHTEEN_DECIMALS
-    
+
     # First add liquidity
-    lp_received, _, _, _ = starter_agent.addLiquidity(
+    lp_received, _, _, _ = starter_agent_sender.addLiquidity(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_lego.address,
@@ -504,12 +528,14 @@ def test_agent_remove_liquidity_basic(
         amount_b,
         0, 0, 0,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    
+
     # Remove half of the liquidity
     lp_to_remove = lp_received // 2
-    received_a, received_b, lp_burned, usd_value = starter_agent.removeLiquidity(
+    received_a, received_b, lp_burned, usd_value = starter_agent_sender.removeLiquidity(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_lego.address,  # pool
@@ -520,9 +546,10 @@ def test_agent_remove_liquidity_basic(
         0,  # minAmountA
         0,  # minAmountB
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 31  # REMOVE_LIQ operation
@@ -552,6 +579,7 @@ def test_agent_remove_liquidity_basic(
 def test_agent_add_collateral_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -559,7 +587,7 @@ def test_agent_add_collateral_basic(
     whale
 ):
     """Test AgentWrapper addCollateral function"""
-    
+
     # Setup asset in wallet
     initial_amount = setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -569,22 +597,24 @@ def test_agent_add_collateral_basic(
         _lego_id=3,  # mock_dex_lego
         _shouldCheckYield=False
     )
-    
+
     # Set access for mock_dex_lego
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
+
     collateral_amount = 200 * EIGHTEEN_DECIMALS
-    
-    # Add collateral through agent wrapper
-    amount_deposited, usd_value = starter_agent.addCollateral(
+
+    # Add collateral through agent sender
+    amount_deposited, usd_value = starter_agent_sender.addCollateral(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_asset.address,
         collateral_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 40  # add collateral
@@ -604,6 +634,7 @@ def test_agent_add_collateral_basic(
 def test_agent_remove_collateral_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -611,7 +642,7 @@ def test_agent_remove_collateral_basic(
     whale
 ):
     """Test AgentWrapper removeCollateral function"""
-    
+
     # Setup asset and add collateral first
     initial_amount = setupAgentTestAsset(
         _asset=mock_dex_asset,
@@ -621,36 +652,40 @@ def test_agent_remove_collateral_basic(
         _lego_id=3,
         _shouldCheckYield=False
     )
-    
+
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
+
     add_amount = 300 * EIGHTEEN_DECIMALS
-    
+
     # First add collateral
-    starter_agent.addCollateral(
+    starter_agent_sender.addCollateral(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_asset.address,
         add_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    
+
     # Check balance after adding collateral
     balance_after_add = mock_dex_asset.balanceOf(user_wallet)
     assert balance_after_add == initial_amount - add_amount
-    
+
     # Now remove some collateral
     remove_amount = 100 * EIGHTEEN_DECIMALS
-    amount_removed, usd_value = starter_agent.removeCollateral(
+    amount_removed, usd_value = starter_agent_sender.removeCollateral(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_asset.address,
         remove_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    remove_log = filter_logs(starter_agent, "WalletAction")[0]
+    remove_log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert remove_log.op == 41  # remove collateral
@@ -667,6 +702,7 @@ def test_agent_remove_collateral_basic(
 
 def test_agent_borrow_basic(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_debt_token,
@@ -677,19 +713,21 @@ def test_agent_borrow_basic(
 
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $3
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
+
     borrow_amount = 300 * EIGHTEEN_DECIMALS
-    
-    # Borrow through agent wrapper
-    amount_borrowed, usd_value = starter_agent.borrow(
+
+    # Borrow through agent sender
+    amount_borrowed, usd_value = starter_agent_sender.borrow(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_debt_token.address,
         borrow_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 42  # borrow
@@ -708,6 +746,7 @@ def test_agent_borrow_basic(
 
 def test_agent_repay_debt_basic(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_debt_token,
@@ -718,33 +757,37 @@ def test_agent_repay_debt_basic(
 
     mock_ripe.setPrice(mock_dex_debt_token, 1 * EIGHTEEN_DECIMALS)  # $3
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
+
     borrow_amount = 500 * EIGHTEEN_DECIMALS
-    
+
     # First borrow
-    starter_agent.borrow(
+    starter_agent_sender.borrow(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_debt_token.address,
         borrow_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    
+
     # Verify debt tokens were received
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount
-    
+
     # Now repay part of the debt
     repay_amount = 200 * EIGHTEEN_DECIMALS
-    amount_repaid, usd_value = starter_agent.repayDebt(
+    amount_repaid, usd_value = starter_agent_sender.repayDebt(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_debt_token.address,
         repay_amount,
         b"",
+        (b"", 0, 0),
         sender=charlie
     )
-    repay_log = filter_logs(starter_agent, "WalletAction")[0]
+    repay_log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert repay_log.op == 43  # repay debt
@@ -767,6 +810,7 @@ def test_agent_repay_debt_basic(
 def test_agent_transfer_funds_basic(
     setupAgentTestAsset,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     bob,
@@ -774,7 +818,7 @@ def test_agent_transfer_funds_basic(
     alpha_token_whale
 ):
     """Test AgentWrapper transferFunds function"""
-    
+
     # Setup asset in wallet
     amount = setupAgentTestAsset(
         _asset=alpha_token,
@@ -784,17 +828,20 @@ def test_agent_transfer_funds_basic(
         _lego_id=0,
         _shouldCheckYield=False
     )
-    
-    # Transfer funds through agent wrapper
+
+    # Transfer funds through agent sender
     transfer_amount = 50 * EIGHTEEN_DECIMALS
-    actual_transfer_amount, usd_value = starter_agent.transferFunds(
+    actual_transfer_amount, usd_value = starter_agent_sender.transferFunds(
+        starter_agent.address,
         user_wallet.address,
         bob,
         alpha_token.address,
         transfer_amount,
+        False,
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 1  # transfer funds
@@ -814,6 +861,7 @@ def test_agent_transfer_funds_basic(
 
 def test_agent_claim_rewards_basic(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -821,25 +869,27 @@ def test_agent_claim_rewards_basic(
     mock_ripe
 ):
     """Test AgentWrapper claimIncentives function"""
-    
+
     # Setup asset price
     mock_ripe.setPrice(mock_dex_asset, 5 * EIGHTEEN_DECIMALS)  # $5
-    
+
     # Set lego access (required for rewards operations)
     mock_dex_lego.setLegoAccess(mock_dex_lego.address, sender=user_wallet.address)
-    
+
     reward_amount = 100 * EIGHTEEN_DECIMALS
-    
-    # Claim rewards through agent wrapper
-    amount_claimed, usd_value = starter_agent.claimIncentives(
+
+    # Claim rewards through agent sender
+    amount_claimed, usd_value = starter_agent_sender.claimIncentives(
+        starter_agent.address,
         user_wallet.address,
         3,
         mock_dex_asset.address,
         reward_amount,
         [],
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 50  # rewards
@@ -860,6 +910,7 @@ def test_agent_claim_rewards_basic(
 
 def test_agent_convert_eth_to_weth_basic(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     weth,
@@ -867,25 +918,27 @@ def test_agent_convert_eth_to_weth_basic(
     mock_ripe
 ):
     """Test AgentWrapper convertEthToWeth function"""
-    
+
     # Set ETH price
     ETH = TOKENS[fork]["ETH"]
     eth_price = 2000 * EIGHTEEN_DECIMALS  # $2000 per ETH
     mock_ripe.setPrice(ETH, eth_price)
     mock_ripe.setPrice(weth, eth_price)
 
-    # Send ETH to wallet first 
+    # Send ETH to wallet first
     boa.env.set_balance(user_wallet.address, 5 * EIGHTEEN_DECIMALS)
-    
-    # Convert ETH to WETH through agent wrapper
+
+    # Convert ETH to WETH through agent sender
     convert_amount = 2 * EIGHTEEN_DECIMALS
-    
-    amount_converted, usd_value = starter_agent.convertEthToWeth(
+
+    amount_converted, usd_value = starter_agent_sender.convertEthToWeth(
+        starter_agent.address,
         user_wallet.address,
         convert_amount,
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 3  # ETH_TO_WETH (op code 3 in contract)
@@ -907,6 +960,7 @@ def test_agent_convert_eth_to_weth_basic(
 
 def test_agent_convert_weth_to_eth_basic(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     weth,
@@ -916,34 +970,36 @@ def test_agent_convert_weth_to_eth_basic(
     switchboard_alpha
 ):
     """Test AgentWrapper convertWethToEth function"""
-    
+
     # Set ETH price (WETH uses same price as ETH)
     ETH = TOKENS[fork]["ETH"]
     eth_price = 1800 * EIGHTEEN_DECIMALS  # $1800 per ETH
     mock_ripe.setPrice(ETH, eth_price)
     mock_ripe.setPrice(weth, eth_price)  # WETH same price as ETH
-    
+
     # Give whale ETH and have them deposit to WETH
     weth_amount = 3 * EIGHTEEN_DECIMALS
     boa.env.set_balance(whale, weth_amount)
     weth.deposit(value=weth_amount, sender=whale)
-    
+
     # Transfer WETH to wallet
     weth.transfer(user_wallet, weth_amount, sender=whale)
-    
+
     # Register WETH in wallet config
     wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
     wallet_config.updateAssetData(0, weth.address, False, sender=switchboard_alpha.address)
-    
-    # Convert WETH to ETH through agent wrapper
+
+    # Convert WETH to ETH through agent sender
     convert_amount = 1 * EIGHTEEN_DECIMALS
-    
-    amount_converted, usd_value = starter_agent.convertWethToEth(
+
+    amount_converted, usd_value = starter_agent_sender.convertWethToEth(
+        starter_agent.address,
         user_wallet.address,
         convert_amount,
+        (b"", 0, 0),
         sender=charlie
     )
-    log = filter_logs(starter_agent, "WalletAction")[0]
+    log = filter_logs(starter_agent_sender, "WalletAction")[0]
     
     # Verify events
     assert log.op == 2  # WETH_TO_ETH (op code 2 in contract)

@@ -42,7 +42,7 @@ def starter_agent(hatchery, undy_hq_deploy, switchboard_alpha, starter_agent_sen
 @pytest.fixture(scope="session")
 def starter_agent_sender(undy_hq_deploy, charlie, fork):
     return boa.load(
-        "contracts/agent/AgentSenderGeneric.vy",
+        "contracts/core/agent/AgentSenderGeneric.vy",
         undy_hq_deploy,
         charlie,
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],

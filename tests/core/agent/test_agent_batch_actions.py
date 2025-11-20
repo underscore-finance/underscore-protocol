@@ -93,6 +93,7 @@ def test_batch_deposit_and_withdraw_yield(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     yield_underlying_token,
@@ -100,7 +101,7 @@ def test_batch_deposit_and_withdraw_yield(
     yield_underlying_token_whale,
 ):
     """Test batch actions: deposit then withdraw yield"""
-    
+
     # Setup underlying tokens
     amount = setupAgentTestAsset(
         _asset=yield_underlying_token,
@@ -110,7 +111,7 @@ def test_batch_deposit_and_withdraw_yield(
         _lego_id=2,
         _shouldCheckYield=False
     )
-    
+
     # Create batch instructions: deposit 100, then withdraw 50
     instructions = [
         createActionInstruction(
@@ -127,18 +128,20 @@ def test_batch_deposit_and_withdraw_yield(
             amount=50 * EIGHTEEN_DECIMALS,
         )
     ]
-    
+
     # Execute batch actions
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
-    
+
     assert result == True
-    
+
     # Check events - should have both deposit and withdraw
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # First action: deposit
@@ -162,6 +165,7 @@ def test_batch_multiple_swaps(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -232,16 +236,18 @@ def test_batch_multiple_swaps(
     ]
     
     # Execute batch actions
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # First swap
@@ -266,6 +272,7 @@ def test_batch_with_prev_amount_out(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -324,16 +331,18 @@ def test_batch_with_prev_amount_out(
     ]
     
     # Execute batch actions
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # Both should be swaps, second uses output from first
@@ -350,6 +359,7 @@ def test_batch_mixed_operations(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     yield_underlying_token,
@@ -418,16 +428,18 @@ def test_batch_mixed_operations(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Verify events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 3
     
     # Check each operation
@@ -455,6 +467,7 @@ def test_batch_mint_and_redeem(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -500,16 +513,18 @@ def test_batch_mint_and_redeem(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # Both should be mint/redeem operations
@@ -526,15 +541,18 @@ def test_batch_mint_and_redeem(
 
 def test_batch_empty_instructions_reverts(
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie
 ):
     """Test that empty instruction array reverts"""
-    
+
     with boa.reverts("no instructions"):
-        starter_agent.performBatchActions(
+        starter_agent_sender.performBatchActions(
+            starter_agent.address,
             user_wallet.address,
             [],
+            (b"", 0, 0),
             sender=charlie
         )
 
@@ -545,6 +563,7 @@ def test_batch_debt_management(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -600,16 +619,18 @@ def test_batch_debt_management(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 4
     
     # Verify each operation
@@ -634,6 +655,7 @@ def test_batch_weth_eth_conversions(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     weth,
@@ -671,16 +693,18 @@ def test_batch_weth_eth_conversions(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # First conversion: ETH to WETH
@@ -702,6 +726,7 @@ def test_batch_liquidity_operations(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -758,16 +783,18 @@ def test_batch_liquidity_operations(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # Add liquidity event
@@ -786,6 +813,7 @@ def test_batch_claim_rewards(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     whale,
     mock_dex_asset,
@@ -818,16 +846,18 @@ def test_batch_claim_rewards(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 1
     
     assert logs[0].op == 50  # rewards
@@ -841,6 +871,7 @@ def test_batch_complex_prev_amount_chain(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -909,16 +940,18 @@ def test_batch_complex_prev_amount_chain(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 3
     
     # All amounts should chain properly
@@ -934,6 +967,7 @@ def test_batch_pending_mint_redeem(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -977,16 +1011,18 @@ def test_batch_pending_mint_redeem(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # First: pending mint
@@ -1005,6 +1041,7 @@ def test_batch_pending_mint_redeem(
 def test_batch_weth_conversion_with_prev_amount(
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     weth,
@@ -1042,16 +1079,18 @@ def test_batch_weth_conversion_with_prev_amount(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 2
     
     # Verify operations
@@ -1069,6 +1108,7 @@ def test_batch_borrow_with_prev_collateral(
     setupAgentTestAsset,
     createActionInstruction,
     starter_agent,
+    starter_agent_sender,
     user_wallet,
     charlie,
     mock_dex_asset,
@@ -1129,16 +1169,18 @@ def test_batch_borrow_with_prev_collateral(
     ]
     
     # Execute batch
-    result = starter_agent.performBatchActions(
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
         user_wallet.address,
         instructions,
+        (b"", 0, 0),
         sender=charlie
     )
     
     assert result == True
     
     # Check events
-    logs = filter_logs(starter_agent, "WalletAction")
+    logs = filter_logs(starter_agent_sender, "WalletAction")
     assert len(logs) == 3
     
     # Verify chain
