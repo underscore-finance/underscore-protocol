@@ -91,8 +91,6 @@ struct AgentCreationConfig:
     agentTemplate: address
     numAgentsAllowed: uint256
     isCreatorAllowed: bool
-    minTimeLock: uint256
-    maxTimeLock: uint256
 
 # global configs
 userWalletConfig: public(cs.UserWalletConfig)
@@ -236,8 +234,6 @@ def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
         agentTemplate = config.agentTemplate,
         numAgentsAllowed = config.numAgentsAllowed,
         isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
-        minTimeLock = userConfig.minKeyActionTimeLock,
-        maxTimeLock = userConfig.maxKeyActionTimeLock,
     )
 
 

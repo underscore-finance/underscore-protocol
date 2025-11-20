@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
-from config.BluePrint import TOKENS
+from config.BluePrint import TOKENS, PARAMS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
 
@@ -32,9 +32,23 @@ def user_wallet_config(user_wallet):
 
 
 @pytest.fixture(scope="session")
-def starter_agent(hatchery, charlie, switchboard_alpha):
-    agent_address = hatchery.createAgent(charlie, sender=switchboard_alpha.address)
-    return AgentWrapper.at(agent_address)
+def starter_agent(hatchery, undy_hq_deploy, switchboard_alpha, starter_agent_sender):
+    agent_address = hatchery.createAgent(undy_hq_deploy, sender=switchboard_alpha.address)
+    agent = AgentWrapper.at(agent_address)
+    agent.addSender(starter_agent_sender, sender=switchboard_alpha.address)
+    return agent
+
+
+@pytest.fixture(scope="session")
+def starter_agent_sender(undy_hq_deploy, charlie, fork):
+    return boa.load(
+        "contracts/agent/AgentSenderGeneric.vy",
+        undy_hq_deploy,
+        charlie,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="starter_agent_sender",
+    )
 
 
 ############

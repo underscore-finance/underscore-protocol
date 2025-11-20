@@ -1,0 +1,263 @@
+# @version 0.4.3
+
+from interfaces import Wallet
+
+##################
+# Transfer Funds #
+##################
+
+@external
+def transferFunds(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _isCheque: bool,
+) -> (uint256, uint256):
+    ...
+
+#########
+# Yield #
+#########
+
+@external
+def depositForYield(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _vaultAddr: address,
+    _amount: uint256,
+    _extraData: bytes32,
+) -> (uint256, address, uint256, uint256):
+    ...
+
+@external
+def withdrawFromYield(
+    _userWallet: address,
+    _legoId: uint256,
+    _vaultToken: address,
+    _amount: uint256,
+    _extraData: bytes32,
+) -> (uint256, address, uint256, uint256):
+    ...
+
+@external
+def rebalanceYieldPosition(
+    _userWallet: address,
+    _fromLegoId: uint256,
+    _fromVaultToken: address,
+    _toLegoId: uint256,
+    _toVaultAddr: address,
+    _fromVaultAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, address, uint256, uint256):
+    ...
+
+###################
+# Swap / Exchange #
+###################
+
+@external
+def swapTokens(
+    _userWallet: address,
+    _swapInstructions: DynArray[Wallet.SwapInstruction, 5],
+) -> (address, uint256, address, uint256, uint256):
+    ...
+
+@external
+def mintOrRedeemAsset(
+    _userWallet: address,
+    _legoId: uint256,
+    _tokenIn: address,
+    _tokenOut: address,
+    _amountIn: uint256,
+    _minAmountOut: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256, bool, uint256):
+    ...
+
+@external
+def confirmMintOrRedeemAsset(
+    _userWallet: address,
+    _legoId: uint256,
+    _tokenIn: address,
+    _tokenOut: address,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+###################
+# Debt Management #
+###################
+
+@external
+def addCollateral(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+@external
+def removeCollateral(
+    _userWallet: address,
+    _legoId: uint256,
+    _asset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+@external
+def borrow(
+    _userWallet: address,
+    _legoId: uint256,
+    _borrowAsset: address,
+    _amount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+@external
+def repayDebt(
+    _userWallet: address,
+    _legoId: uint256,
+    _paymentAsset: address,
+    _paymentAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+#################
+# Claim Rewards #
+#################
+
+@external
+def claimIncentives(
+    _userWallet: address,
+    _legoId: uint256,
+    _rewardToken: address,
+    _rewardAmount: uint256,
+    _proofs: DynArray[bytes32, 25],
+) -> (uint256, uint256):
+    ...
+
+###############
+# Wrapped ETH #
+###############
+
+@external
+def convertWethToEth(_userWallet: address, _amount: uint256) -> (uint256, uint256):
+    ...
+
+@external
+def convertEthToWeth(_userWallet: address, _amount: uint256) -> (uint256, uint256):
+    ...
+
+#############
+# Liquidity #
+#############
+
+@external
+def addLiquidity(
+    _userWallet: address,
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _minLpAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256, uint256, uint256):
+    ...
+
+@external
+def removeLiquidity(
+    _userWallet: address,
+    _legoId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _lpToken: address,
+    _lpAmount: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256, uint256, uint256):
+    ...
+
+@external
+def addLiquidityConcentrated(
+    _userWallet: address,
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _amountA: uint256,
+    _amountB: uint256,
+    _tickLower: int24,
+    _tickUpper: int24,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256, uint256, uint256, uint256):
+    ...
+
+@external
+def removeLiquidityConcentrated(
+    _userWallet: address,
+    _legoId: uint256,
+    _nftAddr: address,
+    _nftTokenId: uint256,
+    _pool: address,
+    _tokenA: address,
+    _tokenB: address,
+    _liqToRemove: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256, uint256, uint256):
+    ...
+
+#####################
+# Sender Management #
+#####################
+
+@view
+@external
+def isSender(_address: address) -> bool:
+    ...
+
+@external
+def addSender(_sender: address):
+    ...
+
+@external
+def removeSender(_sender: address):
+    ...
+
+###################
+# Public Mappings #
+###################
+
+@view
+@external
+def senders(arg0: uint256) -> address:
+    ...
+
+@view
+@external
+def indexOfSender(arg0: address) -> uint256:
+    ...
+
+@view
+@external
+def numSenders() -> uint256:
+    ...

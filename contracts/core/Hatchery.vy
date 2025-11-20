@@ -93,8 +93,6 @@ struct AgentCreationConfig:
     agentTemplate: address
     numAgentsAllowed: uint256
     isCreatorAllowed: bool
-    minTimeLock: uint256
-    maxTimeLock: uint256
 
 event UserWalletCreated:
     mainAddr: indexed(address)
@@ -226,7 +224,7 @@ def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
         assert staticcall Ledger(a.ledger).numAgents() < config.numAgentsAllowed # dev: max agents reached
 
     # create agent contract
-    agentAddr: address = create_from_blueprint(config.agentTemplate, a.hq, _owner, _groupId, config.minTimeLock, config.maxTimeLock)
+    agentAddr: address = create_from_blueprint(config.agentTemplate, a.hq, _groupId)
 
     # update ledger
     extcall Ledger(a.ledger).createAgent(agentAddr)

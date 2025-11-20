@@ -246,8 +246,7 @@ def defaults(fork, user_wallet_template, user_wallet_config_template, agent_temp
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template,
-                     agent_template, agent_eoa, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa, rewards_asset)
     return d
 
 
