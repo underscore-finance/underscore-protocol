@@ -556,7 +556,11 @@ def _authenticateAccess(_userWallet: address, _messageHash: bytes32, _sig: Signa
         assert signer == owner # dev: invalid signer
 
         # increment nonce for next use
-        self.currentNonce[_userWallet] += 1
+        self._incrementNonce(_userWallet)
+    else:
+        assert _sig.signature == empty(Bytes[65]) # dev: must be empty
+        assert _sig.nonce == 0 # dev: must be 0
+        assert _sig.expiration == 0 # dev: must be 0
 
 
 @view
@@ -611,9 +615,14 @@ def _domainSeparator() -> bytes32:
 @external
 def incrementNonce(_userWallet: address):
     assert msg.sender == ownership.owner # dev: no perms
+    self._incrementNonce(_userWallet)
+
+
+@internal
+def _incrementNonce(_userWallet: address):
     oldNonce: uint256 = self.currentNonce[_userWallet]
-    self.currentNonce[_userWallet] += 1
-    log NonceIncremented(userWallet=_userWallet, oldNonce=oldNonce, newNonce=self.currentNonce[_userWallet])
+    self.currentNonce[_userWallet] = oldNonce + 1
+    log NonceIncremented(userWallet=_userWallet, oldNonce=oldNonce, newNonce=oldNonce + 1)
 
 
 @view

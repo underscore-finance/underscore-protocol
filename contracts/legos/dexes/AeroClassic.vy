@@ -772,7 +772,8 @@ def _getAmountInForVolatilePools(_pool: address, _zeroForOne: bool, _amountOut: 
         reserveIn = reserve1
         reserveOut = reserve0
 
-    if _amountOut > reserveOut:
+    # prevent division by zero: if _amountOut == reserveOut,
+    if _amountOut >= reserveOut:
         return max_value(uint256)
 
     fee: uint256 = staticcall AeroFactory(AERODROME_FACTORY).getFee(_pool, False)

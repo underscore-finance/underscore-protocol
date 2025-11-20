@@ -754,7 +754,8 @@ def _getAmountIn(_pool: address, _zeroForOne: bool, _amountOut: uint256) -> uint
     if reserveIn == 0 or reserveOut == 0:
         return max_value(uint256)
 
-    if _amountOut > reserveOut:
+    # prevent division by zero: if _amountOut == reserveOut,
+    if _amountOut >= reserveOut:
         return max_value(uint256)
 
     numerator: uint256 = reserveIn * _amountOut * 1000
