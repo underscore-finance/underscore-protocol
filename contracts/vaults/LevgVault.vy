@@ -52,7 +52,9 @@ event Withdraw:
     assets: uint256
     shares: uint256
 
-HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
+event LeftoversSwept:
+    amount: uint256
+    recipient: indexed(address)
 
 
 @deploy
@@ -95,6 +97,12 @@ def totalAssets() -> uint256:
 @external
 def getTotalAssets(_shouldGetMax: bool) -> uint256:
     return vaultWallet._getTotalAssets(_shouldGetMax)
+
+
+@view
+@external
+def isLeveragedVault() -> bool:
+    return True
 
 
 ############
@@ -367,7 +375,7 @@ def _redeemFromVault(
 @internal
 def _isRedemptionCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:
     # extra check to make sure what was sent was actually close-ish to what was requested
-    buffer: uint256 = _requestedAmount * 10 // HUNDRED_PERCENT  # 0.1%
+    buffer: uint256 = _requestedAmount * 10 // 100_00  # 0.1%
     lowerBound: uint256 = _requestedAmount - buffer
     return _actualAmount >= lowerBound
 
@@ -462,3 +470,22 @@ def _sharesToAmount(
 
     return amount
 
+
+###################
+# Sweep Leftovers #
+###################
+
+
+@external
+def sweepLeftovers() -> uint256:
+    governance: address = vaultWallet._getGovernanceAddr()
+    assert vaultWallet._isSwitchboardAddr(msg.sender) or governance == msg.sender # dev: no perms
+    assert token.totalSupply == 0 # dev: shares outstanding
+
+    vaultAsset: address = vaultWallet.UNDERLYING_ASSET
+    balance: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
+    assert balance != 0 # dev: no balance
+
+    assert extcall IERC20(vaultAsset).transfer(governance, balance, default_return_value=True) # dev: transfer failed
+    log LeftoversSwept(amount=balance, recipient=governance)
+    return balance

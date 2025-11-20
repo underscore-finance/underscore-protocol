@@ -393,10 +393,10 @@ def test_uniswapV2_get_price(
     pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
 
     tokenA, _ = getTokenAndWhale("USDC")
-    assert appraiser.getNormalAssetPrice(tokenA) != 0
+    assert appraiser.getRipePrice(tokenA) != 0
 
     tokenB, _ = getTokenAndWhale("WETH")
-    exp_weth_price = appraiser.getNormalAssetPrice(tokenB)
+    exp_weth_price = appraiser.getRipePrice(tokenB)
     assert exp_weth_price != 0
 
     price = lego_uniswap_v2.getPriceUnsafe(pool, tokenA)

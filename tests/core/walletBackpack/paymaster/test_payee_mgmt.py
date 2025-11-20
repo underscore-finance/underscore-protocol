@@ -80,7 +80,7 @@ def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_
         _perPeriodCap=20000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=200000 * EIGHTEEN_DECIMALS
     )
-    
+
     # Add payee with specific settings
     result = paymaster.addPayee(
         user_wallet,
@@ -89,7 +89,7 @@ def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_
         3 * ONE_DAY_IN_BLOCKS,  # periodLength
         15,  # maxNumTxsPerPeriod
         500,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         alpha_token,  # primaryAsset
         True,  # onlyPrimaryAsset
         unit_limits,  # unitLimits
@@ -110,7 +110,7 @@ def test_add_payee_saves_settings_in_wallet_config(paymaster, user_wallet, user_
     assert payee_settings.periodLength == 3 * ONE_DAY_IN_BLOCKS
     assert payee_settings.maxNumTxsPerPeriod == 15
     assert payee_settings.txCooldownBlocks == 500
-    assert payee_settings.failOnZeroPrice == False
+    assert payee_settings.failOnZeroPrice == True
     assert payee_settings.primaryAsset == alpha_token.address
     assert payee_settings.onlyPrimaryAsset == True
     
@@ -322,7 +322,7 @@ def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_con
         _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=100000 * EIGHTEEN_DECIMALS
     )
-    
+
     paymaster.addPayee(
         user_wallet,
         alice,
@@ -354,7 +354,7 @@ def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_con
         _perPeriodCap=20000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=200000 * EIGHTEEN_DECIMALS
     )
-    
+
     result = paymaster.updatePayee(
         user_wallet,
         alice,
@@ -362,7 +362,7 @@ def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_con
         3 * ONE_DAY_IN_BLOCKS,  # periodLength (changed)
         15,  # maxNumTxsPerPeriod (changed)
         500,  # txCooldownBlocks (changed)
-        False,  # failOnZeroPrice (changed)
+        True,  # failOnZeroPrice (changed)
         bravo_token,  # primaryAsset (changed)
         True,  # onlyPrimaryAsset (changed)
         new_unit_limits,  # unitLimits (changed)
@@ -384,7 +384,7 @@ def test_update_payee_saves_new_settings(paymaster, user_wallet, user_wallet_con
     assert updated_settings.periodLength == 3 * ONE_DAY_IN_BLOCKS
     assert updated_settings.maxNumTxsPerPeriod == 15
     assert updated_settings.txCooldownBlocks == 500
-    assert updated_settings.failOnZeroPrice == False
+    assert updated_settings.failOnZeroPrice == True
     assert updated_settings.primaryAsset == bravo_token.address
     assert updated_settings.onlyPrimaryAsset == True
     
@@ -432,7 +432,7 @@ def test_update_payee_emits_event_with_correct_data(paymaster, user_wallet, user
         _perPeriodCap=17500 * EIGHTEEN_DECIMALS,
         _lifetimeCap=175000 * EIGHTEEN_DECIMALS
     )
-    
+
     paymaster.updatePayee(
         user_wallet,
         alice,
@@ -440,7 +440,7 @@ def test_update_payee_emits_event_with_correct_data(paymaster, user_wallet, user
         4 * ONE_DAY_IN_BLOCKS,  # periodLength
         25,  # maxNumTxsPerPeriod
         1500,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         alpha_token,  # primaryAsset
         True,  # onlyPrimaryAsset
         unit_limits,
@@ -460,7 +460,7 @@ def test_update_payee_emits_event_with_correct_data(paymaster, user_wallet, user
     assert event.periodLength == 4 * ONE_DAY_IN_BLOCKS
     assert event.maxNumTxsPerPeriod == 25
     assert event.txCooldownBlocks == 1500
-    assert event.failOnZeroPrice == False
+    assert event.failOnZeroPrice == True
     assert event.primaryAsset == alpha_token.address
     assert event.onlyPrimaryAsset == True
     
@@ -540,15 +540,15 @@ def test_update_payee_preserves_start_expiry_blocks(paymaster, user_wallet, user
         5000,  # activationLength
         sender=bob
     )
-    
+
     # Get original blocks
     original_settings = user_wallet_config.payeeSettings(alice)
     original_start = original_settings.startBlock
     original_expiry = original_settings.expiryBlock
-    
+
     # Time travel forward
     boa.env.time_travel(blocks=1000)
-    
+
     # Update the payee
     paymaster.updatePayee(
         user_wallet,
@@ -557,14 +557,14 @@ def test_update_payee_preserves_start_expiry_blocks(paymaster, user_wallet, user
         3 * ONE_DAY_IN_BLOCKS,
         20,
         100,
-        False,
+        True,
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
         createPayeeLimits(_perTxCap=2000 * EIGHTEEN_DECIMALS),
         sender=bob
     )
-    
+
     # Verify blocks are preserved
     updated_settings = user_wallet_config.payeeSettings(alice)
     assert updated_settings.startBlock == original_start
@@ -747,7 +747,7 @@ def test_remove_payee_clears_all_data(paymaster, user_wallet, user_wallet_config
         3 * ONE_DAY_IN_BLOCKS,
         15,
         500,
-        False,
+        True,
         ZERO_ADDRESS,
         False,
         createPayeeLimits(_perTxCap=100),
@@ -770,7 +770,7 @@ def test_remove_payee_clears_all_data(paymaster, user_wallet, user_wallet_config
         createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
         sender=bob
     )
-    
+
     # Record initial state
     initial_num_payees = user_wallet_config.numPayees()
     alice_index = user_wallet_config.indexOfPayee(alice)
@@ -816,13 +816,13 @@ def test_remove_payee_allows_re_adding(paymaster, user_wallet, user_wallet_confi
         createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
         sender=bob
     )
-    
+
     # Remove alice
     paymaster.removePayee(user_wallet, alice, sender=bob)
-    
+
     # Verify alice is removed
     assert user_wallet_config.indexOfPayee(alice) == 0
-    
+
     # Add alice again with different settings
     result = paymaster.addPayee(
         user_wallet,
@@ -831,14 +831,14 @@ def test_remove_payee_allows_re_adding(paymaster, user_wallet, user_wallet_confi
         3 * ONE_DAY_IN_BLOCKS,
         20,
         100,
-        False,
+        True,
         ZERO_ADDRESS,
         False,
         createPayeeLimits(),
         createPayeeLimits(_perTxCap=2000 * EIGHTEEN_DECIMALS),
         sender=bob
     )
-    
+
     assert result == True
     
     # Verify alice is added again
@@ -1028,7 +1028,7 @@ def test_add_pending_payee_saves_all_settings(paymaster, user_wallet, user_walle
         _perPeriodCap=20000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=200000 * EIGHTEEN_DECIMALS
     )
-    
+
     # Add pending payee
     paymaster.addPendingPayee(
         user_wallet,
@@ -1037,7 +1037,7 @@ def test_add_pending_payee_saves_all_settings(paymaster, user_wallet, user_walle
         3 * ONE_DAY_IN_BLOCKS,  # periodLength
         15,  # maxNumTxsPerPeriod
         500,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         alpha_token,  # primaryAsset
         True,  # onlyPrimaryAsset
         unit_limits,
@@ -1055,7 +1055,7 @@ def test_add_pending_payee_saves_all_settings(paymaster, user_wallet, user_walle
     assert pending.settings.periodLength == 3 * ONE_DAY_IN_BLOCKS
     assert pending.settings.maxNumTxsPerPeriod == 15
     assert pending.settings.txCooldownBlocks == 500
-    assert pending.settings.failOnZeroPrice == False
+    assert pending.settings.failOnZeroPrice == True
     assert pending.settings.primaryAsset == alpha_token.address
     assert pending.settings.onlyPrimaryAsset == True
     assert pending.currentOwner == bob  # Current owner
@@ -1387,7 +1387,7 @@ def test_confirm_pending_payee_preserves_settings(paymaster, user_wallet, user_w
         _perPeriodCap=20000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=200000 * EIGHTEEN_DECIMALS
     )
-    
+
     # Add pending payee with specific settings
     paymaster.addPendingPayee(
         user_wallet,
@@ -1396,7 +1396,7 @@ def test_confirm_pending_payee_preserves_settings(paymaster, user_wallet, user_w
         3 * ONE_DAY_IN_BLOCKS,  # periodLength
         15,  # maxNumTxsPerPeriod
         500,  # txCooldownBlocks
-        False,  # failOnZeroPrice
+        True,  # failOnZeroPrice
         alpha_token,  # primaryAsset
         True,  # onlyPrimaryAsset
         unit_limits,
@@ -1422,7 +1422,7 @@ def test_confirm_pending_payee_preserves_settings(paymaster, user_wallet, user_w
     assert payee_settings.periodLength == 3 * ONE_DAY_IN_BLOCKS
     assert payee_settings.maxNumTxsPerPeriod == 15
     assert payee_settings.txCooldownBlocks == 500
-    assert payee_settings.failOnZeroPrice == False
+    assert payee_settings.failOnZeroPrice == True
     assert payee_settings.primaryAsset == alpha_token.address
     assert payee_settings.onlyPrimaryAsset == True
     

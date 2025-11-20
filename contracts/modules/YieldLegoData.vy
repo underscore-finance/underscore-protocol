@@ -202,6 +202,16 @@ def _removeAssetOpportunity(_asset: address, _vaultAddr: address):
 
     self.vaultToAsset[_vaultAddr] = empty(ls.VaultTokenInfo)
 
+    # clear all snapshot data for the vault token to prevent contamination on re-add
+    self.snapShotData[_vaultAddr] = empty(ls.SnapShotData)
+
+    # clear all historical snapshots
+    config: ls.SnapShotPriceConfig = self.snapShotPriceConfig
+    for i: uint256 in range(config.maxNumSnapshots, bound=max_value(uint256)):
+        if i >= config.maxNumSnapshots:
+            break
+        self.snapShots[_vaultAddr][i] = empty(ls.SingleSnapShot)
+
     # shift to replace the removed one
     if targetIndex != lastIndex:
         lastVaultAddr: address = self.assetOpportunities[_asset][lastIndex]

@@ -16,11 +16,11 @@ def test_set_approved_vault_token_by_switchboard(undy_usd_vault, vault_registry,
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Approve the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
     assert vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
     # Disapprove the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, False, False, sender=switchboard_alpha.address)
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, new_vault_token.address)
 
 
@@ -31,18 +31,18 @@ def test_set_approved_vault_token_non_switchboard_fails(undy_usd_vault, vault_re
 
     # Bob (non-switchboard) cannot approve
     with boa.reverts("no perms"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=bob)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=bob)
 
     # Even starter_agent (manager) cannot approve vault tokens
     with boa.reverts("no perms"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=starter_agent.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=starter_agent.address)
 
 
 def test_set_approved_vault_token_invalid_address(undy_usd_vault, vault_registry, switchboard_alpha):
     """Test that empty address cannot be approved as vault token"""
 
-    with boa.reverts("invalid vault token"):
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, sender=switchboard_alpha.address)
+    with boa.reverts("invalid params"):
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, ZERO_ADDRESS, True, False, sender=switchboard_alpha.address)
 
 
 # Test deposit restrictions with unapproved tokens/legos
@@ -68,7 +68,7 @@ def test_deposit_with_unapproved_vault_token_fails(undy_usd_vault, vault_registr
         )
 
     # Now approve the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
 
     # Deposit should succeed
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_usd_vault.depositForYield(
@@ -103,7 +103,7 @@ def test_withdrawals_work_regardless_of_approval(undy_usd_vault, vault_registry,
     assert vault_balance > 0
 
     # Now disapprove the vault token
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, yield_vault_token.address, False, False, sender=switchboard_alpha.address)
     assert not vault_registry.isApprovedVaultTokenByAddr(undy_usd_vault.address, yield_vault_token.address)
 
     # Withdrawals should still work (no approval check on withdrawals)
@@ -131,7 +131,7 @@ def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
     new_vault_token = boa.load("contracts/mock/MockErc4626Vault.vy", boa.load("contracts/mock/MockErc20.vy", boa.env.generate_address(), "Test", "TST", 18, 1_000_000))
 
     # Test vault token approval event
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, new_vault_token.address, True, False, sender=switchboard_alpha.address)
 
     # Check event was emitted on VaultRegistry
     events = vault_registry.get_logs()
@@ -140,12 +140,12 @@ def test_approval_events(undy_usd_vault, vault_registry, switchboard_alpha):
     # Find the ApprovedVaultTokenSet event
     vault_token_event = None
     for event in events:
-        if hasattr(event, 'vaultToken'):
+        if hasattr(event, 'isApproved'):
             vault_token_event = event
             break
 
     assert vault_token_event is not None
-    assert vault_token_event.vaultAddr == undy_usd_vault.address
+    assert vault_token_event.undyVaultAddr == undy_usd_vault.address
     assert vault_token_event.vaultToken == new_vault_token.address
     assert vault_token_event.isApproved == True
 
@@ -159,7 +159,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         vt = boa.load("contracts/mock/MockErc4626Vault.vy", yield_underlying_token)
         vault_tokens.append(vt)
         # Approve each one
-        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vt.address, True, sender=switchboard_alpha.address)
+        vault_registry.setApprovedVaultToken(undy_usd_vault.address, vt.address, True, False, sender=switchboard_alpha.address)
 
     # All should be approved
     for vt in vault_tokens:
@@ -182,7 +182,7 @@ def test_multiple_approved_vault_tokens(undy_usd_vault, vault_registry, starter_
         assert vault_tokens_received > 0
 
     # Disapprove the middle one
-    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_tokens[1].address, False, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_usd_vault.address, vault_tokens[1].address, False, False, sender=switchboard_alpha.address)
 
     # Can still deposit to first and third
     for vt in [vault_tokens[0], vault_tokens[2]]:
@@ -406,6 +406,29 @@ def test_manager_removal_updates_array_correctly(undy_usd_vault, switchboard_alp
         assert undy_usd_vault.indexOfManager(alice) == alice_index
 
 
+def test_manager_removal_clears_old_position(undy_usd_vault, switchboard_alpha, alice, bob, charlie):
+    """Test that removing a manager clears the old position in the managers array (L-03 fix)"""
+
+    # Add alice, bob, and charlie as managers
+    undy_usd_vault.addManager(alice, sender=switchboard_alpha.address)
+    undy_usd_vault.addManager(bob, sender=switchboard_alpha.address)
+    undy_usd_vault.addManager(charlie, sender=switchboard_alpha.address)
+
+    # Record indices
+    alice_index = undy_usd_vault.indexOfManager(alice)
+    bob_index = undy_usd_vault.indexOfManager(bob)
+    charlie_index = undy_usd_vault.indexOfManager(charlie)
+
+    # Remove bob (middle manager)
+    undy_usd_vault.removeManager(bob, sender=switchboard_alpha.address)
+
+    # Verify that charlie moved to bob's position
+    if bob_index < charlie_index:
+        assert undy_usd_vault.managers(bob_index) == charlie
+        # CRITICAL: Verify that charlie's OLD position is now cleared (the fix for L-03)
+        assert undy_usd_vault.managers(charlie_index) == ZERO_ADDRESS
+
+
 def test_non_manager_cannot_deposit(undy_usd_vault, alice, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
     """Test that non-managers cannot perform deposit actions"""
 
@@ -529,3 +552,159 @@ def test_manager_array_indexing_consistency(undy_usd_vault, switchboard_alpha, a
         index = undy_usd_vault.indexOfManager(manager)
         assert index != 0
         assert undy_usd_vault.managers(index) == manager
+
+
+##################################
+# Sweep Leftovers Tests          #
+##################################
+
+
+def test_sweep_leftovers_success(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+):
+    """Test successfully sweeping leftover VAULT_ASSET when totalSupply is 0"""
+    wallet = undy_usd_vault
+
+    # Verify totalSupply is 0 (no shares minted)
+    assert wallet.totalSupply() == 0
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Verify wallet has balance
+    assert yield_underlying_token.balanceOf(wallet.address) == leftover_amount
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep leftovers
+    swept_amount = wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Verify amount returned
+    assert swept_amount == leftover_amount
+
+    # Verify wallet balance is 0
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+
+    # Verify governance received the funds
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+
+def test_sweep_leftovers_event_emission(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+):
+    """Test that sweepLeftovers emits the correct event"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 500 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Sweep and capture logs
+    wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+    # Check that LeftoversSwept event was emitted (Boa will auto-verify event data)
+    # The event should have amount=leftover_amount and recipient=governance.address
+
+
+def test_sweep_leftovers_with_shares_outstanding_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    switchboard_alpha,
+    governance,
+    alice,
+):
+    """Test that sweeping fails when there are shares outstanding"""
+    wallet = undy_usd_vault
+
+    # Give wallet some tokens and have Alice deposit to get shares
+    deposit_amount = 10_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(alice, deposit_amount, sender=yield_underlying_token_whale)
+    yield_underlying_token.approve(wallet.address, deposit_amount, sender=alice)
+    wallet.deposit(deposit_amount, alice, sender=alice)
+
+    # Verify totalSupply is not 0
+    assert wallet.totalSupply() > 0
+
+    # Give wallet some additional leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep - should fail because shares are outstanding
+    with boa.reverts():  # dev: shares outstanding
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)
+
+
+def test_sweep_leftovers_unauthorized_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    governance,
+    alice,
+    starter_agent,
+):
+    """Test that only switchboard or governance can sweep leftovers"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Try to sweep from starter_agent (manager but not switchboard/governance) - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=starter_agent.address)
+
+    # Try to sweep from random user - should fail
+    with boa.reverts():  # dev: no perms
+        wallet.sweepLeftovers(sender=alice)
+
+
+def test_sweep_leftovers_governance_can_call(
+    undy_usd_vault,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    governance,
+):
+    """Test that governance can also call sweepLeftovers (not just switchboard)"""
+    wallet = undy_usd_vault
+
+    # Give wallet some leftover tokens
+    leftover_amount = 1_000 * EIGHTEEN_DECIMALS
+    yield_underlying_token.transfer(wallet.address, leftover_amount, sender=yield_underlying_token_whale)
+
+    # Get governance balance before sweep
+    gov_balance_before = yield_underlying_token.balanceOf(governance.address)
+
+    # Sweep as governance (not switchboard)
+    swept_amount = wallet.sweepLeftovers(sender=governance.address)
+
+    # Verify success
+    assert swept_amount == leftover_amount
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+    assert yield_underlying_token.balanceOf(governance.address) == gov_balance_before + leftover_amount
+
+
+def test_sweep_leftovers_no_balance_fails(
+    undy_usd_vault,
+    yield_underlying_token,
+    switchboard_alpha,
+):
+    """Test that sweeping fails when there's no balance to sweep"""
+    wallet = undy_usd_vault
+
+    # Verify wallet has no balance
+    assert yield_underlying_token.balanceOf(wallet.address) == 0
+
+    # Try to sweep - should fail because no balance
+    with boa.reverts():  # dev: no balance
+        wallet.sweepLeftovers(sender=switchboard_alpha.address)

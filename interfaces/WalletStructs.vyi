@@ -35,6 +35,7 @@ struct ActionData:
     lootDistributor: address
     appraiser: address
     billing: address
+    vaultRegistry: address
     wallet: address
     walletConfig: address
     walletOwner: address

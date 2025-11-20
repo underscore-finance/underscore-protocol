@@ -22,9 +22,7 @@ USER_WALLET_CONFIG_TEMPLATE: immutable(address)
 AGENT_TEMPLATE: immutable(address)
 STARTING_AGENT: immutable(address)
 
-# trial funds and rewards
-TRIAL_ASSET: immutable(address)
-TRIAL_AMOUNT: immutable(uint256)
+# rewards
 REWARDS_ASSET: immutable(address)
 
 
@@ -34,8 +32,6 @@ def __init__(
     _configTemplate: address,
     _agentTemplate: address,
     _startingAgent: address,
-    _trialAsset: address,
-    _trialAmount: uint256,
     _rewardsAsset: address,
 ):
     USER_WALLET_TEMPLATE = _walletTemplate
@@ -43,8 +39,6 @@ def __init__(
     AGENT_TEMPLATE = _agentTemplate
     STARTING_AGENT = _startingAgent
 
-    TRIAL_ASSET = _trialAsset
-    TRIAL_AMOUNT = _trialAmount
     REWARDS_ASSET = _rewardsAsset
 
 
@@ -57,30 +51,29 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        trialAsset = TRIAL_ASSET,
-        trialAmount = TRIAL_AMOUNT,
-        numUserWalletsAllowed = 25,
+        numUserWalletsAllowed = 100_000,
         enforceCreatorWhitelist = True,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
-        maxKeyActionTimeLock = 7 * DAY_IN_BLOCKS,
-        defaultStaleBlocks = DAY_IN_BLOCKS // 12,
+        maxKeyActionTimeLock = 2 * WEEK_IN_BLOCKS,
         depositRewardsAsset = REWARDS_ASSET,
+        lootClaimCoolOffPeriod = 0,
         txFees = cs.TxFees(
-            swapFee = 0,
-            stableSwapFee = 0,
-            rewardsFee = 0,
+            swapFee = 25,
+            stableSwapFee = 25,
+            rewardsFee = 20_00,
         ),
         ambassadorRevShare = cs.AmbassadorRevShare(
             swapRatio = 0,
             rewardsRatio = 0,
             yieldRatio = 0,
         ),
-        defaultYieldMaxIncrease = 5_00,
-        defaultYieldPerformanceFee = 20_00,
-        defaultYieldAmbassadorBonusRatio = 0,
-        defaultYieldBonusRatio = 0,
-        defaultYieldAltBonusAsset = empty(address),
-        lootClaimCoolOffPeriod = 0,
+        yieldConfig = cs.YieldConfig(
+            maxYieldIncrease = 5_00,
+            performanceFee = 20_00,
+            ambassadorBonusRatio = 100_00,
+            bonusRatio = 100_00,
+            bonusAsset = REWARDS_ASSET,
+        ),
     )
 
 
@@ -89,8 +82,8 @@ def userWalletConfig() -> cs.UserWalletConfig:
 def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
         agentTemplate = AGENT_TEMPLATE,
-        numAgentsAllowed = 25,
-        enforceCreatorWhitelist = False,
+        numAgentsAllowed = 1000,
+        enforceCreatorWhitelist = True,
         startingAgent = STARTING_AGENT,
         startingAgentActivationLength = 2 * YEAR_IN_BLOCKS,
     )
@@ -102,6 +95,10 @@ def managerConfig() -> cs.ManagerConfig:
     return cs.ManagerConfig(
         managerPeriod = DAY_IN_BLOCKS,
         managerActivationLength = MONTH_IN_BLOCKS,
+        mustHaveUsdValueOnSwaps = True,
+        maxNumSwapsPerPeriod = 2,
+        maxSlippageOnSwaps = 5_00,
+        onlyApprovedYieldOpps = True,
     )
 
 

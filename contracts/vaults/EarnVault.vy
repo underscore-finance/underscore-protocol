@@ -47,6 +47,10 @@ event Withdraw:
     assets: uint256
     shares: uint256
 
+event LeftoversSwept:
+    amount: uint256
+    recipient: indexed(address)
+
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 
 
@@ -539,3 +543,23 @@ def _sharesToAmount(
         amount += 1
 
     return amount
+
+
+###################
+# Sweep Leftovers #
+###################
+
+
+@external
+def sweepLeftovers() -> uint256:
+    governance: address = vaultWallet._getGovernanceAddr()
+    assert vaultWallet._isSwitchboardAddr(msg.sender) or governance == msg.sender # dev: no perms
+    assert token.totalSupply == 0 # dev: shares outstanding
+
+    vaultAsset: address = vaultWallet.VAULT_ASSET
+    balance: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)
+    assert balance != 0 # dev: no balance
+
+    assert extcall IERC20(vaultAsset).transfer(governance, balance, default_return_value=True) # dev: transfer failed
+    log LeftoversSwept(amount=balance, recipient=governance)
+    return balance

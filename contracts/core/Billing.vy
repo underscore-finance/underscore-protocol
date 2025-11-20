@@ -31,9 +31,9 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 from interfaces import WalletConfigStructs as wcs
+from interfaces import YieldLego as YieldLego
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 
 interface UserWalletConfig:
     def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
@@ -42,6 +42,7 @@ interface UserWalletConfig:
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def cheques(_recipient: address) -> wcs.Cheque: view
     def chequeSettings() -> wcs.ChequeSettings: view
+    def inEjectMode() -> bool: view
 
 interface UserWallet:
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
@@ -50,18 +51,11 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
-interface Ledger:
-    def vaultTokens(_vaultToken: address) -> VaultToken: view
-    def isUserWallet(_user: address) -> bool: view
-
-interface Appraiser:
-    def getPricePerShareWithConfig(asset: address, legoAddr: address, staleBlocks: uint256, _decimals: uint256) -> uint256: view
-
 interface MissionControl:
     def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig: view
 
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
+interface Ledger:
+    def isUserWallet(_user: address) -> bool: view
 
 struct WalletAssetData:
     assetBalance: uint256
@@ -69,17 +63,9 @@ struct WalletAssetData:
     isYieldAsset: bool
     lastYieldPrice: uint256
 
-struct VaultToken:
-    legoId: uint256
-    underlyingAsset: address
-    decimals: uint256
-    isRebasing: bool
-
 struct AssetUsdValueConfig:
     legoId: uint256
     legoAddr: address
-    decimals: uint256
-    staleBlocks: uint256
     isYieldAsset: bool
     underlyingAsset: address
 
@@ -100,17 +86,11 @@ event PayeePaymentPulled:
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
 
-WETH: public(immutable(address))
-ETH: public(immutable(address))
-
 
 @deploy
-def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
+def __init__(_undyHq: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
-
-    WETH = _wethAddr
-    ETH = _ethAddr
 
 
 #########################
@@ -127,6 +107,9 @@ def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAm
     chequeRecipient: address = msg.sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     assert self._canPullPaymentAsCheque(chequeRecipient, walletConfig) # dev: no perms
+
+    # block payment pulls in eject mode
+    assert not staticcall UserWalletConfig(walletConfig).inEjectMode() # dev: cannot pull payment in eject mode
 
     # pull payment
     amount: uint256 = 0
@@ -175,6 +158,9 @@ def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmo
     payee: address = msg.sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     assert self._canPullPaymentAsPayee(payee, walletConfig) # dev: no perms
+
+    # block payment pulls in eject mode
+    assert not staticcall UserWalletConfig(walletConfig).inEjectMode() # dev: cannot pull payment in eject mode
 
     # pull payment
     amount: uint256 = 0
@@ -267,8 +253,8 @@ def _withdrawFromYieldOpportunities(
     _ledger: address,
 ) -> uint256:
 
-    # add 1% buffer to make sure there is enough
-    targetWithdrawalAmount: uint256 = _amountNeeded * 101_00 // HUNDRED_PERCENT
+    # add 2% buffer to make sure there is enough
+    targetWithdrawalAmount: uint256 = _amountNeeded * 102_00 // HUNDRED_PERCENT
 
     numAssets: uint256 = staticcall UserWallet(_userWallet).numAssets()
     if numAssets == 0:
@@ -278,7 +264,7 @@ def _withdrawFromYieldOpportunities(
     assetsToDeregister: DynArray[address, MAX_DEREGISTER_ASSETS] = []
 
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):
-        if amountWithdraw >= targetWithdrawalAmount:
+        if amountWithdraw >= _amountNeeded:
             break
 
         asset: address = staticcall UserWallet(_userWallet).assets(i)
@@ -290,18 +276,15 @@ def _withdrawFromYieldOpportunities(
             continue
 
         # get underlying details
-        config: AssetUsdValueConfig = self._getAssetUsdValueConfig(asset, _missionControl, _legoBook, _ledger)
+        config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(asset)
         if config.underlyingAsset != _paymentAsset or config.legoId == 0:
             continue
 
-        # get price per share for this vault token
-        pricePerShare: uint256 = staticcall Appraiser(_appraiser).getPricePerShareWithConfig(asset, config.legoAddr, config.staleBlocks, config.decimals)
-        if pricePerShare == 0:
-            continue
-
-        # calculate how many vault tokens we need to withdraw
+        # skip if vault tokens needed rounds to 0 (dust)
         amountStillNeeded: uint256 = targetWithdrawalAmount - amountWithdraw
-        vaultTokensNeeded: uint256 = amountStillNeeded * (10 ** config.decimals) // pricePerShare
+        vaultTokensNeeded: uint256 = staticcall YieldLego(config.legoAddr).getVaultTokenAmount(config.underlyingAsset, amountStillNeeded, asset)
+        if vaultTokensNeeded == 0:
+            continue
 
         # withdraw vault tokens to get underlying
         underlyingAmount: uint256 = 0
@@ -320,54 +303,3 @@ def _withdrawFromYieldOpportunities(
         extcall UserWalletConfig(_userWalletConfig).deregisterAsset(asset)
 
     return amountWithdraw
-
-        
-# get asset usd value config
-
-
-@view
-@external
-def getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:
-    a: addys.Addys = addys._getAddys()
-    return self._getAssetUsdValueConfig(_asset, a.missionControl, a.legoBook, a.ledger)
-
-
-@view
-@internal
-def _getAssetUsdValueConfig(
-    _asset: address,
-    _missionControl: address,
-    _legoBook: address,
-    _ledger: address,
-) -> AssetUsdValueConfig:
-    config: AssetUsdValueConfig = staticcall MissionControl(_missionControl).getAssetUsdValueConfig(_asset)
-
-    # if no specific config, fallback to vault token registration
-    if config.decimals == 0:
-        vaultToken: VaultToken = staticcall Ledger(_ledger).vaultTokens(_asset)
-        if vaultToken.underlyingAsset != empty(address):
-            config.legoId = vaultToken.legoId
-            config.decimals = vaultToken.decimals
-            config.isYieldAsset = True
-            config.underlyingAsset = vaultToken.underlyingAsset
-
-    # get lego addr if needed
-    if config.legoId != 0 and config.legoAddr == empty(address):
-        config.legoAddr = staticcall Registry(_legoBook).getAddr(config.legoId)
-
-    # get decimals if needed
-    if config.decimals == 0:
-        config.decimals = self._getDecimals(_asset)
-
-    return config
-
-
-# get decimals
-
-
-@view
-@internal
-def _getDecimals(_asset: address) -> uint256:
-    if _asset in [WETH, ETH]:
-        return 18
-    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)

@@ -238,6 +238,178 @@ def test_add_pending_whitelist_already_whitelisted(kernel, user_wallet, user_wal
         kernel.addPendingWhitelistAddr(user_wallet, alice, sender=bob)
 
 
+def test_add_pending_whitelist_fails_for_payee(
+    kernel, user_wallet, bob, alice, paymaster, createPayeeLimits,
+    createGlobalPayeeSettings, user_wallet_config
+):
+    """Test H-04 fix: Cannot whitelist an address that is already a payee"""
+    from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS
+
+    # Set up global payee settings
+    global_settings = createGlobalPayeeSettings(_canPull=False, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+
+    # Add alice as a payee
+    usd_limits = createPayeeLimits(
+        _perTxCap=100 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=10000 * EIGHTEEN_DECIMALS
+    )
+    paymaster.addPayee(
+        user_wallet.address,
+        alice,  # payee
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits,  # usdLimits
+        0,  # startDelay
+        2**256 - 1,  # activationLength
+        sender=bob
+    )
+
+    # Verify alice is now a payee
+    assert user_wallet_config.indexOfPayee(alice) != 0
+
+    # Try to add alice to whitelist - should fail with H-04 protection
+    with boa.reverts():
+        kernel.addPendingWhitelistAddr(user_wallet, alice, sender=bob)
+
+
+def test_add_pending_whitelist_fails_for_active_cheque_recipient(
+    kernel, user_wallet, bob, charlie, cheque_book, user_wallet_config, mock_ripe, alpha_token
+):
+    """Test H-04 fix: Cannot whitelist an address that has an active cheque"""
+    from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+
+    # Set up cheque settings
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for charlie
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Verify charlie has an active cheque
+    cheque = user_wallet_config.cheques(charlie)
+    assert cheque[10] == True  # active flag
+
+    # Try to add charlie to whitelist - should fail with H-04 protection
+    with boa.reverts():
+        kernel.addPendingWhitelistAddr(user_wallet, charlie, sender=bob)
+
+
+def test_add_pending_whitelist_succeeds_for_inactive_cheque_recipient(
+    kernel, user_wallet, bob, charlie, cheque_book, user_wallet_config, mock_ripe, alpha_token
+):
+    """Test that whitelisting succeeds for inactive cheque (cancelled or expired)"""
+    from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+
+    # Set up cheque settings
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for charlie
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        True,
+        sender=bob
+    )
+
+    # Verify charlie has an active cheque
+    cheque = user_wallet_config.cheques(charlie)
+    assert cheque[10] == True  # active flag
+
+    # Now cancel the cheque
+    cheque_book.cancelCheque(user_wallet.address, charlie, sender=bob)
+
+    # Verify cheque is now inactive
+    cheque_after = user_wallet_config.cheques(charlie)
+    assert cheque_after[10] == False  # active flag should be False
+
+    # Now adding charlie to whitelist should succeed
+    kernel.addPendingWhitelistAddr(user_wallet, charlie, sender=bob)
+
+    # Verify pending whitelist was created
+    pending = user_wallet_config.pendingWhitelist(charlie)
+    assert pending.initiatedBlock != 0
+
+
+def test_add_pending_whitelist_succeeds_for_non_payee_non_cheque(
+    kernel, user_wallet, user_wallet_config, bob, sally
+):
+    """Test that whitelisting succeeds for address that is not a payee or cheque recipient"""
+    # Sally is neither a payee nor has a cheque - should succeed
+    kernel.addPendingWhitelistAddr(user_wallet, sally, sender=bob)
+
+    # Verify pending whitelist was created
+    pending = user_wallet_config.pendingWhitelist(sally)
+    assert pending.initiatedBlock != 0
+
+
 def test_add_pending_whitelist_invalid_user_wallet(kernel, bob, alice):
     """Test validation of user wallet"""
     # Try with random address that's not a user wallet
@@ -268,11 +440,128 @@ def test_add_pending_whitelist_by_manager(createGlobalManagerSettings, createWhi
 #######################
 
 
+def test_confirm_whitelist_fails_if_address_becomes_payee_during_timelock(
+    kernel, user_wallet, user_wallet_config, bob, sally, paymaster,
+    createPayeeLimits, createGlobalPayeeSettings
+):
+    """Test that confirmation fails if address becomes payee during timelock period (H-04 edge case)"""
+    from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS
+
+    # Add pending whitelist for sally
+    kernel.addPendingWhitelistAddr(user_wallet, sally, sender=bob)
+
+    pending = user_wallet_config.pendingWhitelist(sally)
+    assert pending.initiatedBlock != 0
+
+    # During the timelock period, make sally a payee
+    # Set up global payee settings
+    global_settings = createGlobalPayeeSettings(_canPull=False, _failOnZeroPrice=False)
+    user_wallet_config.setGlobalPayeeSettings(global_settings, sender=paymaster.address)
+
+    # Add sally as payee
+    usd_limits = createPayeeLimits(
+        _perTxCap=100 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=10000 * EIGHTEEN_DECIMALS
+    )
+    paymaster.addPayee(
+        user_wallet.address,
+        sally,  # payee
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits,  # usdLimits
+        0,  # startDelay
+        2**256 - 1,  # activationLength
+        sender=bob
+    )
+
+    # Verify sally is now a payee
+    assert user_wallet_config.indexOfPayee(sally) != 0
+
+    # Advance past timelock for whitelist
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number + 1)
+
+    # Try to confirm whitelist - should fail because sally is now a payee
+    with boa.reverts():
+        kernel.confirmWhitelistAddr(user_wallet, sally, sender=bob)
+
+
+def test_confirm_whitelist_fails_if_address_gets_cheque_during_timelock(
+    kernel, user_wallet, user_wallet_config, bob, sally, cheque_book, alpha_token, mock_ripe
+):
+    """Test that confirmation fails if address gets active cheque during timelock period (H-04 edge case)"""
+    from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+
+    # Add pending whitelist for sally
+    kernel.addPendingWhitelistAddr(user_wallet, sally, sender=bob)
+
+    pending = user_wallet_config.pendingWhitelist(sally)
+    assert pending.initiatedBlock != 0
+
+    # During the timelock period, create a cheque for sally
+    # Set up cheque settings
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)  # $1 per token
+
+    # Create cheque for sally
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        sally,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,  # delayBlocks
+        ONE_WEEK_IN_BLOCKS,  # expiryBlocks
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Verify sally now has an active cheque
+    cheque = user_wallet_config.cheques(sally)
+    assert cheque[10] == True  # active flag
+
+    # Advance past timelock for whitelist
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number + 1)
+
+    # Try to confirm whitelist - should fail because sally now has an active cheque
+    with boa.reverts():
+        kernel.confirmWhitelistAddr(user_wallet, sally, sender=bob)
+
+
 def test_confirm_whitelist_success(kernel, user_wallet, user_wallet_config, bob, charlie):
     """Test successful whitelist confirmation after timelock"""
     # Add pending whitelist
     kernel.addPendingWhitelistAddr(user_wallet, charlie, sender=bob)
-    
+
     # Get pending whitelist data before confirmation
     pending = user_wallet_config.pendingWhitelist(charlie)
     initiated_block = pending.initiatedBlock

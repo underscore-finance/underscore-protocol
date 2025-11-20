@@ -30,7 +30,6 @@ struct BestPool:
 # mock price config - stores price per token in USD with 18 decimals (e.g., 1 * 10^18 for $1)
 price: public(HashMap[address, uint256])
 
-EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 

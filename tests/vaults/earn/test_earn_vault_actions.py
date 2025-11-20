@@ -1374,6 +1374,7 @@ def test_deposit_to_unapproved_vault_token_via_registry(prepareAssetForWalletTx,
         undy_usd_vault.address,
         yield_vault_token.address,
         False,  # Disapprove
+        False,  # _shouldMaxWithdraw
         sender=switchboard_alpha.address
     )
 

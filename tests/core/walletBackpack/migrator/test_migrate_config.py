@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs
 
@@ -133,7 +133,7 @@ def test_cannot_copy_config_with_pending_owner_change(migrator, user_wallet, use
 def test_cannot_copy_config_different_group_ids(migrator, user_wallet, hatchery, bob):
     """Test that wallets must have the same group ID to copy config"""
     # Create new wallet with different group ID
-    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 2, sender=bob))
+    new_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 2, sender=bob))
     
     # Cannot copy config between different group IDs
     assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
@@ -168,6 +168,66 @@ def test_cannot_copy_config_with_whitelisted_addresses(migrator, user_wallet, ha
     
     # Cannot copy config to wallet with whitelisted addresses
     assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
+
+
+# Test cheque restrictions
+def test_cannot_copy_config_with_active_cheques(migrator, hatchery, bob, alice, user_wallet, user_wallet_config, cheque_book, alpha_token, mock_ripe):
+    """Test that toWallet cannot have active cheques"""
+    ONE_WEEK_IN_BLOCKS = 7 * ONE_DAY_IN_BLOCKS
+
+    # Get timeLock value
+    timeLock = user_wallet_config.timeLock()
+
+    # Travel past timelock to allow cheque settings change
+    boa.env.time_travel(blocks=timeLock + 1)
+
+    # Setup cheque settings
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)  # $1 per token
+
+    # Create an active cheque on user_wallet
+    amount = 50 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,  # delayBlocks
+        ONE_WEEK_IN_BLOCKS,  # expiryBlocks
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    # Verify cheque is active
+    assert user_wallet_config.numActiveCheques() == 1
+
+    # Create a new source wallet
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    # Cannot copy config from new wallet to user_wallet (which has active cheques)
+    assert not migrator.canCopyWalletConfig(from_wallet, user_wallet, bob)
 
 
 # Test manager restrictions - no starting agent
@@ -266,28 +326,6 @@ def test_migration_bundle_data_for_config(migrator, user_wallet, user_wallet_con
 
 
 # Additional test specific to config copy - no trial funds restriction
-def test_can_copy_config_with_trial_funds(migrator, hatchery, bob, alpha_token, alpha_token_whale, setUserWalletConfig):
-    """Test that wallets with trial funds CAN have their config copied (unlike fund migration)"""
-    # Configure trial funds
-    trial_amount = 10 * EIGHTEEN_DECIMALS
-    setUserWalletConfig(
-        _trialAsset=alpha_token.address,
-        _trialAmount=trial_amount
-    )
-    
-    # Fund hatchery
-    alpha_token.transfer(hatchery, trial_amount * 10, sender=alpha_token_whale)
-    
-    # Create wallet with trial funds as source
-    wallet_with_trial = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # Create target wallet
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    
-    # CAN copy config from wallet with trial funds (unlike fund migration)
-    assert migrator.canCopyWalletConfig(wallet_with_trial, new_wallet, bob)
-
-
 def test_config_copy_validation_caller_validation(migrator, hatchery, bob, alice):
     """Test that caller must be owner of toWallet to initiate config copy"""
     # Create two wallets owned by bob
@@ -715,7 +753,7 @@ def test_migrate_all_nothing_to_migrate(migrator, hatchery, bob):
     """Test migrateAll fails when neither funds nor config can be migrated"""
     # Create two empty wallets with different group IDs (blocks config migration)
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    to_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, False, 2, sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 2, sender=bob))
     
     # Verify no assets to migrate and config migration blocked by different group IDs
     assert from_wallet.numAssets() == 1  # Only ETH

@@ -111,7 +111,9 @@ def test_aero_slipstream_swap_partial_with_pool(
 def test_aero_slipstream_swap_with_routes(
     getTokenAndWhale,
     bob,
+    bob_user_wallet,
     lego_aero_slipstream,
+    lego_book,
     fork,
     appraiser,
     _test,
@@ -119,7 +121,7 @@ def test_aero_slipstream_swap_with_routes(
     # usdc setup
     usdc, usdc_whale = getTokenAndWhale("USDC")
     usdc_amount = 10_000 * (10 ** usdc.decimals())
-    usdc.transfer(bob, usdc_amount, sender=usdc_whale)
+    usdc.transfer(bob_user_wallet.address, usdc_amount, sender=usdc_whale)
 
     # weth setup
     weth = TOKENS[fork]["WETH"]
@@ -131,17 +133,26 @@ def test_aero_slipstream_swap_with_routes(
     cbbtc_price = lego_aero_slipstream.getPriceUnsafe(weth_cbbtc_pool, cbbtc)
 
     # pre balances
-    pre_usdc_bal = usdc.balanceOf(bob)
-    pre_cbbtc_bal = cbbtc.balanceOf(bob)
+    pre_usdc_bal = usdc.balanceOf(bob_user_wallet.address)
+    pre_cbbtc_bal = cbbtc.balanceOf(bob_user_wallet.address)
 
-    # swap uniswap v3
-    usdc.approve(lego_aero_slipstream, usdc_amount, sender=bob)
-    fromSwapAmount, toAmount, usd_value = lego_aero_slipstream.swapTokens(usdc_amount, 0, [usdc, weth, cbbtc], [weth_usdc_pool, weth_cbbtc_pool], bob, sender=bob)
+    # swap aero slipstream
+    legoId = lego_book.getRegId(lego_aero_slipstream)
+    swap_instruction = (
+        legoId,
+        usdc_amount,
+        0,  # minAmountOut
+        [usdc.address, weth, cbbtc.address],  # tokenPath
+        [weth_usdc_pool, weth_cbbtc_pool],  # poolPath
+    )
+    tokenInAddr, fromSwapAmount, tokenOutAddr, toAmount, usd_value = bob_user_wallet.swapTokens([swap_instruction], sender=bob)
     assert toAmount != 0
+    assert tokenInAddr == usdc.address
+    assert tokenOutAddr == cbbtc.address
 
     # post balances
-    assert usdc.balanceOf(bob) == pre_usdc_bal - fromSwapAmount
-    assert cbbtc.balanceOf(bob) == pre_cbbtc_bal + toAmount
+    assert usdc.balanceOf(bob_user_wallet.address) == pre_usdc_bal - fromSwapAmount
+    assert cbbtc.balanceOf(bob_user_wallet.address) == pre_cbbtc_bal + toAmount
 
     # usd values
     usdc_input_usd_value = appraiser.getUsdValue(usdc, usdc_amount)
@@ -482,10 +493,10 @@ def test_aero_slipstream_get_price(
     pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
 
     tokenA, _ = getTokenAndWhale("USDC")
-    assert appraiser.getNormalAssetPrice(tokenA) != 0
+    assert appraiser.getRipePrice(tokenA) != 0
 
     tokenB, _ = getTokenAndWhale("WETH")
-    exp_weth_price = appraiser.getNormalAssetPrice(tokenB)
+    exp_weth_price = appraiser.getRipePrice(tokenB)
     assert exp_weth_price != 0
 
     price = lego_aero_slipstream.getPriceUnsafe(pool, tokenA)

@@ -26,6 +26,7 @@ interface UserWalletConfig:
     def cheques(_recipient: address) -> wcs.Cheque: view
     def cancelCheque(_recipient: address): nonpayable
     def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_addr: address) -> uint256: view
     def chequeSettings() -> wcs.ChequeSettings: view
     def chequePeriodData() -> wcs.ChequeData: view
     def numActiveCheques() -> uint256: view
@@ -174,6 +175,7 @@ def createCheque(
         config.chequeData,
         config.isExistingCheque,
         config.numActiveCheques,
+        config.isExistingPayee,
         config.timeLock,
         _recipient,
         _asset,
@@ -271,6 +273,7 @@ def isValidNewCheque(
     _chequeData: wcs.ChequeData,
     _isExistingCheque: bool,
     _numActiveCheques: uint256,
+    _isExistingPayee: bool,
     _timeLock: uint256,
     _recipient: address,
     _asset: address,
@@ -294,6 +297,7 @@ def isValidNewCheque(
         _chequeData,
         _isExistingCheque,
         _numActiveCheques,
+        _isExistingPayee,
         _timeLock,
         _recipient,
         _asset,
@@ -319,6 +323,7 @@ def _isValidNewCheque(
     _chequeData: wcs.ChequeData,
     _isExistingCheque: bool,
     _numActiveCheques: uint256,
+    _isExistingPayee: bool,
     _timeLock: uint256,
     _recipient: address,
     _asset: address,
@@ -332,11 +337,17 @@ def _isValidNewCheque(
 ) -> (bool, wcs.Cheque, wcs.ChequeData):
 
     # validate recipient
-    if _isRecipientOnWhitelist:
-        return False, empty(wcs.Cheque), empty(wcs.ChequeData)
     if _recipient == empty(address):
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
     if _recipient in [_wallet, _walletConfig, _owner]:
+        return False, empty(wcs.Cheque), empty(wcs.ChequeData)
+
+    # cheque recipients can't be whitelisted
+    if _isRecipientOnWhitelist:
+        return False, empty(wcs.Cheque), empty(wcs.ChequeData)
+
+    # cheque recipients can't be existing payees
+    if _isExistingPayee:
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # validate asset and amount
@@ -807,6 +818,7 @@ def _getChequeConfig(_userWallet: address, _creator: address, _recipient: addres
         chequeData = staticcall UserWalletConfig(walletConfig).chequePeriodData(),
         isExistingCheque = cheque.active,
         numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),
+        isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_recipient) != 0,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
     )
 

@@ -245,11 +245,8 @@ def defaults(fork, user_wallet_template, user_wallet_config_template, agent_temp
                      user_wallet_config_template, agent_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
-        trial_funds_asset = TOKENS[fork]["USDC"]
-        trial_funds_amount = 10 * (10 ** 6)
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template,
-                     agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa, rewards_asset)
     return d
 
 
@@ -335,13 +332,10 @@ def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
 @pytest.fixture(scope="session")
 def appraiser(undy_hq_deploy, fork, mock_ripe):
     ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-
     return boa.load(
         "contracts/core/Appraiser.vy",
         undy_hq_deploy,
         ripe_hq,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="appraiser",
     )
 
@@ -350,12 +344,10 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
 
 
 @pytest.fixture(scope="session")
-def billing(undy_hq_deploy, fork):
+def billing(undy_hq_deploy):
     return boa.load(
         "contracts/core/Billing.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="billing",
     )
 
@@ -568,6 +560,7 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,
         [  # approvedVaultTokens
             yield_vault_token.address,
             yield_vault_token_2.address,
@@ -617,6 +610,7 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
@@ -661,6 +655,7 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
@@ -726,6 +721,7 @@ def undy_levg_vault_usdc(undy_hq, levg_vault_helper, mock_usdc_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        True,
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault
@@ -775,6 +771,7 @@ def undy_levg_vault_cbbtc(undy_hq, levg_vault_helper, mock_cbbtc_collateral_vaul
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        True,
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault
@@ -824,6 +821,7 @@ def undy_levg_vault_weth(undy_hq, levg_vault_helper, mock_weth_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        True,
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault
