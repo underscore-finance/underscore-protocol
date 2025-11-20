@@ -406,6 +406,29 @@ def test_manager_removal_updates_array_correctly(undy_usd_vault, switchboard_alp
         assert undy_usd_vault.indexOfManager(alice) == alice_index
 
 
+def test_manager_removal_clears_old_position(undy_usd_vault, switchboard_alpha, alice, bob, charlie):
+    """Test that removing a manager clears the old position in the managers array (L-03 fix)"""
+
+    # Add alice, bob, and charlie as managers
+    undy_usd_vault.addManager(alice, sender=switchboard_alpha.address)
+    undy_usd_vault.addManager(bob, sender=switchboard_alpha.address)
+    undy_usd_vault.addManager(charlie, sender=switchboard_alpha.address)
+
+    # Record indices
+    alice_index = undy_usd_vault.indexOfManager(alice)
+    bob_index = undy_usd_vault.indexOfManager(bob)
+    charlie_index = undy_usd_vault.indexOfManager(charlie)
+
+    # Remove bob (middle manager)
+    undy_usd_vault.removeManager(bob, sender=switchboard_alpha.address)
+
+    # Verify that charlie moved to bob's position
+    if bob_index < charlie_index:
+        assert undy_usd_vault.managers(bob_index) == charlie
+        # CRITICAL: Verify that charlie's OLD position is now cleared (the fix for L-03)
+        assert undy_usd_vault.managers(charlie_index) == ZERO_ADDRESS
+
+
 def test_non_manager_cannot_deposit(undy_usd_vault, alice, yield_underlying_token, yield_underlying_token_whale, yield_vault_token):
     """Test that non-managers cannot perform deposit actions"""
 

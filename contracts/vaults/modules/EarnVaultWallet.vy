@@ -929,6 +929,9 @@ def removeManager(_manager: address):
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
 
+    # clear the last position to prevent stale data
+    self.managers[lastIndex] = empty(address)
+
 
 #############
 # Utilities #
