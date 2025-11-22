@@ -118,7 +118,6 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
-MAX_MARKETS: constant(uint256) = 30
 HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
@@ -361,35 +360,34 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @internal
 def _totalBorrows(_vaultToken: address) -> uint256:
-    # calculate vault's share of borrows from each market
     morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
     queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
 
-    totalBorrows: uint256 = 0
-
     # iterate through withdraw queue markets
-    for i: uint256 in range(MAX_MARKETS):
-        if i >= queueLen:
-            break
-
+    totalBorrows: uint256 = 0
+    for i: uint256 in range(queueLen, bound=max_value(uint256)):
         marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
 
-        # get vault's position in this market
+        # vault's position in market
         pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
         if pos.supplyShares == 0:
             continue
 
-        # get market state
+        # market data
         mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
         if mkt.totalSupplyShares == 0 or mkt.totalSupplyAssets == 0:
             continue
 
+        # convert once, reuse
+        totalSupplyAssets: uint256 = convert(mkt.totalSupplyAssets, uint256)
+        totalSupplyShares: uint256 = convert(mkt.totalSupplyShares, uint256)
+        totalBorrowAssets: uint256 = convert(mkt.totalBorrowAssets, uint256)
+
         # calculate vault's supply assets from shares
-        vaultSupplyAssets: uint256 = pos.supplyShares * convert(mkt.totalSupplyAssets, uint256) // convert(mkt.totalSupplyShares, uint256)
+        vaultSupplyAssets: uint256 = pos.supplyShares * totalSupplyAssets // totalSupplyShares
 
         # vault's share of borrows = (vaultSupply / totalSupply) * totalBorrows
-        # = vaultSupply * totalBorrows / totalSupply
-        vaultShareOfBorrows: uint256 = vaultSupplyAssets * convert(mkt.totalBorrowAssets, uint256) // convert(mkt.totalSupplyAssets, uint256)
+        vaultShareOfBorrows: uint256 = vaultSupplyAssets * totalBorrowAssets // totalSupplyAssets
         totalBorrows += vaultShareOfBorrows
 
     return totalBorrows
@@ -407,39 +405,38 @@ def getAvailLiquidity(_vaultToken: address) -> uint256:
 @view
 @internal
 def _getAvailLiquidity(_vaultToken: address) -> uint256:
-    # get Morpho Blue address from vault
     morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
     queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
 
-    totalAvailLiquidity: uint256 = 0
-
     # iterate through withdraw queue markets
-    for i: uint256 in range(MAX_MARKETS):
-        if i >= queueLen:
-            break
-
+    totalAvailLiquidity: uint256 = 0
+    for i: uint256 in range(queueLen, bound=max_value(uint256)):
         marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
 
-        # get vault's position in this market
+        # vault's position in market
         pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
         if pos.supplyShares == 0:
             continue
 
-        # get market state
+        # market data
         mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
-
-        # calculate vault's supply assets from shares
-        # supplyAssets = supplyShares * totalSupplyAssets / totalSupplyShares
         if mkt.totalSupplyShares == 0:
             continue
-        vaultSupplyAssets: uint256 = pos.supplyShares * convert(mkt.totalSupplyAssets, uint256) // convert(mkt.totalSupplyShares, uint256)
+
+        # convert once, reuse
+        totalSupplyAssets: uint256 = convert(mkt.totalSupplyAssets, uint256)
+        totalSupplyShares: uint256 = convert(mkt.totalSupplyShares, uint256)
+        totalBorrowAssets: uint256 = convert(mkt.totalBorrowAssets, uint256)
+
+        # calculate vault's supply assets from shares
+        vaultSupplyAssets: uint256 = pos.supplyShares * totalSupplyAssets // totalSupplyShares
 
         # market liquidity = totalSupplyAssets - totalBorrowAssets
         marketLiquidity: uint256 = 0
-        if mkt.totalSupplyAssets > mkt.totalBorrowAssets:
-            marketLiquidity = convert(mkt.totalSupplyAssets, uint256) - convert(mkt.totalBorrowAssets, uint256)
+        if totalSupplyAssets > totalBorrowAssets:
+            marketLiquidity = totalSupplyAssets - totalBorrowAssets
 
-        # vault's available = min(vault's supply, market liquidity)
+        # vault's available liquidity = min(vault's supply, market liquidity)
         totalAvailLiquidity += min(vaultSupplyAssets, marketLiquidity)
 
     return totalAvailLiquidity
