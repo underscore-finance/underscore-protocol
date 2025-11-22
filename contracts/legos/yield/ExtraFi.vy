@@ -84,6 +84,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -299,6 +300,68 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return _assetAmount * (10 ** 18) // staticcall ExtraFiPool(EXTRAFI_POOL).exchangeRateOfReserve(reserveId)
 
 
+# total assets
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
+    if reserveId == 0:
+        return 0
+    return staticcall ExtraFiPool(EXTRAFI_POOL).totalLiquidityOfReserve(reserveId)
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
+    if reserveId == 0:
+        return 0
+    return staticcall ExtraFiPool(EXTRAFI_POOL).totalBorrowsOfReserve(reserveId)
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
 # extras
 
 
@@ -306,20 +369,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
-    return staticcall ExtraFiPool(EXTRAFI_POOL).totalLiquidityOfReserve(reserveId)
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
-    return staticcall ExtraFiPool(EXTRAFI_POOL).totalBorrowsOfReserve(reserveId)
 
 
 @view

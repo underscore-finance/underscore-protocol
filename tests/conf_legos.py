@@ -148,8 +148,9 @@ def lego_euler(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry, 
 @pytest.fixture(scope="session")
 def lego_40_acres(fork, lego_book, undy_hq_deploy, governance, mock_lego_registry, mock_ripe):
     FORTY_ACRES_USDC = mock_lego_registry if fork == "local" else TOKENS[fork]["FORTY_ACRES_USDC"]
+    FORTY_ACRES_LOANS = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["FORTY_ACRES_LOANS"]
     RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-    addr = boa.load("contracts/legos/yield/40Acres.vy", undy_hq_deploy, FORTY_ACRES_USDC, RIPE_HQ, name="lego_40_acres")
+    addr = boa.load("contracts/legos/yield/40Acres.vy", undy_hq_deploy, FORTY_ACRES_USDC, FORTY_ACRES_LOANS, RIPE_HQ, name="lego_40_acres")
     lego_book.startAddNewAddressToRegistry(addr, "40 Acres", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0

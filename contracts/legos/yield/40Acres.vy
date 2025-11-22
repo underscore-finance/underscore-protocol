@@ -51,6 +51,9 @@ interface Appraiser:
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
+interface FortyAcresLoans:
+    def activeAssets() -> uint256: view
+
 event FortyAcresDeposit:
     sender: indexed(address)
     asset: indexed(address)
@@ -71,19 +74,25 @@ event FortyAcresWithdrawal:
 
 RIPE_REGISTRY: public(immutable(address))
 FORTY_ACRES_USDC_VAULT: public(immutable(address))
+FORTY_ACRES_LOANS: public(immutable(address))
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
-def __init__(_undyHq: address, _fortyAcresVault: address, _ripeRegistry: address):
+def __init__(
+    _undyHq: address,
+    _fortyAcresVault: address,
+    _fortyAcresLoans: address,
+    _ripeRegistry: address,
+):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert _fortyAcresVault != empty(address) # dev: invalid addr
+    assert empty(address) not in [_fortyAcresVault, _fortyAcresLoans, _ripeRegistry] # dev: invalid addrs
     FORTY_ACRES_USDC_VAULT = _fortyAcresVault
-
-    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    FORTY_ACRES_LOANS = _fortyAcresLoans
     RIPE_REGISTRY = _ripeRegistry
 
 
@@ -279,6 +288,68 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
+# total assets
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    return self._totalBorrows(FORTY_ACRES_LOANS)
+
+
+@view
+@internal
+def _totalBorrows(_fortyAcresLoans: address) -> uint256:
+    return staticcall FortyAcresLoans(_fortyAcresLoans).activeAssets()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(FORTY_ACRES_LOANS)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(FORTY_ACRES_LOANS)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
 # extras
 
 
@@ -286,19 +357,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
 
 
 @view

@@ -75,12 +75,6 @@ def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
 
 @view
 @external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    ...
-
-
-@view
-@external
 def totalAssets(_vaultToken: address) -> uint256:
     ...
 
@@ -88,6 +82,24 @@ def totalAssets(_vaultToken: address) -> uint256:
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    ...
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
     ...
 
 

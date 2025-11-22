@@ -47,6 +47,7 @@ interface Registry:
 
 interface AvantisVault:
     def getWithdrawalFeesTotal(_amount: uint256) -> uint256: view
+    def totalReserved() -> uint256: view
 
 interface Appraiser:
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
@@ -77,6 +78,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -254,15 +256,6 @@ def _isRebasing() -> bool:
     return False
 
 
-# withdrawal fees
-
-
-@view
-@external
-def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall AvantisVault(_vaultToken).getWithdrawalFeesTotal(_vaultTokenAmount)
-
-
 # price per share
 
 
@@ -292,6 +285,73 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
+# total assets
+
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    # totalReserved = capital reserved for open positions (virtual borrows)
+    return staticcall AvantisVault(_vaultToken).totalReserved()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return self._getAvailLiquidity(_vaultToken)
+
+
+@view
+@internal
+def _getAvailLiquidity(_vaultToken: address) -> uint256:
+    # available liquidity = total assets - reserved (locked for positions)
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalReserved: uint256 = self._totalBorrows(_vaultToken)
+    if totalAssets <= totalReserved:
+        return 0
+    return totalAssets - totalReserved
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # calculate utilization as totalBorrows / totalAssets (consistent with other legos)
+    # note: vault's utilizationRatio() measures OI against limits, not against TVL
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
 # extras
 
 
@@ -303,15 +363,8 @@ def isEligibleForYieldBonus(_asset: address) -> bool:
 
 @view
 @external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
+def getWithdrawalFees(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
+    return staticcall AvantisVault(_vaultToken).getWithdrawalFeesTotal(_vaultTokenAmount)
 
 
 ################

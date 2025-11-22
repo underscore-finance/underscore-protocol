@@ -301,13 +301,7 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall SkyPsm(SKY_PSM).previewSwapExactIn(_asset, _vaultToken, _assetAmount)
 
 
-# extras
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return False
+# total assets
 
 
 @view
@@ -316,11 +310,43 @@ def totalAssets(_vaultToken: address) -> uint256:
     return staticcall SkyPsm(SKY_PSM).totalAssets()
 
 
+# total borrows
+
+
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
+    # PSM has no borrowing mechanism - it's a pure liquidity pool
     return 0
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    # all liquidity is always available in PSM (no borrows/locks)
+    return staticcall SkyPsm(SKY_PSM).totalAssets()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # 0% utilization since PSM has no borrowing
+    return 0
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False
 
 
 @view

@@ -41,6 +41,10 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
+interface FluidLendingResolver:
+    def getAllFTokens() -> DynArray[address, MAX_FTOKENS]: view
+    def LIQUIDITY_RESOLVER() -> address: view
+
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
@@ -48,11 +52,49 @@ interface Registry:
 interface Appraiser:
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
-interface FluidLendingResolver:
-    def getAllFTokens() -> DynArray[address, MAX_FTOKENS]: view
+interface FluidLiquidityResolver:
+    def getOverallTokenData(_token: address) -> OverallTokenData: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
+
+struct OverallTokenData:
+    borrowRate: uint256
+    supplyRate: uint256
+    fee: uint256
+    lastStoredUtilization: uint256
+    storageUpdateThreshold: uint256
+    lastUpdateTimestamp: uint256
+    supplyExchangePrice: uint256
+    borrowExchangePrice: uint256
+    supplyRawInterest: uint256
+    supplyInterestFree: uint256
+    borrowRawInterest: uint256
+    borrowInterestFree: uint256
+    totalSupply: uint256
+    totalBorrow: uint256
+    revenue: uint256
+    maxUtilization: uint256
+    rateData: RateData
+
+struct RateData:
+    version: uint256
+    rateDataV1: RateDataV1
+    rateDataV2: RateDataV2
+
+struct RateDataV1:
+    rateAtUtilizationZero: uint256
+    kink: uint256
+    rateAtUtilizationKink: uint256
+    rateAtUtilizationMax: uint256
+
+struct RateDataV2:
+    rateAtUtilizationZero: uint256
+    kink1: uint256
+    rateAtUtilizationKink1: uint256
+    kink2: uint256
+    rateAtUtilizationKink2: uint256
+    rateAtUtilizationMax: uint256
 
 event FluidDeposit:
     sender: indexed(address)
@@ -79,6 +121,7 @@ RIPE_REGISTRY: public(immutable(address))
 MAX_FTOKENS: constant(uint256) = 50
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -289,6 +332,69 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
+# total assets
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
+    return tokenData.totalBorrow
+
+
+@view
+@internal
+def _getOverallTokenData(_vaultToken: address) -> OverallTokenData:
+    asset: address = staticcall IERC4626(_vaultToken).asset()
+    liquidityResolver: address = staticcall FluidLendingResolver(FLUID_RESOLVER).LIQUIDITY_RESOLVER()
+    return staticcall FluidLiquidityResolver(liquidityResolver).getOverallTokenData(asset)
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
+    if tokenData.totalSupply <= tokenData.totalBorrow:
+        return 0
+    return tokenData.totalSupply - tokenData.totalBorrow
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
+    if tokenData.totalSupply == 0:
+        return 0
+    return tokenData.totalBorrow * HUNDRED_PERCENT // tokenData.totalSupply
+
+
 # extras
 
 
@@ -296,19 +402,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
 
 
 @view

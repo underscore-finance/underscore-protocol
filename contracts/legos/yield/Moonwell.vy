@@ -42,6 +42,7 @@ interface CompoundV2:
     def totalBorrows() -> uint256: view
     def totalSupply() -> uint256: view
     def underlying() -> address: view
+    def getCash() -> uint256: view
 
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
@@ -106,6 +107,7 @@ MAX_MARKETS: constant(uint256) = 50
 MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -323,6 +325,58 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return _assetAmount * (10 ** 18) // staticcall CompoundV2(_vaultToken).exchangeRateStored()
 
 
+# total assets
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).totalSupply() * staticcall CompoundV2(_vaultToken).exchangeRateStored() // (10 ** 18)
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).totalBorrows()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).getCash()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
 # extras
 
 
@@ -330,18 +384,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall CompoundV2(_vaultToken).totalSupply() * staticcall CompoundV2(_vaultToken).exchangeRateStored() // (10 ** 18)
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    return staticcall CompoundV2(_vaultToken).totalBorrows()
 
 
 @view

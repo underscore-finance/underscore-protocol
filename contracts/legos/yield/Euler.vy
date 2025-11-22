@@ -95,6 +95,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 LEGO_ACCESS_ABI: constant(String[64]) = "toggleOperator(address,address)"
 
 
@@ -310,6 +311,62 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
+# total assets
+
+
+@view
+@external
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    return staticcall EulerVault(_vaultToken).totalBorrows()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
 # extras
 
 
@@ -317,18 +374,6 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    return staticcall EulerVault(_vaultToken).totalBorrows()
 
 
 @view

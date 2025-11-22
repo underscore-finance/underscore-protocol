@@ -90,6 +90,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -292,19 +293,22 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return _assetAmount # treated as 1:1
 
 
-# extras
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return False
+# total assets
 
 
 @view
 @external
 def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
     return staticcall AToken(_vaultToken).totalSupply()
+
+
+# total borrows
 
 
 @view
@@ -313,7 +317,54 @@ def totalBorrows(_vaultToken: address) -> uint256:
     asset: address = self._getUnderlyingAsset(_vaultToken)
     if asset == empty(address):
         return 0 # not registered
-    return staticcall AaveProtocolDataProvider(self._getPoolDataProvider()).getTotalDebt(asset)
+    return self._totalBorrows(asset)
+
+
+@view
+@internal
+def _totalBorrows(_asset: address) -> uint256:
+    return staticcall AaveProtocolDataProvider(self._getPoolDataProvider()).getTotalDebt(_asset)
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(asset)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(asset)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False
 
 
 @view

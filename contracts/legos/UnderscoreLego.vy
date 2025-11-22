@@ -291,13 +291,7 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
-# extras
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return True # !
+# total assets
 
 
 @view
@@ -306,11 +300,42 @@ def totalAssets(_vaultToken: address) -> uint256:
     return staticcall IERC4626(_vaultToken).totalAssets()
 
 
+# total borrows
+
+
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
+    # no borrowing related to _vaultToken
     return 0
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # no borrowing related to _vaultToken
+    return 0
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return True # !
 
 
 @view
