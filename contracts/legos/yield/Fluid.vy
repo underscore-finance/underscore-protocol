@@ -117,6 +117,8 @@ event FluidWithdrawal:
 # fluid
 FLUID_RESOLVER: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
+WETH: public(immutable(address))
+NATIVE_ETH: public(immutable(address))
 
 MAX_FTOKENS: constant(uint256) = 50
 MAX_TOKEN_PATH: constant(uint256) = 5
@@ -129,15 +131,17 @@ def __init__(
     _undyHq: address,
     _fluidResolver: address,
     _ripeRegistry: address,
+    _weth: address,
+    _eth: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert _fluidResolver != empty(address) # dev: invalid addrs
+    assert empty(address) not in [_fluidResolver, _ripeRegistry, _weth, _eth] # dev: invalid addrs
     FLUID_RESOLVER = _fluidResolver
-
-    assert _ripeRegistry != empty(address) # dev: invalid addrs
     RIPE_REGISTRY = _ripeRegistry
+    WETH = _weth
+    NATIVE_ETH = _eth
 
 
 @view
@@ -184,7 +188,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall IERC4626(_vaultToken).asset()
 
 
 # underlying balances (both true and safe)
@@ -359,14 +366,22 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @internal
 def _totalBorrows(_vaultToken: address) -> uint256:
+    # calculate vault's proportional share of protocol borrows
+    vaultAssets: uint256 = self._totalAssets(_vaultToken)
+    if vaultAssets == 0:
+        return 0
     tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
-    return tokenData.totalBorrow
+    if tokenData.totalSupply == 0:
+        return 0
+    return vaultAssets * tokenData.totalBorrow // tokenData.totalSupply
 
 
 @view
 @internal
 def _getOverallTokenData(_vaultToken: address) -> OverallTokenData:
-    asset: address = staticcall IERC4626(_vaultToken).asset()
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == WETH:
+        asset = NATIVE_ETH # Fluid uses native ETH address for WETH data
     liquidityResolver: address = staticcall FluidLendingResolver(FLUID_RESOLVER).LIQUIDITY_RESOLVER()
     return staticcall FluidLiquidityResolver(liquidityResolver).getOverallTokenData(asset)
 
@@ -377,10 +392,12 @@ def _getOverallTokenData(_vaultToken: address) -> OverallTokenData:
 @view
 @external
 def getAvailLiquidity(_vaultToken: address) -> uint256:
-    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
-    if tokenData.totalSupply <= tokenData.totalBorrow:
+    # vault's available = vaultAssets - vaultShareOfBorrows
+    vaultAssets: uint256 = self._totalAssets(_vaultToken)
+    vaultBorrows: uint256 = self._totalBorrows(_vaultToken)
+    if vaultAssets <= vaultBorrows:
         return 0
-    return tokenData.totalSupply - tokenData.totalBorrow
+    return vaultAssets - vaultBorrows
 
 
 # utilization
@@ -389,6 +406,7 @@ def getAvailLiquidity(_vaultToken: address) -> uint256:
 @view
 @external
 def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # utilization ratio is the same at vault and protocol level
     tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
     if tokenData.totalSupply == 0:
         return 0

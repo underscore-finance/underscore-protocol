@@ -139,6 +139,54 @@ def testLegoWithdrawal(bob_user_wallet, bob, lego_book, _test):
 
 
 @pytest.fixture(scope="package")
+def testLegoViewFunctions(lego_book, fork):
+    def testLegoViewFunctions(_lego, _vaultToken, _tokenStr, _shouldHaveBorrow=True):
+        reg_id = lego_book.getRegId(_lego)
+        print(f"\n--- {_tokenStr} View Functions ---")
+        print("Lego: ", lego_book.getAddrDescription(reg_id))
+        print(f"Vault Token: {_vaultToken.address}")
+
+        # get underlying asset decimals
+        token = TOKENS[fork][_tokenStr]
+        underlying = boa.from_etherscan(token, name=_tokenStr)
+        decimals = underlying.decimals()
+
+        # test totalAssets - should be > 0 for active vaults
+        total_assets = _lego.totalAssets(_vaultToken)
+        print(f"totalAssets: {total_assets / 10 ** decimals}")
+        assert total_assets > 0
+
+        # test totalBorrows
+        total_borrows = _lego.totalBorrows(_vaultToken)
+        print(f"totalBorrows: {total_borrows / 10 ** decimals}")
+        if _shouldHaveBorrow:
+            assert total_borrows > 0
+        else:
+            assert total_borrows == 0
+
+        # test getAvailLiquidity - should be >= 0
+        avail_liq = _lego.getAvailLiquidity(_vaultToken)
+        print(f"availLiquidity: {avail_liq / 10 ** decimals}")
+        assert avail_liq > 0
+
+        # test getUtilizationRatio - should be 0-10000 (basis points)
+        util_ratio = _lego.getUtilizationRatio(_vaultToken)
+        print(f"utilizationRatio: {util_ratio} ({util_ratio / 100}%)")
+        assert util_ratio >= 0
+        assert util_ratio <= 10000
+        if _shouldHaveBorrow:
+            assert util_ratio > 0
+        else:
+            assert util_ratio == 0
+
+        # sanity checks on relationships
+        assert total_borrows < total_assets
+        assert avail_liq <= total_assets
+
+    yield testLegoViewFunctions
+
+
+@pytest.fixture(scope="package")
 def testLegoSwap(bob_user_wallet, bob, lego_book, _test):
     def testLegoSwap(
         _lego,

@@ -81,10 +81,12 @@ def lego_aave_v3(fork, lego_book, undy_hq_deploy, governance, mock_aave_v3_pool,
 
 
 @pytest.fixture(scope="session")
-def lego_fluid(mock_lego_registry, fork, lego_book, undy_hq_deploy, governance, mock_ripe):
+def lego_fluid(mock_lego_registry, fork, lego_book, undy_hq_deploy, governance, mock_ripe, weth):
     FLUID_RESOLVER = mock_lego_registry if fork == "local" else INTEGRATION_ADDYS[fork]["FLUID_RESOLVER"]
     RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-    addr = boa.load("contracts/legos/yield/Fluid.vy", undy_hq_deploy, FLUID_RESOLVER, RIPE_HQ, name="lego_fluid")
+    WETH = weth if fork == "local" else TOKENS[fork]["WETH"]
+    ETH = weth if fork == "local" else TOKENS[fork]["ETH"]
+    addr = boa.load("contracts/legos/yield/Fluid.vy", undy_hq_deploy, FLUID_RESOLVER, RIPE_HQ, WETH, ETH, name="lego_fluid")
     lego_book.startAddNewAddressToRegistry(addr, "Fluid", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
