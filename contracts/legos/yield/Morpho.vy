@@ -41,6 +41,16 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
+interface MorphoBlue:
+    def market(_id: bytes32) -> MorphoMarket: view
+    def position(_id: bytes32, _user: address) -> MorphoPosition: view
+    def idToMarketParams(_id: bytes32) -> MarketParams: view
+
+interface MetaMorphoV1:
+    def MORPHO() -> address: view
+    def withdrawQueue(_index: uint256) -> bytes32: view
+    def withdrawQueueLength() -> uint256: view
+
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
@@ -56,6 +66,26 @@ interface VaultRegistry:
 
 interface MetaMorphoFactory:
     def isMetaMorpho(_vault: address) -> bool: view
+
+struct MorphoMarket:
+    totalSupplyAssets: uint128
+    totalSupplyShares: uint128
+    totalBorrowAssets: uint128
+    totalBorrowShares: uint128
+    lastUpdate: uint128
+    fee: uint128
+
+struct MorphoPosition:
+    supplyShares: uint256
+    borrowShares: uint128
+    collateral: uint128
+
+struct MarketParams:
+    loanToken: address
+    collateralToken: address
+    oracle: address
+    irm: address
+    lltv: uint256
 
 event MorphoDeposit:
     sender: indexed(address)
@@ -88,6 +118,8 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+MAX_MARKETS: constant(uint256) = 30
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -308,17 +340,59 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
 @view
 @external
 def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
     return staticcall IERC4626(_vaultToken).totalAssets()
 
 
-# total borrows
+# total borrows (assets lent out from underlying markets)
 
 
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    # calculate vault's share of borrows from each market
+    morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
+    queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
+
+    totalBorrows: uint256 = 0
+
+    # iterate through withdraw queue markets
+    for i: uint256 in range(MAX_MARKETS):
+        if i >= queueLen:
+            break
+
+        marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
+
+        # get vault's position in this market
+        pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
+        if pos.supplyShares == 0:
+            continue
+
+        # get market state
+        mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
+        if mkt.totalSupplyShares == 0 or mkt.totalSupplyAssets == 0:
+            continue
+
+        # calculate vault's supply assets from shares
+        vaultSupplyAssets: uint256 = pos.supplyShares * convert(mkt.totalSupplyAssets, uint256) // convert(mkt.totalSupplyShares, uint256)
+
+        # vault's share of borrows = (vaultSupply / totalSupply) * totalBorrows
+        # = vaultSupply * totalBorrows / totalSupply
+        vaultShareOfBorrows: uint256 = vaultSupplyAssets * convert(mkt.totalBorrowAssets, uint256) // convert(mkt.totalSupplyAssets, uint256)
+        totalBorrows += vaultShareOfBorrows
+
+    return totalBorrows
 
 
 # avail liquidity
@@ -327,7 +401,48 @@ def totalBorrows(_vaultToken: address) -> uint256:
 @view
 @external
 def getAvailLiquidity(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
+    return self._getAvailLiquidity(_vaultToken)
+
+
+@view
+@internal
+def _getAvailLiquidity(_vaultToken: address) -> uint256:
+    # get Morpho Blue address from vault
+    morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
+    queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
+
+    totalAvailLiquidity: uint256 = 0
+
+    # iterate through withdraw queue markets
+    for i: uint256 in range(MAX_MARKETS):
+        if i >= queueLen:
+            break
+
+        marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
+
+        # get vault's position in this market
+        pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
+        if pos.supplyShares == 0:
+            continue
+
+        # get market state
+        mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
+
+        # calculate vault's supply assets from shares
+        # supplyAssets = supplyShares * totalSupplyAssets / totalSupplyShares
+        if mkt.totalSupplyShares == 0:
+            continue
+        vaultSupplyAssets: uint256 = pos.supplyShares * convert(mkt.totalSupplyAssets, uint256) // convert(mkt.totalSupplyShares, uint256)
+
+        # market liquidity = totalSupplyAssets - totalBorrowAssets
+        marketLiquidity: uint256 = 0
+        if mkt.totalSupplyAssets > mkt.totalBorrowAssets:
+            marketLiquidity = convert(mkt.totalSupplyAssets, uint256) - convert(mkt.totalBorrowAssets, uint256)
+
+        # vault's available = min(vault's supply, market liquidity)
+        totalAvailLiquidity += min(vaultSupplyAssets, marketLiquidity)
+
+    return totalAvailLiquidity
 
 
 # utilization
@@ -336,8 +451,12 @@ def getAvailLiquidity(_vaultToken: address) -> uint256:
 @view
 @external
 def getUtilizationRatio(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
+    # utilization = borrows / totalAssets (how much is lent out vs available)
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
 
 
 # extras
@@ -376,6 +495,7 @@ def _canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
         return False
     if staticcall IERC4626(_vaultToken).asset() != _asset:
         return False
+    # check V1 factories (v1.0 and v1.1)
     return staticcall MetaMorphoFactory(MORPHO_FACTORY).isMetaMorpho(_vaultToken) or staticcall MetaMorphoFactory(MORPHO_FACTORY_LEGACY).isMetaMorpho(_vaultToken)
 
 
