@@ -651,6 +651,96 @@ def _getVaultInfoOnWithdrawal(_vaultAddr: address, _ledger: address, _legoBook: 
     return vaultInfo
 
 
+#################
+# Swaps via PSM #
+#################
+
+
+@external
+def swapTokens(
+    _amountIn: uint256,
+    _minAmountOut: uint256,
+    _tokenPath: DynArray[address, MAX_TOKEN_PATH],
+    _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
+    _recipient: address,
+    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
+) -> (uint256, uint256, uint256):
+    assert not yld.isPaused # dev: paused
+    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+
+    assert len(_tokenPath) == 2 # dev: invalid token path
+    tokenIn: address = _tokenPath[0]
+    tokenOut: address = _tokenPath[1]
+    assert tokenIn != tokenOut # dev: same token
+
+    # must be GREEN and USDC
+    savingsGreen: address = RIPE_SAVINGS_GREEN
+    green: address = RIPE_GREEN_TOKEN
+    usdc: address = USDC
+    assert tokenIn in [green, savingsGreen, usdc] # dev: invalid tokens
+    assert tokenOut in [green, savingsGreen, usdc] # dev: invalid tokens
+
+    # prevent GREEN <-> SAVINGS_GREEN swaps (use depositForYield/withdrawFromYield instead)
+    bothAreGreenVariants: bool = (tokenIn in [green, savingsGreen]) and (tokenOut in [green, savingsGreen])
+    assert not bothAreGreenVariants # dev: cannot swap into or out of savings green
+
+    # pre balances
+    preLegoBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
+
+    # transfer swap asset to this contract
+    amountIn: uint256 = min(_amountIn, staticcall IERC20(tokenIn).balanceOf(msg.sender))
+    assert amountIn != 0 # dev: nothing to transfer
+    assert extcall IERC20(tokenIn).transferFrom(msg.sender, self, amountIn, default_return_value=True) # dev: transfer failed
+
+    # swap via endaoment psm
+    endaomentPsm: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_ENDAOMENT_PSM_ID)
+    assert extcall IERC20(tokenIn).approve(endaomentPsm, amountIn, default_return_value=True) # dev: approval failed
+
+    # swap GREEN -> USDC
+    amountOut: uint256 = 0
+    if tokenIn in [green, savingsGreen]:
+        amountOut = extcall EndaomentPsm(endaomentPsm).redeemGreen(amountIn, _recipient, tokenIn == savingsGreen)
+
+    # swap USDC -> GREEN
+    elif tokenIn == usdc:
+        amountOut = extcall EndaomentPsm(endaomentPsm).mintGreen(amountIn, _recipient, tokenOut == savingsGreen)
+
+    # reset approvals
+    assert extcall IERC20(tokenIn).approve(endaomentPsm, 0, default_return_value=True) # dev: approval failed
+
+    # refund if full swap didn't get through
+    currentLegoBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
+    refundAssetAmount: uint256 = 0
+    if currentLegoBalance > preLegoBalance:
+        refundAssetAmount = currentLegoBalance - preLegoBalance
+        assert extcall IERC20(tokenIn).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
+        amountIn -= refundAssetAmount
+
+    # adjust min amount out
+    minAmountOut: uint256 = _minAmountOut
+    if amountIn < _amountIn and _amountIn != max_value(uint256):
+        minAmountOut = _minAmountOut * amountIn // _amountIn
+    assert amountOut >= minAmountOut # dev: min amount out not met
+
+    # get usd values
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
+    if usdValue == 0:
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
+
+    log RipeEndaomentPsmSwap(
+        sender = msg.sender,
+        tokenIn = tokenIn,
+        tokenOut = tokenOut,
+        amountIn = amountIn,
+        amountOut = amountOut,
+        usdValue = usdValue,
+        numTokens = 2,
+        recipient = _recipient,
+    )
+    return amountIn, amountOut, usdValue
+
+
 ###################
 # Debt Management #
 ###################
@@ -956,96 +1046,6 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     else:
         teller: address = staticcall Registry(ripeHq).getAddr(RIPE_TELLER_ID)
         return teller, LEGO_ACCESS_ABI, 1
-
-
-#################
-# Swaps via PSM #
-#################
-
-
-@external
-def swapTokens(
-    _amountIn: uint256,
-    _minAmountOut: uint256,
-    _tokenPath: DynArray[address, MAX_TOKEN_PATH],
-    _poolPath: DynArray[address, MAX_TOKEN_PATH - 1],
-    _recipient: address,
-    _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
-) -> (uint256, uint256, uint256):
-    assert not yld.isPaused # dev: paused
-    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-
-    assert len(_tokenPath) == 2 # dev: invalid token path
-    tokenIn: address = _tokenPath[0]
-    tokenOut: address = _tokenPath[1]
-    assert tokenIn != tokenOut # dev: same token
-
-    # must be GREEN and USDC
-    savingsGreen: address = RIPE_SAVINGS_GREEN
-    green: address = RIPE_GREEN_TOKEN
-    usdc: address = USDC
-    assert tokenIn in [green, savingsGreen, usdc] # dev: invalid tokens
-    assert tokenOut in [green, savingsGreen, usdc] # dev: invalid tokens
-
-    # prevent GREEN <-> SAVINGS_GREEN swaps (use depositForYield/withdrawFromYield instead)
-    bothAreGreenVariants: bool = (tokenIn in [green, savingsGreen]) and (tokenOut in [green, savingsGreen])
-    assert not bothAreGreenVariants # dev: cannot swap into or out of savings green
-
-    # pre balances
-    preLegoBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
-
-    # transfer swap asset to this contract
-    amountIn: uint256 = min(_amountIn, staticcall IERC20(tokenIn).balanceOf(msg.sender))
-    assert amountIn != 0 # dev: nothing to transfer
-    assert extcall IERC20(tokenIn).transferFrom(msg.sender, self, amountIn, default_return_value=True) # dev: transfer failed
-
-    # swap via endaoment psm
-    endaomentPsm: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_ENDAOMENT_PSM_ID)
-    assert extcall IERC20(tokenIn).approve(endaomentPsm, amountIn, default_return_value=True) # dev: approval failed
-
-    # swap GREEN -> USDC
-    amountOut: uint256 = 0
-    if tokenIn in [green, savingsGreen]:
-        amountOut = extcall EndaomentPsm(endaomentPsm).redeemGreen(amountIn, _recipient, tokenIn == savingsGreen)
-
-    # swap USDC -> GREEN
-    elif tokenIn == usdc:
-        amountOut = extcall EndaomentPsm(endaomentPsm).mintGreen(amountIn, _recipient, tokenOut == savingsGreen)
-
-    # reset approvals
-    assert extcall IERC20(tokenIn).approve(endaomentPsm, 0, default_return_value=True) # dev: approval failed
-
-    # refund if full swap didn't get through
-    currentLegoBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)
-    refundAssetAmount: uint256 = 0
-    if currentLegoBalance > preLegoBalance:
-        refundAssetAmount = currentLegoBalance - preLegoBalance
-        assert extcall IERC20(tokenIn).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
-        amountIn -= refundAssetAmount
-
-    # adjust min amount out
-    minAmountOut: uint256 = _minAmountOut
-    if amountIn < _amountIn and _amountIn != max_value(uint256):
-        minAmountOut = _minAmountOut * amountIn // _amountIn
-    assert amountOut >= minAmountOut # dev: min amount out not met
-
-    # get usd values
-    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
-    if usdValue == 0:
-        usdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
-
-    log RipeEndaomentPsmSwap(
-        sender = msg.sender,
-        tokenIn = tokenIn,
-        tokenOut = tokenOut,
-        amountIn = amountIn,
-        amountOut = amountOut,
-        usdValue = usdValue,
-        numTokens = 2,
-        recipient = _recipient,
-    )
-    return amountIn, amountOut, usdValue
 
 
 #########
