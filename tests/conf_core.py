@@ -560,7 +560,8 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        False,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [  # approvedVaultTokens
             yield_vault_token.address,
             yield_vault_token_2.address,
@@ -610,7 +611,8 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        False,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
@@ -655,7 +657,8 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        False,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
@@ -721,7 +724,8 @@ def undy_levg_vault_usdc(undy_hq, levg_vault_helper, mock_usdc_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        True,
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault
@@ -771,7 +775,8 @@ def undy_levg_vault_cbbtc(undy_hq, levg_vault_helper, mock_cbbtc_collateral_vaul
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        True,
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault
@@ -821,7 +826,8 @@ def undy_levg_vault_weth(undy_hq, levg_vault_helper, mock_weth_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        True,
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [], # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
         100_000_000_000, # doesn't matter for leverage vault

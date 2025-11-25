@@ -36,7 +36,7 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
-    def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address): view
+    def getDepositConfig(_vaultAddr: address, _user: address = empty(address)) -> (bool, uint256, bool, address): view
     def canWithdraw(_vaultAddr: address) -> bool: view
 
 event Deposit:
@@ -117,7 +117,7 @@ def maxDeposit(_receiver: address) -> uint256:
     maxDepositAmount: uint256 = 0
     na1: bool = False
     na2: address = empty(address)
-    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self, _receiver)
 
     if not canDeposit:
         return 0
@@ -174,7 +174,7 @@ def maxMint(_receiver: address) -> uint256:
     maxDepositAmount: uint256 = 0
     na1: bool = False
     na2: address = empty(address)
-    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self)
+    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self, _receiver)
 
     if not canDeposit:
         return 0
@@ -224,7 +224,7 @@ def _depositIntoVault(
     maxDepositAmount: uint256 = 0
     shouldAutoDeposit: bool = False
     na: address = empty(address)
-    canDeposit, maxDepositAmount, shouldAutoDeposit, na = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self)
+    canDeposit, maxDepositAmount, shouldAutoDeposit, na = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self, _recipient)
 
     if not canDeposit:
         assert _sender == vaultWallet._getGovernanceAddr() # dev: cannot deposit

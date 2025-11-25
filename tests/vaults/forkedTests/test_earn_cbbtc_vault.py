@@ -764,7 +764,7 @@ def test_cbbtc_vault_small_deposit(
     asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
     undy_btc_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit small amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
@@ -807,7 +807,7 @@ def test_cbbtc_vault_large_deposit(
     asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
     undy_btc_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit large amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
@@ -850,7 +850,7 @@ def test_cbbtc_vault_whale_deposit_100_btc(
     asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
     undy_btc_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit whale amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_btc_vault.depositForYield(
@@ -1040,7 +1040,7 @@ def test_cbbtc_vault_emergency_partial_withdrawal_with_redemption_buffer(
     asset.transfer(bob, yield_amount, sender=whale)
     undy_btc_vault.deposit(yield_amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     undy_btc_vault.depositForYield(
         lego_id,
@@ -1102,7 +1102,7 @@ def test_cbbtc_vault_decimal_precision_large_amounts(
     asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
     undy_btc_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # Record vault token decimals
     vault_token_decimals = vault_addr.decimals()
@@ -1248,7 +1248,7 @@ def test_cbbtc_vault_deregister_and_reregister(
     asset.approve(undy_btc_vault, MAX_UINT256, sender=bob)
     undy_btc_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_btc_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # First deposit
     _, _, vault_tokens_1, _ = undy_btc_vault.depositForYield(

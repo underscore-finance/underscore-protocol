@@ -900,6 +900,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     vault_registry.confirmNewAddressToRegistry(
         vault_1.address,
         False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [vault_token_1],  # approvedVaultTokens
         500_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         10000,  # minYieldWithdrawAmount
@@ -926,6 +927,7 @@ def test_multiple_vaults_independent_configs(vault_registry, governance, deploy_
     vault_registry.confirmNewAddressToRegistry(
         vault_2.address,
         False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [vault_token_2],  # approvedVaultTokens
         1_000_000 * EIGHTEEN_DECIMALS,  # maxDepositAmount
         20000,  # minYieldWithdrawAmount
@@ -1387,6 +1389,7 @@ def test_disable_vault_without_config_fails(vault_registry, governance, deploy_t
     reg_id = vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
         False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # no approved vault tokens
         0,  # no max deposit
         0,  # no min yield withdraw
@@ -1876,6 +1879,7 @@ def test_get_approved_vault_tokens_empty_list(vault_registry, governance, deploy
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
         False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # no approved vault tokens
         0,  # maxDepositAmount
         0,  # minYieldWithdrawAmount
@@ -1912,7 +1916,8 @@ def test_get_approved_vault_tokens_single_token(vault_registry, governance, depl
     # Confirm with one token
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
-        False,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [token],  # single token
         0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
@@ -1944,7 +1949,8 @@ def test_get_approved_vault_tokens_multiple_tokens(vault_registry, governance, d
     # Confirm with multiple tokens
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
-        False,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [token1, token2, token3],
         0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
@@ -2049,7 +2055,9 @@ def test_get_num_approved_vault_tokens_zero(vault_registry, governance, deploy_t
 
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
-        False, [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2158,7 +2166,7 @@ def test_get_asset_vault_tokens_multiple_vaults_same_asset(vault_registry, gover
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [token1], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [token1], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2166,7 +2174,7 @@ def test_get_asset_vault_tokens_multiple_vaults_same_asset(vault_registry, gover
     vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault2.address, False, [token2, token3], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault2.address, False, False, [token2, token3], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2219,14 +2227,14 @@ def test_get_asset_vault_tokens_reference_counting(vault_registry, governance, u
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
     vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault2.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2260,7 +2268,7 @@ def test_get_asset_vault_tokens_removed_when_no_vaults_use_it(vault_registry, go
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2338,7 +2346,7 @@ def test_get_num_asset_vault_tokens_with_reference_counting(vault_registry, gove
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2348,7 +2356,7 @@ def test_get_num_asset_vault_tokens_with_reference_counting(vault_registry, gove
     vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault2.address, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault2.address, False, False, [token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -2602,6 +2610,7 @@ def test_set_is_leveraged_vault_basic(vault_registry, governance, deploy_test_va
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
         False,  # not leveraged
+        False,  # shouldEnforceAllowlist
         [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
@@ -2861,7 +2870,9 @@ def test_set_approved_vault_tokens_max_tokens(vault_registry, governance, deploy
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
-        False, [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        [], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -3002,14 +3013,14 @@ def test_asset_vault_token_removed_not_emitted_when_ref_count_positive(vault_reg
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
     vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault2.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -3164,7 +3175,7 @@ def test_reference_count_accuracy(vault_registry, governance, undy_hq_deploy, sw
     timelock = vault_registry.registryChangeTimeLock()
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault1.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault1.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -3175,7 +3186,7 @@ def test_reference_count_accuracy(vault_registry, governance, undy_hq_deploy, sw
     vault_registry.startAddNewAddressToRegistry(vault2.address, "Vault2", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault2.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault2.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -3186,7 +3197,7 @@ def test_reference_count_accuracy(vault_registry, governance, undy_hq_deploy, sw
     vault_registry.startAddNewAddressToRegistry(vault3.address, "Vault3", sender=governance.address)
     boa.env.time_travel(blocks=timelock + 1)
     vault_registry.confirmNewAddressToRegistry(
-        vault3.address, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
+        vault3.address, False, False, [shared_token], 0, 0, 0, ZERO_ADDRESS, False, True, True, False, 200,
         sender=governance.address
     )
 
@@ -3236,6 +3247,7 @@ def test_initialization_with_multiple_approved_tokens(vault_registry, governance
     vault_registry.confirmNewAddressToRegistry(
         new_vault.address,
         False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [token1, token2, token3],  # approved tokens
         1_000_000,  # maxDepositAmount
         10_000,  # minYieldWithdrawAmount
@@ -3325,3 +3337,545 @@ def test_performance_fee_at_boundary(vault_registry, undy_usd_vault, switchboard
     )
 
     assert vault_registry.getPerformanceFee(undy_usd_vault.address) == 10000
+
+
+# =============================================================================
+# Allowlist Tests
+# =============================================================================
+
+
+def test_should_enforce_allowlist_default_true(vault_registry, governance, deploy_test_vault):
+    """Test shouldEnforceAllowlist defaults to True for new vaults"""
+    vault = deploy_test_vault()
+
+    vault_registry.startAddNewAddressToRegistry(
+        vault.address,
+        "Test Vault",
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock() + 1)
+
+    # Call without explicit shouldEnforceAllowlist param (defaults to True)
+    vault_registry.confirmNewAddressToRegistry(
+        vault.address,
+        False,  # isLeveragedVault
+        sender=governance.address
+    )
+
+    assert vault_registry.shouldEnforceAllowlist(vault.address) == True
+
+
+def test_should_enforce_allowlist_can_set_false_on_init(vault_registry, governance, deploy_test_vault):
+    """Test shouldEnforceAllowlist can be set to False during initialization"""
+    vault = deploy_test_vault()
+
+    vault_registry.startAddNewAddressToRegistry(
+        vault.address,
+        "Test Vault",
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock() + 1)
+
+    vault_registry.confirmNewAddressToRegistry(
+        vault.address,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        sender=governance.address
+    )
+
+    assert vault_registry.shouldEnforceAllowlist(vault.address) == False
+
+
+def test_set_should_enforce_allowlist(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setShouldEnforceAllowlist via switchboard"""
+    # Initially allowlist is disabled (set to False in fixture)
+    assert vault_registry.shouldEnforceAllowlist(undy_usd_vault.address) == False
+
+    # Enable allowlist
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.shouldEnforceAllowlist(undy_usd_vault.address) == True
+
+    # Disable again
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.shouldEnforceAllowlist(undy_usd_vault.address) == False
+
+
+def test_set_should_enforce_allowlist_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test non-switchboard cannot set shouldEnforceAllowlist"""
+    with boa.reverts("no perms"):
+        vault_registry.setShouldEnforceAllowlist(
+            undy_usd_vault.address,
+            True,
+            sender=bob
+        )
+
+
+def test_set_should_enforce_allowlist_invalid_vault_fails(vault_registry, switchboard_alpha):
+    """Test setShouldEnforceAllowlist fails for unregistered vault"""
+    fake_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setShouldEnforceAllowlist(
+            fake_vault,
+            True,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_should_enforce_allowlist_emits_event(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setShouldEnforceAllowlist emits ShouldEnforceAllowlistSet event"""
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    logs = filter_logs(vault_registry, "ShouldEnforceAllowlistSet")
+    assert len(logs) == 1
+    assert logs[0].undyVault == undy_usd_vault.address
+    assert logs[0].shouldEnforce == True
+
+
+# =============================================================================
+# Allowlist User Tests
+# =============================================================================
+
+
+def test_set_allowed_single_user(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test setAllowed adds/removes single user"""
+    # Initially not allowed
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == False
+
+    # Add to allowlist
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == True
+
+    # Remove from allowlist
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        False,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == False
+
+
+def test_set_allowed_non_switchboard_fails(vault_registry, undy_usd_vault, bob):
+    """Test non-switchboard cannot set allowed users"""
+    with boa.reverts("no perms"):
+        vault_registry.setAllowed(
+            undy_usd_vault.address,
+            bob,
+            True,
+            sender=bob
+        )
+
+
+def test_set_allowed_zero_address_fails(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setAllowed fails for zero address"""
+    with boa.reverts("invalid user addr"):
+        vault_registry.setAllowed(
+            undy_usd_vault.address,
+            ZERO_ADDRESS,
+            True,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_allowed_invalid_vault_fails(vault_registry, switchboard_alpha, bob):
+    """Test setAllowed fails for unregistered vault"""
+    fake_vault = boa.env.generate_address()
+
+    with boa.reverts("invalid vault addr"):
+        vault_registry.setAllowed(
+            fake_vault,
+            bob,
+            True,
+            sender=switchboard_alpha.address
+        )
+
+
+def test_set_allowed_emits_event(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test setAllowed emits AllowlistSet event"""
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    logs = filter_logs(vault_registry, "AllowlistSet")
+    assert len(logs) == 1
+    assert logs[0].undyVault == undy_usd_vault.address
+    assert logs[0].user == bob
+    assert logs[0].isAllowed == True
+
+
+def test_set_allowed_batch(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setAllowedBatch adds multiple users"""
+    users = [boa.env.generate_address() for _ in range(5)]
+
+    vault_registry.setAllowedBatch(
+        undy_usd_vault.address,
+        users,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    for user in users:
+        assert vault_registry.isUserAllowed(undy_usd_vault.address, user) == True
+
+
+def test_set_allowed_batch_removes_users(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setAllowedBatch can remove multiple users"""
+    users = [boa.env.generate_address() for _ in range(3)]
+
+    # First add them
+    vault_registry.setAllowedBatch(
+        undy_usd_vault.address,
+        users,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify added
+    for user in users:
+        assert vault_registry.isUserAllowed(undy_usd_vault.address, user) == True
+
+    # Now remove them
+    vault_registry.setAllowedBatch(
+        undy_usd_vault.address,
+        users,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify removed
+    for user in users:
+        assert vault_registry.isUserAllowed(undy_usd_vault.address, user) == False
+
+
+def test_set_allowed_batch_skips_zero_address(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test setAllowedBatch skips zero addresses in the list"""
+    # Include a zero address among valid addresses
+    users = [bob, ZERO_ADDRESS, boa.env.generate_address()]
+
+    vault_registry.setAllowedBatch(
+        undy_usd_vault.address,
+        users,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # bob should be allowed
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == True
+    # last user should be allowed
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, users[2]) == True
+    # zero address should NOT be set (skipped)
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, ZERO_ADDRESS) == False
+
+
+def test_set_allowed_batch_emits_events(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test setAllowedBatch emits AllowlistSet event for each user"""
+    users = [boa.env.generate_address() for _ in range(3)]
+
+    vault_registry.setAllowedBatch(
+        undy_usd_vault.address,
+        users,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    logs = filter_logs(vault_registry, "AllowlistSet")
+    assert len(logs) == 3
+
+    logged_users = [log.user for log in logs]
+    for user in users:
+        assert user in logged_users
+
+
+# =============================================================================
+# View Function Tests
+# =============================================================================
+
+
+def test_should_enforce_allowlist_view(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test shouldEnforceAllowlist view returns correct value"""
+    # Check initial state
+    initial = vault_registry.shouldEnforceAllowlist(undy_usd_vault.address)
+
+    # Toggle and verify
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        not initial,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.shouldEnforceAllowlist(undy_usd_vault.address) == (not initial)
+
+
+def test_is_user_allowed_view(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test isUserAllowed view returns correct value"""
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == False
+
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    assert vault_registry.isUserAllowed(undy_usd_vault.address, bob) == True
+
+
+def test_is_allowed_mapping_public(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test isAllowed public mapping is accessible"""
+    # Add user to allowlist
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Access the public mapping directly
+    assert vault_registry.isAllowed(undy_usd_vault.address, bob) == True
+
+
+# =============================================================================
+# canUserDeposit Tests
+# =============================================================================
+
+
+def test_can_user_deposit_when_allowlist_disabled(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test canUserDeposit returns True for any user when allowlist disabled"""
+    # Ensure allowlist is disabled and deposits are enabled
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Any user can deposit when allowlist is disabled
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, bob) == True
+
+    # Even users not on the allowlist can deposit
+    random_user = boa.env.generate_address()
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, random_user) == True
+
+
+def test_can_user_deposit_when_allowlist_enabled_user_allowed(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test canUserDeposit returns True when user is on allowlist"""
+    # Enable allowlist
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Add user to allowlist
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Allowed user can deposit
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, bob) == True
+
+
+def test_can_user_deposit_when_allowlist_enabled_user_not_allowed(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test canUserDeposit returns False when user not on allowlist"""
+    # Enable allowlist
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # bob is NOT on allowlist
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, bob) == False
+
+
+def test_can_user_deposit_with_empty_address(vault_registry, undy_usd_vault, switchboard_alpha):
+    """Test canUserDeposit returns True for empty address (legacy support)"""
+    # Enable allowlist
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Empty address returns True (legacy support for old vaults)
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, ZERO_ADDRESS) == True
+    # Also test calling without the user param (defaults to empty address)
+    assert vault_registry.canUserDeposit(undy_usd_vault.address) == True
+
+
+def test_can_user_deposit_when_can_deposit_false(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test canUserDeposit returns False when canDeposit is False (regardless of allowlist)"""
+    # Disable deposits
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+
+    # Even with allowlist disabled, canUserDeposit should be False
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        False,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, bob) == False
+
+    # Even if user is on allowlist, canUserDeposit should be False
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+    assert vault_registry.canUserDeposit(undy_usd_vault.address, bob) == False
+
+
+def test_get_deposit_config_includes_allowlist_check(vault_registry, undy_usd_vault, switchboard_alpha, bob):
+    """Test getDepositConfig returns correct canDeposit based on allowlist"""
+    # Enable deposits and allowlist
+    vault_registry.setCanDeposit(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+    vault_registry.setShouldEnforceAllowlist(
+        undy_usd_vault.address,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Without user on allowlist, canDeposit should be False
+    can_deposit, max_amount, should_auto_deposit, default_target = vault_registry.getDepositConfig(
+        undy_usd_vault.address,
+        bob
+    )
+    assert can_deposit == False
+
+    # Add user to allowlist
+    vault_registry.setAllowed(
+        undy_usd_vault.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Now canDeposit should be True
+    can_deposit, max_amount, should_auto_deposit, default_target = vault_registry.getDepositConfig(
+        undy_usd_vault.address,
+        bob
+    )
+    assert can_deposit == True
+
+
+# =============================================================================
+# Multi-Vault Independence Tests
+# =============================================================================
+
+
+def test_allowlist_independent_per_vault(vault_registry, governance, deploy_test_vault, switchboard_alpha, bob):
+    """Test that allowlist settings are independent per vault"""
+    vault_1 = deploy_test_vault()
+    vault_2 = deploy_test_vault()
+
+    # Register both vaults
+    vault_registry.startAddNewAddressToRegistry(
+        vault_1.address,
+        "Vault 1",
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock() + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault_1.address,
+        False,  # isLeveragedVault
+        True,   # shouldEnforceAllowlist
+        sender=governance.address
+    )
+
+    vault_registry.startAddNewAddressToRegistry(
+        vault_2.address,
+        "Vault 2",
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock() + 1)
+    vault_registry.confirmNewAddressToRegistry(
+        vault_2.address,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist (disabled)
+        sender=governance.address
+    )
+
+    # Add bob to vault_1 allowlist only
+    vault_registry.setAllowed(
+        vault_1.address,
+        bob,
+        True,
+        sender=switchboard_alpha.address
+    )
+
+    # Verify independence
+    assert vault_registry.shouldEnforceAllowlist(vault_1.address) == True
+    assert vault_registry.shouldEnforceAllowlist(vault_2.address) == False
+    assert vault_registry.isUserAllowed(vault_1.address, bob) == True
+    assert vault_registry.isUserAllowed(vault_2.address, bob) == False
+
+    # bob can deposit to vault_1 (on allowlist)
+    vault_registry.setCanDeposit(vault_1.address, True, sender=switchboard_alpha.address)
+    assert vault_registry.canUserDeposit(vault_1.address, bob) == True
+
+    # bob can deposit to vault_2 (allowlist disabled)
+    vault_registry.setCanDeposit(vault_2.address, True, sender=switchboard_alpha.address)
+    assert vault_registry.canUserDeposit(vault_2.address, bob) == True
+
+    # random user CANNOT deposit to vault_1 (not on allowlist)
+    random_user = boa.env.generate_address()
+    assert vault_registry.canUserDeposit(vault_1.address, random_user) == False
+
+    # random user CAN deposit to vault_2 (allowlist disabled)
+    assert vault_registry.canUserDeposit(vault_2.address, random_user) == True

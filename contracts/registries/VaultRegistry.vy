@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 implements: Department
 
@@ -46,6 +47,7 @@ struct VaultConfig:
     shouldAutoDeposit: bool
     defaultTargetVaultToken: address
     isLeveragedVault: bool
+    shouldEnforceAllowlist: bool
 
 struct VaultToken:
     legoId: uint256
@@ -129,6 +131,15 @@ event AssetVaultTokenRemoved:
     asset: indexed(address)
     vaultToken: indexed(address)
 
+event ShouldEnforceAllowlistSet:
+    undyVault: indexed(address)
+    shouldEnforce: bool
+
+event AllowlistSet:
+    undyVault: indexed(address)
+    user: indexed(address)
+    isAllowed: bool
+
 # config
 vaultConfigs: public(HashMap[address, VaultConfig]) # vault addr -> vault config
 isApprovedVaultToken: public(HashMap[address, HashMap[address, bool]]) # vault addr -> vault token -> is approved
@@ -144,8 +155,12 @@ indexOfAssetVaultToken: public(HashMap[address, HashMap[address, uint256]]) # un
 numAssetVaultTokens: public(HashMap[address, uint256]) # underlying asset -> count
 assetVaultTokenRefCount: public(HashMap[address, HashMap[address, uint256]]) # underlying asset -> vault token -> ref count
 
+# allowlist
+isAllowed: public(HashMap[address, HashMap[address, bool]]) # vault addr -> user addr -> is allowed
+
 MAX_VAULT_TOKENS: constant(uint256) = 50
 HUNDRED_PERCENT: constant(uint256) = 100_00
+MAX_ALLOWLIST_BATCH: constant(uint256) = 50
 
 
 @deploy
@@ -237,13 +252,14 @@ def startAddNewAddressToRegistry(_undyVaultAddr: address, _description: String[6
 def confirmNewAddressToRegistry(
     _undyVaultAddr: address,
     _isLeveragedVault: bool = False,
+    _shouldEnforceAllowlist: bool = True,
     _approvedVaultTokens: DynArray[address, MAX_VAULT_TOKENS] = [],
     _maxDepositAmount: uint256 = max_value(uint256),
     _minYieldWithdrawAmount: uint256 = 0,
     _performanceFee: uint256 = 20_00, # 20.00%
     _defaultTargetVaultToken: address = empty(address),
     _shouldAutoDeposit: bool = True,
-    _canDeposit: bool = False,
+    _canDeposit: bool = True,
     _canWithdraw: bool = True,
     _isVaultOpsFrozen: bool = False,
     _redemptionBuffer: uint256 = 2_00, # 2.00%
@@ -254,6 +270,7 @@ def confirmNewAddressToRegistry(
         self._initializeVaultConfig(
             _undyVaultAddr,
             _isLeveragedVault,
+            _shouldEnforceAllowlist,
             _maxDepositAmount,
             _minYieldWithdrawAmount,
             _approvedVaultTokens,
@@ -281,6 +298,7 @@ def cancelNewAddressToRegistry(_undyVaultAddr: address) -> bool:
 def _initializeVaultConfig(
     _undyVaultAddr: address,
     _isLeveragedVault: bool,
+    _shouldEnforceAllowlist: bool,
     _maxDepositAmount: uint256,
     _minYieldWithdrawAmount: uint256,
     _approvedVaultTokens: DynArray[address, MAX_VAULT_TOKENS],
@@ -321,6 +339,7 @@ def _initializeVaultConfig(
         shouldAutoDeposit = _shouldAutoDeposit,
         defaultTargetVaultToken = _defaultTargetVaultToken,
         isLeveragedVault = _isLeveragedVault,
+        shouldEnforceAllowlist = _shouldEnforceAllowlist,
     )
     self.vaultConfigs[_undyVaultAddr] = config
 
@@ -451,6 +470,43 @@ def setIsLeveragedVault(_undyVaultAddr: address, _isLeveragedVault: bool):
     config.isLeveragedVault = _isLeveragedVault
     self.vaultConfigs[_undyVaultAddr] = config
     log IsLeveragedVaultSet(vaultAddr=_undyVaultAddr, isLeveragedVault=_isLeveragedVault)
+
+
+#############
+# Allowlist #
+#############
+
+
+@external
+def setShouldEnforceAllowlist(_undyVaultAddr: address, _shouldEnforce: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    config.shouldEnforceAllowlist = _shouldEnforce
+    self.vaultConfigs[_undyVaultAddr] = config
+    log ShouldEnforceAllowlistSet(undyVault=_undyVaultAddr, shouldEnforce=_shouldEnforce)
+
+
+@external
+def setAllowed(_undyVaultAddr: address, _user: address, _isAllowed: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+    assert _user != empty(address) # dev: invalid user addr
+
+    self.isAllowed[_undyVaultAddr][_user] = _isAllowed
+    log AllowlistSet(undyVault=_undyVaultAddr, user=_user, isAllowed=_isAllowed)
+
+
+@external
+def setAllowedBatch(_undyVaultAddr: address, _users: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    for user: address in _users:
+        if user != empty(address):
+            self.isAllowed[_undyVaultAddr][user] = _isAllowed
+            log AllowlistSet(undyVault=_undyVaultAddr, user=user, isAllowed=_isAllowed)
 
 
 ######################
@@ -829,6 +885,18 @@ def shouldAutoDeposit(_undyVaultAddr: address) -> bool:
 
 @view
 @external
+def shouldEnforceAllowlist(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].shouldEnforceAllowlist
+
+
+@view
+@external
+def isUserAllowed(_undyVaultAddr: address, _userAddr: address) -> bool:
+    return self.isAllowed[_undyVaultAddr][_userAddr]
+
+
+@view
+@external
 def isApprovedVaultTokenByAddr(_undyVaultAddr: address, _vaultToken: address) -> bool:
     return self.isApprovedVaultToken[_undyVaultAddr][_vaultToken]
 
@@ -909,6 +977,32 @@ def getLegoAddrFromVaultToken(_vaultToken: address) -> address:
 
 @view
 @external
-def getDepositConfig(_undyVaultAddr: address) -> (bool, uint256, bool, address):
+def getDepositConfig(_undyVaultAddr: address, _user: address = empty(address)) -> (bool, uint256, bool, address):
     config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
-    return config.canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
+    canDeposit: bool = self._canUserDeposit(_undyVaultAddr, _user, config)
+    return canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
+
+
+@view
+@external
+def canUserDeposit(_undyVaultAddr: address, _user: address = empty(address)) -> bool:
+    return self._canUserDeposit(_undyVaultAddr, _user, self.vaultConfigs[_undyVaultAddr])
+
+
+@view
+@internal
+def _canUserDeposit(_undyVaultAddr: address, _user: address, _config: VaultConfig) -> bool:
+    # if canDeposit is False, return False
+    if not _config.canDeposit:
+        return False
+
+    # if allowlist is not enforced, return True
+    if not _config.shouldEnforceAllowlist:
+        return True
+
+    # if no user address provided, return True (legacy earn vaults)
+    if _user == empty(address):
+        return True
+
+    # check if user is on allowlist
+    return self.isAllowed[_undyVaultAddr][_user]

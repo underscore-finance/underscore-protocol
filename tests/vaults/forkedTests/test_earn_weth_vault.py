@@ -769,7 +769,7 @@ def test_weth_vault_small_deposit(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit small amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_eth_vault.depositForYield(
@@ -812,7 +812,7 @@ def test_weth_vault_large_deposit(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit large amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_eth_vault.depositForYield(
@@ -855,7 +855,7 @@ def test_weth_vault_whale_deposit_1000_eth(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # deposit whale amount
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_eth_vault.depositForYield(
@@ -1043,7 +1043,7 @@ def test_weth_vault_emergency_partial_withdrawal_with_redemption_buffer(
     asset.transfer(bob, yield_amount, sender=whale)
     undy_eth_vault.deposit(yield_amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     undy_eth_vault.depositForYield(
         lego_id,
@@ -1105,7 +1105,7 @@ def test_weth_vault_decimal_precision_large_amounts(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # Deposit
     asset_deposited, vault_token, vault_tokens_received, usd_value = undy_eth_vault.depositForYield(
@@ -1244,7 +1244,7 @@ def test_weth_vault_deregister_and_reregister(
     asset.approve(undy_eth_vault, MAX_UINT256, sender=bob)
     undy_eth_vault.deposit(amount, bob, sender=bob)
 
-    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, sender=switchboard_alpha.address)
+    vault_registry.setApprovedVaultToken(undy_eth_vault.address, vault_addr, True, False, sender=switchboard_alpha.address)
 
     # First deposit
     _, _, vault_tokens_1, _ = undy_eth_vault.depositForYield(

@@ -29,7 +29,10 @@ from ethereum.ercs import IERC4626
 interface VaultRegistry:
     def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
     def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
+    def setAllowedBatch(_vaultAddr: address, _userAddrs: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool): nonpayable
     def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
+    def setAllowed(_vaultAddr: address, _userAddr: address, _isAllowed: bool): nonpayable
+    def setShouldEnforceAllowlist(_vaultAddr: address, _shouldEnforce: bool): nonpayable
     def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
     def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
     def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool): nonpayable
@@ -315,6 +318,23 @@ event ShouldAutoDepositSet:
     shouldAutoDeposit: bool
     caller: indexed(address)
 
+event ShouldEnforceAllowlistSet:
+    vaultAddr: indexed(address)
+    shouldEnforce: bool
+    caller: indexed(address)
+
+event AllowlistUserSet:
+    vaultAddr: indexed(address)
+    user: indexed(address)
+    isAllowed: bool
+    caller: indexed(address)
+
+event AllowlistBatchSet:
+    vaultAddr: indexed(address)
+    numUsers: uint256
+    isAllowed: bool
+    caller: indexed(address)
+
 event PendingCollateralVaultChange:
     vaultAddr: indexed(address)
     vaultToken: indexed(address)
@@ -496,6 +516,7 @@ pendingEulerRewardsAddr: public(HashMap[uint256, PendingEulerRewardsAddr]) # aid
 pendingCompRewardsAddr: public(HashMap[uint256, PendingCompRewardsAddr]) # aid -> config
 
 MAX_VAULT_TOKENS: constant(uint256) = 50
+MAX_ALLOWLIST_BATCH: constant(uint256) = 50
 
 
 @deploy
@@ -566,6 +587,36 @@ def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
     assert self._hasPermission(msg.sender, not _shouldAutoDeposit) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldAutoDeposit(_vaultAddr, _shouldAutoDeposit)
     log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit, caller=msg.sender)
+
+
+# allowlist enforcement
+
+
+@external
+def setShouldEnforceAllowlist(_vaultAddr: address, _shouldEnforce: bool):
+    assert self._hasPermission(msg.sender, _shouldEnforce) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldEnforceAllowlist(_vaultAddr, _shouldEnforce)
+    log ShouldEnforceAllowlistSet(vaultAddr=_vaultAddr, shouldEnforce=_shouldEnforce, caller=msg.sender)
+
+
+# allowlist user
+
+
+@external
+def setAllowed(_vaultAddr: address, _user: address, _isAllowed: bool):
+    assert self._hasPermission(msg.sender, not _isAllowed) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setAllowed(_vaultAddr, _user, _isAllowed)
+    log AllowlistUserSet(vaultAddr=_vaultAddr, user=_user, isAllowed=_isAllowed, caller=msg.sender)
+
+
+# allowlist batch
+
+
+@external
+def setAllowedBatch(_vaultAddr: address, _users: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool):
+    assert self._hasPermission(msg.sender, not _isAllowed) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setAllowedBatch(_vaultAddr, _users, _isAllowed)
+    log AllowlistBatchSet(vaultAddr=_vaultAddr, numUsers=len(_users), isAllowed=_isAllowed, caller=msg.sender)
 
 
 # add price snapshot
