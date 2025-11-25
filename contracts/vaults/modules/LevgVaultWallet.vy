@@ -104,7 +104,7 @@ usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
 greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
 
 # leverage limits
-maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%)
+maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%, max 300_00)
 netUserCapital: public(uint256) # tracks user deposits - withdrawals (for USDC vaults)
 
 # constants
@@ -926,7 +926,7 @@ def setLevgVaultHelper(_levgVaultHelper: address):
 @external
 def setMaxDebtRatio(_ratio: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _ratio <= HUNDRED_PERCENT # dev: ratio too high (max 100%)
+    assert _ratio <= 3 * HUNDRED_PERCENT # dev: ratio too high (max 300%)
     self.maxDebtRatio = _ratio
     log MaxDebtRatioSet(maxDebtRatio=_ratio)
 
