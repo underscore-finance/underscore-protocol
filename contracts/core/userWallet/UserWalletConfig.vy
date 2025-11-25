@@ -70,6 +70,9 @@ interface LootDistributor:
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
 
+interface AgentWrapper:
+    def isSender(_address: address) -> bool: view
+
 event EjectionModeSet:
     inEjectMode: bool
 
@@ -902,6 +905,18 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+# is agent sender
+
+
+@view
+@external
+def isAgentSender(_addr: address) -> bool:
+    agent: address = self.startingAgent
+    if agent == empty(address):
+        return False
+    return staticcall AgentWrapper(agent).isSender(_addr)
 
 
 ###################

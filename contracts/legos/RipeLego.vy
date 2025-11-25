@@ -46,6 +46,7 @@ interface RipeTeller:
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
+    def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
     def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
@@ -77,6 +78,17 @@ interface RipeMissionControl:
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface UserWalletConfig:
+    def isAgentSender(_addr: address) -> bool: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
+
+struct DeleverageAsset:
+    vaultId: uint256
+    asset: address
+    targetRepayAmount: uint256
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -157,6 +169,7 @@ RIPE_ENDAOMENT_PSM_ID: constant(uint256) = 22
 LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
 
 
 @deploy
@@ -862,9 +875,12 @@ def borrow(
     assert _borrowAsset in [RIPE_GREEN_TOKEN, savingsGreen] # dev: invalid borrow asset
     wantsSavingsGreen: bool = _borrowAsset == savingsGreen
 
+    # Extract shouldEnterStabPool from extraData (1 bit in lowest position)
+    shouldEnterStabPool: bool = convert(convert(_extraData, uint256) & 1, bool)
+
     # borrow from Ripe
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
-    borrowAmount: uint256 = extcall RipeTeller(teller).borrow(_amount, _recipient, wantsSavingsGreen, False)
+    borrowAmount: uint256 = extcall RipeTeller(teller).borrow(_amount, _recipient, wantsSavingsGreen, shouldEnterStabPool)
     assert borrowAmount != 0 # dev: no borrow amount received
 
     usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_borrowAsset, borrowAmount)
@@ -928,6 +944,18 @@ def repayDebt(
         recipient = _recipient,
     )
     return paymentAmount, usdValue
+
+
+# deleverage
+
+
+@external
+def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
+    walletConfig: address = staticcall UserWallet(_user).walletConfig()
+    assert staticcall UserWalletConfig(walletConfig).isAgentSender(msg.sender) # dev: no perms
+
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    return extcall RipeTeller(teller).deleverageWithSpecificAssets(_assets, _user)
 
 
 # shared utils
