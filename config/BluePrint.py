@@ -340,6 +340,23 @@ WHALES = {
     },
 }
 
+TEST_AMOUNTS = {
+    "ALPHA": 100_000,
+    "USDC": 10_000,
+    "WETH": 5,
+    "CBBTC": 2,
+    "WSTETH": 5,
+    "CBETH": 5,
+    "AERO": 25_000,
+    "EURC": 10_000,
+    "USDS": 10_000,
+    "TBTC": 2,
+    "FROK": 1_000,
+    "CRVUSD": 10_000,
+    "DOLA": 10_000,
+    "USDM": 10_000,
+}
+
 
 class LEGO_IDS(IntFlag):
     RIPE = 1,
