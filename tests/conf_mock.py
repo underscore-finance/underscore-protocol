@@ -32,9 +32,13 @@ def user_wallet_config(user_wallet):
 
 
 @pytest.fixture(scope="session")
-def starter_agent(hatchery, undy_hq_deploy, switchboard_alpha, starter_agent_sender):
-    agent_address = hatchery.createAgent(undy_hq_deploy, sender=switchboard_alpha.address)
-    agent = AgentWrapper.at(agent_address)
+def starter_agent(undy_hq_deploy, switchboard_alpha, starter_agent_sender):
+    agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        name="starter_agent",
+    )
     agent.addSender(starter_agent_sender, sender=switchboard_alpha.address)
     return agent
 

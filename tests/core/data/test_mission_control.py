@@ -75,13 +75,10 @@ def test_set_cheque_config_access(mission_control, bob):
 def test_set_agent_config_access(mission_control, bob):
     """Only switchboard_alpha should be able to set agent config"""
     config = (
-        ZERO_ADDRESS,  # agentTemplate
-        5,             # numAgentsAllowed
-        False,         # enforceCreatorWhitelist
         ZERO_ADDRESS,  # startingAgent
         100,           # startingAgentActivationLength
     )
-    
+
     # Non-switchboard_alpha address should fail
     with boa.reverts("no perms"):
         mission_control.setAgentConfig(config, sender=bob)
@@ -164,7 +161,7 @@ def test_paused_state_blocks_changes(mission_control, switchboard_alpha, createT
         mission_control.setChequeConfig((10, 1000, 86400, 100, 1000), sender=switchboard_alpha.address)
     
     with boa.reverts("not activated"):
-        mission_control.setAgentConfig((ZERO_ADDRESS, 5, False, ZERO_ADDRESS, 100), sender=switchboard_alpha.address)
+        mission_control.setAgentConfig((ZERO_ADDRESS, 100), sender=switchboard_alpha.address)
 
 
 ###########################
@@ -221,28 +218,21 @@ def test_user_wallet_config_persistence(mission_control, switchboard_alpha, alic
 
 def test_agent_config_persistence(mission_control, switchboard_alpha, alice):
     """Agent config should persist after being set"""
-    agent_template = alice
     starting_agent = alice
-    
+
     config = (
-        agent_template,
-        5,              # numAgentsAllowed
-        True,           # enforceCreatorWhitelist
         starting_agent,
         200,            # startingAgentActivationLength
     )
-    
+
     # Set config
     mission_control.setAgentConfig(config, sender=switchboard_alpha.address)
-    
+
     # Verify each field persists
     saved_config = mission_control.agentConfig()
-    assert saved_config.agentTemplate == agent_template
-    assert saved_config.numAgentsAllowed == 5
-    assert saved_config.enforceCreatorWhitelist == True
     assert saved_config.startingAgent == starting_agent
     assert saved_config.startingAgentActivationLength == 200
-    
+
     # Test setStarterAgent separately
     mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
     assert mission_control.agentConfig().startingAgent == ZERO_ADDRESS
@@ -401,7 +391,7 @@ def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, ali
     ), sender=switchboard_alpha.address)
     
     mission_control.setAgentConfig((
-        alice, 5, False, starting_agent, 300
+        starting_agent, 300
     ), sender=switchboard_alpha.address)
 
     mission_control.setManagerConfig((172800, 200, False, 0, 0, False), sender=switchboard_alpha.address)

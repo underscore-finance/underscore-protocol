@@ -18,8 +18,7 @@ YEAR_IN_BLOCKS: constant(uint256) = 365 * DAY_IN_BLOCKS
 USER_WALLET_TEMPLATE: immutable(address)
 USER_WALLET_CONFIG_TEMPLATE: immutable(address)
 
-# agent template
-AGENT_TEMPLATE: immutable(address)
+# agent
 STARTING_AGENT: immutable(address)
 
 
@@ -27,12 +26,10 @@ STARTING_AGENT: immutable(address)
 def __init__(
     _walletTemplate: address,
     _configTemplate: address,
-    _agentTemplate: address,
     _startingAgent: address,
 ):
     USER_WALLET_TEMPLATE = _walletTemplate
     USER_WALLET_CONFIG_TEMPLATE = _configTemplate
-    AGENT_TEMPLATE = _agentTemplate
     STARTING_AGENT = _startingAgent
 
 
@@ -75,9 +72,6 @@ def userWalletConfig() -> cs.UserWalletConfig:
 @external
 def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
-        agentTemplate = AGENT_TEMPLATE,
-        numAgentsAllowed = max_value(uint256),
-        enforceCreatorWhitelist = False,
         startingAgent = STARTING_AGENT,
         startingAgentActivationLength = 2 * YEAR_IN_BLOCKS,
     )

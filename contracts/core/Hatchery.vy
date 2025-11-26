@@ -12,7 +12,7 @@
 #
 #     ╔════════════════════════════════════════════════════╗
 #     ║  ** Hatchery **                                    ║
-#     ║  Handles user wallet creation and agent creation.  ║
+#     ║  Handles user wallet creation.                     ║
 #     ╚════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
@@ -44,13 +44,10 @@ interface WalletBackpack:
 interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
     def isUserWallet(_user: address) -> bool: view
-    def createAgent(_agent: address): nonpayable
     def numUserWallets() -> uint256: view
-    def numAgents() -> uint256: view
 
 interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
-    def getAgentCreationConfig(_creator: address) -> AgentCreationConfig: view
     def creatorWhitelist(_creator: address) -> bool: view
 
 interface HighCommand:
@@ -89,11 +86,6 @@ struct UserWalletCreationConfig:
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
 
-struct AgentCreationConfig:
-    agentTemplate: address
-    numAgentsAllowed: uint256
-    isCreatorAllowed: bool
-
 event UserWalletCreated:
     mainAddr: indexed(address)
     configAddr: indexed(address)
@@ -101,12 +93,6 @@ event UserWalletCreated:
     agent: address
     ambassador: address
     creator: address
-    groupId: uint256
-
-event AgentCreated:
-    agent: indexed(address)
-    owner: indexed(address)
-    creator: indexed(address)
     groupId: uint256
 
 WETH: public(immutable(address))
@@ -203,39 +189,6 @@ def createUserWallet(
         groupId=_groupId,
     )
     return mainWalletAddr
-
-
-################
-# Create Agent #
-################
-
-
-@external
-def createAgent(_owner: address = msg.sender, _groupId: uint256 = 1) -> address:
-    assert not deptBasics.isPaused # dev: contract paused
-    a: addys.Addys = addys._getAddys()
-
-    # validation
-    config: AgentCreationConfig = staticcall MissionControl(a.missionControl).getAgentCreationConfig(msg.sender)
-    if not addys._isSwitchboardAddr(msg.sender):
-        assert config.isCreatorAllowed # dev: creator not allowed
-    assert empty(address) not in [config.agentTemplate, _owner] # dev: invalid setup
-    if config.numAgentsAllowed != 0:
-        assert staticcall Ledger(a.ledger).numAgents() < config.numAgentsAllowed # dev: max agents reached
-
-    # create agent contract
-    agentAddr: address = create_from_blueprint(config.agentTemplate, a.hq, _groupId)
-
-    # update ledger
-    extcall Ledger(a.ledger).createAgent(agentAddr)
-
-    log AgentCreated(
-        agent=agentAddr,
-        owner=_owner,
-        creator=msg.sender,
-        groupId=_groupId,
-    )
-    return agentAddr
 
 
 # trial funds (legacy wallets)

@@ -52,8 +52,6 @@ flag ActionType:
     AMBASSADOR_REV_SHARE
     DEFAULT_YIELD_PARAMS
     LOOT_PARAMS
-    AGENT_TEMPLATE
-    AGENT_CREATION_LIMITS
     STARTER_AGENT_PARAMS
     MANAGER_CONFIG
     PAYEE_CONFIG
@@ -249,24 +247,6 @@ event AssetYieldConfigSet:
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
     bonusAsset: address
-
-event PendingAgentTemplateChange:
-    agentTemplate: address
-    confirmationBlock: uint256
-    actionId: uint256
-
-event AgentTemplateSet:
-    agentTemplate: address
-
-event PendingAgentCreationLimitsChange:
-    numAgentsAllowed: uint256
-    enforceCreatorWhitelist: bool
-    confirmationBlock: uint256
-    actionId: uint256
-
-event AgentCreationLimitsSet:
-    numAgentsAllowed: uint256
-    enforceCreatorWhitelist: bool
 
 event PendingStarterAgentParamsChange:
     startingAgent: address
@@ -891,69 +871,15 @@ def setIsStablecoin(_asset: address, _isStablecoin: bool) -> uint256:
 ################
 
 
-# agent template
-
-
-@external
-def setAgentTemplate(_agentTemplate: address) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    
-    assert self._isValidAgentTemplate(_agentTemplate) # dev: invalid agent template
-    return self._setPendingAgentConfig(
-        ActionType.AGENT_TEMPLATE,
-        _agentTemplate
-    )
-
-
-@view
-@internal
-def _isValidAgentTemplate(_agentTemplate: address) -> bool:
-    if _agentTemplate == empty(address):
-        return False
-    if not _agentTemplate.is_contract:
-        return False
-    return True
-
-
-# agent creation limits
-
-
-@external
-def setAgentCreationLimits(_numAgentsAllowed: uint256, _enforceCreatorWhitelist: bool) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    
-    assert self._isValidNumAgentsAllowed(_numAgentsAllowed) # dev: invalid num agents allowed
-    return self._setPendingAgentConfig(
-        ActionType.AGENT_CREATION_LIMITS,
-        empty(address),
-        _numAgentsAllowed,
-        _enforceCreatorWhitelist
-    )
-
-
-@view
-@internal
-def _isValidNumAgentsAllowed(_numAgentsAllowed: uint256) -> bool:
-    if _numAgentsAllowed == 0:
-        return False
-    if _numAgentsAllowed == max_value(uint256):
-        return False
-    return True
-
-
 # starter agent params
 
 
 @external
 def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
     assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params
     return self._setPendingAgentConfig(
-        ActionType.STARTER_AGENT_PARAMS,
-        empty(address),
-        0,
-        False,
         _startingAgent,
         _startingAgentActivationLength
     )
@@ -1234,45 +1160,24 @@ def _setPendingUserWalletConfig(
 
 @internal
 def _setPendingAgentConfig(
-    _actionType: ActionType,
-    _agentTemplate: address = empty(address),
-    _numAgentsAllowed: uint256 = 0,
-    _enforceCreatorWhitelist: bool = False,
-    _startingAgent: address = empty(address),
-    _startingAgentActivationLength: uint256 = 0,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
 ) -> uint256:
     aid: uint256 = timeLock._initiateAction()
 
-    self.actionType[aid] = _actionType
+    self.actionType[aid] = ActionType.STARTER_AGENT_PARAMS
     self.pendingAgentConfig[aid] = cs.AgentConfig(
-        agentTemplate=_agentTemplate,
-        numAgentsAllowed=_numAgentsAllowed,
-        enforceCreatorWhitelist=_enforceCreatorWhitelist,
         startingAgent=_startingAgent,
         startingAgentActivationLength=_startingAgentActivationLength,
     )
 
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    if _actionType == ActionType.AGENT_TEMPLATE:
-        log PendingAgentTemplateChange(
-            agentTemplate=_agentTemplate,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
-    elif _actionType == ActionType.AGENT_CREATION_LIMITS:
-        log PendingAgentCreationLimitsChange(
-            numAgentsAllowed=_numAgentsAllowed,
-            enforceCreatorWhitelist=_enforceCreatorWhitelist,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
-    elif _actionType == ActionType.STARTER_AGENT_PARAMS:
-        log PendingStarterAgentParamsChange(
-            startingAgent=_startingAgent,
-            startingAgentActivationLength=_startingAgentActivationLength,
-            confirmationBlock=confirmationBlock,
-            actionId=aid,
-        )
+    log PendingStarterAgentParamsChange(
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
     return aid
 
 
@@ -1414,27 +1319,9 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall MissionControl(mc).setIsStablecoin(p.addr, p.isAllowed)
         log IsStablecoinSet(asset=p.addr, isStablecoin=p.isAllowed)
 
-    elif actionType == ActionType.AGENT_TEMPLATE:
-        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
-        p: cs.AgentConfig = self.pendingAgentConfig[_aid]
-        config.agentTemplate = p.agentTemplate
-        extcall MissionControl(mc).setAgentConfig(config)
-        log AgentTemplateSet(agentTemplate=p.agentTemplate)
-
-    elif actionType == ActionType.AGENT_CREATION_LIMITS:
-        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
-        p: cs.AgentConfig = self.pendingAgentConfig[_aid]
-        config.numAgentsAllowed = p.numAgentsAllowed
-        config.enforceCreatorWhitelist = p.enforceCreatorWhitelist
-        extcall MissionControl(mc).setAgentConfig(config)
-        log AgentCreationLimitsSet(numAgentsAllowed=p.numAgentsAllowed, enforceCreatorWhitelist=p.enforceCreatorWhitelist)
-
     elif actionType == ActionType.STARTER_AGENT_PARAMS:
-        config: cs.AgentConfig = staticcall MissionControl(mc).agentConfig()
         p: cs.AgentConfig = self.pendingAgentConfig[_aid]
-        config.startingAgent = p.startingAgent
-        config.startingAgentActivationLength = p.startingAgentActivationLength
-        extcall MissionControl(mc).setAgentConfig(config)
+        extcall MissionControl(mc).setAgentConfig(p)
         log StarterAgentParamsSet(startingAgent=p.startingAgent, startingAgentActivationLength=p.startingAgentActivationLength)
 
     elif actionType == ActionType.MANAGER_CONFIG:

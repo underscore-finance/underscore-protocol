@@ -54,11 +54,6 @@ numUserWallets: public(uint256) # num userWallets
 # ambassadors
 ambassadors: public(HashMap[address, address]) # user -> ambassador
 
-# agents (iterable)
-agents: public(HashMap[uint256, address]) # index -> agent
-indexOfAgent: public(HashMap[address, uint256]) # agent -> index
-numAgents: public(uint256) # num agents
-
 # vault tokens
 vaultTokens: public(HashMap[address, VaultToken]) # vault token -> data
 
@@ -72,7 +67,6 @@ def __init__(_undyHq: address):
     deptBasics.__init__(False, False) # no minting
 
     self.numUserWallets = 1
-    self.numAgents = 1
 
 
 ################
@@ -200,40 +194,3 @@ def registerBackpackItem(_addr: address):
     assert msg.sender == addys._getWalletBackpackAddr() # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
     self.isRegisteredBackpackItem[_addr] = True
-
-
-##########
-# Agents #
-##########
-
-
-@external
-def createAgent(_agent: address):
-    assert msg.sender == addys._getHatcheryAddr() # dev: only hatchery allowed
-    assert not deptBasics.isPaused # dev: not activated
-
-    aid: uint256 = self.numAgents
-    self.agents[aid] = _agent
-    self.indexOfAgent[_agent] = aid
-    self.numAgents = aid + 1
-
-
-# utils
-
-
-@view
-@external
-def getNumAgents() -> uint256:
-    return self._getNumAgents()
-
-
-@view
-@internal
-def _getNumAgents() -> uint256:
-    return self.numAgents - 1
-
-
-@view
-@external
-def isAgent(_agent: address) -> bool:
-    return self.indexOfAgent[_agent] != 0

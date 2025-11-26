@@ -87,11 +87,6 @@ struct UserWalletCreationConfig:
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
 
-struct AgentCreationConfig:
-    agentTemplate: address
-    numAgentsAllowed: uint256
-    isCreatorAllowed: bool
-
 # global configs
 userWalletConfig: public(cs.UserWalletConfig)
 agentConfig: public(cs.AgentConfig)
@@ -220,21 +215,6 @@ def setStarterAgent(_agent: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
     self.agentConfig.startingAgent = _agent
-
-
-# helper
-
-
-@view
-@external
-def getAgentCreationConfig(_creator: address) -> AgentCreationConfig:
-    config: cs.AgentConfig = self.agentConfig
-    userConfig: cs.UserWalletConfig = self.userWalletConfig
-    return AgentCreationConfig(
-        agentTemplate = config.agentTemplate,
-        numAgentsAllowed = config.numAgentsAllowed,
-        isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),
-    )
 
 
 ########################

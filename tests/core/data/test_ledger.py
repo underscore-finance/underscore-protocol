@@ -64,44 +64,34 @@ def test_register_backpack_item_access(ledger, bob, alice):
         ledger.registerBackpackItem(alice, sender=bob)
 
 
-def test_create_agent_access(ledger, bob, alice):
-    """Only hatchery should be able to create agents"""
-    # Non-hatchery address should fail
-    with boa.reverts("only hatchery allowed"):
-        ledger.createAgent(alice, sender=bob)
-
-
 def test_paused_state_blocks_changes(ledger, hatchery, loot_distributor, wallet_backpack, lego_aave_v3, switchboard_alpha, alice, bob):
     """All setter functions should fail when protocol is paused"""
     # Pause the protocol
     ledger.pause(True, sender=switchboard_alpha.address)
-    
+
     # All these should fail when paused
     with boa.reverts("not activated"):
         ledger.createUserWallet(alice, ZERO_ADDRESS, sender=hatchery.address)
-    
+
     with boa.reverts("not activated"):
         ledger.setUserPoints(alice, (1000, 100, 12345), sender=loot_distributor.address)
-    
+
     with boa.reverts("not activated"):
         ledger.setGlobalPoints((1000000, 100000, 12345), sender=loot_distributor.address)
-    
+
     with boa.reverts("not activated"):
         ledger.setUserAndGlobalPoints(
-            alice, 
-            (1000, 100, 12345), 
-            (1000000, 100000, 12345), 
+            alice,
+            (1000, 100, 12345),
+            (1000000, 100000, 12345),
             sender=loot_distributor.address
         )
-    
+
     with boa.reverts("not activated"):
         ledger.setVaultToken(alice, 1, alice, 18, False, sender=lego_aave_v3.address)
-    
+
     with boa.reverts("not activated"):
         ledger.registerBackpackItem(alice, sender=wallet_backpack.address)
-    
-    with boa.reverts("not activated"):
-        ledger.createAgent(alice, sender=hatchery.address)
 
 
 ###########################
@@ -258,82 +248,28 @@ def test_backpack_item_persistence(ledger, wallet_backpack, alice, bob):
     assert ledger.isRegisteredBackpackItem(bob)
 
 
-def test_create_agent_persistence(ledger, hatchery, alice, bob, charlie):
-    """Agent creation should persist data correctly"""
-    # Get initial state (might not be 0 if other tests ran first)
-    initial_count = ledger.getNumAgents()
-    assert not ledger.isAgent(alice)
-    
-    # Create first agent
-    ledger.createAgent(alice, sender=hatchery.address)
-    
-    # Verify persistence
-    assert ledger.getNumAgents() == initial_count + 1
-    assert ledger.isAgent(alice)
-    alice_index = ledger.indexOfAgent(alice)
-    assert alice_index > 0
-    assert ledger.agents(alice_index) == alice
-    
-    # Create second agent
-    ledger.createAgent(bob, sender=hatchery.address)
-    
-    # Verify persistence
-    assert ledger.getNumAgents() == initial_count + 2
-    assert ledger.isAgent(bob)
-    bob_index = ledger.indexOfAgent(bob)
-    assert bob_index > 0
-    assert ledger.agents(bob_index) == bob
-    
-    # Create third agent
-    ledger.createAgent(charlie, sender=hatchery.address)
-    
-    # Verify persistence
-    assert ledger.getNumAgents() == initial_count + 3
-    assert ledger.isAgent(charlie)
-    charlie_index = ledger.indexOfAgent(charlie)
-    assert charlie_index > 0
-    assert ledger.agents(charlie_index) == charlie
-    
-    # Verify all agents still exist
-    assert ledger.isAgent(alice)
-    assert ledger.isAgent(bob)
-    assert ledger.isAgent(charlie)
-
-
 ############################
 # View Functions Tests     #
 ############################
 
 
-def test_num_tracking_consistency(ledger, hatchery, alice, bob, charlie):
-    """Test that number tracking for wallets and agents is consistent"""
+def test_num_tracking_consistency(ledger, hatchery, alice, bob):
+    """Test that number tracking for wallets is consistent"""
     # Get initial state (may not be 1 if other tests ran first)
     initial_num_wallets = ledger.numUserWallets()
-    initial_num_agents = ledger.numAgents()
     initial_get_num_wallets = ledger.getNumUserWallets()
-    initial_get_num_agents = ledger.getNumAgents()
-    
+
     # Verify the relationship between num and getNum (num = getNum + 1)
     assert initial_num_wallets == initial_get_num_wallets + 1
-    assert initial_num_agents == initial_get_num_agents + 1
-    
+
     # Add wallets
     ledger.createUserWallet(alice, ZERO_ADDRESS, sender=hatchery.address)
     assert ledger.numUserWallets() == initial_num_wallets + 1
     assert ledger.getNumUserWallets() == initial_get_num_wallets + 1
-    
+
     ledger.createUserWallet(bob, ZERO_ADDRESS, sender=hatchery.address)
     assert ledger.numUserWallets() == initial_num_wallets + 2
     assert ledger.getNumUserWallets() == initial_get_num_wallets + 2
-    
-    # Add agents
-    ledger.createAgent(alice, sender=hatchery.address)
-    assert ledger.numAgents() == initial_num_agents + 1
-    assert ledger.getNumAgents() == initial_get_num_agents + 1
-    
-    ledger.createAgent(bob, sender=hatchery.address)
-    assert ledger.numAgents() == initial_num_agents + 2
-    assert ledger.getNumAgents() == initial_get_num_agents + 2
 
 
 def test_ambassador_tracking(ledger, hatchery, alice, bob, charlie, sally):
@@ -355,8 +291,6 @@ def test_index_zero_special_case(ledger):
     """Test that index 0 is reserved for 'not exists' checks"""
     # Verify unregistered addresses return index 0
     assert ledger.indexOfUserWallet(ZERO_ADDRESS) == 0
-    assert ledger.indexOfAgent(ZERO_ADDRESS) == 0
-    
+
     # Verify index 0 is not used for actual data
     assert ledger.userWallets(0) == ZERO_ADDRESS
-    assert ledger.agents(0) == ZERO_ADDRESS

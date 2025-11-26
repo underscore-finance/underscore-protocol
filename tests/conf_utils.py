@@ -159,18 +159,12 @@ def createAssetYieldConfig():
 
 
 @pytest.fixture(scope="session")
-def setAgentConfig(mission_control, switchboard_alpha, agent_template, agent_eoa):
+def setAgentConfig(mission_control, switchboard_alpha, agent_eoa):
     def setAgentConfig(
-        _agentTemplate = agent_template,
-        _numAgentsAllowed = 100,
-        _enforceCreatorWhitelist = False,
         _startingAgent = agent_eoa,
         _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
         config = (
-            _agentTemplate,
-            _numAgentsAllowed,
-            _enforceCreatorWhitelist,
             _startingAgent,
             _startingAgentActivationLength,
         )

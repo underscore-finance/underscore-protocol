@@ -37,9 +37,6 @@ struct YieldConfig:
     bonusAsset: address
 
 struct AgentConfig:
-    agentTemplate: address
-    numAgentsAllowed: uint256
-    enforceCreatorWhitelist: bool
     startingAgent: address
     startingAgentActivationLength: uint256
 

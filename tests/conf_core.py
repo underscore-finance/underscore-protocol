@@ -238,15 +238,15 @@ def switchboard_charlie(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def defaults(fork, user_wallet_template, user_wallet_config_template, agent_template, agent_eoa):
+def defaults(fork, user_wallet_template, user_wallet_config_template, agent_eoa):
     d = ZERO_ADDRESS
     if fork == "local":
         d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template,
-                     user_wallet_config_template, agent_template, agent_eoa)
+                     user_wallet_config_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_template, agent_eoa, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_eoa, rewards_asset)
     return d
 
 
@@ -522,11 +522,6 @@ def user_wallet_template():
 @pytest.fixture(scope="session")
 def user_wallet_config_template():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
-
-
-@pytest.fixture(scope="session")
-def agent_template():
-    return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
 
 
 ###############
