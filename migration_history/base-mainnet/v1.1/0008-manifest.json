@@ -1,7 +1,7 @@
 {
   "contracts": {
     "WalletBackpack": {
-      "address": "0x464531AB3b51B4654e08364815FA4E236E95244a",
+      "address": "0x10099b1386b434Ea4da1967d952931b645Df6250",
       "abi": [
         {
           "name": "PendingBackpackItemAdded",
@@ -1359,7 +1359,7 @@
       "file": "contracts/registries/WalletBackpack.vy"
     },
     "Kernel": {
-      "address": "0xEe24e5Ee2C1330D14C8Cb15753A11518941774D3",
+      "address": "0xAdED981a6Dfc6C3e3E4DbBa54362375FDcF7B389",
       "abi": [
         {
           "name": "WhitelistAddrPending",
@@ -1741,7 +1741,7 @@
       "file": "contracts/core/walletBackpack/Kernel.vy"
     },
     "HighCommand": {
-      "address": "0x7f10fd7c935A3C6ef27B3033F875EC7177fb746c",
+      "address": "0x06492EA8F83B3a61d71B61FEEF7F167aDD9A78EC",
       "abi": [
         {
           "name": "GlobalManagerSettingsModified",
@@ -4090,7 +4090,7 @@
       "file": "contracts/core/walletBackpack/HighCommand.vy"
     },
     "Paymaster": {
-      "address": "0x716f4efE4717854b979362CBe2Ce26A8b0cc31aF",
+      "address": "0x80bf71E098Dc328D87456c34675C2B4C10a1AFCb",
       "abi": [
         {
           "name": "PayeeAdded",
@@ -6109,7 +6109,7 @@
       "file": "contracts/core/walletBackpack/Paymaster.vy"
     },
     "ChequeBook": {
-      "address": "0x9E6178ef05D593C86c13704B9Bc5A84FB45f301E",
+      "address": "0xcC939d6b16C6a5f07cde6Bc2bD23cb9B8b7a0Dc9",
       "abi": [
         {
           "name": "ChequeCreated",
@@ -7461,7 +7461,7 @@
       "file": "contracts/core/walletBackpack/ChequeBook.vy"
     },
     "Migrator": {
-      "address": "0x42F591213Be3fB0Cc6B9A11D479657F60e0d335B",
+      "address": "0xe008114992187138a7C341Db0CD900F88BC0169a",
       "abi": [
         {
           "name": "FundsMigrated",
@@ -7755,7 +7755,7 @@
       "file": "contracts/core/walletBackpack/Migrator.vy"
     },
     "Sentinel": {
-      "address": "0xCAF963d78c286243a62F3e3dFD1DBb66794Be51F",
+      "address": "0xCCe9B58b7d377631e58d3Bd95f12a35cF49F667b",
       "abi": [
         {
           "stateMutability": "view",

@@ -1,7 +1,7 @@
 {
   "contracts": {
     "Appraiser": {
-      "address": "0xD9f71b82C44DFb08FC16BFFCa3650EbBfE89b70e",
+      "address": "0x8C6521e6f2676a7AdC8484444f161c3538e545e2",
       "abi": [
         {
           "name": "DepartmentPauseModified",

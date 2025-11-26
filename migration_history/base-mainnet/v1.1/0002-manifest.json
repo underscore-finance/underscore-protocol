@@ -1,7 +1,7 @@
 {
   "contracts": {
     "MissionControl": {
-      "address": "0x10761621062878CEdEfEb54dFFfb5fde5187bbB7",
+      "address": "0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE",
       "abi": [
         {
           "name": "DepartmentPauseModified",
@@ -1313,7 +1313,7 @@
         "compiler_version": "v0.4.3+commit.bff19ea2",
         "integrity": "5931738f00038033c67c85e87e8b2f7ad1cfaef8c5380c410430fdbedbb9ae41"
       },
-      "args": "00000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f900000000000000000000000088dd242155c50c2b91f288391b4d8d4c93e0552a",
+      "args": "00000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f9000000000000000000000000c66e387a9215b146ed6434d63034ddbdcd2fd7dc",
       "file": "contracts/data/MissionControl.vy"
     }
   }

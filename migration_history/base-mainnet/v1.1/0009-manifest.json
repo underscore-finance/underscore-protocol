@@ -1,7 +1,7 @@
 {
   "contracts": {
     "Billing": {
-      "address": "0x9052BE889B4dBE60431c5407E602fC369c037429",
+      "address": "0xB61dDF5a56b4a008f072087BBe411A9B6F576E4e",
       "abi": [
         {
           "name": "ChequePaymentPulled",

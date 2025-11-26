@@ -1,7 +1,7 @@
 {
   "contracts": {
     "VaultRegistry": {
-      "address": "0x26d580Fb35De59ae5c6D39d6733B736A71996332",
+      "address": "0x1C17ef5Ef2AefcEE958E7e3dC345e96aBfF4e3Cf",
       "abi": [
         {
           "name": "CanDepositSet",
@@ -3616,7 +3616,7 @@
       "file": "contracts/registries/VaultRegistry.vy"
     },
     "LevgVaultHelper": {
-      "address": "0xA7218B664a741cA55bC7A3E7a50289EBaA04eACF",
+      "address": "0xCCE531215D9841E3D69b1Db4e31e1005331DAe4c",
       "abi": [
         {
           "stateMutability": "view",

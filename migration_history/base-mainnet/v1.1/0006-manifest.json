@@ -1,7 +1,7 @@
 {
   "contracts": {
     "LootDistributor": {
-      "address": "0x32FCCC51b7E76a3E19884626466a3EE675D4e35E",
+      "address": "0x23d69D99061acf04c6e86f58692F533E4f039dE8",
       "abi": [
         {
           "name": "TransactionFeePaid",

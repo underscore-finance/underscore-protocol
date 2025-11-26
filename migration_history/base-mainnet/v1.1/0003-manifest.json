@@ -1,7 +1,7 @@
 {
   "contracts": {
     "LegoBook": {
-      "address": "0xc0E0bc04A7EF550053792c30782E38E34d3Dd70D",
+      "address": "0x2fD67d572806Fc43B55aFE2ad032702d826450EB",
       "abi": [
         {
           "name": "LegoToolsSet",
@@ -1668,7 +1668,7 @@
       "file": "contracts/registries/LegoBook.vy"
     },
     "RipeLego": {
-      "address": "0xD10829C06F95D40004aFc4379579Bc05Aa3982e5",
+      "address": "0x272812fC816a6a8C1A2988b24D06878493459A54",
       "abi": [
         {
           "name": "RipeCollateralDeposit",
@@ -5074,7 +5074,7 @@
       "file": "contracts/legos/RipeLego.vy"
     },
     "AaveV3": {
-      "address": "0x2E5CcDbd412588ceE58516Fa732658CEF7944233",
+      "address": "0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478",
       "abi": [
         {
           "name": "AaveV3Deposit",
@@ -8181,7 +8181,7 @@
       "file": "contracts/legos/yield/AaveV3.vy"
     },
     "CompoundV3": {
-      "address": "0x0757B84433Fc529cC4A4a9829b08AB4B68e9c49C",
+      "address": "0x590FB39919c5F0323a93B54f2634d010b6ECfbA7",
       "abi": [
         {
           "name": "CompoundV3Deposit",
@@ -11317,7 +11317,7 @@
       "file": "contracts/legos/yield/CompoundV3.vy"
     },
     "Euler": {
-      "address": "0xB854c1f42f9ccedB43Ef646c94c2512ecbB05BA1",
+      "address": "0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6",
       "abi": [
         {
           "name": "EulerDeposit",
@@ -14496,7 +14496,7 @@
       "file": "contracts/legos/yield/Euler.vy"
     },
     "Fluid": {
-      "address": "0x064e88f9CD0eF0525f7A125D4396eE93468C7cdD",
+      "address": "0x67E7bcC1deBd060251a9ECeA37002a3986E74f93",
       "abi": [
         {
           "name": "FluidDeposit",
@@ -17646,7 +17646,7 @@
       "file": "contracts/legos/yield/Fluid.vy"
     },
     "Moonwell": {
-      "address": "0x41e9951B2C85C295630C8a304A8410BB561ba87d",
+      "address": "0x0657CF4683870b8420bB8Da57db83e5F9A1ad804",
       "abi": [
         {
           "name": "MoonwellDeposit",
@@ -20784,7 +20784,7 @@
       "file": "contracts/legos/yield/Moonwell.vy"
     },
     "Morpho": {
-      "address": "0x9a849C83B41c261974d438cc56ac48Fb5f568a52",
+      "address": "0x14852dcEEA98d5E781335bA8ea8d4B3a14508868",
       "abi": [
         {
           "name": "MorphoDeposit",
@@ -23963,7 +23963,7 @@
       "file": "contracts/legos/yield/Morpho.vy"
     },
     "AeroClassic": {
-      "address": "0xAB032BFa41AD31090C2744727C2cdA502e9025e0",
+      "address": "0x43B2a72595016D765E2A66e4c2Cf3026619784D1",
       "abi": [
         {
           "name": "AerodromeSwap",
@@ -26525,7 +26525,7 @@
       "file": "contracts/legos/dexes/AeroClassic.vy"
     },
     "AeroSlipstream": {
-      "address": "0x05a710A8CfCeaEAd0A2533bA3dc137EC37B1E2dD",
+      "address": "0x2DD267Ab1BA631E93e7c6a9EA6fbcc48882770bd",
       "abi": [
         {
           "name": "AeroSlipStreamSwap",
@@ -29242,7 +29242,7 @@
       "file": "contracts/legos/dexes/AeroSlipstream.vy"
     },
     "Curve": {
-      "address": "0x2Fe42d5dC25658CE5A4D13A8D7E8C523011e59CE",
+      "address": "0x7192867D67329800345750f5A281Ce1352C3dF65",
       "abi": [
         {
           "name": "CurveSwap",
@@ -30530,7 +30530,7 @@
       "file": "contracts/legos/dexes/Curve.vy"
     },
     "UniswapV2": {
-      "address": "0x6970932a453F1ee612ffEAd6574123289DB94958",
+      "address": "0x95979aEF0F70887f31701944b658948890F56fd7",
       "abi": [
         {
           "name": "UniswapV2Swap",
@@ -33092,7 +33092,7 @@
       "file": "contracts/legos/dexes/UniswapV2.vy"
     },
     "UniswapV3": {
-      "address": "0xA87f42e2101CEada8f6A8105635fD40d141ba5CF",
+      "address": "0xEa1f7604E751b54AF321636DBc2dc75C0045e7A5",
       "abi": [
         {
           "name": "UniswapV3Swap",
@@ -35809,7 +35809,7 @@
       "file": "contracts/legos/dexes/UniswapV3.vy"
     },
     "UnderscoreLego": {
-      "address": "0x91bd328378E0aFAc2936B38F91D62fc8b893e741",
+      "address": "0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9",
       "abi": [
         {
           "name": "UnderscoreEarnVaultDeposit",
@@ -38911,7 +38911,7 @@
       "file": "contracts/legos/UnderscoreLego.vy"
     },
     "40Acres": {
-      "address": "0x3f67b2ec379A94398029994e48ea1421E933103A",
+      "address": "0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514",
       "abi": [
         {
           "name": "FortyAcresDeposit",
@@ -42045,7 +42045,7 @@
       "file": "contracts/legos/yield/40Acres.vy"
     },
     "Wasabi": {
-      "address": "0xE1fb055fE1Fad2D5f980a7954Ebf1539CA676D1e",
+      "address": "0xe67Ef17B6c82a555CB040173273FB271fcc43BEd",
       "abi": [
         {
           "name": "WasabiDeposit",
@@ -45179,7 +45179,7 @@
       "file": "contracts/legos/yield/Wasabi.vy"
     },
     "Avantis": {
-      "address": "0x94D287b679c9eB26067b1Aa59D230B2D559e66bb",
+      "address": "0xc88CD884bdFa8F2D93e32a13EE16543b8a2CF1f0",
       "abi": [
         {
           "name": "AvantisDeposit",
@@ -48297,7 +48297,7 @@
       "file": "contracts/legos/yield/Avantis.vy"
     },
     "SkyPsm": {
-      "address": "0x09437b00357c02a30B9aFB30292B087eC2E36983",
+      "address": "0xEe7B4F2338389A6453E85a65976F3241986492CF",
       "abi": [
         {
           "name": "SkyPsmDeposit",
@@ -51480,7 +51480,7 @@
       "file": "contracts/legos/yield/SkyPsm.vy"
     },
     "LegoTools": {
-      "address": "0xef443Aaa7981166948cEd9499bD69E3C0E19003f",
+      "address": "0x8c76F6e2151CE6794AE3F400C1cB07136058DF72",
       "abi": [
         {
           "name": "DepartmentPauseModified",
