@@ -47,7 +47,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        numUserWalletsAllowed = 100_000,
+        numUserWalletsAllowed = 0,
         enforceCreatorWhitelist = True,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
         maxKeyActionTimeLock = 2 * WEEK_IN_BLOCKS,
