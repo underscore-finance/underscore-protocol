@@ -157,6 +157,7 @@ def switchboard_deploy(undy_hq_deploy, fork):
     return boa.load(
         "contracts/registries/Switchboard.vy",
         undy_hq_deploy,
+        ZERO_ADDRESS,
         PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
         name="switchboard",
@@ -246,7 +247,8 @@ def defaults(fork, user_wallet_template, user_wallet_config_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template, agent_eoa, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template,
+                     user_wallet_config_template, agent_eoa, rewards_asset)
     return d
 
 
@@ -721,16 +723,16 @@ def undy_levg_vault_usdc(undy_hq, levg_vault_helper, mock_usdc_collateral_vault,
         vault.address,
         True,  # isLeveragedVault
         False,  # shouldEnforceAllowlist
-        [], # doesn't matter for leverage vault
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
@@ -772,16 +774,16 @@ def undy_levg_vault_cbbtc(undy_hq, levg_vault_helper, mock_cbbtc_collateral_vaul
         vault.address,
         True,  # isLeveragedVault
         False,  # shouldEnforceAllowlist
-        [], # doesn't matter for leverage vault
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
@@ -823,16 +825,16 @@ def undy_levg_vault_weth(undy_hq, levg_vault_helper, mock_weth_collateral_vault,
         vault.address,
         True,  # isLeveragedVault
         False,  # shouldEnforceAllowlist
-        [], # doesn't matter for leverage vault
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
