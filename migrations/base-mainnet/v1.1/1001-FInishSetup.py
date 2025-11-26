@@ -4,7 +4,6 @@ from scripts.utils.migration import Migration
 def migrate(migration: Migration):
     migration.log.h2("Finish Setup")
     # # TO DO AFTER MIGRATION
-    return
 
     wallet_backpack = migration.get_contract("WalletBackpack")
     migration.execute(wallet_backpack.addPendingKernel, migration.get_address("Kernel"))
@@ -25,6 +24,7 @@ def migrate(migration: Migration):
     migration.execute(wallet_backpack.addPendingMigrator, migration.get_address("Migrator"))
     migration.execute(wallet_backpack.confirmPendingMigrator)
 
+    return
     switchboard_alpha = migration.get_contract("SwitchboardAlpha")
     # some config
     actionId = migration.execute(switchboard_alpha.setCreatorWhitelist,
