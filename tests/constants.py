@@ -65,6 +65,7 @@ class CONFIG_ACTION_TYPE(IntFlag):
     ASSET_AMBASSADOR_REV_SHARE = 8192  # 2^13
     ASSET_YIELD_CONFIG = 16384  # 2^14
     IS_STABLECOIN = 32768  # 2^15
+    AGENT_WRAPPER_SENDER = 65536  # 2^16
 
 
 # Backpack types for WalletBackpack

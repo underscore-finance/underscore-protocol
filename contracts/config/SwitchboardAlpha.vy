@@ -35,11 +35,15 @@ interface MissionControl:
     def setUserWalletConfig(_config: cs.UserWalletConfig): nonpayable
     def canPerformSecurityAction(_signer: address) -> bool: view
     def setManagerConfig(_config: cs.ManagerConfig): nonpayable
+    def assetConfig(_asset: address) -> cs.AssetConfig: view
     def setPayeeConfig(_config: cs.PayeeConfig): nonpayable
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
     def agentConfig() -> cs.AgentConfig: view
-    def assetConfig(_asset: address) -> cs.AssetConfig: view
+
+interface AgentWrapper:
+    def removeSender(_sender: address): nonpayable
+    def addSender(_sender: address): nonpayable
 
 interface LootDistributor:
     def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256): nonpayable
@@ -61,6 +65,7 @@ flag ActionType:
     ASSET_AMBASSADOR_REV_SHARE
     ASSET_YIELD_CONFIG
     IS_STABLECOIN
+    AGENT_WRAPPER_SENDER
 
 struct IsAddrAllowed:
     addr: address
@@ -81,6 +86,10 @@ struct PendingAssetAmbassadorRevShare:
 struct PendingAssetYieldConfig:
     asset: address
     yieldConfig: cs.YieldConfig
+
+struct PendingAgentWrapperSender:
+    agentWrapper: address
+    agentSender: address
 
 event PendingUserWalletTemplatesChange:
     walletTemplate: address
@@ -306,6 +315,20 @@ event RipeRewardsConfigSetFromSwitchboard:
     ripeStakeRatio: uint256
     ripeLockDuration: uint256
 
+event PendingAgentWrapperSenderAdd:
+    agentWrapper: indexed(address)
+    agentSender: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event AgentWrapperSenderAdded:
+    agentWrapper: indexed(address)
+    agentSender: indexed(address)
+
+event AgentWrapperSenderRemoved:
+    agentWrapper: indexed(address)
+    agentSender: indexed(address)
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingUserWalletConfig: public(HashMap[uint256, cs.UserWalletConfig]) # aid -> config
@@ -317,6 +340,7 @@ pendingAgentConfig: public(HashMap[uint256, cs.AgentConfig]) # aid -> config
 pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
 pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
 pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
+pendingAgentWrapperSender: public(HashMap[uint256, PendingAgentWrapperSender])
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -904,6 +928,38 @@ def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivatio
     return True
 
 
+# agent wrapper sender
+
+
+@external
+def setAgentWrapperSender(_agentWrapper: address, _agentSender: address, _shouldAdd: bool) -> uint256:
+    assert self._hasPermsToEnable(msg.sender, _shouldAdd) # dev: no perms
+    assert _agentWrapper != empty(address) # dev: invalid agent wrapper
+    assert _agentSender != empty(address) # dev: invalid agent sender
+
+    # when removing, execute immediately
+    if not _shouldAdd:
+        extcall AgentWrapper(_agentWrapper).removeSender(_agentSender)
+        log AgentWrapperSenderRemoved(agentWrapper=_agentWrapper, agentSender=_agentSender)
+        return 0
+
+    # when adding, use timelock
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.AGENT_WRAPPER_SENDER
+    self.pendingAgentWrapperSender[aid] = PendingAgentWrapperSender(
+        agentWrapper=_agentWrapper,
+        agentSender=_agentSender
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingAgentWrapperSenderAdd(
+        agentWrapper=_agentWrapper,
+        agentSender=_agentSender,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
 ##################
 # Manager Config #
 ##################
@@ -1338,6 +1394,11 @@ def executePendingAction(_aid: uint256) -> bool:
         data: IsAddrAllowed = self.pendingAddrToBool[_aid]
         extcall MissionControl(mc).setCanPerformSecurityAction(data.addr, data.isAllowed)
         log CanPerformSecurityAction(signer=data.addr, canPerform=data.isAllowed)
+
+    elif actionType == ActionType.AGENT_WRAPPER_SENDER:
+        p: PendingAgentWrapperSender = self.pendingAgentWrapperSender[_aid]
+        extcall AgentWrapper(p.agentWrapper).addSender(p.agentSender)
+        log AgentWrapperSenderAdded(agentWrapper=p.agentWrapper, agentSender=p.agentSender)
 
     self.actionType[_aid] = empty(ActionType)
     return True
