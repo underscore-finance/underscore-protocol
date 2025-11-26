@@ -3152,3 +3152,268 @@ def test_set_asset_yield_config_invalid_values_revert(switchboard_alpha, governa
     # Test bonus ratio > 100%
     with boa.reverts("invalid yield params"):
         switchboard_alpha.setAssetYieldConfig(asset, 500, 1000, 5000, 10001, ZERO_ADDRESS, sender=governance.address)
+
+
+##########################
+# Agent Wrapper Sender #
+##########################
+
+
+def test_set_agent_wrapper_sender_add_success(switchboard_alpha, governance, starter_agent, alice):
+    """Test successfully adding a sender to AgentWrapper through full lifecycle"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Verify alice is not a sender initially
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Step 1: Initiate sender addition (should go through timelock)
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,  # _agentWrapper
+        new_sender,             # _agentSender
+        True,                   # _shouldAdd
+        sender=governance.address
+    )
+
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingAgentWrapperSenderAdd")
+    assert len(logs) == 1
+    assert logs[0].agentWrapper == agent_wrapper.address
+    assert logs[0].agentSender == new_sender
+    assert logs[0].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+
+    # Step 3: Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+    pending_data = switchboard_alpha.pendingAgentWrapperSender(aid)
+    assert pending_data.agentWrapper == agent_wrapper.address
+    assert pending_data.agentSender == new_sender
+
+    # Step 4: Try to execute before timelock - should fail
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Verify no state change yet
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Step 5: Time travel to reach timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+
+    # Step 6: Execute the action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderAdded")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].agentWrapper == agent_wrapper.address
+    assert exec_logs[0].agentSender == new_sender
+
+    # Step 8: Verify the sender was added to AgentWrapper
+    assert agent_wrapper.indexOfSender(new_sender) != 0
+
+    # Step 9: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_agent_wrapper_sender_remove_success(switchboard_alpha, governance, starter_agent, starter_agent_sender):
+    """Test successfully removing a sender from AgentWrapper - applies immediately"""
+    agent_wrapper = starter_agent
+    sender_to_remove = starter_agent_sender.address
+
+    # Verify sender exists initially
+    assert agent_wrapper.indexOfSender(sender_to_remove) != 0
+    initial_num_senders = agent_wrapper.numSenders()
+
+    # Remove sender - this should apply immediately
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,  # _agentWrapper
+        sender_to_remove,       # _agentSender
+        False,                  # _shouldAdd (removing)
+        sender=governance.address
+    )
+
+    # Verify execution event was emitted immediately
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderRemoved")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].agentWrapper == agent_wrapper.address
+    assert exec_logs[0].agentSender == sender_to_remove
+
+    # Verify the sender was removed immediately
+    assert agent_wrapper.indexOfSender(sender_to_remove) == 0
+    assert agent_wrapper.numSenders() == initial_num_senders - 1
+
+    # aid should be 0 (no pending action since it was applied immediately)
+    assert aid == 0
+
+    # There should be no pending action
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_agent_wrapper_sender_add_non_governance_reverts(switchboard_alpha, alice, bob, starter_agent):
+    """Test that non-governance addresses cannot add senders"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            bob,
+            True,  # adding
+            sender=alice
+        )
+
+
+def test_set_agent_wrapper_sender_remove_by_security_council(switchboard_alpha, governance, starter_agent, starter_agent_sender, bob, mission_control):
+    """Test that security council can remove senders immediately"""
+    agent_wrapper = starter_agent
+    sender_to_remove = starter_agent_sender.address
+
+    # First enable bob as security council member
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+
+    # Verify sender exists
+    assert agent_wrapper.indexOfSender(sender_to_remove) != 0
+
+    # Bob (security council) removes sender - should work immediately
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        sender_to_remove,
+        False,  # removing
+        sender=bob
+    )
+
+    # Verify removal happened immediately
+    assert aid == 0
+    assert agent_wrapper.indexOfSender(sender_to_remove) == 0
+
+    # Verify event
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderRemoved")
+    assert exec_logs[-1].agentWrapper == agent_wrapper.address
+    assert exec_logs[-1].agentSender == sender_to_remove
+
+
+def test_set_agent_wrapper_sender_add_by_security_council_reverts(switchboard_alpha, governance, starter_agent, bob, mission_control):
+    """Test that security council cannot add senders (only governance can)"""
+    # First enable bob as security council member
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+
+    # Bob (security council) tries to add sender - should fail
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            bob,  # trying to add bob as sender
+            True,  # adding
+            sender=bob
+        )
+
+
+def test_set_agent_wrapper_sender_invalid_addresses_revert(switchboard_alpha, governance, starter_agent, alice):
+    """Test that invalid addresses are rejected"""
+    # Test with zero agent wrapper address
+    with boa.reverts("invalid agent wrapper"):
+        switchboard_alpha.setAgentWrapperSender(
+            ZERO_ADDRESS,
+            alice,
+            True,
+            sender=governance.address
+        )
+
+    # Test with zero agent sender address
+    with boa.reverts("invalid agent sender"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            ZERO_ADDRESS,
+            True,
+            sender=governance.address
+        )
+
+    # Test with both zero addresses
+    with boa.reverts("invalid agent wrapper"):
+        switchboard_alpha.setAgentWrapperSender(
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            True,
+            sender=governance.address
+        )
+
+
+def test_set_agent_wrapper_sender_cancel_pending_add(switchboard_alpha, governance, starter_agent, alice):
+    """Test canceling a pending sender addition"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Initiate sender addition
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        True,
+        sender=governance.address
+    )
+
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+
+    # Cancel the pending action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+    # Try to execute canceled action - should fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Verify sender was not added
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+
+def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, starter_agent, alice, bob, mission_control):
+    """Test full lifecycle: add sender with timelock, verify it works, remove immediately"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Step 1: Add sender through timelock
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        True,
+        sender=governance.address
+    )
+
+    # Verify pending
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify sender was added
+    assert agent_wrapper.indexOfSender(new_sender) != 0
+    num_senders_after_add = agent_wrapper.numSenders()
+
+    # Step 2: Enable bob as security council
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+
+    # Step 3: Security council removes sender immediately
+    aid_remove = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        False,
+        sender=bob
+    )
+
+    # Verify immediate removal
+    assert aid_remove == 0
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+    assert agent_wrapper.numSenders() == num_senders_after_add - 1
