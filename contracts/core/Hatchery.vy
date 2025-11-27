@@ -205,4 +205,4 @@ def doesWalletStillHaveTrialFundsWithAddys(
     _ledger: address,
 ) -> bool:
     # backwards compatibility (legacy wallets)
-    return False
+    return True
