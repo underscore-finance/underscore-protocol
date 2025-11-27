@@ -3,27 +3,18 @@
 struct UserWalletConfig:
     walletTemplate: address
     configTemplate: address
-    trialAsset: address
-    trialAmount: uint256
     numUserWalletsAllowed: uint256
     enforceCreatorWhitelist: bool
     minKeyActionTimeLock: uint256
     maxKeyActionTimeLock: uint256
-    defaultStaleBlocks: uint256
     depositRewardsAsset: address
+    lootClaimCoolOffPeriod: uint256
     txFees: TxFees
     ambassadorRevShare: AmbassadorRevShare
-    defaultYieldMaxIncrease: uint256
-    defaultYieldPerformanceFee: uint256
-    defaultYieldAmbassadorBonusRatio: uint256
-    defaultYieldBonusRatio: uint256
-    defaultYieldAltBonusAsset: address
-    lootClaimCoolOffPeriod: uint256
+    yieldConfig: YieldConfig
 
 struct AssetConfig:
-    legoId: uint256
-    decimals: uint256
-    staleBlocks: uint256
+    hasConfig: bool
     txFees: TxFees
     ambassadorRevShare: AmbassadorRevShare
     yieldConfig: YieldConfig
@@ -39,25 +30,23 @@ struct AmbassadorRevShare:
     yieldRatio: uint256
 
 struct YieldConfig:
-    isYieldAsset: bool
-    isRebasing: bool
-    underlyingAsset: address
     maxYieldIncrease: uint256
     performanceFee: uint256
     ambassadorBonusRatio: uint256
     bonusRatio: uint256
-    altBonusAsset: address
+    bonusAsset: address
 
 struct AgentConfig:
-    agentTemplate: address
-    numAgentsAllowed: uint256
-    enforceCreatorWhitelist: bool
     startingAgent: address
     startingAgentActivationLength: uint256
 
 struct ManagerConfig:
     managerPeriod: uint256
     managerActivationLength: uint256
+    mustHaveUsdValueOnSwaps: bool
+    maxNumSwapsPerPeriod: uint256
+    maxSlippageOnSwaps: uint256
+    onlyApprovedYieldOpps: bool
 
 struct PayeeConfig:
     payeePeriod: uint256

@@ -41,9 +41,15 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+interface MorphoBlue:
+    def market(_id: bytes32) -> MorphoMarket: view
+    def position(_id: bytes32, _user: address) -> MorphoPosition: view
+    def idToMarketParams(_id: bytes32) -> MarketParams: view
+
+interface MetaMorphoV1:
+    def MORPHO() -> address: view
+    def withdrawQueue(_index: uint256) -> bytes32: view
+    def withdrawQueueLength() -> uint256: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
@@ -52,11 +58,34 @@ interface Registry:
 interface MorphoRewardsDistributor:
     def claim(_user: address, _rewardToken: address, _claimable: uint256, _proofs: DynArray[bytes32, MAX_PROOFS]) -> uint256: nonpayable
 
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
+
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface MetaMorphoFactory:
     def isMetaMorpho(_vault: address) -> bool: view
+
+struct MorphoMarket:
+    totalSupplyAssets: uint128
+    totalSupplyShares: uint128
+    totalBorrowAssets: uint128
+    totalBorrowShares: uint128
+    lastUpdate: uint128
+    fee: uint128
+
+struct MorphoPosition:
+    supplyShares: uint256
+    borrowShares: uint128
+    collateral: uint128
+
+struct MarketParams:
+    loanToken: address
+    collateralToken: address
+    oracle: address
+    irm: address
+    lltv: uint256
 
 event MorphoDeposit:
     sender: indexed(address)
@@ -89,6 +118,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -155,7 +185,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall IERC4626(_vaultToken).asset()
 
 
 # underlying balances (both true and safe)
@@ -251,7 +284,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -303,32 +336,136 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
-# extras
+# total assets
 
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows (assets lent out from underlying markets)
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
+    queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
+
+    # iterate through withdraw queue markets
+    totalBorrows: uint256 = 0
+    for i: uint256 in range(queueLen, bound=max_value(uint256)):
+        marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
+
+        # vault's position in market
+        pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
+        if pos.supplyShares == 0:
+            continue
+
+        # market data
+        mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
+        if mkt.totalSupplyShares == 0 or mkt.totalSupplyAssets == 0:
+            continue
+
+        # convert once, reuse
+        totalSupplyAssets: uint256 = convert(mkt.totalSupplyAssets, uint256)
+        totalSupplyShares: uint256 = convert(mkt.totalSupplyShares, uint256)
+        totalBorrowAssets: uint256 = convert(mkt.totalBorrowAssets, uint256)
+
+        # calculate vault's supply assets from shares
+        vaultSupplyAssets: uint256 = pos.supplyShares * totalSupplyAssets // totalSupplyShares
+
+        # vault's share of borrows = (vaultSupply / totalSupply) * totalBorrows
+        vaultShareOfBorrows: uint256 = vaultSupplyAssets * totalBorrowAssets // totalSupplyAssets
+        totalBorrows += vaultShareOfBorrows
+
+    return totalBorrows
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return self._getAvailLiquidity(_vaultToken)
+
+
+@view
+@internal
+def _getAvailLiquidity(_vaultToken: address) -> uint256:
+    morpho: address = staticcall MetaMorphoV1(_vaultToken).MORPHO()
+    queueLen: uint256 = staticcall MetaMorphoV1(_vaultToken).withdrawQueueLength()
+
+    # iterate through withdraw queue markets
+    totalAvailLiquidity: uint256 = 0
+    for i: uint256 in range(queueLen, bound=max_value(uint256)):
+        marketId: bytes32 = staticcall MetaMorphoV1(_vaultToken).withdrawQueue(i)
+
+        # vault's position in market
+        pos: MorphoPosition = staticcall MorphoBlue(morpho).position(marketId, _vaultToken)
+        if pos.supplyShares == 0:
+            continue
+
+        # market data
+        mkt: MorphoMarket = staticcall MorphoBlue(morpho).market(marketId)
+        if mkt.totalSupplyShares == 0:
+            continue
+
+        # convert once, reuse
+        totalSupplyAssets: uint256 = convert(mkt.totalSupplyAssets, uint256)
+        totalSupplyShares: uint256 = convert(mkt.totalSupplyShares, uint256)
+        totalBorrowAssets: uint256 = convert(mkt.totalBorrowAssets, uint256)
+
+        # calculate vault's supply assets from shares
+        vaultSupplyAssets: uint256 = pos.supplyShares * totalSupplyAssets // totalSupplyShares
+
+        # market liquidity = totalSupplyAssets - totalBorrowAssets
+        marketLiquidity: uint256 = 0
+        if totalSupplyAssets > totalBorrowAssets:
+            marketLiquidity = totalSupplyAssets - totalBorrowAssets
+
+        # vault's available liquidity = min(vault's supply, market liquidity)
+        totalAvailLiquidity += min(vaultSupplyAssets, marketLiquidity)
+
+    return totalAvailLiquidity
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # utilization = borrows / totalAssets (how much is lent out vs available)
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# extras
 
 
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
 
 
 @view
@@ -358,6 +495,7 @@ def _canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool:
         return False
     if staticcall IERC4626(_vaultToken).asset() != _asset:
         return False
+    # check V1 factories (v1.0 and v1.1)
     return staticcall MetaMorphoFactory(MORPHO_FACTORY).isMetaMorpho(_vaultToken) or staticcall MetaMorphoFactory(MORPHO_FACTORY_LEGACY).isMetaMorpho(_vaultToken)
 
 
@@ -476,7 +614,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log MorphoDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -545,7 +683,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log MorphoWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
@@ -597,7 +735,7 @@ def claimIncentives(
     assert morphoRewards != empty(address) # dev: no morpho rewards addr set
 
     rewardAmount: uint256 = extcall MorphoRewardsDistributor(morphoRewards).claim(_user, _rewardToken, _rewardAmount, _proofs)
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, rewardAmount)
     return rewardAmount, usdValue
 
 

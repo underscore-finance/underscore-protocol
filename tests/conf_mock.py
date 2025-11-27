@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
-from config.BluePrint import TOKENS
+from config.BluePrint import TOKENS, PARAMS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
 
@@ -13,14 +13,16 @@ from contracts.core.agent import AgentWrapper
 @pytest.fixture(scope="session")
 def ambassador_wallet(hatchery, alice, mission_control, switchboard_alpha, starter_agent):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
-    wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, False, 1, sender=switchboard_alpha.address)
+    wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, sender=switchboard_alpha.address)
     return UserWallet.at(wallet_addr)
 
 
 @pytest.fixture(scope="session")
 def user_wallet(hatchery, bob, ambassador_wallet, mission_control, switchboard_alpha, starter_agent):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
-    wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, False, 1, sender=switchboard_alpha.address)
+    # Add creator to whitelist so they can set an ambassador
+    mission_control.setCreatorWhitelist(switchboard_alpha.address, True, sender=switchboard_alpha.address)
+    wallet_addr = hatchery.createUserWallet(bob, ambassador_wallet, 1, sender=switchboard_alpha.address)
     return UserWallet.at(wallet_addr)
 
 
@@ -30,9 +32,27 @@ def user_wallet_config(user_wallet):
 
 
 @pytest.fixture(scope="session")
-def starter_agent(hatchery, charlie, switchboard_alpha):
-    agent_address = hatchery.createAgent(charlie, sender=switchboard_alpha.address)
-    return AgentWrapper.at(agent_address)
+def starter_agent(undy_hq_deploy, switchboard_alpha, starter_agent_sender):
+    agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        name="starter_agent",
+    )
+    agent.addSender(starter_agent_sender, sender=switchboard_alpha.address)
+    return agent
+
+
+@pytest.fixture(scope="session")
+def starter_agent_sender(undy_hq_deploy, charlie, fork):
+    return boa.load(
+        "contracts/core/agent/AgentSenderGeneric.vy",
+        undy_hq_deploy,
+        charlie,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="starter_agent_sender",
+    )
 
 
 ############
@@ -330,10 +350,11 @@ def another_rando_contract():
 
 
 @pytest.fixture(scope="session")
-def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale):
-    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, name="mock_ripe")
+def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale, mock_usdc):
+    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, mock_usdc, name="mock_ripe")
     mock_green_token.setMinter(ripe_registry, True, sender=governance.address)
     mock_ripe_token.setMinter(ripe_registry, True, sender=governance.address)
+    mock_usdc.setMinter(ripe_registry, True, sender=governance.address)
     return ripe_registry
 
 

@@ -42,6 +42,7 @@ interface CompoundV2:
     def totalBorrows() -> uint256: view
     def totalSupply() -> uint256: view
     def underlying() -> address: view
+    def getCash() -> uint256: view
 
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
@@ -53,16 +54,15 @@ interface MoonwellComptroller:
     def claimReward(_holder: address): nonpayable
     def rewardDistributor() -> address: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
 
 interface MoonwellRewardDistributor:
     def getOutstandingRewardsForUser(_user: address) -> DynArray[RewardWithMToken, MAX_MARKETS]: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -107,6 +107,7 @@ MAX_MARKETS: constant(uint256) = 50
 MAX_ASSETS: constant(uint256) = 25
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -176,7 +177,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall CompoundV2(_vaultToken).underlying()
 
 
 # underlying balances (both true and safe)
@@ -272,7 +276,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -324,31 +328,65 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return _assetAmount * (10 ** 18) // staticcall CompoundV2(_vaultToken).exchangeRateStored()
 
 
-# extras
+# total assets
 
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).totalSupply() * staticcall CompoundV2(_vaultToken).exchangeRateStored() // (10 ** 18)
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).totalBorrows()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return staticcall CompoundV2(_vaultToken).getCash()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(_vaultToken)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# extras
 
 
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall CompoundV2(_vaultToken).totalSupply() * staticcall CompoundV2(_vaultToken).exchangeRateStored() // (10 ** 18)
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    return staticcall CompoundV2(_vaultToken).totalBorrows()
 
 
 @view
@@ -502,7 +540,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log MoonwellDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -580,7 +618,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log MoonwellWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
@@ -657,7 +695,7 @@ def _claimIncentives(
     rewardAmount: uint256 = staticcall IERC20(_rewardToken).balanceOf(_user) - preBalance
     assert rewardAmount != 0 # dev: no rewards received
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_rewardToken, rewardAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_rewardToken, rewardAmount)
     return rewardAmount, usdValue
 
 

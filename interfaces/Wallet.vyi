@@ -23,6 +23,7 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
 def apiVersion() -> String[28]:
     ...
 
+
 ##################
 # Transfer Funds #
 ##################
@@ -34,7 +35,7 @@ def transferFunds(
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
     _isCheque: bool = False,
-    _isTrustedTx: bool = False,
+    _isSpecialTx: bool = False,
 ) -> (uint256, uint256):
     ...
 
@@ -67,7 +68,7 @@ def withdrawFromYield(
     _vaultToken: address,
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
-    _isTrustedTx: bool = False,
+    _isSpecialTx: bool = False,
 ) -> (uint256, address, uint256, uint256):
     ...
 

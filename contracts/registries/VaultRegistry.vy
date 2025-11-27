@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 implements: Department
 
@@ -20,12 +21,20 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
+from interfaces import YieldLego as YieldLego
+from ethereum.ercs import IERC4626
+
+interface EarnVault:
+    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
 
 interface Ledger:
     def vaultTokens(_vaultToken: address) -> VaultToken: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+
+interface LevgVault:
+    def isLeveragedVault() -> bool: view
 
 struct VaultConfig:
     canDeposit: bool
@@ -37,6 +46,8 @@ struct VaultConfig:
     performanceFee: uint256
     shouldAutoDeposit: bool
     defaultTargetVaultToken: address
+    isLeveragedVault: bool
+    shouldEnforceAllowlist: bool
 
 struct VaultToken:
     legoId: uint256
@@ -91,17 +102,65 @@ event ShouldAutoDepositSet:
     vaultAddr: indexed(address)
     shouldAutoDeposit: bool
 
-event ApprovedVaultTokenSet:
+event IsLeveragedVaultSet:
     vaultAddr: indexed(address)
+    isLeveragedVault: bool
+
+event ApprovedVaultTokenSet:
+    undyVaultAddr: indexed(address)
+    underlyingAsset: indexed(address)
     vaultToken: indexed(address)
     isApproved: bool
+    shouldMaxWithdraw: bool
+
+event VaultTokenAdded:
+    undyVaultAddr: indexed(address)
+    underlyingAsset: indexed(address)
+    vaultToken: indexed(address)
+
+event VaultTokenRemoved:
+    undyVaultAddr: indexed(address)
+    underlyingAsset: indexed(address)
+    vaultToken: indexed(address)
+
+event AssetVaultTokenAdded:
+    asset: indexed(address)
+    vaultToken: indexed(address)
+
+event AssetVaultTokenRemoved:
+    asset: indexed(address)
+    vaultToken: indexed(address)
+
+event ShouldEnforceAllowlistSet:
+    undyVault: indexed(address)
+    shouldEnforce: bool
+
+event AllowlistSet:
+    undyVault: indexed(address)
+    user: indexed(address)
+    isAllowed: bool
 
 # config
 vaultConfigs: public(HashMap[address, VaultConfig]) # vault addr -> vault config
 isApprovedVaultToken: public(HashMap[address, HashMap[address, bool]]) # vault addr -> vault token -> is approved
 
-ONE_WEEK_SECONDS: constant(uint256) = 60 * 60 * 24 * 7
+# iterable approved vault tokens per vault
+approvedVaultTokens: public(HashMap[address, HashMap[uint256, address]]) # vault addr -> index -> vault token
+indexOfApprovedVaultToken: public(HashMap[address, HashMap[address, uint256]]) # vault addr -> vault token -> index
+numApprovedVaultTokens: public(HashMap[address, uint256]) # vault addr -> count
+
+# iterable vault tokens per underlying asset (combined across all vaults)
+assetVaultTokens: public(HashMap[address, HashMap[uint256, address]]) # underlying asset -> index -> vault token
+indexOfAssetVaultToken: public(HashMap[address, HashMap[address, uint256]]) # underlying asset -> vault token -> index
+numAssetVaultTokens: public(HashMap[address, uint256]) # underlying asset -> count
+assetVaultTokenRefCount: public(HashMap[address, HashMap[address, uint256]]) # underlying asset -> vault token -> ref count
+
+# allowlist
+isAllowed: public(HashMap[address, HashMap[address, bool]]) # vault addr -> user addr -> is allowed
+
+MAX_VAULT_TOKENS: constant(uint256) = 50
 HUNDRED_PERCENT: constant(uint256) = 100_00
+MAX_ALLOWLIST_BATCH: constant(uint256) = 50
 
 
 @deploy
@@ -117,15 +176,6 @@ def __init__(
     deptBasics.__init__(False, False) # no minting
 
 
-# is earn vault
-
-
-@view
-@external
-def isEarnVault(_vaultAddr: address) -> bool:
-    return registry._isValidAddr(_vaultAddr) or self._hasConfig(_vaultAddr)
-
-
 # gov access
 
 
@@ -135,20 +185,56 @@ def _canPerformAction(_caller: address) -> bool:
     return gov._canGovern(_caller) and not deptBasics.isPaused
 
 
+# vault helpers
+
+
+@view
+@external
+def isEarnVault(_undyVaultAddr: address) -> bool:
+    return self._isEarnVault(_undyVaultAddr)
+
+
+@view
+@internal
+def _isEarnVault(_undyVaultAddr: address) -> bool:
+    return registry._isValidAddr(_undyVaultAddr) or self._hasConfig(_undyVaultAddr)
+
+
+@view
+@external
+def isLeveragedVault(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].isLeveragedVault
+
+
+@view
+@external
+def isBasicEarnVault(_undyVaultAddr: address) -> bool:
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    hasConfig: bool = self._checkConfig(config)
+    if not hasConfig:
+        return False
+    return not config.isLeveragedVault
+
+
 # has config
 
 
 @view
 @external
-def hasConfig(_vaultAddr: address) -> bool:
-    return self._hasConfig(_vaultAddr)
+def hasConfig(_undyVaultAddr: address) -> bool:
+    return self._hasConfig(_undyVaultAddr)
 
 
 @view
 @internal
-def _hasConfig(_vaultAddr: address) -> bool:
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
-    return config.redemptionBuffer != 0 or config.minYieldWithdrawAmount != 0 or config.performanceFee != 0 or config.defaultTargetVaultToken != empty(address) or config.shouldAutoDeposit or config.canDeposit or config.canWithdraw
+def _hasConfig(_undyVaultAddr: address) -> bool:
+    return self._checkConfig(self.vaultConfigs[_undyVaultAddr])
+
+
+@view
+@internal
+def _checkConfig(_config: VaultConfig) -> bool:
+    return _config.redemptionBuffer != 0 or _config.minYieldWithdrawAmount != 0 or _config.performanceFee != 0 or _config.defaultTargetVaultToken != empty(address) or _config.shouldAutoDeposit or _config.canDeposit or _config.canWithdraw
 
 
 ############
@@ -157,15 +243,17 @@ def _hasConfig(_vaultAddr: address) -> bool:
 
 
 @external
-def startAddNewAddressToRegistry(_vaultAddr: address, _description: String[64]) -> bool:
+def startAddNewAddressToRegistry(_undyVaultAddr: address, _description: String[64]) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
-    return registry._startAddNewAddressToRegistry(_vaultAddr, _description)
+    return registry._startAddNewAddressToRegistry(_undyVaultAddr, _description)
 
 
 @external
 def confirmNewAddressToRegistry(
-    _vaultAddr: address,
-    _approvedVaultTokens: DynArray[address, 25] = [],
+    _undyVaultAddr: address,
+    _isLeveragedVault: bool = False,
+    _shouldEnforceAllowlist: bool = True,
+    _approvedVaultTokens: DynArray[address, MAX_VAULT_TOKENS] = [],
     _maxDepositAmount: uint256 = max_value(uint256),
     _minYieldWithdrawAmount: uint256 = 0,
     _performanceFee: uint256 = 20_00, # 20.00%
@@ -177,10 +265,12 @@ def confirmNewAddressToRegistry(
     _redemptionBuffer: uint256 = 2_00, # 2.00%
 ) -> uint256:
     assert self._canPerformAction(msg.sender) # dev: no perms
-    regId: uint256 = registry._confirmNewAddressToRegistry(_vaultAddr)
+    regId: uint256 = registry._confirmNewAddressToRegistry(_undyVaultAddr)
     if regId != 0:
         self._initializeVaultConfig(
-            _vaultAddr,
+            _undyVaultAddr,
+            _isLeveragedVault,
+            _shouldEnforceAllowlist,
             _maxDepositAmount,
             _minYieldWithdrawAmount,
             _approvedVaultTokens,
@@ -196,9 +286,9 @@ def confirmNewAddressToRegistry(
 
 
 @external
-def cancelNewAddressToRegistry(_vaultAddr: address) -> bool:
+def cancelNewAddressToRegistry(_undyVaultAddr: address) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
-    return registry._cancelNewAddressToRegistry(_vaultAddr)
+    return registry._cancelNewAddressToRegistry(_undyVaultAddr)
 
 
 # set vault config
@@ -206,10 +296,12 @@ def cancelNewAddressToRegistry(_vaultAddr: address) -> bool:
 
 @internal
 def _initializeVaultConfig(
-    _vaultAddr: address,
+    _undyVaultAddr: address,
+    _isLeveragedVault: bool,
+    _shouldEnforceAllowlist: bool,
     _maxDepositAmount: uint256,
     _minYieldWithdrawAmount: uint256,
-    _approvedVaultTokens: DynArray[address, 25],
+    _approvedVaultTokens: DynArray[address, MAX_VAULT_TOKENS],
     _performanceFee: uint256,
     _defaultTargetVaultToken: address,
     _shouldAutoDeposit: bool,
@@ -218,11 +310,19 @@ def _initializeVaultConfig(
     _isVaultOpsFrozen: bool,
     _redemptionBuffer: uint256,
 ):
-    assert registry._isValidAddr(_vaultAddr) # dev: invalid vault addr
+    assert registry._isValidAddr(_undyVaultAddr) # dev: invalid vault addr
 
     # validation
     assert self._isValidRedemptionBuffer(_redemptionBuffer) # dev: invalid redemption buffer
     assert self._isValidPerformanceFee(_performanceFee) # dev: invalid performance fee
+
+    # validate leveraged vault
+    if _isLeveragedVault:
+        assert staticcall LevgVault(_undyVaultAddr).isLeveragedVault() # dev: invalid leveraged vault
+
+    # underlying asset
+    underlyingAsset: address = staticcall IERC4626(_undyVaultAddr).asset()
+    assert underlyingAsset != empty(address) # dev: invalid underlying asset
 
     # target token
     if _defaultTargetVaultToken != empty(address):
@@ -238,13 +338,17 @@ def _initializeVaultConfig(
         performanceFee = _performanceFee,
         shouldAutoDeposit = _shouldAutoDeposit,
         defaultTargetVaultToken = _defaultTargetVaultToken,
+        isLeveragedVault = _isLeveragedVault,
+        shouldEnforceAllowlist = _shouldEnforceAllowlist,
     )
-    self.vaultConfigs[_vaultAddr] = config
+    self.vaultConfigs[_undyVaultAddr] = config
 
     # approve vault tokens
-    for vaultToken: address in _approvedVaultTokens:
-        if vaultToken != empty(address):
-            self.isApprovedVaultToken[_vaultAddr][vaultToken] = True
+    if len(_approvedVaultTokens) != 0:
+        for vaultToken: address in _approvedVaultTokens:
+            if vaultToken != empty(address):
+                self.isApprovedVaultToken[_undyVaultAddr][vaultToken] = True
+                self._addApprovedVaultToken(_undyVaultAddr, underlyingAsset, vaultToken)
 
 
 #################
@@ -288,96 +392,121 @@ def _canDisableVault(_regId: uint256) -> bool:
 
 
 @external
-def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
+def setCanDeposit(_undyVaultAddr: address, _canDeposit: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.canDeposit = _canDeposit
-    self.vaultConfigs[_vaultAddr] = config
-    log CanDepositSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log CanDepositSet(vaultAddr=_undyVaultAddr, canDeposit=_canDeposit)
 
 
 @external
-def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
+def setCanWithdraw(_undyVaultAddr: address, _canWithdraw: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.canWithdraw = _canWithdraw
-    self.vaultConfigs[_vaultAddr] = config
-    log CanWithdrawSet(vaultAddr=_vaultAddr, canWithdraw=_canWithdraw)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log CanWithdrawSet(vaultAddr=_undyVaultAddr, canWithdraw=_canWithdraw)
 
 
 @external
-def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256):
+def setMaxDepositAmount(_undyVaultAddr: address, _maxDepositAmount: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.maxDepositAmount = _maxDepositAmount
-    self.vaultConfigs[_vaultAddr] = config
-    log MaxDepositAmountSet(vaultAddr=_vaultAddr, maxDepositAmount=_maxDepositAmount)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log MaxDepositAmountSet(vaultAddr=_undyVaultAddr, maxDepositAmount=_maxDepositAmount)
 
 
 @external
-def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
+def setVaultOpsFrozen(_undyVaultAddr: address, _isFrozen: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.isVaultOpsFrozen = _isFrozen
-    self.vaultConfigs[_vaultAddr] = config
-    log VaultOpsFrozenSet(vaultAddr=_vaultAddr, isFrozen=_isFrozen)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log VaultOpsFrozenSet(vaultAddr=_undyVaultAddr, isFrozen=_isFrozen)
 
 
 @external
-def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
+def setShouldAutoDeposit(_undyVaultAddr: address, _shouldAutoDeposit: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.shouldAutoDeposit = _shouldAutoDeposit
-    self.vaultConfigs[_vaultAddr] = config
-    log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log ShouldAutoDepositSet(vaultAddr=_undyVaultAddr, shouldAutoDeposit=_shouldAutoDeposit)
 
 
 @external
-def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256):
+def setMinYieldWithdrawAmount(_undyVaultAddr: address, _amount: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.minYieldWithdrawAmount = _amount
-    self.vaultConfigs[_vaultAddr] = config
-    log MinYieldWithdrawAmountSet(vaultAddr=_vaultAddr, amount=_amount)
-
-
-############################
-# Approved Yield Positions #
-############################
+    self.vaultConfigs[_undyVaultAddr] = config
+    log MinYieldWithdrawAmountSet(vaultAddr=_undyVaultAddr, amount=_amount)
 
 
 @external
-def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool):
+def setIsLeveragedVault(_undyVaultAddr: address, _isLeveragedVault: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
-    assert self._isValidVaultToken(_vaultToken) # dev: invalid vault token
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
 
-    self.isApprovedVaultToken[_vaultAddr][_vaultToken] = _isApproved
-    log ApprovedVaultTokenSet(vaultAddr=_vaultAddr, vaultToken=_vaultToken, isApproved=_isApproved)
+    # validate leveraged vault
+    if _isLeveragedVault:
+        assert staticcall LevgVault(_undyVaultAddr).isLeveragedVault() # dev: invalid leveraged vault
+
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    config.isLeveragedVault = _isLeveragedVault
+    self.vaultConfigs[_undyVaultAddr] = config
+    log IsLeveragedVaultSet(vaultAddr=_undyVaultAddr, isLeveragedVault=_isLeveragedVault)
 
 
-@view
+#############
+# Allowlist #
+#############
+
+
 @external
-def isValidVaultToken(_vaultToken: address) -> bool:
-    return self._isValidVaultToken(_vaultToken)
+def setShouldEnforceAllowlist(_undyVaultAddr: address, _shouldEnforce: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    config.shouldEnforceAllowlist = _shouldEnforce
+    self.vaultConfigs[_undyVaultAddr] = config
+    log ShouldEnforceAllowlistSet(undyVault=_undyVaultAddr, shouldEnforce=_shouldEnforce)
 
 
-@view
-@internal
-def _isValidVaultToken(_vaultToken: address) -> bool:
-    return _vaultToken != empty(address)
+@external
+def setAllowed(_undyVaultAddr: address, _user: address, _isAllowed: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+    assert _user != empty(address) # dev: invalid user addr
+
+    self.isAllowed[_undyVaultAddr][_user] = _isAllowed
+    log AllowlistSet(undyVault=_undyVaultAddr, user=_user, isAllowed=_isAllowed)
+
+
+@external
+def setAllowedBatch(_undyVaultAddr: address, _users: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    for user: address in _users:
+        if user != empty(address):
+            self.isAllowed[_undyVaultAddr][user] = _isAllowed
+            log AllowlistSet(undyVault=_undyVaultAddr, user=user, isAllowed=_isAllowed)
 
 
 ######################
@@ -386,29 +515,29 @@ def _isValidVaultToken(_vaultToken: address) -> bool:
 
 
 @external
-def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address):
+def setDefaultTargetVaultToken(_undyVaultAddr: address, _targetVaultToken: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
-    assert self._isValidDefaultTargetVaultToken(_vaultAddr, _targetVaultToken) # dev: invalid default target vault token
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+    assert self._isValidDefaultTargetVaultToken(_undyVaultAddr, _targetVaultToken) # dev: invalid default target vault token
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.defaultTargetVaultToken = _targetVaultToken
-    self.vaultConfigs[_vaultAddr] = config
-    log DefaultTargetVaultTokenSet(vaultAddr=_vaultAddr, targetVaultToken=_targetVaultToken)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log DefaultTargetVaultTokenSet(vaultAddr=_undyVaultAddr, targetVaultToken=_targetVaultToken)
 
 
 @view
 @external
-def isValidDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address) -> bool:
-    return self._isValidDefaultTargetVaultToken(_vaultAddr, _targetVaultToken)
+def isValidDefaultTargetVaultToken(_undyVaultAddr: address, _targetVaultToken: address) -> bool:
+    return self._isValidDefaultTargetVaultToken(_undyVaultAddr, _targetVaultToken)
 
 
 @view
 @internal
-def _isValidDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address) -> bool:
+def _isValidDefaultTargetVaultToken(_undyVaultAddr: address, _targetVaultToken: address) -> bool:
     if _targetVaultToken == empty(address):
         return True
-    return self.isApprovedVaultToken[_vaultAddr][_targetVaultToken]
+    return self.isApprovedVaultToken[_undyVaultAddr][_targetVaultToken]
 
 
 ###################
@@ -417,15 +546,15 @@ def _isValidDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: addr
 
 
 @external
-def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256):
+def setPerformanceFee(_undyVaultAddr: address, _performanceFee: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
     assert self._isValidPerformanceFee(_performanceFee) # dev: invalid performance fee
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.performanceFee = _performanceFee
-    self.vaultConfigs[_vaultAddr] = config
-    log PerformanceFeeSet(vaultAddr=_vaultAddr, performanceFee=_performanceFee)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log PerformanceFeeSet(vaultAddr=_undyVaultAddr, performanceFee=_performanceFee)
 
 
 @view
@@ -446,15 +575,15 @@ def _isValidPerformanceFee(_performanceFee: uint256) -> bool:
 
 
 @external
-def setRedemptionBuffer(_vaultAddr: address, _buffer: uint256):
+def setRedemptionBuffer(_undyVaultAddr: address, _buffer: uint256):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self._hasConfig(_vaultAddr) # dev: invalid vault addr
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
     assert self._isValidRedemptionBuffer(_buffer) # dev: invalid redemption buffer
 
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     config.redemptionBuffer = _buffer
-    self.vaultConfigs[_vaultAddr] = config
-    log RedemptionBufferSet(vaultAddr=_vaultAddr, buffer=_buffer)
+    self.vaultConfigs[_undyVaultAddr] = config
+    log RedemptionBufferSet(vaultAddr=_undyVaultAddr, buffer=_buffer)
 
 
 @view
@@ -469,6 +598,225 @@ def _isValidRedemptionBuffer(_buffer: uint256) -> bool:
     return _buffer <= 10_00
 
 
+############################
+# Approved Yield Positions #
+############################
+
+
+@external
+def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self._setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved, _shouldMaxWithdraw)
+
+
+@external
+def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    for vaultToken: address in _vaultTokens:
+        self._setApprovedVaultToken(_undyVaultAddr, vaultToken, _isApproved, _shouldMaxWithdraw)
+
+
+# set approved
+
+
+@internal
+def _setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool):
+    assert self._hasConfig(_undyVaultAddr) # dev: invalid vault addr
+
+    underlyingAsset: address = staticcall IERC4626(_undyVaultAddr).asset()
+    assert empty(address) not in [_undyVaultAddr, underlyingAsset, _vaultToken] # dev: invalid params
+
+    # set approval status
+    self.isApprovedVaultToken[_undyVaultAddr][_vaultToken] = _isApproved
+
+    # update iterable lists
+    if _isApproved:
+        self._addApprovedVaultToken(_undyVaultAddr, underlyingAsset, _vaultToken)
+    else:
+        self._removeApprovedVaultToken(_undyVaultAddr, underlyingAsset, _vaultToken)
+
+        # withdraw from yield if requested
+        if _shouldMaxWithdraw:
+            legoId: uint256 = 0
+            legoAddr: address = empty(address)
+            legoId, legoAddr = self._getLegoDataFromVaultToken(_vaultToken)
+            if legoId != 0 and legoAddr != empty(address):
+                extcall EarnVault(_undyVaultAddr).withdrawFromYield(legoId, _vaultToken, max_value(uint256), empty(bytes32), False)
+
+    log ApprovedVaultTokenSet(undyVaultAddr=_undyVaultAddr, underlyingAsset=underlyingAsset, vaultToken=_vaultToken, isApproved=_isApproved, shouldMaxWithdraw=_shouldMaxWithdraw)
+
+
+# vault management
+
+
+@internal
+def _addApprovedVaultToken(
+    _undyVaultAddr: address,
+    _underlyingAsset: address,
+    _vaultToken: address,
+):
+    if self.indexOfApprovedVaultToken[_undyVaultAddr][_vaultToken] != 0:
+        return # already exists
+
+    if empty(address) in [_undyVaultAddr, _underlyingAsset, _vaultToken]:
+        return # invalid params
+
+    # add to per-vault list
+    vaultIndex: uint256 = self.numApprovedVaultTokens[_undyVaultAddr]
+    if vaultIndex == 0:
+        vaultIndex = 1 # not using 0 index
+
+    self.approvedVaultTokens[_undyVaultAddr][vaultIndex] = _vaultToken
+    self.indexOfApprovedVaultToken[_undyVaultAddr][_vaultToken] = vaultIndex
+    self.numApprovedVaultTokens[_undyVaultAddr] = vaultIndex + 1
+    log VaultTokenAdded(undyVaultAddr=_undyVaultAddr, underlyingAsset=_underlyingAsset, vaultToken=_vaultToken)
+
+    # add to per-asset list (if not already there)
+    if self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] == 0:
+        assetIndex: uint256 = self.numAssetVaultTokens[_underlyingAsset]
+        if assetIndex == 0:
+            assetIndex = 1 # not using 0 index
+
+        self.assetVaultTokens[_underlyingAsset][assetIndex] = _vaultToken
+        self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] = assetIndex
+        self.numAssetVaultTokens[_underlyingAsset] = assetIndex + 1
+        log AssetVaultTokenAdded(asset=_underlyingAsset, vaultToken=_vaultToken)
+
+    # increment reference count
+    self.assetVaultTokenRefCount[_underlyingAsset][_vaultToken] += 1
+
+
+@internal
+def _removeApprovedVaultToken(
+    _undyVaultAddr: address,
+    _underlyingAsset: address,
+    _vaultToken: address,
+):
+    targetIndex: uint256 = self.indexOfApprovedVaultToken[_undyVaultAddr][_vaultToken]
+    if targetIndex == 0:
+        return # not in list
+
+    if empty(address) in [_undyVaultAddr, _underlyingAsset, _vaultToken]:
+        return # invalid params
+
+    # remove from per-vault list using swap-and-pop
+    numTokens: uint256 = self.numApprovedVaultTokens[_undyVaultAddr]
+    if numTokens == 0:
+        return
+
+    lastIndex: uint256 = numTokens - 1
+    self.numApprovedVaultTokens[_undyVaultAddr] = lastIndex
+    self.indexOfApprovedVaultToken[_undyVaultAddr][_vaultToken] = 0
+
+    # swap and pop: replace removed item with last item
+    if targetIndex != lastIndex:
+        lastVaultToken: address = self.approvedVaultTokens[_undyVaultAddr][lastIndex]
+        self.approvedVaultTokens[_undyVaultAddr][targetIndex] = lastVaultToken
+        self.indexOfApprovedVaultToken[_undyVaultAddr][lastVaultToken] = targetIndex
+
+    log VaultTokenRemoved(undyVaultAddr=_undyVaultAddr, underlyingAsset=_underlyingAsset, vaultToken=_vaultToken)
+
+    # decrement reference count and remove from asset list if needed
+    refCount: uint256 = self.assetVaultTokenRefCount[_underlyingAsset][_vaultToken]
+    if refCount == 0:
+        return # already removed
+
+    refCount -= 1
+    self.assetVaultTokenRefCount[_underlyingAsset][_vaultToken] = refCount
+
+    # only remove from asset list when no vaults are using it
+    if refCount != 0:
+        return
+
+    assetTargetIndex: uint256 = self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken]
+    if assetTargetIndex == 0:
+        return
+
+    numAssetTokens: uint256 = self.numAssetVaultTokens[_underlyingAsset]
+    if numAssetTokens == 0:
+        return # already removed
+
+    lastAssetIndex: uint256 = numAssetTokens - 1
+    self.numAssetVaultTokens[_underlyingAsset] = lastAssetIndex
+    self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] = 0
+
+    # swap and pop for asset list
+    if assetTargetIndex != lastAssetIndex:
+        lastAssetVaultToken: address = self.assetVaultTokens[_underlyingAsset][lastAssetIndex]
+        self.assetVaultTokens[_underlyingAsset][assetTargetIndex] = lastAssetVaultToken
+        self.indexOfAssetVaultToken[_underlyingAsset][lastAssetVaultToken] = assetTargetIndex
+
+    log AssetVaultTokenRemoved(asset=_underlyingAsset, vaultToken=_vaultToken)
+
+
+# vault token getters
+
+
+@view
+@external
+def getApprovedVaultTokens(_undyVaultAddr: address) -> DynArray[address, MAX_VAULT_TOKENS]:
+    numTokens: uint256 = self.numApprovedVaultTokens[_undyVaultAddr]
+    if numTokens == 0:
+        return []
+
+    tokens: DynArray[address, MAX_VAULT_TOKENS] = []
+    for i: uint256 in range(1, numTokens, bound=MAX_VAULT_TOKENS):
+        vaultToken: address = self.approvedVaultTokens[_undyVaultAddr][i]
+        if vaultToken != empty(address) and vaultToken not in tokens:
+            tokens.append(vaultToken)
+    return tokens
+
+
+@view
+@external
+def getAssetVaultTokens(_asset: address) -> DynArray[address, MAX_VAULT_TOKENS]:
+    numTokens: uint256 = self.numAssetVaultTokens[_asset]
+    if numTokens == 0:
+        return []
+
+    tokens: DynArray[address, MAX_VAULT_TOKENS] = []
+    for i: uint256 in range(1, numTokens, bound=MAX_VAULT_TOKENS):
+        vaultToken: address = self.assetVaultTokens[_asset][i]
+        if vaultToken != empty(address) and vaultToken not in tokens:
+            tokens.append(vaultToken)
+    return tokens
+
+
+@view
+@external
+def getNumApprovedVaultTokens(_undyVaultAddr: address) -> uint256:
+    numTokens: uint256 = self.numApprovedVaultTokens[_undyVaultAddr]
+    if numTokens == 0:
+        return 0
+    return numTokens - 1
+
+
+@view
+@external
+def getNumAssetVaultTokens(_asset: address) -> uint256:
+    numTokens: uint256 = self.numAssetVaultTokens[_asset]
+    if numTokens == 0:
+        return 0
+    return numTokens - 1
+
+
+@view
+@external
+def isApprovedVaultTokenForAsset(_underlyingAsset: address, _vaultToken: address) -> bool:
+    isRegisteredUnderlyingVault: bool = self.indexOfAssetVaultToken[_underlyingAsset][_vaultToken] != 0
+    if isRegisteredUnderlyingVault:
+        return True
+    
+    # underscore vault
+    isEarnVault: bool = self._isEarnVault(_vaultToken)
+    if isEarnVault:
+        return True
+
+    # ripe lego -- GREEN / SAVINGS GREEN
+    ripeLegoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(1) # Ripe Lego
+    return staticcall YieldLego(ripeLegoAddr).canRegisterVaultToken(_underlyingAsset, _vaultToken)
+
+
 ######################
 # Vault Config Views #
 ######################
@@ -476,75 +824,87 @@ def _isValidRedemptionBuffer(_buffer: uint256) -> bool:
 
 @view
 @external
-def canDeposit(_vaultAddr: address) -> bool:
-    return self.vaultConfigs[_vaultAddr].canDeposit
+def canDeposit(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].canDeposit
 
 
 @view
 @external
-def canWithdraw(_vaultAddr: address) -> bool:
-    return self.vaultConfigs[_vaultAddr].canWithdraw
+def canWithdraw(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].canWithdraw
 
 
 @view
 @external
-def maxDepositAmount(_vaultAddr: address) -> uint256:
-    return self.vaultConfigs[_vaultAddr].maxDepositAmount
+def maxDepositAmount(_undyVaultAddr: address) -> uint256:
+    return self.vaultConfigs[_undyVaultAddr].maxDepositAmount
 
 
 @view
 @external
-def isVaultOpsFrozen(_vaultAddr: address) -> bool:
-    return self.vaultConfigs[_vaultAddr].isVaultOpsFrozen
+def isVaultOpsFrozen(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].isVaultOpsFrozen
 
 
 @view
 @external
-def redemptionBuffer(_vaultAddr: address) -> uint256:
-    return self.vaultConfigs[_vaultAddr].redemptionBuffer
+def redemptionBuffer(_undyVaultAddr: address) -> uint256:
+    return self.vaultConfigs[_undyVaultAddr].redemptionBuffer
 
 
 @view
 @external
-def minYieldWithdrawAmount(_vaultAddr: address) -> uint256:
-    return self.vaultConfigs[_vaultAddr].minYieldWithdrawAmount
+def minYieldWithdrawAmount(_undyVaultAddr: address) -> uint256:
+    return self.vaultConfigs[_undyVaultAddr].minYieldWithdrawAmount
 
 
 @view
 @external
-def redemptionConfig(_vaultAddr: address) -> (uint256, uint256):
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
+def redemptionConfig(_undyVaultAddr: address) -> (uint256, uint256):
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
     return config.redemptionBuffer, config.minYieldWithdrawAmount
 
 
 @view
 @external
-def getPerformanceFee(_vaultAddr: address) -> uint256:
-    return self.vaultConfigs[_vaultAddr].performanceFee
+def getPerformanceFee(_undyVaultAddr: address) -> uint256:
+    return self.vaultConfigs[_undyVaultAddr].performanceFee
 
 
 @view
 @external
-def getDefaultTargetVaultToken(_vaultAddr: address) -> address:
-    return self.vaultConfigs[_vaultAddr].defaultTargetVaultToken
+def getDefaultTargetVaultToken(_undyVaultAddr: address) -> address:
+    return self.vaultConfigs[_undyVaultAddr].defaultTargetVaultToken
 
 
 @view
 @external
-def shouldAutoDeposit(_vaultAddr: address) -> bool:
-    return self.vaultConfigs[_vaultAddr].shouldAutoDeposit
+def shouldAutoDeposit(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].shouldAutoDeposit
 
 
 @view
 @external
-def isApprovedVaultTokenByAddr(_vaultAddr: address, _vaultToken: address) -> bool:
-    return self.isApprovedVaultToken[_vaultAddr][_vaultToken]
+def shouldEnforceAllowlist(_undyVaultAddr: address) -> bool:
+    return self.vaultConfigs[_undyVaultAddr].shouldEnforceAllowlist
 
 
 @view
 @external
-def checkVaultApprovals(_vaultAddr: address, _vaultToken: address) -> bool:
-    return self.isApprovedVaultToken[_vaultAddr][_vaultToken]
+def isUserAllowed(_undyVaultAddr: address, _userAddr: address) -> bool:
+    return self.isAllowed[_undyVaultAddr][_userAddr]
+
+
+@view
+@external
+def isApprovedVaultTokenByAddr(_undyVaultAddr: address, _vaultToken: address) -> bool:
+    return self.isApprovedVaultToken[_undyVaultAddr][_vaultToken]
+
+
+@view
+@external
+def checkVaultApprovals(_undyVaultAddr: address, _vaultToken: address) -> bool:
+    return self.isApprovedVaultToken[_undyVaultAddr][_vaultToken]
 
 
 @view
@@ -556,8 +916,8 @@ def getVaultConfig(_regId: uint256) -> VaultConfig:
 
 @view
 @external
-def getVaultConfigByAddr(_vaultAddr: address) -> VaultConfig:
-    return self.vaultConfigs[_vaultAddr]
+def getVaultConfigByAddr(_undyVaultAddr: address) -> VaultConfig:
+    return self.vaultConfigs[_undyVaultAddr]
 
 
 @view
@@ -590,8 +950,8 @@ def _getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultAction
 
 @view
 @external
-def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool):
-    return self._getVaultActionDataBundle(_legoId, _signer), self.vaultConfigs[_vaultAddr].isVaultOpsFrozen
+def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _undyVaultAddr: address) -> (VaultActionData, bool):
+    return self._getVaultActionDataBundle(_legoId, _signer), self.vaultConfigs[_undyVaultAddr].isVaultOpsFrozen
 
 
 @view
@@ -603,11 +963,10 @@ def getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
 @view
 @internal
 def _getLegoDataFromVaultToken(_vaultToken: address) -> (uint256, address):
-    a: addys.Addys = addys._getAddys()
-    data: VaultToken = staticcall Ledger(a.ledger).vaultTokens(_vaultToken)
+    data: VaultToken = staticcall Ledger(addys._getLedgerAddr()).vaultTokens(_vaultToken)
     if data.legoId == 0:
         return 0, empty(address)
-    return data.legoId, staticcall Registry(a.legoBook).getAddr(data.legoId)
+    return data.legoId, staticcall Registry(addys._getLegoBookAddr()).getAddr(data.legoId)
 
 
 @view
@@ -618,8 +977,32 @@ def getLegoAddrFromVaultToken(_vaultToken: address) -> address:
 
 @view
 @external
-def getDepositConfig(_vaultAddr: address) -> (bool, uint256, bool, address):
-    config: VaultConfig = self.vaultConfigs[_vaultAddr]
-    return config.canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
+def getDepositConfig(_undyVaultAddr: address, _user: address = empty(address)) -> (bool, uint256, bool, address):
+    config: VaultConfig = self.vaultConfigs[_undyVaultAddr]
+    canDeposit: bool = self._canUserDeposit(_undyVaultAddr, _user, config)
+    return canDeposit, config.maxDepositAmount, config.shouldAutoDeposit, config.defaultTargetVaultToken
 
 
+@view
+@external
+def canUserDeposit(_undyVaultAddr: address, _user: address = empty(address)) -> bool:
+    return self._canUserDeposit(_undyVaultAddr, _user, self.vaultConfigs[_undyVaultAddr])
+
+
+@view
+@internal
+def _canUserDeposit(_undyVaultAddr: address, _user: address, _config: VaultConfig) -> bool:
+    # if canDeposit is False, return False
+    if not _config.canDeposit:
+        return False
+
+    # if allowlist is not enforced, return True
+    if not _config.shouldEnforceAllowlist:
+        return True
+
+    # if no user address provided, return True (legacy earn vaults)
+    if _user == empty(address):
+        return True
+
+    # check if user is on allowlist
+    return self.isAllowed[_undyVaultAddr][_user]

@@ -1,0 +1,2548 @@
+{
+  "contracts": {
+    "LevgVault": {
+      "address": "0x936c3C493Dc45D0f4D2FA36C7640f3BCABd64B4B",
+      "abi": [
+        {
+          "name": "Deposit",
+          "inputs": [
+            {
+              "name": "sender",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "owner",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "assets",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "shares",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "Withdraw",
+          "inputs": [
+            {
+              "name": "sender",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "receiver",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "owner",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "assets",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "shares",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "LeftoversSwept",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "Transfer",
+          "inputs": [
+            {
+              "name": "sender",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "Approval",
+          "inputs": [
+            {
+              "name": "owner",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "spender",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "BlacklistModified",
+          "inputs": [
+            {
+              "name": "addr",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "isBlacklisted",
+              "type": "bool",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "TokenPauseModified",
+          "inputs": [
+            {
+              "name": "isPaused",
+              "type": "bool",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "LevgVaultAction",
+          "inputs": [
+            {
+              "name": "op",
+              "type": "uint8",
+              "indexed": false
+            },
+            {
+              "name": "asset1",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "asset2",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "amount1",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "amount2",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "usdValue",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "legoId",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "signer",
+              "type": "address",
+              "indexed": true
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "CollateralVaultTokenSet",
+          "inputs": [
+            {
+              "name": "collateralVaultToken",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "legoId",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "ripeVaultId",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "LeverageVaultTokenSet",
+          "inputs": [
+            {
+              "name": "leverageVaultToken",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "legoId",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "ripeVaultId",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "SlippagesSet",
+          "inputs": [
+            {
+              "name": "usdcSlippage",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "greenSlippage",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "LevgVaultHelperSet",
+          "inputs": [
+            {
+              "name": "levgVaultHelper",
+              "type": "address",
+              "indexed": true
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "MaxDebtRatioSet",
+          "inputs": [
+            {
+              "name": "maxDebtRatio",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "name",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "symbol",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "decimals",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint8"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "transfer",
+          "inputs": [
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "transferFrom",
+          "inputs": [
+            {
+              "name": "_sender",
+              "type": "address"
+            },
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "approve",
+          "inputs": [
+            {
+              "name": "_spender",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "increaseAllowance",
+          "inputs": [
+            {
+              "name": "_spender",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "decreaseAllowance",
+          "inputs": [
+            {
+              "name": "_spender",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "burn",
+          "inputs": [
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "DOMAIN_SEPARATOR",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "permit",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            },
+            {
+              "name": "_spender",
+              "type": "address"
+            },
+            {
+              "name": "_value",
+              "type": "uint256"
+            },
+            {
+              "name": "_deadline",
+              "type": "uint256"
+            },
+            {
+              "name": "_signature",
+              "type": "bytes"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setBlacklist",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_shouldBlacklist",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "burnBlacklistTokens",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "burnBlacklistTokens",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "pause",
+          "inputs": [
+            {
+              "name": "_shouldPause",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "undyHq",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "blacklisted",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isPaused",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "balanceOf",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "allowance",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            },
+            {
+              "name": "arg1",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "totalSupply",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "TOKEN_NAME",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "TOKEN_SYMBOL",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "TOKEN_DECIMALS",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint8"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "VERSION",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "nonces",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositForYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositForYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositForYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositForYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_vaultAddr",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdrawFromYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdrawFromYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdrawFromYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdrawFromYield",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            },
+            {
+              "name": "_isSpecialTx",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "swapTokens",
+          "inputs": [
+            {
+              "name": "_instructions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "address"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "addCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "addCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "addCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "removeCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "removeCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "removeCollateral",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "borrow",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_borrowAsset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "borrow",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_borrowAsset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "borrow",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_borrowAsset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "repayDebt",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_paymentAsset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "repayDebt",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_paymentAsset",
+              "type": "address"
+            },
+            {
+              "name": "_paymentAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "repayDebt",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_paymentAsset",
+              "type": "address"
+            },
+            {
+              "name": "_paymentAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_extraData",
+              "type": "bytes32"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "claimIncentives",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "claimIncentives",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "claimIncentives",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "claimIncentives",
+          "inputs": [
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_rewardToken",
+              "type": "address"
+            },
+            {
+              "name": "_rewardAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_proofs",
+              "type": "bytes32[]"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setCollateralVault",
+          "inputs": [
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_ripeVaultId",
+              "type": "uint256"
+            },
+            {
+              "name": "_shouldMaxWithdraw",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setLeverageVault",
+          "inputs": [
+            {
+              "name": "_vaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_ripeVaultId",
+              "type": "uint256"
+            },
+            {
+              "name": "_shouldMaxWithdraw",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setSlippagesAllowed",
+          "inputs": [
+            {
+              "name": "_usdcSlippage",
+              "type": "uint256"
+            },
+            {
+              "name": "_greenSlippage",
+              "type": "uint256"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setLevgVaultHelper",
+          "inputs": [
+            {
+              "name": "_levgVaultHelper",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setMaxDebtRatio",
+          "inputs": [
+            {
+              "name": "_ratio",
+              "type": "uint256"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "addManager",
+          "inputs": [
+            {
+              "name": "_manager",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "removeManager",
+          "inputs": [
+            {
+              "name": "_manager",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "vaultToLegoId",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "levgVaultHelper",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "collateralAsset",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "vaultToken",
+                  "type": "address"
+                },
+                {
+                  "name": "ripeVaultId",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "leverageAsset",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "vaultToken",
+                  "type": "address"
+                },
+                {
+                  "name": "ripeVaultId",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "managers",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "indexOfManager",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "numManagers",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "usdcSlippageAllowed",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "greenSlippageAllowed",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxDebtRatio",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "netUserCapital",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "USDC",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "asset",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "totalAssets",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getTotalAssets",
+          "inputs": [
+            {
+              "name": "_shouldGetMax",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isLeveragedVault",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxDeposit",
+          "inputs": [
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "previewDeposit",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "deposit",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "deposit",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositWithMinAmountOut",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            },
+            {
+              "name": "_minAmountOut",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "depositWithMinAmountOut",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            },
+            {
+              "name": "_minAmountOut",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxMint",
+          "inputs": [
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "previewMint",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "mint",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "mint",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxWithdraw",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "previewWithdraw",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdraw",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdraw",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "withdraw",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            },
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxRedeem",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "previewRedeem",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeem",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeem",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeem",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            },
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeemWithMinAmountOut",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_minAmountOut",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeemWithMinAmountOut",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_minAmountOut",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "redeemWithMinAmountOut",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            },
+            {
+              "name": "_minAmountOut",
+              "type": "uint256"
+            },
+            {
+              "name": "_receiver",
+              "type": "address"
+            },
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "convertToShares",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "convertToSharesSafe",
+          "inputs": [
+            {
+              "name": "_assets",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "convertToAssets",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "convertToAssetsSafe",
+          "inputs": [
+            {
+              "name": "_shares",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "sweepLeftovers",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_tokenName",
+              "type": "string"
+            },
+            {
+              "name": "_tokenSymbol",
+              "type": "string"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_collateralVaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_collateralVaultTokenLegoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_collateralVaultTokenRipeVaultId",
+              "type": "uint256"
+            },
+            {
+              "name": "_leverageVaultToken",
+              "type": "address"
+            },
+            {
+              "name": "_leverageVaultTokenLegoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_leverageVaultTokenRipeVaultId",
+              "type": "uint256"
+            },
+            {
+              "name": "_usdc",
+              "type": "address"
+            },
+            {
+              "name": "_green",
+              "type": "address"
+            },
+            {
+              "name": "_savingsGreen",
+              "type": "address"
+            },
+            {
+              "name": "_minHqTimeLock",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxHqTimeLock",
+              "type": "uint256"
+            },
+            {
+              "name": "_startingAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgVaultHelper",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/vaults/modules/VaultErc20Token.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimplements: IERC20\nfrom ethereum.ercs import IERC20\n\ninterface UndyHq:\n    def canSetTokenBlacklist(_addr: address) -> bool: view\n    def canMintUndy(_addr: address) -> bool: view\n    def hasPendingGovChange() -> bool: view\n    def governance() -> address: view\n\ninterface ERC1271:\n    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes4: view\n\n# erc20\n\nevent Transfer:\n    sender: indexed(address)\n    recipient: indexed(address)\n    amount: uint256\n\nevent Approval:\n    owner: indexed(address)\n    spender: indexed(address)\n    amount: uint256\n\n# undy \n\nevent BlacklistModified:\n    addr: indexed(address)\n    isBlacklisted: bool\n\nevent TokenPauseModified:\n    isPaused: bool\n\n# undy hq\nundyHq: public(address)\n\n# config\nblacklisted: public(HashMap[address, bool])\nisPaused: public(bool)\n\n# erc20\nbalanceOf: public(HashMap[address, uint256])\nallowance: public(HashMap[address, HashMap[address, uint256]])\ntotalSupply: public(uint256)\n\n# token info\nTOKEN_NAME: public(immutable(String[64]))\nTOKEN_SYMBOL: public(immutable(String[32]))\nTOKEN_DECIMALS: public(immutable(uint8))\nVERSION: public(constant(String[8])) = \"v1.0.0\"\n\n# eip-712\nnonces: public(HashMap[address, uint256])\nEIP712_TYPEHASH: constant(bytes32) = keccak256(\"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)\")\nEIP2612_TYPEHASH: constant(bytes32) = keccak256(\"Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)\")\nECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001\nERC1271_MAGIC_VAL: constant(bytes4) = 0x1626ba7e\n\nCACHED_DOMAIN_SEPARATOR: immutable(bytes32)\nNAME_HASH: immutable(bytes32)\nVERSION_HASH: constant(bytes32) = keccak256(VERSION)\nCACHED_CHAIN_ID: immutable(uint256)\n\n\n@deploy\ndef __init__(\n    _tokenName: String[64],\n    _tokenSymbol: String[32],\n    _tokenDecimals: uint8,\n    _undyHq: address,\n):\n    # token info\n    TOKEN_NAME = _tokenName\n    TOKEN_SYMBOL = _tokenSymbol\n    TOKEN_DECIMALS = _tokenDecimals\n\n    # set undy hq\n    assert _undyHq != empty(address) # dev: invalid undy hq\n    self.undyHq = _undyHq\n\n    # domain separator\n    NAME_HASH = keccak256(_tokenName)\n    CACHED_CHAIN_ID = chain.id\n    CACHED_DOMAIN_SEPARATOR = keccak256(\n        abi_encode(\n            EIP712_TYPEHASH,\n            NAME_HASH,\n            VERSION_HASH,\n            CACHED_CHAIN_ID,\n            self,\n        )\n    )\n\n\n##############\n# Token Info #\n##############\n\n\n@view\n@external\ndef name() -> String[64]:\n    return TOKEN_NAME\n\n\n@view\n@external\ndef symbol() -> String[32]:\n    return TOKEN_SYMBOL\n\n\n@view\n@external\ndef decimals() -> uint8:\n    return TOKEN_DECIMALS\n\n\n#############\n# Transfers #\n#############\n\n\n@external\ndef transfer(_recipient: address, _amount: uint256) -> bool:\n    self._transfer(msg.sender, _recipient, _amount)\n    return True\n\n\n@external\ndef transferFrom(_sender: address, _recipient: address, _amount: uint256) -> bool:\n    assert not self.blacklisted[msg.sender] # dev: spender blacklisted\n    self._spendAllowance(_sender, msg.sender, _amount)\n    self._transfer(_sender, _recipient, _amount)\n    return True\n\n\n@internal\ndef _transfer(_sender: address, _recipient: address, _amount: uint256):\n    assert not self.isPaused # dev: token paused\n    assert _amount != 0 # dev: cannot transfer 0 amount\n    assert _recipient not in [self, empty(address)] # dev: invalid recipient\n\n    assert not self.blacklisted[_sender] # dev: sender blacklisted\n    assert not self.blacklisted[_recipient] # dev: recipient blacklisted\n\n    senderBalance: uint256 = self.balanceOf[_sender]\n    assert senderBalance >= _amount # dev: insufficient funds\n    self.balanceOf[_sender] = senderBalance - _amount\n    self.balanceOf[_recipient] += _amount\n\n    log Transfer(sender=_sender, recipient=_recipient, amount=_amount)\n\n\n#############\n# Allowance #\n#############\n\n\n# approvals\n\n\n@external\ndef approve(_spender: address, _amount: uint256) -> bool:\n    self._validateNewApprovals(msg.sender, _spender)\n    self._approve(msg.sender, _spender, _amount)\n    return True\n\n\n@internal\ndef _approve(_owner: address, _spender: address, _amount: uint256):\n    self.allowance[_owner][_spender] = _amount\n    log Approval(owner=_owner, spender=_spender, amount=_amount)\n\n\n@internal\ndef _spendAllowance(_owner: address, _spender: address, _amount: uint256):\n    currentAllowance: uint256 = self.allowance[_owner][_spender]\n    if currentAllowance != max_value(uint256):\n        assert currentAllowance >= _amount # dev: insufficient allowance\n        self._approve(_owner, _spender, currentAllowance - _amount)\n\n\n# increase / decrease allowance\n\n\n@external\ndef increaseAllowance(_spender: address, _amount: uint256) -> bool:\n    self._validateNewApprovals(msg.sender, _spender)\n    currentAllowance: uint256 = self.allowance[msg.sender][_spender]\n    maxIncrease: uint256 = max_value(uint256) - currentAllowance\n    newAllowance: uint256 = currentAllowance + min(_amount, maxIncrease)\n    if newAllowance != currentAllowance:\n        self._approve(msg.sender, _spender, newAllowance)\n    return True\n\n\n@external\ndef decreaseAllowance(_spender: address, _amount: uint256) -> bool:\n    self._validateNewApprovals(msg.sender, _spender)\n    currentAllowance: uint256 = self.allowance[msg.sender][_spender]\n    newAllowance: uint256 = currentAllowance - min(_amount, currentAllowance)\n    if newAllowance != currentAllowance:\n        self._approve(msg.sender, _spender, newAllowance)\n    return True\n\n\n# validation\n\n\n@view\n@internal\ndef _validateNewApprovals(_owner: address, _spender: address):\n    assert not self.isPaused # dev: token paused\n    assert not self.blacklisted[_owner] # dev: owner blacklisted\n    assert not self.blacklisted[_spender] # dev: spender blacklisted\n    assert _spender != empty(address) # dev: invalid spender\n\n\n#####################\n# Minting / Burning #\n#####################\n\n\n# mint tokens\n\n\n@internal\ndef _mint(_recipient: address, _amount: uint256) -> bool:\n    assert _recipient not in [self, empty(address)] # dev: invalid recipient\n    assert not self.blacklisted[_recipient] # dev: blacklisted\n    assert not self.isPaused # dev: token paused\n\n    self.balanceOf[_recipient] += _amount\n    self.totalSupply += _amount\n    log Transfer(sender=empty(address), recipient=_recipient, amount=_amount)\n    return True\n\n\n# burn tokens\n\n\n@external\ndef burn(_amount: uint256) -> bool:\n    assert not self.isPaused # dev: token paused\n    self._burn(msg.sender, _amount)\n    return True\n\n\n@internal\ndef _burn(_owner: address, _amount: uint256):\n    self.balanceOf[_owner] -= _amount\n    self.totalSupply -= _amount\n    log Transfer(sender=_owner, recipient=empty(address), amount=_amount)\n\n\n###########\n# EIP 712 #\n###########\n\n\n@view\n@external\ndef DOMAIN_SEPARATOR() -> bytes32:\n    return self._domainSeparator()\n\n\n@view\n@internal\ndef _domainSeparator() -> bytes32:\n    if chain.id != CACHED_CHAIN_ID:\n        return keccak256(\n            abi_encode(\n                EIP712_TYPEHASH,\n                NAME_HASH,\n                VERSION_HASH,\n                chain.id,\n                self,\n            )\n        )\n    return CACHED_DOMAIN_SEPARATOR\n\n\n@external\ndef permit(\n    _owner: address,\n    _spender: address,\n    _value: uint256,\n    _deadline: uint256,\n    _signature: Bytes[65],\n) -> bool:\n    self._validateNewApprovals(_owner, _spender)\n    assert _owner != empty(address) and block.timestamp <= _deadline # dev: permit expired\n\n    nonce: uint256 = self.nonces[_owner]\n    digest: bytes32 = keccak256(\n        concat(\n            b\"\\x19\\x01\",\n            self._domainSeparator(),\n            keccak256(abi_encode(EIP2612_TYPEHASH, _owner, _spender, _value, nonce, _deadline)),\n        )\n    )\n\n    if _owner.is_contract:\n        assert staticcall ERC1271(_owner).isValidSignature(digest, _signature) == ERC1271_MAGIC_VAL # dev: invalid signature\n\n    else:\n        r: bytes32 = convert(slice(_signature, 0, 32), bytes32)\n        s: bytes32 = convert(slice(_signature, 32, 32), bytes32)\n        v: uint8 = convert(slice(_signature, 64, 1), uint8)\n\n        # validate v parameter (27 or 28)\n        if v < 27:\n            v = v + 27\n        assert v == 27 or v == 28 # dev: invalid v parameter\n\n        # prevent signature malleability by ensuring s is in lower half of curve order\n        s_uint: uint256 = convert(s, uint256)\n        assert s_uint != 0 # dev: invalid s value (zero)\n        assert s_uint <= convert(0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0, uint256) # dev: invalid s value\n\n        response: Bytes[32] = raw_call(\n            ECRECOVER_PRECOMPILE,\n            abi_encode(digest, v, r, s),\n            max_outsize = 32,\n            is_static_call = True # a view function\n        )\n        assert len(response) == 32  # dev: invalid ecrecover response length\n        assert abi_decode(response, address) == _owner  # dev: invalid signature\n\n    self.nonces[_owner] = nonce + 1\n    self._approve(_owner, _spender, _value)\n    return True\n\n\n#############\n# Blacklist #\n#############\n\n\n@external\ndef setBlacklist(_addr: address, _shouldBlacklist: bool) -> bool:\n    assert staticcall UndyHq(self.undyHq).canSetTokenBlacklist(msg.sender) # dev: no perms\n\n    assert _addr not in [self, empty(address)] # dev: invalid blacklist recipient\n    self.blacklisted[_addr] = _shouldBlacklist\n    log BlacklistModified(addr=_addr, isBlacklisted=_shouldBlacklist)\n    return True\n\n\n@external\ndef burnBlacklistTokens(_addr: address, _amount: uint256 = max_value(uint256)) -> bool:\n    assert msg.sender == staticcall UndyHq(self.undyHq).governance() # dev: no perms\n    assert self.blacklisted[_addr] # dev: not blacklisted\n\n    amount: uint256 = min(_amount, self.balanceOf[_addr])\n    assert amount != 0 # dev: cannot burn 0 tokens\n    self._burn(_addr, amount)\n    return True\n\n\n#########\n# Pause #\n#########\n\n\n@external\ndef pause(_shouldPause: bool):\n    assert msg.sender == staticcall UndyHq(self.undyHq).governance() # dev: no perms\n    assert _shouldPause != self.isPaused # dev: no change\n    self.isPaused = _shouldPause\n    log TokenPauseModified(isPaused=_shouldPause)\n",
+            "sha256sum": "c01f0100f9d040bbd95c91f201e0623bd0331c6982e5ef73e832a37bb27eee08"
+          },
+          "interfaces/Wallet.vyi": {
+            "content": "# @version 0.4.3\n\nstruct SwapInstruction:\n    legoId: uint256\n    amountIn: uint256\n    minAmountOut: uint256\n    tokenPath: DynArray[address, MAX_TOKEN_PATH]\n    poolPath: DynArray[address, MAX_TOKEN_PATH - 1]\n\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_TOKEN_PATH: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n@view\n@external\ndef onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _data: Bytes[1024]) -> bytes4:\n    ...\n\n\n@pure\n@external\ndef apiVersion() -> String[28]:\n    ...\n\n\n##################\n# Transfer Funds #\n##################\n\n\n@external\ndef transferFunds(\n    _recipient: address,\n    _asset: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _isCheque: bool = False,\n    _isSpecialTx: bool = False,\n) -> (uint256, uint256):\n    ...\n\n\n#########\n# Yield #\n#########\n\n\n# deposit\n\n\n@external\ndef depositForYield(\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# withdraw\n\n\n@external\ndef withdrawFromYield(\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _isSpecialTx: bool = False,\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# rebalance position\n\n\n@external\ndef rebalanceYieldPosition(\n    _fromLegoId: uint256,\n    _fromVaultToken: address,\n    _toLegoId: uint256,\n    _toVaultAddr: address = empty(address),\n    _fromVaultAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@external\ndef swapTokens(_instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):\n    ...\n\n\n# mint / redeem\n\n\n@external\ndef mintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _amountIn: uint256 = max_value(uint256),\n    _minAmountOut: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, bool, uint256):\n    ...\n\n\n@external\ndef confirmMintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n###################\n# Debt Management #\n###################\n\n\n# add collateral\n\n\n@external\ndef addCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# remove collateral\n\n\n@external\ndef removeCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# borrow\n\n\n@external\ndef borrow(\n    _legoId: uint256,\n    _borrowAsset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# repay debt\n\n\n@external\ndef repayDebt(\n    _legoId: uint256,\n    _paymentAsset: address,\n    _paymentAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n#################\n# Claim Rewards #\n#################\n\n\n@external\ndef claimIncentives(\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n) -> (uint256, uint256):\n    ...\n\n\n################\n# Wrapped ETH #\n################\n\n\n# eth -> weth\n\n\n@payable\n@external\ndef convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n# weth -> eth\n\n\n@external\ndef convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n#################\n# Add Liquidity #\n#################\n\n\n# add / remove liquidity (simple)\n\n\n@external\ndef addLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _minLpAmount: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _lpToken: address,\n    _lpAmount: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n# add / remove liquidity (concentrated)\n\n\n@external\ndef addLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _tickLower: int24 = min_value(int24),\n    _tickUpper: int24 = max_value(int24),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _liqToRemove: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n#############\n# Utilities #\n#############\n\n\n# recover nft\n\n\n@external\ndef recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):\n    ...\n",
+            "sha256sum": "5fd15f8da6c599f20c3c5a765632b224190eede7c05057d45df54563b94cd15c"
+          },
+          "interfaces/WalletStructs.vyi": {
+            "content": "# @version 0.4.3\n\nflag ActionType:\n    TRANSFER\n    EARN_DEPOSIT\n    EARN_WITHDRAW\n    EARN_REBALANCE\n    SWAP\n    MINT_REDEEM\n    CONFIRM_MINT_REDEEM\n    ADD_COLLATERAL\n    REMOVE_COLLATERAL\n    BORROW\n    REPAY_DEBT\n    REWARDS\n    ETH_TO_WETH\n    WETH_TO_ETH\n    ADD_LIQ\n    REMOVE_LIQ\n    ADD_LIQ_CONC\n    REMOVE_LIQ_CONC\n    PAY_CHEQUE\n\nstruct WalletAssetData:\n    assetBalance: uint256\n    usdValue: uint256\n    isYieldAsset: bool\n    lastPricePerShare: uint256\n\nstruct ActionData:\n    ledger: address\n    missionControl: address\n    legoBook: address\n    hatchery: address\n    lootDistributor: address\n    appraiser: address\n    billing: address\n    vaultRegistry: address\n    wallet: address\n    walletConfig: address\n    walletOwner: address\n    inEjectMode: bool\n    isFrozen: bool\n    lastTotalUsdValue: uint256\n    signer: address\n    isManager: bool\n    legoId: uint256\n    legoAddr: address\n    eth: address\n    weth: address\n\nstruct MiniAddys:\n    ledger: address\n    missionControl: address\n    legoBook: address\n    appraiser: address",
+            "sha256sum": "466493c129135c95470aaf70eeddc936632f7b0f813396e5a7ddc03bea9da518"
+          },
+          "interfaces/LegoPartner.vyi": {
+            "content": "# @version 0.4.3\n\nfrom interfaces import WalletStructs as ws\n\nMAX_TOKEN_PATH: constant(uint256) = 5\nMAX_RECOVER_ASSETS: constant(uint256) = 20\nMAX_PROOFS: constant(uint256) = 25\n\n@external\ndef addLiquidityConcentrated(_nftTokenId: uint256, _pool: address, _tokenA: address, _tokenB: address, _tickLower: int24, _tickUpper: int24, _amountA: uint256, _amountB: uint256, _minAmountA: uint256, _minAmountB: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, uint256, uint256, uint256):\n    ...\n\n@external\ndef addLiquidity(_pool: address, _tokenA: address, _tokenB: address, _amountA: uint256, _amountB: uint256, _minAmountA: uint256, _minAmountB: uint256, _minLpAmount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (address, uint256, uint256, uint256, uint256):\n    ...\n\n@external\ndef removeLiquidityConcentrated(_nftTokenId: uint256, _pool: address, _tokenA: address, _tokenB: address, _liqToRemove: uint256, _minAmountA: uint256, _minAmountB: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, uint256, bool, uint256):\n    ...\n\n@external\ndef removeLiquidity(_pool: address, _tokenA: address, _tokenB: address, _lpToken: address, _lpAmount: uint256, _minAmountA: uint256, _minAmountB: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, uint256, uint256):\n    ...\n\n@external\ndef mintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _tokenInAmount: uint256, _minAmountOut: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, bool, uint256):\n    ...\n\n@external\ndef swapTokens(_amountIn: uint256, _minAmountOut: uint256, _tokenPath: DynArray[address, MAX_TOKEN_PATH], _poolPath: DynArray[address, MAX_TOKEN_PATH - 1], _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256, uint256):\n    ...\n\n@external\ndef depositForYield(_asset: address, _amount: uint256, _vaultAddr: address, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, address, uint256, uint256):\n    ...\n\n@external\ndef withdrawFromYield(_vaultToken: address, _amount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, address, uint256, uint256):\n    ...\n\n@external\ndef confirmMintOrRedeemAsset(_tokenIn: address, _tokenOut: address, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@external\ndef borrow(_borrowAsset: address, _amount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@external\ndef repayDebt(_paymentAsset: address, _paymentAmount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@external\ndef claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint256, _proofs: DynArray[bytes32, MAX_PROOFS], _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@external\ndef removeCollateral(_asset: address, _amount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@external\ndef addCollateral(_asset: address, _amount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: ws.MiniAddys = empty(ws.MiniAddys)) -> (uint256, uint256):\n    ...\n\n@view\n@external\ndef getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String[64], uint256):\n    ...\n\n@view\n@external\ndef hasCapability(_action: ws.ActionType) -> bool:\n    ...\n\n@view\n@external\ndef getRegistries() -> DynArray[address, 10]:\n    ...\n\n@view\n@external\ndef isYieldLego() -> bool:\n    ...\n\n@view\n@external\ndef isDexLego() -> bool:\n    ...\n\n\n# common\n\n\n@view\n@external\ndef isPaused() -> bool:\n    ...\n\n\n@external\ndef pause(_shouldPause: bool):\n    ...\n\n\n@external\ndef recoverFunds(_recipient: address, _asset: address):\n    ...\n\n\n@external\ndef recoverFundsMany(_recipient: address, _assets: DynArray[address, 20]):\n    ...",
+            "sha256sum": "f2afb7bd72d4301aea77bbe4177b7ae954ba6f6b76af363965993eb92ad0b715"
+          },
+          "contracts/vaults/modules/LevgVaultWallet.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n# pragma optimize codesize\n\nfrom interfaces import Wallet as wi\nfrom interfaces import LegoPartner as Lego\nfrom interfaces import WalletStructs as ws\n\nfrom ethereum.ercs import IERC20\n\ninterface LevgVaultHelper:\n    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view\n    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view\n    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view\n    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _netUserCapital: uint256, _maxDebtRatio: uint256, _isUsdcVault: bool, _legoBook: address = empty(address)) -> uint256: view\n    def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdcSlippageAllowed: uint256, _greenSlippageAllowed: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view\n    def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256, _vaultBook: address = empty(address)) -> uint256: view\n    def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view\n    def getVaultBookAndDeleverage() -> (address, address): view\n\ninterface VaultRegistry:\n    def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view\n    def getVaultActionDataBundle(_legoId: uint256, _signer: address) -> VaultActionData: view\n    def redemptionBuffer(_vaultAddr: address) -> uint256: view\n\ninterface RipeDeleverage:\n    def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool: nonpayable\n\ninterface YieldLego:\n    def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256: view\n\ninterface MissionControl:\n    def isLockedSigner(_signer: address) -> bool: view\n\ninterface Switchboard:\n    def isSwitchboardAddr(_addr: address) -> bool: view\n\ninterface Registry:\n    def getAddr(_regId: uint256) -> address: view\n\ninterface UndyHq:\n    def governance() -> address: view\n\nstruct VaultActionData:\n    ledger: address\n    missionControl: address\n    legoBook: address\n    appraiser: address\n    vaultRegistry: address\n    vaultAsset: address\n    signer: address\n    legoId: uint256\n    legoAddr: address\n\nstruct RipeAsset:\n    vaultToken: address\n    ripeVaultId: uint256\n\nevent LevgVaultAction:\n    op: uint8\n    asset1: indexed(address)\n    asset2: indexed(address)\n    amount1: uint256\n    amount2: uint256\n    usdValue: uint256\n    legoId: uint256\n    signer: indexed(address)\n\nevent CollateralVaultTokenSet:\n    collateralVaultToken: indexed(address)\n    legoId: uint256\n    ripeVaultId: uint256\n\nevent LeverageVaultTokenSet:\n    leverageVaultToken: indexed(address)\n    legoId: uint256\n    ripeVaultId: uint256\n\nevent SlippagesSet:\n    usdcSlippage: uint256\n    greenSlippage: uint256\n\nevent LevgVaultHelperSet:\n    levgVaultHelper: indexed(address)\n\nevent MaxDebtRatioSet:\n    maxDebtRatio: uint256\n\nvaultToLegoId: public(HashMap[address, uint256])\nlevgVaultHelper: public(address)\n\n# vault tokens\ncollateralAsset: public(RipeAsset) # core collateral - where base asset (WETH/CBBTC/USDC) is deposited (optional)\nleverageAsset: public(RipeAsset) # leverage yield - where borrowed GREEN \u2192 swapped USDC is deposited\n\n# managers\nmanagers: public(HashMap[uint256, address]) # index -> manager\nindexOfManager: public(HashMap[address, uint256]) # manager -> index\nnumManagers: public(uint256) # num managers\n\n# slippage settings\nusdcSlippageAllowed: public(uint256) # basis points (100 = 1%)\ngreenSlippageAllowed: public(uint256) # basis points (100 = 1%)\n\n# leverage limits\nmaxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%, max 300_00)\nnetUserCapital: public(uint256) # tracks user deposits - withdrawals (for USDC vaults)\n\n# constants\nHUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_TOKEN_PATH: constant(uint256) = 5\nMAX_LEGOS: constant(uint256) = 10\nMAX_PROOFS: constant(uint256) = 25\n\n# ids\nRIPE_LEGO_ID: constant(uint256) = 1\nLEGO_BOOK_ID: constant(uint256) = 3\nSWITCHBOARD_ID: constant(uint256) = 4\nVAULT_REGISTRY_ID: constant(uint256) = 10\n\nUNDY_HQ: immutable(address)\nUNDERLYING_ASSET: immutable(address)\nUSDC: public(immutable(address))\nGREEN: immutable(address)\nSAVINGS_GREEN: immutable(address)\n\n\n@deploy\ndef __init__(\n    _undyHq: address,\n    _underlyingAsset: address,\n    _collateralVaultToken: address,\n    _collateralVaultTokenLegoId: uint256,\n    _collateralVaultTokenRipeVaultId: uint256,\n    _leverageVaultToken: address,\n    _leverageVaultTokenLegoId: uint256,\n    _leverageVaultTokenRipeVaultId: uint256,\n    _usdc: address,\n    _green: address,\n    _savingsGreen: address,\n    _startingAgent: address,\n    _levgVaultHelper: address,\n):\n    # not using 0 index\n    self.numManagers = 1\n\n    # main addys\n    assert empty(address) not in [_undyHq, _underlyingAsset, _usdc, _green, _leverageVaultToken, _levgVaultHelper] # dev: inv addr\n    UNDY_HQ = _undyHq\n    UNDERLYING_ASSET = _underlyingAsset\n    USDC = _usdc\n    GREEN = _green\n    SAVINGS_GREEN = _savingsGreen\n\n    # set levg vault helper\n    self.levgVaultHelper = _levgVaultHelper\n\n    # leverage vault token\n    assert staticcall LevgVaultHelper(_levgVaultHelper).isValidVaultToken(_usdc, _leverageVaultToken, _leverageVaultTokenRipeVaultId, _leverageVaultTokenLegoId) # dev: invalid leverage vault token\n    self.leverageAsset = RipeAsset(vaultToken=_leverageVaultToken, ripeVaultId=_leverageVaultTokenRipeVaultId)\n    self.vaultToLegoId[_leverageVaultToken] = _leverageVaultTokenLegoId\n\n    # ripe collateral token (optional)\n    if _collateralVaultToken != empty(address):\n        assert staticcall LevgVaultHelper(_levgVaultHelper).isValidVaultToken(_underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _collateralVaultTokenLegoId) # dev: invalid collateral vault token\n        self.collateralAsset = RipeAsset(vaultToken=_collateralVaultToken, ripeVaultId=_collateralVaultTokenRipeVaultId)\n        self.vaultToLegoId[_collateralVaultToken] = _collateralVaultTokenLegoId\n\n    # initial agent\n    if _startingAgent != empty(address):\n        self._registerManager(_startingAgent)\n\n    # defaults\n    self.usdcSlippageAllowed = 1_00 # 1.00%\n    self.greenSlippageAllowed = 1_00 # 1.00%\n\n\n#########\n# Yield #\n#########\n\n\n# deposit\n\n\n@external\ndef depositForYield(\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    return self._depositForYield(_asset, _vaultAddr, _amount, _extraData, ad)\n\n\n@internal\ndef _onReceiveVaultFunds(_depositor: address, _vaultRegistry: address) -> uint256:\n    collData: RipeAsset = self.collateralAsset\n    legoId: uint256 = self.vaultToLegoId[collData.vaultToken]\n    ad: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(legoId, _depositor)\n    if ad.legoId == 0 or ad.legoAddr == empty(address):\n        return 0\n    ad.vaultAsset = UNDERLYING_ASSET\n    return self._depositForYield(ad.vaultAsset, collData.vaultToken, max_value(uint256), empty(bytes32), ad)[0]\n\n\n@internal\ndef _depositForYield(\n    _asset: address,\n    _vaultAddr: address,\n    _amount: uint256,\n    _extraData: bytes32,\n    _ad: VaultActionData,\n) -> (uint256, address, uint256, uint256):\n    amount: uint256 = self._getAmountAndApprove(_asset, _amount, _ad.legoAddr) # doing approval here\n\n    # no re-depositing / re-staking\n    assert self.vaultToLegoId[_asset] == 0 # dev: cannot re-deposit vault tokens\n\n    # deposit for yield\n    assetAmount: uint256 = 0\n    vaultToken: address = empty(address)\n    vaultTokenAmountReceived: uint256 = 0\n    txUsdValue: uint256 = 0\n    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddysFromAd(_ad))\n    self._approve(_asset, _ad.legoAddr, 0)\n    assert _vaultAddr == vaultToken # dev: vault token mismatch\n\n    # vault asset can go into collateral vault OR (for USDC vaults) leverage vault\n    if _asset == _ad.vaultAsset:\n        if _asset == USDC:\n            # USDC vault: allow both collateral and leverage vaults\n            assert vaultToken in [self.collateralAsset.vaultToken, self.leverageAsset.vaultToken] # dev: vault token mismatch\n        else:\n            # Non-USDC vault: only collateral vault\n            assert vaultToken == self.collateralAsset.vaultToken # dev: vault token mismatch\n\n    # USDC (when NOT vault asset) must go into leverage vault\n    elif _asset == USDC:\n        assert vaultToken == self.leverageAsset.vaultToken # dev: vault token mismatch\n\n    # GREEN must go into savings green\n    elif _asset == GREEN:\n        assert vaultToken == SAVINGS_GREEN # dev: vault token mismatch\n\n    # first time, need to save lego mapping\n    if _ad.legoId != 0 and self.vaultToLegoId[vaultToken] == 0:\n        self.vaultToLegoId[vaultToken] = _ad.legoId\n\n    self._logAction(10, _asset, vaultToken, assetAmount, vaultTokenAmountReceived, txUsdValue, _ad)\n    return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue\n\n\n# withdraw\n\n\n@external\ndef withdrawFromYield(\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _isSpecialTx: bool = False,\n) -> (uint256, address, uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    return self._withdrawFromYield(_vaultToken, _amount, _extraData, ad)\n\n\n@internal\ndef _withdrawFromYield(\n    _vaultToken: address,\n    _amount: uint256,\n    _extraData: bytes32,\n    _ad: VaultActionData,\n) -> (uint256, address, uint256, uint256):\n    assert _vaultToken != empty(address) # dev: invalid vault token\n    amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here\n\n    # some vault tokens require max value approval (comp v3)\n    self._approve(_vaultToken, _ad.legoAddr, max_value(uint256))\n\n    # withdraw from yield\n    vaultTokenAmountBurned: uint256 = 0\n    underlyingAsset: address = empty(address)\n    underlyingAmount: uint256 = 0\n    txUsdValue: uint256 = 0\n    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddysFromAd(_ad))\n    self._approve(_vaultToken, _ad.legoAddr, 0)\n\n    self._logAction(11, _vaultToken, underlyingAsset, vaultTokenAmountBurned, underlyingAmount, txUsdValue, _ad)\n    return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@external\ndef swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):\n    tokenIn: address = empty(address)\n    tokenOut: address = empty(address)\n    legoIds: DynArray[uint256, MAX_LEGOS] = []\n    tokenIn, tokenOut, legoIds = self._validateAndGetSwapInfo(_instructions)\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, legoIds)\n\n    # key addresses\n    usdc: address = USDC\n    green: address = GREEN\n    savingsGreen: address = SAVINGS_GREEN\n    levgData: RipeAsset = self.leverageAsset\n    levgVaultHelper: address = self.levgVaultHelper\n\n    origAmountIn: uint256 = _instructions[0].amountIn\n    currentBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(self)\n\n    # important checks!\n    assert tokenIn not in [ad.vaultAsset, self.collateralAsset.vaultToken, levgData.vaultToken, savingsGreen] # dev: invalid swap asset\n    if tokenIn == green:\n        assert tokenOut == usdc  # dev: GREEN can only go to USDC\n    elif tokenIn == usdc and tokenOut != green:\n        assert tokenOut == ad.vaultAsset  # dev: must swap into vault asset\n        origAmountIn = staticcall LevgVaultHelper(levgVaultHelper).getSwappableUsdcAmount(\n            self,\n            origAmountIn,\n            currentBalance,\n            levgData.vaultToken,\n            self.vaultToLegoId[levgData.vaultToken],\n            levgData.ripeVaultId,\n            usdc,\n            green,\n            savingsGreen,\n            ad.legoBook,\n        )\n\n    origAmountIn = min(origAmountIn, currentBalance)\n    assert origAmountIn != 0  # dev: no amount to swap\n\n    amountIn: uint256 = origAmountIn\n    lastTokenOut: address = empty(address)\n    lastTokenOutAmount: uint256 = 0\n    maxTxUsdValue: uint256 = 0\n\n    # perform swaps\n    for i: wi.SwapInstruction in _instructions:\n        if lastTokenOut != empty(address):\n            newTokenIn: address = i.tokenPath[0]\n            assert lastTokenOut == newTokenIn # dev: path\n            amountIn = min(lastTokenOutAmount, staticcall IERC20(newTokenIn).balanceOf(self))\n\n        thisTxUsdValue: uint256 = 0\n        lastTokenOut, lastTokenOutAmount, thisTxUsdValue = self._performSwapInstruction(amountIn, i, ad)\n        maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)\n\n    assert lastTokenOutAmount != 0 # dev: no output amount\n    assert lastTokenOut == tokenOut # dev: must swap into token out\n\n    # verify green <--> usdc swap is fair (check slippage)\n    if tokenIn in [green, usdc] and lastTokenOut in [green, usdc]:\n        assert staticcall LevgVaultHelper(levgVaultHelper).performPostSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, self.usdcSlippageAllowed, self.greenSlippageAllowed, usdc, green) # dev: bad slippage\n\n    self._logAction(20, tokenIn, lastTokenOut, origAmountIn, lastTokenOutAmount, maxTxUsdValue, ad)\n    return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue\n\n\n@internal\ndef _performSwapInstruction(\n    _amountIn: uint256,\n    _i: wi.SwapInstruction,\n    _ad: VaultActionData,\n) -> (address, uint256, uint256):\n    legoAddr: address = staticcall Registry(_ad.legoBook).getAddr(_i.legoId)\n    assert legoAddr != empty(address) # dev: lego\n\n    # tokens\n    tokenIn: address = _i.tokenPath[0]\n    tokenOut: address = _i.tokenPath[len(_i.tokenPath) - 1]\n    tokenInAmount: uint256 = 0\n    tokenOutAmount: uint256 = 0\n    txUsdValue: uint256 = 0\n\n    self._approve(tokenIn, legoAddr, _amountIn)\n    tokenInAmount, tokenOutAmount, txUsdValue = extcall Lego(legoAddr).swapTokens(_amountIn, _i.minAmountOut, _i.tokenPath, _i.poolPath, self, self._packMiniAddysFromAd(_ad))\n    self._approve(tokenIn, legoAddr, 0)\n    return tokenOut, tokenOutAmount, txUsdValue\n\n\n@internal\ndef _validateAndGetSwapInfo(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, address, DynArray[uint256, MAX_LEGOS]):\n    numSwapInstructions: uint256 = len(_instructions)\n    assert numSwapInstructions != 0 # dev: swaps\n\n    # lego ids, make sure token paths are valid\n    legoIds: DynArray[uint256, MAX_LEGOS] = []\n    for i: wi.SwapInstruction in _instructions:\n        assert len(i.tokenPath) >= 2 # dev: path\n        if i.legoId not in legoIds:\n            legoIds.append(i.legoId)\n\n    # finalize tokens\n    firstRoutePath: DynArray[address, MAX_TOKEN_PATH] = _instructions[0].tokenPath\n    tokenIn: address = firstRoutePath[0]\n    tokenOut: address = empty(address)\n\n    if numSwapInstructions == 1:\n        tokenOut = firstRoutePath[len(firstRoutePath) - 1]\n    else:\n        lastRoutePath: DynArray[address, MAX_TOKEN_PATH] = _instructions[numSwapInstructions - 1].tokenPath\n        tokenOut = lastRoutePath[len(lastRoutePath) - 1]\n\n    assert empty(address) not in [tokenIn, tokenOut] # dev: path\n    assert tokenIn != tokenOut # dev: same token\n    return tokenIn, tokenOut, legoIds\n\n\n###################\n# Debt Management #\n###################\n\n\n# add collateral\n\n\n@external\ndef addCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    return self._addCollateral(_asset, _amount, _extraData, 0, ad)\n\n\n@internal\ndef _addCollateral(\n    _asset: address,\n    _amount: uint256,\n    _extraData: bytes32,\n    _ripeVaultId: uint256,\n    _ad: VaultActionData,\n) -> (uint256, uint256):\n    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.ADD_COLLATERAL)\n    self._approve(_asset, _ad.legoAddr, max_value(uint256))\n\n    # validate collateral + lego id\n    assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id\n    assert _asset in [_ad.vaultAsset, self.leverageAsset.vaultToken, self.collateralAsset.vaultToken, SAVINGS_GREEN] # dev: invalid collateral\n\n    # encode ripeVaultId into extraData for RipeLego\n    extraData: bytes32 = _extraData\n    if _ripeVaultId != 0:\n        extraData = convert(_ripeVaultId, bytes32)\n\n    # add collateral\n    amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here\n    amountDeposited: uint256 = 0\n    txUsdValue: uint256 = 0\n    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, extraData, self, self._packMiniAddysFromAd(_ad))\n    self._approve(_asset, _ad.legoAddr, 0)\n\n    self._logAction(40, _asset, empty(address), amountDeposited, 0, txUsdValue, _ad)\n    return amountDeposited, txUsdValue\n\n\n# remove collateral\n\n\n@external\ndef removeCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    return self._removeCollateral(_asset, _amount, _extraData, 0, ad)\n\n\n@internal\ndef _removeCollateral(\n    _asset: address,\n    _amount: uint256,\n    _extraData: bytes32,\n    _ripeVaultId: uint256,\n    _ad: VaultActionData,\n) -> (uint256, uint256):\n    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.REMOVE_COLLATERAL)\n\n    # encode ripeVaultId into extraData for RipeLego\n    extraData: bytes32 = _extraData\n    if _ripeVaultId != 0:\n        extraData = convert(_ripeVaultId, bytes32)\n\n    # remove collateral\n    amountRemoved: uint256 = 0\n    txUsdValue: uint256 = 0\n    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, extraData, self, self._packMiniAddysFromAd(_ad))\n\n    self._logAction(41, _asset, empty(address), amountRemoved, 0, txUsdValue, _ad)\n    return amountRemoved, txUsdValue\n\n\n# borrow\n\n\n@external\ndef borrow(\n    _legoId: uint256,\n    _borrowAsset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.BORROW)\n\n    assert ad.legoId == RIPE_LEGO_ID # dev: invalid lego id\n    assert _borrowAsset in [GREEN, SAVINGS_GREEN] # dev: invalid borrow asset\n\n    amount: uint256 = _amount\n\n    # check maxDebtRatio if configured\n    maxDebtRatio: uint256 = self.maxDebtRatio\n    if maxDebtRatio != 0:\n        collData: RipeAsset = self.collateralAsset\n        maxBorrowableAmount: uint256 = staticcall LevgVaultHelper(self.levgVaultHelper).getMaxBorrowAmount(\n            self,\n            ad.vaultAsset,\n            collData.vaultToken,\n            self.vaultToLegoId[collData.vaultToken],\n            collData.ripeVaultId,\n            self.netUserCapital,\n            maxDebtRatio,\n            ad.vaultAsset == USDC,\n            ad.legoBook,\n        )\n        amount = min(amount, maxBorrowableAmount)\n\n    assert amount != 0 # dev: no amount to borrow\n\n    # borrow\n    borrowAmount: uint256 = 0\n    txUsdValue: uint256 = 0\n    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, amount, _extraData, self, self._packMiniAddysFromAd(ad))\n\n    self._logAction(42, _borrowAsset, empty(address), borrowAmount, 0, txUsdValue, ad)\n    return borrowAmount, txUsdValue\n\n\n# repay debt\n\n\n@external\ndef repayDebt(\n    _legoId: uint256,\n    _paymentAsset: address,\n    _paymentAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n    return self._repayDebt(_paymentAsset, _paymentAmount, _extraData, ad)\n\n\n@internal\ndef _repayDebt(\n    _paymentAsset: address,\n    _paymentAmount: uint256,\n    _extraData: bytes32,\n    _ad: VaultActionData,\n) -> (uint256, uint256):\n    self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.REPAY_DEBT)\n\n    # repay debt\n    amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, _ad.legoAddr) # doing approval here\n    repaidAmount: uint256 = 0\n    txUsdValue: uint256 = 0\n    repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddysFromAd(_ad))\n    self._approve(_paymentAsset, _ad.legoAddr, 0)\n\n    self._logAction(43, _paymentAsset, empty(address), repaidAmount, 0, txUsdValue, _ad)\n    return repaidAmount, txUsdValue\n\n\n####################\n# Claim Incentives #\n####################\n\n\n@external\ndef claimIncentives(\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n) -> (uint256, uint256):\n    ad: VaultActionData = self._canManagerPerformAction(msg.sender, [_legoId])\n\n    # make sure can access\n    self._setLegoAccessForAction(ad.legoAddr, ws.ActionType.REWARDS)\n\n    # claim rewards\n    rewardAmount: uint256 = 0\n    txUsdValue: uint256 = 0\n    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddysFromAd(ad))\n\n    self._logAction(50, _rewardToken, ad.legoAddr, rewardAmount, 0, txUsdValue, ad)\n    return rewardAmount, txUsdValue\n\n\n#####################\n# Underlying Assets #\n#####################\n\n\n@view\n@internal\ndef _getTotalAssets(_shouldGetMax: bool) -> uint256:\n    underlyingAsset: address = UNDERLYING_ASSET\n    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)\n    levgVaultHelper: address = self.levgVaultHelper\n    collData: RipeAsset = self.collateralAsset\n    levgData: RipeAsset = self.leverageAsset\n\n    # usdc vault\n    usdc: address = USDC\n    if underlyingAsset == usdc:\n        return staticcall LevgVaultHelper(levgVaultHelper).getTotalAssetsForUsdcVault(\n            self,\n            collData.vaultToken,\n            self.vaultToLegoId[collData.vaultToken],\n            collData.ripeVaultId,\n            levgData.vaultToken,\n            self.vaultToLegoId[levgData.vaultToken],\n            levgData.ripeVaultId,\n            _shouldGetMax,\n            usdc,\n            GREEN,\n            SAVINGS_GREEN,\n            legoBook,\n        )\n\n    # non-usdc vault (WETH, CBBTC, etc)\n    return staticcall LevgVaultHelper(levgVaultHelper).getTotalAssetsForNonUsdcVault(\n        self,\n        underlyingAsset,\n        collData.vaultToken,\n        self.vaultToLegoId[collData.vaultToken],\n        collData.ripeVaultId,\n        levgData.vaultToken,\n        self.vaultToLegoId[levgData.vaultToken],\n        levgData.ripeVaultId,\n        _shouldGetMax,\n        usdc,\n        GREEN,\n        SAVINGS_GREEN,\n        legoBook,\n    )\n\n\n###################\n# Redemption Prep #\n###################\n\n\n@internal\ndef _prepareRedemption(\n    _asset: address,\n    _amount: uint256,\n    _sender: address,\n    _vaultRegistry: address,\n) -> uint256:\n    availAmount: uint256 = staticcall IERC20(_asset).balanceOf(self)\n    if availAmount >= _amount:\n        return availAmount\n\n    ripeAd: VaultActionData = staticcall VaultRegistry(_vaultRegistry).getVaultActionDataBundle(RIPE_LEGO_ID, _sender)\n    ripeAd.vaultAsset = _asset\n    levgVaultHelper: address = self.levgVaultHelper\n    ripeVaultBook: address = empty(address)\n    ripeDeleverage: address = empty(address)\n    ripeVaultBook, ripeDeleverage = staticcall LevgVaultHelper(levgVaultHelper).getVaultBookAndDeleverage()\n\n    # buffer to make sure we pull out enough for redemption\n    redemptionBuffer: uint256 = staticcall VaultRegistry(_vaultRegistry).redemptionBuffer(self)\n    targetWithdrawAmount: uint256 = _amount * (HUNDRED_PERCENT + redemptionBuffer) // HUNDRED_PERCENT\n    specificWithdrawAmount: uint256 = 0\n\n    # step 1: remove underlying asset from Ripe collateral if needed\n    amountStillNeeded: uint256 = targetWithdrawAmount - availAmount\n    underlyingCollateral: uint256 = staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _asset, 0, ripeVaultBook)\n    if underlyingCollateral != 0:\n        specificWithdrawAmount = min(amountStillNeeded, underlyingCollateral)\n        extcall RipeDeleverage(ripeDeleverage).deleverageForWithdrawal(self, 0, _asset, specificWithdrawAmount)\n        availAmount += self._removeCollateral(_asset, specificWithdrawAmount, empty(bytes32), 0, ripeAd)[0]\n        if availAmount >= _amount:\n            return availAmount\n\n    # collateral vault info\n    collAd: VaultActionData = ripeAd\n    collData: RipeAsset = self.collateralAsset\n    collAd.legoId = self.vaultToLegoId[collData.vaultToken]\n    collAd.legoAddr = staticcall Registry(collAd.legoBook).getAddr(collAd.legoId)\n    if collAd.legoAddr == empty(address):\n        return availAmount\n\n    # step 2: withdraw from idle collateralVaultToken in wallet\n    availAmount = self._withdrawVaultTokenForRedemption(\n        _asset,\n        collData.vaultToken,\n        targetWithdrawAmount,\n        availAmount,\n        0,\n        True,\n        collAd,\n        ripeAd,\n        levgVaultHelper,\n        ripeVaultBook,\n        ripeDeleverage\n    )\n    if availAmount >= _amount:\n        return availAmount\n\n    # step 3: remove collateralVaultToken collateral from Ripe and withdraw\n    availAmount = self._withdrawVaultTokenForRedemption(\n        _asset,\n        collData.vaultToken,\n        targetWithdrawAmount,\n        availAmount,\n        collData.ripeVaultId,\n        False,\n        collAd,\n        ripeAd,\n        levgVaultHelper,\n        ripeVaultBook,\n        ripeDeleverage\n    )\n    if availAmount >= _amount:\n        return availAmount\n\n    # step 4: for USDC vaults, also check leverageVaultToken\n    if _asset == USDC and availAmount < _amount:\n        levgData: RipeAsset = self.leverageAsset\n        if levgData.vaultToken == empty(address) or levgData.vaultToken == collData.vaultToken:\n            return availAmount\n\n        levgAd: VaultActionData = ripeAd\n        levgAd.legoId = self.vaultToLegoId[levgData.vaultToken]\n        levgAd.legoAddr = staticcall Registry(levgAd.legoBook).getAddr(levgAd.legoId)\n        if levgAd.legoAddr == empty(address):\n            return availAmount\n\n        # step 4a: withdraw from idle leverageVaultToken in wallet\n        availAmount = self._withdrawVaultTokenForRedemption(\n            _asset,\n            levgData.vaultToken,\n            targetWithdrawAmount,\n            availAmount,\n            0,\n            True,\n            levgAd,\n            ripeAd,\n            levgVaultHelper,\n            ripeVaultBook,\n            ripeDeleverage\n        )\n        if availAmount >= _amount:\n            return availAmount\n\n        # step 4b: remove leverageVaultToken collateral from Ripe and withdraw\n        availAmount = self._withdrawVaultTokenForRedemption(\n            _asset,\n            levgData.vaultToken,\n            targetWithdrawAmount,\n            availAmount,\n            levgData.ripeVaultId,\n            False,\n            levgAd,\n            ripeAd,\n            levgVaultHelper,\n            ripeVaultBook,\n            ripeDeleverage\n        )\n\n    return availAmount\n\n\n# withdraw for redemption\n\n\n@internal\ndef _withdrawVaultTokenForRedemption(\n    _underlyingAsset: address,\n    _vaultToken: address,\n    _targetWithdrawAmount: uint256,\n    _availAmount: uint256,\n    _ripeVaultId: uint256,\n    _fromWallet: bool,\n    _actionData: VaultActionData,\n    _ripeActionData: VaultActionData,\n    _levgVaultHelper: address,\n    _ripeVaultBook: address,\n    _ripeDeleverage: address,\n) -> uint256:\n    balance: uint256 = 0\n    if _fromWallet:\n        balance = staticcall IERC20(_vaultToken).balanceOf(self)\n    else:\n        balance = staticcall LevgVaultHelper(_levgVaultHelper).getCollateralBalance(self, _vaultToken, _ripeVaultId, _ripeVaultBook)\n    if balance == 0:\n        return _availAmount\n\n    # calc amount to withdraw\n    amountStillNeeded: uint256 = _targetWithdrawAmount - _availAmount\n    vaultTokenAmountToWithdraw: uint256 = staticcall YieldLego(_actionData.legoAddr).getVaultTokenAmount(_underlyingAsset, amountStillNeeded, _vaultToken)\n    actualVaultTokenAmount: uint256 = vaultTokenAmountToWithdraw\n\n    # ripe withdrawals, cap at available balance and handle deleverage\n    if not _fromWallet:\n        actualVaultTokenAmount = min(vaultTokenAmountToWithdraw, balance)\n\n        # deleverage before removing collateral\n        extcall RipeDeleverage(_ripeDeleverage).deleverageForWithdrawal(self, _ripeVaultId, _vaultToken, actualVaultTokenAmount)\n\n        # remove collateral and get actual amount removed\n        actualVaultTokenAmount = self._removeCollateral(_vaultToken, actualVaultTokenAmount, empty(bytes32), _ripeVaultId, _ripeActionData)[0]\n\n    # withdraw from yield protocol to get underlying asset\n    return _availAmount + self._withdrawFromYield(_vaultToken, actualVaultTokenAmount, empty(bytes32), _actionData)[2]\n\n\n#####################\n# Levg Vault Config #\n#####################\n\n\n# collateral vault token\n\n\n@external\ndef setCollateralVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    self._setVault(_vaultToken, _ripeVaultId, _legoId, UNDERLYING_ASSET, self.collateralAsset, True, _shouldMaxWithdraw)\n\n\n# leverage vault token\n\n\n@external\ndef setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    self._setVault(_vaultToken, _ripeVaultId, _legoId, USDC, self.leverageAsset, False, _shouldMaxWithdraw)\n\n\n# set vault internal\n\n\n@internal\ndef _setVault(\n    _vaultToken: address,\n    _ripeVaultId: uint256,\n    _legoId: uint256,\n    _underlyingAsset: address,\n    _oldVaultData: RipeAsset,\n    _isCollateralVault: bool,\n    _shouldMaxWithdraw: bool,\n):\n    levgVaultHelper: address = self.levgVaultHelper\n\n    # validate new vault token\n    if _vaultToken != empty(address):\n        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(_underlyingAsset, _vaultToken, _ripeVaultId, _legoId) # dev: invalid vault token\n        self.vaultToLegoId[_vaultToken] = _legoId\n\n    # handle old vault token if needed\n    if _oldVaultData.vaultToken != empty(address):\n        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _oldVaultData.vaultToken, _oldVaultData.ripeVaultId) == 0 # dev: old vault has ripe balance\n\n        # max withdraw underlying assets from old vault if needed\n        if _shouldMaxWithdraw and _oldVaultData.vaultToken != _vaultToken:\n            localBalance: uint256 = staticcall IERC20(_oldVaultData.vaultToken).balanceOf(self)\n            if localBalance != 0:\n                ad: VaultActionData = staticcall VaultRegistry(self._getVaultRegistry()).getVaultActionDataBundle(self.vaultToLegoId[_oldVaultData.vaultToken], msg.sender)\n                self._withdrawFromYield(_oldVaultData.vaultToken, max_value(uint256), empty(bytes32), ad)\n\n    # update state and emit event\n    if _isCollateralVault:\n        self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)\n        log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)\n\n    else:\n        self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)\n        log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)\n\n\n# slippage settings (USDC <--> GREEN)\n\n\n@external\ndef setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert _usdcSlippage <= 10_00 # dev: usdc slippage too high (max 10%)\n    assert _greenSlippage <= 10_00 # dev: green slippage too high (max 10%)\n    self.usdcSlippageAllowed = _usdcSlippage\n    self.greenSlippageAllowed = _greenSlippage\n    log SlippagesSet(usdcSlippage=_usdcSlippage, greenSlippage=_greenSlippage)\n\n\n# leverage vault helper\n\n\n@external\ndef setLevgVaultHelper(_levgVaultHelper: address):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert _levgVaultHelper != empty(address) # dev: invalid lego helper\n    self.levgVaultHelper = _levgVaultHelper\n    log LevgVaultHelperSet(levgVaultHelper=_levgVaultHelper)\n\n\n# max debt ratio\n\n\n@external\ndef setMaxDebtRatio(_ratio: uint256):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert _ratio <= 3 * HUNDRED_PERCENT # dev: ratio too high (max 300%)\n    self.maxDebtRatio = _ratio\n    log MaxDebtRatioSet(maxDebtRatio=_ratio)\n\n\n####################\n# Manager Settings #\n####################\n\n\n# can manage\n\n\n@internal\ndef _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:\n    vaultRegistry: address = self._getVaultRegistry()\n    if msg.sender != vaultRegistry:\n        assert self.indexOfManager[_signer] != 0 # dev: not manager\n\n    # main data for this transaction - get action data and frozen status in single call\n    legoId: uint256 = 0\n    if len(_legoIds) != 0:\n        legoId = _legoIds[0]\n\n    ad: VaultActionData = empty(VaultActionData)\n    isVaultOpsFrozen: bool = False\n    ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)\n    ad.vaultAsset = UNDERLYING_ASSET\n\n    # cannot perform any actions if vault is frozen\n    assert not isVaultOpsFrozen # dev: frozen vault\n\n    # make sure manager is not locked\n    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: manager is locked\n\n    return ad\n\n\n# add manager\n\n\n@external\ndef addManager(_manager: address):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n    self._registerManager(_manager)\n\n\n# register manager\n\n\n@internal\ndef _registerManager(_manager: address):\n    if self.indexOfManager[_manager] != 0:\n        return\n    mid: uint256 = self.numManagers\n    self.managers[mid] = _manager\n    self.indexOfManager[_manager] = mid\n    self.numManagers = mid + 1\n\n\n# remove manager\n\n\n@external\ndef removeManager(_manager: address):\n    assert self._isSwitchboardAddr(msg.sender) # dev: no perms\n\n    numManagers: uint256 = self.numManagers\n    if numManagers == 1:\n        return\n\n    targetIndex: uint256 = self.indexOfManager[_manager]\n    if targetIndex == 0:\n        return\n\n    # update data\n    lastIndex: uint256 = numManagers - 1\n    self.numManagers = lastIndex\n    self.indexOfManager[_manager] = 0\n\n    # get last item, replace the removed item\n    if targetIndex != lastIndex:\n        lastItem: address = self.managers[lastIndex]\n        self.managers[targetIndex] = lastItem\n        self.indexOfManager[lastItem] = targetIndex\n\n    # clear the last position to prevent stale data\n    self.managers[lastIndex] = empty(address)\n\n\n#############\n# Utilities #\n#############\n\n\n# get vault registry\n\n\n@view\n@internal\ndef _getVaultRegistry() -> address:\n    return staticcall Registry(UNDY_HQ).getAddr(VAULT_REGISTRY_ID)\n\n\n# is signer switchboard\n\n\n@view\n@internal\ndef _isSwitchboardAddr(_signer: address) -> bool:\n    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)\n    if switchboard == empty(address):\n        return False\n    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)\n\n\n# logging\n\n\n@internal\ndef _logAction(_op: uint8, _asset1: address, _asset2: address, _amount1: uint256, _amount2: uint256, _usdValue: uint256, _ad: VaultActionData):\n    log LevgVaultAction(\n        op = _op,\n        asset1 = _asset1,\n        asset2 = _asset2,\n        amount1 = _amount1,\n        amount2 = _amount2,\n        usdValue = _usdValue,\n        legoId = _ad.legoId,\n        signer = _ad.signer,\n    )\n\n\n# approve\n\n\n@internal\ndef _approve(_token: address, _spender: address, _amount: uint256):\n    assert extcall IERC20(_token).approve(_spender, _amount, default_return_value = True) # dev: appr\n\n\n@internal\ndef _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) -> uint256:\n    amount: uint256 = min(_amount, staticcall IERC20(_token).balanceOf(self))\n    assert amount != 0 # dev: no balance for _token\n    if _legoAddr != empty(address):\n        self._approve(_token, _legoAddr, amount)\n    return amount\n\n\n# governance\n\n\n@view\n@internal\ndef _getGovernanceAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ).governance()\n\n\n# lego access\n\n\n@internal\ndef _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:\n    if _legoAddr == empty(address):\n        return False\n\n    targetAddr: address = empty(address)\n    accessAbi: String[64] = empty(String[64])\n    numInputs: uint256 = 0\n    targetAddr, accessAbi, numInputs = staticcall Lego(_legoAddr).getAccessForLego(self, _action)\n\n    # nothing to do here\n    if targetAddr == empty(address):\n        return False\n\n    method_abi: bytes4 = convert(slice(keccak256(accessAbi), 0, 4), bytes4)\n    success: bool = False\n    response: Bytes[32] = b\"\"\n\n    # ripe protocol is only one that needs this in leverage vault\n    assert numInputs == 1 # dev: invalid number of inputs\n    success, response = raw_call(\n        targetAddr,\n        concat(\n            method_abi,\n            convert(_legoAddr, bytes32),\n        ),\n        revert_on_failure = False,\n        max_outsize = 32,\n    )\n\n    assert success # dev: failed to set operator\n    return True\n\n\n# mini addys\n\n\n@view\n@internal\ndef _packMiniAddysFromAd(_ad: VaultActionData) -> ws.MiniAddys:\n    return ws.MiniAddys(\n        ledger = _ad.ledger,\n        missionControl = _ad.missionControl,\n        legoBook = _ad.legoBook,\n        appraiser = _ad.appraiser,\n    )\n",
+            "sha256sum": "d017a09542a8fd265e68dea7a1d1b36dca955b3be0b4e575b1d82f320836d15d"
+          },
+          "contracts/vaults/LevgVault.vy": {
+            "content": "#            _             _     _          _       _            _           _                   _              _      \n#           _\\ \\          /\\ \\  /\\ \\    _ / /\\     /\\ \\         /\\ \\        / /\\                /\\ \\           /\\ \\    \n#          /\\__ \\        /  \\ \\ \\ \\ \\  /_/ / /    /  \\ \\       /  \\ \\      / /  \\              /  \\ \\         /  \\ \\   \n#         / /_ \\_\\      / /\\ \\ \\ \\ \\ \\ \\___\\/    / /\\ \\ \\     / /\\ \\ \\    / / /\\ \\            / /\\ \\_\\       / /\\ \\ \\  \n#        / / /\\/_/     / / /\\ \\_\\/ / /  \\ \\ \\   / / /\\ \\_\\   / / /\\ \\_\\  / / /\\ \\ \\          / / /\\/_/      / / /\\ \\_\\ \n#       / / /         / /_/_ \\/_/\\ \\ \\   \\_\\ \\ / /_/_ \\/_/  / / /_/ / / / / /  \\ \\ \\        / / / ______   / /_/_ \\/_/ \n#      / / /         / /____/\\    \\ \\ \\  / / // /____/\\    / / /__\\/ / / / /___/ /\\ \\      / / / /\\_____\\ / /____/\\    \n#     / / / ____    / /\\____\\/     \\ \\ \\/ / // /\\____\\/   / / /_____/ / / /_____/ /\\ \\    / / /  \\/____ // /\\____\\/    \n#    / /_/_/ ___/\\ / / /______      \\ \\ \\/ // / /______  / / /\\ \\ \\  / /_________/\\ \\ \\  / / /_____/ / // / /______    \n#   /_______/\\__\\// / /_______\\      \\ \\  // / /_______\\/ / /  \\ \\ \\/ / /_       __\\ \\_\\/ / /______\\/ // / /_______\\   \n#   \\_______\\/    \\/__________/       \\_\\/ \\/__________/\\/_/    \\_\\/\\_\\___\\     /____/_/\\/___________/ \\/__________/   \n#                                                                                                                   \n#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Leveraged Vaults **                                              \u2551\n#     \u2551  Managed by AI agents, enforced by onchain rules. Erc4626 compliant. \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n# pragma optimize codesize\n\nimplements: IERC4626\nimplements: IERC20\n\nexports: token.__interface__\ninitializes: token\nfrom contracts.vaults.modules import VaultErc20Token as token\n\nexports: vaultWallet.__interface__\ninitializes: vaultWallet\nfrom contracts.vaults.modules import LevgVaultWallet as vaultWallet\n\nfrom ethereum.ercs import IERC4626\nfrom ethereum.ercs import IERC20\nfrom ethereum.ercs import IERC20Detailed\n\ninterface VaultRegistry:\n    def getDepositConfig(_vaultAddr: address, _user: address = empty(address)) -> (bool, uint256, bool, address): view\n    def canWithdraw(_vaultAddr: address) -> bool: view\n\nevent Deposit:\n    sender: indexed(address)\n    owner: indexed(address)\n    assets: uint256\n    shares: uint256\n\nevent Withdraw:\n    sender: indexed(address)\n    receiver: indexed(address)\n    owner: indexed(address)\n    assets: uint256\n    shares: uint256\n\nevent LeftoversSwept:\n    amount: uint256\n    recipient: indexed(address)\n\n\n@deploy\ndef __init__(\n    _asset: address,\n    _tokenName: String[64],\n    _tokenSymbol: String[32],\n    _undyHq: address,\n    _collateralVaultToken: address,\n    _collateralVaultTokenLegoId: uint256,\n    _collateralVaultTokenRipeVaultId: uint256,\n    _leverageVaultToken: address,\n    _leverageVaultTokenLegoId: uint256,\n    _leverageVaultTokenRipeVaultId: uint256,\n    _usdc: address,\n    _green: address,\n    _savingsGreen: address,\n    _minHqTimeLock: uint256,\n    _maxHqTimeLock: uint256,\n    _startingAgent: address,\n    _levgVaultHelper: address,\n):\n    token.__init__(_tokenName, _tokenSymbol, staticcall IERC20Detailed(_asset).decimals(), _undyHq)\n    vaultWallet.__init__(_undyHq, _asset, _collateralVaultToken, _collateralVaultTokenLegoId, _collateralVaultTokenRipeVaultId, _leverageVaultToken, _leverageVaultTokenLegoId, _leverageVaultTokenRipeVaultId, _usdc, _green, _savingsGreen, _startingAgent, _levgVaultHelper)\n\n\n@view\n@external\ndef asset() -> address:\n    return vaultWallet.UNDERLYING_ASSET\n\n\n@view\n@external\ndef totalAssets() -> uint256:\n    return vaultWallet._getTotalAssets(True)\n\n\n@view\n@external\ndef getTotalAssets(_shouldGetMax: bool) -> uint256:\n    return vaultWallet._getTotalAssets(_shouldGetMax)\n\n\n@view\n@external\ndef isLeveragedVault() -> bool:\n    return True\n\n\n############\n# Deposits #\n############\n\n\n@view\n@external\ndef maxDeposit(_receiver: address) -> uint256:\n    canDeposit: bool = False\n    maxDepositAmount: uint256 = 0\n    na1: bool = False\n    na2: address = empty(address)\n    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self, _receiver)\n\n    if not canDeposit:\n        return 0\n\n    if maxDepositAmount == 0:\n        return max_value(uint256)\n\n    totalAssets: uint256 = vaultWallet._getTotalAssets(True)\n    if totalAssets >= maxDepositAmount:\n        return 0\n\n    return maxDepositAmount - totalAssets\n\n\n@view\n@external\ndef previewDeposit(_assets: uint256) -> uint256:\n    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), False)\n\n\n@nonreentrant\n@external\ndef deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:\n    return self._deposit(_assets, msg.sender, _receiver, 0)\n\n\n@nonreentrant\n@external\ndef depositWithMinAmountOut(_assets: uint256, _minAmountOut: uint256, _receiver: address = msg.sender) -> uint256:\n    return self._deposit(_assets, msg.sender, _receiver, _minAmountOut)\n\n\n@internal\ndef _deposit(_assets: uint256, _sender: address, _receiver: address, _minAmountOut: uint256) -> uint256:\n    asset: address = vaultWallet.UNDERLYING_ASSET\n\n    amount: uint256 = _assets\n    if amount == max_value(uint256):\n        amount = staticcall IERC20(asset).balanceOf(_sender)\n\n    totalAssets: uint256 = vaultWallet._getTotalAssets(True)\n    shares: uint256 = self._amountToShares(amount, token.totalSupply, totalAssets, False)\n    self._depositIntoVault(asset, amount, shares, _sender, _receiver, totalAssets, vaultWallet._getVaultRegistry(), _minAmountOut)\n    return shares\n\n\n# mint\n\n\n@view\n@external\ndef maxMint(_receiver: address) -> uint256:\n    canDeposit: bool = False\n    maxDepositAmount: uint256 = 0\n    na1: bool = False\n    na2: address = empty(address)\n    canDeposit, maxDepositAmount, na1, na2 = staticcall VaultRegistry(vaultWallet._getVaultRegistry()).getDepositConfig(self, _receiver)\n\n    if not canDeposit:\n        return 0\n\n    if maxDepositAmount == 0:\n        return max_value(uint256)\n\n    totalAssets: uint256 = vaultWallet._getTotalAssets(True)\n    if totalAssets >= maxDepositAmount:\n        return 0\n\n    maxDepositAmt: uint256 = maxDepositAmount - totalAssets\n    return self._amountToShares(maxDepositAmt, token.totalSupply, totalAssets, False)\n\n\n@view\n@external\ndef previewMint(_shares: uint256) -> uint256:\n    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(True), True)\n\n\n@nonreentrant\n@external\ndef mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:\n    totalAssets: uint256 = vaultWallet._getTotalAssets(True)\n    amount: uint256 = self._sharesToAmount(_shares, token.totalSupply, totalAssets, True)\n    self._depositIntoVault(vaultWallet.UNDERLYING_ASSET, amount, _shares, msg.sender, _receiver, totalAssets, vaultWallet._getVaultRegistry(), 0)\n    return amount\n\n\n# shared deposit logic\n\n\n@internal\ndef _depositIntoVault(\n    _asset: address,\n    _amount: uint256,\n    _shares: uint256,\n    _sender: address,\n    _recipient: address,\n    _totalAssets: uint256,\n    _vaultRegistry: address,\n    _minAmountOut: uint256,\n):\n    # get all deposit config\n    canDeposit: bool = False\n    maxDepositAmount: uint256 = 0\n    shouldAutoDeposit: bool = False\n    na: address = empty(address)\n    canDeposit, maxDepositAmount, shouldAutoDeposit, na = staticcall VaultRegistry(_vaultRegistry).getDepositConfig(self, _recipient)\n\n    if not canDeposit:\n        assert _sender == vaultWallet._getGovernanceAddr() # dev: cannot deposit\n\n    assert _amount != 0 # dev: cannot deposit 0 amount\n    assert _shares != 0 # dev: cannot receive 0 shares\n    assert _recipient != empty(address) # dev: invalid recipient\n\n    if maxDepositAmount != 0:\n        assert _totalAssets + _amount <= maxDepositAmount # dev: exceeds max deposit\n\n    if _minAmountOut != 0:\n        assert _shares >= _minAmountOut # dev: insufficient shares\n\n    # transfer assets to vault\n    assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount, default_return_value=True) # dev: deposit failed\n\n    # put the deposit to work -- start earning\n    if shouldAutoDeposit:\n        vaultWallet._onReceiveVaultFunds(_recipient, _vaultRegistry)\n\n    token._mint(_recipient, _shares)\n\n    # track user capital for maxDebtRatio enforcement\n    vaultWallet.netUserCapital += _amount\n\n    log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)\n\n\n###############\n# Withdrawals #\n###############\n\n\n@view\n@external\ndef maxWithdraw(_owner: address) -> uint256:\n    ownerShares: uint256 = token.balanceOf[_owner]\n    if ownerShares == 0:\n        return 0\n    availableAssets: uint256 = vaultWallet._getTotalAssets(False)\n    ownerAssets: uint256 = self._sharesToAmount(ownerShares, token.totalSupply, availableAssets, False)\n    return min(ownerAssets, availableAssets)\n\n\n@view\n@external\ndef previewWithdraw(_assets: uint256) -> uint256:\n    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)\n\n\n@nonreentrant\n@external\ndef withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:\n    shares: uint256 = self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), True)\n    self._redeemFromVault(vaultWallet.UNDERLYING_ASSET, _assets, shares, msg.sender, _receiver, _owner, vaultWallet._getVaultRegistry(), 0)\n    return shares\n\n\n# redeem\n\n\n@view\n@external\ndef maxRedeem(_owner: address) -> uint256:\n    return token.balanceOf[_owner]\n\n\n@view\n@external\ndef previewRedeem(_shares: uint256) -> uint256:\n    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)\n\n\n@nonreentrant\n@external\ndef redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:\n    return self._redeem(_shares, msg.sender, _receiver, _owner, 0)\n\n\n@nonreentrant\n@external\ndef redeemWithMinAmountOut(_shares: uint256, _minAmountOut: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:\n    return self._redeem(_shares, msg.sender, _receiver, _owner, _minAmountOut)\n\n\n@internal\ndef _redeem(_shares: uint256, _sender: address, _receiver: address, _owner: address, _minAmountOut: uint256) -> uint256:\n    shares: uint256 = _shares\n    if shares == max_value(uint256):\n        shares = token.balanceOf[_owner]\n\n    amount: uint256 = self._sharesToAmount(shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)\n    return self._redeemFromVault(vaultWallet.UNDERLYING_ASSET, amount, shares, _sender, _receiver, _owner, vaultWallet._getVaultRegistry(), _minAmountOut)\n\n\n# shared redeem logic\n\n\n@internal\ndef _redeemFromVault(\n    _asset: address,\n    _amount: uint256,\n    _shares: uint256,\n    _sender: address,\n    _recipient: address,\n    _owner: address,\n    _vaultRegistry: address,\n    _minAmountOut: uint256,\n) -> uint256:\n    if not staticcall VaultRegistry(_vaultRegistry).canWithdraw(self):\n        assert _sender == vaultWallet._getGovernanceAddr() # dev: cannot withdraw\n\n    assert _amount != 0 # dev: cannot withdraw 0 amount\n    assert _shares != 0 # dev: cannot redeem 0 shares\n    assert _recipient != empty(address) # dev: invalid recipient\n\n    assert token.balanceOf[_owner] >= _shares # dev: insufficient shares\n\n    if _sender != _owner:\n        token._spendAllowance(_owner, _sender, _shares)\n\n    # withdraw from yield opportunity\n    availAmount: uint256 = vaultWallet._prepareRedemption(_asset, _amount, _sender, _vaultRegistry)\n    actualAmount: uint256 = min(availAmount, _amount)\n\n    # check amount out\n    if _minAmountOut != 0:\n        assert actualAmount >= _minAmountOut # dev: insufficient amount out\n    else:\n        assert self._isRedemptionCloseEnough(_amount, actualAmount) # dev: insufficient funds\n\n    # burn shares\n    token._burn(_owner, _shares)\n\n    # track user capital for maxDebtRatio enforcement\n    netUserCapital: uint256 = vaultWallet.netUserCapital\n    vaultWallet.netUserCapital = netUserCapital - min(netUserCapital, actualAmount)\n\n    # transfer assets to recipient\n    assert extcall IERC20(_asset).transfer(_recipient, actualAmount, default_return_value=True) # dev: withdrawal failed\n\n    log Withdraw(sender=_sender, receiver=_recipient, owner=_owner, assets=actualAmount, shares=_shares)\n    return actualAmount\n\n\n@view\n@internal\ndef _isRedemptionCloseEnough(_requestedAmount: uint256, _actualAmount: uint256) -> bool:\n    # extra check to make sure what was sent was actually close-ish to what was requested\n    buffer: uint256 = _requestedAmount * 10 // 100_00  # 0.1%\n    lowerBound: uint256 = _requestedAmount - buffer\n    return _actualAmount >= lowerBound\n\n\n##########\n# Shares #\n##########\n\n\n@view\n@external\ndef convertToShares(_assets: uint256) -> uint256:\n    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(True), False)\n\n\n@view\n@external\ndef convertToSharesSafe(_assets: uint256) -> uint256:\n    return self._amountToShares(_assets, token.totalSupply, vaultWallet._getTotalAssets(False), False)\n\n\n@view\n@external\ndef convertToAssets(_shares: uint256) -> uint256:\n    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(True), False)\n\n\n@view\n@external\ndef convertToAssetsSafe(_shares: uint256) -> uint256:\n    return self._sharesToAmount(_shares, token.totalSupply, vaultWallet._getTotalAssets(False), False)\n\n\n# amount -> shares\n\n\n@view\n@internal\ndef _amountToShares(\n    _amount: uint256,\n    _totalShares: uint256,\n    _totalBalance: uint256,\n    _shouldRoundUp: bool,\n) -> uint256:\n    if _amount == max_value(uint256) or _amount == 0:\n        return _amount\n\n    # first deposit, price per share = 1\n    if _totalShares == 0:\n        return _amount\n\n    # no underlying balance, price per share = 0\n    if _totalBalance == 0:\n        return 0\n\n    # calc shares\n    numerator: uint256 = _amount * _totalShares\n    shares: uint256 = numerator // _totalBalance\n\n    # rounding\n    if _shouldRoundUp and (numerator % _totalBalance != 0):\n        shares += 1\n\n    return shares\n\n\n# shares -> amount\n\n\n@view\n@internal\ndef _sharesToAmount(\n    _shares: uint256,\n    _totalShares: uint256,\n    _totalBalance: uint256,\n    _shouldRoundUp: bool,\n) -> uint256:\n    if _shares == max_value(uint256) or _shares == 0:\n        return _shares\n\n    # first deposit, price per share = 1\n    if _totalShares == 0:\n        return _shares\n\n    # calc amount\n    numerator: uint256 = _shares * _totalBalance\n    amount: uint256 = numerator // _totalShares\n\n    # rounding\n    if _shouldRoundUp and (numerator % _totalShares != 0):\n        amount += 1\n\n    return amount\n\n\n###################\n# Sweep Leftovers #\n###################\n\n\n@external\ndef sweepLeftovers() -> uint256:\n    governance: address = vaultWallet._getGovernanceAddr()\n    assert vaultWallet._isSwitchboardAddr(msg.sender) or governance == msg.sender # dev: no perms\n    assert token.totalSupply == 0 # dev: shares outstanding\n\n    vaultAsset: address = vaultWallet.UNDERLYING_ASSET\n    balance: uint256 = staticcall IERC20(vaultAsset).balanceOf(self)\n    assert balance != 0 # dev: no balance\n\n    assert extcall IERC20(vaultAsset).transfer(governance, balance, default_return_value=True) # dev: transfer failed\n    log LeftoversSwept(amount=balance, recipient=governance)\n    return balance",
+            "sha256sum": "3b0bf8a4337606559e19bbe4c153da1b6d513d5d6a49d89f027ee5f0612a1eea"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/vaults/LevgVault.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "280cd998c0ddc786cc701d68d9d5a9a5d5545265db61b679634628928bc13f6b"
+      },
+      "args": "000000000000000000000000cbb7c0000ab88b473b1f5afd9ef808440eed33bf0000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000026000000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f90000000000000000000000003fb0fc9d3ddd543ad1b748ed2286a022f4638493000000000000000000000000000000000000000000000000000000000000000d0000000000000000000000000000000000000000000000000000000000000005000000000000000000000000b33852cfd0c22647aac501a6af59bc4210a686bf000000000000000000000000000000000000000000000000000000000000000d0000000000000000000000000000000000000000000000000000000000000005000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000d1eac76497d06cf15475a5e3984d5bc03de7c707000000000000000000000000aa0f13488ce069a7b5a099457c753a7cfbe04d36000000000000000000000000000000000000000000000000000000000000a8c0000000000000000000000000000000000000000000000000000000000013c680000000000000000000000000add738fd4e8b43c7923e170d1789f5e2140cba9f000000000000000000000000cce531215d9841e3d69b1db4e31e1005331dae4c000000000000000000000000000000000000000000000000000000000000001a556e64657273636f7265204c6576657261676564206362425443000000000000000000000000000000000000000000000000000000000000000000000000000d756e64794c657667434242544300000000000000000000000000000000000000",
+      "file": "contracts/vaults/LevgVault.vy"
+    }
+  }
+}

@@ -101,3 +101,16 @@ def test_sky_psm_withdraw_partial(
     asset, vault_tokens_received = setupWithdrawal(lego_id, token_str, vault_token)
 
     testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
+
+
+@pytest.mark.parametrize("token_str", TEST_ASSETS)
+@pytest.always
+def test_sky_psm_view_functions(
+    token_str,
+    getVaultToken,
+    lego_sky_psm,
+    testLegoViewFunctions,
+):
+    vault_token = getVaultToken(token_str)
+    # SkyPsm has no borrowing mechanism - it's a pure liquidity pool
+    testLegoViewFunctions(lego_sky_psm, vault_token, token_str, _shouldHaveBorrow=False)

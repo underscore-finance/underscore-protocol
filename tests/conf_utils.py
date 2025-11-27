@@ -28,46 +28,58 @@ def _test():
 
 
 @pytest.fixture(scope="session")
-def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, createTxFees, createAmbassadorRevShare):
+def setUserWalletConfig(mission_control, switchboard_alpha, user_wallet_template, user_wallet_config_template, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     def setUserWalletConfig(
         _walletTemplate = user_wallet_template,
         _configTemplate = user_wallet_config_template,
-        _trialAsset = ZERO_ADDRESS,
-        _trialAmount = 0,
         _numUserWalletsAllowed = 100,
         _enforceCreatorWhitelist = False,
         _minTimeLock = ONE_DAY_IN_BLOCKS // 2,
         _maxTimeLock = 7 * ONE_DAY_IN_BLOCKS,
-        _staleBlocks = 0,
         _depositRewardsAsset = ZERO_ADDRESS,
-        _txFees = createTxFees(),
-        _ambassadorRevShare = createAmbassadorRevShare(),
-        _defaultYieldMaxIncrease = 5_00,
-        _defaultYieldPerformanceFee = 20_00,
-        _defaultYieldAmbassadorBonusRatio = 0,
-        _defaultYieldBonusRatio = 0,
-        _defaultYieldAltBonusAsset = ZERO_ADDRESS,
         _lootClaimCoolOffPeriod = 0,
+        _txFees = None,
+        _ambassadorRevShare = None,
+        _yieldConfig = None,
+        # Legacy parameters for backwards compatibility
+        _defaultYieldMaxIncrease = None,
+        _defaultYieldPerformanceFee = None,
+        _defaultYieldAmbassadorBonusRatio = None,
+        _defaultYieldBonusRatio = None,
+        _defaultYieldBonusAsset = None,
+        _defaultYieldAltBonusAsset = None,  # Old name for bonusAsset
     ):
+        # Handle backwards compatibility
+        if _txFees is None:
+            _txFees = createTxFees()
+        if _ambassadorRevShare is None:
+            _ambassadorRevShare = createAmbassadorRevShare()
+        if _yieldConfig is None:
+            # Use legacy parameters if provided, otherwise use defaults
+            # Handle old _defaultYieldAltBonusAsset parameter name
+            bonus_asset = _defaultYieldBonusAsset if _defaultYieldBonusAsset is not None else (
+                _defaultYieldAltBonusAsset if _defaultYieldAltBonusAsset is not None else ZERO_ADDRESS
+            )
+            _yieldConfig = createAssetYieldConfig(
+                _maxYieldIncrease = _defaultYieldMaxIncrease if _defaultYieldMaxIncrease is not None else 5_00,
+                _performanceFee = _defaultYieldPerformanceFee if _defaultYieldPerformanceFee is not None else 20_00,
+                _ambassadorBonusRatio = _defaultYieldAmbassadorBonusRatio if _defaultYieldAmbassadorBonusRatio is not None else 0,
+                _bonusRatio = _defaultYieldBonusRatio if _defaultYieldBonusRatio is not None else 0,
+                _bonusAsset = bonus_asset,
+            )
+
         config = (
             _walletTemplate,
             _configTemplate,
-            _trialAsset,
-            _trialAmount,
             _numUserWalletsAllowed,
             _enforceCreatorWhitelist,
             _minTimeLock,
             _maxTimeLock,
-            _staleBlocks,
             _depositRewardsAsset,
+            _lootClaimCoolOffPeriod,
             _txFees,
             _ambassadorRevShare,
-            _defaultYieldMaxIncrease,
-            _defaultYieldPerformanceFee,
-            _defaultYieldAmbassadorBonusRatio,
-            _defaultYieldBonusRatio,
-            _defaultYieldAltBonusAsset,
-            _lootClaimCoolOffPeriod,
+            _yieldConfig,
         )
         mission_control.setUserWalletConfig(config, sender=switchboard_alpha.address)
     yield setUserWalletConfig
@@ -110,16 +122,12 @@ def createAmbassadorRevShare():
 def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     def setAssetConfig(
         _asset,
-        _legoId = 1,
-        _staleBlocks = 0,
         _txFees = createTxFees(),
         _ambassadorRevShare = createAmbassadorRevShare(),
         _yieldConfig = createAssetYieldConfig(),
     ):
         config = (
-            _legoId,
-            _asset.decimals(),
-            _staleBlocks,
+            True,  # hasConfig - always True when setting config
             _txFees,
             _ambassadorRevShare,
             _yieldConfig,
@@ -131,24 +139,18 @@ def setAssetConfig(mission_control, switchboard_alpha, createTxFees, createAmbas
 @pytest.fixture(scope="session")
 def createAssetYieldConfig():
     def createAssetYieldConfig(
-        _isYieldAsset = False,
-        _isRebasing = False,
-        _underlyingAsset = ZERO_ADDRESS,
         _maxYieldIncrease = 5_00,
         _performanceFee = 20_00,
         _ambassadorBonusRatio = 0,
         _bonusRatio = 0,
-        _altBonusAsset = ZERO_ADDRESS,
+        _bonusAsset = ZERO_ADDRESS,
     ):
         return (
-            _isYieldAsset,
-            _isRebasing,
-            _underlyingAsset,
             _maxYieldIncrease,
             _performanceFee,
             _ambassadorBonusRatio,
             _bonusRatio,
-            _altBonusAsset,
+            _bonusAsset,
         )
     yield createAssetYieldConfig
 
@@ -157,18 +159,12 @@ def createAssetYieldConfig():
 
 
 @pytest.fixture(scope="session")
-def setAgentConfig(mission_control, switchboard_alpha, agent_template, agent_eoa):
+def setAgentConfig(mission_control, switchboard_alpha, agent_eoa):
     def setAgentConfig(
-        _agentTemplate = agent_template,
-        _numAgentsAllowed = 100,
-        _enforceCreatorWhitelist = False,
         _startingAgent = agent_eoa,
         _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
         config = (
-            _agentTemplate,
-            _numAgentsAllowed,
-            _enforceCreatorWhitelist,
             _startingAgent,
             _startingAgentActivationLength,
         )
@@ -184,10 +180,18 @@ def setManagerConfig(mission_control, switchboard_alpha):
     def setManagerConfig(
         _managerPeriod = ONE_MONTH_IN_BLOCKS,
         _defaultActivationLength = ONE_YEAR_IN_BLOCKS,
+        _mustHaveUsdValueOnSwaps = False,
+        _maxNumSwapsPerPeriod = 0,
+        _maxSlippageOnSwaps = 0,
+        _onlyApprovedYieldOpps = False,
     ):
         config = (
             _managerPeriod,
             _defaultActivationLength,
+            _mustHaveUsdValueOnSwaps,
+            _maxNumSwapsPerPeriod,
+            _maxSlippageOnSwaps,
+            _onlyApprovedYieldOpps,
         )
         mission_control.setManagerConfig(config, sender=switchboard_alpha.address)
     yield setManagerConfig
@@ -219,7 +223,7 @@ def setMissionControlPayeeConfig(mission_control, switchboard_alpha):
 
 
 @pytest.fixture(scope="session")
-def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     def createGlobalManagerSettings(
         _managerPeriod = ONE_MONTH_IN_BLOCKS,
         _startDelay = ONE_DAY_IN_BLOCKS // 2,
@@ -227,6 +231,7 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
         _canOwnerManage = True,
         _limits = None,
         _legoPerms = None,
+        _swapPerms = None,
         _whitelistPerms = None,
         _transferPerms = None,
         _allowedAssets = [],
@@ -235,11 +240,13 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
             _limits = createManagerLimits()
         if _legoPerms is None:
             _legoPerms = createLegoPerms()
+        if _swapPerms is None:
+            _swapPerms = createSwapPerms()
         if _whitelistPerms is None:
             _whitelistPerms = createWhitelistPerms()
         if _transferPerms is None:
             _transferPerms = createTransferPerms()
-            
+
         return (
             _managerPeriod,
             _startDelay,
@@ -247,6 +254,7 @@ def createGlobalManagerSettings(createManagerLimits, createLegoPerms, createWhit
             _canOwnerManage,
             _limits,
             _legoPerms,
+            _swapPerms,
             _whitelistPerms,
             _transferPerms,
             _allowedAssets,
@@ -266,6 +274,7 @@ def createManagerData():
         _totalUsdValue = 0,
         _lastTxBlock = 0,
         _periodStartBlock = 0,
+        _numSwapsInPeriod = 0,
     ):
         return (
             _numTxsInPeriod,
@@ -274,6 +283,7 @@ def createManagerData():
             _totalUsdValue,
             _lastTxBlock,
             _periodStartBlock,
+            _numSwapsInPeriod,
         )
     yield createManagerData
 
@@ -282,12 +292,13 @@ def createManagerData():
 
 
 @pytest.fixture(scope="session")
-def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistPerms, createTransferPerms):
+def createManagerSettings(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     def createManagerSettings(
         _startBlock = 0,
         _expiryBlock = 0,
         _limits = None,
         _legoPerms = None,
+        _swapPerms = None,
         _whitelistPerms = None,
         _transferPerms = None,
         _allowedAssets = [],
@@ -297,21 +308,24 @@ def createManagerSettings(createManagerLimits, createLegoPerms, createWhitelistP
             _startBlock = boa.env.evm.patch.block_number
         if _expiryBlock == 0:
             _expiryBlock = _startBlock + ONE_YEAR_IN_BLOCKS
-        
+
         if _limits is None:
             _limits = createManagerLimits()
         if _legoPerms is None:
             _legoPerms = createLegoPerms()
+        if _swapPerms is None:
+            _swapPerms = createSwapPerms()
         if _whitelistPerms is None:
             _whitelistPerms = createWhitelistPerms()
         if _transferPerms is None:
             _transferPerms = createTransferPerms()
-            
+
         return (
             _startBlock,
             _expiryBlock,
             _limits,
             _legoPerms,
+            _swapPerms,
             _whitelistPerms,
             _transferPerms,
             _allowedAssets,
@@ -349,6 +363,7 @@ def createLegoPerms():
         _canManageDebt = True,
         _canManageLiq = True,
         _canClaimRewards = True,
+        _onlyApprovedYieldOpps = False,
         _allowedLegos = [],
     ):
         return (
@@ -357,9 +372,25 @@ def createLegoPerms():
             _canManageDebt,
             _canManageLiq,
             _canClaimRewards,
+            _onlyApprovedYieldOpps,
             _allowedLegos,
         )
     yield createLegoPerms
+
+
+@pytest.fixture(scope="session")
+def createSwapPerms():
+    def createSwapPerms(
+        _mustHaveUsdValue = False,
+        _maxNumSwapsPerPeriod = 0,
+        _maxSlippage = 0,
+    ):
+        return (
+            _mustHaveUsdValue,
+            _maxNumSwapsPerPeriod,
+            _maxSlippage,
+        )
+    yield createSwapPerms
 
 
 @pytest.fixture(scope="session")

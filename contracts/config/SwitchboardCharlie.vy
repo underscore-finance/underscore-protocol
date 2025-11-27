@@ -27,10 +27,15 @@ from interfaces import LegoStructs as ls
 from ethereum.ercs import IERC4626
 
 interface VaultRegistry:
-    def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool): nonpayable
+    def setApprovedVaultTokens(_vaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
+    def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool): nonpayable
+    def setAllowedBatch(_vaultAddr: address, _userAddrs: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool): nonpayable
     def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address): nonpayable
+    def setAllowed(_vaultAddr: address, _userAddr: address, _isAllowed: bool): nonpayable
+    def setShouldEnforceAllowlist(_vaultAddr: address, _shouldEnforce: bool): nonpayable
     def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256): nonpayable
     def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool): nonpayable
+    def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool): nonpayable
     def isApprovedVaultToken(_vaultAddr: address, _vaultToken: address) -> bool: view
     def setPerformanceFee(_vaultAddr: address, _performanceFee: uint256): nonpayable
     def setMinYieldWithdrawAmount(_vaultAddr: address, _amount: uint256): nonpayable
@@ -40,24 +45,31 @@ interface VaultRegistry:
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
     def isValidPerformanceFee(_performanceFee: uint256) -> bool: view
     def isValidRedemptionBuffer(_buffer: uint256) -> bool: view
-    def isValidVaultToken(_vaultToken: address) -> bool: view
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface LevgVault:
-    def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256): nonpayable
-    def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256): nonpayable
-    def setUsdcSlippageAllowed(_slippage: uint256): nonpayable
-    def setGreenSlippageAllowed(_slippage: uint256): nonpayable
+    def setCollateralVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool): nonpayable
+    def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool): nonpayable
+    def setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256): nonpayable
     def setLevgVaultHelper(_levgVaultHelper: address): nonpayable
+    def updateYieldPosition(_vaultToken: address): nonpayable
+    def claimPerformanceFees() -> uint256: nonpayable
+    def removeManager(_manager: address): nonpayable
     def setMaxDebtRatio(_ratio: uint256): nonpayable
     def addManager(_manager: address): nonpayable
-    def removeManager(_manager: address): nonpayable
     def levgVaultHelper() -> address: view
     def USDC() -> address: view
 
 interface YieldLego:
+    def deregisterVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def registerVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
+    def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
     def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
+    def addPriceSnapshot(_vaultToken: address) -> bool: nonpayable
+    def setMorphoRewardsAddr(_rewardsAddr: address): nonpayable
+    def setEulerRewardsAddr(_rewardsAddr: address): nonpayable
+    def setCompRewardsAddr(_rewardsAddr: address): nonpayable
 
 interface LevgVaultHelper:
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
@@ -68,22 +80,30 @@ interface MissionControl:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface EarnVault:
+    def sweepLeftovers() -> uint256: nonpayable
+
 flag ActionType:
     REDEMPTION_BUFFER
     MIN_YIELD_WITHDRAW_AMOUNT
     SNAPSHOT_PRICE_CONFIG
     APPROVED_VAULT_TOKEN
+    APPROVED_VAULT_TOKENS
     PERFORMANCE_FEE
     DEFAULT_TARGET_VAULT_TOKEN
     MAX_DEPOSIT_AMOUNT
+    IS_LEVERAGED_VAULT
     COLLATERAL_VAULT
     LEVERAGE_VAULT
-    USDC_SLIPPAGE
-    GREEN_SLIPPAGE
+    SLIPPAGES
     LEVG_VAULT_HELPER
     MAX_DEBT_RATIO
     ADD_MANAGER
     REMOVE_MANAGER
+    REGISTER_VAULT_TOKEN_ON_LEGO
+    SET_MORPHO_REWARDS_ADDR
+    SET_EULER_REWARDS_ADDR
+    SET_COMP_REWARDS_ADDR
 
 struct PendingRedemptionBuffer:
     vaultAddr: address
@@ -101,6 +121,13 @@ struct PendingApprovedVaultToken:
     vaultAddr: address
     vaultToken: address
     isApproved: bool
+    shouldMaxWithdraw: bool
+
+struct PendingApprovedVaultTokens:
+    vaultAddr: address
+    vaultTokens: DynArray[address, MAX_VAULT_TOKENS]
+    isApproved: bool
+    shouldMaxWithdraw: bool
 
 struct PendingPerformanceFee:
     vaultAddr: address
@@ -114,25 +141,28 @@ struct PendingMaxDepositAmount:
     vaultAddr: address
     maxDepositAmount: uint256
 
+struct PendingIsLeveragedVault:
+    vaultAddr: address
+    isLeveragedVault: bool
+
 struct PendingCollateralVault:
     vaultAddr: address
     vaultToken: address
     ripeVaultId: uint256
     legoId: uint256
+    shouldMaxWithdraw: bool
 
 struct PendingLeverageVault:
     vaultAddr: address
     vaultToken: address
     legoId: uint256
     ripeVaultId: uint256
+    shouldMaxWithdraw: bool
 
-struct PendingUsdcSlippage:
+struct PendingSlippages:
     vaultAddr: address
-    slippage: uint256
-
-struct PendingGreenSlippage:
-    vaultAddr: address
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 struct PendingLevgVaultHelper:
     vaultAddr: address
@@ -149,6 +179,23 @@ struct PendingAddManager:
 struct PendingRemoveManager:
     vaultAddr: address
     manager: address
+
+struct PendingRegisterVaultTokenOnLego:
+    legoId: uint256
+    asset: address
+    vaultToken: address
+
+struct PendingMorphoRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
+
+struct PendingEulerRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
+
+struct PendingCompRewardsAddr:
+    legoId: uint256
+    rewardsAddr: address
 
 event PendingRedemptionBufferChange:
     vaultAddr: indexed(address)
@@ -199,6 +246,18 @@ event ApprovedVaultTokenSet:
     vaultToken: indexed(address)
     isApproved: bool
 
+event PendingApprovedVaultTokensChange:
+    vaultAddr: indexed(address)
+    numTokens: uint256
+    isApproved: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event ApprovedVaultTokensSet:
+    vaultAddr: indexed(address)
+    numTokens: uint256
+    isApproved: bool
+
 event PendingPerformanceFeeChange:
     vaultAddr: indexed(address)
     performanceFee: uint256
@@ -229,6 +288,16 @@ event MaxDepositAmountSet:
     vaultAddr: indexed(address)
     maxDepositAmount: uint256
 
+event PendingIsLeveragedVaultChange:
+    vaultAddr: indexed(address)
+    isLeveragedVault: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event IsLeveragedVaultSet:
+    vaultAddr: indexed(address)
+    isLeveragedVault: bool
+
 event CanDepositSet:
     vaultAddr: indexed(address)
     canDeposit: bool
@@ -249,11 +318,29 @@ event ShouldAutoDepositSet:
     shouldAutoDeposit: bool
     caller: indexed(address)
 
+event ShouldEnforceAllowlistSet:
+    vaultAddr: indexed(address)
+    shouldEnforce: bool
+    caller: indexed(address)
+
+event AllowlistUserSet:
+    vaultAddr: indexed(address)
+    user: indexed(address)
+    isAllowed: bool
+    caller: indexed(address)
+
+event AllowlistBatchSet:
+    vaultAddr: indexed(address)
+    numUsers: uint256
+    isAllowed: bool
+    caller: indexed(address)
+
 event PendingCollateralVaultChange:
     vaultAddr: indexed(address)
     vaultToken: indexed(address)
     ripeVaultId: uint256
     legoId: uint256
+    shouldMaxWithdraw: bool
     confirmationBlock: uint256
     actionId: uint256
 
@@ -268,6 +355,7 @@ event PendingLeverageVaultChange:
     vaultToken: indexed(address)
     legoId: uint256
     ripeVaultId: uint256
+    shouldMaxWithdraw: bool
     confirmationBlock: uint256
     actionId: uint256
 
@@ -277,25 +365,17 @@ event LeverageVaultSet:
     legoId: uint256
     ripeVaultId: uint256
 
-event PendingUsdcSlippageChange:
+event PendingSlippagesChange:
     vaultAddr: indexed(address)
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
     confirmationBlock: uint256
     actionId: uint256
 
-event UsdcSlippageSet:
+event SlippagesSet:
     vaultAddr: indexed(address)
-    slippage: uint256
-
-event PendingGreenSlippageChange:
-    vaultAddr: indexed(address)
-    slippage: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event GreenSlippageSet:
-    vaultAddr: indexed(address)
-    slippage: uint256
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 event PendingLevgVaultHelperChange:
     vaultAddr: indexed(address)
@@ -337,23 +417,106 @@ event ManagerRemoved:
     vaultAddr: indexed(address)
     manager: indexed(address)
 
+event PriceSnapshotAdded:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    vaultToken: indexed(address)
+    success: bool
+    caller: address
+
+event YieldPositionUpdated:
+    vaultAddr: indexed(address)
+    vaultToken: indexed(address)
+    caller: address
+
+event PerformanceFeesClaimed:
+    vaultAddr: indexed(address)
+    amount: uint256
+    caller: address
+
+event PendingRegisterVaultTokenOnLegoChange:
+    legoId: indexed(uint256)
+    asset: indexed(address)
+    vaultToken: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event VaultTokenRegisteredOnLego:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    asset: indexed(address)
+    vaultToken: address
+
+event VaultTokenDeregisteredOnLego:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    asset: indexed(address)
+    vaultToken: address
+    caller: address
+
+event PendingMorphoRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event MorphoRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
+event PendingEulerRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event EulerRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
+event PendingCompRewardsAddrChange:
+    legoId: indexed(uint256)
+    rewardsAddr: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event CompRewardsAddrSet:
+    legoId: indexed(uint256)
+    legoAddr: indexed(address)
+    rewardsAddr: indexed(address)
+
+event LeftoversSwept:
+    vaultAddr: indexed(address)
+    amount: uint256
+    caller: address
+
 # pending config changes
 actionType: public(HashMap[uint256, ActionType]) # aid -> type
 pendingRedemptionBuffer: public(HashMap[uint256, PendingRedemptionBuffer]) # aid -> config
 pendingMinYieldWithdrawAmount: public(HashMap[uint256, PendingMinYieldWithdrawAmount]) # aid -> config
 pendingSnapShotPriceConfig: public(HashMap[uint256, PendingSnapShotPriceConfig]) # aid -> config
 pendingApprovedVaultToken: public(HashMap[uint256, PendingApprovedVaultToken]) # aid -> config
+pendingApprovedVaultTokens: public(HashMap[uint256, PendingApprovedVaultTokens]) # aid -> config
 pendingPerformanceFee: public(HashMap[uint256, PendingPerformanceFee]) # aid -> config
 pendingDefaultTargetVaultToken: public(HashMap[uint256, PendingDefaultTargetVaultToken]) # aid -> config
 pendingMaxDepositAmount: public(HashMap[uint256, PendingMaxDepositAmount]) # aid -> config
+pendingIsLeveragedVault: public(HashMap[uint256, PendingIsLeveragedVault]) # aid -> config
 pendingCollateralVault: public(HashMap[uint256, PendingCollateralVault]) # aid -> config
 pendingLeverageVault: public(HashMap[uint256, PendingLeverageVault]) # aid -> config
-pendingUsdcSlippage: public(HashMap[uint256, PendingUsdcSlippage]) # aid -> config
-pendingGreenSlippage: public(HashMap[uint256, PendingGreenSlippage]) # aid -> config
+pendingSlippages: public(HashMap[uint256, PendingSlippages]) # aid -> config
 pendingLevgVaultHelper: public(HashMap[uint256, PendingLevgVaultHelper]) # aid -> config
 pendingMaxDebtRatio: public(HashMap[uint256, PendingMaxDebtRatio]) # aid -> config
 pendingAddManager: public(HashMap[uint256, PendingAddManager]) # aid -> config
 pendingRemoveManager: public(HashMap[uint256, PendingRemoveManager]) # aid -> config
+pendingRegisterVaultTokenOnLego: public(HashMap[uint256, PendingRegisterVaultTokenOnLego]) # aid -> config
+pendingMorphoRewardsAddr: public(HashMap[uint256, PendingMorphoRewardsAddr]) # aid -> config
+pendingEulerRewardsAddr: public(HashMap[uint256, PendingEulerRewardsAddr]) # aid -> config
+pendingCompRewardsAddr: public(HashMap[uint256, PendingCompRewardsAddr]) # aid -> config
+
+MAX_VAULT_TOKENS: constant(uint256) = 50
+MAX_ALLOWLIST_BATCH: constant(uint256) = 50
 
 
 @deploy
@@ -373,10 +536,10 @@ def __init__(
 
 @view
 @internal
-def _hasPermsToFreeze(_caller: address, _shouldFreeze: bool) -> bool:
+def _hasPermission(_caller: address, _isLiteAction: bool) -> bool:
     if gov._canGovern(_caller):
         return True
-    if _shouldFreeze:
+    if _isLiteAction:
         return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
     return False
 
@@ -391,7 +554,7 @@ def _hasPermsToFreeze(_caller: address, _shouldFreeze: bool) -> bool:
 
 @external
 def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _canDeposit) # dev: no perms
+    assert self._hasPermission(msg.sender, not _canDeposit) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setCanDeposit(_vaultAddr, _canDeposit)
     log CanDepositSet(vaultAddr=_vaultAddr, canDeposit=_canDeposit, caller=msg.sender)
 
@@ -401,7 +564,7 @@ def setCanDeposit(_vaultAddr: address, _canDeposit: bool):
 
 @external
 def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _canWithdraw) # dev: no perms
+    assert self._hasPermission(msg.sender, not _canWithdraw) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setCanWithdraw(_vaultAddr, _canWithdraw)
     log CanWithdrawSet(vaultAddr=_vaultAddr, canWithdraw=_canWithdraw, caller=msg.sender)
 
@@ -411,7 +574,7 @@ def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool):
 
 @external
 def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
-    assert self._hasPermsToFreeze(msg.sender, _isFrozen) # dev: no perms
+    assert self._hasPermission(msg.sender, _isFrozen) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setVaultOpsFrozen(_vaultAddr, _isFrozen)
     log VaultOpsFrozenSet(vaultAddr=_vaultAddr, isFrozen=_isFrozen, caller=msg.sender)
 
@@ -421,9 +584,125 @@ def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool):
 
 @external
 def setShouldAutoDeposit(_vaultAddr: address, _shouldAutoDeposit: bool):
-    assert self._hasPermsToFreeze(msg.sender, not _shouldAutoDeposit) # dev: no perms
+    assert self._hasPermission(msg.sender, not _shouldAutoDeposit) # dev: no perms
     extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldAutoDeposit(_vaultAddr, _shouldAutoDeposit)
     log ShouldAutoDepositSet(vaultAddr=_vaultAddr, shouldAutoDeposit=_shouldAutoDeposit, caller=msg.sender)
+
+
+# allowlist enforcement
+
+
+@external
+def setShouldEnforceAllowlist(_vaultAddr: address, _shouldEnforce: bool):
+    assert self._hasPermission(msg.sender, _shouldEnforce) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setShouldEnforceAllowlist(_vaultAddr, _shouldEnforce)
+    log ShouldEnforceAllowlistSet(vaultAddr=_vaultAddr, shouldEnforce=_shouldEnforce, caller=msg.sender)
+
+
+# allowlist user
+
+
+@external
+def setAllowed(_vaultAddr: address, _user: address, _isAllowed: bool):
+    assert self._hasPermission(msg.sender, not _isAllowed) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setAllowed(_vaultAddr, _user, _isAllowed)
+    log AllowlistUserSet(vaultAddr=_vaultAddr, user=_user, isAllowed=_isAllowed, caller=msg.sender)
+
+
+# allowlist batch
+
+
+@external
+def setAllowedBatch(_vaultAddr: address, _users: DynArray[address, MAX_ALLOWLIST_BATCH], _isAllowed: bool):
+    assert self._hasPermission(msg.sender, not _isAllowed) # dev: no perms
+    extcall VaultRegistry(addys._getVaultRegistryAddr()).setAllowedBatch(_vaultAddr, _users, _isAllowed)
+    log AllowlistBatchSet(vaultAddr=_vaultAddr, numUsers=len(_users), isAllowed=_isAllowed, caller=msg.sender)
+
+
+# add price snapshot
+
+
+@external
+def addPriceSnapshot(_legoId: uint256, _vaultToken: address) -> bool:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    # get lego address from lego book
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # call addPriceSnapshot on the lego
+    result: bool = extcall YieldLego(legoAddr).addPriceSnapshot(_vaultToken)
+
+    log PriceSnapshotAdded(legoId=_legoId, legoAddr=legoAddr, vaultToken=_vaultToken, success=result, caller=msg.sender)
+    return result
+
+
+# deregister vault token on lego
+
+
+@external
+def deregisterVaultTokenOnLego(_legoId: uint256, _asset: address, _vaultToken: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+    assert _vaultToken != empty(address) # dev: invalid vault token
+
+    # get lego address from lego book
+    legoAddr: address = staticcall Registry(addys._getLegoBookAddr()).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # execute immediately (no timelock for emergency vault token removals)
+    extcall YieldLego(legoAddr).deregisterVaultTokenLocally(_asset, _vaultToken)
+
+    log VaultTokenDeregisteredOnLego(legoId=_legoId, legoAddr=legoAddr, asset=_asset, vaultToken=_vaultToken, caller=msg.sender)
+    return 0
+
+
+# update yield position
+
+
+@external
+def updateYieldPosition(_vaultAddr: address, _vaultToken: address):
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # call updateYieldPosition on the vault
+    extcall LevgVault(_vaultAddr).updateYieldPosition(_vaultToken)
+
+    log YieldPositionUpdated(vaultAddr=_vaultAddr, vaultToken=_vaultToken, caller=msg.sender)
+
+
+# claim performance fees
+
+
+@external
+def claimPerformanceFees(_vaultAddr: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    # call claimPerformanceFees on the vault
+    amount: uint256 = extcall LevgVault(_vaultAddr).claimPerformanceFees()
+
+    log PerformanceFeesClaimed(vaultAddr=_vaultAddr, amount=amount, caller=msg.sender)
+    return amount
+
+
+# sweep leftovers
+
+
+@external
+def sweepLeftovers(_vaultAddr: address) -> uint256:
+    assert self._hasPermission(msg.sender, True) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    amount: uint256 = extcall EarnVault(_vaultAddr).sweepLeftovers()
+    log LeftoversSwept(vaultAddr=_vaultAddr, amount=amount, caller=msg.sender)
+    return amount
 
 
 ##############
@@ -530,23 +809,69 @@ def setSnapShotPriceConfig(
 
 
 @external
-def setApprovedVaultToken(_vaultAddr: address, _vaultToken: address, _isApproved: bool) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    vr: address = addys._getVaultRegistryAddr()
-    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert staticcall VaultRegistry(vr).isValidVaultToken(_vaultToken) # dev: invalid vault token
+def setApprovedVaultToken(_undyVaultAddr: address, _vaultToken: address, _isApproved: bool, _shouldMaxWithdraw: bool) -> uint256:
+    assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
 
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_undyVaultAddr) # dev: invalid vault addr
+    assert _vaultToken != empty(address) # dev: invalid vault token
+
+    # if disapproving, execute immediately (no timelock for emergency removals)
+    if not _isApproved:
+        extcall VaultRegistry(vr).setApprovedVaultToken(_undyVaultAddr, _vaultToken, _isApproved, _shouldMaxWithdraw)
+        log ApprovedVaultTokenSet(vaultAddr=_undyVaultAddr, vaultToken=_vaultToken, isApproved=_isApproved)
+        return 0
+
+    # if approving, use timelock
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.APPROVED_VAULT_TOKEN
     self.pendingApprovedVaultToken[aid] = PendingApprovedVaultToken(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         vaultToken=_vaultToken,
-        isApproved=_isApproved
+        isApproved=_isApproved,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingApprovedVaultTokenChange(
-        vaultAddr=_vaultAddr,
+        vaultAddr=_undyVaultAddr,
         vaultToken=_vaultToken,
+        isApproved=_isApproved,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+@external
+def setApprovedVaultTokens(_undyVaultAddr: address, _vaultTokens: DynArray[address, MAX_VAULT_TOKENS], _isApproved: bool, _shouldMaxWithdraw: bool) -> uint256:
+    assert self._hasPermission(msg.sender, not _isApproved) # dev: no perms
+
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_undyVaultAddr) # dev: invalid vault addr
+
+    # validate all vault tokens
+    assert empty(address) not in _vaultTokens # dev: invalid vault tokens
+    assert len(_vaultTokens) != 0 # dev: no vault tokens
+
+    # if disapproving, execute immediately (no timelock for emergency removals)
+    if not _isApproved:
+        extcall VaultRegistry(vr).setApprovedVaultTokens(_undyVaultAddr, _vaultTokens, _isApproved, _shouldMaxWithdraw)
+        log ApprovedVaultTokensSet(vaultAddr=_undyVaultAddr, numTokens=len(_vaultTokens), isApproved=_isApproved)
+        return 0
+
+    # if approving, use timelock
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.APPROVED_VAULT_TOKENS
+    self.pendingApprovedVaultTokens[aid] = PendingApprovedVaultTokens(
+        vaultAddr=_undyVaultAddr,
+        vaultTokens=_vaultTokens,
+        isApproved=_isApproved,
+        shouldMaxWithdraw=_shouldMaxWithdraw
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingApprovedVaultTokensChange(
+        vaultAddr=_undyVaultAddr,
+        numTokens=len(_vaultTokens),
         isApproved=_isApproved,
         confirmationBlock=confirmationBlock,
         actionId=aid
@@ -631,11 +956,36 @@ def setMaxDepositAmount(_vaultAddr: address, _maxDepositAmount: uint256) -> uint
     return aid
 
 
+# is leveraged vault
+
+
+@external
+def setIsLeveragedVault(_vaultAddr: address, _isLeveragedVault: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    vr: address = addys._getVaultRegistryAddr()
+    assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.IS_LEVERAGED_VAULT
+    self.pendingIsLeveragedVault[aid] = PendingIsLeveragedVault(
+        vaultAddr=_vaultAddr,
+        isLeveragedVault=_isLeveragedVault
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingIsLeveragedVaultChange(
+        vaultAddr=_vaultAddr,
+        isLeveragedVault=_isLeveragedVault,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
 # collateral vault
 
 
 @external
-def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> uint256:
+def setCollateralVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
@@ -652,7 +1002,8 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
         vaultAddr=_vaultAddr,
         vaultToken=_vaultToken,
         ripeVaultId=_ripeVaultId,
-        legoId=_legoId
+        legoId=_legoId,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingCollateralVaultChange(
@@ -660,6 +1011,7 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
         vaultToken=_vaultToken,
         ripeVaultId=_ripeVaultId,
         legoId=_legoId,
+        shouldMaxWithdraw=_shouldMaxWithdraw,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -670,7 +1022,7 @@ def setCollateralVault(_vaultAddr: address, _vaultToken: address, _ripeVaultId: 
 
 
 @external
-def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256) -> uint256:
+def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
@@ -686,7 +1038,8 @@ def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256
         vaultAddr=_vaultAddr,
         vaultToken=_vaultToken,
         legoId=_legoId,
-        ripeVaultId=_ripeVaultId
+        ripeVaultId=_ripeVaultId,
+        shouldMaxWithdraw=_shouldMaxWithdraw
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingLeverageVaultChange(
@@ -694,56 +1047,35 @@ def setLeverageVault(_vaultAddr: address, _vaultToken: address, _legoId: uint256
         vaultToken=_vaultToken,
         legoId=_legoId,
         ripeVaultId=_ripeVaultId,
+        shouldMaxWithdraw=_shouldMaxWithdraw,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
     return aid
 
 
-# usdc slippage
+# slippages
 
 
 @external
-def setUsdcSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
+def setSlippagesAllowed(_vaultAddr: address, _usdcSlippage: uint256, _greenSlippage: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
+    assert _usdcSlippage <= 10_00 # dev: usdc slippage too high (max 10%)
+    assert _greenSlippage <= 10_00 # dev: green slippage too high (max 10%)
 
     aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.USDC_SLIPPAGE
-    self.pendingUsdcSlippage[aid] = PendingUsdcSlippage(
+    self.actionType[aid] = ActionType.SLIPPAGES
+    self.pendingSlippages[aid] = PendingSlippages(
         vaultAddr=_vaultAddr,
-        slippage=_slippage
+        usdcSlippage=_usdcSlippage,
+        greenSlippage=_greenSlippage
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingUsdcSlippageChange(
+    log PendingSlippagesChange(
         vaultAddr=_vaultAddr,
-        slippage=_slippage,
-        confirmationBlock=confirmationBlock,
-        actionId=aid
-    )
-    return aid
-
-
-# green slippage
-
-
-@external
-def setGreenSlippageAllowed(_vaultAddr: address, _slippage: uint256) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.GREEN_SLIPPAGE
-    self.pendingGreenSlippage[aid] = PendingGreenSlippage(
-        vaultAddr=_vaultAddr,
-        slippage=_slippage
-    )
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingGreenSlippageChange(
-        vaultAddr=_vaultAddr,
-        slippage=_slippage,
+        usdcSlippage=_usdcSlippage,
+        greenSlippage=_greenSlippage,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -829,19 +1161,128 @@ def addVaultManager(_vaultAddr: address, _manager: address) -> uint256:
 
 @external
 def removeVaultManager(_vaultAddr: address, _manager: address) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._hasPermission(msg.sender, True) # dev: no perms
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
 
+    # execute immediately (no timelock for emergency manager removals)
+    extcall LevgVault(_vaultAddr).removeManager(_manager)
+    log ManagerRemoved(vaultAddr=_vaultAddr, manager=_manager)
+    return 0
+
+
+# register vault token on lego
+
+
+@external
+def registerVaultTokenOnLego(_legoId: uint256, _asset: address, _vaultToken: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert _asset != empty(address) # dev: invalid asset
+    assert _vaultToken != empty(address) # dev: invalid vault token
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    # validate that the vault token can be registered
+    assert staticcall YieldLego(legoAddr).canRegisterVaultToken(_asset, _vaultToken) # dev: cannot register vault token
+
     aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.REMOVE_MANAGER
-    self.pendingRemoveManager[aid] = PendingRemoveManager(
-        vaultAddr=_vaultAddr,
-        manager=_manager
+    self.actionType[aid] = ActionType.REGISTER_VAULT_TOKEN_ON_LEGO
+    self.pendingRegisterVaultTokenOnLego[aid] = PendingRegisterVaultTokenOnLego(
+        legoId=_legoId,
+        asset=_asset,
+        vaultToken=_vaultToken
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingRemoveManagerChange(
-        vaultAddr=_vaultAddr,
-        manager=_manager,
+    log PendingRegisterVaultTokenOnLegoChange(
+        legoId=_legoId,
+        asset=_asset,
+        vaultToken=_vaultToken,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set morpho rewards address
+
+
+@external
+def setMorphoRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_MORPHO_REWARDS_ADDR
+    self.pendingMorphoRewardsAddr[aid] = PendingMorphoRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingMorphoRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set euler rewards address
+
+
+@external
+def setEulerRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_EULER_REWARDS_ADDR
+    self.pendingEulerRewardsAddr[aid] = PendingEulerRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEulerRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
+        confirmationBlock=confirmationBlock,
+        actionId=aid
+    )
+    return aid
+
+
+# set compound rewards address
+
+
+@external
+def setCompRewardsAddr(_legoId: uint256, _rewardsAddr: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    # get lego address from lego book
+    legoBook: address = addys._getLegoBookAddr()
+    legoAddr: address = staticcall Registry(legoBook).getAddr(_legoId)
+    assert legoAddr != empty(address) # dev: invalid lego id
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_COMP_REWARDS_ADDR
+    self.pendingCompRewardsAddr[aid] = PendingCompRewardsAddr(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr
+    )
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingCompRewardsAddrChange(
+        legoId=_legoId,
+        rewardsAddr=_rewardsAddr,
         confirmationBlock=confirmationBlock,
         actionId=aid
     )
@@ -894,8 +1335,13 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.APPROVED_VAULT_TOKEN:
         p: PendingApprovedVaultToken = self.pendingApprovedVaultToken[_aid]
-        extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved)
+        extcall VaultRegistry(vr).setApprovedVaultToken(p.vaultAddr, p.vaultToken, p.isApproved, p.shouldMaxWithdraw)
         log ApprovedVaultTokenSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, isApproved=p.isApproved)
+
+    elif actionType == ActionType.APPROVED_VAULT_TOKENS:
+        p: PendingApprovedVaultTokens = self.pendingApprovedVaultTokens[_aid]
+        extcall VaultRegistry(vr).setApprovedVaultTokens(p.vaultAddr, p.vaultTokens, p.isApproved, p.shouldMaxWithdraw)
+        log ApprovedVaultTokensSet(vaultAddr=p.vaultAddr, numTokens=len(p.vaultTokens), isApproved=p.isApproved)
 
     elif actionType == ActionType.PERFORMANCE_FEE:
         p: PendingPerformanceFee = self.pendingPerformanceFee[_aid]
@@ -912,25 +1358,25 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall VaultRegistry(vr).setMaxDepositAmount(p.vaultAddr, p.maxDepositAmount)
         log MaxDepositAmountSet(vaultAddr=p.vaultAddr, maxDepositAmount=p.maxDepositAmount)
 
+    elif actionType == ActionType.IS_LEVERAGED_VAULT:
+        p: PendingIsLeveragedVault = self.pendingIsLeveragedVault[_aid]
+        extcall VaultRegistry(vr).setIsLeveragedVault(p.vaultAddr, p.isLeveragedVault)
+        log IsLeveragedVaultSet(vaultAddr=p.vaultAddr, isLeveragedVault=p.isLeveragedVault)
+
     elif actionType == ActionType.COLLATERAL_VAULT:
         p: PendingCollateralVault = self.pendingCollateralVault[_aid]
-        extcall LevgVault(p.vaultAddr).setCollateralVault(p.vaultToken, p.ripeVaultId, p.legoId)
+        extcall LevgVault(p.vaultAddr).setCollateralVault(p.vaultToken, p.legoId, p.ripeVaultId, p.shouldMaxWithdraw)
         log CollateralVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, ripeVaultId=p.ripeVaultId, legoId=p.legoId)
 
     elif actionType == ActionType.LEVERAGE_VAULT:
         p: PendingLeverageVault = self.pendingLeverageVault[_aid]
-        extcall LevgVault(p.vaultAddr).setLeverageVault(p.vaultToken, p.legoId, p.ripeVaultId)
+        extcall LevgVault(p.vaultAddr).setLeverageVault(p.vaultToken, p.legoId, p.ripeVaultId, p.shouldMaxWithdraw)
         log LeverageVaultSet(vaultAddr=p.vaultAddr, vaultToken=p.vaultToken, legoId=p.legoId, ripeVaultId=p.ripeVaultId)
 
-    elif actionType == ActionType.USDC_SLIPPAGE:
-        p: PendingUsdcSlippage = self.pendingUsdcSlippage[_aid]
-        extcall LevgVault(p.vaultAddr).setUsdcSlippageAllowed(p.slippage)
-        log UsdcSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
-
-    elif actionType == ActionType.GREEN_SLIPPAGE:
-        p: PendingGreenSlippage = self.pendingGreenSlippage[_aid]
-        extcall LevgVault(p.vaultAddr).setGreenSlippageAllowed(p.slippage)
-        log GreenSlippageSet(vaultAddr=p.vaultAddr, slippage=p.slippage)
+    elif actionType == ActionType.SLIPPAGES:
+        p: PendingSlippages = self.pendingSlippages[_aid]
+        extcall LevgVault(p.vaultAddr).setSlippagesAllowed(p.usdcSlippage, p.greenSlippage)
+        log SlippagesSet(vaultAddr=p.vaultAddr, usdcSlippage=p.usdcSlippage, greenSlippage=p.greenSlippage)
 
     elif actionType == ActionType.LEVG_VAULT_HELPER:
         p: PendingLevgVaultHelper = self.pendingLevgVaultHelper[_aid]
@@ -951,6 +1397,42 @@ def executePendingAction(_aid: uint256) -> bool:
         p: PendingRemoveManager = self.pendingRemoveManager[_aid]
         extcall LevgVault(p.vaultAddr).removeManager(p.manager)
         log ManagerRemoved(vaultAddr=p.vaultAddr, manager=p.manager)
+
+    elif actionType == ActionType.REGISTER_VAULT_TOKEN_ON_LEGO:
+        p: PendingRegisterVaultTokenOnLego = self.pendingRegisterVaultTokenOnLego[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # register vault token on the lego
+        extcall YieldLego(legoAddr).registerVaultTokenLocally(p.asset, p.vaultToken)
+        log VaultTokenRegisteredOnLego(legoId=p.legoId, legoAddr=legoAddr, asset=p.asset, vaultToken=p.vaultToken)
+
+    elif actionType == ActionType.SET_MORPHO_REWARDS_ADDR:
+        p: PendingMorphoRewardsAddr = self.pendingMorphoRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setMorphoRewardsAddr(p.rewardsAddr)
+        log MorphoRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
+
+    elif actionType == ActionType.SET_EULER_REWARDS_ADDR:
+        p: PendingEulerRewardsAddr = self.pendingEulerRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setEulerRewardsAddr(p.rewardsAddr)
+        log EulerRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
+
+    elif actionType == ActionType.SET_COMP_REWARDS_ADDR:
+        p: PendingCompRewardsAddr = self.pendingCompRewardsAddr[_aid]
+        # get lego address from lego book
+        legoBook: address = addys._getLegoBookAddr()
+        legoAddr: address = staticcall Registry(legoBook).getAddr(p.legoId)
+        # set rewards address on the lego
+        extcall YieldLego(legoAddr).setCompRewardsAddr(p.rewardsAddr)
+        log CompRewardsAddrSet(legoId=p.legoId, legoAddr=legoAddr, rewardsAddr=p.rewardsAddr)
 
     self.actionType[_aid] = empty(ActionType)
     return True

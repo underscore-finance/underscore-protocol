@@ -47,13 +47,12 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -151,7 +150,12 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    if _vaultToken == SUSDS:
+        return USDS
+    return empty(address)
 
 
 # underlying balances (both true and safe)
@@ -250,7 +254,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -302,19 +306,7 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall SkyPsm(SKY_PSM).previewSwapExactIn(_asset, _vaultToken, _assetAmount)
 
 
-# extras
-
-
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return False
+# total assets
 
 
 @view
@@ -323,11 +315,43 @@ def totalAssets(_vaultToken: address) -> uint256:
     return staticcall SkyPsm(SKY_PSM).totalAssets()
 
 
+# total borrows
+
+
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
+    # PSM has no borrowing mechanism - it's a pure liquidity pool
     return 0
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    # all liquidity is always available in PSM (no borrows/locks)
+    return staticcall SkyPsm(SKY_PSM).totalAssets()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # 0% utilization since PSM has no borrowing
+    return 0
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False
 
 
 @view
@@ -480,7 +504,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log SkyPsmDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -552,7 +576,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log SkyPsmWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

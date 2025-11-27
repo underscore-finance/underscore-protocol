@@ -41,7 +41,7 @@ def test_valid_global_payee_settings_zero_cooldown(paymaster, user_wallet, creat
         _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
         _lifetimeCap=100000 * EIGHTEEN_DECIMALS
     )
-    
+
     # Zero cooldown should be valid
     assert paymaster.isValidGlobalPayeeSettings(
         user_wallet,
@@ -50,7 +50,7 @@ def test_valid_global_payee_settings_zero_cooldown(paymaster, user_wallet, creat
         ONE_DAY_IN_BLOCKS,  # _activationLength: Valid within MIN/MAX
         10,  # _maxNumTxsPerPeriod
         0,  # _txCooldownBlocks: Zero cooldown
-        False,  # _failOnZeroPrice
+        True,  # _failOnZeroPrice: Must be True when USD limits are set
         usd_limits,  # _usdLimits
         True,  # _canPayOwner
         True  # _canPull
@@ -278,7 +278,7 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
         PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],  # _activationLength: At minimum
         1,  # _maxNumTxsPerPeriod
         0,  # _txCooldownBlocks
-        False,  # _failOnZeroPrice
+        True,  # _failOnZeroPrice: Must be True when USD limits are set
         usd_limits,  # _usdLimits
         True,  # _canPayOwner
         True  # _canPull
@@ -578,6 +578,147 @@ def test_invalid_new_payee_is_whitelisted(paymaster, user_wallet, user_wallet_co
     )
 
 
+def test_invalid_new_payee_has_active_cheque(
+    paymaster, user_wallet, user_wallet_config, bob, alice, alpha_token,
+    createPayeeLimits, cheque_book, mock_ripe
+):
+    """Test cross-validation: payee cannot be added if they have an active cheque"""
+    # First, set up cheque settings
+    ONE_MONTH_IN_BLOCKS = 30 * ONE_DAY_IN_BLOCKS
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for alice
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        True,
+        sender=bob
+    )
+
+    # Verify alice has an active cheque
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque[10] == True  # active flag
+
+    # Now try to add alice as a payee - should fail
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        alice,  # payee has active cheque (INVALID)
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits  # usdLimits
+    )
+
+
+def test_valid_new_payee_after_cheque_cancelled(
+    paymaster, user_wallet, user_wallet_config, bob, alice, alpha_token,
+    createPayeeLimits, cheque_book, mock_ripe
+):
+    """Test edge case: payee CAN be added after their cheque is cancelled/inactive"""
+    # First, set up cheque settings
+    ONE_MONTH_IN_BLOCKS = 30 * ONE_DAY_IN_BLOCKS
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        True,  # canBePulled
+        sender=bob
+    )
+
+    # Set price for the asset
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    # Create a cheque for alice
+    ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        True,
+        sender=bob
+    )
+
+    # Verify alice has an active cheque
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque[10] == True  # active flag
+
+    # Cancel the cheque
+    cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+
+    # Verify cheque is now inactive
+    cheque_after = user_wallet_config.cheques(alice)
+    assert cheque_after[10] == False  # active flag should be False
+
+    # Now adding alice as a payee should succeed (cheque is inactive)
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert paymaster.isValidNewPayee(
+        user_wallet,
+        alice,  # payee no longer has active cheque (VALID)
+        False,  # canPull
+        2 * ONE_DAY_IN_BLOCKS,  # periodLength
+        10,  # maxNumTxsPerPeriod
+        0,  # txCooldownBlocks
+        True,  # failOnZeroPrice
+        ZERO_ADDRESS,  # primaryAsset
+        False,  # onlyPrimaryAsset
+        createPayeeLimits(),  # unitLimits
+        usd_limits  # usdLimits
+    )
+
+
 def test_invalid_new_payee_period_too_short(paymaster, user_wallet, createPayeeLimits, alice, fork):
     """Test invalid new payee with period length too short"""
     usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
@@ -843,7 +984,7 @@ def test_valid_payee_update_basic(paymaster, user_wallet, user_wallet_config, cr
         3 * ONE_DAY_IN_BLOCKS,  # periodLength (changed)
         10,  # maxNumTxsPerPeriod (changed)
         100,  # txCooldownBlocks (changed)
-        False,  # failOnZeroPrice (changed)
+        True,  # failOnZeroPrice: Must be True when USD limits are set
         ZERO_ADDRESS,  # primaryAsset
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
@@ -1165,6 +1306,187 @@ def test_payee_update_maintains_original_start_expiry(paymaster, user_wallet, us
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
         createPayeeLimits(_perTxCap=2000 * EIGHTEEN_DECIMALS)  # usdLimits
+    )
+
+
+########################################
+# failOnZeroPrice Validation with USD Limits #
+########################################
+
+
+def test_invalid_global_payee_settings_usd_limits_without_fail_on_zero_price(paymaster, user_wallet, createPayeeLimits, fork):
+    """Test that USD limits require failOnZeroPrice=True"""
+    # Create USD limits with perTxCap
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    # Should be invalid: USD limits set but failOnZeroPrice=False
+    assert not paymaster.isValidGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice=False is invalid with USD limits
+        usd_limits,
+        False,
+        True
+    )
+
+
+def test_valid_global_payee_settings_usd_limits_with_fail_on_zero_price(paymaster, user_wallet, createPayeeLimits, fork):
+    """Test that USD limits work with failOnZeroPrice=True"""
+    # Create USD limits
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+
+    # Should be valid: USD limits set and failOnZeroPrice=True
+    assert paymaster.isValidGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,  # failOnZeroPrice=True is required with USD limits
+        usd_limits,
+        False,
+        True
+    )
+
+
+def test_valid_global_payee_settings_no_usd_limits_fail_on_zero_price_false(paymaster, user_wallet, createPayeeLimits, fork):
+    """Test that failOnZeroPrice=False is valid when no USD limits are set"""
+    # Create limits with all zeros (no USD limits)
+    usd_limits = createPayeeLimits(_perTxCap=0, _perPeriodCap=0, _lifetimeCap=0)
+
+    # Should be valid: No USD limits, so failOnZeroPrice can be False
+    assert paymaster.isValidGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice=False is OK when no USD limits
+        usd_limits,
+        False,
+        True
+    )
+
+
+def test_invalid_new_payee_usd_limits_without_fail_on_zero_price(paymaster, user_wallet, createPayeeLimits, alice):
+    """Test that new payee with USD limits requires failOnZeroPrice=True"""
+    usd_limits = createPayeeLimits(_perPeriodCap=5000 * EIGHTEEN_DECIMALS)
+
+    # Should be invalid: USD limit set but failOnZeroPrice=False
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice=False is invalid with USD limits
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits
+    )
+
+
+def test_valid_new_payee_usd_limits_with_fail_on_zero_price(paymaster, user_wallet, createPayeeLimits, alice):
+    """Test that new payee with USD limits works with failOnZeroPrice=True"""
+    usd_limits = createPayeeLimits(_lifetimeCap=100000 * EIGHTEEN_DECIMALS)
+
+    # Should be valid: USD limit set and failOnZeroPrice=True
+    assert paymaster.isValidNewPayee(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,  # failOnZeroPrice=True is required with USD limits
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits
+    )
+
+
+def test_invalid_payee_update_usd_limits_without_fail_on_zero_price(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice):
+    """Test that payee update with USD limits requires failOnZeroPrice=True"""
+    # First add an existing payee
+    initial_settings = createPayeeSettings()
+    user_wallet_config.addPayee(alice, initial_settings, sender=paymaster.address)
+
+    usd_limits = createPayeeLimits(_perTxCap=2000 * EIGHTEEN_DECIMALS)
+
+    # Should be invalid: USD limit set but failOnZeroPrice=False
+    assert not paymaster.isValidPayeeUpdate(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        False,  # failOnZeroPrice=False is invalid with USD limits
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits
+    )
+
+
+def test_valid_payee_update_usd_limits_with_fail_on_zero_price(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings, alice):
+    """Test that payee update with USD limits works with failOnZeroPrice=True"""
+    # First add an existing payee
+    initial_settings = createPayeeSettings()
+    user_wallet_config.addPayee(alice, initial_settings, sender=paymaster.address)
+
+    usd_limits = createPayeeLimits(_perTxCap=2000 * EIGHTEEN_DECIMALS)
+
+    # Should be valid: USD limit set and failOnZeroPrice=True
+    assert paymaster.isValidPayeeUpdate(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,  # failOnZeroPrice=True is required with USD limits
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits
+    )
+
+
+def test_invalid_any_usd_limit_requires_fail_on_zero_price(paymaster, user_wallet, createPayeeLimits, fork):
+    """Test that ANY non-zero USD limit (perTx, perPeriod, or lifetime) requires failOnZeroPrice=True"""
+    # Test with only perTxCap set
+    usd_limits_1 = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+    assert not paymaster.isValidGlobalPayeeSettings(
+        user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_1, False, True
+    )
+
+    # Test with only perPeriodCap set
+    usd_limits_2 = createPayeeLimits(_perPeriodCap=5000 * EIGHTEEN_DECIMALS)
+    assert not paymaster.isValidGlobalPayeeSettings(
+        user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_2, False, True
+    )
+
+    # Test with only lifetimeCap set
+    usd_limits_3 = createPayeeLimits(_lifetimeCap=10000 * EIGHTEEN_DECIMALS)
+    assert not paymaster.isValidGlobalPayeeSettings(
+        user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_3, False, True
     )
 
 

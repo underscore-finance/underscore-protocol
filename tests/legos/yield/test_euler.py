@@ -134,3 +134,15 @@ def test_euler_operator_access(
 
     # has access
     assert euler_rewards.operators(user_wallet.address, lego_euler.address)
+
+
+@pytest.mark.parametrize("token_str", TEST_ASSETS)
+@pytest.always
+def test_euler_view_functions(
+    token_str,
+    getVaultToken,
+    lego_euler,
+    testLegoViewFunctions,
+):
+    vault_token = getVaultToken(token_str)
+    testLegoViewFunctions(lego_euler, vault_token, token_str)

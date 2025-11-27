@@ -40,10 +40,6 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface AaveV3Pool:
     def supply(_asset: address, _amount: uint256, _onBehalfOf: address, _referralCode: uint16): nonpayable
     def withdraw(_asset: address, _amount: uint256, _to: address): nonpayable
@@ -59,6 +55,9 @@ interface Registry:
 interface AToken:
     def UNDERLYING_ASSET_ADDRESS() -> address: view
     def totalSupply() -> uint256: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
@@ -91,6 +90,7 @@ RIPE_REGISTRY: public(immutable(address))
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -162,7 +162,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall AToken(_vaultToken).UNDERLYING_ASSET_ADDRESS()
 
 
 # underlying balances (both true and safe)
@@ -241,7 +244,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -293,25 +296,22 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return _assetAmount # treated as 1:1
 
 
-# extras
-
-
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return False
+# total assets
 
 
 @view
 @external
 def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
     return staticcall AToken(_vaultToken).totalSupply()
+
+
+# total borrows
 
 
 @view
@@ -320,7 +320,54 @@ def totalBorrows(_vaultToken: address) -> uint256:
     asset: address = self._getUnderlyingAsset(_vaultToken)
     if asset == empty(address):
         return 0 # not registered
-    return staticcall AaveProtocolDataProvider(self._getPoolDataProvider()).getTotalDebt(asset)
+    return self._totalBorrows(asset)
+
+
+@view
+@internal
+def _totalBorrows(_asset: address) -> uint256:
+    return staticcall AaveProtocolDataProvider(self._getPoolDataProvider()).getTotalDebt(_asset)
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(asset)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    if totalAssets == 0:
+        return 0
+    totalBorrows: uint256 = self._totalBorrows(asset)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return False
 
 
 @view
@@ -461,7 +508,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log AaveV3Deposit(
         sender = msg.sender,
         asset = _asset,
@@ -529,7 +576,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log AaveV3Withdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

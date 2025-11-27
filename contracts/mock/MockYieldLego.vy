@@ -20,13 +20,12 @@ import contracts.modules.YieldLegoData as yld
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
+
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
@@ -196,7 +195,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -216,7 +215,7 @@ def isRebasing() -> bool:
 @view
 @internal
 def _isRebasing() -> bool:
-    return False
+    return self.mockIsRebasing
 
 
 # price per share
@@ -255,22 +254,7 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
-# extras
-
-
-@view
-@external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
-    if asset != _underlyingAsset:
-        return False
-    return staticcall IERC4626(_vaultToken).totalAssets() > self.minTotalAssets
-
-
-@view
-@external
-def isEligibleForYieldBonus(_asset: address) -> bool:
-    return self.isEligible 
+# total assets
 
 
 @view
@@ -279,10 +263,40 @@ def totalAssets(_vaultToken: address) -> uint256:
     return staticcall IERC4626(_vaultToken).totalAssets()
 
 
+# total borrows
+
+
 @view
 @external
 def totalBorrows(_vaultToken: address) -> uint256:
     return 0
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    return 0
+
+
+# extras
+
+
+@view
+@external
+def isEligibleForYieldBonus(_asset: address) -> bool:
+    return self.isEligible 
 
 
 @view
@@ -413,7 +427,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
 
     # add price snapshot
     pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultInfo.decimals)
@@ -481,7 +495,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
 
     # add price snapshot
     pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
@@ -708,3 +722,21 @@ def removeLiquidityConcentrated(
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256, uint256, bool, uint256):
     return 0, 0, 0, False, 0
+
+
+@external
+def setMorphoRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing
+
+
+@external
+def setEulerRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing
+
+
+@external
+def setCompRewardsAddr(_rewardsAddr: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    # Mock implementation - do nothing

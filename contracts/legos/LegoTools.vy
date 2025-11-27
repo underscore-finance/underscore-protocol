@@ -43,7 +43,7 @@ interface Registry:
     def numAddrs() -> uint256: view
 
 interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256) -> uint256: view
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
 
 struct AddressInfo:
     addr: address
@@ -540,7 +540,7 @@ def getUnderlyingData(_asset: address, _amount: uint256, _legoBook: address = em
     return UnderlyingData(
         asset = _asset,
         amount = _amount,
-        usdValue = staticcall Appraiser(appraiser).getUsdValue(_asset, _amount),
+        usdValue = staticcall Appraiser(appraiser).getUsdValue(_asset, _amount, empty(address), legoBook),
         legoId = 0,
         legoAddr = empty(address),
         legoDesc = "",

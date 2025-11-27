@@ -18,8 +18,7 @@ YEAR_IN_BLOCKS: constant(uint256) = 365 * DAY_IN_BLOCKS
 USER_WALLET_TEMPLATE: immutable(address)
 USER_WALLET_CONFIG_TEMPLATE: immutable(address)
 
-# agent template
-AGENT_TEMPLATE: immutable(address)
+# agent
 STARTING_AGENT: immutable(address)
 
 
@@ -27,12 +26,10 @@ STARTING_AGENT: immutable(address)
 def __init__(
     _walletTemplate: address,
     _configTemplate: address,
-    _agentTemplate: address,
     _startingAgent: address,
 ):
     USER_WALLET_TEMPLATE = _walletTemplate
     USER_WALLET_CONFIG_TEMPLATE = _configTemplate
-    AGENT_TEMPLATE = _agentTemplate
     STARTING_AGENT = _startingAgent
 
 
@@ -45,14 +42,12 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        trialAsset = empty(address),
-        trialAmount = 0,
         numUserWalletsAllowed = max_value(uint256),
         enforceCreatorWhitelist = False,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
         maxKeyActionTimeLock = 7 * DAY_IN_BLOCKS,
-        defaultStaleBlocks = DAY_IN_BLOCKS // 2,
         depositRewardsAsset = empty(address),
+        lootClaimCoolOffPeriod = 0,
         txFees = cs.TxFees(
             swapFee = 0,
             stableSwapFee = 0,
@@ -63,12 +58,13 @@ def userWalletConfig() -> cs.UserWalletConfig:
             rewardsRatio = 0,
             yieldRatio = 0,
         ),
-        defaultYieldMaxIncrease = 5_00,
-        defaultYieldPerformanceFee = 20_00,
-        defaultYieldAmbassadorBonusRatio = 0,
-        defaultYieldBonusRatio = 0,
-        defaultYieldAltBonusAsset = empty(address),
-        lootClaimCoolOffPeriod = 0,
+        yieldConfig = cs.YieldConfig(
+            maxYieldIncrease = 5_00,
+            performanceFee = 20_00,
+            ambassadorBonusRatio = 0,
+            bonusRatio = 0,
+            bonusAsset = empty(address),
+        ),
     )
 
 
@@ -76,9 +72,6 @@ def userWalletConfig() -> cs.UserWalletConfig:
 @external
 def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
-        agentTemplate = AGENT_TEMPLATE,
-        numAgentsAllowed = max_value(uint256),
-        enforceCreatorWhitelist = False,
         startingAgent = STARTING_AGENT,
         startingAgentActivationLength = 2 * YEAR_IN_BLOCKS,
     )
@@ -90,6 +83,10 @@ def managerConfig() -> cs.ManagerConfig:
     return cs.ManagerConfig(
         managerPeriod = MONTH_IN_BLOCKS,
         managerActivationLength = YEAR_IN_BLOCKS,
+        mustHaveUsdValueOnSwaps = False,
+        maxNumSwapsPerPeriod = 0,
+        maxSlippageOnSwaps = 0,
+        onlyApprovedYieldOpps = False,
     )
 
 

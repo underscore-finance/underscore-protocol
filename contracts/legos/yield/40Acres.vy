@@ -41,16 +41,18 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
-
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
 
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
+
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
+
+interface FortyAcresLoans:
+    def activeAssets() -> uint256: view
 
 event FortyAcresDeposit:
     sender: indexed(address)
@@ -72,19 +74,25 @@ event FortyAcresWithdrawal:
 
 RIPE_REGISTRY: public(immutable(address))
 FORTY_ACRES_USDC_VAULT: public(immutable(address))
+FORTY_ACRES_LOANS: public(immutable(address))
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
-def __init__(_undyHq: address, _fortyAcresVault: address, _ripeRegistry: address):
+def __init__(
+    _undyHq: address,
+    _fortyAcresVault: address,
+    _fortyAcresLoans: address,
+    _ripeRegistry: address,
+):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert _fortyAcresVault != empty(address) # dev: invalid addr
+    assert empty(address) not in [_fortyAcresVault, _fortyAcresLoans, _ripeRegistry] # dev: invalid addrs
     FORTY_ACRES_USDC_VAULT = _fortyAcresVault
-
-    assert _ripeRegistry != empty(address) # dev: invalid addrs
+    FORTY_ACRES_LOANS = _fortyAcresLoans
     RIPE_REGISTRY = _ripeRegistry
 
 
@@ -132,7 +140,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall IERC4626(_vaultToken).asset()
 
 
 # underlying balances (both true and safe)
@@ -228,7 +239,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -280,32 +291,75 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
-# extras
+# total assets
 
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
+def totalAssets(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    return self._totalBorrows(FORTY_ACRES_LOANS)
+
+
+@view
+@internal
+def _totalBorrows(_fortyAcresLoans: address) -> uint256:
+    return staticcall FortyAcresLoans(_fortyAcresLoans).activeAssets()
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(FORTY_ACRES_LOANS)
+    if totalAssets <= totalBorrows:
+        return 0
+    return totalAssets - totalBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    if _vaultToken != FORTY_ACRES_USDC_VAULT:
+        return 0
+    totalAssets: uint256 = self._totalAssets(_vaultToken)
+    totalBorrows: uint256 = self._totalBorrows(FORTY_ACRES_LOANS)
+    return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# extras
 
 
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
 
 
 @view
@@ -451,7 +505,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log FortyAcresDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -520,7 +574,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log FortyAcresWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

@@ -14,11 +14,6 @@ def config_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
 
 
-@pytest.fixture(scope="module")
-def agent_template_v2():
-    return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
-
-
 #########################
 # User Wallet Templates #
 #########################
@@ -94,7 +89,6 @@ def test_set_user_wallet_templates_success(switchboard_alpha, governance, missio
     assert updated_config.configTemplate == user_wallet_config_template_v2.address
     
     # Verify other config fields remain unchanged
-    assert updated_config.trialAmount == initial_config.trialAmount
     assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
     
     # Step 9: Verify action is cleared
@@ -289,151 +283,6 @@ def test_multiple_pending_wallet_template_updates(switchboard_alpha, governance,
     assert final_config.configTemplate == config1.address
 
 
-################
-# Trial Funds  #
-################
-
-
-def test_set_trial_funds_success(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test successful trial funds update through full lifecycle"""
-    # Get initial config
-    initial_config = mission_control.userWalletConfig()
-    
-    # Step 1: Initiate trial funds change
-    trial_amount = 1000 * 10**18  # 1000 tokens
-    aid = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        trial_amount,
-        sender=governance.address
-    )
-    
-    # Step 2: Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingTrialFundsChange")
-    assert len(logs) == 1
-    assert logs[0].trialAsset == alpha_token.address
-    assert logs[0].trialAmount == trial_amount
-    assert logs[0].actionId == aid
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
-    
-    # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.trialAsset == alpha_token.address
-    assert pending_config.trialAmount == trial_amount
-    
-    # Step 4: Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Step 5: Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "TrialFundsSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].trialAsset == alpha_token.address
-    assert exec_logs[0].trialAmount == trial_amount
-    
-    # Step 6: Verify state changes in MissionControl
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.trialAsset == alpha_token.address
-    assert updated_config.trialAmount == trial_amount
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.numUserWalletsAllowed == initial_config.numUserWalletsAllowed
-    
-    # Step 7: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0
-
-
-def test_set_trial_funds_zero_values_allowed(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test that zero amount and zero address are allowed for trial funds"""
-    # Test with zero amount
-    aid = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        0,  # Zero amount
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.userWalletConfig()
-    assert config.trialAsset == alpha_token.address
-    assert config.trialAmount == 0
-    
-    # Test with zero address
-    aid2 = switchboard_alpha.setTrialFunds(
-        ZERO_ADDRESS,  # Zero address
-        100,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.userWalletConfig()
-    assert final_config.trialAsset == ZERO_ADDRESS
-    assert final_config.trialAmount == 100
-
-
-def test_set_trial_funds_non_governance_reverts(switchboard_alpha, alice, alpha_token):
-    """Test that non-governance addresses cannot set trial funds"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setTrialFunds(
-            alpha_token.address,
-            1000,
-            sender=alice
-        )
-
-
-def test_set_trial_funds_mixed_with_template_updates(switchboard_alpha, governance, mission_control, alpha_token, wallet_template_v2, config_template_v2):
-    """Test that trial funds and template updates can coexist as separate actions"""
-    # Create pending template update
-    aid1 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Create pending trial funds update
-    aid2 = switchboard_alpha.setTrialFunds(
-        alpha_token.address,
-        2000,
-        sender=governance.address
-    )
-    
-    # Verify different action types
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.TRIAL_FUNDS
-    
-    # Execute trial funds first
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify only trial funds changed
-    config = mission_control.userWalletConfig()
-    assert config.trialAsset == alpha_token.address
-    assert config.trialAmount == 2000
-    # Templates should be unchanged
-    initial_config = mission_control.userWalletConfig()
-    assert config.walletTemplate == initial_config.walletTemplate
-    
-    # Execute template update
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-    
-    # Verify both changes are applied
-    final_config = mission_control.userWalletConfig()
-    assert final_config.walletTemplate == wallet_template_v2.address
-    assert final_config.configTemplate == config_template_v2.address
-    assert final_config.trialAsset == alpha_token.address
-    assert final_config.trialAmount == 2000
-
-
 ##########################
 # Wallet Creation Limits #
 ##########################
@@ -482,7 +331,6 @@ def test_set_wallet_creation_limits_success(switchboard_alpha, governance, missi
     
     # Verify other fields unchanged
     assert updated_config.walletTemplate == initial_config.walletTemplate
-    assert updated_config.trialAmount == initial_config.trialAmount
 
 
 def test_set_wallet_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
@@ -540,25 +388,26 @@ def test_set_wallet_creation_limits_mixed_with_other_updates(switchboard_alpha, 
     """Test that wallet creation limits can be updated alongside other configs"""
     # Set wallet creation limits
     aid1 = switchboard_alpha.setWalletCreationLimits(3, True, sender=governance.address)
-    
-    # Set trial funds
-    aid2 = switchboard_alpha.setTrialFunds(ZERO_ADDRESS, 500, sender=governance.address)
-    
+
+    # Set tx fees as another config update
+    aid2 = switchboard_alpha.setTxFees(100, 50, 25, sender=governance.address)
+
     # Execute both
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    
+
     result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result1 == True
-    
+
     result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
     assert result2 == True
-    
+
     # Verify both changes applied
     config = mission_control.userWalletConfig()
     assert config.numUserWalletsAllowed == 3
     assert config.enforceCreatorWhitelist == True
-    assert config.trialAsset == ZERO_ADDRESS
-    assert config.trialAmount == 500
+    assert config.txFees.swapFee == 100
+    assert config.txFees.stableSwapFee == 50
+    assert config.txFees.rewardsFee == 25
 
 
 ###############################
@@ -665,86 +514,10 @@ def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance
     assert final_config.maxKeyActionTimeLock == large_max
 
 
-#########################
-# Default Stale Blocks  #
-#########################
+# REMOVED: Default Stale Blocks tests - functionality no longer exists
+# The defaultStaleBlocks configuration has been removed from the protocol
 
 
-def test_set_default_stale_blocks_success(switchboard_alpha, governance, mission_control):
-    """Test successful default stale blocks update"""
-    # Set new value
-    stale_blocks = 43200  # ~1 day
-    
-    aid = switchboard_alpha.setDefaultStaleBlocks(
-        stale_blocks,
-        sender=governance.address
-    )
-    
-    # Verify event
-    logs = filter_logs(switchboard_alpha, "PendingDefaultStaleBlocksChange")
-    assert len(logs) == 1
-    assert logs[0].defaultStaleBlocks == stale_blocks
-    assert logs[0].actionId == aid
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.DEFAULT_STALE_BLOCKS
-    pending_config = switchboard_alpha.pendingUserWalletConfig(aid)
-    assert pending_config.defaultStaleBlocks == stale_blocks
-    
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "DefaultStaleBlocksSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].defaultStaleBlocks == stale_blocks
-    
-    # Verify state changes
-    updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultStaleBlocks == stale_blocks
-
-
-def test_set_default_stale_blocks_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values are rejected"""
-    # Test with 0
-    with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(0, sender=governance.address)
-    
-    # Test with max_value
-    with boa.reverts("invalid default stale blocks"):
-        switchboard_alpha.setDefaultStaleBlocks(MAX_UINT256, sender=governance.address)
-
-
-def test_set_default_stale_blocks_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance addresses cannot set default stale blocks"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setDefaultStaleBlocks(100, sender=alice)
-
-
-def test_set_default_stale_blocks_edge_cases(switchboard_alpha, governance, mission_control):
-    """Test edge cases for default stale blocks"""
-    # Test with 1 (minimum valid)
-    aid = switchboard_alpha.setDefaultStaleBlocks(1, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.userWalletConfig()
-    assert config.defaultStaleBlocks == 1
-    
-    # Test with max_value - 1
-    large_blocks = 2**256 - 2
-    aid2 = switchboard_alpha.setDefaultStaleBlocks(large_blocks, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.userWalletConfig()
-    assert final_config.defaultStaleBlocks == large_blocks
 
 
 ###########
@@ -1033,7 +806,7 @@ def test_set_default_yield_params_success(switchboard_alpha, governance, mission
     assert logs[0].defaultYieldPerformanceFee == performance_fee
     assert logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
     assert logs[0].defaultYieldBonusRatio == bonus_ratio
-    assert logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
+    assert logs[0].defaultYieldBonusAsset == alt_bonus_asset
     assert logs[0].actionId == aid
     
     # Execute after timelock
@@ -1048,15 +821,15 @@ def test_set_default_yield_params_success(switchboard_alpha, governance, mission
     assert exec_logs[0].defaultYieldPerformanceFee == performance_fee
     assert exec_logs[0].defaultYieldAmbassadorBonusRatio == ambassador_bonus
     assert exec_logs[0].defaultYieldBonusRatio == bonus_ratio
-    assert exec_logs[0].defaultYieldAltBonusAsset == alt_bonus_asset
+    assert exec_logs[0].defaultYieldBonusAsset == alt_bonus_asset
     
     # Verify state changes
     updated_config = mission_control.userWalletConfig()
-    assert updated_config.defaultYieldMaxIncrease == max_increase
-    assert updated_config.defaultYieldPerformanceFee == performance_fee
-    assert updated_config.defaultYieldAmbassadorBonusRatio == ambassador_bonus
-    assert updated_config.defaultYieldBonusRatio == bonus_ratio
-    assert updated_config.defaultYieldAltBonusAsset == alt_bonus_asset
+    assert updated_config.yieldConfig.maxYieldIncrease == max_increase
+    assert updated_config.yieldConfig.performanceFee == performance_fee
+    assert updated_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus
+    assert updated_config.yieldConfig.bonusRatio == bonus_ratio
+    assert updated_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_set_default_yield_params_invalid_values_revert(switchboard_alpha, governance, alpha_token):
@@ -1090,11 +863,11 @@ def test_set_default_yield_params_zero_values_allowed(switchboard_alpha, governa
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 0
-    assert config.defaultYieldPerformanceFee == 0
-    assert config.defaultYieldAmbassadorBonusRatio == 0
-    assert config.defaultYieldBonusRatio == 0
-    assert config.defaultYieldAltBonusAsset == ZERO_ADDRESS
+    assert config.yieldConfig.maxYieldIncrease == 0
+    assert config.yieldConfig.performanceFee == 0
+    assert config.yieldConfig.ambassadorBonusRatio == 0
+    assert config.yieldConfig.bonusRatio == 0
+    assert config.yieldConfig.bonusAsset == ZERO_ADDRESS
 
 
 def test_set_default_yield_params_non_governance_reverts(switchboard_alpha, alice, alpha_token):
@@ -1118,11 +891,11 @@ def test_set_default_yield_params_maximum_allowed_values(switchboard_alpha, gove
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 1000
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 10000
-    assert config.defaultYieldBonusRatio == 10000
-    assert config.defaultYieldAltBonusAsset == alpha_token.address
+    assert config.yieldConfig.maxYieldIncrease == 1000
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 10000
+    assert config.yieldConfig.bonusRatio == 10000
+    assert config.yieldConfig.bonusAsset == alpha_token.address
 
 
 def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mission_control, alice):
@@ -1141,11 +914,11 @@ def test_set_default_yield_params_mixed_values(switchboard_alpha, governance, mi
     assert result == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 500
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 7500
-    assert config.defaultYieldBonusRatio == 3333
-    assert config.defaultYieldAltBonusAsset == alice
+    assert config.yieldConfig.maxYieldIncrease == 500
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 7500
+    assert config.yieldConfig.bonusRatio == 3333
+    assert config.yieldConfig.bonusAsset == alice
 
 
 def test_set_default_yield_params_edge_cases(switchboard_alpha, governance, mission_control, alpha_token):
@@ -1176,11 +949,11 @@ def test_set_default_yield_params_edge_cases(switchboard_alpha, governance, miss
     assert switchboard_alpha.executePendingAction(aid, sender=governance.address) == True
     
     config = mission_control.userWalletConfig()
-    assert config.defaultYieldMaxIncrease == 1000
-    assert config.defaultYieldPerformanceFee == 2500
-    assert config.defaultYieldAmbassadorBonusRatio == 10000
-    assert config.defaultYieldBonusRatio == 10000
-    assert config.defaultYieldAltBonusAsset == alpha_token.address
+    assert config.yieldConfig.maxYieldIncrease == 1000
+    assert config.yieldConfig.performanceFee == 2500
+    assert config.yieldConfig.ambassadorBonusRatio == 10000
+    assert config.yieldConfig.bonusRatio == 10000
+    assert config.yieldConfig.bonusAsset == alpha_token.address
 
 
 #################
@@ -1338,17 +1111,12 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     """Test successful asset configuration update"""
     # Set new asset config
     asset = alpha_token.address
-    lego_id = 2  # Assuming valid lego ID
-    stale_blocks = 100
     swap_fee = 30  # 0.3%
     stable_swap_fee = 10  # 0.1%
     rewards_fee = 50  # 0.5%
     ambassador_swap_ratio = 1000  # 10%
     ambassador_rewards_ratio = 2000  # 20%
     ambassador_yield_ratio = 1500  # 15%
-    is_yield_asset = True
-    is_rebasing = False
-    underlying_asset = ZERO_ADDRESS
     max_yield_increase = 500  # 5%
     performance_fee = 1000  # 10%
     ambassador_bonus_ratio = 5000  # 50%
@@ -1357,17 +1125,12 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     
     aid = switchboard_alpha.setAssetConfig(
         asset,
-        lego_id,
-        stale_blocks,
         swap_fee,
         stable_swap_fee,
         rewards_fee,
         ambassador_swap_ratio,
         ambassador_rewards_ratio,
         ambassador_yield_ratio,
-        is_yield_asset,
-        is_rebasing,
-        underlying_asset,
         max_yield_increase,
         performance_fee,
         ambassador_bonus_ratio,
@@ -1380,22 +1143,17 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     logs = filter_logs(switchboard_alpha, "PendingAssetConfigChange")
     assert len(logs) == 1
     assert logs[0].asset == asset
-    assert logs[0].legoId == lego_id
-    assert logs[0].staleBlocks == stale_blocks
     assert logs[0].txFeesSwapFee == swap_fee
     assert logs[0].txFeesStableSwapFee == stable_swap_fee
     assert logs[0].txFeesRewardsFee == rewards_fee
     assert logs[0].ambassadorRevShareSwapRatio == ambassador_swap_ratio
     assert logs[0].ambassadorRevShareRewardsRatio == ambassador_rewards_ratio
     assert logs[0].ambassadorRevShareYieldRatio == ambassador_yield_ratio
-    assert logs[0].isYieldAsset == is_yield_asset
-    assert logs[0].isRebasing == is_rebasing
-    assert logs[0].underlyingAsset == underlying_asset
     assert logs[0].maxYieldIncrease == max_yield_increase
     assert logs[0].performanceFee == performance_fee
     assert logs[0].ambassadorBonusRatio == ambassador_bonus_ratio
     assert logs[0].bonusRatio == bonus_ratio
-    assert logs[0].altBonusAsset == alt_bonus_asset
+    assert logs[0].bonusAsset == alt_bonus_asset
     assert logs[0].actionId == aid
     
     # Execute after timelock
@@ -1410,10 +1168,8 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     
     # Verify the asset config was saved in MissionControl
     saved_config = mission_control.assetConfig(asset)
-    assert saved_config.legoId == lego_id
-    assert saved_config.decimals == 18  # Alpha token has 18 decimals
-    assert saved_config.staleBlocks == stale_blocks
-    
+    assert saved_config.hasConfig == True
+
     # Verify tx fees
     assert saved_config.txFees.swapFee == swap_fee
     assert saved_config.txFees.stableSwapFee == stable_swap_fee
@@ -1425,14 +1181,11 @@ def test_set_asset_config_success(switchboard_alpha, governance, mission_control
     assert saved_config.ambassadorRevShare.yieldRatio == ambassador_yield_ratio
     
     # Verify yield config
-    assert saved_config.yieldConfig.isYieldAsset == is_yield_asset
-    assert saved_config.yieldConfig.isRebasing == is_rebasing
-    assert saved_config.yieldConfig.underlyingAsset == underlying_asset
     assert saved_config.yieldConfig.maxYieldIncrease == max_yield_increase
     assert saved_config.yieldConfig.performanceFee == performance_fee
     assert saved_config.yieldConfig.ambassadorBonusRatio == ambassador_bonus_ratio
     assert saved_config.yieldConfig.bonusRatio == bonus_ratio
-    assert saved_config.yieldConfig.altBonusAsset == alt_bonus_asset
+    assert saved_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
 def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, alpha_token):
@@ -1440,8 +1193,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test swap fee > 5%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 501, 0, 0,  # swap fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 501, 0, 0,  # swap fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1449,8 +1202,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test stable swap fee > 2%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 0, 201, 0,  # stable swap fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 0, 201, 0,  # stable swap fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1458,8 +1211,8 @@ def test_set_asset_config_invalid_tx_fees_revert(switchboard_alpha, governance, 
     # Test rewards fee > 25%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 0, 0, 2501,  # rewards fee too high
-            0, 0, 0, False, False, ZERO_ADDRESS,
+            alpha_token.address, 0, 0, 2501,  # rewards fee too high
+            0, 0, 0,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1470,8 +1223,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test max increase > 10%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             1001, 0, 0, 0, ZERO_ADDRESS,  # max increase too high
             sender=governance.address
         )
@@ -1479,8 +1232,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test performance fee > 25%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 2501, 0, 0, ZERO_ADDRESS,  # performance fee too high
             sender=governance.address
         )
@@ -1488,8 +1241,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test ambassador bonus > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 1000, 10001, 0, ZERO_ADDRESS,  # ambassador bonus too high
             sender=governance.address
         )
@@ -1497,8 +1250,8 @@ def test_set_asset_config_invalid_yield_params_revert(switchboard_alpha, governa
     # Test bonus ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, True, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             500, 1000, 5000, 10001, ZERO_ADDRESS,  # bonus ratio too high
             sender=governance.address
         )
@@ -1509,26 +1262,26 @@ def test_set_asset_config_invalid_ambassador_rev_share_revert(switchboard_alpha,
     # Test swap ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            10001, 0, 0, False, False, ZERO_ADDRESS,  # swap ratio too high
+            alpha_token.address, 50, 10, 100,
+            10001, 0, 0,  # swap ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
-    
+
     # Test rewards ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            0, 10001, 0, False, False, ZERO_ADDRESS,  # rewards ratio too high
+            alpha_token.address, 50, 10, 100,
+            0, 10001, 0,  # rewards ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
-    
+
     # Test yield ratio > 100%
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            0, 0, 10001, False, False, ZERO_ADDRESS,  # yield ratio too high
+            alpha_token.address, 50, 10, 100,
+            0, 0, 10001,  # yield ratio too high
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
@@ -1538,61 +1291,41 @@ def test_set_asset_config_invalid_asset_revert(switchboard_alpha, governance):
     """Test that asset config with invalid asset address is rejected"""
     with boa.reverts("invalid asset config"):
         switchboard_alpha.setAssetConfig(
-            ZERO_ADDRESS, 1, 100, 50, 10, 100,  # zero address asset
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            ZERO_ADDRESS, 50, 10, 100,  # zero address asset
+            1000, 2000, 1500,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=governance.address
         )
 
 
-def test_set_asset_config_invalid_stale_blocks_revert(switchboard_alpha, governance, alpha_token):
-    """Test that asset config with invalid stale blocks is rejected"""
-    # Test stale blocks = 0
-    with boa.reverts("invalid asset config"):
-        switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 0, 50, 10, 100,  # stale blocks = 0
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
-            0, 0, 0, 0, ZERO_ADDRESS,
-            sender=governance.address
-        )
-    
-    # Test stale blocks = max_value(uint256)
-    with boa.reverts("invalid asset config"):
-        switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 2**256 - 1, 50, 10, 100,  # stale blocks = max uint256
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
-            0, 0, 0, 0, ZERO_ADDRESS,
-            sender=governance.address
-        )
+# Note: test_set_asset_config_invalid_stale_blocks_revert was removed as staleBlocks is no longer part of AssetConfig
 
 
 def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission_control, alpha_token):
     """Test setting config for non-yield asset"""
     aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 100, 50, 10, 100,
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,  # is_yield_asset = False
-        999, 2499, 9999, 9999, alpha_token.address,  # These should be ignored
+        alpha_token.address, 50, 10, 100,
+        1000, 2000, 1500,
+        0, 0, 0, 0, ZERO_ADDRESS,  # All yield params set to 0 for non-yield asset
         sender=governance.address
     )
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     
-    # Verify the yield config is empty when is_yield_asset is False
+    # Verify the yield config is empty for non-yield asset
     exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].isYieldAsset == False
     assert exec_logs[0].maxYieldIncrease == 0
     assert exec_logs[0].performanceFee == 0
     assert exec_logs[0].ambassadorBonusRatio == 0
     assert exec_logs[0].bonusRatio == 0
-    assert exec_logs[0].altBonusAsset == ZERO_ADDRESS
+    assert exec_logs[0].bonusAsset == ZERO_ADDRESS
     assert result == True
     
     # Verify the config was saved in MissionControl
     saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.legoId == 1  # lego_ripe
-    assert saved_config.staleBlocks == 100
+    assert saved_config.hasConfig == True
     assert saved_config.txFees.swapFee == 50
     assert saved_config.txFees.stableSwapFee == 10
     assert saved_config.txFees.rewardsFee == 100
@@ -1600,24 +1333,20 @@ def test_set_asset_config_non_yield_asset(switchboard_alpha, governance, mission
     assert saved_config.ambassadorRevShare.rewardsRatio == 2000
     assert saved_config.ambassadorRevShare.yieldRatio == 1500
     
-    # Verify yield config is not set when is_yield_asset is False
-    assert saved_config.yieldConfig.isYieldAsset == False
-    assert saved_config.yieldConfig.isRebasing == False
-    assert saved_config.yieldConfig.underlyingAsset == ZERO_ADDRESS
+    # Verify yield config defaults
     assert saved_config.yieldConfig.maxYieldIncrease == 0
     assert saved_config.yieldConfig.performanceFee == 0
     assert saved_config.yieldConfig.ambassadorBonusRatio == 0
     assert saved_config.yieldConfig.bonusRatio == 0
-    assert saved_config.yieldConfig.altBonusAsset == ZERO_ADDRESS
+    assert saved_config.yieldConfig.bonusAsset == ZERO_ADDRESS
 
 
 def test_set_asset_config_maximum_allowed_values(switchboard_alpha, governance, mission_control, alpha_token):
     """Test setting all percentages to their maximum allowed values"""
     aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 100,
+        alpha_token.address,
         500, 200, 2500,  # Max tx fees: 5%, 2%, 25%
         10000, 10000, 10000,  # Max ambassador rev share: 100% each
-        True, False, ZERO_ADDRESS,
         1000, 2500, 10000, 10000, alpha_token.address,  # Max yield params: 10%, 25%, 100%, 100%
         sender=governance.address
     )
@@ -1657,56 +1386,14 @@ def test_set_asset_config_non_governance_reverts(switchboard_alpha, alice, alpha
     """Test that non-governance addresses cannot set asset config"""
     with boa.reverts("no perms"):
         switchboard_alpha.setAssetConfig(
-            alpha_token.address, 1, 100, 50, 10, 100,
-            1000, 2000, 1500, False, False, ZERO_ADDRESS,
+            alpha_token.address, 50, 10, 100,
+            1000, 2000, 1500,
             0, 0, 0, 0, ZERO_ADDRESS,
             sender=alice
         )
 
 
-def test_set_asset_config_edge_case_stale_blocks(switchboard_alpha, governance, mission_control, alpha_token):
-    """Test setting asset config with edge case stale blocks values"""
-    # Test with stale blocks = 1 (minimum valid value)
-    aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 1, 50, 10, 100,  # stale blocks = 1
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,
-        0, 0, 0, 0, ZERO_ADDRESS,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    
-    # Must use filter_logs immediately after the transaction
-    exec_logs = filter_logs(switchboard_alpha, "AssetConfigSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].staleBlocks == 1
-    assert result == True
-    
-    # Verify MissionControl saved the minimum stale blocks value
-    saved_config = mission_control.assetConfig(alpha_token.address)
-    assert saved_config.staleBlocks == 1
-    
-    # Test with stale blocks = max_value - 1 (maximum valid value)
-    aid = switchboard_alpha.setAssetConfig(
-        alpha_token.address, 1, 2**256 - 2, 50, 10, 100,  # stale blocks = max - 1
-        1000, 2000, 1500, False, False, ZERO_ADDRESS,
-        0, 0, 0, 0, ZERO_ADDRESS,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    
-    # Must use filter_logs immediately after the transaction
-    exec_logs2 = filter_logs(switchboard_alpha, "AssetConfigSet")
-    assert len(exec_logs2) == 1
-    assert exec_logs2[0].staleBlocks == 2**256 - 2
-    assert result == True
-    
-    # Verify MissionControl saved the maximum stale blocks value
-    saved_config2 = mission_control.assetConfig(alpha_token.address)
-    assert saved_config2.staleBlocks == 2**256 - 2
+# Note: test_set_asset_config_edge_case_stale_blocks was removed as staleBlocks is no longer part of AssetConfig
 
 
 ##################
@@ -1925,380 +1612,6 @@ def test_set_is_stablecoin_eoa_address(switchboard_alpha, governance, mission_co
     assert mission_control.isStablecoin(alice) == True
 
 
-##################
-# Agent Template #
-##################
-
-
-def test_set_agent_template_success(switchboard_alpha, governance, mission_control, agent_template_v2):
-    """Test successful agent template update through full lifecycle"""
-    # Get initial config from MissionControl
-    initial_config = mission_control.agentConfig()
-    initial_agent_template = initial_config.agentTemplate
-    
-    # Step 1: Initiate template change
-    aid = switchboard_alpha.setAgentTemplate(
-        agent_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Step 2: Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingAgentTemplateChange")
-    assert len(logs) == 1
-    assert logs[0].agentTemplate == agent_template_v2.address
-    assert logs[0].actionId == aid
-    # Confirmation block should be current block + timelock
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
-    assert logs[0].confirmationBlock == expected_confirmation_block
-    
-    # Step 3: Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    pending_config = switchboard_alpha.pendingAgentConfig(aid)
-    assert pending_config.agentTemplate == agent_template_v2.address
-    
-    # Verify the action confirmation block matches what we expect
-    assert switchboard_alpha.getActionConfirmationBlock(aid) == expected_confirmation_block
-    
-    # Step 4: Try to execute before timelock - should fail silently
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify no state change
-    current_config = mission_control.agentConfig()
-    assert current_config.agentTemplate == initial_agent_template
-    
-    # Step 5: Time travel to one block before timelock - should still fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() - 1)
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Travel one more block to reach exact timelock
-    boa.env.time_travel(blocks=1)
-    
-    # Step 6: Now execution should succeed
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Step 7: Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "AgentTemplateSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].agentTemplate == agent_template_v2.address
-    
-    # Step 8: Verify state changes in MissionControl
-    updated_config = mission_control.agentConfig()
-    assert updated_config.agentTemplate == agent_template_v2.address
-    
-    # Verify other config fields remain unchanged
-    assert updated_config.numAgentsAllowed == initial_config.numAgentsAllowed
-    assert updated_config.enforceCreatorWhitelist == initial_config.enforceCreatorWhitelist
-    
-    # Step 9: Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    # Note: pendingAgentConfig mapping is not cleared after execution
-
-
-def test_set_agent_template_non_governance_reverts(switchboard_alpha, alice, agent_template_v2):
-    """Test that non-governance addresses cannot set agent template"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setAgentTemplate(
-            agent_template_v2.address,
-            sender=alice
-        )
-
-
-def test_set_agent_template_invalid_addresses_revert(switchboard_alpha, governance, alice):
-    """Test various invalid address scenarios"""
-    # Test with zero address
-    with boa.reverts("invalid agent template"):
-        switchboard_alpha.setAgentTemplate(ZERO_ADDRESS, sender=governance.address)
-    
-    # Test with EOA
-    with boa.reverts("invalid agent template"):
-        switchboard_alpha.setAgentTemplate(alice, sender=governance.address)
-
-
-def test_cancel_pending_agent_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
-    """Test canceling a pending agent template update"""
-    # Get initial config
-    initial_config = mission_control.agentConfig()
-    
-    # Initiate template change
-    aid = switchboard_alpha.setAgentTemplate(
-        agent_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    
-    # Cancel the pending action
-    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    
-    # Try to execute canceled action - should fail
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify config hasn't changed
-    final_config = mission_control.agentConfig()
-    assert final_config.agentTemplate == initial_config.agentTemplate
-
-
-def test_execute_expired_agent_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
-    """Test that expired actions auto-cancel and cannot be executed"""
-    # Get initial config
-    initial_config = mission_control.agentConfig()
-    
-    # Initiate template change
-    aid = switchboard_alpha.setAgentTemplate(
-        agent_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Time travel past expiration (timelock + max timelock)
-    max_timelock = switchboard_alpha.maxActionTimeLock()
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock() + max_timelock + 1)
-    
-    # Try to execute - should auto-cancel and return False
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-    
-    # Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0  # empty(ActionType)
-    
-    # Verify config hasn't changed
-    final_config = mission_control.agentConfig()
-    assert final_config.agentTemplate == initial_config.agentTemplate
-
-
-def test_multiple_pending_agent_template_updates(switchboard_alpha, governance, mission_control):
-    """Test creating multiple pending updates with different action IDs"""
-    # Deploy multiple template sets
-    template1 = boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
-    template2 = boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
-    
-    # Create first pending action
-    aid1 = switchboard_alpha.setAgentTemplate(
-        template1.address,
-        sender=governance.address
-    )
-    
-    # Create second pending action
-    aid2 = switchboard_alpha.setAgentTemplate(
-        template2.address,
-        sender=governance.address
-    )
-    
-    # Verify different action IDs
-    assert aid1 != aid2
-    
-    # Verify both are pending
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    
-    # Verify different pending configs
-    pending1 = switchboard_alpha.pendingAgentConfig(aid1)
-    pending2 = switchboard_alpha.pendingAgentConfig(aid2)
-    assert pending1.agentTemplate == template1.address
-    assert pending2.agentTemplate == template2.address
-    
-    # Execute second action first
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify config updated to second template
-    config = mission_control.agentConfig()
-    assert config.agentTemplate == template2.address
-    
-    # First action should still be pending
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    
-    # Execute first action
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-    
-    # Verify config updated to first template
-    final_config = mission_control.agentConfig()
-    assert final_config.agentTemplate == template1.address
-
-
-def test_set_agent_template_mixed_with_user_wallet_updates(switchboard_alpha, governance, mission_control, agent_template_v2, wallet_template_v2, config_template_v2):
-    """Test that agent template and user wallet template updates can coexist as separate actions"""
-    # Create pending user wallet template update
-    aid1 = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Create pending agent template update
-    aid2 = switchboard_alpha.setAgentTemplate(
-        agent_template_v2.address,
-        sender=governance.address
-    )
-    
-    # Verify different action types
-    assert switchboard_alpha.actionType(aid1) == CONFIG_ACTION_TYPE.USER_WALLET_TEMPLATES
-    assert switchboard_alpha.actionType(aid2) == CONFIG_ACTION_TYPE.AGENT_TEMPLATE
-    
-    # Execute agent template first
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    # Verify only agent template changed
-    agent_config = mission_control.agentConfig()
-    assert agent_config.agentTemplate == agent_template_v2.address
-    
-    # User wallet templates should be unchanged
-    user_config = mission_control.userWalletConfig()
-    initial_user_config = mission_control.userWalletConfig()
-    assert user_config.walletTemplate == initial_user_config.walletTemplate
-    
-    # Execute user wallet template update
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-    
-    # Verify both changes are applied
-    final_user_config = mission_control.userWalletConfig()
-    assert final_user_config.walletTemplate == wallet_template_v2.address
-    assert final_user_config.configTemplate == config_template_v2.address
-    
-    final_agent_config = mission_control.agentConfig()
-    assert final_agent_config.agentTemplate == agent_template_v2.address
-
-
-#########################
-# Agent Creation Limits #
-#########################
-
-
-def test_set_agent_creation_limits_success(switchboard_alpha, governance, mission_control):
-    """Test successful agent creation limits update"""
-    # Get initial config
-    initial_config = mission_control.agentConfig()
-    
-    # Set new limits
-    aid = switchboard_alpha.setAgentCreationLimits(
-        5,  # numAgentsAllowed
-        True,  # enforceCreatorWhitelist
-        sender=governance.address
-    )
-    
-    # Verify event
-    logs = filter_logs(switchboard_alpha, "PendingAgentCreationLimitsChange")
-    assert len(logs) == 1
-    assert logs[0].numAgentsAllowed == 5
-    assert logs[0].enforceCreatorWhitelist == True
-    assert logs[0].actionId == aid
-    
-    # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_CREATION_LIMITS
-    pending_config = switchboard_alpha.pendingAgentConfig(aid)
-    assert pending_config.numAgentsAllowed == 5
-    assert pending_config.enforceCreatorWhitelist == True
-    
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "AgentCreationLimitsSet")
-    assert len(exec_logs) == 1
-    assert exec_logs[0].numAgentsAllowed == 5
-    assert exec_logs[0].enforceCreatorWhitelist == True
-    
-    # Verify state changes
-    updated_config = mission_control.agentConfig()
-    assert updated_config.numAgentsAllowed == 5
-    assert updated_config.enforceCreatorWhitelist == True
-    
-    # Verify other fields unchanged
-    assert updated_config.agentTemplate == initial_config.agentTemplate
-    assert updated_config.startingAgent == initial_config.startingAgent
-
-
-def test_set_agent_creation_limits_extreme_values(switchboard_alpha, governance, mission_control):
-    """Test setting extreme but valid values"""
-    # Test with 1 agent allowed
-    aid = switchboard_alpha.setAgentCreationLimits(
-        1,  # Minimum valid value
-        False,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.agentConfig()
-    assert config.numAgentsAllowed == 1
-    assert config.enforceCreatorWhitelist == False
-    
-    # Test with very large number
-    large_num = 2**256 - 2  # max_value - 1
-    aid2 = switchboard_alpha.setAgentCreationLimits(
-        large_num,
-        True,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.agentConfig()
-    assert final_config.numAgentsAllowed == large_num
-    assert final_config.enforceCreatorWhitelist == True
-
-
-def test_set_agent_creation_limits_invalid_values_revert(switchboard_alpha, governance):
-    """Test that invalid values are rejected"""
-    # Test with 0
-    with boa.reverts("invalid num agents allowed"):
-        switchboard_alpha.setAgentCreationLimits(0, False, sender=governance.address)
-    
-    # Test with max_value
-    with boa.reverts("invalid num agents allowed"):
-        switchboard_alpha.setAgentCreationLimits(MAX_UINT256, False, sender=governance.address)
-
-
-def test_set_agent_creation_limits_non_governance_reverts(switchboard_alpha, alice):
-    """Test that non-governance addresses cannot set agent creation limits"""
-    with boa.reverts("no perms"):
-        switchboard_alpha.setAgentCreationLimits(5, True, sender=alice)
-
-
-def test_set_agent_creation_limits_mixed_with_template_update(switchboard_alpha, governance, mission_control, agent_template_v2):
-    """Test that agent creation limits can be updated alongside agent template"""
-    # Set agent creation limits
-    aid1 = switchboard_alpha.setAgentCreationLimits(3, True, sender=governance.address)
-    
-    # Set agent template
-    aid2 = switchboard_alpha.setAgentTemplate(agent_template_v2.address, sender=governance.address)
-    
-    # Execute both
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    
-    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result1 == True
-    
-    result2 = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result2 == True
-    
-    # Verify both changes applied
-    config = mission_control.agentConfig()
-    assert config.numAgentsAllowed == 3
-    assert config.enforceCreatorWhitelist == True
-    assert config.agentTemplate == agent_template_v2.address
-
-
 ########################
 # Starter Agent Params #
 ########################
@@ -2345,10 +1658,6 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     updated_config = mission_control.agentConfig()
     assert updated_config.startingAgent == alice
     assert updated_config.startingAgentActivationLength == activation_length
-    
-    # Verify other fields unchanged
-    assert updated_config.agentTemplate == initial_config.agentTemplate
-    assert updated_config.numAgentsAllowed == initial_config.numAgentsAllowed
 
 
 def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control):
@@ -2431,24 +1740,6 @@ def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, miss
     assert final_config.startingAgentActivationLength == large_length
 
 
-def test_set_starter_agent_params_with_contract_address(switchboard_alpha, governance, mission_control, agent_template_v2):
-    """Test setting a contract address as starter agent"""
-    activation_length = 172800  # ~4 days
-    aid = switchboard_alpha.setStarterAgentParams(
-        agent_template_v2.address,  # Using a contract address
-        activation_length,
-        sender=governance.address
-    )
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.agentConfig()
-    assert config.startingAgent == agent_template_v2.address
-    assert config.startingAgentActivationLength == activation_length
-
-
 ##################
 # Manager Config #
 ##################
@@ -2466,6 +1757,10 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     aid = switchboard_alpha.setManagerConfig(
         new_manager_period,
         new_activation_length,
+        False,  # mustHaveUsdValueOnSwaps
+        0,  # maxNumSwapsPerPeriod
+        0,  # maxSlippageOnSwaps
+        False,  # onlyApprovedYieldOpps
         sender=governance.address
     )
     
@@ -2474,15 +1769,23 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     assert len(logs) == 1
     assert logs[0].managerPeriod == new_manager_period
     assert logs[0].managerActivationLength == new_activation_length
+    assert logs[0].mustHaveUsdValueOnSwaps == False
+    assert logs[0].maxNumSwapsPerPeriod == 0
+    assert logs[0].maxSlippageOnSwaps == 0
+    assert logs[0].onlyApprovedYieldOpps == False
     assert logs[0].actionId == aid
     expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
     assert logs[0].confirmationBlock == expected_confirmation_block
-    
+
     # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
     pending_config = switchboard_alpha.pendingManagerConfig(aid)
     assert pending_config.managerPeriod == new_manager_period
     assert pending_config.managerActivationLength == new_activation_length
+    assert pending_config.mustHaveUsdValueOnSwaps == False
+    assert pending_config.maxNumSwapsPerPeriod == 0
+    assert pending_config.maxSlippageOnSwaps == 0
+    assert pending_config.onlyApprovedYieldOpps == False
     
     # Try to execute before timelock - should fail
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
@@ -2492,24 +1795,28 @@ def test_set_manager_config_success(switchboard_alpha, governance, mission_contr
     current_config = mission_control.managerConfig()
     assert current_config.managerPeriod == initial_config.managerPeriod
     assert current_config.managerActivationLength == initial_config.managerActivationLength
-    
+
     # Time travel to reach timelock
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    
+
     # Execute the action
     result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
     assert result == True
-    
+
     # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "ManagerConfigSet")
     assert len(exec_logs) == 1
     assert exec_logs[0].managerPeriod == new_manager_period
     assert exec_logs[0].managerActivationLength == new_activation_length
-    
+
     # Verify state changes in MissionControl
     updated_config = mission_control.managerConfig()
     assert updated_config.managerPeriod == new_manager_period
     assert updated_config.managerActivationLength == new_activation_length
+    assert updated_config.mustHaveUsdValueOnSwaps == False
+    assert updated_config.maxNumSwapsPerPeriod == 0
+    assert updated_config.maxSlippageOnSwaps == 0
+    assert updated_config.onlyApprovedYieldOpps == False
     
     # Verify action is cleared
     assert switchboard_alpha.actionType(aid) == 0
@@ -2519,52 +1826,52 @@ def test_set_manager_config_invalid_params_revert(switchboard_alpha, governance)
     """Test that invalid manager config parameters are rejected"""
     # Test with zero manager period
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(0, 86400, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(0, 86400, False, 0, 0, False, sender=governance.address)
+
     # Test with zero activation length
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(86400, 0, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(86400, 0, False, 0, 0, False, sender=governance.address)
+
     # Test with both zero
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(0, 0, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(0, 0, False, 0, 0, False, sender=governance.address)
+
     # Test with max_value manager period
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(MAX_UINT256, 86400, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(MAX_UINT256, 86400, False, 0, 0, False, sender=governance.address)
+
     # Test with max_value activation length
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(86400, MAX_UINT256, sender=governance.address)
-    
+        switchboard_alpha.setManagerConfig(86400, MAX_UINT256, False, 0, 0, False, sender=governance.address)
+
     # Test with both max_value
     with boa.reverts("invalid manager config"):
-        switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, sender=governance.address)
+        switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, False, 0, 0, False, sender=governance.address)
 
 
 def test_set_manager_config_non_governance_reverts(switchboard_alpha, alice):
     """Test that non-governance addresses cannot set manager config"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setManagerConfig(86400, 43200, sender=alice)
+        switchboard_alpha.setManagerConfig(86400, 43200, False, 0, 0, False, sender=alice)
 
 
 def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_control):
     """Test edge cases for manager config"""
     # Test with minimum values (1, 1)
-    aid1 = switchboard_alpha.setManagerConfig(1, 1, sender=governance.address)
-    
+    aid1 = switchboard_alpha.setManagerConfig(1, 1, False, 0, 0, False, sender=governance.address)
+
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
-    
+
     config = mission_control.managerConfig()
     assert config.managerPeriod == 1
     assert config.managerActivationLength == 1
-    
+
     # Test with large values (but not max)
     large_period = 2**256 - 2
     large_activation = 2**256 - 3
-    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, sender=governance.address)
+    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, False, 0, 0, False, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
@@ -2578,10 +1885,10 @@ def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_co
 def test_set_manager_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
     """Test creating multiple pending manager config actions"""
     # Create first pending action
-    aid1 = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
-    
+    aid1 = switchboard_alpha.setManagerConfig(100000, 50000, False, 0, 0, False, sender=governance.address)
+
     # Create second pending action with different values
-    aid2 = switchboard_alpha.setManagerConfig(200000, 100000, sender=governance.address)
+    aid2 = switchboard_alpha.setManagerConfig(200000, 100000, False, 0, 0, False, sender=governance.address)
     
     # Verify both are stored separately
     pending1 = switchboard_alpha.pendingManagerConfig(aid1)
@@ -2615,9 +1922,9 @@ def test_set_manager_config_cancel_pending_action(switchboard_alpha, governance,
     """Test canceling a pending manager config action"""
     # Get initial config
     initial_config = mission_control.managerConfig()
-    
+
     # Create pending action
-    aid = switchboard_alpha.setManagerConfig(150000, 75000, sender=governance.address)
+    aid = switchboard_alpha.setManagerConfig(150000, 75000, False, 0, 0, False, sender=governance.address)
     
     # Cancel the action
     result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
@@ -2828,7 +2135,7 @@ def test_set_payee_config_cancel_pending_action(switchboard_alpha, governance, m
 def test_set_payee_config_different_from_manager_config(switchboard_alpha, governance, mission_control):
     """Test that payee config is independent from manager config"""
     # Set manager config
-    manager_aid = switchboard_alpha.setManagerConfig(100000, 50000, sender=governance.address)
+    manager_aid = switchboard_alpha.setManagerConfig(100000, 50000, False, 0, 0, False, sender=governance.address)
     
     # Set payee config with different values
     payee_aid = switchboard_alpha.setPayeeConfig(200000, 100000, sender=governance.address)
@@ -3507,3 +2814,606 @@ def test_set_ripe_lock_duration_multiple_updates(switchboard_alpha, governance, 
         logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
         assert logs[-1].ripeStakeRatio == stake_ratio
         assert logs[-1].ripeLockDuration == duration
+
+
+###################################
+# Granular Asset Config Setters #
+###################################
+
+
+def test_set_asset_tx_fees_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset tx fees"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only tx fees
+    new_swap_fee = 50  # 0.5%
+    new_stable_swap_fee = 15  # 0.15%
+    new_rewards_fee = 100  # 1%
+
+    aid = switchboard_alpha.setAssetTxFees(
+        asset,
+        new_swap_fee,
+        new_stable_swap_fee,
+        new_rewards_fee,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetTxFeesChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].swapFee == new_swap_fee
+    assert logs[0].stableSwapFee == new_stable_swap_fee
+    assert logs[0].rewardsFee == new_rewards_fee
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetTxFeesSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].swapFee == new_swap_fee
+    assert result == True
+
+    # Verify only tx fees changed, everything else stayed the same
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.txFees.swapFee == new_swap_fee
+    assert saved_config.txFees.stableSwapFee == new_stable_swap_fee
+    assert saved_config.txFees.rewardsFee == new_rewards_fee
+
+    # Verify ambassador rev share unchanged
+    assert saved_config.ambassadorRevShare.swapRatio == 1000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 2000
+    assert saved_config.ambassadorRevShare.yieldRatio == 1500
+
+    # Verify yield config unchanged
+    assert saved_config.yieldConfig.maxYieldIncrease == 500
+    assert saved_config.yieldConfig.performanceFee == 1000
+
+
+def test_set_asset_tx_fees_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid tx fees are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test swap fee > 5%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 501, 10, 20, sender=governance.address)
+
+    # Test stable swap fee > 2%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 50, 201, 20, sender=governance.address)
+
+    # Test rewards fee > 25%
+    with boa.reverts("invalid tx fees"):
+        switchboard_alpha.setAssetTxFees(asset, 50, 10, 2501, sender=governance.address)
+
+
+def test_set_asset_tx_fees_non_governance_reverts(switchboard_alpha, alice, alpha_token):
+    """Test that non-governance cannot update asset tx fees"""
+    import boa
+
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAssetTxFees(alpha_token.address, 50, 10, 20, sender=alice)
+
+
+def test_set_asset_tx_fees_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular tx fees update fails if full config not set first"""
+    import boa
+
+    # Try to update tx fees without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetTxFees(alpha_token.address, 50, 10, 20, sender=governance.address)
+
+
+def test_set_asset_ambassador_rev_share_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular ambassador rev share update fails if full config not set first"""
+    import boa
+
+    # Try to update ambassador rev share without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetAmbassadorRevShare(alpha_token.address, 1000, 2000, 1500, sender=governance.address)
+
+
+def test_set_asset_yield_config_no_config_reverts(switchboard_alpha, governance, alpha_token):
+    """Test that granular yield config update fails if full config not set first"""
+    import boa
+
+    # Try to update yield config without setting full config first
+    with boa.reverts("must set full asset config first"):
+        switchboard_alpha.setAssetYieldConfig(alpha_token.address, 500, 1000, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+
+def test_set_asset_ambassador_rev_share_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset ambassador rev share"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only ambassador rev share
+    new_swap_ratio = 3000  # 30%
+    new_rewards_ratio = 4000  # 40%
+    new_yield_ratio = 2500  # 25%
+
+    aid = switchboard_alpha.setAssetAmbassadorRevShare(
+        asset,
+        new_swap_ratio,
+        new_rewards_ratio,
+        new_yield_ratio,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetAmbassadorRevShareChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].swapRatio == new_swap_ratio
+    assert logs[0].rewardsRatio == new_rewards_ratio
+    assert logs[0].yieldRatio == new_yield_ratio
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetAmbassadorRevShareSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].swapRatio == new_swap_ratio
+    assert result == True
+
+    # Verify only ambassador rev share changed
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.ambassadorRevShare.swapRatio == new_swap_ratio
+    assert saved_config.ambassadorRevShare.rewardsRatio == new_rewards_ratio
+    assert saved_config.ambassadorRevShare.yieldRatio == new_yield_ratio
+
+    # Verify tx fees unchanged
+    assert saved_config.txFees.swapFee == 10
+    assert saved_config.txFees.stableSwapFee == 5
+    assert saved_config.txFees.rewardsFee == 20
+
+    # Verify yield config unchanged
+    assert saved_config.yieldConfig.maxYieldIncrease == 500
+    assert saved_config.yieldConfig.performanceFee == 1000
+
+
+def test_set_asset_ambassador_rev_share_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid ambassador rev share ratios are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test swap ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 10001, 2000, 1500, sender=governance.address)
+
+    # Test rewards ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 1000, 10001, 1500, sender=governance.address)
+
+    # Test yield ratio > 100%
+    with boa.reverts("invalid ratios"):
+        switchboard_alpha.setAssetAmbassadorRevShare(asset, 1000, 2000, 10001, sender=governance.address)
+
+
+def test_set_asset_yield_config_success(switchboard_alpha, governance, mission_control, alpha_token):
+    """Test successful update of only asset yield config"""
+    import boa
+
+    # First set a full asset config
+    asset = alpha_token.address
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Now update only yield config
+    new_max_yield_increase = 800  # 8%
+    new_performance_fee = 2000  # 20%
+    new_ambassador_bonus_ratio = 7000  # 70%
+    new_bonus_ratio = 4000  # 40%
+    new_bonus_asset = alpha_token.address
+
+    aid = switchboard_alpha.setAssetYieldConfig(
+        asset,
+        new_max_yield_increase,
+        new_performance_fee,
+        new_ambassador_bonus_ratio,
+        new_bonus_ratio,
+        new_bonus_asset,
+        sender=governance.address
+    )
+
+    # Verify pending event
+    logs = filter_logs(switchboard_alpha, "PendingAssetYieldConfigChange")
+    assert len(logs) == 1
+    assert logs[0].asset == asset
+    assert logs[0].maxYieldIncrease == new_max_yield_increase
+    assert logs[0].performanceFee == new_performance_fee
+    assert logs[0].ambassadorBonusRatio == new_ambassador_bonus_ratio
+    assert logs[0].bonusRatio == new_bonus_ratio
+    assert logs[0].bonusAsset == new_bonus_asset
+    assert logs[0].actionId == aid
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AssetYieldConfigSet")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].asset == asset
+    assert exec_logs[0].maxYieldIncrease == new_max_yield_increase
+    assert result == True
+
+    # Verify only yield config changed
+    saved_config = mission_control.assetConfig(asset)
+    assert saved_config.yieldConfig.maxYieldIncrease == new_max_yield_increase
+    assert saved_config.yieldConfig.performanceFee == new_performance_fee
+    assert saved_config.yieldConfig.ambassadorBonusRatio == new_ambassador_bonus_ratio
+    assert saved_config.yieldConfig.bonusRatio == new_bonus_ratio
+    assert saved_config.yieldConfig.bonusAsset == new_bonus_asset
+
+    # Verify tx fees unchanged
+    assert saved_config.txFees.swapFee == 10
+    assert saved_config.txFees.stableSwapFee == 5
+    assert saved_config.txFees.rewardsFee == 20
+
+    # Verify ambassador rev share unchanged
+    assert saved_config.ambassadorRevShare.swapRatio == 1000
+    assert saved_config.ambassadorRevShare.rewardsRatio == 2000
+    assert saved_config.ambassadorRevShare.yieldRatio == 1500
+
+
+def test_set_asset_yield_config_invalid_values_revert(switchboard_alpha, governance, alpha_token):
+    """Test that invalid yield config values are rejected"""
+    import boa
+
+    asset = alpha_token.address
+
+    # First set a full asset config so granular updates are allowed
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        10, 5, 20,  # tx fees
+        1000, 2000, 1500,  # ambassador rev share
+        500, 1000, 5000, 3000, ZERO_ADDRESS,  # yield config
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Test max yield increase > 10%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 1001, 1000, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test performance fee > 25%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 2501, 5000, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test ambassador bonus ratio > 100%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 1000, 10001, 3000, ZERO_ADDRESS, sender=governance.address)
+
+    # Test bonus ratio > 100%
+    with boa.reverts("invalid yield params"):
+        switchboard_alpha.setAssetYieldConfig(asset, 500, 1000, 5000, 10001, ZERO_ADDRESS, sender=governance.address)
+
+
+##########################
+# Agent Wrapper Sender #
+##########################
+
+
+def test_set_agent_wrapper_sender_add_success(switchboard_alpha, governance, starter_agent, alice):
+    """Test successfully adding a sender to AgentWrapper through full lifecycle"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Verify alice is not a sender initially
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Step 1: Initiate sender addition (should go through timelock)
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,  # _agentWrapper
+        new_sender,             # _agentSender
+        True,                   # _shouldAdd
+        sender=governance.address
+    )
+
+    # Step 2: Verify event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingAgentWrapperSenderAdd")
+    assert len(logs) == 1
+    assert logs[0].agentWrapper == agent_wrapper.address
+    assert logs[0].agentSender == new_sender
+    assert logs[0].actionId == aid
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    assert logs[0].confirmationBlock == expected_confirmation_block
+
+    # Step 3: Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+    pending_data = switchboard_alpha.pendingAgentWrapperSender(aid)
+    assert pending_data.agentWrapper == agent_wrapper.address
+    assert pending_data.agentSender == new_sender
+
+    # Step 4: Try to execute before timelock - should fail
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Verify no state change yet
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Step 5: Time travel to reach timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+
+    # Step 6: Execute the action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Step 7: Verify execution event
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderAdded")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].agentWrapper == agent_wrapper.address
+    assert exec_logs[0].agentSender == new_sender
+
+    # Step 8: Verify the sender was added to AgentWrapper
+    assert agent_wrapper.indexOfSender(new_sender) != 0
+
+    # Step 9: Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_agent_wrapper_sender_remove_success(switchboard_alpha, governance, starter_agent, starter_agent_sender):
+    """Test successfully removing a sender from AgentWrapper - applies immediately"""
+    agent_wrapper = starter_agent
+    sender_to_remove = starter_agent_sender.address
+
+    # Verify sender exists initially
+    assert agent_wrapper.indexOfSender(sender_to_remove) != 0
+    initial_num_senders = agent_wrapper.numSenders()
+
+    # Remove sender - this should apply immediately
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,  # _agentWrapper
+        sender_to_remove,       # _agentSender
+        False,                  # _shouldAdd (removing)
+        sender=governance.address
+    )
+
+    # Verify execution event was emitted immediately
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderRemoved")
+    assert len(exec_logs) == 1
+    assert exec_logs[0].agentWrapper == agent_wrapper.address
+    assert exec_logs[0].agentSender == sender_to_remove
+
+    # Verify the sender was removed immediately
+    assert agent_wrapper.indexOfSender(sender_to_remove) == 0
+    assert agent_wrapper.numSenders() == initial_num_senders - 1
+
+    # aid should be 0 (no pending action since it was applied immediately)
+    assert aid == 0
+
+    # There should be no pending action
+    assert switchboard_alpha.actionType(aid) == 0
+
+
+def test_set_agent_wrapper_sender_add_non_governance_reverts(switchboard_alpha, alice, bob, starter_agent):
+    """Test that non-governance addresses cannot add senders"""
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            bob,
+            True,  # adding
+            sender=alice
+        )
+
+
+def test_set_agent_wrapper_sender_remove_by_security_council(switchboard_alpha, governance, starter_agent, starter_agent_sender, bob, mission_control):
+    """Test that security council can remove senders immediately"""
+    agent_wrapper = starter_agent
+    sender_to_remove = starter_agent_sender.address
+
+    # First enable bob as security council member
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+
+    # Verify sender exists
+    assert agent_wrapper.indexOfSender(sender_to_remove) != 0
+
+    # Bob (security council) removes sender - should work immediately
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        sender_to_remove,
+        False,  # removing
+        sender=bob
+    )
+
+    # Verify removal happened immediately
+    assert aid == 0
+    assert agent_wrapper.indexOfSender(sender_to_remove) == 0
+
+    # Verify event
+    exec_logs = filter_logs(switchboard_alpha, "AgentWrapperSenderRemoved")
+    assert exec_logs[-1].agentWrapper == agent_wrapper.address
+    assert exec_logs[-1].agentSender == sender_to_remove
+
+
+def test_set_agent_wrapper_sender_add_by_security_council_reverts(switchboard_alpha, governance, starter_agent, bob, mission_control):
+    """Test that security council cannot add senders (only governance can)"""
+    # First enable bob as security council member
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    assert mission_control.canPerformSecurityAction(bob) == True
+
+    # Bob (security council) tries to add sender - should fail
+    with boa.reverts("no perms"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            bob,  # trying to add bob as sender
+            True,  # adding
+            sender=bob
+        )
+
+
+def test_set_agent_wrapper_sender_invalid_addresses_revert(switchboard_alpha, governance, starter_agent, alice):
+    """Test that invalid addresses are rejected"""
+    # Test with zero agent wrapper address
+    with boa.reverts("invalid agent wrapper"):
+        switchboard_alpha.setAgentWrapperSender(
+            ZERO_ADDRESS,
+            alice,
+            True,
+            sender=governance.address
+        )
+
+    # Test with zero agent sender address
+    with boa.reverts("invalid agent sender"):
+        switchboard_alpha.setAgentWrapperSender(
+            starter_agent.address,
+            ZERO_ADDRESS,
+            True,
+            sender=governance.address
+        )
+
+    # Test with both zero addresses
+    with boa.reverts("invalid agent wrapper"):
+        switchboard_alpha.setAgentWrapperSender(
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            True,
+            sender=governance.address
+        )
+
+
+def test_set_agent_wrapper_sender_cancel_pending_add(switchboard_alpha, governance, starter_agent, alice):
+    """Test canceling a pending sender addition"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Initiate sender addition
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        True,
+        sender=governance.address
+    )
+
+    # Verify pending state
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+
+    # Cancel the pending action
+    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify action is cleared
+    assert switchboard_alpha.actionType(aid) == 0
+
+    # Try to execute canceled action - should fail
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Verify sender was not added
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+
+def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, starter_agent, alice, bob, mission_control):
+    """Test full lifecycle: add sender with timelock, verify it works, remove immediately"""
+    agent_wrapper = starter_agent
+    new_sender = alice
+
+    # Step 1: Add sender through timelock
+    aid = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        True,
+        sender=governance.address
+    )
+
+    # Verify pending
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.AGENT_WRAPPER_SENDER
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify sender was added
+    assert agent_wrapper.indexOfSender(new_sender) != 0
+    num_senders_after_add = agent_wrapper.numSenders()
+
+    # Step 2: Enable bob as security council
+    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+
+    # Step 3: Security council removes sender immediately
+    aid_remove = switchboard_alpha.setAgentWrapperSender(
+        agent_wrapper.address,
+        new_sender,
+        False,
+        sender=bob
+    )
+
+    # Verify immediate removal
+    assert aid_remove == 0
+    assert agent_wrapper.indexOfSender(new_sender) == 0
+    assert agent_wrapper.numSenders() == num_senders_after_add - 1

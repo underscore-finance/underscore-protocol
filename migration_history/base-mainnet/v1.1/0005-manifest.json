@@ -1,0 +1,421 @@
+{
+  "contracts": {
+    "Hatchery": {
+      "address": "0x3ea153bf93367e5933818BB0E7ebE3A9AC0ac193",
+      "abi": [
+        {
+          "name": "UserWalletCreated",
+          "inputs": [
+            {
+              "name": "mainAddr",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "configAddr",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "owner",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "agent",
+              "type": "address",
+              "indexed": false
+            },
+            {
+              "name": "ambassador",
+              "type": "address",
+              "indexed": false
+            },
+            {
+              "name": "creator",
+              "type": "address",
+              "indexed": false
+            },
+            {
+              "name": "groupId",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "DepartmentPauseModified",
+          "inputs": [
+            {
+              "name": "isPaused",
+              "type": "bool",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "DepartmentFundsRecovered",
+          "inputs": [
+            {
+              "name": "asset",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "balance",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getAddys",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "hq",
+                  "type": "address"
+                },
+                {
+                  "name": "undyToken",
+                  "type": "address"
+                },
+                {
+                  "name": "ledger",
+                  "type": "address"
+                },
+                {
+                  "name": "missionControl",
+                  "type": "address"
+                },
+                {
+                  "name": "legoBook",
+                  "type": "address"
+                },
+                {
+                  "name": "switchboard",
+                  "type": "address"
+                },
+                {
+                  "name": "hatchery",
+                  "type": "address"
+                },
+                {
+                  "name": "lootDistributor",
+                  "type": "address"
+                },
+                {
+                  "name": "appraiser",
+                  "type": "address"
+                },
+                {
+                  "name": "walletBackpack",
+                  "type": "address"
+                },
+                {
+                  "name": "billing",
+                  "type": "address"
+                },
+                {
+                  "name": "vaultRegistry",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getUndyHq",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canMintUndy",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "pause",
+          "inputs": [
+            {
+              "name": "_shouldPause",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "recoverFunds",
+          "inputs": [
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "recoverFundsMany",
+          "inputs": [
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_assets",
+              "type": "address[]"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isPaused",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "createUserWallet",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "createUserWallet",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "createUserWallet",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            },
+            {
+              "name": "_ambassador",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "createUserWallet",
+          "inputs": [
+            {
+              "name": "_owner",
+              "type": "address"
+            },
+            {
+              "name": "_ambassador",
+              "type": "address"
+            },
+            {
+              "name": "_groupId",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "doesWalletStillHaveTrialFundsWithAddys",
+          "inputs": [
+            {
+              "name": "_user",
+              "type": "address"
+            },
+            {
+              "name": "_walletConfig",
+              "type": "address"
+            },
+            {
+              "name": "_missionControl",
+              "type": "address"
+            },
+            {
+              "name": "_legoBook",
+              "type": "address"
+            },
+            {
+              "name": "_appraiser",
+              "type": "address"
+            },
+            {
+              "name": "_ledger",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "WETH",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "ETH",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_wethAddr",
+              "type": "address"
+            },
+            {
+              "name": "_ethAddr",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/modules/Addys.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\ninterface UndyHq:\n    def isValidAddr(_addr: address) -> bool: view\n    def getAddr(_regId: uint256) -> address: view\n    def undyToken() -> address: view\n\ninterface Switchboard:\n    def isSwitchboardAddr(_addr: address) -> bool: view\n\ninterface LegoBook:\n    def isLegoAddr(_addr: address) -> bool: view\n\nstruct Addys:\n    hq: address\n    undyToken: address\n    ledger: address\n    missionControl: address\n    legoBook: address\n    switchboard: address\n    hatchery: address\n    lootDistributor: address\n    appraiser: address\n    walletBackpack: address\n    billing: address\n    vaultRegistry: address\n\n# hq\nUNDY_HQ_FOR_ADDYS: immutable(address)\n\n# core addys\nLEDGER_ID: constant(uint256) = 1\nMISSION_CONTROL_ID: constant(uint256) = 2\nLEGO_BOOK_ID: constant(uint256) = 3\nSWITCHBOARD_ID: constant(uint256) = 4\nHATCHERY_ID: constant(uint256) = 5\nLOOT_DISTRIBUTOR_ID: constant(uint256) = 6\nAPPRAISER_ID: constant(uint256) = 7\nWALLET_BACKPACK_ID: constant(uint256) = 8\nBILLING_ID: constant(uint256) = 9\nVAULT_REGISTRY_ID: constant(uint256) = 10\n\n\n@deploy\ndef __init__(_undyHq: address):\n    assert _undyHq != empty(address) # dev: invalid undy hq\n    UNDY_HQ_FOR_ADDYS = _undyHq\n\n\n########\n# Core #\n########\n\n\n@view\n@external\ndef getAddys() -> Addys:\n    return self._generateAddys()\n\n\n@view\n@internal\ndef _getAddys(_addys: Addys = empty(Addys)) -> Addys:\n    if _addys.hq != empty(address):\n        return _addys\n    return self._generateAddys()\n\n\n@view\n@internal\ndef _generateAddys() -> Addys:\n    hq: address = UNDY_HQ_FOR_ADDYS\n    return Addys(\n        hq = hq,\n        undyToken = staticcall UndyHq(hq).undyToken(),\n        ledger = staticcall UndyHq(hq).getAddr(LEDGER_ID),\n        missionControl = staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),\n        legoBook = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),\n        switchboard = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),\n        hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),\n        lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),\n        appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),\n        walletBackpack = staticcall UndyHq(hq).getAddr(WALLET_BACKPACK_ID),\n        billing = staticcall UndyHq(hq).getAddr(BILLING_ID),\n        vaultRegistry = staticcall UndyHq(hq).getAddr(VAULT_REGISTRY_ID),\n    )\n\n\n##########\n# Tokens #\n##########\n\n\n@view\n@internal\ndef _getUndyToken() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).undyToken()\n\n\n###########\n# Helpers #\n###########\n\n\n# undy hq\n\n\n@view\n@external\ndef getUndyHq() -> address:\n    return self._getUndyHq()\n\n\n@view\n@internal\ndef _getUndyHq() -> address:\n    return UNDY_HQ_FOR_ADDYS\n\n\n# utils\n\n\n@view\n@internal\ndef _isValidUndyAddr(_addr: address, _hq: address = empty(address)) -> bool:\n    hq: address = _hq\n    if _hq == empty(address):\n        hq = UNDY_HQ_FOR_ADDYS\n    \n    # core departments\n    if staticcall UndyHq(hq).isValidAddr(_addr):\n        return True\n\n    # lego book\n    legoBook: address = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID)\n    if legoBook != empty(address) and staticcall LegoBook(legoBook).isLegoAddr(_addr):\n        return True\n\n    # switchboard config\n    switchboard: address = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID)\n    if switchboard != empty(address) and staticcall Switchboard(switchboard).isSwitchboardAddr(_addr):\n        return True\n\n    return False\n\n\n@view\n@internal\ndef _isSwitchboardAddr(_addr: address) -> bool:\n    switchboard: address = staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)\n    if switchboard == empty(address):\n        return False\n    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)\n\n\n@view\n@internal\ndef _isLegoBookAddr(_addr: address) -> bool:\n    legoBook: address = staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)\n    if legoBook == empty(address):\n        return False\n    return staticcall LegoBook(legoBook).isLegoAddr(_addr)\n\n\n###############\n# Departments #\n###############\n\n\n# ledger\n\n\n@view\n@internal\ndef _getLedgerId() -> uint256:\n    return LEDGER_ID\n\n\n@view\n@internal\ndef _getLedgerAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEDGER_ID)\n\n\n# mission control\n\n\n@view\n@internal\ndef _getMissionControlId() -> uint256:\n    return MISSION_CONTROL_ID\n\n\n@view\n@internal\ndef _getMissionControlAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MISSION_CONTROL_ID)\n\n\n# lego book\n\n\n@view\n@internal\ndef _getLegoBookId() -> uint256:\n    return LEGO_BOOK_ID\n\n\n@view\n@internal\ndef _getLegoBookAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)\n\n\n# switchboard\n\n\n@view\n@internal\ndef _getSwitchboardId() -> uint256:\n    return SWITCHBOARD_ID\n\n\n@view\n@internal\ndef _getSwitchboardAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)\n\n\n# hatchery\n\n\n@view\n@internal\ndef _getHatcheryId() -> uint256:\n    return HATCHERY_ID\n\n\n@view\n@internal\ndef _getHatcheryAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HATCHERY_ID)\n\n\n# loot distributor\n\n\n@view\n@internal\ndef _getLootDistributorId() -> uint256:\n    return LOOT_DISTRIBUTOR_ID\n\n\n@view\n@internal\ndef _getLootDistributorAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LOOT_DISTRIBUTOR_ID)\n\n\n# appraiser\n\n\n@view\n@internal\ndef _getAppraiserId() -> uint256:\n    return APPRAISER_ID\n\n\n@view\n@internal\ndef _getAppraiserAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)\n\n\n# wallet backpack\n\n\n@view\n@internal\ndef _getWalletBackpackId() -> uint256:\n    return WALLET_BACKPACK_ID\n\n\n@view\n@internal\ndef _getWalletBackpackAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_BACKPACK_ID)\n\n\n# billing\n\n\n@view\n@internal\ndef _getBillingId() -> uint256:\n    return BILLING_ID\n\n\n@view\n@internal\ndef _getBillingAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BILLING_ID)\n\n\n# vault registry\n\n\n@view\n@internal\ndef _getVaultRegistryId() -> uint256:\n    return VAULT_REGISTRY_ID\n\n\n@view\n@internal\ndef _getVaultRegistryAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(VAULT_REGISTRY_ID)",
+            "sha256sum": "4df6b72db9bb417d1af81660175be1450cfb7b3575f3d17a5b8a130bff87b781"
+          },
+          "interfaces/Department.vyi": {
+            "content": "# @version 0.4.3\n\n\n###########\n# Minting #\n###########\n\n\n@view\n@external\ndef canMintUndy() -> bool:\n    # used in UndyHq.vy\n    ...\n\n\n########\n# Undy #\n########\n\n\n@view\n@external\ndef isPaused() -> bool:\n    ...\n\n\n@external\ndef pause(_shouldPause: bool):\n    ...\n\n\n@external\ndef recoverFunds(_recipient: address, _asset: address):\n    ...\n\n@external\ndef recoverFundsMany(_recipient: address, _assets: DynArray[address, 20]):\n    ...",
+            "sha256sum": "53e48da591c4ee36045a8950c9d3a01458456b471b797df536e9a9f54404e721"
+          },
+          "contracts/modules/DeptBasics.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nuses: addys\nimplements: dept\n\nimport contracts.modules.Addys as addys\nimport interfaces.Department as dept\nfrom ethereum.ercs import IERC20\n\nevent DepartmentPauseModified:\n    isPaused: bool\n\nevent DepartmentFundsRecovered:\n    asset: indexed(address)\n    recipient: indexed(address)\n    balance: uint256\n\nisPaused: public(bool)\n\nCAN_MINT_UNDY: immutable(bool)\nMAX_RECOVER_ASSETS: constant(uint256) = 20\n\n\n@deploy\ndef __init__(_shouldPause: bool, _canMintUndy: bool):\n    self.isPaused = _shouldPause\n    CAN_MINT_UNDY = _canMintUndy\n\n\n###########\n# Minting #\n###########\n\n\n@view\n@external\ndef canMintUndy() -> bool:\n    return CAN_MINT_UNDY\n\n\n########\n# Undy #\n########\n\n\n# activate\n\n\n@external\ndef pause(_shouldPause: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert _shouldPause != self.isPaused # dev: no change\n    self.isPaused = _shouldPause\n    log DepartmentPauseModified(isPaused=_shouldPause)\n\n\n# recover funds\n\n\n@external\ndef recoverFunds(_recipient: address, _asset: address):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    self._recoverFunds(_recipient, _asset)\n\n\n@external\ndef recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    for a: address in _assets:\n        self._recoverFunds(_recipient, a)\n\n\n@internal\ndef _recoverFunds(_recipient: address, _asset: address):\n    assert empty(address) not in [_recipient, _asset] # dev: invalid recipient or asset\n    balance: uint256 = staticcall IERC20(_asset).balanceOf(self)\n    assert balance != 0 # dev: nothing to recover\n\n    assert extcall IERC20(_asset).transfer(_recipient, balance, default_return_value=True) # dev: recovery failed\n    log DepartmentFundsRecovered(asset=_asset, recipient=_recipient, balance=balance)\n",
+            "sha256sum": "976a50a3807bcf71f3f1c57de5cd7a59fe4e8f27b4d4560e774073962f44d1ac"
+          },
+          "interfaces/WalletConfigStructs.vyi": {
+            "content": "# @version 0.4.3\n\nMAX_CONFIG_ASSETS: constant(uint256) = 40\nMAX_CONFIG_LEGOS: constant(uint256) = 25\nMAX_ALLOWED_PAYEES: constant(uint256) = 40\n\nflag WhitelistAction:\n    ADD_PENDING\n    CONFIRM_WHITELIST\n    CANCEL_WHITELIST\n    REMOVE_WHITELIST\n\nflag BackpackType:\n    WALLET_KERNEL\n    WALLET_SENTINEL\n    WALLET_HIGH_COMMAND\n    WALLET_PAYMASTER\n    WALLET_CHEQUE_BOOK\n    WALLET_MIGRATOR\n\n# payees\n\nstruct PayeeData:\n    numTxsInPeriod: uint256\n    totalUnitsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUnits: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n\nstruct PayeeSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    canPull: bool\n    periodLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    primaryAsset: address\n    onlyPrimaryAsset: bool\n    unitLimits: PayeeLimits\n    usdLimits: PayeeLimits\n\nstruct GlobalPayeeSettings:\n    defaultPeriodLength: uint256\n    startDelay: uint256\n    activationLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    usdLimits: PayeeLimits\n    canPayOwner: bool\n    canPull: bool\n\nstruct PayeeLimits:\n    perTxCap: uint256\n    perPeriodCap: uint256\n    lifetimeCap: uint256\n\nstruct PendingPayee:\n    settings: PayeeSettings\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct PayeeManagementBundle:\n    owner: address\n    wallet: address\n    isRegisteredPayee: bool\n    isWhitelisted: bool\n    isExistingCheque: bool\n    payeeSettings: PayeeSettings\n    globalPayeeSettings: GlobalPayeeSettings\n    timeLock: uint256\n    walletConfig: address\n\nstruct RecipientConfigBundle:\n    isWhitelisted: bool\n    isOwner: bool\n    isPayee: bool\n    config: PayeeSettings\n    globalConfig: GlobalPayeeSettings\n    data: PayeeData\n\nstruct WhitelistConfigBundle:\n    owner: address\n    wallet: address\n    isWhitelisted: bool\n    pendingWhitelist: PendingWhitelist\n    isExistingPayee: bool\n    isExistingCheque: bool\n    timeLock: uint256\n    walletConfig: address\n    isManager: bool\n    isOwner: bool\n    whitelistPerms: WhitelistPerms\n    globalWhitelistPerms: WhitelistPerms\n\nstruct PendingWhitelist:\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\n# cheques\n\nstruct Cheque:\n    recipient: address\n    asset: address\n    amount: uint256\n    creationBlock: uint256\n    unlockBlock: uint256\n    expiryBlock: uint256\n    usdValueOnCreation: uint256\n    canManagerPay: bool\n    canBePulled: bool\n    creator: address\n    active: bool\n\nstruct ChequeSettings:\n    maxNumActiveCheques: uint256\n    maxChequeUsdValue: uint256\n    instantUsdThreshold: uint256\n    perPeriodPaidUsdCap: uint256\n    maxNumChequesPaidPerPeriod: uint256\n    payCooldownBlocks: uint256\n    perPeriodCreatedUsdCap: uint256\n    maxNumChequesCreatedPerPeriod: uint256\n    createCooldownBlocks: uint256\n    periodLength: uint256\n    expensiveDelayBlocks: uint256\n    defaultExpiryBlocks: uint256\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canManagersCreateCheques: bool\n    canManagerPay: bool\n    canBePulled: bool\n\nstruct ChequeData:\n    numChequesPaidInPeriod: uint256\n    totalUsdValuePaidInPeriod: uint256\n    totalNumChequesPaid: uint256\n    totalUsdValuePaid: uint256\n    lastChequePaidBlock: uint256\n    numChequesCreatedInPeriod: uint256\n    totalUsdValueCreatedInPeriod: uint256\n    totalNumChequesCreated: uint256\n    totalUsdValueCreated: uint256\n    lastChequeCreatedBlock: uint256\n    periodStartBlock: uint256\n\nstruct ChequeManagementBundle:\n    wallet: address\n    walletConfig: address\n    owner: address\n    isRecipientOnWhitelist: bool\n    isCreatorManager: bool\n    managerSettings: ManagerSettings\n    chequeSettings: ChequeSettings\n    chequeData: ChequeData\n    isExistingCheque: bool\n    numActiveCheques: uint256\n    isExistingPayee: bool\n    timeLock: uint256\n\n# managers\n\nstruct ManagerData:\n    numTxsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n    numSwapsInPeriod: uint256\n\nstruct ManagerSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canClaimLoot: bool\n\nstruct GlobalManagerSettings:\n    managerPeriod: uint256\n    startDelay: uint256\n    activationLength: uint256\n    canOwnerManage: bool\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n\nstruct ManagerLimits:\n    maxUsdValuePerTx: uint256\n    maxUsdValuePerPeriod: uint256\n    maxUsdValueLifetime: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n\nstruct LegoPerms:\n    canManageYield: bool\n    canBuyAndSell: bool\n    canManageDebt: bool\n    canManageLiq: bool\n    canClaimRewards: bool\n    onlyApprovedYieldOpps: bool\n    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]\n\nstruct SwapPerms:\n    mustHaveUsdValue: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippage: uint256\n\nstruct WhitelistPerms:\n    canAddPending: bool\n    canConfirm: bool\n    canCancel: bool\n    canRemove: bool\n\nstruct TransferPerms:\n    canTransfer: bool\n    canCreateCheque: bool\n    canAddPendingPayee: bool\n    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]\n\nstruct ManagerConfigBundle:\n    isOwner: bool\n    isManager: bool\n    config: ManagerSettings\n    globalConfig: GlobalManagerSettings\n    data: ManagerData\n    payee: address\n\nstruct ManagerSettingsBundle:\n    owner: address\n    isManager: bool\n    timeLock: uint256\n    walletConfig: address\n    legoBook: address\n    globalManagerSettings: GlobalManagerSettings\n\n# migration\n\nstruct MigrationConfigBundle:\n    owner: address\n    isFrozen: bool\n    numPayees: uint256\n    numWhitelisted: uint256\n    numManagers: uint256\n    startingAgent: address\n    startingAgentIndex: uint256\n    hasPendingOwnerChange: bool\n    groupId: uint256\n    numActiveCheques: uint256\n",
+            "sha256sum": "31165468feeac632a1376c70970ce5124f8951392c4deaa01a26176c7f26718a"
+          },
+          "contracts/core/Hatchery.vy": {
+            "content": "#          ___           ___                       ___           ___           ___           ___                 \n#         /__/\\         /  /\\          ___        /  /\\         /__/\\         /  /\\         /  /\\          ___   \n#         \\  \\:\\       /  /::\\        /  /\\      /  /:/         \\  \\:\\       /  /:/_       /  /::\\        /__/|  \n#          \\__\\:\\     /  /:/\\:\\      /  /:/     /  /:/           \\__\\:\\     /  /:/ /\\     /  /:/\\:\\      |  |:|  \n#      ___ /  /::\\   /  /:/~/::\\    /  /:/     /  /:/  ___   ___ /  /::\\   /  /:/ /:/_   /  /:/~/:/      |  |:|  \n#     /__/\\  /:/\\:\\ /__/:/ /:/\\:\\  /  /::\\    /__/:/  /  /\\ /__/\\  /:/\\:\\ /__/:/ /:/ /\\ /__/:/ /:/___  __|__|:|  \n#     \\  \\:\\/:/__\\/ \\  \\:\\/:/__\\/ /__/:/\\:\\   \\  \\:\\ /  /:/ \\  \\:\\/:/__\\/ \\  \\:\\/:/ /:/ \\  \\:\\/:::::/ /__/::::\\  \n#      \\  \\::/       \\  \\::/      \\__\\/  \\:\\   \\  \\:\\  /:/   \\  \\::/       \\  \\::/ /:/   \\  \\::/~~~~     ~\\~~\\:\\ \n#       \\  \\:\\        \\  \\:\\           \\  \\:\\   \\  \\:\\/:/     \\  \\:\\        \\  \\:\\/:/     \\  \\:\\           \\  \\:\\\n#        \\  \\:\\        \\  \\:\\           \\__\\/    \\  \\::/       \\  \\:\\        \\  \\::/       \\  \\:\\           \\__\\/\n#         \\__\\/         \\__\\/                     \\__\\/         \\__\\/         \\__\\/         \\__\\/                \n#\n#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Hatchery **                                    \u2551\n#     \u2551  Handles user wallet creation.                     \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimplements: Department\n\nexports: addys.__interface__\nexports: deptBasics.__interface__\n\ninitializes: addys\ninitializes: deptBasics[addys := addys]\n\nimport contracts.modules.Addys as addys\nimport contracts.modules.DeptBasics as deptBasics\n\nfrom interfaces import Department\nfrom interfaces import WalletConfigStructs as wcs\n\ninterface WalletBackpack:\n    def highCommand() -> address: view\n    def chequeBook() -> address: view\n    def paymaster() -> address: view\n    def migrator() -> address: view\n    def sentinel() -> address: view\n    def kernel() -> address: view\n\ninterface Ledger:\n    def createUserWallet(_user: address, _ambassador: address): nonpayable\n    def isUserWallet(_user: address) -> bool: view\n    def numUserWallets() -> uint256: view\n\ninterface MissionControl:\n    def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view\n    def creatorWhitelist(_creator: address) -> bool: view\n\ninterface HighCommand:\n    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _onlyApprovedYieldOpps: bool) -> wcs.GlobalManagerSettings: view\n    def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view\n\ninterface ChequeBook:\n    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: view\n\ninterface Paymaster:\n    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view\n\ninterface UserWalletConfig:\n    def setWallet(_wallet: address) -> bool: nonpayable\n\nstruct UserWalletCreationConfig:\n    numUserWalletsAllowed: uint256\n    isCreatorAllowed: bool\n    walletTemplate: address\n    configTemplate: address\n    startingAgent: address\n    startingAgentActivationLength: uint256\n    managerPeriod: uint256\n    managerActivationLength: uint256\n    mustHaveUsdValueOnSwaps: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippageOnSwaps: uint256\n    onlyApprovedYieldOpps: bool\n    payeePeriod: uint256\n    payeeActivationLength: uint256\n    chequeMaxNumActiveCheques: uint256\n    chequeInstantUsdThreshold: uint256\n    chequePeriodLength: uint256\n    chequeExpensiveDelayBlocks: uint256\n    chequeDefaultExpiryBlocks: uint256\n    minKeyActionTimeLock: uint256\n    maxKeyActionTimeLock: uint256\n\nevent UserWalletCreated:\n    mainAddr: indexed(address)\n    configAddr: indexed(address)\n    owner: indexed(address)\n    agent: address\n    ambassador: address\n    creator: address\n    groupId: uint256\n\nWETH: public(immutable(address))\nETH: public(immutable(address))\n\n\n@deploy\ndef __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):\n    addys.__init__(_undyHq)\n    deptBasics.__init__(False, False) # no minting\n\n    WETH = _wethAddr\n    ETH = _ethAddr\n\n\n######################\n# Create User Wallet #\n######################\n\n\n@external\ndef createUserWallet(\n    _owner: address = msg.sender,\n    _ambassador: address = empty(address),\n    _groupId: uint256 = 1,\n) -> address:\n    assert not deptBasics.isPaused # dev: contract paused\n    a: addys.Addys = addys._getAddys()\n\n    config: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)\n    assert config.startingAgent != _owner # dev: starting agent cannot be the owner\n\n    # validation\n    if not addys._isSwitchboardAddr(msg.sender):\n        assert config.isCreatorAllowed # dev: creator not allowed\n    assert empty(address) not in [config.walletTemplate, config.configTemplate, _owner] # dev: invalid setup\n    if config.numUserWalletsAllowed != 0:\n        assert staticcall Ledger(a.ledger).numUserWallets() < config.numUserWalletsAllowed # dev: max user wallets reached\n\n    # ambassador\n    ambassador: address = empty(address)\n    if _ambassador != empty(address) and staticcall Ledger(a.ledger).isUserWallet(_ambassador) and staticcall MissionControl(a.missionControl).creatorWhitelist(msg.sender):\n        ambassador = _ambassador\n\n    # get wallet backpack addys\n    highCommand: address = staticcall WalletBackpack(a.walletBackpack).highCommand()\n    paymaster: address = staticcall WalletBackpack(a.walletBackpack).paymaster()\n    chequeBook: address = staticcall WalletBackpack(a.walletBackpack).chequeBook()\n\n    # default manager / payee / cheque settings\n    globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, config.onlyApprovedYieldOpps)\n    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)\n    chequeSettings: wcs.ChequeSettings = staticcall ChequeBook(chequeBook).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)\n\n    starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)\n    if config.startingAgent != empty(address):\n        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(config.startingAgentActivationLength)\n\n    # create wallet contracts\n    walletConfigAddr: address = create_from_blueprint(\n        config.configTemplate,\n        a.hq,\n        _owner,\n        _groupId,\n        globalManagerSettings,\n        globalPayeeSettings,\n        chequeSettings,\n        config.startingAgent,\n        starterAgentSettings,\n        staticcall WalletBackpack(a.walletBackpack).kernel(),\n        staticcall WalletBackpack(a.walletBackpack).sentinel(),\n        highCommand,\n        paymaster,\n        chequeBook,\n        staticcall WalletBackpack(a.walletBackpack).migrator(),\n        WETH,\n        ETH,\n        config.minKeyActionTimeLock,\n        config.maxKeyActionTimeLock,\n    )\n    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, WETH, ETH, walletConfigAddr)\n    assert extcall UserWalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet\n\n    # update ledger\n    extcall Ledger(a.ledger).createUserWallet(mainWalletAddr, ambassador)\n\n    log UserWalletCreated(\n        mainAddr=mainWalletAddr,\n        configAddr=walletConfigAddr,\n        owner=_owner,\n        agent=config.startingAgent,\n        ambassador=ambassador,\n        creator=msg.sender,\n        groupId=_groupId,\n    )\n    return mainWalletAddr\n\n\n# trial funds (legacy wallets)\n\n\n@view\n@external\ndef doesWalletStillHaveTrialFundsWithAddys(\n    _user: address,\n    _walletConfig: address,\n    _missionControl: address,\n    _legoBook: address,\n    _appraiser: address,\n    _ledger: address,\n) -> bool:\n    # backwards compatibility (legacy wallets)\n    return True",
+            "sha256sum": "c3c4f8de821f34cf1e7763f99cdf868597f36cf2cf73c7d0a413806e40b404d2"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/core/Hatchery.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "4b5686592d7f287d96ecab39d37fee8aaa4ae829da8bb7b410d4a4b8abe35e58"
+      },
+      "args": "00000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f90000000000000000000000004200000000000000000000000000000000000006000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "file": "contracts/core/Hatchery.vy"
+    }
+  }
+}

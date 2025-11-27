@@ -1,0 +1,1320 @@
+{
+  "contracts": {
+    "MissionControl": {
+      "address": "0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE",
+      "abi": [
+        {
+          "name": "DepartmentPauseModified",
+          "inputs": [
+            {
+              "name": "isPaused",
+              "type": "bool",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "DepartmentFundsRecovered",
+          "inputs": [
+            {
+              "name": "asset",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "balance",
+              "type": "uint256",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getAddys",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "hq",
+                  "type": "address"
+                },
+                {
+                  "name": "undyToken",
+                  "type": "address"
+                },
+                {
+                  "name": "ledger",
+                  "type": "address"
+                },
+                {
+                  "name": "missionControl",
+                  "type": "address"
+                },
+                {
+                  "name": "legoBook",
+                  "type": "address"
+                },
+                {
+                  "name": "switchboard",
+                  "type": "address"
+                },
+                {
+                  "name": "hatchery",
+                  "type": "address"
+                },
+                {
+                  "name": "lootDistributor",
+                  "type": "address"
+                },
+                {
+                  "name": "appraiser",
+                  "type": "address"
+                },
+                {
+                  "name": "walletBackpack",
+                  "type": "address"
+                },
+                {
+                  "name": "billing",
+                  "type": "address"
+                },
+                {
+                  "name": "vaultRegistry",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getUndyHq",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canMintUndy",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "pause",
+          "inputs": [
+            {
+              "name": "_shouldPause",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "recoverFunds",
+          "inputs": [
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "recoverFundsMany",
+          "inputs": [
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_assets",
+              "type": "address[]"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isPaused",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setUserWalletConfig",
+          "inputs": [
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "walletTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "configTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "numUserWalletsAllowed",
+                  "type": "uint256"
+                },
+                {
+                  "name": "enforceCreatorWhitelist",
+                  "type": "bool"
+                },
+                {
+                  "name": "minKeyActionTimeLock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxKeyActionTimeLock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "depositRewardsAsset",
+                  "type": "address"
+                },
+                {
+                  "name": "lootClaimCoolOffPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "txFees",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "stableSwapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsFee",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "ambassadorRevShare",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "yieldRatio",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "yieldConfig",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxYieldIncrease",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "performanceFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "ambassadorBonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusAsset",
+                      "type": "address"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setManagerConfig",
+          "inputs": [
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "managerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "managerActivationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "mustHaveUsdValueOnSwaps",
+                  "type": "bool"
+                },
+                {
+                  "name": "maxNumSwapsPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxSlippageOnSwaps",
+                  "type": "uint256"
+                },
+                {
+                  "name": "onlyApprovedYieldOpps",
+                  "type": "bool"
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setPayeeConfig",
+          "inputs": [
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "payeePeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "payeeActivationLength",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setChequeConfig",
+          "inputs": [
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "maxNumActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "instantUsdThreshold",
+                  "type": "uint256"
+                },
+                {
+                  "name": "periodLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "expensiveDelayBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "defaultExpiryBlocks",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getUserWalletCreationConfig",
+          "inputs": [
+            {
+              "name": "_creator",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "numUserWalletsAllowed",
+                  "type": "uint256"
+                },
+                {
+                  "name": "isCreatorAllowed",
+                  "type": "bool"
+                },
+                {
+                  "name": "walletTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "configTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "startingAgent",
+                  "type": "address"
+                },
+                {
+                  "name": "startingAgentActivationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "managerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "managerActivationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "mustHaveUsdValueOnSwaps",
+                  "type": "bool"
+                },
+                {
+                  "name": "maxNumSwapsPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxSlippageOnSwaps",
+                  "type": "uint256"
+                },
+                {
+                  "name": "onlyApprovedYieldOpps",
+                  "type": "bool"
+                },
+                {
+                  "name": "payeePeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "payeeActivationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "chequeMaxNumActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "chequeInstantUsdThreshold",
+                  "type": "uint256"
+                },
+                {
+                  "name": "chequePeriodLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "chequeExpensiveDelayBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "chequeDefaultExpiryBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minKeyActionTimeLock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxKeyActionTimeLock",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDepositRewardsAsset",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getLootClaimCoolOffPeriod",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setAgentConfig",
+          "inputs": [
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "startingAgent",
+                  "type": "address"
+                },
+                {
+                  "name": "startingAgentActivationLength",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setStarterAgent",
+          "inputs": [
+            {
+              "name": "_agent",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setAssetConfig",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_config",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "hasConfig",
+                  "type": "bool"
+                },
+                {
+                  "name": "txFees",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "stableSwapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsFee",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "ambassadorRevShare",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "yieldRatio",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "yieldConfig",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxYieldIncrease",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "performanceFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "ambassadorBonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusAsset",
+                      "type": "address"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setIsStablecoin",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_isStablecoin",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getSwapFee",
+          "inputs": [
+            {
+              "name": "_tokenIn",
+              "type": "address"
+            },
+            {
+              "name": "_tokenOut",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getRewardsFee",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getProfitCalcConfig",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "legoAddr",
+                  "type": "address"
+                },
+                {
+                  "name": "isYieldAsset",
+                  "type": "bool"
+                },
+                {
+                  "name": "underlyingAsset",
+                  "type": "address"
+                },
+                {
+                  "name": "maxYieldIncrease",
+                  "type": "uint256"
+                },
+                {
+                  "name": "performanceFee",
+                  "type": "uint256"
+                },
+                {
+                  "name": "isRebasing",
+                  "type": "bool"
+                },
+                {
+                  "name": "decimals",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getAssetUsdValueConfig",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "legoAddr",
+                  "type": "address"
+                },
+                {
+                  "name": "isYieldAsset",
+                  "type": "bool"
+                },
+                {
+                  "name": "underlyingAsset",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getLootDistroConfig",
+          "inputs": [
+            {
+              "name": "_asset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "legoAddr",
+                  "type": "address"
+                },
+                {
+                  "name": "underlyingAsset",
+                  "type": "address"
+                },
+                {
+                  "name": "ambassador",
+                  "type": "address"
+                },
+                {
+                  "name": "ambassadorRevShare",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "yieldRatio",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "ambassadorBonusRatio",
+                  "type": "uint256"
+                },
+                {
+                  "name": "bonusRatio",
+                  "type": "uint256"
+                },
+                {
+                  "name": "bonusAsset",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setCanPerformSecurityAction",
+          "inputs": [
+            {
+              "name": "_signer",
+              "type": "address"
+            },
+            {
+              "name": "_canPerform",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setCreatorWhitelist",
+          "inputs": [
+            {
+              "name": "_creator",
+              "type": "address"
+            },
+            {
+              "name": "_isWhitelisted",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setLockedSigner",
+          "inputs": [
+            {
+              "name": "_signer",
+              "type": "address"
+            },
+            {
+              "name": "_isLocked",
+              "type": "bool"
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "userWalletConfig",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "walletTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "configTemplate",
+                  "type": "address"
+                },
+                {
+                  "name": "numUserWalletsAllowed",
+                  "type": "uint256"
+                },
+                {
+                  "name": "enforceCreatorWhitelist",
+                  "type": "bool"
+                },
+                {
+                  "name": "minKeyActionTimeLock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxKeyActionTimeLock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "depositRewardsAsset",
+                  "type": "address"
+                },
+                {
+                  "name": "lootClaimCoolOffPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "txFees",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "stableSwapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsFee",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "ambassadorRevShare",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "yieldRatio",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "yieldConfig",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxYieldIncrease",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "performanceFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "ambassadorBonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusAsset",
+                      "type": "address"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "agentConfig",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "startingAgent",
+                  "type": "address"
+                },
+                {
+                  "name": "startingAgentActivationLength",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "managerConfig",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "managerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "managerActivationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "mustHaveUsdValueOnSwaps",
+                  "type": "bool"
+                },
+                {
+                  "name": "maxNumSwapsPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxSlippageOnSwaps",
+                  "type": "uint256"
+                },
+                {
+                  "name": "onlyApprovedYieldOpps",
+                  "type": "bool"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "payeeConfig",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "payeePeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "payeeActivationLength",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "chequeConfig",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "maxNumActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "instantUsdThreshold",
+                  "type": "uint256"
+                },
+                {
+                  "name": "periodLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "expensiveDelayBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "defaultExpiryBlocks",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "assetConfig",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "hasConfig",
+                  "type": "bool"
+                },
+                {
+                  "name": "txFees",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "stableSwapFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsFee",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "ambassadorRevShare",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "swapRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "rewardsRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "yieldRatio",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "yieldConfig",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxYieldIncrease",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "performanceFee",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "ambassadorBonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusRatio",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "bonusAsset",
+                      "type": "address"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isStablecoin",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "creatorWhitelist",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canPerformSecurityAction",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isLockedSigner",
+          "inputs": [
+            {
+              "name": "arg0",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_defaults",
+              "type": "address"
+            }
+          ],
+          "outputs": []
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/modules/Addys.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\ninterface UndyHq:\n    def isValidAddr(_addr: address) -> bool: view\n    def getAddr(_regId: uint256) -> address: view\n    def undyToken() -> address: view\n\ninterface Switchboard:\n    def isSwitchboardAddr(_addr: address) -> bool: view\n\ninterface LegoBook:\n    def isLegoAddr(_addr: address) -> bool: view\n\nstruct Addys:\n    hq: address\n    undyToken: address\n    ledger: address\n    missionControl: address\n    legoBook: address\n    switchboard: address\n    hatchery: address\n    lootDistributor: address\n    appraiser: address\n    walletBackpack: address\n    billing: address\n    vaultRegistry: address\n\n# hq\nUNDY_HQ_FOR_ADDYS: immutable(address)\n\n# core addys\nLEDGER_ID: constant(uint256) = 1\nMISSION_CONTROL_ID: constant(uint256) = 2\nLEGO_BOOK_ID: constant(uint256) = 3\nSWITCHBOARD_ID: constant(uint256) = 4\nHATCHERY_ID: constant(uint256) = 5\nLOOT_DISTRIBUTOR_ID: constant(uint256) = 6\nAPPRAISER_ID: constant(uint256) = 7\nWALLET_BACKPACK_ID: constant(uint256) = 8\nBILLING_ID: constant(uint256) = 9\nVAULT_REGISTRY_ID: constant(uint256) = 10\n\n\n@deploy\ndef __init__(_undyHq: address):\n    assert _undyHq != empty(address) # dev: invalid undy hq\n    UNDY_HQ_FOR_ADDYS = _undyHq\n\n\n########\n# Core #\n########\n\n\n@view\n@external\ndef getAddys() -> Addys:\n    return self._generateAddys()\n\n\n@view\n@internal\ndef _getAddys(_addys: Addys = empty(Addys)) -> Addys:\n    if _addys.hq != empty(address):\n        return _addys\n    return self._generateAddys()\n\n\n@view\n@internal\ndef _generateAddys() -> Addys:\n    hq: address = UNDY_HQ_FOR_ADDYS\n    return Addys(\n        hq = hq,\n        undyToken = staticcall UndyHq(hq).undyToken(),\n        ledger = staticcall UndyHq(hq).getAddr(LEDGER_ID),\n        missionControl = staticcall UndyHq(hq).getAddr(MISSION_CONTROL_ID),\n        legoBook = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID),\n        switchboard = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID),\n        hatchery = staticcall UndyHq(hq).getAddr(HATCHERY_ID),\n        lootDistributor = staticcall UndyHq(hq).getAddr(LOOT_DISTRIBUTOR_ID),\n        appraiser = staticcall UndyHq(hq).getAddr(APPRAISER_ID),\n        walletBackpack = staticcall UndyHq(hq).getAddr(WALLET_BACKPACK_ID),\n        billing = staticcall UndyHq(hq).getAddr(BILLING_ID),\n        vaultRegistry = staticcall UndyHq(hq).getAddr(VAULT_REGISTRY_ID),\n    )\n\n\n##########\n# Tokens #\n##########\n\n\n@view\n@internal\ndef _getUndyToken() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).undyToken()\n\n\n###########\n# Helpers #\n###########\n\n\n# undy hq\n\n\n@view\n@external\ndef getUndyHq() -> address:\n    return self._getUndyHq()\n\n\n@view\n@internal\ndef _getUndyHq() -> address:\n    return UNDY_HQ_FOR_ADDYS\n\n\n# utils\n\n\n@view\n@internal\ndef _isValidUndyAddr(_addr: address, _hq: address = empty(address)) -> bool:\n    hq: address = _hq\n    if _hq == empty(address):\n        hq = UNDY_HQ_FOR_ADDYS\n    \n    # core departments\n    if staticcall UndyHq(hq).isValidAddr(_addr):\n        return True\n\n    # lego book\n    legoBook: address = staticcall UndyHq(hq).getAddr(LEGO_BOOK_ID)\n    if legoBook != empty(address) and staticcall LegoBook(legoBook).isLegoAddr(_addr):\n        return True\n\n    # switchboard config\n    switchboard: address = staticcall UndyHq(hq).getAddr(SWITCHBOARD_ID)\n    if switchboard != empty(address) and staticcall Switchboard(switchboard).isSwitchboardAddr(_addr):\n        return True\n\n    return False\n\n\n@view\n@internal\ndef _isSwitchboardAddr(_addr: address) -> bool:\n    switchboard: address = staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)\n    if switchboard == empty(address):\n        return False\n    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)\n\n\n@view\n@internal\ndef _isLegoBookAddr(_addr: address) -> bool:\n    legoBook: address = staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)\n    if legoBook == empty(address):\n        return False\n    return staticcall LegoBook(legoBook).isLegoAddr(_addr)\n\n\n###############\n# Departments #\n###############\n\n\n# ledger\n\n\n@view\n@internal\ndef _getLedgerId() -> uint256:\n    return LEDGER_ID\n\n\n@view\n@internal\ndef _getLedgerAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEDGER_ID)\n\n\n# mission control\n\n\n@view\n@internal\ndef _getMissionControlId() -> uint256:\n    return MISSION_CONTROL_ID\n\n\n@view\n@internal\ndef _getMissionControlAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(MISSION_CONTROL_ID)\n\n\n# lego book\n\n\n@view\n@internal\ndef _getLegoBookId() -> uint256:\n    return LEGO_BOOK_ID\n\n\n@view\n@internal\ndef _getLegoBookAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LEGO_BOOK_ID)\n\n\n# switchboard\n\n\n@view\n@internal\ndef _getSwitchboardId() -> uint256:\n    return SWITCHBOARD_ID\n\n\n@view\n@internal\ndef _getSwitchboardAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(SWITCHBOARD_ID)\n\n\n# hatchery\n\n\n@view\n@internal\ndef _getHatcheryId() -> uint256:\n    return HATCHERY_ID\n\n\n@view\n@internal\ndef _getHatcheryAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HATCHERY_ID)\n\n\n# loot distributor\n\n\n@view\n@internal\ndef _getLootDistributorId() -> uint256:\n    return LOOT_DISTRIBUTOR_ID\n\n\n@view\n@internal\ndef _getLootDistributorAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(LOOT_DISTRIBUTOR_ID)\n\n\n# appraiser\n\n\n@view\n@internal\ndef _getAppraiserId() -> uint256:\n    return APPRAISER_ID\n\n\n@view\n@internal\ndef _getAppraiserAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(APPRAISER_ID)\n\n\n# wallet backpack\n\n\n@view\n@internal\ndef _getWalletBackpackId() -> uint256:\n    return WALLET_BACKPACK_ID\n\n\n@view\n@internal\ndef _getWalletBackpackAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(WALLET_BACKPACK_ID)\n\n\n# billing\n\n\n@view\n@internal\ndef _getBillingId() -> uint256:\n    return BILLING_ID\n\n\n@view\n@internal\ndef _getBillingAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(BILLING_ID)\n\n\n# vault registry\n\n\n@view\n@internal\ndef _getVaultRegistryId() -> uint256:\n    return VAULT_REGISTRY_ID\n\n\n@view\n@internal\ndef _getVaultRegistryAddr() -> address:\n    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(VAULT_REGISTRY_ID)",
+            "sha256sum": "4df6b72db9bb417d1af81660175be1450cfb7b3575f3d17a5b8a130bff87b781"
+          },
+          "interfaces/Department.vyi": {
+            "content": "# @version 0.4.3\n\n\n###########\n# Minting #\n###########\n\n\n@view\n@external\ndef canMintUndy() -> bool:\n    # used in UndyHq.vy\n    ...\n\n\n########\n# Undy #\n########\n\n\n@view\n@external\ndef isPaused() -> bool:\n    ...\n\n\n@external\ndef pause(_shouldPause: bool):\n    ...\n\n\n@external\ndef recoverFunds(_recipient: address, _asset: address):\n    ...\n\n@external\ndef recoverFundsMany(_recipient: address, _assets: DynArray[address, 20]):\n    ...",
+            "sha256sum": "53e48da591c4ee36045a8950c9d3a01458456b471b797df536e9a9f54404e721"
+          },
+          "contracts/modules/DeptBasics.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nuses: addys\nimplements: dept\n\nimport contracts.modules.Addys as addys\nimport interfaces.Department as dept\nfrom ethereum.ercs import IERC20\n\nevent DepartmentPauseModified:\n    isPaused: bool\n\nevent DepartmentFundsRecovered:\n    asset: indexed(address)\n    recipient: indexed(address)\n    balance: uint256\n\nisPaused: public(bool)\n\nCAN_MINT_UNDY: immutable(bool)\nMAX_RECOVER_ASSETS: constant(uint256) = 20\n\n\n@deploy\ndef __init__(_shouldPause: bool, _canMintUndy: bool):\n    self.isPaused = _shouldPause\n    CAN_MINT_UNDY = _canMintUndy\n\n\n###########\n# Minting #\n###########\n\n\n@view\n@external\ndef canMintUndy() -> bool:\n    return CAN_MINT_UNDY\n\n\n########\n# Undy #\n########\n\n\n# activate\n\n\n@external\ndef pause(_shouldPause: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert _shouldPause != self.isPaused # dev: no change\n    self.isPaused = _shouldPause\n    log DepartmentPauseModified(isPaused=_shouldPause)\n\n\n# recover funds\n\n\n@external\ndef recoverFunds(_recipient: address, _asset: address):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    self._recoverFunds(_recipient, _asset)\n\n\n@external\ndef recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    for a: address in _assets:\n        self._recoverFunds(_recipient, a)\n\n\n@internal\ndef _recoverFunds(_recipient: address, _asset: address):\n    assert empty(address) not in [_recipient, _asset] # dev: invalid recipient or asset\n    balance: uint256 = staticcall IERC20(_asset).balanceOf(self)\n    assert balance != 0 # dev: nothing to recover\n\n    assert extcall IERC20(_asset).transfer(_recipient, balance, default_return_value=True) # dev: recovery failed\n    log DepartmentFundsRecovered(asset=_asset, recipient=_recipient, balance=balance)\n",
+            "sha256sum": "976a50a3807bcf71f3f1c57de5cd7a59fe4e8f27b4d4560e774073962f44d1ac"
+          },
+          "interfaces/ConfigStructs.vyi": {
+            "content": "# @version 0.4.3\n\nstruct UserWalletConfig:\n    walletTemplate: address\n    configTemplate: address\n    numUserWalletsAllowed: uint256\n    enforceCreatorWhitelist: bool\n    minKeyActionTimeLock: uint256\n    maxKeyActionTimeLock: uint256\n    depositRewardsAsset: address\n    lootClaimCoolOffPeriod: uint256\n    txFees: TxFees\n    ambassadorRevShare: AmbassadorRevShare\n    yieldConfig: YieldConfig\n\nstruct AssetConfig:\n    hasConfig: bool\n    txFees: TxFees\n    ambassadorRevShare: AmbassadorRevShare\n    yieldConfig: YieldConfig\n\nstruct TxFees:\n    swapFee: uint256\n    stableSwapFee: uint256\n    rewardsFee: uint256\n\nstruct AmbassadorRevShare:\n    swapRatio: uint256\n    rewardsRatio: uint256\n    yieldRatio: uint256\n\nstruct YieldConfig:\n    maxYieldIncrease: uint256\n    performanceFee: uint256\n    ambassadorBonusRatio: uint256\n    bonusRatio: uint256\n    bonusAsset: address\n\nstruct AgentConfig:\n    startingAgent: address\n    startingAgentActivationLength: uint256\n\nstruct ManagerConfig:\n    managerPeriod: uint256\n    managerActivationLength: uint256\n    mustHaveUsdValueOnSwaps: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippageOnSwaps: uint256\n    onlyApprovedYieldOpps: bool\n\nstruct PayeeConfig:\n    payeePeriod: uint256\n    payeeActivationLength: uint256\n\nstruct ChequeConfig:\n    maxNumActiveCheques: uint256\n    instantUsdThreshold: uint256\n    periodLength: uint256\n    expensiveDelayBlocks: uint256\n    defaultExpiryBlocks: uint256",
+            "sha256sum": "ae733bde84230a3664bb6496f91886e7546b7179fe0036f06e58631fffade3fe"
+          },
+          "interfaces/Defaults.vyi": {
+            "content": "# @version 0.4.3\n\nimport interfaces.ConfigStructs as cs\n\n\n@view\n@external\ndef userWalletConfig() -> cs.UserWalletConfig:\n    ...\n\n\n@view\n@external\ndef agentConfig() -> cs.AgentConfig:\n    ...\n\n\n@view\n@external\ndef managerConfig() -> cs.ManagerConfig:\n    ...\n\n\n@view\n@external\ndef payeeConfig() -> cs.PayeeConfig:\n    ...\n\n\n\n@view\n@external\ndef chequeConfig() -> cs.ChequeConfig:\n    ...",
+            "sha256sum": "af8933730bc1e37f081fc6e575d68b86b6aba7307f7370677e68047fefcb7b23"
+          },
+          "contracts/data/MissionControl.vy": {
+            "content": "#     _     _  __  __  _  ___  _         __   ___  _   ________  ___  _    \n#    | |\\/|| |( (`( (`| |/ / \\| |\\ |    / /` / / \\| |\\ || || |_)/ / \\| |   \n#    |_|  ||_|_)_)_)_)|_|\\_\\_/|_| \\|    \\_\\_,\\_\\_/|_| \\||_||_| \\\\_\\_/|_|__ \n#\n#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Mission Control **                             \u2551\n#     \u2551  Stores all configuration data for Underscore      \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimplements: Department\n\nexports: addys.__interface__\nexports: deptBasics.__interface__\n\ninitializes: addys\ninitializes: deptBasics[addys := addys]\n\nimport contracts.modules.Addys as addys\nimport contracts.modules.DeptBasics as deptBasics\n\nfrom interfaces import Department\nimport interfaces.ConfigStructs as cs\nfrom interfaces import Defaults\n\ninterface Ledger:\n    def vaultTokens(_vaultToken: address) -> VaultToken: view\n\ninterface Registry:\n    def getAddr(_regId: uint256) -> address: view\n\nstruct VaultToken:\n    legoId: uint256\n    underlyingAsset: address\n    decimals: uint256\n    isRebasing: bool\n\nstruct AssetUsdValueConfig:\n    legoId: uint256\n    legoAddr: address\n    isYieldAsset: bool\n    underlyingAsset: address\n\nstruct ProfitCalcConfig:\n    legoId: uint256\n    legoAddr: address\n    isYieldAsset: bool\n    underlyingAsset: address\n    maxYieldIncrease: uint256\n    performanceFee: uint256\n    isRebasing: bool\n    decimals: uint256\n\nstruct LootDistroConfig:\n    legoId: uint256\n    legoAddr: address\n    underlyingAsset: address\n    ambassador: address\n    ambassadorRevShare: cs.AmbassadorRevShare\n    ambassadorBonusRatio: uint256\n    bonusRatio: uint256\n    bonusAsset: address\n\nstruct UserWalletCreationConfig:\n    numUserWalletsAllowed: uint256\n    isCreatorAllowed: bool\n    walletTemplate: address\n    configTemplate: address\n    startingAgent: address\n    startingAgentActivationLength: uint256\n    managerPeriod: uint256\n    managerActivationLength: uint256\n    mustHaveUsdValueOnSwaps: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippageOnSwaps: uint256\n    onlyApprovedYieldOpps: bool\n    payeePeriod: uint256\n    payeeActivationLength: uint256\n    chequeMaxNumActiveCheques: uint256\n    chequeInstantUsdThreshold: uint256\n    chequePeriodLength: uint256\n    chequeExpensiveDelayBlocks: uint256\n    chequeDefaultExpiryBlocks: uint256\n    minKeyActionTimeLock: uint256\n    maxKeyActionTimeLock: uint256\n\n# global configs\nuserWalletConfig: public(cs.UserWalletConfig)\nagentConfig: public(cs.AgentConfig)\nmanagerConfig: public(cs.ManagerConfig)\npayeeConfig: public(cs.PayeeConfig)\nchequeConfig: public(cs.ChequeConfig)\n\n# asset config\nassetConfig: public(HashMap[address, cs.AssetConfig])\nisStablecoin: public(HashMap[address, bool])\n\n# security / limits\ncreatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted\ncanPerformSecurityAction: public(HashMap[address, bool]) # signer -> can perform security action\nisLockedSigner: public(HashMap[address, bool]) # signer -> is locked\n\n\n@deploy\ndef __init__(_undyHq: address, _defaults: address):\n    addys.__init__(_undyHq)\n    deptBasics.__init__(False, False) # no minting\n\n    if _defaults != empty(address):\n        self.userWalletConfig = staticcall Defaults(_defaults).userWalletConfig()\n        self.agentConfig = staticcall Defaults(_defaults).agentConfig()\n        self.managerConfig = staticcall Defaults(_defaults).managerConfig()\n        self.payeeConfig = staticcall Defaults(_defaults).payeeConfig()\n        self.chequeConfig = staticcall Defaults(_defaults).chequeConfig()\n\n\n######################\n# User Wallet Config #\n######################\n\n\n@external\ndef setUserWalletConfig(_config: cs.UserWalletConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.userWalletConfig = _config\n\n\n@external\ndef setManagerConfig(_config: cs.ManagerConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.managerConfig = _config\n\n\n@external\ndef setPayeeConfig(_config: cs.PayeeConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.payeeConfig = _config\n\n\n@external\ndef setChequeConfig(_config: cs.ChequeConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.chequeConfig = _config\n\n\n# helper\n\n\n@view\n@external\ndef getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig:\n    config: cs.UserWalletConfig = self.userWalletConfig\n    managerConfig: cs.ManagerConfig = self.managerConfig\n    payeeConfig: cs.PayeeConfig = self.payeeConfig\n    agentConfig: cs.AgentConfig = self.agentConfig\n    chequeConfig: cs.ChequeConfig = self.chequeConfig\n    return UserWalletCreationConfig(\n        numUserWalletsAllowed = config.numUserWalletsAllowed,\n        isCreatorAllowed = self._isCreatorAllowed(config.enforceCreatorWhitelist, _creator),\n        walletTemplate = config.walletTemplate,\n        configTemplate = config.configTemplate,\n        startingAgent = agentConfig.startingAgent,\n        startingAgentActivationLength = agentConfig.startingAgentActivationLength,\n        managerPeriod = managerConfig.managerPeriod,\n        managerActivationLength = managerConfig.managerActivationLength,\n        mustHaveUsdValueOnSwaps = managerConfig.mustHaveUsdValueOnSwaps,\n        maxNumSwapsPerPeriod = managerConfig.maxNumSwapsPerPeriod,\n        maxSlippageOnSwaps = managerConfig.maxSlippageOnSwaps,\n        onlyApprovedYieldOpps = managerConfig.onlyApprovedYieldOpps,\n        payeePeriod = payeeConfig.payeePeriod,\n        payeeActivationLength = payeeConfig.payeeActivationLength,\n        chequeMaxNumActiveCheques = chequeConfig.maxNumActiveCheques,\n        chequeInstantUsdThreshold = chequeConfig.instantUsdThreshold,\n        chequePeriodLength = chequeConfig.periodLength,\n        chequeExpensiveDelayBlocks = chequeConfig.expensiveDelayBlocks,\n        chequeDefaultExpiryBlocks = chequeConfig.defaultExpiryBlocks,\n        minKeyActionTimeLock = config.minKeyActionTimeLock,\n        maxKeyActionTimeLock = config.maxKeyActionTimeLock,\n    )\n\n\n@view\n@external\ndef getDepositRewardsAsset() -> address:\n    return self.userWalletConfig.depositRewardsAsset\n\n\n@view\n@external\ndef getLootClaimCoolOffPeriod() -> uint256:\n    return self.userWalletConfig.lootClaimCoolOffPeriod\n\n\n################\n# Agent Config #\n################\n\n\n@external\ndef setAgentConfig(_config: cs.AgentConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.agentConfig = _config\n\n\n@external\ndef setStarterAgent(_agent: address):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.agentConfig.startingAgent = _agent\n\n\n########################\n# Asset / Yield Config #\n########################\n\n\n@external\ndef setAssetConfig(_asset: address, _config: cs.AssetConfig):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.assetConfig[_asset] = _config\n\n\n@external\ndef setIsStablecoin(_asset: address, _isStablecoin: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.isStablecoin[_asset] = _isStablecoin\n\n\n# swap fee\n\n\n@view\n@external\ndef getSwapFee(_tokenIn: address, _tokenOut: address) -> uint256:\n\n    # stable swap fee\n    if self.isStablecoin[_tokenIn] and self.isStablecoin[_tokenOut]:\n        return self.userWalletConfig.txFees.stableSwapFee\n\n    # asset swap fee takes precedence over global swap fee\n    outConfig: cs.AssetConfig = self.assetConfig[_tokenOut]\n    if outConfig.hasConfig:\n        return outConfig.txFees.swapFee\n\n    return self.userWalletConfig.txFees.swapFee\n\n\n# rewards fee\n\n\n@view\n@external\ndef getRewardsFee(_asset: address) -> uint256:\n    config: cs.AssetConfig = self.assetConfig[_asset]\n    if config.hasConfig:\n        return config.txFees.rewardsFee\n    return self.userWalletConfig.txFees.rewardsFee\n\n\n# helpers\n\n\n@view\n@external\ndef getProfitCalcConfig(_asset: address) -> ProfitCalcConfig:\n    assetConfig: cs.AssetConfig = self.assetConfig[_asset]\n    maxYieldIncrease: uint256 = assetConfig.yieldConfig.maxYieldIncrease\n    performanceFee: uint256 = assetConfig.yieldConfig.performanceFee\n    if not assetConfig.hasConfig:\n        walletConfig: cs.UserWalletConfig = self.userWalletConfig\n        maxYieldIncrease = walletConfig.yieldConfig.maxYieldIncrease\n        performanceFee = walletConfig.yieldConfig.performanceFee\n\n    # vault token\n    ledger: address = addys._getLedgerAddr()\n    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)\n\n    # get lego addr\n    legoAddr: address = empty(address)\n    if vaultToken.legoId != 0:\n        legoBook: address = addys._getLegoBookAddr()\n        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)\n\n    return ProfitCalcConfig(\n        legoId = vaultToken.legoId,\n        legoAddr = legoAddr,\n        isYieldAsset = vaultToken.underlyingAsset != empty(address),\n        underlyingAsset = vaultToken.underlyingAsset,\n        maxYieldIncrease = maxYieldIncrease,\n        performanceFee = performanceFee,\n        isRebasing = vaultToken.isRebasing,\n        decimals = vaultToken.decimals,\n    )\n\n\n@view\n@external\ndef getAssetUsdValueConfig(_asset: address) -> AssetUsdValueConfig:\n    ledger: address = addys._getLedgerAddr()\n    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)\n\n    # get lego addr\n    legoAddr: address = empty(address)\n    if vaultToken.legoId != 0:\n        legoBook: address = addys._getLegoBookAddr()\n        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)\n\n    return AssetUsdValueConfig(\n        legoId = vaultToken.legoId,\n        legoAddr = legoAddr,\n        isYieldAsset = vaultToken.underlyingAsset != empty(address),\n        underlyingAsset = vaultToken.underlyingAsset,\n    )\n\n\n@view\n@external\ndef getLootDistroConfig(_asset: address) -> LootDistroConfig:\n    assetConfig: cs.AssetConfig = self.assetConfig[_asset]\n    ambassadorRevShare: cs.AmbassadorRevShare = assetConfig.ambassadorRevShare\n    ambassadorBonusRatio: uint256 = assetConfig.yieldConfig.ambassadorBonusRatio\n    bonusRatio: uint256 = assetConfig.yieldConfig.bonusRatio\n    bonusAsset: address = assetConfig.yieldConfig.bonusAsset\n    if not assetConfig.hasConfig:\n        walletConfig: cs.UserWalletConfig = self.userWalletConfig\n        ambassadorRevShare = walletConfig.ambassadorRevShare\n        ambassadorBonusRatio = walletConfig.yieldConfig.ambassadorBonusRatio\n        bonusRatio = walletConfig.yieldConfig.bonusRatio\n        bonusAsset = walletConfig.yieldConfig.bonusAsset\n\n    # vault token\n    ledger: address = addys._getLedgerAddr()\n    vaultToken: VaultToken = staticcall Ledger(ledger).vaultTokens(_asset)\n\n    # get lego addr\n    legoAddr: address = empty(address)\n    if vaultToken.legoId != 0:\n        legoBook: address = addys._getLegoBookAddr()\n        legoAddr = staticcall Registry(legoBook).getAddr(vaultToken.legoId)\n\n    return LootDistroConfig(\n        legoId = vaultToken.legoId,\n        legoAddr = legoAddr,\n        underlyingAsset = vaultToken.underlyingAsset,\n        ambassador = empty(address),\n        ambassadorRevShare = ambassadorRevShare,\n        ambassadorBonusRatio = ambassadorBonusRatio,\n        bonusRatio = bonusRatio,\n        bonusAsset = bonusAsset,\n    )\n\n\n#########\n# Other #\n#########\n\n\n# can perform security action\n\n\n@external\ndef setCanPerformSecurityAction(_signer: address, _canPerform: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.canPerformSecurityAction[_signer] = _canPerform\n\n\n# creator whitelist\n\n\n@external\ndef setCreatorWhitelist(_creator: address, _isWhitelisted: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.creatorWhitelist[_creator] = _isWhitelisted\n\n\n# locked signer\n\n\n@external\ndef setLockedSigner(_signer: address, _isLocked: bool):\n    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms\n    assert not deptBasics.isPaused # dev: not activated\n    self.isLockedSigner[_signer] = _isLocked\n\n\n#########\n# Utils #\n#########\n\n\n@view\n@internal\ndef _isCreatorAllowed(_shouldEnforceWhitelist: bool, _creator: address) -> bool:\n    if _shouldEnforceWhitelist:\n        return self.creatorWhitelist[_creator]\n    return True",
+            "sha256sum": "891b724d9cc6df5591cae9355212004569f629636c746c53922ee249fd863d42"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/data/MissionControl.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "5931738f00038033c67c85e87e8b2f7ad1cfaef8c5380c410430fdbedbb9ae41"
+      },
+      "args": "00000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f9000000000000000000000000c66e387a9215b146ed6434d63034ddbdcd2fd7dc",
+      "file": "contracts/data/MissionControl.vy"
+    }
+  }
+}

@@ -127,16 +127,32 @@ def test_set_max_debt_ratio_max(
     assert vault.maxDebtRatio() == HUNDRED_PERCENT
 
 
-def test_set_max_debt_ratio_above_hundred_percent_fails(
+def test_set_max_debt_ratio_300_percent(
     setup_usdc_vault,
     switchboard_alpha,
 ):
-    """Test that setting maxDebtRatio > 100% reverts"""
+    """Test setting maxDebtRatio to 300%"""
     vault = setup_usdc_vault
 
-    # Try to set to 101%
-    with boa.reverts("ratio too high (max 100%)"):
-        vault.setMaxDebtRatio(HUNDRED_PERCENT + 1, sender=switchboard_alpha.address)
+    # Set to 300%
+    vault.setMaxDebtRatio(300_00, sender=switchboard_alpha.address)
+    log = filter_logs(vault, "MaxDebtRatioSet")[0]
+
+    # Verify
+    assert vault.maxDebtRatio() == 300_00
+    assert log.maxDebtRatio == 300_00
+
+
+def test_set_max_debt_ratio_above_300_percent_fails(
+    setup_usdc_vault,
+    switchboard_alpha,
+):
+    """Test that setting maxDebtRatio > 300% reverts"""
+    vault = setup_usdc_vault
+
+    # Try to set to 301%
+    with boa.reverts("ratio too high (max 300%)"):
+        vault.setMaxDebtRatio(300_01, sender=switchboard_alpha.address)
 
 
 def test_set_max_debt_ratio_unauthorized_fails(
@@ -482,6 +498,41 @@ def test_borrow_unlimited_when_ratio_zero(
     )
 
     assert amount_borrowed == 7_500 * EIGHTEEN_DECIMALS
+
+
+def test_borrow_at_300_percent_limit(
+    setup_prices,
+    setup_usdc_vault,
+    mock_usdc,
+    mock_green_token,
+    switchboard_alpha,
+    starter_agent,
+):
+    """Test borrowing at 300% maxDebtRatio limit"""
+    vault = setup_usdc_vault
+
+    # Set 300% max debt ratio
+    vault.setMaxDebtRatio(300_00, sender=switchboard_alpha.address)
+
+    # netUserCapital is 50,000 USDC from setup
+    # At 300%, max borrow = 150,000 GREEN
+    expected_max = 150_000 * EIGHTEEN_DECIMALS
+
+    # Add collateral
+    vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 180_000 * SIX_DECIMALS, sender=starter_agent.address)
+
+    # Try to borrow 200,000 GREEN (exceeds 150,000 limit)
+    pre_green = mock_green_token.balanceOf(vault.address)
+    amount_borrowed, _ = vault.borrow(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        200_000 * EIGHTEEN_DECIMALS,
+        sender=starter_agent.address
+    )
+
+    # Should only borrow 150,000 (capped to 300% of 50k)
+    assert amount_borrowed == expected_max
+    assert mock_green_token.balanceOf(vault.address) == pre_green + expected_max
 
 
 ##############################

@@ -7,7 +7,6 @@ from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
 
 from ethereum.ercs import IERC20
-from ethereum.ercs import IERC20Detailed
 
 interface VaultRegistry:
     def getVaultActionDataWithFrozenStatus(_legoId: uint256, _signer: address, _vaultAddr: address) -> (VaultActionData, bool): view
@@ -334,6 +333,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
     assert lastTokenOutAmount != 0 # dev: no output amount
+    assert lastTokenOut == tokenOut # dev: must swap into token out
 
     # handle swap fees
     swapFee: uint256 = self._paySwapFees(lastTokenOut, lastTokenOutAmount, ad.vaultRegistry)
@@ -858,14 +858,15 @@ def _deregisterYieldPosition(_vaultToken: address) -> bool:
 
 @internal
 def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
-    assert self.indexOfManager[_signer] != 0 # dev: not manager
+    vaultRegistry: address = self._getVaultRegistry()
+    if msg.sender != vaultRegistry:
+        assert self.indexOfManager[_signer] != 0 # dev: not manager
 
     # main data for this transaction - get action data and frozen status in single call
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
-    vaultRegistry: address = self._getVaultRegistry()
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
@@ -927,6 +928,9 @@ def removeManager(_manager: address):
         lastItem: address = self.managers[lastIndex]
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
+
+    # clear the last position to prevent stale data
+    self.managers[lastIndex] = empty(address)
 
 
 #############

@@ -31,12 +31,16 @@ interface UserWalletConfig:
     def indexOfPayee(_addr: address) -> uint256: view
     def owner() -> address: view
 
+interface VaultRegistry:
+    def isApprovedVaultTokenForAsset(_underlyingAsset: address, _vaultToken: address) -> bool: view
+
 interface UserWallet:
     def walletConfig() -> address: view
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -137,6 +141,7 @@ def _getLatestManagerData(_managerData: wcs.ManagerData, _managerPeriod: uint256
     elif block.number >= managerData.periodStartBlock + _managerPeriod:
         managerData.numTxsInPeriod = 0
         managerData.totalUsdValueInPeriod = 0
+        managerData.numSwapsInPeriod = 0
         managerData.periodStartBlock = block.number
 
     return managerData
@@ -226,38 +231,65 @@ def _checkTransactionLimits(
 
 @view
 @external
-def checkManagerUsdLimits(
+def canManagerFinishTx(
     _user: address,
     _manager: address,
     _txUsdValue: uint256,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _shouldCheckSwap: bool,
+    _specificSwapPerms: wcs.SwapPerms,
+    _globalSwapPerms: wcs.SwapPerms,
+    _fromAssetUsdValue: uint256,
+    _toAssetUsdValue: uint256,
+    _vaultRegistry: address,
 ) -> bool:
     c: wcs.ManagerConfigBundle = self._getManagerConfigBundle(_user, _manager)
     canFinishTx: bool = False
     na: wcs.ManagerData = empty(wcs.ManagerData)
-    canFinishTx, na = self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data)
+    requiresVaultApproval: bool = (c.config.legoPerms.onlyApprovedYieldOpps or c.globalConfig.legoPerms.onlyApprovedYieldOpps)
+    canFinishTx, na = self._checkManagerLimitsPostTx(_txUsdValue, c.config.limits, c.globalConfig.limits, c.globalConfig.managerPeriod, c.data, requiresVaultApproval, _underlyingAsset, _vaultToken, _shouldCheckSwap, c.config.swapPerms, c.globalConfig.swapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
     return canFinishTx
 
 
 @view
 @external
-def checkManagerUsdLimitsAndUpdateData(
+def checkManagerLimitsPostTx(
     _txUsdValue: uint256,
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
     _managerData: wcs.ManagerData,
+    _requiresVaultApproval: bool,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _shouldCheckSwap: bool,
+    _specificSwapPerms: wcs.SwapPerms,
+    _globalSwapPerms: wcs.SwapPerms,
+    _fromAssetUsdValue: uint256,
+    _toAssetUsdValue: uint256,
+    _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
-    return self._checkManagerUsdLimitsAndUpdateData(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData)
+    return self._checkManagerLimitsPostTx(_txUsdValue, _specificLimits, _globalLimits, _managerPeriod, _managerData, _requiresVaultApproval, _underlyingAsset, _vaultToken, _shouldCheckSwap, _specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue, _vaultRegistry)
 
 
 @view
 @internal
-def _checkManagerUsdLimitsAndUpdateData(
+def _checkManagerLimitsPostTx(
     _txUsdValue: uint256,
     _specificLimits: wcs.ManagerLimits,
     _globalLimits: wcs.ManagerLimits,
     _managerPeriod: uint256,
     _managerData: wcs.ManagerData,
+    _requiresVaultApproval: bool,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _shouldCheckSwap: bool,
+    _specificSwapPerms: wcs.SwapPerms,
+    _globalSwapPerms: wcs.SwapPerms,
+    _fromAssetUsdValue: uint256,
+    _toAssetUsdValue: uint256,
+    _vaultRegistry: address,
 ) -> (bool, wcs.ManagerData):
     managerData: wcs.ManagerData = self._getLatestManagerData(_managerData, _managerPeriod)
 
@@ -268,6 +300,29 @@ def _checkManagerUsdLimitsAndUpdateData(
     # global usd value limits
     if not self._checkManagerUsdLimits(_txUsdValue, _globalLimits, managerData):
         return False, empty(wcs.ManagerData)
+
+    # vault token approval
+    if _requiresVaultApproval and empty(address) not in [_underlyingAsset, _vaultToken, _vaultRegistry]:
+        if not staticcall VaultRegistry(_vaultRegistry).isApprovedVaultTokenForAsset(_underlyingAsset, _vaultToken):
+            return False, empty(wcs.ManagerData)
+
+    # swap-specific validations
+    if _shouldCheckSwap:
+
+        # check if USD values are required and present (non-zero)
+        if not self._checkSwapHasUsdValue(_specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue):
+            return False, empty(wcs.ManagerData)
+
+        # check swap count limit
+        if not self._checkSwapCountLimit(_specificSwapPerms, _globalSwapPerms, managerData):
+            return False, empty(wcs.ManagerData)
+
+        # check slippage (loss prevention)
+        if not self._hasAcceptableSlippage(_specificSwapPerms, _globalSwapPerms, _fromAssetUsdValue, _toAssetUsdValue):
+            return False, empty(wcs.ManagerData)
+
+        # Increment swap counter
+        managerData.numSwapsInPeriod += 1
 
     # update manager data
     managerData.numTxsInPeriod += 1
@@ -304,8 +359,61 @@ def _checkManagerUsdLimits(_txUsdValue: uint256, _limits: wcs.ManagerLimits, _ma
     if _limits.maxUsdValueLifetime != 0:
         if _managerData.totalUsdValue + _txUsdValue > _limits.maxUsdValueLifetime:
             return False
-    
+
     return True
+
+
+# check swap has usd value
+
+
+@pure
+@internal
+def _checkSwapHasUsdValue(_specific: wcs.SwapPerms, _global: wcs.SwapPerms, _fromUsdValue: uint256, _toUsdValue: uint256) -> bool:
+
+    # if either manager-specific or global requires USD values, enforce it
+    mustHaveUsdValue: bool = _specific.mustHaveUsdValue or _global.mustHaveUsdValue
+    if not mustHaveUsdValue:
+        return True # no requirement for USD values
+
+    # from and to assets must have USD values (non-zero)
+    return _fromUsdValue != 0 and _toUsdValue != 0
+
+
+# check swap count limit
+
+
+@pure
+@internal
+def _checkSwapCountLimit(_specific: wcs.SwapPerms, _global: wcs.SwapPerms, _data: wcs.ManagerData) -> bool:
+    # use manager-specific limit if set, otherwise use global
+    limit: uint256 = _specific.maxNumSwapsPerPeriod if _specific.maxNumSwapsPerPeriod != 0 else _global.maxNumSwapsPerPeriod
+    if limit == 0:
+        return True # no limit
+    return _data.numSwapsInPeriod < limit
+
+
+# check swap slippage (loss prevention)
+
+
+@pure
+@internal
+def _hasAcceptableSlippage(_specific: wcs.SwapPerms, _global: wcs.SwapPerms, _fromUsdValue: uint256, _toUsdValue: uint256) -> bool:
+    # use tighter (lower) slippage limit between manager and global
+    slippage: uint256 = _specific.maxSlippage
+    if slippage == 0 or (_global.maxSlippage != 0 and _global.maxSlippage < slippage):
+        slippage = _global.maxSlippage
+
+    if slippage == 0:
+        return True # no limit
+    
+    # calculate minimum acceptable value (loss prevention)
+    # Formula: toUsdValue >= fromUsdValue * (10000 - slippage) / 10000
+    # Note: USD values are guaranteed to be non-zero here because:
+    #   - If slippage > 0, config validation requires mustHaveUsdValue = True
+    #   - If mustHaveUsdValue = True, _checkSwapHasUsdValue enforces non-zero USD values
+    acceptablePercentage: uint256 = HUNDRED_PERCENT - slippage
+    minAcceptableValue: uint256 = (_fromUsdValue * acceptablePercentage) // HUNDRED_PERCENT
+    return _toUsdValue >= minAcceptableValue
 
 
 ####################

@@ -18,7 +18,6 @@
 
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
-
 from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
@@ -34,11 +33,11 @@ interface UserWalletConfig:
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def indexOfManager(_addr: address) -> uint256: view
-    def getTrialFundsInfo() -> (address, uint256): view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
     def hasPendingOwnerChange() -> bool: view
     def payees(i: uint256) -> address: view
+    def numActiveCheques() -> uint256: view
     def numWhitelisted() -> uint256: view
     def startingAgent() -> address: view
     def numManagers() -> uint256: view
@@ -52,9 +51,6 @@ interface UserWallet:
     def assets(i: uint256) -> address: view
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
-
-interface Hatchery:
-    def clawBackTrialFunds(_user: address) -> uint256: nonpayable
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
@@ -77,9 +73,7 @@ event ConfigCloned:
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
-HATCHERY_ID: constant(uint256) = 5
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
-HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
 
 @deploy
@@ -102,7 +96,7 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
         numAssets: uint256 = staticcall UserWallet(_fromWallet).numAssets()
         if numAssets > 1:
             numFundsMigrated = self._migrateFunds(_fromWallet, _toWallet, numAssets)
-            assert numFundsMigrated != 0 # dev: trial funds could not be removed
+            assert numFundsMigrated != 0 # dev: no assets migrated
 
     # migrate config
     didMigrateConfig: bool = False
@@ -128,18 +122,13 @@ def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
 
     # migrate funds
     numMigrated: uint256 = self._migrateFunds(_fromWallet, _toWallet, numAssets)
-    assert numMigrated != 0 # dev: trial funds could not be removed
+    assert numMigrated != 0 # dev: no assets migrated
 
     return numMigrated
 
 
 @internal
 def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256) -> uint256:
-
-    # first thing first, handle trial funds if applicable
-    areTrialFundsRemoved: bool = self._removeTrialFundsIfApplicable(_fromWallet)
-    if not areTrialFundsRemoved:
-        return 0
 
     # get wallet config
     walletConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
@@ -177,35 +166,6 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
 
     log FundsMigrated(fromWallet = _fromWallet, toWallet = _toWallet, numAssetsMigrated = numMigrated, totalUsdValue = usdValue)
     return numMigrated
-
-
-# handle trial funds (if applicable)
-
-
-@internal
-def _removeTrialFundsIfApplicable(_userWallet: address) -> bool:
-    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-
-    # check trial funds info
-    trialFundsAsset: address = empty(address)
-    trialFundsAmount: uint256 = 0
-    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(walletConfig).getTrialFundsInfo()
-    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
-        return True
-
-    # what is acceptable dust to allow migration
-    acceptableDust: uint256 = trialFundsAmount * 1_00 // HUNDRED_PERCENT # 0.10$ if $10 trial funds
-
-    # clawback funds
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    extcall Hatchery(hatchery).clawBackTrialFunds(_userWallet)
-
-    # check if we have enough funds
-    trialFundsAsset, trialFundsAmount = staticcall UserWalletConfig(walletConfig).getTrialFundsInfo()
-    if trialFundsAmount == 0 or trialFundsAsset == empty(address):
-        return True
-    
-    return trialFundsAmount <= acceptableDust
 
 
 # validation
@@ -270,6 +230,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
 
     # toWallet cannot have any whitelisted addresses
     if toData.numWhitelisted > 1:
+        return False
+
+    # toWallet cannot have any active cheques
+    if toData.numActiveCheques != 0:
         return False
 
     # cannot have managers (if starting agent is not set)
@@ -355,6 +319,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
                 extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
                 whitelistCopied += 1
 
+    # NOTE (FIX L-04): Cheque settings are NOT migrated - destination wallet uses default settings
+    # Individual cheques are also NOT migrated - users must manually recreate them
+    # Validation ensures destination has no active cheques before migration
+
     log ConfigCloned(
         fromWallet = _fromWallet,
         toWallet = _toWallet,
@@ -408,6 +376,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
 
     # toWallet cannot have any whitelisted addresses
     if toData.numWhitelisted > 1:
+        return False
+
+    # toWallet cannot have any active cheques
+    if toData.numActiveCheques != 0:
         return False
 
     # cannot have managers (if starting agent is not set)
@@ -469,4 +441,5 @@ def _getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle
         startingAgentIndex = staticcall UserWalletConfig(walletConfig).indexOfManager(startingAgent),
         hasPendingOwnerChange = staticcall UserWalletConfig(walletConfig).hasPendingOwnerChange(),
         groupId = staticcall UserWalletConfig(walletConfig).groupId(),
+        numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),
     )

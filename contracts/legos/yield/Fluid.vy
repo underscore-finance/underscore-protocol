@@ -41,19 +41,60 @@ interface Ledger:
     def isRegisteredVaultToken(_vaultToken: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
 
-interface Appraiser:
-    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+interface FluidLendingResolver:
+    def getAllFTokens() -> DynArray[address, MAX_FTOKENS]: view
+    def LIQUIDITY_RESOLVER() -> address: view
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
     def isValidAddr(_addr: address) -> bool: view
 
-interface FluidLendingResolver:
-    def getAllFTokens() -> DynArray[address, MAX_FTOKENS]: view
+interface Appraiser:
+    def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
+
+interface FluidLiquidityResolver:
+    def getOverallTokenData(_token: address) -> OverallTokenData: view
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
+
+struct OverallTokenData:
+    borrowRate: uint256
+    supplyRate: uint256
+    fee: uint256
+    lastStoredUtilization: uint256
+    storageUpdateThreshold: uint256
+    lastUpdateTimestamp: uint256
+    supplyExchangePrice: uint256
+    borrowExchangePrice: uint256
+    supplyRawInterest: uint256
+    supplyInterestFree: uint256
+    borrowRawInterest: uint256
+    borrowInterestFree: uint256
+    totalSupply: uint256
+    totalBorrow: uint256
+    revenue: uint256
+    maxUtilization: uint256
+    rateData: RateData
+
+struct RateData:
+    version: uint256
+    rateDataV1: RateDataV1
+    rateDataV2: RateDataV2
+
+struct RateDataV1:
+    rateAtUtilizationZero: uint256
+    kink: uint256
+    rateAtUtilizationKink: uint256
+    rateAtUtilizationMax: uint256
+
+struct RateDataV2:
+    rateAtUtilizationZero: uint256
+    kink1: uint256
+    rateAtUtilizationKink1: uint256
+    kink2: uint256
+    rateAtUtilizationKink2: uint256
+    rateAtUtilizationMax: uint256
 
 event FluidDeposit:
     sender: indexed(address)
@@ -76,10 +117,13 @@ event FluidWithdrawal:
 # fluid
 FLUID_RESOLVER: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
+WETH: public(immutable(address))
+NATIVE_ETH: public(immutable(address))
 
 MAX_FTOKENS: constant(uint256) = 50
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
@@ -87,15 +131,17 @@ def __init__(
     _undyHq: address,
     _fluidResolver: address,
     _ripeRegistry: address,
+    _weth: address,
+    _eth: address,
 ):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
-    assert _fluidResolver != empty(address) # dev: invalid addrs
+    assert empty(address) not in [_fluidResolver, _ripeRegistry, _weth, _eth] # dev: invalid addrs
     FLUID_RESOLVER = _fluidResolver
-
-    assert _ripeRegistry != empty(address) # dev: invalid addrs
     RIPE_REGISTRY = _ripeRegistry
+    WETH = _weth
+    NATIVE_ETH = _eth
 
 
 @view
@@ -142,7 +188,10 @@ def getUnderlyingAsset(_vaultToken: address) -> address:
 @view
 @internal
 def _getUnderlyingAsset(_vaultToken: address) -> address:
-    return yld.vaultToAsset[_vaultToken].underlyingAsset
+    asset: address = yld.vaultToAsset[_vaultToken].underlyingAsset
+    if asset != empty(address):
+        return asset
+    return staticcall IERC4626(_vaultToken).asset()
 
 
 # underlying balances (both true and safe)
@@ -238,7 +287,7 @@ def _getUsdValue(_asset: address, _amount: uint256, _appraiser: address) -> uint
     appraiser: address = _appraiser
     if _appraiser == empty(address):
         appraiser = addys._getAppraiserAddr()
-    return staticcall Appraiser(appraiser).getUsdValue(_asset, _amount)
+    return staticcall Appraiser(appraiser).getUnderlyingUsdValue(_asset, _amount)
 
 
 ###############
@@ -290,32 +339,87 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
-# extras
+# total assets
 
 
 @view
 @external
-def isEligibleVaultForTrialFunds(_vaultToken: address, _underlyingAsset: address) -> bool:
-    return False
+def totalAssets(_vaultToken: address) -> uint256:
+    return self._totalAssets(_vaultToken)
+
+
+@view
+@internal
+def _totalAssets(_vaultToken: address) -> uint256:
+    return staticcall IERC4626(_vaultToken).totalAssets()
+
+
+# total borrows
+
+
+@view
+@external
+def totalBorrows(_vaultToken: address) -> uint256:
+    return self._totalBorrows(_vaultToken)
+
+
+@view
+@internal
+def _totalBorrows(_vaultToken: address) -> uint256:
+    # calculate vault's proportional share of protocol borrows
+    vaultAssets: uint256 = self._totalAssets(_vaultToken)
+    if vaultAssets == 0:
+        return 0
+    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
+    if tokenData.totalSupply == 0:
+        return 0
+    return vaultAssets * tokenData.totalBorrow // tokenData.totalSupply
+
+
+@view
+@internal
+def _getOverallTokenData(_vaultToken: address) -> OverallTokenData:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == WETH:
+        asset = NATIVE_ETH # Fluid uses native ETH address for WETH data
+    liquidityResolver: address = staticcall FluidLendingResolver(FLUID_RESOLVER).LIQUIDITY_RESOLVER()
+    return staticcall FluidLiquidityResolver(liquidityResolver).getOverallTokenData(asset)
+
+
+# avail liquidity
+
+
+@view
+@external
+def getAvailLiquidity(_vaultToken: address) -> uint256:
+    # vault's available = vaultAssets - vaultShareOfBorrows
+    vaultAssets: uint256 = self._totalAssets(_vaultToken)
+    vaultBorrows: uint256 = self._totalBorrows(_vaultToken)
+    if vaultAssets <= vaultBorrows:
+        return 0
+    return vaultAssets - vaultBorrows
+
+
+# utilization
+
+
+@view
+@external
+def getUtilizationRatio(_vaultToken: address) -> uint256:
+    # utilization ratio is the same at vault and protocol level
+    tokenData: OverallTokenData = self._getOverallTokenData(_vaultToken)
+    if tokenData.totalSupply == 0:
+        return 0
+    return tokenData.totalBorrow * HUNDRED_PERCENT // tokenData.totalSupply
+
+
+# extras
 
 
 @view
 @external
 def isEligibleForYieldBonus(_asset: address) -> bool:
     return False
-
-
-@view
-@external
-def totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
-
-
-@view
-@external
-def totalBorrows(_vaultToken: address) -> uint256:
-    # TODO: implement
-    return 0
 
 
 @view
@@ -464,7 +568,7 @@ def depositForYield(
         assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
         depositAmount -= refundAssetAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(_asset, depositAmount, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
     log FluidDeposit(
         sender = msg.sender,
         asset = _asset,
@@ -533,7 +637,7 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(vaultInfo.underlyingAsset, assetAmountReceived, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
     log FluidWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

@@ -59,8 +59,8 @@ interface UniV3Quoter:
     def quoteExactInput(_path: Bytes[1024], _amountIn: uint256) -> uint256: nonpayable
 
 interface Appraiser:
-    def getNormalAssetPrice(_asset: address, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
-    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
+    def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
+    def getRipePrice(_asset: address) -> uint256: view
 
 interface IUniswapV3Callback:
     def uniswapV3SwapCallback(_amount0Delta: int256, _amount1Delta: int256, _data: Bytes[256]): nonpayable
@@ -148,7 +148,8 @@ struct PositionData:
 struct PoolSwapData:
     pool: address
     tokenIn: address
-    amountIn: uint256
+    amountInDesired: uint256
+    sender: address
 
 event UniswapV3Swap:
     sender: indexed(address)
@@ -187,6 +188,15 @@ event UniswapV3NftRecovered:
     collection: indexed(address)
     nftTokenId: uint256
     recipient: indexed(address)
+
+event UniswapV3FeesCollected:
+    sender: indexed(address)
+    nftTokenId: uint256
+    token0: indexed(address)
+    token1: indexed(address)
+    amount0: uint256
+    amount1: uint256
+    recipient: address
 
 # transient storage
 poolSwapData: transient(PoolSwapData)
@@ -331,7 +341,7 @@ def swapTokens(
             recipient = self
 
         # swap
-        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, recipient, uniswapV3Factory)
+        tempAmountIn = self._swapTokensInPool(tempPool, tempTokenIn, tempTokenOut, tempAmountIn, msg.sender, recipient, uniswapV3Factory)
 
     # final amount
     amountOut: uint256 = tempAmountIn
@@ -346,9 +356,9 @@ def swapTokens(
         amountIn -= refundAssetAmount
 
     # get usd values
-    usdValue: uint256 = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook)
+    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenIn, amountIn, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
     if usdValue == 0:
-        usdValue = extcall Appraiser(miniAddys.appraiser).updatePriceAndGetUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook)
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(tokenOut, amountOut, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
 
     log UniswapV3Swap(
         sender = msg.sender,
@@ -372,6 +382,7 @@ def _swapTokensInPool(
     _tokenIn: address,
     _tokenOut: address,
     _amountIn: uint256,
+    _sender: address,
     _recipient: address,
     _uniswapV3Factory: address,
 ) -> uint256:
@@ -387,7 +398,8 @@ def _swapTokensInPool(
     self.poolSwapData = PoolSwapData(
         pool=_pool,
         tokenIn=_tokenIn,
-        amountIn=_amountIn,
+        amountInDesired=_amountIn,
+        sender=_sender,
     )
 
     zeroForOne: bool = _tokenIn == tokens[0]
@@ -418,8 +430,30 @@ def uniswapV3SwapCallback(_amount0Delta: int256, _amount1Delta: int256, _data: B
     poolSwapData: PoolSwapData = self.poolSwapData
     assert msg.sender == poolSwapData.pool # dev: no perms
 
+    # determine the amount to transfer based on deltas
+    # Positive delta = amount we owe the pool
+    # Negative delta = amount we receive from the pool
+    token0: address = staticcall UniV3Pool(poolSwapData.pool).token0()
+    amountToSend: uint256 = 0
+
+    # we're selling token0 for token1
+    if poolSwapData.tokenIn == token0:
+        assert _amount0Delta != 0 # dev: invalid delta
+        amountToSend = convert(_amount0Delta, uint256)
+
+    # we're selling token1 for token0
+    else:
+        assert _amount1Delta != 0 # dev: invalid delta
+        amountToSend = convert(_amount1Delta, uint256)
+
     # transfer tokens to pool
-    assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.pool, poolSwapData.amountIn, default_return_value=True) # dev: transfer failed
+    assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.pool, amountToSend, default_return_value=True) # dev: transfer failed
+
+    # refund unused tokens immediately (handles partial swaps in multi-hop routes)
+    if amountToSend < poolSwapData.amountInDesired:
+        refundAmount: uint256 = min(poolSwapData.amountInDesired - amountToSend, staticcall IERC20(poolSwapData.tokenIn).balanceOf(self))
+        assert extcall IERC20(poolSwapData.tokenIn).transfer(poolSwapData.sender, refundAmount, default_return_value=True) # dev: refund failed
+
     self.poolSwapData = empty(PoolSwapData)
 
 
@@ -447,6 +481,19 @@ def addLiquidityConcentrated(
     assert not dld.isPaused # dev: paused
     assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
     miniAddys: ws.MiniAddys = dld._getMiniAddys(_miniAddys)
+    nftPositionManager: address = UNIV3_NFT_MANAGER
+
+    # detect fee collection mode: if both tokens are empty and both amounts are zero
+    # this is a workaround to allow collecting fees without adding liquidity
+    isFeeCollectionMode: bool = (
+        _tokenA == empty(address) and
+        _tokenB == empty(address) and
+        _amountA == 0 and
+        _amountB == 0 and
+        _nftTokenId != 0
+    )
+    if isFeeCollectionMode:
+        return self._collectFeesOnly(_nftTokenId, _recipient, nftPositionManager, miniAddys)
 
     # validate tokens
     tokens: address[2] = [staticcall UniV3Pool(_pool).token0(), staticcall UniV3Pool(_pool).token1()]
@@ -460,18 +507,15 @@ def addLiquidityConcentrated(
 
     # token a
     liqAmountA: uint256 = min(_amountA, staticcall IERC20(_tokenA).balanceOf(msg.sender))
-    assert liqAmountA != 0 # dev: nothing to transfer
-    assert extcall IERC20(_tokenA).transferFrom(msg.sender, self, liqAmountA, default_return_value=True) # dev: transfer failed
+    if liqAmountA != 0:
+        assert extcall IERC20(_tokenA).transferFrom(msg.sender, self, liqAmountA, default_return_value=True) # dev: transfer failed
+        assert extcall IERC20(_tokenA).approve(nftPositionManager, liqAmountA, default_return_value=True) # dev: approval failed
 
     # token b
     liqAmountB: uint256 = min(_amountB, staticcall IERC20(_tokenB).balanceOf(msg.sender))
-    assert liqAmountB != 0 # dev: nothing to transfer
-    assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, liqAmountB, default_return_value=True) # dev: transfer failed
-
-    # approvals
-    nftPositionManager: address = UNIV3_NFT_MANAGER
-    assert extcall IERC20(_tokenA).approve(nftPositionManager, liqAmountA, default_return_value=True) # dev: approval failed
-    assert extcall IERC20(_tokenB).approve(nftPositionManager, liqAmountB, default_return_value=True) # dev: approval failed
+    if liqAmountB != 0:
+        assert extcall IERC20(_tokenB).transferFrom(msg.sender, self, liqAmountB, default_return_value=True) # dev: transfer failed
+        assert extcall IERC20(_tokenB).approve(nftPositionManager, liqAmountB, default_return_value=True) # dev: approval failed
 
     # organized the index of tokens
     token0: address = _tokenA
@@ -501,8 +545,10 @@ def addLiquidityConcentrated(
     assert liquidityAdded != 0 # dev: no liquidity added
 
     # reset approvals
-    assert extcall IERC20(_tokenA).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
-    assert extcall IERC20(_tokenB).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
+    if liqAmountA != 0:
+        assert extcall IERC20(_tokenA).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
+    if liqAmountB != 0:
+        assert extcall IERC20(_tokenB).approve(nftPositionManager, 0, default_return_value=True) # dev: approval failed
 
     # refund if full liquidity was not added
     currentLegoBalanceA: uint256 = staticcall IERC20(_tokenA).balanceOf(self)
@@ -653,6 +699,44 @@ def _collectFees(_nftPositionManager: address, _tokenId: uint256, _recipient: ad
     return extcall UniV3NftPositionManager(_nftPositionManager).collect(params)
 
 
+# collect fees only (for empty positions)
+
+
+@internal
+def _collectFeesOnly(
+    _nftTokenId: uint256,
+    _recipient: address,
+    _nftPositionManager: address,
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256, uint256, uint256, uint256):
+    assert staticcall IERC721(_nftPositionManager).ownerOf(_nftTokenId) == self # dev: nft not here
+
+    # get position data
+    positionData: PositionData = staticcall UniV3NftPositionManager(_nftPositionManager).positions(_nftTokenId)
+
+    # collect fees
+    amount0: uint256 = 0
+    amount1: uint256 = 0
+    amount0, amount1 = self._collectFees(_nftPositionManager, _nftTokenId, _recipient, positionData)
+
+    # transfer nft back to recipient
+    extcall IERC721(_nftPositionManager).safeTransferFrom(self, _recipient, _nftTokenId)
+
+    # calculate usd value of fees collected
+    usdValue: uint256 = self._getUsdValue(positionData.token0, amount0, positionData.token1, amount1, _miniAddys)
+
+    log UniswapV3FeesCollected(
+        sender=msg.sender,
+        nftTokenId=_nftTokenId,
+        token0=positionData.token0,
+        token1=positionData.token1,
+        amount0=amount0,
+        amount1=amount1,
+        recipient=_recipient,
+    )
+    return 0, amount0, amount1, _nftTokenId, usdValue
+
+
 ####################
 # Remove Liquidity #
 ####################
@@ -710,7 +794,7 @@ def removeLiquidityConcentrated(
     amount0: uint256 = 0
     amount1: uint256 = 0
     amount0, amount1 = extcall UniV3NftPositionManager(nftPositionManager).decreaseLiquidity(params)
-    assert amount0 != 0 and amount1 != 0 # dev: no liquidity removed
+    assert amount0 != 0 or amount1 != 0 # dev: no liquidity removed
 
     # a/b amounts
     amountA: uint256 = amount0
@@ -764,11 +848,11 @@ def _getUsdValue(
 
     usdValueA: uint256 = 0
     if _amountA != 0:
-        usdValueA = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueA = staticcall Appraiser(_miniAddys.appraiser).getUsdValue(_tokenA, _amountA, _miniAddys.missionControl, _miniAddys.legoBook, _miniAddys.ledger)
 
     usdValueB: uint256 = 0
     if _amountB != 0:
-        usdValueB = extcall Appraiser(_miniAddys.appraiser).updatePriceAndGetUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook)
+        usdValueB = staticcall Appraiser(_miniAddys.appraiser).getUsdValue(_tokenB, _amountB, _miniAddys.missionControl, _miniAddys.legoBook, _miniAddys.ledger)
 
     return usdValueA + usdValueB
 
@@ -1000,9 +1084,9 @@ def getPriceUnsafe(_pool: address, _targetToken: address, _appraiser: address = 
     # alt price
     altPrice: uint256 = 0
     if _targetToken == token0:
-        altPrice = staticcall Appraiser(appraiser).getNormalAssetPrice(token1)
+        altPrice = staticcall Appraiser(appraiser).getRipePrice(token1)
     else:
-        altPrice = staticcall Appraiser(appraiser).getNormalAssetPrice(token0)
+        altPrice = staticcall Appraiser(appraiser).getRipePrice(token0)
 
     # return early if no alt price
     if altPrice == 0:

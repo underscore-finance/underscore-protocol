@@ -101,3 +101,15 @@ def test_wasabi_withdraw_partial(
     asset, vault_tokens_received = setupWithdrawal(lego_id, token_str, vault_token)
 
     testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
+
+
+@pytest.mark.parametrize("token_str", TEST_ASSETS)
+@pytest.always
+def test_wasabi_view_functions(
+    token_str,
+    getVaultToken,
+    lego_wasabi,
+    testLegoViewFunctions,
+):
+    vault_token = getVaultToken(token_str)
+    testLegoViewFunctions(lego_wasabi, vault_token, token_str)

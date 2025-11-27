@@ -1,4 +1,4 @@
-from config.BluePrint import PARAMS, INTEGRATION_ADDYS, TOKENS, HOUR_IN_BLOCKS, DAY_IN_BLOCKS, MONTH_IN_BLOCKS, YEAR_IN_BLOCKS, VAULT_INFO
+from config.BluePrint import PARAMS, INTEGRATION_ADDYS, TOKENS, HOUR_IN_BLOCKS, DAY_IN_BLOCKS, MONTH_IN_BLOCKS, YEAR_IN_BLOCKS, VAULT_INFO, LEGO_IDS
 from tests.constants import ZERO_ADDRESS, MAX_UINT256, EIGHTEEN_DECIMALS
 
 
@@ -24,6 +24,7 @@ class BluePrint:
         self.VAULT_INFO = VAULT_INFO
         self.BLOCKS = Blocks
         self.CONSTANTS = Constants
+        self.LEGO_IDS = LEGO_IDS
 
 
 class DeployArgs:
@@ -33,3 +34,4 @@ class DeployArgs:
         self.ignore_logs = ignore_logs
         self.blueprint = BluePrint(blueprint)
         self.rpc = rpc
+        self.LEGO_IDS = LEGO_IDS

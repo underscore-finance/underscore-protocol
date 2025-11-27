@@ -33,6 +33,7 @@ interface UserWalletConfig:
     def cancelPendingPayee(_payee: address): nonpayable
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
+    def cheques(_addr: address) -> wcs.Cheque: view
     def removePayee(_payee: address): nonpayable
     def timeLock() -> uint256: view
     def owner() -> address: view
@@ -563,6 +564,10 @@ def _isValidNewPayee(
     if _config.isWhitelisted:
         return False, empty(wcs.PayeeSettings)
 
+    # cannot add payee if they have an active cheque
+    if _config.isExistingCheque:
+        return False, empty(wcs.PayeeSettings)
+
     # calculate start delay
     startDelay: uint256 = max(_config.globalPayeeSettings.startDelay, _config.timeLock)
     if _startDelay != 0:
@@ -604,6 +609,10 @@ def _isValidNewPayee(
 
     # validate usd limits
     if not self._validatePayeeLimits(_usdLimits):
+        return False, empty(wcs.PayeeSettings)
+
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
         return False, empty(wcs.PayeeSettings)
 
     # validate pull payee
@@ -690,6 +699,10 @@ def _isValidPayeeUpdate(
 
     # validate usd limits
     if not self._validatePayeeLimits(_usdLimits):
+        return False
+
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
         return False
 
     # validate pull payee
@@ -780,6 +793,10 @@ def _isValidGlobalPayeeSettings(
 
     # validate usd limits
     if not self._validatePayeeLimits(_usdLimits):
+        return False
+
+    # validate failOnZeroPrice when USD limits are set
+    if not self._validateFailOnZeroPriceWithUsdLimits(_failOnZeroPrice, _usdLimits):
         return False
 
     # validate activation length
@@ -885,6 +902,27 @@ def _validatePayeeLimits(_limits: wcs.PayeeLimits) -> bool:
     return True
 
 
+@pure
+@internal
+def _validateFailOnZeroPriceWithUsdLimits(
+    _failOnZeroPrice: bool,
+    _usdLimits: wcs.PayeeLimits
+) -> bool:
+    # if any USD limits are set (non-zero = limit is active)
+    hasUsdLimits: bool = (
+        _usdLimits.perTxCap != 0 or
+        _usdLimits.perPeriodCap != 0 or
+        _usdLimits.lifetimeCap != 0
+    )
+    
+    # If USD limits are set, failOnZeroPrice must be True
+    # to prevent bypassing limits when price data is unavailable
+    if hasUsdLimits and not _failOnZeroPrice:
+        return False
+
+    return True
+
+
 #############
 # Utilities #
 #############
@@ -904,11 +942,13 @@ def getPayeeConfig(_userWallet: address, _payee: address) -> wcs.PayeeManagement
 def _getPayeeConfig(_userWallet: address, _payee: address) -> wcs.PayeeManagementBundle:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_payee)
     return wcs.PayeeManagementBundle(
         owner = owner,
         wallet = _userWallet,
         isRegisteredPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_payee) != 0,
         isWhitelisted = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_payee) != 0,
+        isExistingCheque = cheque.active,
         payeeSettings = staticcall UserWalletConfig(walletConfig).payeeSettings(_payee),
         globalPayeeSettings = staticcall UserWalletConfig(walletConfig).globalPayeeSettings(),
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),

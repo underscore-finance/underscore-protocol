@@ -6,7 +6,7 @@ from config.BluePrint import TOKENS, TEST_AMOUNTS
 
 VAULT_TOKENS = {
     "base": {
-        "USDC": TOKENS["base"]["MORPHO_MOONWELL_USDC"],
+        "USDC": TOKENS["base"]["MORPHO_STEAKHOUSE_USDC"],
         "WETH": TOKENS["base"]["MORPHO_MOONWELL_WETH"],
         "EURC": TOKENS["base"]["MORPHO_MOONWELL_EURC"],
         "CBBTC": TOKENS["base"]["MORPHO_MOONWELL_CBBTC"],
@@ -107,3 +107,15 @@ def test_morpho_withdraw_partial(
     asset, vault_tokens_received = setupWithdrawal(lego_id, token_str, vault_token)
 
     testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
+
+
+@pytest.mark.parametrize("token_str", TEST_ASSETS)
+@pytest.always
+def test_morpho_view_functions(
+    token_str,
+    getVaultToken,
+    lego_morpho,
+    testLegoViewFunctions,
+):
+    vault_token = getVaultToken(token_str)
+    testLegoViewFunctions(lego_morpho, vault_token, token_str)

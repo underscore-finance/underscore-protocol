@@ -11,18 +11,21 @@ interface MockToken:
 mockPrices: public(HashMap[address, uint256]) # asset -> price in USD (18 decimals)
 userCollateral: public(HashMap[address, HashMap[address, uint256]]) # user -> asset -> amount
 userDebt: public(HashMap[address, uint256]) # user -> debt amount
+snapshotsCalled: public(HashMap[address, uint256]) # Track snapshot calls for testing
 
 GREEN_TOKEN: public(immutable(address))
 SAVINGS_GREEN: public(immutable(address))
 RIPE_TOKEN: public(immutable(address))
+USDC: public(immutable(address))
 
 
 @deploy
-def __init__(_greenToken: address, _savingsGreen: address, _ripeToken: address):
+def __init__(_greenToken: address, _savingsGreen: address, _ripeToken: address, _usdc: address):
     assert empty(address) not in [_greenToken, _savingsGreen, _ripeToken] # dev: invalid tokens
     GREEN_TOKEN = _greenToken
     SAVINGS_GREEN = _savingsGreen
     RIPE_TOKEN = _ripeToken
+    USDC = _usdc
 
 
 ###########################
@@ -246,6 +249,7 @@ def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool:
 
 @external
 def addPriceSnapshot(_asset: address) -> bool:
+    self.snapshotsCalled[_asset] += 1
     return True
 
 
@@ -263,7 +267,12 @@ def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = Fal
         if _shouldRaise:
             raise "no price set"
         return 0
-    decimals: uint256 = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # Handle ETH specially (ETH placeholder address doesn't have decimals() method)
+    decimals: uint256 = 18
+    if _asset != 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
     return _usdValue * (10 ** decimals) // price
 
 
@@ -275,7 +284,12 @@ def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -
         if _shouldRaise:
             raise "no price set"
         return 0
-    decimals: uint256 = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+    # Handle ETH specially (ETH placeholder address doesn't have decimals() method)
+    decimals: uint256 = 18
+    if _asset != 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+        decimals = convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
     return price * _amount // (10 ** decimals)
 
 
@@ -319,3 +333,42 @@ def getTotalAmountForUser(_user: address, _asset: address) -> uint256:
 @external
 def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool:
     return True
+
+
+###########################
+# ENDAOMENT PSM INTERFACE #
+###########################
+
+
+@nonreentrant
+@external
+def redeemGreen(_paymentAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _isPaymentSavingsGreen: bool = False) -> uint256:
+    greenToken: address = GREEN_TOKEN
+    paymentAmount: uint256 = min(_paymentAmount, staticcall IERC20(greenToken).balanceOf(msg.sender))
+    assert paymentAmount != 0 # dev: nothing to redeem
+
+    # transfer GREEN, burn it
+    assert extcall IERC20(greenToken).transferFrom(msg.sender, self, paymentAmount, default_return_value=True) # dev: transfer failed
+    extcall MockToken(greenToken).burn(paymentAmount)
+
+    # mint USDC to recipient
+    usdcAmount: uint256 = paymentAmount // (10 ** 12)
+    extcall MockToken(USDC).mint(_recipient, usdcAmount)
+    return usdcAmount
+
+
+
+@nonreentrant
+@external
+def mintGreen(_usdcAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _wantsSavingsGreen: bool = False) -> uint256:
+    usdcToken: address = USDC
+    usdcAmount: uint256 = min(_usdcAmount, staticcall IERC20(usdcToken).balanceOf(msg.sender))
+    assert usdcAmount != 0 # dev: nothing to mint
+
+    # transfer USDC from user to contract
+    assert extcall IERC20(usdcToken).transferFrom(msg.sender, self, usdcAmount, default_return_value=True) # dev: transfer failed
+
+    # mint GREEN to recipient
+    greenAmount: uint256 = usdcAmount * (10 ** 12)
+    extcall MockToken(GREEN_TOKEN).mint(_recipient, greenAmount)
+    return greenAmount

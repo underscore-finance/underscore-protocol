@@ -77,11 +77,9 @@ event LeverageVaultTokenSet:
     legoId: uint256
     ripeVaultId: uint256
 
-event UsdcSlippageAllowedSet:
-    slippage: uint256
-
-event GreenSlippageAllowedSet:
-    slippage: uint256
+event SlippagesSet:
+    usdcSlippage: uint256
+    greenSlippage: uint256
 
 event LevgVaultHelperSet:
     levgVaultHelper: indexed(address)
@@ -106,7 +104,7 @@ usdcSlippageAllowed: public(uint256) # basis points (100 = 1%)
 greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
 
 # leverage limits
-maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%)
+maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%, max 300_00)
 netUserCapital: public(uint256) # tracks user deposits - withdrawals (for USDC vaults)
 
 # constants
@@ -228,8 +226,8 @@ def _depositForYield(
     vaultToken: address = empty(address)
     vaultTokenAmountReceived: uint256 = 0
     txUsdValue: uint256 = 0
-    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
-    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+    assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue = extcall Lego(_ad.legoAddr).depositForYield(_asset, amount, _vaultAddr, _extraData, self, self._packMiniAddysFromAd(_ad))
+    self._approve(_asset, _ad.legoAddr, 0)
     assert _vaultAddr == vaultToken # dev: vault token mismatch
 
     # vault asset can go into collateral vault OR (for USDC vaults) leverage vault
@@ -253,16 +251,7 @@ def _depositForYield(
     if _ad.legoId != 0 and self.vaultToLegoId[vaultToken] == 0:
         self.vaultToLegoId[vaultToken] = _ad.legoId
 
-    log LevgVaultAction(
-        op = 10,
-        asset1 = _asset,
-        asset2 = vaultToken,
-        amount1 = assetAmount,
-        amount2 = vaultTokenAmountReceived,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    self._logAction(10, _asset, vaultToken, assetAmount, vaultTokenAmountReceived, txUsdValue, _ad)
     return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
 
 
@@ -292,26 +281,17 @@ def _withdrawFromYield(
     amount: uint256 = self._getAmountAndApprove(_vaultToken, _amount, empty(address)) # not approving here
 
     # some vault tokens require max value approval (comp v3)
-    assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+    self._approve(_vaultToken, _ad.legoAddr, max_value(uint256))
 
     # withdraw from yield
     vaultTokenAmountBurned: uint256 = 0
     underlyingAsset: address = empty(address)
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
-    assert extcall IERC20(_vaultToken).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+    vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Lego(_ad.legoAddr).withdrawFromYield(_vaultToken, amount, _extraData, self, self._packMiniAddysFromAd(_ad))
+    self._approve(_vaultToken, _ad.legoAddr, 0)
 
-    log LevgVaultAction(
-        op = 11,
-        asset1 = _vaultToken,
-        asset2 = underlyingAsset,
-        amount1 = vaultTokenAmountBurned,
-        amount2 = underlyingAmount,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    self._logAction(11, _vaultToken, underlyingAsset, vaultTokenAmountBurned, underlyingAmount, txUsdValue, _ad)
     return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue
 
 
@@ -377,21 +357,13 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
         maxTxUsdValue = max(maxTxUsdValue, thisTxUsdValue)
 
     assert lastTokenOutAmount != 0 # dev: no output amount
+    assert lastTokenOut == tokenOut # dev: must swap into token out
 
     # verify green <--> usdc swap is fair (check slippage)
     if tokenIn in [green, usdc] and lastTokenOut in [green, usdc]:
         assert staticcall LevgVaultHelper(levgVaultHelper).performPostSwapValidation(tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, self.usdcSlippageAllowed, self.greenSlippageAllowed, usdc, green) # dev: bad slippage
 
-    log LevgVaultAction(
-        op = 20,
-        asset1 = tokenIn,
-        asset2 = lastTokenOut,
-        amount1 = origAmountIn,
-        amount2 = lastTokenOutAmount,
-        usdValue = maxTxUsdValue,
-        legoId = ad.legoId, # using just the first lego used
-        signer = ad.signer,
-    )
+    self._logAction(20, tokenIn, lastTokenOut, origAmountIn, lastTokenOutAmount, maxTxUsdValue, ad)
     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
 
@@ -411,9 +383,9 @@ def _performSwapInstruction(
     tokenOutAmount: uint256 = 0
     txUsdValue: uint256 = 0
 
-    assert extcall IERC20(tokenIn).approve(legoAddr, _amountIn, default_return_value = True) # dev: appr
-    tokenInAmount, tokenOutAmount, txUsdValue = extcall Lego(legoAddr).swapTokens(_amountIn, _i.minAmountOut, _i.tokenPath, _i.poolPath, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
-    assert extcall IERC20(tokenIn).approve(legoAddr, 0, default_return_value = True) # dev: appr
+    self._approve(tokenIn, legoAddr, _amountIn)
+    tokenInAmount, tokenOutAmount, txUsdValue = extcall Lego(legoAddr).swapTokens(_amountIn, _i.minAmountOut, _i.tokenPath, _i.poolPath, self, self._packMiniAddysFromAd(_ad))
+    self._approve(tokenIn, legoAddr, 0)
     return tokenOut, tokenOutAmount, txUsdValue
 
 
@@ -473,7 +445,7 @@ def _addCollateral(
     _ad: VaultActionData,
 ) -> (uint256, uint256):
     self._setLegoAccessForAction(_ad.legoAddr, ws.ActionType.ADD_COLLATERAL)
-    assert extcall IERC20(_asset).approve(_ad.legoAddr, max_value(uint256), default_return_value = True) # dev: appr
+    self._approve(_asset, _ad.legoAddr, max_value(uint256))
 
     # validate collateral + lego id
     assert _ad.legoId == RIPE_LEGO_ID # dev: invalid lego id
@@ -488,19 +460,10 @@ def _addCollateral(
     amount: uint256 = self._getAmountAndApprove(_asset, _amount, empty(address)) # not approving here
     amountDeposited: uint256 = 0
     txUsdValue: uint256 = 0
-    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
-    assert extcall IERC20(_asset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+    amountDeposited, txUsdValue = extcall Lego(_ad.legoAddr).addCollateral(_asset, amount, extraData, self, self._packMiniAddysFromAd(_ad))
+    self._approve(_asset, _ad.legoAddr, 0)
 
-    log LevgVaultAction(
-        op = 40,
-        asset1 = _asset,
-        asset2 = empty(address),
-        amount1 = amountDeposited,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    self._logAction(40, _asset, empty(address), amountDeposited, 0, txUsdValue, _ad)
     return amountDeposited, txUsdValue
 
 
@@ -536,18 +499,9 @@ def _removeCollateral(
     # remove collateral
     amountRemoved: uint256 = 0
     txUsdValue: uint256 = 0
-    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
+    amountRemoved, txUsdValue = extcall Lego(_ad.legoAddr).removeCollateral(_asset, _amount, extraData, self, self._packMiniAddysFromAd(_ad))
 
-    log LevgVaultAction(
-        op = 41,
-        asset1 = _asset,
-        asset2 = empty(address),
-        amount1 = amountRemoved,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    self._logAction(41, _asset, empty(address), amountRemoved, 0, txUsdValue, _ad)
     return amountRemoved, txUsdValue
 
 
@@ -591,18 +545,9 @@ def borrow(
     # borrow
     borrowAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, amount, _extraData, self, self._packMiniAddysFromAd(ad))
 
-    log LevgVaultAction(
-        op = 42,
-        asset1 = _borrowAsset,
-        asset2 = empty(address),
-        amount1 = borrowAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logAction(42, _borrowAsset, empty(address), borrowAmount, 0, txUsdValue, ad)
     return borrowAmount, txUsdValue
 
 
@@ -633,19 +578,10 @@ def _repayDebt(
     amount: uint256 = self._getAmountAndApprove(_paymentAsset, _paymentAmount, _ad.legoAddr) # doing approval here
     repaidAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddys(_ad.ledger, _ad.missionControl, _ad.legoBook, _ad.appraiser))
-    assert extcall IERC20(_paymentAsset).approve(_ad.legoAddr, 0, default_return_value = True) # dev: appr
+    repaidAmount, txUsdValue = extcall Lego(_ad.legoAddr).repayDebt(_paymentAsset, amount, _extraData, self, self._packMiniAddysFromAd(_ad))
+    self._approve(_paymentAsset, _ad.legoAddr, 0)
 
-    log LevgVaultAction(
-        op = 43,
-        asset1 = _paymentAsset,
-        asset2 = empty(address),
-        amount1 = repaidAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = _ad.legoId,
-        signer = _ad.signer,
-    )
+    self._logAction(43, _paymentAsset, empty(address), repaidAmount, 0, txUsdValue, _ad)
     return repaidAmount, txUsdValue
 
 
@@ -669,18 +605,9 @@ def claimIncentives(
     # claim rewards
     rewardAmount: uint256 = 0
     txUsdValue: uint256 = 0
-    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
+    rewardAmount, txUsdValue = extcall Lego(ad.legoAddr).claimIncentives(self, _rewardToken, _rewardAmount, _proofs, self._packMiniAddysFromAd(ad))
 
-    log LevgVaultAction(
-        op = 50,
-        asset1 = _rewardToken,
-        asset2 = ad.legoAddr,
-        amount1 = rewardAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logAction(50, _rewardToken, ad.legoAddr, rewardAmount, 0, txUsdValue, ad)
     return rewardAmount, txUsdValue
 
 
@@ -914,66 +841,72 @@ def _withdrawVaultTokenForRedemption(
 
 
 @external
-def setCollateralVault(_vaultToken: address, _ripeVaultId: uint256, _legoId: uint256):
+def setCollateralVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    levgVaultHelper: address = self.levgVaultHelper
-    oldCollData: RipeAsset = self.collateralAsset
-
-    # validate new collateral vault token
-    if _vaultToken != empty(address):
-        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(UNDERLYING_ASSET, _vaultToken, _ripeVaultId, _legoId) # dev: invalid collateral vault token
-        self.vaultToLegoId[_vaultToken] = _legoId
-
-    # validate old collateral vault token has no balances
-    if oldCollData.vaultToken != empty(address):
-        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
-        if oldCollData.vaultToken != _vaultToken:
-            assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
-
-    # update state
-    self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
-    log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+    self._setVault(_vaultToken, _ripeVaultId, _legoId, UNDERLYING_ASSET, self.collateralAsset, True, _shouldMaxWithdraw)
 
 
 # leverage vault token
 
 
 @external
-def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256):
+def setLeverageVault(_vaultToken: address, _legoId: uint256, _ripeVaultId: uint256, _shouldMaxWithdraw: bool):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self._setVault(_vaultToken, _ripeVaultId, _legoId, USDC, self.leverageAsset, False, _shouldMaxWithdraw)
+
+
+# set vault internal
+
+
+@internal
+def _setVault(
+    _vaultToken: address,
+    _ripeVaultId: uint256,
+    _legoId: uint256,
+    _underlyingAsset: address,
+    _oldVaultData: RipeAsset,
+    _isCollateralVault: bool,
+    _shouldMaxWithdraw: bool,
+):
     levgVaultHelper: address = self.levgVaultHelper
-    oldCollData: RipeAsset = self.leverageAsset
 
-    assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(USDC, _vaultToken, _ripeVaultId, _legoId) # dev: invalid leverage vault token
-    self.vaultToLegoId[_vaultToken] = _legoId
+    # validate new vault token
+    if _vaultToken != empty(address):
+        assert staticcall LevgVaultHelper(levgVaultHelper).isValidVaultToken(_underlyingAsset, _vaultToken, _ripeVaultId, _legoId) # dev: invalid vault token
+        self.vaultToLegoId[_vaultToken] = _legoId
 
-    # validate old leverage vault token has no balances
-    assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, oldCollData.vaultToken, oldCollData.ripeVaultId) == 0 # dev: old vault has ripe balance
-    if oldCollData.vaultToken != _vaultToken:
-        assert staticcall IERC20(oldCollData.vaultToken).balanceOf(self) == 0 # dev: old vault has local balance
+    # handle old vault token if needed
+    if _oldVaultData.vaultToken != empty(address):
+        assert staticcall LevgVaultHelper(levgVaultHelper).getCollateralBalance(self, _oldVaultData.vaultToken, _oldVaultData.ripeVaultId) == 0 # dev: old vault has ripe balance
 
-    # update state
-    self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
-    log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+        # max withdraw underlying assets from old vault if needed
+        if _shouldMaxWithdraw and _oldVaultData.vaultToken != _vaultToken:
+            localBalance: uint256 = staticcall IERC20(_oldVaultData.vaultToken).balanceOf(self)
+            if localBalance != 0:
+                ad: VaultActionData = staticcall VaultRegistry(self._getVaultRegistry()).getVaultActionDataBundle(self.vaultToLegoId[_oldVaultData.vaultToken], msg.sender)
+                self._withdrawFromYield(_oldVaultData.vaultToken, max_value(uint256), empty(bytes32), ad)
+
+    # update state and emit event
+    if _isCollateralVault:
+        self.collateralAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+        log CollateralVaultTokenSet(collateralVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
+
+    else:
+        self.leverageAsset = RipeAsset(vaultToken=_vaultToken, ripeVaultId=_ripeVaultId)
+        log LeverageVaultTokenSet(leverageVaultToken = _vaultToken, legoId = _legoId, ripeVaultId = _ripeVaultId)
 
 
 # slippage settings (USDC <--> GREEN)
 
 
 @external
-def setUsdcSlippageAllowed(_slippage: uint256):
+def setSlippagesAllowed(_usdcSlippage: uint256, _greenSlippage: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.usdcSlippageAllowed = _slippage
-    log UsdcSlippageAllowedSet(slippage=_slippage)
-
-
-@external
-def setGreenSlippageAllowed(_slippage: uint256):
-    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _slippage <= 10_00 # dev: slippage too high (max 10%)
-    self.greenSlippageAllowed = _slippage
-    log GreenSlippageAllowedSet(slippage=_slippage)
+    assert _usdcSlippage <= 10_00 # dev: usdc slippage too high (max 10%)
+    assert _greenSlippage <= 10_00 # dev: green slippage too high (max 10%)
+    self.usdcSlippageAllowed = _usdcSlippage
+    self.greenSlippageAllowed = _greenSlippage
+    log SlippagesSet(usdcSlippage=_usdcSlippage, greenSlippage=_greenSlippage)
 
 
 # leverage vault helper
@@ -993,7 +926,7 @@ def setLevgVaultHelper(_levgVaultHelper: address):
 @external
 def setMaxDebtRatio(_ratio: uint256):
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _ratio <= HUNDRED_PERCENT # dev: ratio too high (max 100%)
+    assert _ratio <= 3 * HUNDRED_PERCENT # dev: ratio too high (max 300%)
     self.maxDebtRatio = _ratio
     log MaxDebtRatioSet(maxDebtRatio=_ratio)
 
@@ -1008,14 +941,15 @@ def setMaxDebtRatio(_ratio: uint256):
 
 @internal
 def _canManagerPerformAction(_signer: address, _legoIds: DynArray[uint256, MAX_LEGOS]) -> VaultActionData:
-    assert self.indexOfManager[_signer] != 0 # dev: not manager
+    vaultRegistry: address = self._getVaultRegistry()
+    if msg.sender != vaultRegistry:
+        assert self.indexOfManager[_signer] != 0 # dev: not manager
 
     # main data for this transaction - get action data and frozen status in single call
     legoId: uint256 = 0
     if len(_legoIds) != 0:
         legoId = _legoIds[0]
 
-    vaultRegistry: address = self._getVaultRegistry()
     ad: VaultActionData = empty(VaultActionData)
     isVaultOpsFrozen: bool = False
     ad, isVaultOpsFrozen = staticcall VaultRegistry(vaultRegistry).getVaultActionDataWithFrozenStatus(legoId, _signer, self)
@@ -1078,6 +1012,9 @@ def removeManager(_manager: address):
         self.managers[targetIndex] = lastItem
         self.indexOfManager[lastItem] = targetIndex
 
+    # clear the last position to prevent stale data
+    self.managers[lastIndex] = empty(address)
+
 
 #############
 # Utilities #
@@ -1105,7 +1042,29 @@ def _isSwitchboardAddr(_signer: address) -> bool:
     return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
 
 
+# logging
+
+
+@internal
+def _logAction(_op: uint8, _asset1: address, _asset2: address, _amount1: uint256, _amount2: uint256, _usdValue: uint256, _ad: VaultActionData):
+    log LevgVaultAction(
+        op = _op,
+        asset1 = _asset1,
+        asset2 = _asset2,
+        amount1 = _amount1,
+        amount2 = _amount2,
+        usdValue = _usdValue,
+        legoId = _ad.legoId,
+        signer = _ad.signer,
+    )
+
+
 # approve
+
+
+@internal
+def _approve(_token: address, _spender: address, _amount: uint256):
+    assert extcall IERC20(_token).approve(_spender, _amount, default_return_value = True) # dev: appr
 
 
 @internal
@@ -1113,7 +1072,7 @@ def _getAmountAndApprove(_token: address, _amount: uint256, _legoAddr: address) 
     amount: uint256 = min(_amount, staticcall IERC20(_token).balanceOf(self))
     assert amount != 0 # dev: no balance for _token
     if _legoAddr != empty(address):
-        assert extcall IERC20(_token).approve(_legoAddr, amount, default_return_value = True) # dev: appr
+        self._approve(_token, _legoAddr, amount)
     return amount
 
 
@@ -1147,44 +1106,17 @@ def _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
     success: bool = False
     response: Bytes[32] = b""
 
-    # assumes input is: lego addr (operator)
-    if numInputs == 1:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
-    
-    # assumes input (and order) is: user (self), lego addr (operator)
-    elif numInputs == 2:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
-
-    # assumes input (and order) is: user (self), lego addr (operator), allowed bool
-    elif numInputs == 3:
-        success, response = raw_call(
-            targetAddr,
-            concat(
-                method_abi,
-                convert(self, bytes32),
-                convert(_legoAddr, bytes32),
-                convert(True, bytes32),
-            ),
-            revert_on_failure = False,
-            max_outsize = 32,
-        )
+    # ripe protocol is only one that needs this in leverage vault
+    assert numInputs == 1 # dev: invalid number of inputs
+    success, response = raw_call(
+        targetAddr,
+        concat(
+            method_abi,
+            convert(_legoAddr, bytes32),
+        ),
+        revert_on_failure = False,
+        max_outsize = 32,
+    )
 
     assert success # dev: failed to set operator
     return True
@@ -1195,16 +1127,10 @@ def _setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool:
 
 @view
 @internal
-def _packMiniAddys(
-    _ledger: address,
-    _missionControl: address,
-    _legoBook: address,
-    _appraiser: address,
-) -> ws.MiniAddys:
+def _packMiniAddysFromAd(_ad: VaultActionData) -> ws.MiniAddys:
     return ws.MiniAddys(
-        ledger = _ledger,
-        missionControl = _missionControl,
-        legoBook = _legoBook,
-        appraiser = _appraiser,
+        ledger = _ad.ledger,
+        missionControl = _ad.missionControl,
+        legoBook = _ad.legoBook,
+        appraiser = _ad.appraiser,
     )
-

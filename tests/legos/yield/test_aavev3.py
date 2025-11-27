@@ -109,3 +109,15 @@ def test_aaveV3_withdraw_partial(
     asset, vault_tokens_received = setupWithdrawal(lego_id, token_str, vault_token)
 
     testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
+
+
+@pytest.mark.parametrize("token_str", TEST_ASSETS)
+@pytest.always
+def test_aaveV3_view_functions(
+    token_str,
+    getVaultToken,
+    lego_aave_v3,
+    testLegoViewFunctions,
+):
+    vault_token = getVaultToken(token_str)
+    testLegoViewFunctions(lego_aave_v3, vault_token, token_str)

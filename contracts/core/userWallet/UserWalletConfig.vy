@@ -33,7 +33,6 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 from ethereum.ercs import IERC721
-from ethereum.ercs import IERC20
 
 interface UserWallet:
     def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
@@ -48,10 +47,10 @@ interface UserWallet:
     def numAssets() -> uint256: view
 
 interface Sentinel:
+    def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
     def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
-    def checkManagerUsdLimitsAndUpdateData(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData) -> (bool, wcs.ManagerData): view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -70,6 +69,9 @@ interface LootDistributor:
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
+
+interface AgentWrapper:
+    def isSender(_address: address) -> bool: view
 
 event EjectionModeSet:
     inEjectMode: bool
@@ -93,10 +95,6 @@ highCommand: public(address)
 paymaster: public(address)
 chequeBook: public(address)
 migrator: public(address)
-
-# trial funds info
-trialFundsAsset: public(address)
-trialFundsAmount: public(uint256)
 
 # managers
 managerSettings: public(HashMap[address, wcs.ManagerSettings])
@@ -150,6 +148,7 @@ HATCHERY_ID: constant(uint256) = 5
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 APPRAISER_ID: constant(uint256) = 7
 BILLING_ID: constant(uint256) = 9
+VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: public(immutable(address))
 WETH: public(immutable(address))
@@ -164,9 +163,6 @@ def __init__(
     _undyHq: address,
     _owner: address,
     _groupId: uint256,
-    # trial funds
-    _trialFundsAsset: address,
-    _trialFundsAmount: uint256,
     # manager / payee settings
     _globalManagerSettings: wcs.GlobalManagerSettings,
     _globalPayeeSettings: wcs.GlobalPayeeSettings,
@@ -208,10 +204,8 @@ def __init__(
     self.numPayees = 1
     self.numWhitelisted = 1
 
-    # trial funds / group id
+    # group id
     self.groupId = _groupId
-    self.trialFundsAsset = _trialFundsAsset
-    self.trialFundsAmount = _trialFundsAmount
 
     # timelock
     assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
@@ -306,7 +300,16 @@ def checkSignerPermissionsAndGetBundle(
 
 
 @external
-def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) -> bool:
+def checkManagerLimitsPostTx(
+    _manager: address,
+    _txUsdValue: uint256,
+    _underlyingAsset: address,
+    _vaultToken: address,
+    _shouldCheckSwap: bool,
+    _fromAssetUsdValue: uint256,
+    _toAssetUsdValue: uint256,
+    _vaultRegistry: address,
+) -> bool:
     assert msg.sender == self.wallet # dev: no perms
 
     # required data / config
@@ -316,12 +319,21 @@ def checkManagerUsdLimitsAndUpdateData(_manager: address, _txUsdValue: uint256) 
 
     # check usd value limits
     canFinishTx: bool = False
-    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerUsdLimitsAndUpdateData(
+    canFinishTx, managerData = staticcall Sentinel(self.sentinel).checkManagerLimitsPostTx(
         _txUsdValue,
         config.limits,
         globalConfig.limits,
         globalConfig.managerPeriod,
         managerData,
+        (config.legoPerms.onlyApprovedYieldOpps or globalConfig.legoPerms.onlyApprovedYieldOpps),
+        _underlyingAsset,
+        _vaultToken,
+        _shouldCheckSwap,
+        config.swapPerms,
+        globalConfig.swapPerms,
+        _fromAssetUsdValue,
+        _toAssetUsdValue,
+        _vaultRegistry,
     )
 
     # IMPORTANT -- this checks manager limits (usd values)
@@ -424,11 +436,14 @@ def validateCheque(
     # IMPORTANT -- make sure this recipient has valid cheque
     assert isValidCheque # dev: invalid cheque
 
-    # only save if data was updated  
+    # only save if data was updated
     if data.lastChequePaidBlock != 0:
         self.chequePeriodData = data
         self.numActiveCheques -= 1
-    
+
+        # deactivate cheque after payment to prevent double-pulling
+        self.cheques[_recipient] = empty(wcs.Cheque)
+
     return True
 
 
@@ -771,39 +786,6 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
     return newTotalUsdValue
 
 
-# remove trial funds
-
-
-@external
-def removeTrialFunds() -> uint256:
-    hatchery: address = staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID)
-    assert msg.sender == hatchery # dev: no perms
-
-    # trial funds info
-    trialFundsAmount: uint256 = self.trialFundsAmount
-    trialFundsAsset: address = self.trialFundsAsset
-    assert trialFundsAsset != empty(address) and trialFundsAmount != 0 # dev: no trial funds
-
-    # transfer assets
-    amount: uint256 = 0
-    na: uint256 = 0
-    amount, na = extcall UserWallet(self.wallet).transferFunds(hatchery, trialFundsAsset, trialFundsAmount, False, True)
-
-    # update trial funds info
-    remainingAmount: uint256 = trialFundsAmount - min(trialFundsAmount, amount)
-    self.trialFundsAmount = remainingAmount
-    if remainingAmount == 0:
-        self.trialFundsAsset = empty(address)
-
-    return amount
-
-
-@view
-@external
-def getTrialFundsInfo() -> (address, uint256):
-    return self.trialFundsAsset, self.trialFundsAmount
-
-
 # migrate funds
 
 
@@ -883,7 +865,6 @@ def setFrozen(_isFrozen: bool):
 def setEjectionMode(_shouldEject: bool):
     # NOTE: this needs to be triggered from Switchboard, as it has other side effects / reactions
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert self.trialFundsAmount == 0 # dev: has trial funds
 
     assert _shouldEject != self.inEjectMode # dev: nothing to change
     self.inEjectMode = _shouldEject
@@ -924,6 +905,18 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+# is agent sender
+
+
+@view
+@external
+def isAgentSender(_addr: address) -> bool:
+    agent: address = self.startingAgent
+    if agent == empty(address):
+        return False
+    return staticcall AgentWrapper(agent).isSender(_addr)
 
 
 ###################
@@ -1014,6 +1007,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
         lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
         appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
         billing = staticcall Registry(hq).getAddr(BILLING_ID),
+        vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
         wallet = wallet,
         walletConfig = self,
         walletOwner = owner,
@@ -1021,7 +1015,7 @@ def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
         isFrozen = self.isFrozen,
         lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet),
         signer = _signer,
-        isManager = _signer != owner,
+        isManager = self.indexOfManager[_signer] != 0,
         legoId = _legoId,
         legoAddr = legoAddr,
         eth = ETH,

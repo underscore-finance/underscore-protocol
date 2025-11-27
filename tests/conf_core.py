@@ -157,6 +157,7 @@ def switchboard_deploy(undy_hq_deploy, fork):
     return boa.load(
         "contracts/registries/Switchboard.vy",
         undy_hq_deploy,
+        ZERO_ADDRESS,
         PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
         PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
         name="switchboard",
@@ -238,18 +239,16 @@ def switchboard_charlie(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def defaults(fork, user_wallet_template, user_wallet_config_template, agent_template, agent_eoa):
+def defaults(fork, user_wallet_template, user_wallet_config_template, agent_eoa):
     d = ZERO_ADDRESS
     if fork == "local":
         d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template,
-                     user_wallet_config_template, agent_template, agent_eoa)
+                     user_wallet_config_template, agent_eoa)
     elif fork == "base":
         # TODO: get actual agent contract here instead of using `agent_eoa`
-        trial_funds_asset = TOKENS[fork]["USDC"]
-        trial_funds_amount = 10 * (10 ** 6)
         rewards_asset = TOKENS[fork]["RIPE"]
-        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template, user_wallet_config_template,
-                     agent_template, agent_eoa, trial_funds_asset, trial_funds_amount, rewards_asset)
+        d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template,
+                     user_wallet_config_template, agent_eoa, rewards_asset)
     return d
 
 
@@ -335,13 +334,10 @@ def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
 @pytest.fixture(scope="session")
 def appraiser(undy_hq_deploy, fork, mock_ripe):
     ripe_hq = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-
     return boa.load(
         "contracts/core/Appraiser.vy",
         undy_hq_deploy,
         ripe_hq,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="appraiser",
     )
 
@@ -350,12 +346,10 @@ def appraiser(undy_hq_deploy, fork, mock_ripe):
 
 
 @pytest.fixture(scope="session")
-def billing(undy_hq_deploy, fork):
+def billing(undy_hq_deploy):
     return boa.load(
         "contracts/core/Billing.vy",
         undy_hq_deploy,
-        TOKENS[fork]["WETH"],
-        TOKENS[fork]["ETH"],
         name="billing",
     )
 
@@ -532,11 +526,6 @@ def user_wallet_config_template():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
 
 
-@pytest.fixture(scope="session")
-def agent_template():
-    return boa.load_partial("contracts/core/agent/AgentWrapper.vy").deploy_as_blueprint()
-
-
 ###############
 # Earn Vaults #
 ###############
@@ -568,6 +557,8 @@ def undy_usd_vault(undy_hq, vault_registry, governance, fork, starter_agent, yie
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [  # approvedVaultTokens
             yield_vault_token.address,
             yield_vault_token_2.address,
@@ -617,6 +608,8 @@ def undy_eth_vault(undy_hq, vault_registry, governance, fork, starter_agent, wet
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         10000000000000000,  # minYieldWithdrawAmount (0.01 WETH with 18 decimals)
@@ -661,6 +654,8 @@ def undy_btc_vault(undy_hq, vault_registry, governance, fork, starter_agent, swi
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
+        False,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
         [],  # approvedVaultTokens (empty for now, tests will add them as needed)
         0,  # maxDepositAmount (0 = unlimited)
         1000000,  # minYieldWithdrawAmount (0.01 cbBTC with 8 decimals)
@@ -726,16 +721,18 @@ def undy_levg_vault_usdc(undy_hq, levg_vault_helper, mock_usdc_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        [], # doesn't matter for leverage vault
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
@@ -775,16 +772,18 @@ def undy_levg_vault_cbbtc(undy_hq, levg_vault_helper, mock_cbbtc_collateral_vaul
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        [], # doesn't matter for leverage vault
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
@@ -824,16 +823,18 @@ def undy_levg_vault_weth(undy_hq, levg_vault_helper, mock_weth_collateral_vault,
     # confirmNewAddressToRegistry now auto-initializes vault config
     vault_registry.confirmNewAddressToRegistry(
         vault.address,
-        [], # doesn't matter for leverage vault
+        True,  # isLeveragedVault
+        False,  # shouldEnforceAllowlist
+        [],  # doesn't matter for leverage vault
         0,  # maxDepositAmount (0 = unlimited)
-        100_000_000_000, # doesn't matter for leverage vault
-        0, # doesn't matter for leverage vault
-        ZERO_ADDRESS, # doesn't matter for leverage vault
-        True, # shouldAutoDeposit
-        True, # canDeposit
-        True, # canWithdraw
-        False, # isVaultOpsFrozen
-        2_00, # redemptionBuffer (2%)
+        100_000_000_000,  # doesn't matter for leverage vault
+        0,  # doesn't matter for leverage vault
+        ZERO_ADDRESS,  # doesn't matter for leverage vault
+        True,  # shouldAutoDeposit
+        True,  # canDeposit
+        True,  # canWithdraw
+        False,  # isVaultOpsFrozen
+        2_00,  # redemptionBuffer (2%)
         sender=governance.address
     )
     return vault
