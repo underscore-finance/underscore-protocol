@@ -1,5 +1,5 @@
 Connecting to Base mainnet via Alchemy...
-Connected. Block: 38697479
+Connected. Block: 38739832
 
 Loading contracts from Etherscan...
 Fetching configuration data...
@@ -7,8 +7,8 @@ Fetching configuration data...
 ================================================================================
 # Underscore Protocol Production Parameters
 
-**Generated:** 2025-11-26 19:12:21 UTC
-**Block:** 38697479
+**Generated:** 2025-11-27 18:44:01 UTC
+**Block:** 38739832
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -59,33 +59,33 @@ Address: 0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9
 | ID | Description | Address | Can Mint UNDY | Can Set Blacklist |
 | --- | --- | --- | --- | --- |
 | 1 | Ledger | Ledger (0x9e97...c5D0) | No | No |
-| 2 | Mission Control | MissionControl (0x910F...2006) | No | No |
-| 3 | Lego Book | LegoBook (0x9788...d8e3) | No | No |
-| 4 | Switchboard | 0xe52A...fC7e | No | Yes |
-| 5 | Hatchery | 0xCCE4...D4d2 | No | No |
-| 6 | Loot Distributor | 0x2D77...910C | No | No |
-| 7 | Appraiser | 0x2126...39E5 | No | No |
-| 8 | Wallet Backpack | WalletBackpack (0x0E8D...5CcD) | No | No |
-| 9 | Billing | 0x4139...C73E | No | No |
-| 10 | Vault Registry | VaultRegistry (0xC64A...5b64) | No | No |
+| 2 | Mission Control | MissionControl (0x89c8...2cBE) | No | No |
+| 3 | Lego Book | LegoBook (0x2fD6...50EB) | No | No |
+| 4 | Switchboard | Switchboard (0xd6B8...4e11) | No | Yes |
+| 5 | Hatchery | 0x3ea1...c193 | No | No |
+| 6 | Loot Distributor | LootDistributor (0x23d6...9dE8) | No | No |
+| 7 | Appraiser | Appraiser (0x8C65...45e2) | No | No |
+| 8 | Wallet Backpack | WalletBackpack (0x1009...6250) | No | No |
+| 9 | Billing | Billing (0xB61d...6E4e) | No | No |
+| 10 | Vault Registry | VaultRegistry (0x1C17...e3Cf) | No | No |
 
 ================================================================================
 
 <a id="mission-control"></a>
 # MissionControl - Core Protocol Configuration
-Address: 0x910FE9484540fa21B092eE04a478A30A6B342006
+Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 
 <a id="user-wallet-config"></a>
 
 ## User Wallet Config
 | Parameter | Value |
 | --- | --- |
-| walletTemplate | 0x4C4D...3a40 |
-| configTemplate | 0x0E70...24F1 |
-| numUserWalletsAllowed | 10000 |
+| walletTemplate | 0x880E...7C12 |
+| configTemplate | 0xbF7b...10Fb |
+| numUserWalletsAllowed | 100000 |
 | enforceCreatorWhitelist | True |
 | minKeyActionTimeLock | 21600 blocks (~12.0h) |
-| maxKeyActionTimeLock | 302400 blocks (~7.0d) |
+| maxKeyActionTimeLock | 604800 blocks (~14.0d) |
 | depositRewardsAsset | 0x2A0a...dDC0 |
 | lootClaimCoolOffPeriod | 0 blocks (~0s) |
 
@@ -103,12 +103,21 @@ Address: 0x910FE9484540fa21B092eE04a478A30A6B342006
 | rewardsRatio | 0.00% |
 | yieldRatio | 0.00% |
 
+## Default Yield Config
+| Parameter | Value |
+| --- | --- |
+| maxYieldIncrease | 5.00% |
+| performanceFee | 20.00% |
+| ambassadorBonusRatio | 100.00% |
+| bonusRatio | 100.00% |
+| bonusAsset | 0x2A0a...dDC0 |
+
 <a id="agent-config"></a>
 
 ## Agent Config
 | Parameter | Value |
 | --- | --- |
-| startingAgent | 0x9d3F...a2F9 |
+| startingAgent | 0x761f...203B |
 | startingAgentActivationLength | 31536000 blocks (~730.0d) |
 
 <a id="manager-config"></a>
@@ -118,10 +127,10 @@ Address: 0x910FE9484540fa21B092eE04a478A30A6B342006
 | --- | --- |
 | managerPeriod | 43200 blocks (~1.0d) |
 | managerActivationLength | 1296000 blocks (~30.0d) |
-| mustHaveUsdValueOnSwaps | N/A |
-| maxNumSwapsPerPeriod | N/A |
-| maxSlippageOnSwaps | N/A |
-| onlyApprovedYieldOpps | N/A |
+| mustHaveUsdValueOnSwaps | True |
+| maxNumSwapsPerPeriod | 2 |
+| maxSlippageOnSwaps | 5.00% |
+| onlyApprovedYieldOpps | True |
 
 <a id="payee-config"></a>
 
@@ -146,27 +155,26 @@ Address: 0x910FE9484540fa21B092eE04a478A30A6B342006
 
 <a id="switchboard-alpha"></a>
 # SwitchboardAlpha - Timelock Settings
-Address: 0xb7622CB741C2B26E59e262604d941C50D309C358
+Address: 0xB7d32916c8E7F74f70aF7ECFcb35B04358E50bAc
 
 ## Timelock Config
 | Parameter | Value |
 | --- | --- |
-| minConfigTimeLock | N/A |
-| maxConfigTimeLock | N/A |
-| configTimeLock | N/A |
-| numActions | N/A |
+| minActionTimeLock | 3600 blocks (~2.0h) |
+| maxActionTimeLock | 1296000 blocks (~30.0d) |
+| actionTimeLock | 0 blocks (~0s) |
 
 ================================================================================
 
 <a id="vault-registry"></a>
 # VaultRegistry - Vault Configuration
-Address: 0xC64A779FE55673F93F647F1E2A30B3C3a9A25b64
+Address: 0x1C17ef5Ef2AefcEE958E7e3dC345e96aBfF4e3Cf
 
 ## Registry Config
 | Parameter | Value |
 | --- | --- |
-| numAddrs (vaults) | 16 |
-| registryChangeTimeLock | 3600 blocks (~2.0h) |
+| numAddrs (vaults) | 10 |
+| registryChangeTimeLock | 0 blocks (~0s) |
 
 ================================================================================
 
@@ -188,8 +196,32 @@ Address: 0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (21):**
+| Index | Token |
+| --- | --- |
+| 1 | 0x7BfA...F34A |
+| 2 | 0xbeeF...8183 |
+| 3 | 0xc125...A2Ca |
+| 4 | 0x616a...3738 |
+| 5 | 0xeE8F...4b61 |
+| 6 | 0xBEEF...83b2 |
+| 7 | 0x2347...3B5e |
+| 8 | 0xBEEF...878F |
+| 9 | 0xc0c5...Eb12 |
+| 10 | 0xB789...b863 |
+| 11 | 0x12AF...406e |
+| 12 | 0x2369...e890 |
+| 13 | 0x0A1a...eE16 |
+| 14 | 0x4e65...c0AB |
+| 15 | 0xb125...Eb2F |
+| 16 | 0xf42f...9169 |
+| 17 | 0xEdc8...6c22 |
+| 18 | 0xB99B...7Cf5 |
+| 19 | 0x1C4a...8B24 |
+| 20 | 0x9447...E7f9 |
 
 ### UndyEth
 Address: 0x02981DB1a99A14912b204437e7a2E02679B57668
@@ -206,8 +238,23 @@ Address: 0x02981DB1a99A14912b204437e7a2E02679B57668
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (12):**
+| Index | Token |
+| --- | --- |
+| 1 | 0xa0E4...0ff1 |
+| 2 | 0x27D8...5c18 |
+| 3 | 0x5A32...7a8C |
+| 4 | 0x0983...1C53 |
+| 5 | 0x6b13...8844 |
+| 6 | 0xA2Ca...3AFc |
+| 7 | 0x8591...b410 |
+| 8 | 0xD4a0...8bb7 |
+| 9 | 0x46e6...70bf |
+| 10 | 0x9272...1CE9 |
+| 11 | 0x628f...D457 |
 
 ### UndyBtc
 Address: 0x3fb0fC9D3Ddd543AD1b748Ed2286a022f4638493
@@ -224,8 +271,18 @@ Address: 0x3fb0fC9D3Ddd543AD1b748Ed2286a022f4638493
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (7):**
+| Index | Token |
+| --- | --- |
+| 1 | 0x5432...a796 |
+| 2 | 0x6770...07Cb |
+| 3 | 0x5a47...F3C7 |
+| 4 | 0x8820...7f8B |
+| 5 | 0xBdb9...8EE6 |
+| 6 | 0xF877...5976 |
 
 ### UndyAero
 Address: 0x96F1a7ce331F40afe866F3b707c223e377661087
@@ -242,8 +299,14 @@ Address: 0x96F1a7ce331F40afe866F3b707c223e377661087
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (3):**
+| Index | Token |
+| --- | --- |
+| 1 | 0x784e...cE89 |
+| 2 | 0x7390...9Ba6 |
 
 ### UndyEurc
 Address: 0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8
@@ -260,8 +323,19 @@ Address: 0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (8):**
+| Index | Token |
+| --- | --- |
+| 1 | 0xf246...a026 |
+| 2 | 0xBeEF...6ab5 |
+| 3 | 0x1c15...e122 |
+| 4 | 0x9ECD...7117 |
+| 5 | 0x90DA...025B |
+| 6 | 0x1943...B401 |
+| 7 | 0xb682...01a2 |
 
 ### UndyUsds
 Address: 0xaA0C35937a193ca81A64b3cFd5892dac384d22bB
@@ -278,8 +352,16 @@ Address: 0xaA0C35937a193ca81A64b3cFd5892dac384d22bB
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (5):**
+| Index | Token |
+| --- | --- |
+| 1 | 0x2c77...A518 |
+| 2 | 0xb641...a357 |
+| 3 | 0x556d...1D8b |
+| 4 | 0x5875...467a |
 
 ### UndyCbeth
 Address: 0xFe75aD75AD59a5c80de5AE0726Feee89567F080d
@@ -296,8 +378,15 @@ Address: 0xFe75aD75AD59a5c80de5AE0726Feee89567F080d
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (4):**
+| Index | Token |
+| --- | --- |
+| 1 | 0xcf3D...95ad |
+| 2 | 0x3bf9...A5E5 |
+| 3 | 0x358f...ea49 |
 
 ### UndyGho
 Address: 0x220b8B08c8CfD6975ed203AA26887c0AA5a8cf44
@@ -314,8 +403,14 @@ Address: 0x220b8B08c8CfD6975ed203AA26887c0AA5a8cf44
 | performanceFee | 20.00% |
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
-| isLeveragedVault | N/A |
-| shouldEnforceAllowlist | N/A |
+| isLeveragedVault | False |
+| shouldEnforceAllowlist | False |
+
+**Approved Vault Tokens (3):**
+| Index | Token |
+| --- | --- |
+| 1 | 0x067a...cBd1 |
+| 2 | 0x8Ddb...3631 |
 
 ================================================================================
 
@@ -329,17 +424,17 @@ Address: 0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf
 | Parameter | Value |
 | --- | --- |
 | asset | USDC (0x8335...2913) |
-| totalAssets | 301.85K  |
+| totalAssets | 301.91K  |
 | totalSupply (shares) | 0.00  |
 | numManagers | 2 |
-| numAssets (yield positions) | 5 |
-| lastUnderlyingBal | 302.03K  |
-| pendingYieldRealized | 986.62  |
+| numAssets (yield positions) | 6 |
+| lastUnderlyingBal | 302.12K  |
+| pendingYieldRealized | 1.05K  |
 
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyEth Details
@@ -359,7 +454,7 @@ Address: 0x02981DB1a99A14912b204437e7a2E02679B57668
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyBtc Details
@@ -379,7 +474,7 @@ Address: 0x3fb0fC9D3Ddd543AD1b748Ed2286a022f4638493
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyAero Details
@@ -390,16 +485,16 @@ Address: 0x96F1a7ce331F40afe866F3b707c223e377661087
 | --- | --- |
 | asset | AERO (0x9401...8631) |
 | totalAssets | 5.20K  |
-| totalSupply (shares) | 5.20K  |
+| totalSupply (shares) | 5.19K  |
 | numManagers | 2 |
 | numAssets (yield positions) | 2 |
 | lastUnderlyingBal | 5.20K  |
-| pendingYieldRealized | 2.86  |
+| pendingYieldRealized | 4.66  |
 
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyEurc Details
@@ -409,17 +504,17 @@ Address: 0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8
 | Parameter | Value |
 | --- | --- |
 | asset | EURC (0x60a3...db42) |
-| totalAssets | 177.14  |
+| totalAssets | 177.15  |
 | totalSupply (shares) | 0.00  |
 | numManagers | 2 |
 | numAssets (yield positions) | 5 |
-| lastUnderlyingBal | 177.16  |
-| pendingYieldRealized | 0.16  |
+| lastUnderlyingBal | 177.19  |
+| pendingYieldRealized | 0.19  |
 
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyUsds Details
@@ -439,7 +534,7 @@ Address: 0xaA0C35937a193ca81A64b3cFd5892dac384d22bB
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyCbeth Details
@@ -459,7 +554,7 @@ Address: 0xFe75aD75AD59a5c80de5AE0726Feee89567F080d
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ### UndyGho Details
@@ -479,89 +574,89 @@ Address: 0x220b8B08c8CfD6975ed203AA26887c0AA5a8cf44
 **Managers (2):**
 | Index | Manager |
 | --- | --- |
-| 1 | 0x6B01...30a7 |
+| 1 | EarnVaultAgent (0x6B01...30a7) |
 | 2 | 0x8d6D...1e3b |
 
 ================================================================================
 
 <a id="wallet-backpack"></a>
 # WalletBackpack - Wallet Components
-Address: 0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD
+Address: 0x10099b1386b434Ea4da1967d952931b645Df6250
 
 ## Wallet Components
 | Component | Address |
 | --- | --- |
-| kernel | 0xcb91...D217 |
-| sentinel | 0xA9A7...Bf30 |
-| highCommand | 0x84c5...4372 |
-| paymaster | 0x5aDc...4946 |
-| chequeBook | 0xF800...0318 |
-| migrator | 0x99bf...b22C |
+| kernel | Kernel (0xAdED...B389) |
+| sentinel | Sentinel (0xCCe9...667b) |
+| highCommand | HighCommand (0x0649...78EC) |
+| paymaster | Paymaster (0x80bf...AFCb) |
+| chequeBook | ChequeBook (0xcC93...0Dc9) |
+| migrator | Migrator (0xe008...169a) |
 
 ================================================================================
 
 <a id="lego-book"></a>
 # LegoBook - Lego Registry
-Address: 0x9788f0D9D1A6577F685972B066b4Db2D73fEd8e3
+Address: 0x2fD67d572806Fc43B55aFE2ad032702d826450EB
 
 ## Registry Config
 | Parameter | Value |
 | --- | --- |
 | legoTools | None |
 | numAddrs (legos) | 17 |
-| registryChangeTimeLock | 3600 blocks (~2.0h) |
+| registryChangeTimeLock | 0 blocks (~0s) |
 
 ### Registered Legos
 | ID | Description | Address |
 | --- | --- | --- |
-| 1 | Ripe Protocol | 0xf819...cb56 |
-| 2 | Aave v3 | 0x256f...d1D3 |
-| 3 | Compound v3 | 0xAB75...1f58 |
-| 4 | Euler | 0x6669...E069 |
-| 5 | Fluid | 0x7C61...DF45 |
-| 6 | Moonwell | 0x3F42...fEc1 |
-| 7 | Morpho | 0x77ED...2e1E |
-| 8 | Aero Classic | 0x5Dec...0245 |
-| 9 | Aero Slipstream | 0xC626...2248 |
-| 10 | Curve | 0x4e0C...0743 |
-| 11 | Uniswap v2 | 0x33F7...4ce6 |
-| 12 | Uniswap v3 | 0xda8C...91cB |
-| 13 | Underscore Lego | 0xB3a0...220a |
-| 14 | 40 Acres | 0xea19...FA91 |
-| 15 | Wasabi | 0x2b99...a6D4 |
-| 16 | Avantis | 0x0b6D...3D35 |
-| 17 | Sky Psm | 0x8cC1...57EB |
+| 1 | Ripe Protocol | 0x2728...9A54 |
+| 2 | Aave v3 | 0xac80...1478 |
+| 3 | Compound v3 | 0x590F...fbA7 |
+| 4 | Euler | 0x7f52...4fd6 |
+| 5 | Fluid | 0x67E7...4f93 |
+| 6 | Moonwell | 0x0657...d804 |
+| 7 | Morpho | 0x1485...8868 |
+| 8 | Aero Classic | 0x43B2...84D1 |
+| 9 | Aero Slipstream | 0x2DD2...70bd |
+| 10 | Curve | 0x7192...dF65 |
+| 11 | Uniswap V2 | 0x9597...6fd7 |
+| 12 | Uniswap V3 | 0xEa1f...e7A5 |
+| 13 | Underscore Lego | 0x0f79...f9E9 |
+| 14 | 40 Acres | 0x39F5...6514 |
+| 15 | Wasabi | 0xe67E...3BEd |
+| 16 | Avantis | 0xc88C...F1f0 |
+| 17 | Sky Psm | 0xEe7B...92CF |
 
 ================================================================================
 
 <a id="switchboard-registry"></a>
 # Switchboard - Config Contracts Registry
-Address: 0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e
+Address: 0xd6B83538214B7e7d57Cd9faCd260E284a5fe4e11
 
 ## Registry Config
 | Parameter | Value |
 | --- | --- |
 | numAddrs (config contracts) | 3 |
-| registryChangeTimeLock | 21600 blocks (~12.0h) |
+| registryChangeTimeLock | 0 blocks (~0s) |
 
 ### Registered Config Contracts
 | ID | Description | Address |
 | --- | --- | --- |
-| 1 | SwitchboardAlpha | 0xb762...C358 |
-| 2 | SwitchboardBravo | 0xf1F5...368c |
-| 3 | Switchboard Charlie | 0xAb0e...8987 |
+| 1 | SwitchboardAlpha | SwitchboardAlpha (0xB7d3...0bAc) |
+| 2 | SwitchboardBravo | SwitchboardBravo (0x5ed8...9B84) |
+| 3 | SwitchboardCharlie | SwitchboardCharlie (0xDd75...0117) |
 
 ================================================================================
 
 <a id="loot-distributor"></a>
 # LootDistributor - Rewards Configuration
-Address: 0x2D775AfA205729b8e74F9215611Ed700f564910C
+Address: 0x23d69D99061acf04c6e86f58692F533E4f039dE8
 
 ## Loot Config
 | Parameter | Value |
 | --- | --- |
-| depositRewards.asset | 0x2A0a...dDC0 |
-| depositRewards.amount | 152.31  |
+| depositRewards.asset | None |
+| depositRewards.amount | 0.00  |
 | ripeStakeRatio | 80.00% |
 | ripeLockDuration | 7776000 blocks (~180.0d) |
 | RIPE_TOKEN | 0x2A0a...dDC0 |
@@ -581,11 +676,11 @@ Address: 0x9e97A2e527890E690c7FA978696A88EFA868c5D0
 ## Global Points
 | Parameter | Value |
 | --- | --- |
-| usdValue | 213.13K USD |
-| depositPoints | 86,093,441,298 |
-| lastUpdate (block) | 38,694,540 |
+| usdValue | 213.17K USD |
+| depositPoints | 93,179,168,091 |
+| lastUpdate (block) | 38,727,772 |
 
 ================================================================================
 
 ---
-*Report generated at block 38697479 on 2025-11-26 19:14:34 UTC*
+*Report generated at block 38739832 on 2025-11-27 18:45:38 UTC*

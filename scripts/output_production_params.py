@@ -18,34 +18,35 @@ import boa
 # Contract addresses (Base Mainnet)
 # Registries
 UNDY_HQ = "0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9"
-LEGO_BOOK = "0x9788f0D9D1A6577F685972B066b4Db2D73fEd8e3"
-SWITCHBOARD = "0xe52A6790fC8210DE16847f1FaF55A6146c0BfC7e"
-VAULT_REGISTRY = "0xC64A779FE55673F93F647F1E2A30B3C3a9A25b64"
+LEGO_BOOK = "0x2fD67d572806Fc43B55aFE2ad032702d826450EB"
+SWITCHBOARD = "0xd6B83538214B7e7d57Cd9faCd260E284a5fe4e11"
+VAULT_REGISTRY = "0x1C17ef5Ef2AefcEE958E7e3dC345e96aBfF4e3Cf"
 
 # Config Contracts
-SWITCHBOARD_ALPHA = "0xb7622CB741C2B26E59e262604d941C50D309C358"
-SWITCHBOARD_BRAVO = "0xf1F5938559884D3c54400b417292B93cd81C368c"
-MISSION_CONTROL = "0x910FE9484540fa21B092eE04a478A30A6B342006"
+SWITCHBOARD_ALPHA = "0xB7d32916c8E7F74f70aF7ECFcb35B04358E50bAc"
+SWITCHBOARD_BRAVO = "0x5ed80D2F832da36CCCCd26F856C72b1AdD359B84"
+SWITCHBOARD_CHARLIE = "0xDd7507f7FC1845Ba0f07C3f0164D7b114C150117"
+MISSION_CONTROL = "0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE"
 
 # Wallet Backpack
-WALLET_BACKPACK = "0x0E8D974Cdea08BcAa43421A15B7947Ec901f5CcD"
-CHEQUE_BOOK = "0xF8009A583A82077c81A2c10C45Bd0122a26C0318"
-HIGH_COMMAND = "0x84c54F4801FBf5c189E49d7CE5B1CB4378BE4372"
-KERNEL = "0xcb91C738E301bDf8Ee5354f0Ef2692B41145D217"
-MIGRATOR = "0x99bf2C624C02082C16bD12a241bfC4cA1659b22C"
-PAYMASTER = "0x5aDc5a2b5018426243C98Aa52E4696F614274946"
-SENTINEL = "0xA9A71c4eA67f8ff41A4639f71CFc5E79611BBf30"
+WALLET_BACKPACK = "0x10099b1386b434Ea4da1967d952931b645Df6250"
+CHEQUE_BOOK = "0xcC939d6b16C6a5f07cde6Bc2bD23cb9B8b7a0Dc9"
+HIGH_COMMAND = "0x06492EA8F83B3a61d71B61FEEF7F167aDD9A78EC"
+KERNEL = "0xAdED981a6Dfc6C3e3E4DbBa54362375FDcF7B389"
+MIGRATOR = "0xe008114992187138a7C341Db0CD900F88BC0169a"
+PAYMASTER = "0x80bf71E098Dc328D87456c34675C2B4C10a1AFCb"
+SENTINEL = "0xCCe9B58b7d377631e58d3Bd95f12a35cF49F667b"
 
 # Templates
-USER_WALLET_TEMPLATE = "0x4C4D1a888a0b49eA217a8F41f207CFe59Ab03a40"
-USER_WALLET_CONFIG_TEMPLATE = "0x0E7064202c4F906Adc4D9F6D3C92470b62F624F1"
-AGENT_WRAPPER_TEMPLATE = "0xe1d877C9160878F83EB8e996428C44e898BF414B"
+USER_WALLET_TEMPLATE = "0x880E453Ec494FB17bffba537BeaB4Cc6CD1B7C12"
+USER_WALLET_CONFIG_TEMPLATE = "0xbF7bAdf4c71102cA49b3f82D50348256cE6C10Fb"
+AGENT_WRAPPER = "0x761fCDFfF8B187901eA11415237632A3F7E0203B"
 
 # Core
-APPRAISER = "0x212652d44EA7A1642c4F8c9De6F7F3a62ff639E5"
-BILLING = "0x413962eCe8652A0FAfd14d1dC141A421E3DcC73E"
-HATCHERY = "0xCCE416b5050F628C85A57a817F168C1a7Af8D4d2"
-LOOT_DISTRIBUTOR = "0x2D775AfA205729b8e74F9215611Ed700f564910C"
+APPRAISER = "0x8C6521e6f2676a7AdC8484444f161c3538e545e2"
+BILLING = "0xB61dDF5a56b4a008f072087BBe411A9B6F576E4e"
+HATCHERY = "0x95B85a88200b33C64f9935750C2Ea62fB54141E7"
+LOOT_DISTRIBUTOR = "0x23d69D99061acf04c6e86f58692F533E4f039dE8"
 LEDGER = "0x9e97A2e527890E690c7FA978696A88EFA868c5D0"
 
 # Earn Vaults
@@ -62,31 +63,31 @@ EARN_VAULTS = {
 
 # Yield Legos
 YIELD_LEGOS = {
-    "AaveV3": "0x256f0f254B44C69e431C5eaFbB9A86F85DA1d1D3",
-    "CompoundV3": "0xAB7518D8b69067AC82F50B29867B24cA0a911f58",
-    "Euler": "0x6669A47A105d3c9F17b428838f3dD18A7D44E069",
-    "Fluid": "0x7C619b4d396BB4802B31738F9F1ef69d94D9DF45",
-    "Moonwell": "0x3F42489Ed3836DCBaF1A722c8403F4a6CB56fEc1",
-    "Morpho": "0x77EDfc58AF0C52D8a77B1d0630a4284cB1752e1E",
-    "40Acres": "0xea19B48ae835CC6198ecfCb36Fe710f6dAAdFA91",
-    "Wasabi": "0x2b993B00B44095ec52c5BA456551022f0B9ca6D4",
-    "Avantis": "0x0b6DF4b22891139a17588523cc1AF068Ecf03D35",
-    "SkyPsm": "0x8cC1729066d5fEaDe4C9326C3f001c42bEFD57EB",
+    "AaveV3": "0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478",
+    "CompoundV3": "0x590FB39919c5F0323a93B54f2634d010b6ECfbA7",
+    "Euler": "0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6",
+    "Fluid": "0x67E7bcC1deBd060251a9ECeA37002a3986E74f93",
+    "Moonwell": "0x0657CF4683870b8420bB8Da57db83e5F9A1ad804",
+    "Morpho": "0x14852dcEEA98d5E781335bA8ea8d4B3a14508868",
+    "40Acres": "0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514",
+    "Wasabi": "0xe67Ef17B6c82a555CB040173273FB271fcc43BEd",
+    "Avantis": "0xc88CD884bdFa8F2D93e32a13EE16543b8a2CF1f0",
+    "SkyPsm": "0xEe7B4F2338389A6453E85a65976F3241986492CF",
 }
 
 # DEX Legos
 DEX_LEGOS = {
-    "AeroClassic": "0x5Decf97EA12AaBFF0e4E5810F6fa2C920d640245",
-    "AeroSlipstream": "0xC626C1DaEbe71CC4e51028eDABE69f13b6362248",
-    "Curve": "0x4e0C4B96FAdc84D41144C1aE868aA1411c1d0743",
-    "UniswapV2": "0x33F73b46Ba59cC8B7a1fC807076d4686A8364ce6",
-    "UniswapV3": "0xda8C08B95B79E450BDE507a33C0BdcF5562691cB",
+    "AeroClassic": "0x43B2a72595016D765E2A66e4c2Cf3026619784D1",
+    "AeroSlipstream": "0x2DD267Ab1BA631E93e7c6a9EA6fbcc48882770bd",
+    "Curve": "0x7192867D67329800345750f5A281Ce1352C3dF65",
+    "UniswapV2": "0x95979aEF0F70887f31701944b658948890F56fd7",
+    "UniswapV3": "0xEa1f7604E751b54AF321636DBc2dc75C0045e7A5",
 }
 
 # Other Contracts
-LEGO_TOOLS = "0x9236af092494C91Da80364C8Df3557FB05C0094E"
-RIPE_LEGO = "0xf8190935c8682d5f802A0b4AF0C782AcEb9ecb56"
-UNDERSCORE_LEGO = "0xB3a04D48a85d052496a6ee3Fad28A557717C220a"
+LEGO_TOOLS = "0x8c76F6e2151CE6794AE3F400C1cB07136058DF72"
+RIPE_LEGO = "0x272812fC816a6a8C1A2988b24D06878493459A54"
+UNDERSCORE_LEGO = "0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9"
 EARN_VAULT_AGENT = "0x6B014c7BE0fCA7801133Db96737378CCE85230a7"
 
 # RPC URL
@@ -138,6 +139,22 @@ def get_token_name(address: str, try_fetch: bool = True) -> str:
         LEGO_BOOK.lower(): "LegoBook",
         LEDGER.lower(): "Ledger",
         WALLET_BACKPACK.lower(): "WalletBackpack",
+        SWITCHBOARD.lower(): "Switchboard",
+        SWITCHBOARD_ALPHA.lower(): "SwitchboardAlpha",
+        SWITCHBOARD_BRAVO.lower(): "SwitchboardBravo",
+        SWITCHBOARD_CHARLIE.lower(): "SwitchboardCharlie",
+        APPRAISER.lower(): "Appraiser",
+        BILLING.lower(): "Billing",
+        HATCHERY.lower(): "Hatchery",
+        LOOT_DISTRIBUTOR.lower(): "LootDistributor",
+        KERNEL.lower(): "Kernel",
+        SENTINEL.lower(): "Sentinel",
+        HIGH_COMMAND.lower(): "HighCommand",
+        PAYMASTER.lower(): "Paymaster",
+        CHEQUE_BOOK.lower(): "ChequeBook",
+        MIGRATOR.lower(): "Migrator",
+        EARN_VAULT_AGENT.lower(): "EarnVaultAgent",
+        LEGO_TOOLS.lower(): "LegoTools",
     }
     if addr_lower in known_addresses:
         _token_symbol_cache[addr_lower] = known_addresses[addr_lower]
@@ -248,33 +265,19 @@ def print_executive_summary(ledger, lego_book, vault_registry):
     print("\n<a id=\"executive-summary\"></a>")
     print("## Executive Summary\n")
 
-    try:
-        rows = []
+    num_wallets = ledger.numUserWallets()
+    num_legos = lego_book.numAddrs()
 
-        # User wallets
-        try:
-            num_wallets = ledger.numUserWallets()
-            rows.append(("Total User Wallets", num_wallets - 1 if num_wallets > 0 else 0))
-        except Exception:
-            rows.append(("Total User Wallets", "N/A"))
+    rows = [
+        ("Total User Wallets", num_wallets - 1 if num_wallets > 0 else 0),
+        ("Registered Legos", num_legos - 1 if num_legos > 0 else 0),
+        ("Earn Vaults", len(EARN_VAULTS)),
+    ]
 
-        # Registered legos
-        try:
-            num_legos = lego_book.numAddrs()
-            rows.append(("Registered Legos", num_legos - 1 if num_legos > 0 else 0))
-        except Exception:
-            rows.append(("Registered Legos", "N/A"))
-
-        # Earn vaults
-        rows.append(("Earn Vaults", len(EARN_VAULTS)))
-
-        print("| Metric | Value |")
-        print("| --- | --- |")
-        for row in rows:
-            print(f"| **{row[0]}** | {row[1]} |")
-
-    except Exception as e:
-        print(f"*Error generating summary: {e}*")
+    print("| Metric | Value |")
+    print("| --- | --- |")
+    for row in rows:
+        print(f"| **{row[0]}** | {row[1]} |")
 
 
 def fetch_undy_hq_data(hq):
@@ -284,70 +287,41 @@ def fetch_undy_hq_data(hq):
     print("# UndyHq - Main Registry & Governance")
     print(f"Address: {UNDY_HQ}")
 
-    rows = []
-
-    # undyToken
-    try:
-        undy_token = hq.undyToken()
-        rows.append(("undyToken", format_address(str(undy_token))))
-    except Exception:
-        rows.append(("undyToken", "N/A"))
-
-    # mintEnabled
-    try:
-        mint_enabled = hq.mintEnabled()
-        rows.append(("mintEnabled", mint_enabled))
-    except Exception:
-        rows.append(("mintEnabled", "N/A"))
-
-    # numAddrs
-    try:
-        num_addrs = hq.numAddrs()
-        rows.append(("numAddrs (departments)", num_addrs - 1 if num_addrs > 0 else 0))
-    except Exception:
-        rows.append(("numAddrs", "N/A"))
-
-    # registryChangeTimeLock
-    try:
-        timelock = hq.registryChangeTimeLock()
-        rows.append(("registryChangeTimeLock", format_blocks_to_time(timelock)))
-    except Exception:
-        rows.append(("registryChangeTimeLock", "N/A"))
+    num_addrs = hq.numAddrs()
+    rows = [
+        ("undyToken", format_address(str(hq.undyToken()))),
+        ("mintEnabled", hq.mintEnabled()),
+        ("numAddrs (departments)", num_addrs - 1 if num_addrs > 0 else 0),
+        ("registryChangeTimeLock", format_blocks_to_time(hq.registryChangeTimeLock())),
+    ]
 
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
     # List registered departments
-    try:
-        num_addrs = hq.numAddrs()
-        if num_addrs > 1:
-            print("\n### Registered Departments")
-            headers = ["ID", "Description", "Address", "Can Mint UNDY", "Can Set Blacklist"]
-            dept_rows = []
-            for i in range(1, num_addrs):
-                try:
-                    addr_info = hq.addrInfo(i)
-                    contract_addr = str(addr_info.addr)
-                    if contract_addr == "0x0000000000000000000000000000000000000000":
-                        continue
+    if num_addrs > 1:
+        print("\n### Registered Departments")
+        headers = ["ID", "Description", "Address", "Can Mint UNDY", "Can Set Blacklist"]
+        dept_rows = []
+        for i in range(1, num_addrs):
+            addr_info = hq.addrInfo(i)
+            contract_addr = str(addr_info.addr)
+            if contract_addr == "0x0000000000000000000000000000000000000000":
+                continue
 
-                    hq_config = hq.hqConfig(i)
-                    dept_rows.append([
-                        i,
-                        addr_info.description,
-                        format_address(contract_addr),
-                        "Yes" if hq_config.canMintUndy else "No",
-                        "Yes" if hq_config.canSetTokenBlacklist else "No",
-                    ])
-                except Exception:
-                    continue
+            hq_config = hq.hqConfig(i)
+            dept_rows.append([
+                i,
+                addr_info.description,
+                format_address(contract_addr),
+                "Yes" if hq_config.canMintUndy else "No",
+                "Yes" if hq_config.canSetTokenBlacklist else "No",
+            ])
 
-            if dept_rows:
-                print(f"| {' | '.join(headers)} |")
-                print(f"| {' | '.join(['---' for _ in headers])} |")
-                for row in dept_rows:
-                    print(f"| {' | '.join(str(cell) for cell in row)} |")
-    except Exception as e:
-        print(f"*Error fetching departments: {e}*")
+        if dept_rows:
+            print(f"| {' | '.join(headers)} |")
+            print(f"| {' | '.join(['---' for _ in headers])} |")
+            for row in dept_rows:
+                print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
 def fetch_mission_control_data(mc):
@@ -359,175 +333,90 @@ def fetch_mission_control_data(mc):
 
     # User Wallet Config
     print("\n<a id=\"user-wallet-config\"></a>")
-    try:
-        uwc = mc.userWalletConfig()
-        rows = []
+    uwc = mc.userWalletConfig()
+    rows = [
+        ("walletTemplate", format_address(str(uwc.walletTemplate))),
+        ("configTemplate", format_address(str(uwc.configTemplate))),
+        ("numUserWalletsAllowed", uwc.numUserWalletsAllowed),
+        ("enforceCreatorWhitelist", uwc.enforceCreatorWhitelist),
+        ("minKeyActionTimeLock", format_blocks_to_time(uwc.minKeyActionTimeLock)),
+        ("maxKeyActionTimeLock", format_blocks_to_time(uwc.maxKeyActionTimeLock)),
+        ("depositRewardsAsset", format_address(str(uwc.depositRewardsAsset))),
+        ("lootClaimCoolOffPeriod", format_blocks_to_time(uwc.lootClaimCoolOffPeriod)),
+    ]
+    print_table("User Wallet Config", ["Parameter", "Value"], rows)
 
-        try:
-            rows.append(("walletTemplate", format_address(str(uwc.walletTemplate))))
-        except Exception:
-            rows.append(("walletTemplate", "N/A"))
+    # Tx Fees
+    tx_fees = uwc.txFees
+    fee_rows = [
+        ("swapFee", format_percent(tx_fees.swapFee)),
+        ("stableSwapFee", format_percent(tx_fees.stableSwapFee)),
+        ("rewardsFee", format_percent(tx_fees.rewardsFee)),
+    ]
+    print_table("Default Transaction Fees", ["Parameter", "Value"], fee_rows)
 
-        try:
-            rows.append(("configTemplate", format_address(str(uwc.configTemplate))))
-        except Exception:
-            rows.append(("configTemplate", "N/A"))
+    # Ambassador Rev Share
+    rev_share = uwc.ambassadorRevShare
+    rev_rows = [
+        ("swapRatio", format_percent(rev_share.swapRatio)),
+        ("rewardsRatio", format_percent(rev_share.rewardsRatio)),
+        ("yieldRatio", format_percent(rev_share.yieldRatio)),
+    ]
+    print_table("Default Ambassador Revenue Share", ["Parameter", "Value"], rev_rows)
 
-        try:
-            rows.append(("numUserWalletsAllowed", uwc.numUserWalletsAllowed))
-        except Exception:
-            rows.append(("numUserWalletsAllowed", "N/A"))
-
-        try:
-            rows.append(("enforceCreatorWhitelist", uwc.enforceCreatorWhitelist))
-        except Exception:
-            rows.append(("enforceCreatorWhitelist", "N/A"))
-
-        try:
-            rows.append(("minKeyActionTimeLock", format_blocks_to_time(uwc.minKeyActionTimeLock)))
-        except Exception:
-            rows.append(("minKeyActionTimeLock", "N/A"))
-
-        try:
-            rows.append(("maxKeyActionTimeLock", format_blocks_to_time(uwc.maxKeyActionTimeLock)))
-        except Exception:
-            rows.append(("maxKeyActionTimeLock", "N/A"))
-
-        try:
-            rows.append(("depositRewardsAsset", format_address(str(uwc.depositRewardsAsset))))
-        except Exception:
-            rows.append(("depositRewardsAsset", "N/A"))
-
-        try:
-            rows.append(("lootClaimCoolOffPeriod", format_blocks_to_time(uwc.lootClaimCoolOffPeriod)))
-        except Exception:
-            rows.append(("lootClaimCoolOffPeriod", "N/A"))
-
-        print_table("User Wallet Config", ["Parameter", "Value"], rows)
-
-        # Tx Fees
-        try:
-            tx_fees = uwc.txFees
-            fee_rows = [
-                ("swapFee", format_percent(tx_fees.swapFee)),
-                ("stableSwapFee", format_percent(tx_fees.stableSwapFee)),
-                ("rewardsFee", format_percent(tx_fees.rewardsFee)),
-            ]
-            print_table("Default Transaction Fees", ["Parameter", "Value"], fee_rows)
-        except Exception:
-            pass
-
-        # Ambassador Rev Share
-        try:
-            rev_share = uwc.ambassadorRevShare
-            rev_rows = [
-                ("swapRatio", format_percent(rev_share.swapRatio)),
-                ("rewardsRatio", format_percent(rev_share.rewardsRatio)),
-                ("yieldRatio", format_percent(rev_share.yieldRatio)),
-            ]
-            print_table("Default Ambassador Revenue Share", ["Parameter", "Value"], rev_rows)
-        except Exception:
-            pass
-
-        # Yield Config
-        try:
-            yield_config = uwc.yieldConfig
-            yield_rows = [
-                ("maxYieldIncrease", format_percent(yield_config.maxYieldIncrease)),
-                ("performanceFee", format_percent(yield_config.performanceFee)),
-                ("ambassadorBonusRatio", format_percent(yield_config.ambassadorBonusRatio)),
-                ("bonusRatio", format_percent(yield_config.bonusRatio)),
-                ("bonusAsset", format_address(str(yield_config.bonusAsset))),
-            ]
-            print_table("Default Yield Config", ["Parameter", "Value"], yield_rows)
-        except Exception:
-            pass
-
-    except Exception as e:
-        print(f"*Error fetching User Wallet Config: {e}*")
+    # Yield Config
+    yield_config = uwc.yieldConfig
+    yield_rows = [
+        ("maxYieldIncrease", format_percent(yield_config.maxYieldIncrease)),
+        ("performanceFee", format_percent(yield_config.performanceFee)),
+        ("ambassadorBonusRatio", format_percent(yield_config.ambassadorBonusRatio)),
+        ("bonusRatio", format_percent(yield_config.bonusRatio)),
+        ("bonusAsset", format_address(str(yield_config.bonusAsset))),
+    ]
+    print_table("Default Yield Config", ["Parameter", "Value"], yield_rows)
 
     # Agent Config
     print("\n<a id=\"agent-config\"></a>")
-    try:
-        ac = mc.agentConfig()
-        rows = [
-            ("startingAgent", format_address(str(ac.startingAgent))),
-            ("startingAgentActivationLength", format_blocks_to_time(ac.startingAgentActivationLength)),
-        ]
-        print_table("Agent Config", ["Parameter", "Value"], rows)
-    except Exception as e:
-        print(f"\n## Agent Config")
-        print(f"*Error fetching: {e}*")
+    ac = mc.agentConfig()
+    agent_rows = [
+        ("startingAgent", format_address(str(ac.startingAgent))),
+        ("startingAgentActivationLength", format_blocks_to_time(ac.startingAgentActivationLength)),
+    ]
+    print_table("Agent Config", ["Parameter", "Value"], agent_rows)
 
     # Manager Config
     print("\n<a id=\"manager-config\"></a>")
-    try:
-        mgr = mc.managerConfig()
-        rows = []
-
-        try:
-            rows.append(("managerPeriod", format_blocks_to_time(mgr.managerPeriod)))
-        except Exception:
-            rows.append(("managerPeriod", "N/A"))
-
-        try:
-            rows.append(("managerActivationLength", format_blocks_to_time(mgr.managerActivationLength)))
-        except Exception:
-            rows.append(("managerActivationLength", "N/A"))
-
-        try:
-            rows.append(("mustHaveUsdValueOnSwaps", mgr.mustHaveUsdValueOnSwaps))
-        except Exception:
-            rows.append(("mustHaveUsdValueOnSwaps", "N/A"))
-
-        try:
-            rows.append(("maxNumSwapsPerPeriod", mgr.maxNumSwapsPerPeriod))
-        except Exception:
-            rows.append(("maxNumSwapsPerPeriod", "N/A"))
-
-        try:
-            rows.append(("maxSlippageOnSwaps", format_percent(mgr.maxSlippageOnSwaps)))
-        except Exception:
-            rows.append(("maxSlippageOnSwaps", "N/A"))
-
-        try:
-            rows.append(("onlyApprovedYieldOpps", mgr.onlyApprovedYieldOpps))
-        except Exception:
-            rows.append(("onlyApprovedYieldOpps", "N/A"))
-
-        print_table("Manager Config", ["Parameter", "Value"], rows)
-    except Exception as e:
-        print(f"\n## Manager Config")
-        print(f"*Error fetching: {e}*")
+    mgr = mc.managerConfig()
+    mgr_rows = [
+        ("managerPeriod", format_blocks_to_time(mgr.managerPeriod)),
+        ("managerActivationLength", format_blocks_to_time(mgr.managerActivationLength)),
+        ("mustHaveUsdValueOnSwaps", mgr.mustHaveUsdValueOnSwaps),
+        ("maxNumSwapsPerPeriod", mgr.maxNumSwapsPerPeriod),
+        ("maxSlippageOnSwaps", format_percent(mgr.maxSlippageOnSwaps)),
+        ("onlyApprovedYieldOpps", mgr.onlyApprovedYieldOpps),
+    ]
+    print_table("Manager Config", ["Parameter", "Value"], mgr_rows)
 
     # Payee Config
     print("\n<a id=\"payee-config\"></a>")
-    try:
-        payee = mc.payeeConfig()
-        rows = [
-            ("payeePeriod", format_blocks_to_time(payee.payeePeriod)),
-            ("payeeActivationLength", format_blocks_to_time(payee.payeeActivationLength)),
-        ]
-        print_table("Payee Config", ["Parameter", "Value"], rows)
-    except Exception as e:
-        print(f"\n## Payee Config")
-        print(f"*Error fetching: {e}*")
+    payee = mc.payeeConfig()
+    payee_rows = [
+        ("payeePeriod", format_blocks_to_time(payee.payeePeriod)),
+        ("payeeActivationLength", format_blocks_to_time(payee.payeeActivationLength)),
+    ]
+    print_table("Payee Config", ["Parameter", "Value"], payee_rows)
 
     # Cheque Config
     print("\n<a id=\"cheque-config\"></a>")
-    try:
-        cheque = mc.chequeConfig()
-        rows = [
-            ("maxNumActiveCheques", cheque.maxNumActiveCheques),
-            ("instantUsdThreshold", format_token_amount(cheque.instantUsdThreshold, 6, "USD")),
-            ("periodLength", format_blocks_to_time(cheque.periodLength)),
-            ("expensiveDelayBlocks", format_blocks_to_time(cheque.expensiveDelayBlocks)),
-            ("defaultExpiryBlocks", format_blocks_to_time(cheque.defaultExpiryBlocks)),
-        ]
-        print_table("Cheque Config", ["Parameter", "Value"], rows)
-    except Exception as e:
-        print(f"\n## Cheque Config")
-        print(f"*Error fetching: {e}*")
+    cheque = mc.chequeConfig()
+    cheque_rows = [
+        ("maxNumActiveCheques", cheque.maxNumActiveCheques),
+        ("instantUsdThreshold", format_token_amount(cheque.instantUsdThreshold, 6, "USD")),
+        ("periodLength", format_blocks_to_time(cheque.periodLength)),
+        ("expensiveDelayBlocks", format_blocks_to_time(cheque.expensiveDelayBlocks)),
+        ("defaultExpiryBlocks", format_blocks_to_time(cheque.defaultExpiryBlocks)),
+    ]
+    print_table("Cheque Config", ["Parameter", "Value"], cheque_rows)
 
 
 def fetch_vault_registry_data(vr):
@@ -537,22 +426,12 @@ def fetch_vault_registry_data(vr):
     print("# VaultRegistry - Vault Configuration")
     print(f"Address: {VAULT_REGISTRY}")
 
-    # Global settings
-    rows = []
-    try:
-        num_addrs = vr.numAddrs()
-        rows.append(("numAddrs (vaults)", num_addrs - 1 if num_addrs > 0 else 0))
-    except Exception:
-        rows.append(("numAddrs", "N/A"))
-
-    try:
-        timelock = vr.registryChangeTimeLock()
-        rows.append(("registryChangeTimeLock", format_blocks_to_time(timelock)))
-    except Exception:
-        rows.append(("registryChangeTimeLock", "N/A"))
-
-    if rows:
-        print_table("Registry Config", ["Parameter", "Value"], rows)
+    num_addrs = vr.numAddrs()
+    rows = [
+        ("numAddrs (vaults)", num_addrs - 1 if num_addrs > 0 else 0),
+        ("registryChangeTimeLock", format_blocks_to_time(vr.registryChangeTimeLock())),
+    ]
+    print_table("Registry Config", ["Parameter", "Value"], rows)
 
 
 # Vault asset decimals mapping
@@ -579,96 +458,38 @@ def fetch_earn_vault_data(vr):
         print(f"Address: {vault_addr}")
 
         decimals = VAULT_DECIMALS.get(vault_name, 18)
+        vault_config = vr.vaultConfigs(vault_addr)
 
-        try:
-            vault_config = vr.vaultConfigs(vault_addr)
-            rows = []
+        max_deposit = vault_config.maxDepositAmount
+        rows = [
+            ("canDeposit", vault_config.canDeposit),
+            ("canWithdraw", vault_config.canWithdraw),
+            ("maxDepositAmount", "Unlimited" if max_deposit == 0 else format_token_amount(max_deposit, decimals)),
+            ("isVaultOpsFrozen", vault_config.isVaultOpsFrozen),
+            ("redemptionBuffer", format_percent(vault_config.redemptionBuffer)),
+            ("minYieldWithdrawAmount", format_token_amount(vault_config.minYieldWithdrawAmount, decimals)),
+            ("performanceFee", format_percent(vault_config.performanceFee)),
+            ("shouldAutoDeposit", vault_config.shouldAutoDeposit),
+            ("defaultTargetVaultToken", format_address(str(vault_config.defaultTargetVaultToken))),
+            ("isLeveragedVault", vault_config.isLeveragedVault),
+            ("shouldEnforceAllowlist", vault_config.shouldEnforceAllowlist),
+        ]
+        print_table(f"{vault_name} Config", ["Parameter", "Value"], rows)
 
-            try:
-                rows.append(("canDeposit", vault_config.canDeposit))
-            except Exception:
-                rows.append(("canDeposit", "N/A"))
-
-            try:
-                rows.append(("canWithdraw", vault_config.canWithdraw))
-            except Exception:
-                rows.append(("canWithdraw", "N/A"))
-
-            try:
-                max_deposit = vault_config.maxDepositAmount
-                if max_deposit == 0:
-                    rows.append(("maxDepositAmount", "Unlimited"))
-                else:
-                    rows.append(("maxDepositAmount", format_token_amount(max_deposit, decimals)))
-            except Exception:
-                rows.append(("maxDepositAmount", "N/A"))
-
-            try:
-                rows.append(("isVaultOpsFrozen", vault_config.isVaultOpsFrozen))
-            except Exception:
-                rows.append(("isVaultOpsFrozen", "N/A"))
-
-            try:
-                rows.append(("redemptionBuffer", format_percent(vault_config.redemptionBuffer)))
-            except Exception:
-                rows.append(("redemptionBuffer", "N/A"))
-
-            try:
-                min_yield = vault_config.minYieldWithdrawAmount
-                rows.append(("minYieldWithdrawAmount", format_token_amount(min_yield, decimals)))
-            except Exception:
-                rows.append(("minYieldWithdrawAmount", "N/A"))
-
-            try:
-                rows.append(("performanceFee", format_percent(vault_config.performanceFee)))
-            except Exception:
-                rows.append(("performanceFee", "N/A"))
-
-            try:
-                rows.append(("shouldAutoDeposit", vault_config.shouldAutoDeposit))
-            except Exception:
-                rows.append(("shouldAutoDeposit", "N/A"))
-
-            try:
-                rows.append(("defaultTargetVaultToken", format_address(str(vault_config.defaultTargetVaultToken))))
-            except Exception:
-                rows.append(("defaultTargetVaultToken", "N/A"))
-
-            try:
-                rows.append(("isLeveragedVault", vault_config.isLeveragedVault))
-            except Exception:
-                rows.append(("isLeveragedVault", "N/A"))
-
-            try:
-                rows.append(("shouldEnforceAllowlist", vault_config.shouldEnforceAllowlist))
-            except Exception:
-                rows.append(("shouldEnforceAllowlist", "N/A"))
-
-            print_table(f"{vault_name} Config", ["Parameter", "Value"], rows)
-
-            # Approved vault tokens
-            try:
-                num_tokens = vr.numApprovedVaultTokens(vault_addr)
-                if num_tokens > 0:
-                    print(f"\n**Approved Vault Tokens ({num_tokens}):**")
-                    token_rows = []
-                    for i in range(1, num_tokens + 1):
-                        try:
-                            token_addr = vr.approvedVaultTokens(vault_addr, i)
-                            if str(token_addr) != "0x0000000000000000000000000000000000000000":
-                                token_rows.append([i, format_address(str(token_addr))])
-                        except Exception:
-                            continue
-                    if token_rows:
-                        print("| Index | Token |")
-                        print("| --- | --- |")
-                        for row in token_rows:
-                            print(f"| {row[0]} | {row[1]} |")
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f"*Error fetching vault config: {e}*")
+        # Approved vault tokens
+        num_tokens = vr.numApprovedVaultTokens(vault_addr)
+        if num_tokens > 0:
+            print(f"\n**Approved Vault Tokens ({num_tokens}):**")
+            token_rows = []
+            for i in range(1, num_tokens + 1):
+                token_addr = vr.approvedVaultTokens(vault_addr, i)
+                if str(token_addr) != "0x0000000000000000000000000000000000000000":
+                    token_rows.append([i, format_address(str(token_addr))])
+            if token_rows:
+                print("| Index | Token |")
+                print("| --- | --- |")
+                for row in token_rows:
+                    print(f"| {row[0]} | {row[1]} |")
 
 
 def fetch_wallet_backpack_data(wb):
@@ -678,38 +499,14 @@ def fetch_wallet_backpack_data(wb):
     print("# WalletBackpack - Wallet Components")
     print(f"Address: {WALLET_BACKPACK}")
 
-    rows = []
-
-    try:
-        rows.append(("kernel", format_address(str(wb.kernel()))))
-    except Exception:
-        rows.append(("kernel", "N/A"))
-
-    try:
-        rows.append(("sentinel", format_address(str(wb.sentinel()))))
-    except Exception:
-        rows.append(("sentinel", "N/A"))
-
-    try:
-        rows.append(("highCommand", format_address(str(wb.highCommand()))))
-    except Exception:
-        rows.append(("highCommand", "N/A"))
-
-    try:
-        rows.append(("paymaster", format_address(str(wb.paymaster()))))
-    except Exception:
-        rows.append(("paymaster", "N/A"))
-
-    try:
-        rows.append(("chequeBook", format_address(str(wb.chequeBook()))))
-    except Exception:
-        rows.append(("chequeBook", "N/A"))
-
-    try:
-        rows.append(("migrator", format_address(str(wb.migrator()))))
-    except Exception:
-        rows.append(("migrator", "N/A"))
-
+    rows = [
+        ("kernel", format_address(str(wb.kernel()))),
+        ("sentinel", format_address(str(wb.sentinel()))),
+        ("highCommand", format_address(str(wb.highCommand()))),
+        ("paymaster", format_address(str(wb.paymaster()))),
+        ("chequeBook", format_address(str(wb.chequeBook()))),
+        ("migrator", format_address(str(wb.migrator()))),
+    ]
     print_table("Wallet Components", ["Component", "Address"], rows)
 
 
@@ -720,56 +517,35 @@ def fetch_lego_book_data(lb):
     print("# LegoBook - Lego Registry")
     print(f"Address: {LEGO_BOOK}")
 
-    rows = []
-
-    try:
-        lego_tools = lb.legoTools()
-        rows.append(("legoTools", format_address(str(lego_tools))))
-    except Exception:
-        rows.append(("legoTools", "N/A"))
-
-    try:
-        num_addrs = lb.numAddrs()
-        rows.append(("numAddrs (legos)", num_addrs - 1 if num_addrs > 0 else 0))
-    except Exception:
-        rows.append(("numAddrs", "N/A"))
-
-    try:
-        timelock = lb.registryChangeTimeLock()
-        rows.append(("registryChangeTimeLock", format_blocks_to_time(timelock)))
-    except Exception:
-        rows.append(("registryChangeTimeLock", "N/A"))
-
+    num_addrs = lb.numAddrs()
+    rows = [
+        ("legoTools", format_address(str(lb.legoTools()))),
+        ("numAddrs (legos)", num_addrs - 1 if num_addrs > 0 else 0),
+        ("registryChangeTimeLock", format_blocks_to_time(lb.registryChangeTimeLock())),
+    ]
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
     # List registered legos
-    try:
-        num_addrs = lb.numAddrs()
-        if num_addrs > 1:
-            print("\n### Registered Legos")
-            headers = ["ID", "Description", "Address"]
-            lego_rows = []
-            for i in range(1, num_addrs):
-                try:
-                    addr_info = lb.addrInfo(i)
-                    contract_addr = str(addr_info.addr)
-                    if contract_addr == "0x0000000000000000000000000000000000000000":
-                        continue
-                    lego_rows.append([
-                        i,
-                        addr_info.description,
-                        format_address(contract_addr),
-                    ])
-                except Exception:
-                    continue
+    if num_addrs > 1:
+        print("\n### Registered Legos")
+        headers = ["ID", "Description", "Address"]
+        lego_rows = []
+        for i in range(1, num_addrs):
+            addr_info = lb.addrInfo(i)
+            contract_addr = str(addr_info.addr)
+            if contract_addr == "0x0000000000000000000000000000000000000000":
+                continue
+            lego_rows.append([
+                i,
+                addr_info.description,
+                format_address(contract_addr),
+            ])
 
-            if lego_rows:
-                print(f"| {' | '.join(headers)} |")
-                print(f"| {' | '.join(['---' for _ in headers])} |")
-                for row in lego_rows:
-                    print(f"| {' | '.join(str(cell) for cell in row)} |")
-    except Exception as e:
-        print(f"*Error fetching legos: {e}*")
+        if lego_rows:
+            print(f"| {' | '.join(headers)} |")
+            print(f"| {' | '.join(['---' for _ in headers])} |")
+            for row in lego_rows:
+                print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
 def fetch_switchboard_data(sb):
@@ -779,50 +555,34 @@ def fetch_switchboard_data(sb):
     print("# Switchboard - Config Contracts Registry")
     print(f"Address: {SWITCHBOARD}")
 
-    rows = []
-
-    try:
-        num_addrs = sb.numAddrs()
-        rows.append(("numAddrs (config contracts)", num_addrs - 1 if num_addrs > 0 else 0))
-    except Exception:
-        rows.append(("numAddrs", "N/A"))
-
-    try:
-        timelock = sb.registryChangeTimeLock()
-        rows.append(("registryChangeTimeLock", format_blocks_to_time(timelock)))
-    except Exception:
-        rows.append(("registryChangeTimeLock", "N/A"))
-
+    num_addrs = sb.numAddrs()
+    rows = [
+        ("numAddrs (config contracts)", num_addrs - 1 if num_addrs > 0 else 0),
+        ("registryChangeTimeLock", format_blocks_to_time(sb.registryChangeTimeLock())),
+    ]
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
     # List registered config contracts
-    try:
-        num_addrs = sb.numAddrs()
-        if num_addrs > 1:
-            print("\n### Registered Config Contracts")
-            headers = ["ID", "Description", "Address"]
-            config_rows = []
-            for i in range(1, num_addrs):
-                try:
-                    addr_info = sb.addrInfo(i)
-                    contract_addr = str(addr_info.addr)
-                    if contract_addr == "0x0000000000000000000000000000000000000000":
-                        continue
-                    config_rows.append([
-                        i,
-                        addr_info.description,
-                        format_address(contract_addr),
-                    ])
-                except Exception:
-                    continue
+    if num_addrs > 1:
+        print("\n### Registered Config Contracts")
+        headers = ["ID", "Description", "Address"]
+        config_rows = []
+        for i in range(1, num_addrs):
+            addr_info = sb.addrInfo(i)
+            contract_addr = str(addr_info.addr)
+            if contract_addr == "0x0000000000000000000000000000000000000000":
+                continue
+            config_rows.append([
+                i,
+                addr_info.description,
+                format_address(contract_addr),
+            ])
 
-            if config_rows:
-                print(f"| {' | '.join(headers)} |")
-                print(f"| {' | '.join(['---' for _ in headers])} |")
-                for row in config_rows:
-                    print(f"| {' | '.join(str(cell) for cell in row)} |")
-    except Exception as e:
-        print(f"*Error fetching config contracts: {e}*")
+        if config_rows:
+            print(f"| {' | '.join(headers)} |")
+            print(f"| {' | '.join(['---' for _ in headers])} |")
+            for row in config_rows:
+                print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
 def fetch_ledger_data(ledger):
@@ -832,28 +592,20 @@ def fetch_ledger_data(ledger):
     print("# Ledger - Protocol Data")
     print(f"Address: {LEDGER}")
 
-    rows = []
-
-    try:
-        num_wallets = ledger.numUserWallets()
-        rows.append(("numUserWallets", num_wallets - 1 if num_wallets > 0 else 0))
-    except Exception:
-        rows.append(("numUserWallets", "N/A"))
-
+    num_wallets = ledger.numUserWallets()
+    rows = [
+        ("numUserWallets", num_wallets - 1 if num_wallets > 0 else 0),
+    ]
     print_table("Protocol Statistics", ["Parameter", "Value"], rows)
 
     # Global points
-    try:
-        points = ledger.globalPoints()
-        points_rows = [
-            ("usdValue", format_token_amount(points.usdValue, 18, "USD")),
-            ("depositPoints", f"{points.depositPoints:,}"),
-            ("lastUpdate (block)", f"{points.lastUpdate:,}"),
-        ]
-        print_table("Global Points", ["Parameter", "Value"], points_rows)
-    except Exception as e:
-        print(f"\n## Global Points")
-        print(f"*Error fetching: {e}*")
+    points = ledger.globalPoints()
+    points_rows = [
+        ("usdValue", format_token_amount(points.usdValue, 18, "USD")),
+        ("depositPoints", f"{points.depositPoints:,}"),
+        ("lastUpdate (block)", f"{points.lastUpdate:,}"),
+    ]
+    print_table("Global Points", ["Parameter", "Value"], points_rows)
 
 
 def fetch_loot_distributor_data():
@@ -863,44 +615,18 @@ def fetch_loot_distributor_data():
     print("# LootDistributor - Rewards Configuration")
     print(f"Address: {LOOT_DISTRIBUTOR}")
 
-    try:
-        loot = boa.from_etherscan(LOOT_DISTRIBUTOR, name="LootDistributor")
-        rows = []
+    loot = boa.from_etherscan(LOOT_DISTRIBUTOR, name="LootDistributor")
+    deposit_rewards = loot.depositRewards()
 
-        # Deposit Rewards
-        try:
-            deposit_rewards = loot.depositRewards()
-            rows.append(("depositRewards.asset", format_address(str(deposit_rewards.asset))))
-            rows.append(("depositRewards.amount", format_token_amount(deposit_rewards.amount, 18)))
-        except Exception:
-            rows.append(("depositRewards", "N/A"))
-
-        # RIPE staking config
-        try:
-            rows.append(("ripeStakeRatio", format_percent(loot.ripeStakeRatio())))
-        except Exception:
-            rows.append(("ripeStakeRatio", "N/A"))
-
-        try:
-            rows.append(("ripeLockDuration", format_blocks_to_time(loot.ripeLockDuration())))
-        except Exception:
-            rows.append(("ripeLockDuration", "N/A"))
-
-        # Immutable addresses
-        try:
-            rows.append(("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()))))
-        except Exception:
-            rows.append(("RIPE_TOKEN", "N/A"))
-
-        try:
-            rows.append(("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()))))
-        except Exception:
-            rows.append(("RIPE_REGISTRY", "N/A"))
-
-        print_table("Loot Config", ["Parameter", "Value"], rows)
-
-    except Exception as e:
-        print(f"*Error fetching LootDistributor: {e}*")
+    rows = [
+        ("depositRewards.asset", format_address(str(deposit_rewards.asset))),
+        ("depositRewards.amount", format_token_amount(deposit_rewards.amount, 18)),
+        ("ripeStakeRatio", format_percent(loot.ripeStakeRatio())),
+        ("ripeLockDuration", format_blocks_to_time(loot.ripeLockDuration())),
+        ("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()))),
+        ("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()))),
+    ]
+    print_table("Loot Config", ["Parameter", "Value"], rows)
 
 
 def fetch_switchboard_alpha_timelock():
@@ -910,34 +636,13 @@ def fetch_switchboard_alpha_timelock():
     print("# SwitchboardAlpha - Timelock Settings")
     print(f"Address: {SWITCHBOARD_ALPHA}")
 
-    try:
-        sba = boa.from_etherscan(SWITCHBOARD_ALPHA, name="SwitchboardAlpha")
-        rows = []
-
-        try:
-            rows.append(("minConfigTimeLock", format_blocks_to_time(sba.minConfigTimeLock())))
-        except Exception:
-            rows.append(("minConfigTimeLock", "N/A"))
-
-        try:
-            rows.append(("maxConfigTimeLock", format_blocks_to_time(sba.maxConfigTimeLock())))
-        except Exception:
-            rows.append(("maxConfigTimeLock", "N/A"))
-
-        try:
-            rows.append(("configTimeLock", format_blocks_to_time(sba.configTimeLock())))
-        except Exception:
-            rows.append(("configTimeLock", "N/A"))
-
-        try:
-            rows.append(("numActions (total)", sba.numActions()))
-        except Exception:
-            rows.append(("numActions", "N/A"))
-
-        print_table("Timelock Config", ["Parameter", "Value"], rows)
-
-    except Exception as e:
-        print(f"*Error fetching SwitchboardAlpha: {e}*")
+    sba = boa.from_etherscan(SWITCHBOARD_ALPHA, name="SwitchboardAlpha")
+    rows = [
+        ("minActionTimeLock", format_blocks_to_time(sba.minActionTimeLock())),
+        ("maxActionTimeLock", format_blocks_to_time(sba.maxActionTimeLock())),
+        ("actionTimeLock", format_blocks_to_time(sba.actionTimeLock())),
+    ]
+    print_table("Timelock Config", ["Parameter", "Value"], rows)
 
 
 def fetch_earn_vault_details():
@@ -950,84 +655,35 @@ def fetch_earn_vault_details():
         print(f"\n### {vault_name} Details")
         print(f"Address: {vault_addr}")
 
-        try:
-            vault = boa.from_etherscan(vault_addr, name=f"EarnVault_{vault_name}")
+        vault = boa.from_etherscan(vault_addr, name=f"EarnVault_{vault_name}")
+        decimals = VAULT_DECIMALS.get(vault_name, 18)
+        num_managers = vault.numManagers()
+        num_assets = vault.numAssets()
 
-            rows = []
+        rows = [
+            ("asset", format_address(str(vault.asset()))),
+            ("totalAssets", format_token_amount(vault.totalAssets(), decimals)),
+            ("totalSupply (shares)", format_token_amount(vault.totalSupply(), 18)),
+            ("numManagers", num_managers - 1 if num_managers > 0 else 0),
+            ("numAssets (yield positions)", num_assets - 1 if num_assets > 0 else 0),
+            ("lastUnderlyingBal", format_token_amount(vault.lastUnderlyingBal(), decimals)),
+            ("pendingYieldRealized", format_token_amount(vault.pendingYieldRealized(), decimals)),
+        ]
+        print_table(f"{vault_name} Stats", ["Parameter", "Value"], rows)
 
-            # Asset
-            try:
-                asset = vault.asset()
-                rows.append(("asset", format_address(str(asset))))
-            except Exception:
-                rows.append(("asset", "N/A"))
-
-            # Total assets
-            try:
-                total = vault.totalAssets()
-                decimals = VAULT_DECIMALS.get(vault_name, 18)
-                rows.append(("totalAssets", format_token_amount(total, decimals)))
-            except Exception:
-                rows.append(("totalAssets", "N/A"))
-
-            # Total supply (shares)
-            try:
-                supply = vault.totalSupply()
-                rows.append(("totalSupply (shares)", format_token_amount(supply, 18)))
-            except Exception:
-                rows.append(("totalSupply", "N/A"))
-
-            # Number of managers
-            try:
-                num_managers = vault.numManagers()
-                rows.append(("numManagers", num_managers - 1 if num_managers > 0 else 0))
-            except Exception:
-                rows.append(("numManagers", "N/A"))
-
-            # Number of assets
-            try:
-                num_assets = vault.numAssets()
-                rows.append(("numAssets (yield positions)", num_assets - 1 if num_assets > 0 else 0))
-            except Exception:
-                rows.append(("numAssets", "N/A"))
-
-            # Yield tracking
-            try:
-                rows.append(("lastUnderlyingBal", format_token_amount(vault.lastUnderlyingBal(), VAULT_DECIMALS.get(vault_name, 18))))
-            except Exception:
-                pass
-
-            try:
-                rows.append(("pendingYieldRealized", format_token_amount(vault.pendingYieldRealized(), VAULT_DECIMALS.get(vault_name, 18))))
-            except Exception:
-                pass
-
-            if rows:
-                print_table(f"{vault_name} Stats", ["Parameter", "Value"], rows)
-
-            # List managers
-            try:
-                num_managers = vault.numManagers()
-                if num_managers > 1:
-                    print(f"\n**Managers ({num_managers - 1}):**")
-                    manager_rows = []
-                    for i in range(1, min(num_managers, 11)):  # Limit to 10 for output
-                        try:
-                            mgr = vault.managers(i)
-                            if str(mgr) != "0x0000000000000000000000000000000000000000":
-                                manager_rows.append([i, format_address(str(mgr))])
-                        except Exception:
-                            continue
-                    if manager_rows:
-                        print("| Index | Manager |")
-                        print("| --- | --- |")
-                        for row in manager_rows:
-                            print(f"| {row[0]} | {row[1]} |")
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f"*Error fetching vault details: {e}*")
+        # List managers
+        if num_managers > 1:
+            print(f"\n**Managers ({num_managers - 1}):**")
+            manager_rows = []
+            for i in range(1, min(num_managers, 11)):  # Limit to 10 for output
+                mgr = vault.managers(i)
+                if str(mgr) != "0x0000000000000000000000000000000000000000":
+                    manager_rows.append([i, format_address(str(mgr))])
+            if manager_rows:
+                print("| Index | Manager |")
+                print("| --- | --- |")
+                for row in manager_rows:
+                    print(f"| {row[0]} | {row[1]} |")
 
 
 def main():
