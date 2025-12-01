@@ -5,119 +5,276 @@ Output Production Parameters Script for Underscore Protocol
 Fetches and displays all current production configuration from Underscore Protocol
 smart contracts on Base mainnet, formatted as markdown tables.
 
+This script only requires the UNDY_HQ address - all other contract addresses
+are dynamically derived from the on-chain registries.
+
 Usage:
     python scripts/output_production_params.py
 """
 
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import boa
 
-# Contract addresses (Base Mainnet)
-# Registries
+# Rate limiting to avoid Alchemy 429 errors
+RPC_DELAY = 0.25  # seconds between RPC batches
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.BluePrint import TOKENS
+from tests.constants import ZERO_ADDRESS
+
+# ============================================================================
+# CONFIGURATION - Only UNDY_HQ needs to be hardcoded
+# ============================================================================
+
 UNDY_HQ = "0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9"
-LEGO_BOOK = "0x2fD67d572806Fc43B55aFE2ad032702d826450EB"
-SWITCHBOARD = "0xd6B83538214B7e7d57Cd9faCd260E284a5fe4e11"
-VAULT_REGISTRY = "0x1C17ef5Ef2AefcEE958E7e3dC345e96aBfF4e3Cf"
-
-# Config Contracts
-SWITCHBOARD_ALPHA = "0xB7d32916c8E7F74f70aF7ECFcb35B04358E50bAc"
-SWITCHBOARD_BRAVO = "0x5ed80D2F832da36CCCCd26F856C72b1AdD359B84"
-SWITCHBOARD_CHARLIE = "0xDd7507f7FC1845Ba0f07C3f0164D7b114C150117"
-MISSION_CONTROL = "0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE"
-
-# Wallet Backpack
-WALLET_BACKPACK = "0x10099b1386b434Ea4da1967d952931b645Df6250"
-CHEQUE_BOOK = "0xcC939d6b16C6a5f07cde6Bc2bD23cb9B8b7a0Dc9"
-HIGH_COMMAND = "0x06492EA8F83B3a61d71B61FEEF7F167aDD9A78EC"
-KERNEL = "0xAdED981a6Dfc6C3e3E4DbBa54362375FDcF7B389"
-MIGRATOR = "0xe008114992187138a7C341Db0CD900F88BC0169a"
-PAYMASTER = "0x80bf71E098Dc328D87456c34675C2B4C10a1AFCb"
-SENTINEL = "0xCCe9B58b7d377631e58d3Bd95f12a35cF49F667b"
-
-# Templates
-USER_WALLET_TEMPLATE = "0x880E453Ec494FB17bffba537BeaB4Cc6CD1B7C12"
-USER_WALLET_CONFIG_TEMPLATE = "0xbF7bAdf4c71102cA49b3f82D50348256cE6C10Fb"
-AGENT_WRAPPER = "0x761fCDFfF8B187901eA11415237632A3F7E0203B"
-
-# Core
-APPRAISER = "0x8C6521e6f2676a7AdC8484444f161c3538e545e2"
-BILLING = "0xB61dDF5a56b4a008f072087BBe411A9B6F576E4e"
-HATCHERY = "0x95B85a88200b33C64f9935750C2Ea62fB54141E7"
-LOOT_DISTRIBUTOR = "0x23d69D99061acf04c6e86f58692F533E4f039dE8"
-LEDGER = "0x9e97A2e527890E690c7FA978696A88EFA868c5D0"
-
-# Earn Vaults
-EARN_VAULTS = {
-    "UndyUsd": "0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf",
-    "UndyEth": "0x02981DB1a99A14912b204437e7a2E02679B57668",
-    "UndyBtc": "0x3fb0fC9D3Ddd543AD1b748Ed2286a022f4638493",
-    "UndyAero": "0x96F1a7ce331F40afe866F3b707c223e377661087",
-    "UndyEurc": "0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8",
-    "UndyUsds": "0xaA0C35937a193ca81A64b3cFd5892dac384d22bB",
-    "UndyCbeth": "0xFe75aD75AD59a5c80de5AE0726Feee89567F080d",
-    "UndyGho": "0x220b8B08c8CfD6975ed203AA26887c0AA5a8cf44",
-}
-
-# Yield Legos
-YIELD_LEGOS = {
-    "AaveV3": "0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478",
-    "CompoundV3": "0x590FB39919c5F0323a93B54f2634d010b6ECfbA7",
-    "Euler": "0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6",
-    "Fluid": "0x67E7bcC1deBd060251a9ECeA37002a3986E74f93",
-    "Moonwell": "0x0657CF4683870b8420bB8Da57db83e5F9A1ad804",
-    "Morpho": "0x14852dcEEA98d5E781335bA8ea8d4B3a14508868",
-    "40Acres": "0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514",
-    "Wasabi": "0xe67Ef17B6c82a555CB040173273FB271fcc43BEd",
-    "Avantis": "0xc88CD884bdFa8F2D93e32a13EE16543b8a2CF1f0",
-    "SkyPsm": "0xEe7B4F2338389A6453E85a65976F3241986492CF",
-}
-
-# DEX Legos
-DEX_LEGOS = {
-    "AeroClassic": "0x43B2a72595016D765E2A66e4c2Cf3026619784D1",
-    "AeroSlipstream": "0x2DD267Ab1BA631E93e7c6a9EA6fbcc48882770bd",
-    "Curve": "0x7192867D67329800345750f5A281Ce1352C3dF65",
-    "UniswapV2": "0x95979aEF0F70887f31701944b658948890F56fd7",
-    "UniswapV3": "0xEa1f7604E751b54AF321636DBc2dc75C0045e7A5",
-}
-
-# Other Contracts
-LEGO_TOOLS = "0x8c76F6e2151CE6794AE3F400C1cB07136058DF72"
-RIPE_LEGO = "0x272812fC816a6a8C1A2988b24D06878493459A54"
-UNDERSCORE_LEGO = "0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9"
-EARN_VAULT_AGENT = "0x6B014c7BE0fCA7801133Db96737378CCE85230a7"
 
 # RPC URL
 RPC_URL = f"https://base-mainnet.g.alchemy.com/v2/{os.environ.get('WEB3_ALCHEMY_API_KEY')}"
 
+# ============================================================================
+# Registry IDs (from contracts/modules/Addys.vy)
+# ============================================================================
+
+LEDGER_ID = 1
+MISSION_CONTROL_ID = 2
+LEGO_BOOK_ID = 3
+SWITCHBOARD_ID = 4
+HATCHERY_ID = 5
+LOOT_DISTRIBUTOR_ID = 6
+APPRAISER_ID = 7
+WALLET_BACKPACK_ID = 8
+BILLING_ID = 9
+VAULT_REGISTRY_ID = 10
+
+# ============================================================================
 # Constants for formatting
+# ============================================================================
+
 HUNDRED_PERCENT = 100_00  # 100.00%
 DECIMALS_18 = 10**18
 DECIMALS_6 = 10**6
 
-# Known token addresses for resolution
-KNOWN_TOKENS = {
-    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".lower(): "USDC",
-    "0x4200000000000000000000000000000000000006".lower(): "WETH",
-    "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf".lower(): "cbBTC",
-    "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22".lower(): "cbETH",
-    "0x940181a94A35A4569E4529A3CDfB74e38FD98631".lower(): "AERO",
-    "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42".lower(): "EURC",
-    "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc".lower(): "USDS",
-    "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf".lower(): "cbBTC",
-    "0x6Bb7a212910682DCFdbd5BCBb3e28FB4E8da10Ee".lower(): "GHO",
-}
+# Build KNOWN_TOKENS from BluePrint (invert address -> symbol mapping)
+KNOWN_TOKENS = {addr.lower(): symbol for symbol, addr in TOKENS.get("base", {}).items()}
+
+# ============================================================================
+# Global state for loaded contracts and addresses
+# ============================================================================
+
+
+class ProtocolState:
+    """Holds all dynamically loaded protocol contracts and addresses."""
+
+    def __init__(self):
+        self.hq = None
+        self.core_contracts = {}
+        self.core_addresses = {}
+        self.wallet_backpack_components = {}
+        self.vaults = {}
+        self.legos = {}
+        self.switchboard_configs = {}
+        self.templates = {}
+
+    def get_known_addresses(self) -> dict:
+        """Build a map of all known protocol addresses for name resolution."""
+        known = {}
+
+        # Add core addresses
+        for name, addr in self.core_addresses.items():
+            known[addr.lower()] = name
+
+        # Add wallet backpack components
+        for name, addr in self.wallet_backpack_components.items():
+            known[addr.lower()] = name
+
+        # Add vaults
+        for name, vault_info in self.vaults.items():
+            known[vault_info["address"].lower()] = name
+
+        # Add legos
+        for lego_id, lego_info in self.legos.items():
+            known[lego_info["address"].lower()] = lego_info.get("description", f"Lego_{lego_id}")
+
+        # Add switchboard configs
+        for config_id, config_info in self.switchboard_configs.items():
+            known[config_info["address"].lower()] = config_info.get("description", f"Config_{config_id}")
+
+        # Add templates
+        for name, addr in self.templates.items():
+            if addr:
+                known[addr.lower()] = name
+
+        # Add HQ
+        known[UNDY_HQ.lower()] = "UndyHq"
+
+        return known
+
+
+# Global protocol state
+protocol = ProtocolState()
 
 # Cache for resolved token symbols
 _token_symbol_cache = {}
 
 
+# ============================================================================
+# Dynamic Contract Loading Functions
+# ============================================================================
+
+
+def load_core_contracts(hq):
+    """Load all core contracts from UndyHq registry."""
+    print("  Loading core contracts from UndyHq...", file=sys.stderr)
+
+    # Get addresses first
+    addresses = {
+        "Ledger": str(hq.getAddr(LEDGER_ID)),
+        "MissionControl": str(hq.getAddr(MISSION_CONTROL_ID)),
+        "LegoBook": str(hq.getAddr(LEGO_BOOK_ID)),
+        "Switchboard": str(hq.getAddr(SWITCHBOARD_ID)),
+        "Hatchery": str(hq.getAddr(HATCHERY_ID)),
+        "LootDistributor": str(hq.getAddr(LOOT_DISTRIBUTOR_ID)),
+        "Appraiser": str(hq.getAddr(APPRAISER_ID)),
+        "WalletBackpack": str(hq.getAddr(WALLET_BACKPACK_ID)),
+        "Billing": str(hq.getAddr(BILLING_ID)),
+        "VaultRegistry": str(hq.getAddr(VAULT_REGISTRY_ID)),
+    }
+
+    # Load contracts from Etherscan
+    contracts = {}
+    for name, addr in addresses.items():
+        time.sleep(RPC_DELAY)
+        if addr != ZERO_ADDRESS:
+            contracts[name] = boa.from_etherscan(addr, name=name)
+        else:
+            contracts[name] = None
+
+    return contracts, addresses
+
+
+def load_wallet_backpack_components(wb):
+    """Load wallet backpack component addresses from WalletBackpack registry."""
+    print("  Loading WalletBackpack components...", file=sys.stderr)
+    return {
+        "Kernel": str(wb.kernel()),
+        "Sentinel": str(wb.sentinel()),
+        "HighCommand": str(wb.highCommand()),
+        "Paymaster": str(wb.paymaster()),
+        "ChequeBook": str(wb.chequeBook()),
+        "Migrator": str(wb.migrator()),
+    }
+
+
+def load_templates_and_agent(mc):
+    """Load templates and agent wrapper from MissionControl."""
+    print("  Loading templates and agent from MissionControl...", file=sys.stderr)
+    user_wallet_config = mc.userWalletConfig()
+    agent_config = mc.agentConfig()
+
+    return {
+        "UserWalletTemplate": str(user_wallet_config.walletTemplate),
+        "UserWalletConfigTemplate": str(user_wallet_config.configTemplate),
+        "AgentWrapper": str(agent_config.startingAgent),
+    }
+
+
+def load_earn_vaults(vr):
+    """Load all earn vaults from VaultRegistry."""
+    print("  Loading earn vaults from VaultRegistry...", file=sys.stderr)
+    vaults = {}
+    num_vaults = vr.numAddrs()
+
+    for i in range(1, num_vaults):
+        time.sleep(RPC_DELAY)
+        addr = str(vr.getAddr(i))
+        if addr != ZERO_ADDRESS:
+            vault = boa.from_etherscan(addr, name=f"EarnVault_{i}")
+            name = vault.name()
+            vaults[name] = {"address": addr, "contract": vault, "reg_id": i}
+
+    return vaults
+
+
+def load_legos(lb):
+    """Load all legos from LegoBook registry."""
+    print("  Loading legos from LegoBook...", file=sys.stderr)
+    legos = {}
+    num_legos = lb.numAddrs()
+
+    for i in range(1, num_legos):
+        time.sleep(RPC_DELAY)
+        addr = str(lb.getAddr(i))
+        if addr != ZERO_ADDRESS:
+            addr_info = lb.addrInfo(i)
+            legos[i] = {"address": addr, "description": addr_info.description}
+
+    return legos
+
+
+def load_switchboard_configs(sb):
+    """Load all switchboard config contracts."""
+    print("  Loading switchboard configs from Switchboard...", file=sys.stderr)
+    configs = {}
+    num_configs = sb.numAddrs()
+
+    for i in range(1, num_configs):
+        time.sleep(RPC_DELAY)
+        addr = str(sb.getAddr(i))
+        if addr != ZERO_ADDRESS:
+            addr_info = sb.addrInfo(i)
+            configs[i] = {"address": addr, "description": addr_info.description}
+
+    return configs
+
+
+def initialize_protocol():
+    """Initialize all protocol contracts and addresses from UNDY_HQ."""
+    print("Loading contracts from Etherscan...", file=sys.stderr)
+
+    # Load HQ first
+    protocol.hq = boa.from_etherscan(UNDY_HQ, name="UndyHq")
+
+    # Load core contracts
+    protocol.core_contracts, protocol.core_addresses = load_core_contracts(protocol.hq)
+
+    # Load wallet backpack components
+    if protocol.core_contracts.get("WalletBackpack"):
+        protocol.wallet_backpack_components = load_wallet_backpack_components(
+            protocol.core_contracts["WalletBackpack"]
+        )
+
+    # Load templates and agent from MissionControl
+    if protocol.core_contracts.get("MissionControl"):
+        protocol.templates = load_templates_and_agent(protocol.core_contracts["MissionControl"])
+
+    # Load vaults
+    if protocol.core_contracts.get("VaultRegistry"):
+        protocol.vaults = load_earn_vaults(protocol.core_contracts["VaultRegistry"])
+
+    # Load legos
+    if protocol.core_contracts.get("LegoBook"):
+        protocol.legos = load_legos(protocol.core_contracts["LegoBook"])
+
+    # Load switchboard configs
+    if protocol.core_contracts.get("Switchboard"):
+        protocol.switchboard_configs = load_switchboard_configs(protocol.core_contracts["Switchboard"])
+
+    print("  All contracts loaded successfully.\n", file=sys.stderr)
+
+
+# ============================================================================
+# Address Resolution Helpers
+# ============================================================================
+
+
 def get_token_name(address: str, try_fetch: bool = True) -> str:
     """Resolve address to token symbol or return truncated address."""
-    if address == "0x0000000000000000000000000000000000000000":
+    if address == ZERO_ADDRESS:
         return "None"
 
     addr_lower = address.lower()
@@ -126,36 +283,13 @@ def get_token_name(address: str, try_fetch: bool = True) -> str:
     if addr_lower in _token_symbol_cache:
         return _token_symbol_cache[addr_lower]
 
-    # Check known tokens
+    # Check known external tokens
     if addr_lower in KNOWN_TOKENS:
         _token_symbol_cache[addr_lower] = KNOWN_TOKENS[addr_lower]
         return KNOWN_TOKENS[addr_lower]
 
-    # Check known protocol addresses
-    known_addresses = {
-        UNDY_HQ.lower(): "UndyHq",
-        MISSION_CONTROL.lower(): "MissionControl",
-        VAULT_REGISTRY.lower(): "VaultRegistry",
-        LEGO_BOOK.lower(): "LegoBook",
-        LEDGER.lower(): "Ledger",
-        WALLET_BACKPACK.lower(): "WalletBackpack",
-        SWITCHBOARD.lower(): "Switchboard",
-        SWITCHBOARD_ALPHA.lower(): "SwitchboardAlpha",
-        SWITCHBOARD_BRAVO.lower(): "SwitchboardBravo",
-        SWITCHBOARD_CHARLIE.lower(): "SwitchboardCharlie",
-        APPRAISER.lower(): "Appraiser",
-        BILLING.lower(): "Billing",
-        HATCHERY.lower(): "Hatchery",
-        LOOT_DISTRIBUTOR.lower(): "LootDistributor",
-        KERNEL.lower(): "Kernel",
-        SENTINEL.lower(): "Sentinel",
-        HIGH_COMMAND.lower(): "HighCommand",
-        PAYMASTER.lower(): "Paymaster",
-        CHEQUE_BOOK.lower(): "ChequeBook",
-        MIGRATOR.lower(): "Migrator",
-        EARN_VAULT_AGENT.lower(): "EarnVaultAgent",
-        LEGO_TOOLS.lower(): "LegoTools",
-    }
+    # Check dynamically loaded protocol addresses
+    known_addresses = protocol.get_known_addresses()
     if addr_lower in known_addresses:
         _token_symbol_cache[addr_lower] = known_addresses[addr_lower]
         return known_addresses[addr_lower]
@@ -171,19 +305,25 @@ def get_token_name(address: str, try_fetch: bool = True) -> str:
         except Exception:
             pass
 
-    truncated = f"{address[:6]}...{address[-4:]}"
-    _token_symbol_cache[addr_lower] = truncated
-    return truncated
+    # Return full address if no name found
+    _token_symbol_cache[addr_lower] = address
+    return address
 
 
 def format_address(address: str) -> str:
-    """Format address with resolved name."""
-    if address == "0x0000000000000000000000000000000000000000":
+    """Format address with resolved name and full address."""
+    if address == ZERO_ADDRESS:
         return "None"
     name = get_token_name(address, try_fetch=False)
-    if name != f"{address[:6]}...{address[-4:]}":
-        return f"{name} ({address[:6]}...{address[-4:]})"
-    return f"{address[:6]}...{address[-4:]}"
+    # Check if we got a real name (not just truncated address)
+    if name and not name.startswith("0x"):
+        return f"{name} ({address})"
+    return f"`{address}`"
+
+
+# ============================================================================
+# Formatting Helpers
+# ============================================================================
 
 
 def format_percent(value: int, base: int = HUNDRED_PERCENT) -> str:
@@ -211,7 +351,7 @@ def format_blocks_to_time(blocks: int, block_time: float = 2.0) -> str:
 
 def format_token_amount(raw_value: int, decimals: int = 18, symbol: str = "") -> str:
     """Format token amount with human-readable units."""
-    amount = raw_value / (10 ** decimals)
+    amount = raw_value / (10**decimals)
     if amount >= 1_000_000_000_000:
         return f"Very High ({amount:.2e} {symbol})"
     elif amount >= 1_000_000_000:
@@ -222,6 +362,19 @@ def format_token_amount(raw_value: int, decimals: int = 18, symbol: str = "") ->
         return f"{amount / 1_000:,.2f}K {symbol}"
     else:
         return f"{amount:,.2f} {symbol}"
+
+
+def get_vault_decimals(vault_name: str) -> int:
+    """Get decimals for a vault from its contract."""
+    vault_info = protocol.vaults.get(vault_name)
+    if vault_info and vault_info.get("contract"):
+        return vault_info["contract"].decimals()
+    return 18  # Default fallback
+
+
+# ============================================================================
+# Table Printing Helpers
+# ============================================================================
 
 
 def print_table(title: str, headers: list, rows: list, anchor: str = None):
@@ -241,37 +394,129 @@ def print_table_of_contents():
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [UndyHq Configuration](#undy-hq)
-3. [MissionControl Configuration](#mission-control)
+2. [All Contract Addresses](#all-addresses)
+3. [UndyHq Configuration](#undy-hq)
+4. [MissionControl Configuration](#mission-control)
    - [User Wallet Config](#user-wallet-config)
    - [Agent Config](#agent-config)
    - [Manager Config](#manager-config)
    - [Payee Config](#payee-config)
    - [Cheque Config](#cheque-config)
-4. [SwitchboardAlpha Timelock](#switchboard-alpha)
-5. [VaultRegistry Configuration](#vault-registry)
-6. [Earn Vaults](#earn-vaults)
-7. [Earn Vault Details](#earn-vault-details)
-8. [WalletBackpack Components](#wallet-backpack)
-9. [LegoBook Registry](#lego-book)
-10. [Switchboard Registry](#switchboard-registry)
-11. [LootDistributor Config](#loot-distributor)
-12. [Ledger Statistics](#ledger)
+5. [SwitchboardAlpha Timelock](#switchboard-alpha)
+6. [VaultRegistry Configuration](#vault-registry)
+7. [Earn Vaults](#earn-vaults)
+8. [Earn Vault Details](#earn-vault-details)
+9. [WalletBackpack Components](#wallet-backpack)
+10. [LegoBook Registry](#lego-book)
+11. [Switchboard Registry](#switchboard-registry)
+12. [LootDistributor Config](#loot-distributor)
+13. [Ledger Statistics](#ledger)
 """)
 
 
-def print_executive_summary(ledger, lego_book, vault_registry):
+# ============================================================================
+# Data Fetching Functions
+# ============================================================================
+
+
+def print_all_addresses():
+    """Print all contract addresses in the protocol."""
+    print("\n" + "=" * 80)
+    print("\n<a id=\"all-addresses\"></a>")
+    print("# All Contract Addresses")
+    print("\nComplete list of all live contract addresses in the Underscore Protocol.\n")
+
+    # UndyHq
+    print("## Core Registry")
+    print(f"| Contract | Address |")
+    print(f"| --- | --- |")
+    print(f"| UndyHq | `{UNDY_HQ}` |")
+
+    # Core Contracts
+    print("\n## Core Contracts (from UndyHq)")
+    print(f"| ID | Contract | Address |")
+    print(f"| --- | --- | --- |")
+    id_to_name = {
+        LEDGER_ID: "Ledger",
+        MISSION_CONTROL_ID: "MissionControl",
+        LEGO_BOOK_ID: "LegoBook",
+        SWITCHBOARD_ID: "Switchboard",
+        HATCHERY_ID: "Hatchery",
+        LOOT_DISTRIBUTOR_ID: "LootDistributor",
+        APPRAISER_ID: "Appraiser",
+        WALLET_BACKPACK_ID: "WalletBackpack",
+        BILLING_ID: "Billing",
+        VAULT_REGISTRY_ID: "VaultRegistry",
+    }
+    for reg_id, name in id_to_name.items():
+        addr = protocol.core_addresses.get(name, "")
+        if addr and addr != ZERO_ADDRESS:
+            print(f"| {reg_id} | {name} | `{addr}` |")
+
+    # Wallet Backpack Components
+    print("\n## Wallet Backpack Components")
+    print(f"| Component | Address |")
+    print(f"| --- | --- |")
+    for name, addr in protocol.wallet_backpack_components.items():
+        if addr and addr != ZERO_ADDRESS:
+            print(f"| {name} | `{addr}` |")
+
+    # Templates & Agent
+    print("\n## Templates & Agent (from MissionControl)")
+    print(f"| Contract | Address |")
+    print(f"| --- | --- |")
+    for name, addr in protocol.templates.items():
+        if addr and addr != ZERO_ADDRESS:
+            print(f"| {name} | `{addr}` |")
+
+    # Earn Vaults
+    print("\n## Earn Vaults (from VaultRegistry)")
+    print(f"| ID | Vault | Address |")
+    print(f"| --- | --- | --- |")
+    for vault_name, vault_info in protocol.vaults.items():
+        print(f"| {vault_info['reg_id']} | {vault_name} | `{vault_info['address']}` |")
+
+    # Legos
+    print("\n## Legos (from LegoBook)")
+    print(f"| ID | Lego | Address |")
+    print(f"| --- | --- | --- |")
+    for lego_id, lego_info in sorted(protocol.legos.items()):
+        print(f"| {lego_id} | {lego_info['description']} | `{lego_info['address']}` |")
+
+    # Switchboard Configs
+    print("\n## Switchboard Config Contracts")
+    print(f"| ID | Config | Address |")
+    print(f"| --- | --- | --- |")
+    for config_id, config_info in sorted(protocol.switchboard_configs.items()):
+        print(f"| {config_id} | {config_info['description']} | `{config_info['address']}` |")
+
+    # LegoTools (from LegoBook)
+    lb = protocol.core_contracts.get("LegoBook")
+    if lb:
+        lego_tools = str(lb.legoTools())
+        if lego_tools != ZERO_ADDRESS:
+            print("\n## Other Contracts")
+            print(f"| Contract | Address |")
+            print(f"| --- | --- |")
+            print(f"| LegoTools | `{lego_tools}` |")
+
+
+def print_executive_summary():
     """Print an executive summary with key protocol metrics."""
     print("\n<a id=\"executive-summary\"></a>")
     print("## Executive Summary\n")
 
-    num_wallets = ledger.numUserWallets()
-    num_legos = lego_book.numAddrs()
+    ledger = protocol.core_contracts.get("Ledger")
+    lego_book = protocol.core_contracts.get("LegoBook")
+
+    num_wallets = ledger.numUserWallets() if ledger else 0
+    num_legos = lego_book.numAddrs() if lego_book else 0
+    num_vaults = len(protocol.vaults)
 
     rows = [
         ("Total User Wallets", num_wallets - 1 if num_wallets > 0 else 0),
         ("Registered Legos", num_legos - 1 if num_legos > 0 else 0),
-        ("Earn Vaults", len(EARN_VAULTS)),
+        ("Earn Vaults", num_vaults),
     ]
 
     print("| Metric | Value |")
@@ -280,8 +525,10 @@ def print_executive_summary(ledger, lego_book, vault_registry):
         print(f"| **{row[0]}** | {row[1]} |")
 
 
-def fetch_undy_hq_data(hq):
+def fetch_undy_hq_data():
     """Fetch and print UndyHq configuration data."""
+    hq = protocol.hq
+
     print("\n" + "=" * 80)
     print("\n<a id=\"undy-hq\"></a>")
     print("# UndyHq - Main Registry & Governance")
@@ -303,9 +550,10 @@ def fetch_undy_hq_data(hq):
         headers = ["ID", "Description", "Address", "Can Mint UNDY", "Can Set Blacklist"]
         dept_rows = []
         for i in range(1, num_addrs):
+            time.sleep(RPC_DELAY)
             addr_info = hq.addrInfo(i)
             contract_addr = str(addr_info.addr)
-            if contract_addr == "0x0000000000000000000000000000000000000000":
+            if contract_addr == ZERO_ADDRESS:
                 continue
 
             hq_config = hq.hqConfig(i)
@@ -324,12 +572,18 @@ def fetch_undy_hq_data(hq):
                 print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
-def fetch_mission_control_data(mc):
+def fetch_mission_control_data():
     """Fetch and print MissionControl configuration data."""
+    mc = protocol.core_contracts.get("MissionControl")
+    if not mc:
+        return
+
+    mc_addr = protocol.core_addresses.get("MissionControl", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"mission-control\"></a>")
     print("# MissionControl - Core Protocol Configuration")
-    print(f"Address: {MISSION_CONTROL}")
+    print(f"Address: {mc_addr}")
 
     # User Wallet Config
     print("\n<a id=\"user-wallet-config\"></a>")
@@ -419,12 +673,18 @@ def fetch_mission_control_data(mc):
     print_table("Cheque Config", ["Parameter", "Value"], cheque_rows)
 
 
-def fetch_vault_registry_data(vr):
+def fetch_vault_registry_data():
     """Fetch and print VaultRegistry configuration data."""
+    vr = protocol.core_contracts.get("VaultRegistry")
+    if not vr:
+        return
+
+    vr_addr = protocol.core_addresses.get("VaultRegistry", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"vault-registry\"></a>")
     print("# VaultRegistry - Vault Configuration")
-    print(f"Address: {VAULT_REGISTRY}")
+    print(f"Address: {vr_addr}")
 
     num_addrs = vr.numAddrs()
     rows = [
@@ -434,31 +694,28 @@ def fetch_vault_registry_data(vr):
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
 
-# Vault asset decimals mapping
-VAULT_DECIMALS = {
-    "UndyUsd": 6,    # USDC has 6 decimals
-    "UndyEth": 18,   # WETH has 18 decimals
-    "UndyBtc": 8,    # cbBTC has 8 decimals
-    "UndyAero": 18,  # AERO has 18 decimals
-    "UndyEurc": 6,   # EURC has 6 decimals
-    "UndyUsds": 18,  # USDS has 18 decimals
-    "UndyCbeth": 18, # cbETH has 18 decimals
-    "UndyGho": 18,   # GHO has 18 decimals
-}
-
-
-def fetch_earn_vault_data(vr):
+def fetch_earn_vault_data():
     """Fetch and print per-vault configuration data."""
+    vr = protocol.core_contracts.get("VaultRegistry")
+    if not vr:
+        return
+
     print("\n" + "=" * 80)
     print("\n<a id=\"earn-vaults\"></a>")
     print("# Earn Vaults - Per-Vault Configuration")
 
-    for vault_name, vault_addr in EARN_VAULTS.items():
+    for vault_name, vault_info in protocol.vaults.items():
+        time.sleep(RPC_DELAY * 2)  # Extra pause between vaults
+        vault_addr = vault_info["address"]
+
         print(f"\n### {vault_name}")
         print(f"Address: {vault_addr}")
 
-        decimals = VAULT_DECIMALS.get(vault_name, 18)
+        decimals = get_vault_decimals(vault_name)
+        time.sleep(RPC_DELAY)
         vault_config = vr.vaultConfigs(vault_addr)
+        time.sleep(RPC_DELAY)
+        num_tokens = vr.numApprovedVaultTokens(vault_addr)
 
         max_deposit = vault_config.maxDepositAmount
         rows = [
@@ -476,14 +733,14 @@ def fetch_earn_vault_data(vr):
         ]
         print_table(f"{vault_name} Config", ["Parameter", "Value"], rows)
 
-        # Approved vault tokens
-        num_tokens = vr.numApprovedVaultTokens(vault_addr)
+        # Approved vault tokens (num_tokens already fetched above)
         if num_tokens > 0:
             print(f"\n**Approved Vault Tokens ({num_tokens}):**")
             token_rows = []
             for i in range(1, num_tokens + 1):
+                time.sleep(RPC_DELAY)
                 token_addr = vr.approvedVaultTokens(vault_addr, i)
-                if str(token_addr) != "0x0000000000000000000000000000000000000000":
+                if str(token_addr) != ZERO_ADDRESS:
                     token_rows.append([i, format_address(str(token_addr))])
             if token_rows:
                 print("| Index | Token |")
@@ -492,12 +749,18 @@ def fetch_earn_vault_data(vr):
                     print(f"| {row[0]} | {row[1]} |")
 
 
-def fetch_wallet_backpack_data(wb):
+def fetch_wallet_backpack_data():
     """Fetch and print WalletBackpack components."""
+    wb = protocol.core_contracts.get("WalletBackpack")
+    if not wb:
+        return
+
+    wb_addr = protocol.core_addresses.get("WalletBackpack", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"wallet-backpack\"></a>")
     print("# WalletBackpack - Wallet Components")
-    print(f"Address: {WALLET_BACKPACK}")
+    print(f"Address: {wb_addr}")
 
     rows = [
         ("kernel", format_address(str(wb.kernel()))),
@@ -510,12 +773,18 @@ def fetch_wallet_backpack_data(wb):
     print_table("Wallet Components", ["Component", "Address"], rows)
 
 
-def fetch_lego_book_data(lb):
+def fetch_lego_book_data():
     """Fetch and print LegoBook registry data."""
+    lb = protocol.core_contracts.get("LegoBook")
+    if not lb:
+        return
+
+    lb_addr = protocol.core_addresses.get("LegoBook", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"lego-book\"></a>")
     print("# LegoBook - Lego Registry")
-    print(f"Address: {LEGO_BOOK}")
+    print(f"Address: {lb_addr}")
 
     num_addrs = lb.numAddrs()
     rows = [
@@ -525,20 +794,16 @@ def fetch_lego_book_data(lb):
     ]
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
-    # List registered legos
-    if num_addrs > 1:
+    # List registered legos from dynamically loaded data
+    if protocol.legos:
         print("\n### Registered Legos")
         headers = ["ID", "Description", "Address"]
         lego_rows = []
-        for i in range(1, num_addrs):
-            addr_info = lb.addrInfo(i)
-            contract_addr = str(addr_info.addr)
-            if contract_addr == "0x0000000000000000000000000000000000000000":
-                continue
+        for lego_id, lego_info in sorted(protocol.legos.items()):
             lego_rows.append([
-                i,
-                addr_info.description,
-                format_address(contract_addr),
+                lego_id,
+                lego_info["description"],
+                format_address(lego_info["address"]),
             ])
 
         if lego_rows:
@@ -548,12 +813,18 @@ def fetch_lego_book_data(lb):
                 print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
-def fetch_switchboard_data(sb):
+def fetch_switchboard_data():
     """Fetch and print Switchboard registry data."""
+    sb = protocol.core_contracts.get("Switchboard")
+    if not sb:
+        return
+
+    sb_addr = protocol.core_addresses.get("Switchboard", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"switchboard-registry\"></a>")
     print("# Switchboard - Config Contracts Registry")
-    print(f"Address: {SWITCHBOARD}")
+    print(f"Address: {sb_addr}")
 
     num_addrs = sb.numAddrs()
     rows = [
@@ -562,20 +833,16 @@ def fetch_switchboard_data(sb):
     ]
     print_table("Registry Config", ["Parameter", "Value"], rows)
 
-    # List registered config contracts
-    if num_addrs > 1:
+    # List registered config contracts from dynamically loaded data
+    if protocol.switchboard_configs:
         print("\n### Registered Config Contracts")
         headers = ["ID", "Description", "Address"]
         config_rows = []
-        for i in range(1, num_addrs):
-            addr_info = sb.addrInfo(i)
-            contract_addr = str(addr_info.addr)
-            if contract_addr == "0x0000000000000000000000000000000000000000":
-                continue
+        for config_id, config_info in sorted(protocol.switchboard_configs.items()):
             config_rows.append([
-                i,
-                addr_info.description,
-                format_address(contract_addr),
+                config_id,
+                config_info["description"],
+                format_address(config_info["address"]),
             ])
 
         if config_rows:
@@ -585,12 +852,18 @@ def fetch_switchboard_data(sb):
                 print(f"| {' | '.join(str(cell) for cell in row)} |")
 
 
-def fetch_ledger_data(ledger):
+def fetch_ledger_data():
     """Fetch and print Ledger statistics."""
+    ledger = protocol.core_contracts.get("Ledger")
+    if not ledger:
+        return
+
+    ledger_addr = protocol.core_addresses.get("Ledger", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"ledger\"></a>")
     print("# Ledger - Protocol Data")
-    print(f"Address: {LEDGER}")
+    print(f"Address: {ledger_addr}")
 
     num_wallets = ledger.numUserWallets()
     rows = [
@@ -610,12 +883,17 @@ def fetch_ledger_data(ledger):
 
 def fetch_loot_distributor_data():
     """Fetch and print LootDistributor configuration."""
+    loot = protocol.core_contracts.get("LootDistributor")
+    if not loot:
+        return
+
+    loot_addr = protocol.core_addresses.get("LootDistributor", "Unknown")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"loot-distributor\"></a>")
     print("# LootDistributor - Rewards Configuration")
-    print(f"Address: {LOOT_DISTRIBUTOR}")
+    print(f"Address: {loot_addr}")
 
-    loot = boa.from_etherscan(LOOT_DISTRIBUTOR, name="LootDistributor")
     deposit_rewards = loot.depositRewards()
 
     rows = [
@@ -631,12 +909,32 @@ def fetch_loot_distributor_data():
 
 def fetch_switchboard_alpha_timelock():
     """Fetch SwitchboardAlpha timelock settings."""
+    # Get first switchboard config (SwitchboardAlpha is typically ID 1)
+    if not protocol.switchboard_configs:
+        return
+
+    # Find SwitchboardAlpha
+    sba_addr = None
+    for config_id, config_info in protocol.switchboard_configs.items():
+        if "Alpha" in config_info.get("description", ""):
+            sba_addr = config_info["address"]
+            break
+
+    if not sba_addr:
+        # Fallback to first config
+        first_config = next(iter(protocol.switchboard_configs.values()), None)
+        if first_config:
+            sba_addr = first_config["address"]
+
+    if not sba_addr:
+        return
+
     print("\n" + "=" * 80)
     print("\n<a id=\"switchboard-alpha\"></a>")
     print("# SwitchboardAlpha - Timelock Settings")
-    print(f"Address: {SWITCHBOARD_ALPHA}")
+    print(f"Address: {sba_addr}")
 
-    sba = boa.from_etherscan(SWITCHBOARD_ALPHA, name="SwitchboardAlpha")
+    sba = boa.from_etherscan(sba_addr, name="SwitchboardAlpha")
     rows = [
         ("minActionTimeLock", format_blocks_to_time(sba.minActionTimeLock())),
         ("maxActionTimeLock", format_blocks_to_time(sba.maxActionTimeLock())),
@@ -647,28 +945,54 @@ def fetch_switchboard_alpha_timelock():
 
 def fetch_earn_vault_details():
     """Fetch per-vault detailed configuration including managers."""
+    vr = protocol.core_contracts.get("VaultRegistry")
+
     print("\n" + "=" * 80)
     print("\n<a id=\"earn-vault-details\"></a>")
     print("# Earn Vault Details - Managers & Assets")
 
-    for vault_name, vault_addr in EARN_VAULTS.items():
+    for vault_name, vault_info in protocol.vaults.items():
+        time.sleep(RPC_DELAY * 2)  # Extra pause between vaults
+        vault_addr = vault_info["address"]
+        vault = vault_info["contract"]
+
         print(f"\n### {vault_name} Details")
         print(f"Address: {vault_addr}")
 
-        vault = boa.from_etherscan(vault_addr, name=f"EarnVault_{vault_name}")
-        decimals = VAULT_DECIMALS.get(vault_name, 18)
+        decimals = get_vault_decimals(vault_name)
+        time.sleep(RPC_DELAY)
+        is_leveraged = vr.isLeveragedVault(vault_addr) if vr else False
+
+        time.sleep(RPC_DELAY)
         num_managers = vault.numManagers()
-        num_assets = vault.numAssets()
+
+        # Fetch values with delays to avoid rate limiting
+        time.sleep(RPC_DELAY)
+        asset_addr = str(vault.asset())
+        time.sleep(RPC_DELAY)
+        total_assets = vault.totalAssets()
+        time.sleep(RPC_DELAY)
+        total_supply = vault.totalSupply()
 
         rows = [
-            ("asset", format_address(str(vault.asset()))),
-            ("totalAssets", format_token_amount(vault.totalAssets(), decimals)),
-            ("totalSupply (shares)", format_token_amount(vault.totalSupply(), 18)),
+            ("asset", format_address(asset_addr)),
+            ("totalAssets", format_token_amount(total_assets, decimals)),
+            ("totalSupply (shares)", format_token_amount(total_supply, 18)),
             ("numManagers", num_managers - 1 if num_managers > 0 else 0),
-            ("numAssets (yield positions)", num_assets - 1 if num_assets > 0 else 0),
-            ("lastUnderlyingBal", format_token_amount(vault.lastUnderlyingBal(), decimals)),
-            ("pendingYieldRealized", format_token_amount(vault.pendingYieldRealized(), decimals)),
         ]
+
+        # Basic vaults have additional fields that leveraged vaults don't have
+        if not is_leveraged:
+            time.sleep(RPC_DELAY)
+            num_assets = vault.numAssets()
+            time.sleep(RPC_DELAY)
+            last_underlying = vault.lastUnderlyingBal()
+            time.sleep(RPC_DELAY)
+            pending_yield = vault.pendingYieldRealized()
+            rows.append(("numAssets (yield positions)", num_assets - 1 if num_assets > 0 else 0))
+            rows.append(("lastUnderlyingBal", format_token_amount(last_underlying, decimals)))
+            rows.append(("pendingYieldRealized", format_token_amount(pending_yield, decimals)))
+
         print_table(f"{vault_name} Stats", ["Parameter", "Value"], rows)
 
         # List managers
@@ -676,8 +1000,9 @@ def fetch_earn_vault_details():
             print(f"\n**Managers ({num_managers - 1}):**")
             manager_rows = []
             for i in range(1, min(num_managers, 11)):  # Limit to 10 for output
+                time.sleep(RPC_DELAY)
                 mgr = vault.managers(i)
-                if str(mgr) != "0x0000000000000000000000000000000000000000":
+                if str(mgr) != ZERO_ADDRESS:
                     manager_rows.append([i, format_address(str(mgr))])
             if manager_rows:
                 print("| Index | Manager |")
@@ -686,9 +1011,19 @@ def fetch_earn_vault_details():
                     print(f"| {row[0]} | {row[1]} |")
 
 
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+
 def main():
     """Main entry point."""
-    print("Connecting to Base mainnet via Alchemy...")
+    # Output file path (same directory as this script)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_file = os.path.join(script_dir, "production_params_output.md")
+
+    # Progress messages go to stderr so user sees them
+    print("Connecting to Base mainnet via Alchemy...", file=sys.stderr)
 
     # Set etherscan API for contract loading
     boa.set_etherscan(
@@ -699,49 +1034,57 @@ def main():
     # Fork at latest block
     with boa.fork(RPC_URL):
         block_number = boa.env.evm.patch.block_number
-        print(f"Connected. Block: {block_number}\n")
+        print(f"Connected. Block: {block_number}\n", file=sys.stderr)
 
-        # Load contracts from Etherscan
-        print("Loading contracts from Etherscan...")
-        hq = boa.from_etherscan(UNDY_HQ, name="UndyHq")
-        mc = boa.from_etherscan(MISSION_CONTROL, name="MissionControl")
-        vr = boa.from_etherscan(VAULT_REGISTRY, name="VaultRegistry")
-        wb = boa.from_etherscan(WALLET_BACKPACK, name="WalletBackpack")
-        lb = boa.from_etherscan(LEGO_BOOK, name="LegoBook")
-        sb = boa.from_etherscan(SWITCHBOARD, name="Switchboard")
-        ledger = boa.from_etherscan(LEDGER, name="Ledger")
+        # Initialize all protocol contracts from UNDY_HQ
+        initialize_protocol()
 
-        print("Fetching configuration data...\n")
-        print("=" * 80)
+        print(f"Writing output to {output_file}...", file=sys.stderr)
 
-        # Header
-        print("# Underscore Protocol Production Parameters")
-        print(f"\n**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
-        print(f"**Block:** {block_number}")
-        print(f"**Network:** Base Mainnet")
+        # Write report to file
+        with open(output_file, "w") as f:
+            # Redirect stdout to file
+            old_stdout = sys.stdout
+            sys.stdout = f
 
-        # Table of Contents
-        print_table_of_contents()
+            print("=" * 80)
 
-        # Executive Summary
-        print_executive_summary(ledger, lb, vr)
+            # Header
+            print("# Underscore Protocol Production Parameters")
+            print(f"\n**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            print(f"**Block:** {block_number}")
+            print(f"**Network:** Base Mainnet")
 
-        # Fetch and display all data
-        fetch_undy_hq_data(hq)
-        fetch_mission_control_data(mc)
-        fetch_switchboard_alpha_timelock()
-        fetch_vault_registry_data(vr)
-        fetch_earn_vault_data(vr)
-        fetch_earn_vault_details()
-        fetch_wallet_backpack_data(wb)
-        fetch_lego_book_data(lb)
-        fetch_switchboard_data(sb)
-        fetch_loot_distributor_data()
-        fetch_ledger_data(ledger)
+            # Table of Contents
+            print_table_of_contents()
 
-        print("\n" + "=" * 80)
-        print("\n---")
-        print(f"*Report generated at block {block_number} on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC*")
+            # Executive Summary
+            print_executive_summary()
+
+            # All Contract Addresses
+            print_all_addresses()
+
+            # Fetch and display all data
+            fetch_undy_hq_data()
+            fetch_mission_control_data()
+            fetch_switchboard_alpha_timelock()
+            fetch_vault_registry_data()
+            fetch_earn_vault_data()
+            fetch_earn_vault_details()
+            fetch_wallet_backpack_data()
+            fetch_lego_book_data()
+            fetch_switchboard_data()
+            fetch_loot_distributor_data()
+            fetch_ledger_data()
+
+            print("\n" + "=" * 80)
+            print("\n---")
+            print(f"*Report generated at block {block_number} on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC*")
+
+            # Restore stdout
+            sys.stdout = old_stdout
+
+        print(f"Done! Output saved to {output_file}", file=sys.stderr)
 
 
 if __name__ == "__main__":
