@@ -173,6 +173,7 @@ def __init__(
         self._registerManager(_startingAgent)
 
     # defaults
+    self.maxDebtRatio = HUNDRED_PERCENT
     self.usdcSlippageAllowed = 1_00 # 1.00%
     self.greenSlippageAllowed = 1_00 # 1.00%
 
