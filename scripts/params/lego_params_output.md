@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Lego Parameters
 
-**Generated:** 2025-12-01 22:54:35 UTC
-**Block:** 38920141
+**Generated:** 2025-12-02 19:21:36 UTC
+**Block:** 38956947
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -116,6 +116,7 @@ Address: `0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478`
 | Underlying Asset | Vault Token | Decimals |
 | --- | --- | --- |
 | WETH (0x4200000000000000000000000000000000000006) | AAVEV3_WETH (0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7) | 18 |
+| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | aBasEURC (0x90DA57E0A6C0d166Bf15764E03b83745Dc90025B) | 6 |
 
 ================================================================================
 
@@ -369,4 +370,4 @@ Address: `0xEa1f7604E751b54AF321636DBc2dc75C0045e7A5`
 ================================================================================
 
 ---
-*Report generated at block 38920141 on 2025-12-01 22:55:14 UTC*
+*Report generated at block 38956947 on 2025-12-02 19:22:34 UTC*

@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Production Parameters
 
-**Generated:** 2025-12-01 22:57:25 UTC
-**Block:** 38920221
+**Generated:** 2025-12-02 19:17:30 UTC
+**Block:** 38956825
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -19,6 +19,8 @@
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [Security Signers](#security-signers)
+     - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
    - [Ledger Statistics](#ledger)
 
@@ -233,7 +235,11 @@ Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 | startingAgent | AgentWrapper (0x761fCDFfF8B187901eA11415237632A3F7E0203B) |
 | startingAgentActivationLength | 31536000 blocks (~730.0d) |
 
-*Could not fetch AgentWrapper senders: Failed to retrieve data from API: {'status': '0', 'message': 'NOTOK', 'result': 'Contract source code not verified'}*
+**Registered Senders (2):**
+| Index | Address | Type |
+| --- | --- | --- |
+| 1 | `0x459f7612F3DFe7b1d7f10c2D01e68dd9AfeA66E9` | AgentSenderGeneric |
+| 2 | `0xF02Bc5c9a1A57015C09c4e1B89A273a2849874D3` | AgentSenderSpecial |
 
 <a id="manager-config"></a>
 
@@ -266,6 +272,14 @@ Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 | expensiveDelayBlocks | 43200 blocks (~1.0d) |
 | defaultExpiryBlocks | 86400 blocks (~2.0d) |
 
+<a id="security-signers"></a>
+
+*Could not fetch security signers (not available in this contract version).*
+
+<a id="creator-whitelist"></a>
+
+*Could not fetch creator whitelist (not available in this contract version).*
+
 ================================================================================
 
 <a id="loot-distributor"></a>
@@ -296,11 +310,11 @@ Address: 0x9e97A2e527890E690c7FA978696A88EFA868c5D0
 ### Global Points
 | Parameter | Value |
 | --- | --- |
-| usdValue | 212.00K USD |
-| depositPoints | 115,004,967,475 |
-| lastUpdate (block) | 38,830,098 |
+| usdValue | 212.01K USD |
+| depositPoints | 141,178,979,264 |
+| lastUpdate (block) | 38,953,558 |
 
 ================================================================================
 
 ---
-*Report generated at block 38920221 on 2025-12-01 22:57:47 UTC*
+*Report generated at block 38956825 on 2025-12-02 19:17:57 UTC*
