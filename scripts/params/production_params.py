@@ -353,6 +353,8 @@ def print_table_of_contents():
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [Security Signers](#security-signers)
+     - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
    - [Ledger Statistics](#ledger)
 
@@ -458,6 +460,62 @@ def fetch_undy_hq_data():
                 print(f"  - Confirm Block: {change['confirm_block']}")
 
 
+def fetch_security_signers(mc):
+    """Fetch and print security signers from MissionControl (iterable).
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    """
+    try:
+        print("\n<a id=\"security-signers\"></a>")
+        time.sleep(RPC_DELAY)
+        num_signers = mc.numSecuritySigners()
+
+        # Actual count is num_signers - 1 (index 0 is sentinel)
+        actual_count = num_signers - 1 if num_signers > 0 else 0
+
+        if actual_count > 0:
+            print(f"\n**Security Signers ({actual_count}):**")
+            print("| Index | Address |")
+            print("| --- | --- |")
+            for i in range(1, num_signers):
+                time.sleep(RPC_DELAY)
+                signer_addr = str(mc.securitySigners(i))
+                if signer_addr != ZERO_ADDRESS:
+                    print(f"| {i} | {format_address(signer_addr, _get_known_addresses)} |")
+        else:
+            print("\n*No security signers registered.*")
+    except Exception:
+        print("\n*Could not fetch security signers (not available in this contract version).*")
+
+
+def fetch_whitelisted_creators(mc):
+    """Fetch and print whitelisted creators from MissionControl (iterable).
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    """
+    try:
+        print("\n<a id=\"creator-whitelist\"></a>")
+        time.sleep(RPC_DELAY)
+        num_creators = mc.numWhitelistedCreators()
+
+        # Actual count is num_creators - 1 (index 0 is sentinel)
+        actual_count = num_creators - 1 if num_creators > 0 else 0
+
+        if actual_count > 0:
+            print(f"\n**Creator Whitelist ({actual_count}):**")
+            print("| Index | Address |")
+            print("| --- | --- |")
+            for i in range(1, num_creators):
+                time.sleep(RPC_DELAY)
+                creator_addr = str(mc.whitelistedCreators(i))
+                if creator_addr != ZERO_ADDRESS:
+                    print(f"| {i} | {format_address(creator_addr, _get_known_addresses)} |")
+        else:
+            print("\n*No whitelisted creators registered.*")
+    except Exception:
+        print("\n*Could not fetch creator whitelist (not available in this contract version).*")
+
+
 def fetch_mission_control_data():
     """Fetch and print MissionControl configuration data."""
     mc = protocol.core_contracts.get("MissionControl")
@@ -560,6 +618,12 @@ def fetch_mission_control_data():
         ("defaultExpiryBlocks", format_blocks_to_time(cheque.defaultExpiryBlocks)),
     ]
     print_table("Cheque Config", ["Parameter", "Value"], cheque_rows)
+
+    # Security Signers (iterable) - new feature, graceful fail if not deployed
+    fetch_security_signers(mc)
+
+    # Whitelisted Creators (iterable) - new feature, graceful fail if not deployed
+    fetch_whitelisted_creators(mc)
 
 
 def fetch_wallet_backpack_data():

@@ -99,15 +99,27 @@ assetConfig: public(HashMap[address, cs.AssetConfig])
 isStablecoin: public(HashMap[address, bool])
 
 # security / limits
-creatorWhitelist: public(HashMap[address, bool]) # creator -> is whitelisted
-canPerformSecurityAction: public(HashMap[address, bool]) # signer -> can perform security action
 isLockedSigner: public(HashMap[address, bool]) # signer -> is locked
+
+# security signers (iterable)
+securitySigners: public(HashMap[uint256, address]) # index -> signer
+indexOfSecuritySigner: public(HashMap[address, uint256]) # signer -> index
+numSecuritySigners: public(uint256)
+
+# whitelisted creators (iterable)
+whitelistedCreators: public(HashMap[uint256, address]) # index -> creator
+indexOfWhitelistedCreator: public(HashMap[address, uint256]) # creator -> index
+numWhitelistedCreators: public(uint256)
 
 
 @deploy
 def __init__(_undyHq: address, _defaults: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
+
+    # start at 1, index 0 means "not in list"
+    self.numSecuritySigners = 1
+    self.numWhitelistedCreators = 1
 
     if _defaults != empty(address):
         self.userWalletConfig = staticcall Defaults(_defaults).userWalletConfig()
@@ -360,32 +372,141 @@ def getLootDistroConfig(_asset: address) -> LootDistroConfig:
     )
 
 
-#########
-# Other #
-#########
+####################
+# Security Signers #
+####################
 
 
-# can perform security action
+# set can perform security action
 
 
 @external
 def setCanPerformSecurityAction(_signer: address, _canPerform: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
-    self.canPerformSecurityAction[_signer] = _canPerform
+    if _canPerform:
+        self._addSecuritySigner(_signer)
+    else:
+        self._removeSecuritySigner(_signer)
 
 
-# creator whitelist
+# can perform security action
+
+
+@view
+@external
+def canPerformSecurityAction(_signer: address) -> bool:
+    return self.indexOfSecuritySigner[_signer] != 0
+
+
+# add security signer
+
+
+@internal
+def _addSecuritySigner(_signer: address):
+    if self.indexOfSecuritySigner[_signer] != 0:
+        return
+    idx: uint256 = self.numSecuritySigners
+    self.securitySigners[idx] = _signer
+    self.indexOfSecuritySigner[_signer] = idx
+    self.numSecuritySigners = idx + 1
+
+
+# remove security signer
+
+
+@internal
+def _removeSecuritySigner(_signer: address):
+    targetIndex: uint256 = self.indexOfSecuritySigner[_signer]
+    if targetIndex == 0:
+        return
+
+    lastIndex: uint256 = self.numSecuritySigners - 1
+    self.numSecuritySigners = lastIndex
+    self.indexOfSecuritySigner[_signer] = 0
+
+    # swap with last item if not already last
+    if targetIndex != lastIndex:
+        lastItem: address = self.securitySigners[lastIndex]
+        self.securitySigners[targetIndex] = lastItem
+        self.indexOfSecuritySigner[lastItem] = targetIndex
+
+    self.securitySigners[lastIndex] = empty(address)
+
+
+#####################
+# Creator Whitelist #
+#####################
+
+
+# set creator whitelist
 
 
 @external
 def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
-    self.creatorWhitelist[_creator] = _isWhitelisted
+    if _isWhitelisted:
+        self._addWhitelistedCreator(_creator)
+    else:
+        self._removeWhitelistedCreator(_creator)
 
 
-# locked signer
+# can create
+
+
+@view
+@external
+def creatorWhitelist(_creator: address) -> bool:
+    return self.indexOfWhitelistedCreator[_creator] != 0
+
+
+@view
+@internal
+def _isCreatorAllowed(_shouldEnforceWhitelist: bool, _creator: address) -> bool:
+    if _shouldEnforceWhitelist:
+        return self.indexOfWhitelistedCreator[_creator] != 0
+    return True
+
+
+# add creator
+
+
+@internal
+def _addWhitelistedCreator(_creator: address):
+    if self.indexOfWhitelistedCreator[_creator] != 0:
+        return
+    idx: uint256 = self.numWhitelistedCreators
+    self.whitelistedCreators[idx] = _creator
+    self.indexOfWhitelistedCreator[_creator] = idx
+    self.numWhitelistedCreators = idx + 1
+
+
+# remove creator
+
+
+@internal
+def _removeWhitelistedCreator(_creator: address):
+    targetIndex: uint256 = self.indexOfWhitelistedCreator[_creator]
+    if targetIndex == 0:
+        return
+
+    lastIndex: uint256 = self.numWhitelistedCreators - 1
+    self.numWhitelistedCreators = lastIndex
+    self.indexOfWhitelistedCreator[_creator] = 0
+
+    # swap with last item if not already last
+    if targetIndex != lastIndex:
+        lastItem: address = self.whitelistedCreators[lastIndex]
+        self.whitelistedCreators[targetIndex] = lastItem
+        self.indexOfWhitelistedCreator[lastItem] = targetIndex
+
+    self.whitelistedCreators[lastIndex] = empty(address)
+
+
+#################
+# Locked Signer #
+#################
 
 
 @external
@@ -393,16 +514,3 @@ def setLockedSigner(_signer: address, _isLocked: bool):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
     self.isLockedSigner[_signer] = _isLocked
-
-
-#########
-# Utils #
-#########
-
-
-@view
-@internal
-def _isCreatorAllowed(_shouldEnforceWhitelist: bool, _creator: address) -> bool:
-    if _shouldEnforceWhitelist:
-        return self.creatorWhitelist[_creator]
-    return True
