@@ -45,10 +45,14 @@ def setup_prices(mock_ripe, mock_green_token, mock_savings_green_token, mock_usd
 
 
 @pytest.fixture(scope="module")
-def usdc_wallet_with_funds(undy_levg_vault_usdc, mock_usdc, governance):
+def usdc_wallet_with_funds(undy_levg_vault_usdc, mock_usdc, governance, switchboard_alpha):
     """Give USDC vault wallet some USDC"""
     amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, amount, sender=governance.address)
+
+    # Set maxDebtRatio to 0 for unlimited borrowing in wallet action tests
+    undy_levg_vault_usdc.setMaxDebtRatio(0, sender=switchboard_alpha.address)
+
     return undy_levg_vault_usdc
 
 

@@ -63,9 +63,13 @@ def test_underwater_vault_total_assets_returns_zero(
     bob,
     starter_agent,
     governance,
+    switchboard_alpha,
 ):
     """Test vault with debt exceeding assets returns 0 for totalAssets"""
     vault = setup_vault_for_edge_cases
+
+    # Set maxDebtRatio to 0 for unlimited borrowing (test needs 2x collateral borrow)
+    vault.setMaxDebtRatio(0, sender=switchboard_alpha.address)
 
     # User deposits
     deposit_amount = 10_000 * SIX_DECIMALS

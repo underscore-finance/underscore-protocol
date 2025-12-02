@@ -177,9 +177,13 @@ def test_get_max_borrow_amount_no_limit_usdc(
     setup_usdc_vault,
     levg_vault_helper,
     mock_usdc,
+    switchboard_alpha,
 ):
     """Test getMaxBorrowAmount returns max_value when ratio is 0"""
     vault = setup_usdc_vault
+
+    # Set maxDebtRatio to 0 for unlimited borrowing
+    vault.setMaxDebtRatio(0, sender=switchboard_alpha.address)
 
     # Ensure maxDebtRatio is 0
     assert vault.maxDebtRatio() == 0
@@ -479,11 +483,15 @@ def test_borrow_unlimited_when_ratio_zero(
     mock_usdc,
     mock_green_token,
     starter_agent,
+    switchboard_alpha,
 ):
     """Test unlimited borrowing when maxDebtRatio is 0"""
     vault = setup_usdc_vault
 
-    # maxDebtRatio should be 0 by default
+    # Set maxDebtRatio to 0 for unlimited borrowing
+    vault.setMaxDebtRatio(0, sender=switchboard_alpha.address)
+
+    # maxDebtRatio should be 0
     assert vault.maxDebtRatio() == 0
 
     # Add collateral
