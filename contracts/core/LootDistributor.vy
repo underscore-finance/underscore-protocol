@@ -44,6 +44,7 @@ interface MissionControl:
     def getRewardsFee(_asset: address) -> uint256: view
     def getLootClaimCoolOffPeriod() -> uint256: view
     def getDepositRewardsAsset() -> address: view
+    def getRipeRewardsConfig() -> cs.RipeRewardsConfig: view
 
 interface Ledger:
     def setUserAndGlobalPoints(_user: address, _userData: PointsData, _globalData: PointsData): nonpayable
@@ -150,10 +151,6 @@ event DepositRewardsRecovered:
     recipient: indexed(address)
     amount: uint256
 
-event RipeRewardsConfigSet:
-    ripeStakeRatio: uint256
-    ripeLockDuration: uint256
-
 # claimable loot
 lastClaim: public(HashMap[address, uint256]) # user -> last claim block
 totalClaimableLoot: public(HashMap[address, uint256]) # asset -> amount
@@ -166,8 +163,6 @@ numClaimableAssets: public(HashMap[address, uint256]) # ambassador -> num assets
 
 # deposit rewards
 depositRewards: public(DepositRewards)
-ripeStakeRatio: public(uint256)
-ripeLockDuration: public(uint256)
 
 RIPE_TOKEN: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
@@ -183,8 +178,6 @@ def __init__(
     _undyHq: address,
     _ripeToken: address,
     _ripeRegistry: address,
-    _ripeStakeRatio: uint256,
-    _ripeLockDuration: uint256,
 ):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
@@ -192,11 +185,6 @@ def __init__(
     assert empty(address) not in [_ripeToken, _ripeRegistry] # dev: invalid addresses
     RIPE_TOKEN = _ripeToken
     RIPE_REGISTRY = _ripeRegistry
-
-    assert _ripeStakeRatio <= HUNDRED_PERCENT # dev: invalid stake ratio
-    self.ripeStakeRatio = _ripeStakeRatio
-    assert _ripeLockDuration != 0 # dev: invalid lock duration
-    self.ripeLockDuration = _ripeLockDuration
 
 
 #################
@@ -423,8 +411,9 @@ def claimRevShareAndBonusLoot(_user: address) -> uint256:
 
     # ripe params
     ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
-    ripeLockDuration: uint256 = self.ripeLockDuration
-    ripeStakeRatio: uint256 = self.ripeStakeRatio
+    ripeConfig: cs.RipeRewardsConfig = staticcall MissionControl(a.missionControl).getRipeRewardsConfig()
+    ripeLockDuration: uint256 = ripeConfig.lockDuration
+    ripeStakeRatio: uint256 = ripeConfig.stakeRatio
 
     # claim rev share and bonus loot
     assetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user, ripeStakeRatio, ripeLockDuration, ripeTeller)
@@ -756,8 +745,9 @@ def claimDepositRewards(_user: address) -> uint256:
 
     # ripe params
     ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
-    ripeLockDuration: uint256 = self.ripeLockDuration
-    ripeStakeRatio: uint256 = self.ripeStakeRatio
+    ripeConfig: cs.RipeRewardsConfig = staticcall MissionControl(a.missionControl).getRipeRewardsConfig()
+    ripeLockDuration: uint256 = ripeConfig.lockDuration
+    ripeStakeRatio: uint256 = ripeConfig.stakeRatio
 
     # claim rewards
     userRewards: uint256 = self._claimDepositRewards(_user, ripeStakeRatio, ripeLockDuration, ripeTeller, a.ledger)
@@ -969,8 +959,9 @@ def claimAllLoot(_user: address) -> bool:
 
     # ripe params
     ripeTeller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
-    ripeLockDuration: uint256 = self.ripeLockDuration
-    ripeStakeRatio: uint256 = self.ripeStakeRatio
+    ripeConfig: cs.RipeRewardsConfig = staticcall MissionControl(a.missionControl).getRipeRewardsConfig()
+    ripeLockDuration: uint256 = ripeConfig.lockDuration
+    ripeStakeRatio: uint256 = ripeConfig.stakeRatio
 
     # claim rev share and bonus loot
     numAssetsClaimed: uint256 = self._claimRevShareAndBonusLoot(_user, ripeStakeRatio, ripeLockDuration, ripeTeller)
@@ -1028,17 +1019,3 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
         return True
 
     return isSwitchboard
-
-
-# set ripe rewards config
-
-
-@external
-def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256):
-    assert not deptBasics.isPaused # dev: contract paused
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert _ripeStakeRatio <= HUNDRED_PERCENT # dev: invalid stake ratio
-    assert _ripeLockDuration > 0 # dev: invalid lock duration
-    self.ripeStakeRatio = _ripeStakeRatio
-    self.ripeLockDuration = _ripeLockDuration
-    log RipeRewardsConfigSet(ripeStakeRatio=_ripeStakeRatio, ripeLockDuration=_ripeLockDuration)

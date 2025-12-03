@@ -40,13 +40,11 @@ interface MissionControl:
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
     def agentConfig() -> cs.AgentConfig: view
+    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
 
 interface AgentWrapper:
     def removeSender(_sender: address): nonpayable
     def addSender(_sender: address): nonpayable
-
-interface LootDistributor:
-    def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256): nonpayable
 
 flag ActionType:
     USER_WALLET_TEMPLATES
@@ -66,6 +64,7 @@ flag ActionType:
     ASSET_YIELD_CONFIG
     IS_STABLECOIN
     AGENT_WRAPPER_SENDER
+    RIPE_REWARDS_CONFIG
 
 struct IsAddrAllowed:
     addr: address
@@ -311,7 +310,13 @@ event LockedSignerSet:
     isLocked: bool
     caller: address
 
-event RipeRewardsConfigSetFromSwitchboard:
+event PendingRipeRewardsConfigChange:
+    ripeStakeRatio: uint256
+    ripeLockDuration: uint256
+    confirmationBlock: uint256
+    actionId: uint256
+
+event RipeRewardsConfigSet:
     ripeStakeRatio: uint256
     ripeLockDuration: uint256
 
@@ -341,6 +346,8 @@ pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
 pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
 pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
 pendingAgentWrapperSender: public(HashMap[uint256, PendingAgentWrapperSender])
+pendingRipeRewardsConfig: public(HashMap[uint256, cs.RipeRewardsConfig])
+pendingMissionControl: public(HashMap[uint256, address]) # aid -> target mission control
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -370,6 +377,16 @@ def _hasPermsToEnable(_caller: address, _shouldEnable: bool) -> bool:
     return False
 
 
+@view
+@internal
+def _resolveMissionControl(_missionControl: address) -> address:
+    mc: address = addys._getMissionControlAddr()
+    if _missionControl == empty(address):
+        return mc
+    assert _missionControl != mc # dev: use empty for current mission control
+    return _missionControl
+
+
 ######################
 # User Wallet Config #
 ######################
@@ -379,11 +396,12 @@ def _hasPermsToEnable(_caller: address, _shouldEnable: bool) -> bool:
 
 
 @external
-def setUserWalletTemplates(_walletTemplate: address, _configTemplate: address) -> uint256:
+def setUserWalletTemplates(_walletTemplate: address, _configTemplate: address, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidUserWalletTemplates(_walletTemplate, _configTemplate) # dev: invalid user wallet templates
-    return self._setPendingUserWalletConfig(ActionType.USER_WALLET_TEMPLATES, _walletTemplate, _configTemplate)
+    return self._setPendingUserWalletConfig(ActionType.USER_WALLET_TEMPLATES, mc, _walletTemplate, _configTemplate)
 
 
 @view
@@ -400,12 +418,14 @@ def _areValidUserWalletTemplates(_walletTemplate: address, _configTemplate: addr
 
 
 @external
-def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhitelist: bool) -> uint256:
+def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhitelist: bool, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._isValidNumUserWalletsAllowed(_numUserWalletsAllowed) # dev: invalid num user wallets allowed
     return self._setPendingUserWalletConfig(
         ActionType.WALLET_CREATION_LIMITS,
+        mc,
         empty(address),
         empty(address),
         _numUserWalletsAllowed,
@@ -427,12 +447,14 @@ def _isValidNumUserWalletsAllowed(_numUserWalletsAllowed: uint256) -> bool:
 
 
 @external
-def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTimeLock: uint256) -> uint256:
+def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTimeLock: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidKeyActionTimelockBounds(_minKeyActionTimeLock, _maxKeyActionTimeLock) # dev: invalid key action timelock bounds
     return self._setPendingUserWalletConfig(
         ActionType.KEY_ACTION_TIMELOCK_BOUNDS,
+        mc,
         empty(address),
         empty(address),
         0,
@@ -458,12 +480,14 @@ def _areValidKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActi
 
 
 @external
-def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256) -> uint256:
+def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidTxFees(_swapFee, _stableSwapFee, _rewardsFee) # dev: invalid tx fees
     return self._setPendingUserWalletConfig(
         ActionType.TX_FEES,
+        mc,
         empty(address),
         empty(address),
         0,
@@ -494,12 +518,14 @@ def _areValidTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uin
 
 
 @external
-def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRatio: uint256) -> uint256:
+def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRatio: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidAmbassadorRevShareRatios(_swapRatio, _rewardsRatio, _yieldRatio) # dev: invalid ambassador rev share ratios
     return self._setPendingUserWalletConfig(
         ActionType.AMBASSADOR_REV_SHARE,
+        mc,
         empty(address),
         empty(address),
         0,
@@ -538,10 +564,12 @@ def setDefaultYieldParams(
     _defaultYieldPerformanceFee: uint256,
     _defaultYieldAmbassadorBonusRatio: uint256,
     _defaultYieldBonusRatio: uint256,
-    _defaultYieldBonusAsset: address
+    _defaultYieldBonusAsset: address,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidYieldParams(
         _defaultYieldMaxIncrease,
         _defaultYieldPerformanceFee,
@@ -551,6 +579,7 @@ def setDefaultYieldParams(
 
     return self._setPendingUserWalletConfig(
         ActionType.DEFAULT_YIELD_PARAMS,
+        mc,
         empty(address),
         empty(address),
         0,
@@ -596,12 +625,14 @@ def _areValidYieldParams(
 
 
 @external
-def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint256) -> uint256:
+def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidLootParams(_lootClaimCoolOffPeriod) # dev: invalid loot params
     return self._setPendingUserWalletConfig(
         ActionType.LOOT_PARAMS,
+        mc,
         empty(address),
         empty(address),
         0,
@@ -652,10 +683,12 @@ def setAssetConfig(
     _performanceFee: uint256,
     _ambassadorBonusRatio: uint256,
     _bonusRatio: uint256,
-    _bonusAsset: address
+    _bonusAsset: address,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._isValidAssetConfig(
         _asset,
         _txFeesSwapFee,
@@ -681,6 +714,7 @@ def setAssetConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetConfig[aid] = PendingAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
@@ -757,13 +791,14 @@ def setAssetTxFees(
     _asset: address,
     _swapFee: uint256,
     _stableSwapFee: uint256,
-    _rewardsFee: uint256
+    _rewardsFee: uint256,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert _asset != empty(address) # dev: invalid asset
 
     # Ensure full asset config has been set first
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self._resolveMissionControl(_missionControl)
     existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
     assert existingConfig.hasConfig # dev: must set full asset config first
 
@@ -771,6 +806,7 @@ def setAssetTxFees(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_TX_FEES
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetTxFees[aid] = PendingAssetTxFees(
         asset=_asset,
         txFees=cs.TxFees(
@@ -796,13 +832,14 @@ def setAssetAmbassadorRevShare(
     _asset: address,
     _swapRatio: uint256,
     _rewardsRatio: uint256,
-    _yieldRatio: uint256
+    _yieldRatio: uint256,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert _asset != empty(address) # dev: invalid asset
 
     # Ensure full asset config has been set first
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self._resolveMissionControl(_missionControl)
     existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
     assert existingConfig.hasConfig # dev: must set full asset config first
 
@@ -810,6 +847,7 @@ def setAssetAmbassadorRevShare(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_AMBASSADOR_REV_SHARE
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetAmbassadorRevShare[aid] = PendingAssetAmbassadorRevShare(
         asset=_asset,
         ambassadorRevShare=cs.AmbassadorRevShare(
@@ -837,13 +875,14 @@ def setAssetYieldConfig(
     _performanceFee: uint256,
     _ambassadorBonusRatio: uint256,
     _bonusRatio: uint256,
-    _bonusAsset: address
+    _bonusAsset: address,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert _asset != empty(address) # dev: invalid asset
 
     # Ensure full asset config has been set first
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self._resolveMissionControl(_missionControl)
     existingConfig: cs.AssetConfig = staticcall MissionControl(mc).assetConfig(_asset)
     assert existingConfig.hasConfig # dev: must set full asset config first
 
@@ -851,6 +890,7 @@ def setAssetYieldConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_YIELD_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetYieldConfig[aid] = PendingAssetYieldConfig(
         asset=_asset,
         yieldConfig=cs.YieldConfig(
@@ -879,11 +919,13 @@ def setAssetYieldConfig(
 
 
 @external
-def setIsStablecoin(_asset: address, _isStablecoin: bool) -> uint256:
+def setIsStablecoin(_asset: address, _isStablecoin: bool, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    mc: address = self._resolveMissionControl(_missionControl)
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.IS_STABLECOIN
+    self.pendingMissionControl[aid] = mc
     self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_asset, isAllowed=_isStablecoin)
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingIsStablecoinChange(asset=_asset, isStablecoin=_isStablecoin, confirmationBlock=confirmationBlock, actionId=aid)
@@ -899,11 +941,13 @@ def setIsStablecoin(_asset: address, _isStablecoin: bool) -> uint256:
 
 
 @external
-def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> uint256:
+def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
 
+    mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params
     return self._setPendingAgentConfig(
+        mc,
         _startingAgent,
         _startingAgentActivationLength
     )
@@ -973,14 +1017,17 @@ def setManagerConfig(
     _maxNumSwapsPerPeriod: uint256,
     _maxSlippageOnSwaps: uint256,
     _onlyApprovedYieldOpps: bool,
+    _missionControl: address = empty(address)
 ) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert 0 not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
     assert max_value(uint256) not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.MANAGER_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingManagerConfig[aid] = cs.ManagerConfig(
         managerPeriod=_managerPeriod,
         managerActivationLength=_managerActivationLength,
@@ -1009,14 +1056,16 @@ def setManagerConfig(
 
 
 @external
-def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256) -> uint256:
+def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-    
+
+    mc: address = self._resolveMissionControl(_missionControl)
     assert 0 not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
     assert max_value(uint256) not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.PAYEE_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingPayeeConfig[aid] = cs.PayeeConfig(
         payeePeriod=_payeePeriod,
         payeeActivationLength=_payeeActivationLength
@@ -1040,17 +1089,19 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256) -> ui
 
 
 @external
-def setCanPerformSecurityAction(_signer: address, _canPerform: bool) -> uint256:
+def setCanPerformSecurityAction(_signer: address, _canPerform: bool, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
+    mc: address = self._resolveMissionControl(_missionControl)
 
     # when removing, allow to do immediately
     if not _canPerform:
-        extcall MissionControl(addys._getMissionControlAddr()).setCanPerformSecurityAction(_signer, _canPerform)
+        extcall MissionControl(mc).setCanPerformSecurityAction(_signer, _canPerform)
         log CanPerformSecurityAction(signer=_signer, canPerform=_canPerform)
         return 0
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.CAN_PERFORM_SECURITY_ACTION
+    self.pendingMissionControl[aid] = mc
     self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_signer, isAllowed=_canPerform)
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingCanPerformSecurityAction(signer=_signer, canPerform=_canPerform, confirmationBlock=confirmationBlock, actionId=aid)
@@ -1061,11 +1112,11 @@ def setCanPerformSecurityAction(_signer: address, _canPerform: bool) -> uint256:
 
 
 @external
-def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
+def setCreatorWhitelist(_creator: address, _isWhitelisted: bool, _missionControl: address = empty(address)):
     assert self._hasPermsToEnable(msg.sender, _isWhitelisted) # dev: no perms
 
     assert _creator != empty(address) # dev: invalid creator
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self._resolveMissionControl(_missionControl)
     extcall MissionControl(mc).setCreatorWhitelist(_creator, _isWhitelisted)
 
     log CreatorWhitelistSet(creator=_creator, isWhitelisted=_isWhitelisted, caller=msg.sender)
@@ -1075,11 +1126,11 @@ def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
 
 
 @external
-def setLockedSigner(_signer: address, _isLocked: bool):
+def setLockedSigner(_signer: address, _isLocked: bool, _missionControl: address = empty(address)):
     assert self._hasPermsToEnable(msg.sender, _isLocked) # dev: no perms
 
     assert _signer != empty(address) # dev: invalid creator
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self._resolveMissionControl(_missionControl)
     extcall MissionControl(mc).setLockedSigner(_signer, _isLocked)
 
     log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
@@ -1089,12 +1140,34 @@ def setLockedSigner(_signer: address, _isLocked: bool):
 
 
 @external
-def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256):
+def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration) # dev: invalid ripe rewards config
 
-    ld: address = addys._getLootDistributorAddr()
-    extcall LootDistributor(ld).setRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration)
-    log RipeRewardsConfigSetFromSwitchboard(ripeStakeRatio=_ripeStakeRatio, ripeLockDuration=_ripeLockDuration)
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.RIPE_REWARDS_CONFIG
+    self.pendingMissionControl[aid] = self._resolveMissionControl(_missionControl)
+    self.pendingRipeRewardsConfig[aid] = cs.RipeRewardsConfig(
+        stakeRatio=_ripeStakeRatio,
+        lockDuration=_ripeLockDuration,
+    )
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingRipeRewardsConfigChange(
+        ripeStakeRatio=_ripeStakeRatio,
+        ripeLockDuration=_ripeLockDuration,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
+    return aid
+
+
+@view
+@internal
+def _isValidRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256) -> bool:
+    if _ripeStakeRatio > HUNDRED_PERCENT:
+        return False
+    return _ripeLockDuration != 0
 
 
 ###############
@@ -1105,6 +1178,7 @@ def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256):
 @internal
 def _setPendingUserWalletConfig(
     _actionType: ActionType,
+    _missionControl: address,
     _walletTemplate: address = empty(address),
     _configTemplate: address = empty(address),
     _numUserWalletsAllowed: uint256 = 0,
@@ -1128,6 +1202,7 @@ def _setPendingUserWalletConfig(
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = _actionType
+    self.pendingMissionControl[aid] = _missionControl
     self.pendingUserWalletConfig[aid] = cs.UserWalletConfig(
         walletTemplate=_walletTemplate,
         configTemplate=_configTemplate,
@@ -1216,12 +1291,14 @@ def _setPendingUserWalletConfig(
 
 @internal
 def _setPendingAgentConfig(
+    _missionControl: address,
     _startingAgent: address,
     _startingAgentActivationLength: uint256,
 ) -> uint256:
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = ActionType.STARTER_AGENT_PARAMS
+    self.pendingMissionControl[aid] = _missionControl
     self.pendingAgentConfig[aid] = cs.AgentConfig(
         startingAgent=_startingAgent,
         startingAgentActivationLength=_startingAgentActivationLength,
@@ -1253,7 +1330,9 @@ def executePendingAction(_aid: uint256) -> bool:
         return False
 
     actionType: ActionType = self.actionType[_aid]
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self.pendingMissionControl[_aid]
+    if mc == empty(address):
+        mc = addys._getMissionControlAddr()
 
     if actionType == ActionType.USER_WALLET_TEMPLATES:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
@@ -1400,7 +1479,13 @@ def executePendingAction(_aid: uint256) -> bool:
         extcall AgentWrapper(p.agentWrapper).addSender(p.agentSender)
         log AgentWrapperSenderAdded(agentWrapper=p.agentWrapper, agentSender=p.agentSender)
 
+    elif actionType == ActionType.RIPE_REWARDS_CONFIG:
+        p: cs.RipeRewardsConfig = self.pendingRipeRewardsConfig[_aid]
+        extcall MissionControl(mc).setRipeRewardsConfig(p)
+        log RipeRewardsConfigSet(ripeStakeRatio=p.stakeRatio, ripeLockDuration=p.lockDuration)
+
     self.actionType[_aid] = empty(ActionType)
+    self.pendingMissionControl[_aid] = empty(address)
     return True
 
 
@@ -1418,3 +1503,4 @@ def cancelPendingAction(_aid: uint256) -> bool:
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
     self.actionType[_aid] = empty(ActionType)
+    self.pendingMissionControl[_aid] = empty(address)

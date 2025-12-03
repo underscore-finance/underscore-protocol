@@ -109,3 +109,12 @@ def chequeConfig() -> cs.ChequeConfig:
         expensiveDelayBlocks = DAY_IN_BLOCKS,
         defaultExpiryBlocks = 2 * DAY_IN_BLOCKS,
     )
+
+
+@view
+@external
+def ripeRewardsConfig() -> cs.RipeRewardsConfig:
+    return cs.RipeRewardsConfig(
+        stakeRatio = 80_00,
+        lockDuration = 1 * DAY_IN_BLOCKS,
+    )

@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Vault Parameters
 
-**Generated:** 2025-12-01 22:32:38 UTC
-**Block:** 38919434
+**Generated:** 2025-12-02 19:19:24 UTC
+**Block:** 38956852
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -22,11 +22,11 @@
 
 | ID | Name | Type | Total Assets (Max) | Total Assets (Low) | HQ |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Underscore Blue Chip USD | Earn | 300.48K  | 300.38K  | Y |
+| 1 | Underscore Blue Chip USD | Earn | 300.59K  | 300.43K  | Y |
 | 2 | Underscore Blue Chip ETH | Earn | 3.17  | 3.17  | Y |
 | 3 | Underscore Blue Chip BTC | Earn | 0.02  | 0.02  | Y |
 | 4 | Underscore Blue Chip AERO | Earn | 5.19K  | 5.19K  | Y |
-| 5 | Underscore Blue Chip EURC | Earn | 178.05  | 178.03  | Y |
+| 5 | Underscore Blue Chip EURC | Earn | 178.06  | 178.05  | Y |
 | 6 | Underscore Blue Chip USDS | Earn | 99.12  | 99.12  | Y |
 | 7 | Underscore Blue Chip CBETH | Earn | 0.02  | 0.02  | Y |
 | 8 | Underscore Blue Chip GHO | Earn | 99.13  | 99.13  | Y |
@@ -108,14 +108,14 @@ UNDY_HQ: Verified
 ### EarnVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
-| totalSupply (shares) | 299,431.453565 |
-| totalAssets (max) | 300,481.023432 |
-| totalAssets (low) | 300,377.462498 |
-| sharePrice (1 share =) | 1.003505 |
+| totalSupply (shares) | 299,426.468822 |
+| totalAssets (max) | 300,588.006452 |
+| totalAssets (low) | 300,427.761645 |
+| sharePrice (1 share =) | 1.003879 |
 | numAssets (yield positions) | 6 |
-| lastUnderlyingBal | 300,693.742363 |
-| pendingYieldRealized | 1,276.873428 |
-| claimablePerformanceFees | 266.038624 |
+| lastUnderlyingBal | 300,878.304257 |
+| pendingYieldRealized | 1,466.437068 |
+| claimablePerformanceFees | 294.034815 |
 | numManagers | 2 |
 
 **Yield Position Assets (6):**
@@ -185,13 +185,13 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 3.164134977557775841 |
-| totalAssets (max) | 3.166275494264907842 |
-| totalAssets (low) | 3.166221252946236575 |
-| sharePrice (1 share =) | 1.000676493487892893 |
+| totalAssets (max) | 3.166359781967797105 |
+| totalAssets (low) | 3.166285328363363849 |
+| sharePrice (1 share =) | 1.000703131954167935 |
 | numAssets (yield positions) | 5 |
-| lastUnderlyingBal | 3.16678362105959943 |
-| pendingYieldRealized | 0.002598497890786815 |
-| claimablePerformanceFees | 0.000522592774023768 |
+| lastUnderlyingBal | 3.166864643133678658 |
+| pendingYieldRealized | 0.00267951996486606 |
+| claimablePerformanceFees | 0.000543664699746079 |
 | numManagers | 2 |
 
 **Yield Position Assets (5):**
@@ -255,13 +255,13 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 0.02366282 |
-| totalAssets (max) | 0.02366379 |
-| totalAssets (low) | 0.02366329 |
-| sharePrice (1 share =) | 1.00004099 |
+| totalAssets (max) | 0.02366388 |
+| totalAssets (low) | 0.02366331 |
+| sharePrice (1 share =) | 1.00004479 |
 | numAssets (yield positions) | 4 |
 | lastUnderlyingBal | 0.02366375 |
 | pendingYieldRealized | 0.00000299 |
-| claimablePerformanceFees | 0.00000075 |
+| claimablePerformanceFees | 0.00000078 |
 | numManagers | 2 |
 
 **Yield Position Assets (4):**
@@ -320,13 +320,13 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 5,181.24173284260177752 |
-| totalAssets (max) | 5,186.122619491181467311 |
-| totalAssets (low) | 5,186.054033911204896867 |
-| sharePrice (1 share =) | 1.000942030289311058 |
+| totalAssets (max) | 5,186.350298204225509835 |
+| totalAssets (low) | 5,186.252875443102311692 |
+| sharePrice (1 share =) | 1.000985973174971067 |
 | numAssets (yield positions) | 2 |
 | lastUnderlyingBal | 5,186.593668927108410571 |
 | pendingYieldRealized | 5.376886106578088409 |
-| claimablePerformanceFees | 1.219020236809034818 |
+| claimablePerformanceFees | 1.275939915070010144 |
 | numManagers | 2 |
 
 **Yield Position Assets (2):**
@@ -388,24 +388,23 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 177.854931 |
-| totalAssets (max) | 178.050754 |
-| totalAssets (low) | 178.026189 |
-| sharePrice (1 share =) | 1.001101 |
-| numAssets (yield positions) | 6 |
-| lastUnderlyingBal | 177.803649 |
-| pendingYieldRealized | 0.226027 |
-| claimablePerformanceFees | 0.048724 |
+| totalAssets (max) | 178.062125 |
+| totalAssets (low) | 178.05109 |
+| sharePrice (1 share =) | 1.001164 |
+| numAssets (yield positions) | 5 |
+| lastUnderlyingBal | 178.008264 |
+| pendingYieldRealized | 0.257025 |
+| claimablePerformanceFees | 0.051569 |
 | numManagers | 2 |
 
-**Yield Position Assets (6):**
+**Yield Position Assets (5):**
 | Index | Vault Token | Lego ID |
 | --- | --- | --- |
-| 1 | `0x90DA57E0A6C0d166Bf15764E03b83745Dc90025B` | 2 |
+| 1 | MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 7 |
 | 2 | FLUID_EURC (0x1943FA26360f038230442525Cf1B9125b5DCB401) | 5 |
 | 3 | MOONWELL_EURC (0xb682c840B5F4FC58B20769E691A6fa1305A501a2) | 6 |
 | 4 | MORPHO_GAUNTLET_EURC_CORE (0x1c155be6bC51F2c37d472d4C2Eba7a637806e122) | 7 |
 | 5 | EULER_EURC (0x9ECD9fbbdA32b81dee51AdAed28c5C5039c87117) | 4 |
-| 6 | MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 7 |
 
 **Managers (2):**
 
@@ -622,15 +621,15 @@ UNDY_HQ: Verified
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
 | isLeveragedVault | True |
-| shouldEnforceAllowlist | False |
+| shouldEnforceAllowlist | True |
 
 ### LevgVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 3 |
-| totalAssets (max) | 3.002496 |
-| totalAssets (low) | 3.001185 |
-| sharePrice (1 share =) | 1.000832 |
+| totalAssets (max) | 3.003615 |
+| totalAssets (low) | 3.003585 |
+| sharePrice (1 share =) | 1.001205 |
 | collateralAsset.vaultToken | Underscore Blue Chip USD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) |
 | collateralAsset.ripeVaultId | 5 |
 | leverageAsset.vaultToken | Underscore Blue Chip USD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) |
@@ -673,7 +672,7 @@ UNDY_HQ: Verified
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
 | isLeveragedVault | True |
-| shouldEnforceAllowlist | False |
+| shouldEnforceAllowlist | True |
 
 ### LevgVaultWallet Storage
 | Parameter | Value |
@@ -709,4 +708,4 @@ UNDY_HQ: Verified
 ================================================================================
 
 ---
-*Report generated at block 38919434 on 2025-12-01 22:34:55 UTC*
+*Report generated at block 38956852 on 2025-12-02 19:21:09 UTC*

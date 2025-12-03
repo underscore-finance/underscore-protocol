@@ -353,6 +353,9 @@ def print_table_of_contents():
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [RIPE Rewards Config](#ripe-rewards-config)
+     - [Security Signers](#security-signers)
+     - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
    - [Ledger Statistics](#ledger)
 
@@ -458,6 +461,82 @@ def fetch_undy_hq_data():
                 print(f"  - Confirm Block: {change['confirm_block']}")
 
 
+def fetch_ripe_rewards_config(mc):
+    """Fetch and print RIPE rewards config from MissionControl.
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    The RIPE rewards config was moved from LootDistributor to MissionControl.
+    """
+    try:
+        print("\n<a id=\"ripe-rewards-config\"></a>")
+        time.sleep(RPC_DELAY)
+        ripe_config = mc.ripeRewardsConfig()
+
+        ripe_rows = [
+            ("stakeRatio", format_percent(ripe_config.stakeRatio)),
+            ("lockDuration", format_blocks_to_time(ripe_config.lockDuration)),
+        ]
+        print_table("RIPE Rewards Config", ["Parameter", "Value"], ripe_rows)
+    except Exception:
+        print("\n*Could not fetch RIPE rewards config from MissionControl (not available in this contract version - check LootDistributor).*")
+
+
+def fetch_security_signers(mc):
+    """Fetch and print security signers from MissionControl (iterable).
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    """
+    try:
+        print("\n<a id=\"security-signers\"></a>")
+        time.sleep(RPC_DELAY)
+        num_signers = mc.numSecuritySigners()
+
+        # Actual count is num_signers - 1 (index 0 is sentinel)
+        actual_count = num_signers - 1 if num_signers > 0 else 0
+
+        if actual_count > 0:
+            print(f"\n**Security Signers ({actual_count}):**")
+            print("| Index | Address |")
+            print("| --- | --- |")
+            for i in range(1, num_signers):
+                time.sleep(RPC_DELAY)
+                signer_addr = str(mc.securitySigners(i))
+                if signer_addr != ZERO_ADDRESS:
+                    print(f"| {i} | {format_address(signer_addr, _get_known_addresses)} |")
+        else:
+            print("\n*No security signers registered.*")
+    except Exception:
+        print("\n*Could not fetch security signers (not available in this contract version).*")
+
+
+def fetch_whitelisted_creators(mc):
+    """Fetch and print whitelisted creators from MissionControl (iterable).
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    """
+    try:
+        print("\n<a id=\"creator-whitelist\"></a>")
+        time.sleep(RPC_DELAY)
+        num_creators = mc.numWhitelistedCreators()
+
+        # Actual count is num_creators - 1 (index 0 is sentinel)
+        actual_count = num_creators - 1 if num_creators > 0 else 0
+
+        if actual_count > 0:
+            print(f"\n**Creator Whitelist ({actual_count}):**")
+            print("| Index | Address |")
+            print("| --- | --- |")
+            for i in range(1, num_creators):
+                time.sleep(RPC_DELAY)
+                creator_addr = str(mc.whitelistedCreators(i))
+                if creator_addr != ZERO_ADDRESS:
+                    print(f"| {i} | {format_address(creator_addr, _get_known_addresses)} |")
+        else:
+            print("\n*No whitelisted creators registered.*")
+    except Exception:
+        print("\n*Could not fetch creator whitelist (not available in this contract version).*")
+
+
 def fetch_mission_control_data():
     """Fetch and print MissionControl configuration data."""
     mc = protocol.core_contracts.get("MissionControl")
@@ -560,6 +639,15 @@ def fetch_mission_control_data():
         ("defaultExpiryBlocks", format_blocks_to_time(cheque.defaultExpiryBlocks)),
     ]
     print_table("Cheque Config", ["Parameter", "Value"], cheque_rows)
+
+    # RIPE Rewards Config - new feature, graceful fail if not deployed
+    fetch_ripe_rewards_config(mc)
+
+    # Security Signers (iterable) - new feature, graceful fail if not deployed
+    fetch_security_signers(mc)
+
+    # Whitelisted Creators (iterable) - new feature, graceful fail if not deployed
+    fetch_whitelisted_creators(mc)
 
 
 def fetch_wallet_backpack_data():
@@ -793,11 +881,24 @@ def fetch_loot_distributor_data():
     rows = [
         ("depositRewards.asset", format_address(str(deposit_rewards.asset), _get_known_addresses)),
         ("depositRewards.amount", format_token_amount(deposit_rewards.amount, 18)),
-        ("ripeStakeRatio", format_percent(loot.ripeStakeRatio())),
-        ("ripeLockDuration", format_blocks_to_time(loot.ripeLockDuration())),
-        ("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()), _get_known_addresses)),
-        ("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()), _get_known_addresses)),
     ]
+
+    # Try to read RIPE config from LootDistributor (old contract version)
+    # In new version, these have been moved to MissionControl.ripeRewardsConfig()
+    try:
+        time.sleep(RPC_DELAY)
+        ripe_stake_ratio = loot.ripeStakeRatio()
+        time.sleep(RPC_DELAY)
+        ripe_lock_duration = loot.ripeLockDuration()
+        rows.append(("ripeStakeRatio", format_percent(ripe_stake_ratio)))
+        rows.append(("ripeLockDuration", format_blocks_to_time(ripe_lock_duration)))
+    except Exception:
+        rows.append(("ripeStakeRatio", "*Moved to MissionControl.ripeRewardsConfig()*"))
+        rows.append(("ripeLockDuration", "*Moved to MissionControl.ripeRewardsConfig()*"))
+
+    rows.append(("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()), _get_known_addresses)))
+    rows.append(("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()), _get_known_addresses)))
+
     print_table("Loot Config", ["Parameter", "Value"], rows)
 
 
