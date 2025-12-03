@@ -32,3 +32,9 @@ def payeeConfig() -> cs.PayeeConfig:
 @external
 def chequeConfig() -> cs.ChequeConfig:
     ...
+
+
+@view
+@external
+def ripeRewardsConfig() -> cs.RipeRewardsConfig:
+    ...

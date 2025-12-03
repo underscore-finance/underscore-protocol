@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Production Parameters
 
-**Generated:** 2025-12-02 19:17:30 UTC
-**Block:** 38956825
+**Generated:** 2025-12-02 23:44:58 UTC
+**Block:** 38964843
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -310,11 +310,11 @@ Address: 0x9e97A2e527890E690c7FA978696A88EFA868c5D0
 ### Global Points
 | Parameter | Value |
 | --- | --- |
-| usdValue | 212.01K USD |
-| depositPoints | 141,178,979,264 |
-| lastUpdate (block) | 38,953,558 |
+| usdValue | 221.10K USD |
+| depositPoints | 143,213,807,037 |
+| lastUpdate (block) | 38,963,156 |
 
 ================================================================================
 
 ---
-*Report generated at block 38956825 on 2025-12-02 19:17:57 UTC*
+*Report generated at block 38964843 on 2025-12-02 23:45:24 UTC*

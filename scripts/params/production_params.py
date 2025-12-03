@@ -353,6 +353,7 @@ def print_table_of_contents():
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [RIPE Rewards Config](#ripe-rewards-config)
      - [Security Signers](#security-signers)
      - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
@@ -458,6 +459,26 @@ def fetch_undy_hq_data():
                 print(f"  - New canSetTokenBlacklist: {'Yes' if new_cfg.canSetTokenBlacklist else 'No'}")
                 print(f"  - Initiated Block: {change['initiated_block']}")
                 print(f"  - Confirm Block: {change['confirm_block']}")
+
+
+def fetch_ripe_rewards_config(mc):
+    """Fetch and print RIPE rewards config from MissionControl.
+
+    This is a new feature - gracefully fails if not available in deployed contract.
+    The RIPE rewards config was moved from LootDistributor to MissionControl.
+    """
+    try:
+        print("\n<a id=\"ripe-rewards-config\"></a>")
+        time.sleep(RPC_DELAY)
+        ripe_config = mc.ripeRewardsConfig()
+
+        ripe_rows = [
+            ("stakeRatio", format_percent(ripe_config.stakeRatio)),
+            ("lockDuration", format_blocks_to_time(ripe_config.lockDuration)),
+        ]
+        print_table("RIPE Rewards Config", ["Parameter", "Value"], ripe_rows)
+    except Exception:
+        print("\n*Could not fetch RIPE rewards config from MissionControl (not available in this contract version - check LootDistributor).*")
 
 
 def fetch_security_signers(mc):
@@ -618,6 +639,9 @@ def fetch_mission_control_data():
         ("defaultExpiryBlocks", format_blocks_to_time(cheque.defaultExpiryBlocks)),
     ]
     print_table("Cheque Config", ["Parameter", "Value"], cheque_rows)
+
+    # RIPE Rewards Config - new feature, graceful fail if not deployed
+    fetch_ripe_rewards_config(mc)
 
     # Security Signers (iterable) - new feature, graceful fail if not deployed
     fetch_security_signers(mc)
@@ -857,11 +881,24 @@ def fetch_loot_distributor_data():
     rows = [
         ("depositRewards.asset", format_address(str(deposit_rewards.asset), _get_known_addresses)),
         ("depositRewards.amount", format_token_amount(deposit_rewards.amount, 18)),
-        ("ripeStakeRatio", format_percent(loot.ripeStakeRatio())),
-        ("ripeLockDuration", format_blocks_to_time(loot.ripeLockDuration())),
-        ("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()), _get_known_addresses)),
-        ("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()), _get_known_addresses)),
     ]
+
+    # Try to read RIPE config from LootDistributor (old contract version)
+    # In new version, these have been moved to MissionControl.ripeRewardsConfig()
+    try:
+        time.sleep(RPC_DELAY)
+        ripe_stake_ratio = loot.ripeStakeRatio()
+        time.sleep(RPC_DELAY)
+        ripe_lock_duration = loot.ripeLockDuration()
+        rows.append(("ripeStakeRatio", format_percent(ripe_stake_ratio)))
+        rows.append(("ripeLockDuration", format_blocks_to_time(ripe_lock_duration)))
+    except Exception:
+        rows.append(("ripeStakeRatio", "*Moved to MissionControl.ripeRewardsConfig()*"))
+        rows.append(("ripeLockDuration", "*Moved to MissionControl.ripeRewardsConfig()*"))
+
+    rows.append(("RIPE_TOKEN", format_address(str(loot.RIPE_TOKEN()), _get_known_addresses)))
+    rows.append(("RIPE_REGISTRY", format_address(str(loot.RIPE_REGISTRY()), _get_known_addresses)))
+
     print_table("Loot Config", ["Parameter", "Value"], rows)
 
 

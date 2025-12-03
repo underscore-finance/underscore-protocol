@@ -93,6 +93,7 @@ agentConfig: public(cs.AgentConfig)
 managerConfig: public(cs.ManagerConfig)
 payeeConfig: public(cs.PayeeConfig)
 chequeConfig: public(cs.ChequeConfig)
+ripeRewardsConfig: public(cs.RipeRewardsConfig)
 
 # asset config
 assetConfig: public(HashMap[address, cs.AssetConfig])
@@ -127,6 +128,7 @@ def __init__(_undyHq: address, _defaults: address):
         self.managerConfig = staticcall Defaults(_defaults).managerConfig()
         self.payeeConfig = staticcall Defaults(_defaults).payeeConfig()
         self.chequeConfig = staticcall Defaults(_defaults).chequeConfig()
+        self.ripeRewardsConfig = staticcall Defaults(_defaults).ripeRewardsConfig()
 
 
 ######################
@@ -208,6 +210,26 @@ def getDepositRewardsAsset() -> address:
 @external
 def getLootClaimCoolOffPeriod() -> uint256:
     return self.userWalletConfig.lootClaimCoolOffPeriod
+
+
+#######################
+# Ripe Rewards Config #
+#######################
+
+
+@external
+def setRipeRewardsConfig(_config: cs.RipeRewardsConfig):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
+    assert _config.stakeRatio <= 100_00 # dev: invalid stake ratio
+    assert _config.lockDuration != 0 # dev: invalid lock duration
+    self.ripeRewardsConfig = _config
+
+
+@view
+@external
+def getRipeRewardsConfig() -> cs.RipeRewardsConfig:
+    return self.ripeRewardsConfig
 
 
 ################
