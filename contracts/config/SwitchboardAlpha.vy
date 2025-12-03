@@ -1142,10 +1142,24 @@ def setLockedSigner(_signer: address, _isLocked: bool, _missionControl: address 
 @external
 def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256, _missionControl: address = empty(address)) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
-
-    mc: address = self._resolveMissionControl(_missionControl)
     assert self._isValidRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration) # dev: invalid ripe rewards config
-    return self._setPendingRipeRewardsConfig(mc, _ripeStakeRatio, _ripeLockDuration)
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.RIPE_REWARDS_CONFIG
+    self.pendingMissionControl[aid] = self._resolveMissionControl(_missionControl)
+    self.pendingRipeRewardsConfig[aid] = cs.RipeRewardsConfig(
+        stakeRatio=_ripeStakeRatio,
+        lockDuration=_ripeLockDuration,
+    )
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingRipeRewardsConfigChange(
+        ripeStakeRatio=_ripeStakeRatio,
+        ripeLockDuration=_ripeLockDuration,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
+    return aid
 
 
 @view
@@ -1294,31 +1308,6 @@ def _setPendingAgentConfig(
     log PendingStarterAgentParamsChange(
         startingAgent=_startingAgent,
         startingAgentActivationLength=_startingAgentActivationLength,
-        confirmationBlock=confirmationBlock,
-        actionId=aid,
-    )
-    return aid
-
-
-@internal
-def _setPendingRipeRewardsConfig(
-    _missionControl: address,
-    _ripeStakeRatio: uint256,
-    _ripeLockDuration: uint256,
-) -> uint256:
-    aid: uint256 = timeLock._initiateAction()
-
-    self.actionType[aid] = ActionType.RIPE_REWARDS_CONFIG
-    self.pendingMissionControl[aid] = _missionControl
-    self.pendingRipeRewardsConfig[aid] = cs.RipeRewardsConfig(
-        stakeRatio=_ripeStakeRatio,
-        lockDuration=_ripeLockDuration,
-    )
-
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingRipeRewardsConfigChange(
-        ripeStakeRatio=_ripeStakeRatio,
-        ripeLockDuration=_ripeLockDuration,
         confirmationBlock=confirmationBlock,
         actionId=aid,
     )

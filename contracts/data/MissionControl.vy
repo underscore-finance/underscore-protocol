@@ -221,8 +221,6 @@ def getLootClaimCoolOffPeriod() -> uint256:
 def setRipeRewardsConfig(_config: cs.RipeRewardsConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
-    assert _config.stakeRatio <= 100_00 # dev: invalid stake ratio
-    assert _config.lockDuration != 0 # dev: invalid lock duration
     self.ripeRewardsConfig = _config
 
 
