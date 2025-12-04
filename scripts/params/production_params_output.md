@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Production Parameters
 
-**Generated:** 2025-12-02 23:44:58 UTC
-**Block:** 38964843
+**Generated:** 2025-12-04 20:02:45 UTC
+**Block:** 39044581
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -19,6 +19,7 @@
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [RIPE Rewards Config](#ripe-rewards-config)
      - [Security Signers](#security-signers)
      - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
@@ -34,7 +35,7 @@
 
 | Metric | Value |
 | --- | --- |
-| **Total User Wallets** | 254 |
+| **Total User Wallets** | 256 |
 | **Registered Legos** | 17 |
 | **Earn Vaults** | 10 |
 
@@ -272,6 +273,10 @@ Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 | expensiveDelayBlocks | 43200 blocks (~1.0d) |
 | defaultExpiryBlocks | 86400 blocks (~2.0d) |
 
+<a id="ripe-rewards-config"></a>
+
+*Could not fetch RIPE rewards config from MissionControl (not available in this contract version - check LootDistributor).*
+
 <a id="security-signers"></a>
 
 *Could not fetch security signers (not available in this contract version).*
@@ -305,16 +310,16 @@ Address: 0x9e97A2e527890E690c7FA978696A88EFA868c5D0
 ### Protocol Statistics
 | Parameter | Value |
 | --- | --- |
-| numUserWallets | 254 |
+| numUserWallets | 256 |
 
 ### Global Points
 | Parameter | Value |
 | --- | --- |
-| usdValue | 221.10K USD |
-| depositPoints | 143,213,807,037 |
-| lastUpdate (block) | 38,963,156 |
+| usdValue | 223.84K USD |
+| depositPoints | 161,372,451,881 |
+| lastUpdate (block) | 39,044,423 |
 
 ================================================================================
 
 ---
-*Report generated at block 38964843 on 2025-12-02 23:45:24 UTC*
+*Report generated at block 39044581 on 2025-12-04 20:03:13 UTC*
