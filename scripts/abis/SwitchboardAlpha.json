@@ -1,0 +1,3516 @@
+[
+  {
+    "name": "PendingUserWalletTemplatesChange",
+    "inputs": [
+      {
+        "name": "walletTemplate",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "configTemplate",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "UserWalletTemplatesSet",
+    "inputs": [
+      {
+        "name": "walletTemplate",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "configTemplate",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingWalletCreationLimitsChange",
+    "inputs": [
+      {
+        "name": "numUserWalletsAllowed",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "enforceCreatorWhitelist",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletCreationLimitsSet",
+    "inputs": [
+      {
+        "name": "numUserWalletsAllowed",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "enforceCreatorWhitelist",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingKeyActionTimelockBoundsChange",
+    "inputs": [
+      {
+        "name": "minKeyActionTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "maxKeyActionTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "KeyActionTimelockBoundsSet",
+    "inputs": [
+      {
+        "name": "minKeyActionTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "maxKeyActionTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingTxFeesChange",
+    "inputs": [
+      {
+        "name": "swapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "stableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "TxFeesSet",
+    "inputs": [
+      {
+        "name": "swapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "stableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsFee",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAmbassadorRevShareChange",
+    "inputs": [
+      {
+        "name": "swapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "yieldRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AmbassadorRevShareSet",
+    "inputs": [
+      {
+        "name": "swapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "yieldRatio",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingDefaultYieldParamsChange",
+    "inputs": [
+      {
+        "name": "defaultYieldMaxIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldPerformanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldAmbassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldBonusAsset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DefaultYieldParamsSet",
+    "inputs": [
+      {
+        "name": "defaultYieldMaxIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldPerformanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldAmbassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultYieldBonusAsset",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingLootParamsChange",
+    "inputs": [
+      {
+        "name": "depositRewardsAsset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "lootClaimCoolOffPeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LootParamsSet",
+    "inputs": [
+      {
+        "name": "depositRewardsAsset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "lootClaimCoolOffPeriod",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAssetConfigChange",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "txFeesSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "txFeesStableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "txFeesRewardsFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareSwapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareRewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareYieldRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "maxYieldIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "performanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusAsset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingIsStablecoinChange",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isStablecoin",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "IsStablecoinSet",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isStablecoin",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetConfigSet",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "txFeesSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "txFeesStableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "txFeesRewardsFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareSwapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareRewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorRevShareYieldRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "maxYieldIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "performanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusAsset",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAssetTxFeesChange",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "swapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "stableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetTxFeesSet",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "swapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "stableSwapFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsFee",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAssetAmbassadorRevShareChange",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "swapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "yieldRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetAmbassadorRevShareSet",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "swapRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "rewardsRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "yieldRatio",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAssetYieldConfigChange",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "maxYieldIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "performanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusAsset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetYieldConfigSet",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "maxYieldIncrease",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "performanceFee",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ambassadorBonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "bonusAsset",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingStarterAgentParamsChange",
+    "inputs": [
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "StarterAgentParamsSet",
+    "inputs": [
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingManagerConfigChange",
+    "inputs": [
+      {
+        "name": "managerPeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "managerActivationLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "mustHaveUsdValueOnSwaps",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "maxNumSwapsPerPeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "maxSlippageOnSwaps",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "onlyApprovedYieldOpps",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingPayeeConfigChange",
+    "inputs": [
+      {
+        "name": "payeePeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "payeeActivationLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingCanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "canPerform",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CreatorWhitelistSet",
+    "inputs": [
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isWhitelisted",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ManagerConfigSet",
+    "inputs": [
+      {
+        "name": "managerPeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "managerActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PayeeConfigSet",
+    "inputs": [
+      {
+        "name": "payeePeriod",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "payeeActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "canPerform",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LockedSignerSet",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isLocked",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingRipeRewardsConfigChange",
+    "inputs": [
+      {
+        "name": "ripeStakeRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ripeLockDuration",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RipeRewardsConfigSet",
+    "inputs": [
+      {
+        "name": "ripeStakeRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ripeLockDuration",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingAgentWrapperSenderAdd",
+    "inputs": [
+      {
+        "name": "agentWrapper",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "agentSender",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AgentWrapperSenderAdded",
+    "inputs": [
+      {
+        "name": "agentWrapper",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "agentSender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AgentWrapperSenderRemoved",
+    "inputs": [
+      {
+        "name": "agentWrapper",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "agentSender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeTimeLockModified",
+    "inputs": [
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ExpirationSet",
+    "inputs": [
+      {
+        "name": "expiration",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ActionTimeLockSet",
+    "inputs": [
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeStarted",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeConfirmed",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeCancelled",
+    "inputs": [
+      {
+        "name": "cancelledGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovRelinquished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "UndyHqSetupFinished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "timeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddys",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "hq",
+            "type": "address"
+          },
+          {
+            "name": "undyToken",
+            "type": "address"
+          },
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "switchboard",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "walletBackpack",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHq",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHqFromGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canGovern",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getGovernors",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingGovChange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "startGovernanceChange",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "relinquishGov",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setGovTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidGovTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "governance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newGov",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numGovChanges",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "govChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canConfirmAction",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isExpired",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingAction",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getActionConfirmationBlock",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidActionTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minActionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxActionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setExpiration",
+    "inputs": [
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLockAfterSetup",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLockAfterSetup",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "expiration",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setUserWalletTemplates",
+    "inputs": [
+      {
+        "name": "_walletTemplate",
+        "type": "address"
+      },
+      {
+        "name": "_configTemplate",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setUserWalletTemplates",
+    "inputs": [
+      {
+        "name": "_walletTemplate",
+        "type": "address"
+      },
+      {
+        "name": "_configTemplate",
+        "type": "address"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setWalletCreationLimits",
+    "inputs": [
+      {
+        "name": "_numUserWalletsAllowed",
+        "type": "uint256"
+      },
+      {
+        "name": "_enforceCreatorWhitelist",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setWalletCreationLimits",
+    "inputs": [
+      {
+        "name": "_numUserWalletsAllowed",
+        "type": "uint256"
+      },
+      {
+        "name": "_enforceCreatorWhitelist",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setKeyActionTimelockBounds",
+    "inputs": [
+      {
+        "name": "_minKeyActionTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxKeyActionTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setKeyActionTimelockBounds",
+    "inputs": [
+      {
+        "name": "_minKeyActionTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxKeyActionTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setTxFees",
+    "inputs": [
+      {
+        "name": "_swapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_stableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsFee",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setTxFees",
+    "inputs": [
+      {
+        "name": "_swapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_stableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAmbassadorRevShare",
+    "inputs": [
+      {
+        "name": "_swapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_yieldRatio",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAmbassadorRevShare",
+    "inputs": [
+      {
+        "name": "_swapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_yieldRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setDefaultYieldParams",
+    "inputs": [
+      {
+        "name": "_defaultYieldMaxIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldPerformanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldAmbassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldBonusAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setDefaultYieldParams",
+    "inputs": [
+      {
+        "name": "_defaultYieldMaxIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldPerformanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldAmbassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultYieldBonusAsset",
+        "type": "address"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setLootParams",
+    "inputs": [
+      {
+        "name": "_depositRewardsAsset",
+        "type": "address"
+      },
+      {
+        "name": "_lootClaimCoolOffPeriod",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setLootParams",
+    "inputs": [
+      {
+        "name": "_depositRewardsAsset",
+        "type": "address"
+      },
+      {
+        "name": "_lootClaimCoolOffPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetConfig",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_txFeesSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_txFeesStableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_txFeesRewardsFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareSwapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareRewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareYieldRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxYieldIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetConfig",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_txFeesSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_txFeesStableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_txFeesRewardsFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareSwapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareRewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorRevShareYieldRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxYieldIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusAsset",
+        "type": "address"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetTxFees",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_swapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_stableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsFee",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetTxFees",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_swapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_stableSwapFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetAmbassadorRevShare",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_swapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_yieldRatio",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetAmbassadorRevShare",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_swapRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardsRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_yieldRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetYieldConfig",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_maxYieldIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAssetYieldConfig",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_maxYieldIncrease",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_ambassadorBonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_bonusAsset",
+        "type": "address"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setIsStablecoin",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_isStablecoin",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setIsStablecoin",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_isStablecoin",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setStarterAgentParams",
+    "inputs": [
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setStarterAgentParams",
+    "inputs": [
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAgentWrapperSender",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAdd",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setManagerConfig",
+    "inputs": [
+      {
+        "name": "_managerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_managerActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_mustHaveUsdValueOnSwaps",
+        "type": "bool"
+      },
+      {
+        "name": "_maxNumSwapsPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxSlippageOnSwaps",
+        "type": "uint256"
+      },
+      {
+        "name": "_onlyApprovedYieldOpps",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setManagerConfig",
+    "inputs": [
+      {
+        "name": "_managerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_managerActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_mustHaveUsdValueOnSwaps",
+        "type": "bool"
+      },
+      {
+        "name": "_maxNumSwapsPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxSlippageOnSwaps",
+        "type": "uint256"
+      },
+      {
+        "name": "_onlyApprovedYieldOpps",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setPayeeConfig",
+    "inputs": [
+      {
+        "name": "_payeePeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_payeeActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setPayeeConfig",
+    "inputs": [
+      {
+        "name": "_payeePeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_payeeActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_canPerform",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_canPerform",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCreatorWhitelist",
+    "inputs": [
+      {
+        "name": "_creator",
+        "type": "address"
+      },
+      {
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCreatorWhitelist",
+    "inputs": [
+      {
+        "name": "_creator",
+        "type": "address"
+      },
+      {
+        "name": "_isWhitelisted",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setLockedSigner",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_isLocked",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setLockedSigner",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_isLocked",
+        "type": "bool"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRipeRewardsConfig",
+    "inputs": [
+      {
+        "name": "_ripeStakeRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ripeLockDuration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRipeRewardsConfig",
+    "inputs": [
+      {
+        "name": "_ripeStakeRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ripeLockDuration",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "executePendingAction",
+    "inputs": [
+      {
+        "name": "_aid",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingAction",
+    "inputs": [
+      {
+        "name": "_aid",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionType",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingUserWalletConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "walletTemplate",
+            "type": "address"
+          },
+          {
+            "name": "configTemplate",
+            "type": "address"
+          },
+          {
+            "name": "numUserWalletsAllowed",
+            "type": "uint256"
+          },
+          {
+            "name": "enforceCreatorWhitelist",
+            "type": "bool"
+          },
+          {
+            "name": "minKeyActionTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "maxKeyActionTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "depositRewardsAsset",
+            "type": "address"
+          },
+          {
+            "name": "lootClaimCoolOffPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "txFees",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "stableSwapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsFee",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "ambassadorRevShare",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "yieldRatio",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "yieldConfig",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxYieldIncrease",
+                "type": "uint256"
+              },
+              {
+                "name": "performanceFee",
+                "type": "uint256"
+              },
+              {
+                "name": "ambassadorBonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusAsset",
+                "type": "address"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAssetConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "config",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "hasConfig",
+                "type": "bool"
+              },
+              {
+                "name": "txFees",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "swapFee",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "stableSwapFee",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "rewardsFee",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "ambassadorRevShare",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "swapRatio",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "rewardsRatio",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "yieldRatio",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "yieldConfig",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "maxYieldIncrease",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "performanceFee",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "ambassadorBonusRatio",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "bonusRatio",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "bonusAsset",
+                    "type": "address"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAssetTxFees",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "txFees",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "stableSwapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsFee",
+                "type": "uint256"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAssetAmbassadorRevShare",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "ambassadorRevShare",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "yieldRatio",
+                "type": "uint256"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAssetYieldConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "yieldConfig",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxYieldIncrease",
+                "type": "uint256"
+              },
+              {
+                "name": "performanceFee",
+                "type": "uint256"
+              },
+              {
+                "name": "ambassadorBonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusAsset",
+                "type": "address"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAgentConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingManagerConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "managerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "managerActivationLength",
+            "type": "uint256"
+          },
+          {
+            "name": "mustHaveUsdValueOnSwaps",
+            "type": "bool"
+          },
+          {
+            "name": "maxNumSwapsPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "maxSlippageOnSwaps",
+            "type": "uint256"
+          },
+          {
+            "name": "onlyApprovedYieldOpps",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingPayeeConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "payeePeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "payeeActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAddrToBool",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "name": "isAllowed",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAgentWrapperSender",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "agentWrapper",
+            "type": "address"
+          },
+          {
+            "name": "agentSender",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRipeRewardsConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "stakeRatio",
+            "type": "uint256"
+          },
+          {
+            "name": "lockDuration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingMissionControl",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_tempGov",
+        "type": "address"
+      },
+      {
+        "name": "_minConfigTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxConfigTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  }
+]

@@ -249,6 +249,14 @@ def fetch_lego_yield_data(lego_id: int, lego_info: dict):
 
     lego_contract = boa.from_etherscan(lego_addr, name=lego_name)
 
+    # Check isPaused
+    try:
+        time.sleep(RPC_DELAY)
+        is_paused = lego_contract.isPaused()
+        print(f"\n**Status:** {'⚠️ PAUSED' if is_paused else '✅ Active'}")
+    except Exception:
+        print("\n**Status:** Unknown (no isPaused)")
+
     # YieldLegoData storage - snapShotPriceConfig
     time.sleep(RPC_DELAY)
     config = lego_contract.snapShotPriceConfig()
@@ -261,8 +269,8 @@ def fetch_lego_yield_data(lego_id: int, lego_info: dict):
     ]
     print_table("Snapshot Price Config (YieldLegoData Module)", ["Parameter", "Value"], config_rows)
 
-    # Fetch registered assets and vault tokens
-    fetch_lego_registered_assets(lego_contract, lego_name)
+    # Fetch registered assets and vault tokens with deep storage
+    fetch_lego_registered_assets_deep(lego_contract, lego_name)
 
 
 def fetch_dex_lego_data(lego_id: int, lego_info: dict):
@@ -277,9 +285,19 @@ def fetch_dex_lego_data(lego_id: int, lego_info: dict):
     print(f"Address: `{lego_addr}`")
     print("\n*DEX Lego - used for swaps, not yield generation*")
 
+    # Check isPaused for DEX legos too
+    try:
+        time.sleep(RPC_DELAY)
+        lego_contract = boa.from_etherscan(lego_addr, name=lego_name)
+        time.sleep(RPC_DELAY)
+        is_paused = lego_contract.isPaused()
+        print(f"\n**Status:** {'⚠️ PAUSED' if is_paused else '✅ Active'}")
+    except Exception:
+        print("\n**Status:** Unknown")
 
-def fetch_lego_registered_assets(lego_contract, lego_name: str):
-    """Fetch and print registered assets and vault tokens for a lego."""
+
+def fetch_lego_registered_assets_deep(lego_contract, lego_name: str):
+    """Fetch and print registered assets, vault tokens, and deep YieldLegoData storage."""
     try:
         # Get all registered assets
         time.sleep(RPC_DELAY)
@@ -289,35 +307,69 @@ def fetch_lego_registered_assets(lego_contract, lego_name: str):
             print("\n*No registered assets*")
             return
 
-        headers = ["Underlying Asset", "Vault Token", "Decimals"]
-        rows = []
+        print(f"\n### Registered Assets ({len(assets)})")
 
         for asset in assets:
+            asset_display = format_address(str(asset), _get_known_addresses, try_fetch=True)
+
+            # Get number of opportunities for this asset
             time.sleep(RPC_DELAY)
-            # Get vault opportunities for this asset
+            try:
+                num_opps = lego_contract.numAssetOpportunities(asset)
+            except Exception:
+                num_opps = "N/A"
+
+            print(f"\n#### {asset_display}")
+            print(f"**Opportunities:** {num_opps}")
+
+            time.sleep(RPC_DELAY)
             vaults = lego_contract.getAssetOpportunities(asset)
 
-            for vault in vaults:
-                time.sleep(RPC_DELAY)
-                vault_info = lego_contract.vaultToAsset(vault)
+            if vaults:
+                print("\n| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |")
+                print("| --- | --- | --- | --- | --- |")
 
-                # Format with symbol lookup
-                asset_display = format_address(str(asset), _get_known_addresses, try_fetch=True)
-                vault_display = format_address(str(vault), _get_known_addresses, try_fetch=True)
+                for vault in vaults:
+                    if str(vault) == ZERO_ADDRESS:
+                        continue
 
-                rows.append([
-                    asset_display,
-                    vault_display,
-                    vault_info[1],  # decimals
-                ])
+                    time.sleep(RPC_DELAY)
+                    vault_info = lego_contract.vaultToAsset(vault)
 
-        if rows:
-            print_table("Registered Assets & Vault Tokens", headers, rows)
-        else:
-            print("\n*No registered vault tokens*")
+                    # Get snapshot data for this vault
+                    try:
+                        time.sleep(RPC_DELAY)
+                        snapshot_data = lego_contract.snapShotData(vault)
+                        last_snapshot = snapshot_data[0]  # SingleSnapShot struct
+                        next_index = snapshot_data[1]
+
+                        # Format last snapshot info
+                        last_update_timestamp = last_snapshot[2] if len(last_snapshot) > 2 else 0
+                        if last_update_timestamp > 0:
+                            from datetime import datetime
+                            last_update_str = datetime.fromtimestamp(last_update_timestamp).strftime('%Y-%m-%d %H:%M')
+                        else:
+                            last_update_str = "Never"
+                    except Exception:
+                        last_update_str = "N/A"
+                        next_index = "N/A"
+
+                    vault_display = format_address(str(vault), _get_known_addresses, try_fetch=True)
+                    decimals = vault_info[1]
+
+                    # Format average price per share
+                    try:
+                        avg_pps = vault_info[2]  # lastAveragePricePerShare
+                        avg_pps_formatted = f"{avg_pps / 10**decimals:.6f}" if decimals else str(avg_pps)
+                    except Exception:
+                        avg_pps_formatted = "N/A"
+
+                    print(f"| {vault_display} | {decimals} | {avg_pps_formatted} | {last_update_str} | {next_index} |")
+            else:
+                print("\n*No vault tokens for this asset*")
 
     except Exception as e:
-        print(f"\n*Could not fetch registered assets for {lego_name}*")
+        print(f"\n*Could not fetch registered assets for {lego_name}: {e}*")
 
 
 # ============================================================================

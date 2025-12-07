@@ -1,0 +1,260 @@
+[
+  {
+    "name": "FundsMigrated",
+    "inputs": [
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numAssetsMigrated",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "totalUsdValue",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ConfigCloned",
+    "inputs": [
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numManagersCopied",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "numPayeesCopied",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "numWhitelistCopied",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "migrateAll",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "migrateFunds",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canMigrateFundsToNewWallet",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      },
+      {
+        "name": "_caller",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cloneConfig",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canCopyWalletConfig",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      },
+      {
+        "name": "_caller",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getMigrationConfigBundle",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "numPayees",
+            "type": "uint256"
+          },
+          {
+            "name": "numWhitelisted",
+            "type": "uint256"
+          },
+          {
+            "name": "numManagers",
+            "type": "uint256"
+          },
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentIndex",
+            "type": "uint256"
+          },
+          {
+            "name": "hasPendingOwnerChange",
+            "type": "bool"
+          },
+          {
+            "name": "groupId",
+            "type": "uint256"
+          },
+          {
+            "name": "numActiveCheques",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "UNDY_HQ",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  }
+]

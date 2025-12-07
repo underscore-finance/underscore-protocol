@@ -1,0 +1,267 @@
+[
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "userWalletConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "walletTemplate",
+            "type": "address"
+          },
+          {
+            "name": "configTemplate",
+            "type": "address"
+          },
+          {
+            "name": "numUserWalletsAllowed",
+            "type": "uint256"
+          },
+          {
+            "name": "enforceCreatorWhitelist",
+            "type": "bool"
+          },
+          {
+            "name": "minKeyActionTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "maxKeyActionTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "depositRewardsAsset",
+            "type": "address"
+          },
+          {
+            "name": "lootClaimCoolOffPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "txFees",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "stableSwapFee",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsFee",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "ambassadorRevShare",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "swapRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "rewardsRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "yieldRatio",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "yieldConfig",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxYieldIncrease",
+                "type": "uint256"
+              },
+              {
+                "name": "performanceFee",
+                "type": "uint256"
+              },
+              {
+                "name": "ambassadorBonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusRatio",
+                "type": "uint256"
+              },
+              {
+                "name": "bonusAsset",
+                "type": "address"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "agentConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "managerConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "managerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "managerActivationLength",
+            "type": "uint256"
+          },
+          {
+            "name": "mustHaveUsdValueOnSwaps",
+            "type": "bool"
+          },
+          {
+            "name": "maxNumSwapsPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "maxSlippageOnSwaps",
+            "type": "uint256"
+          },
+          {
+            "name": "onlyApprovedYieldOpps",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "payeeConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "payeePeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "payeeActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "chequeConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "maxNumActiveCheques",
+            "type": "uint256"
+          },
+          {
+            "name": "instantUsdThreshold",
+            "type": "uint256"
+          },
+          {
+            "name": "periodLength",
+            "type": "uint256"
+          },
+          {
+            "name": "expensiveDelayBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "defaultExpiryBlocks",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "ripeRewardsConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "stakeRatio",
+            "type": "uint256"
+          },
+          {
+            "name": "lockDuration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_walletTemplate",
+        "type": "address"
+      },
+      {
+        "name": "_configTemplate",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  }
+]
