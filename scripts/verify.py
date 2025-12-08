@@ -10,6 +10,8 @@ MIGRATION_HISTORY_DIR = "./migration_history"
 
 @click.command()
 @click.option(
+    "--should-ask", is_flag=True, default=False, help="Should ask values for prompts not specified instead of using default values.")
+@click.option(
     "--environment",
     default=CLICK_PROMPTS["environment"]["default"],
     help=CLICK_PROMPTS["environment"]["help"],
@@ -27,7 +29,7 @@ MIGRATION_HISTORY_DIR = "./migration_history"
     help=CLICK_PROMPTS["manifest"]["help"],
     callback=param_prompt,
 )
-def cli(environment, chain, manifest):
+def cli(should_ask, environment, chain, manifest):
     """Verify contracts on Etherscan/Basescan"""
     print(f"Verifying contracts from environment: {environment}")
     print(f"Verifying contracts from chain: {chain}")
