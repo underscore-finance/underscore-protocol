@@ -118,3 +118,15 @@ def ripeRewardsConfig() -> cs.RipeRewardsConfig:
         stakeRatio = 80_00,
         lockDuration = 1 * DAY_IN_BLOCKS,
     )
+
+
+@view
+@external
+def securitySigners() -> DynArray[address, 10]:
+    return []
+
+
+@view
+@external
+def whitelistedCreators() -> DynArray[address, 50]:
+    return []

@@ -130,6 +130,16 @@ def __init__(_undyHq: address, _defaults: address):
         self.chequeConfig = staticcall Defaults(_defaults).chequeConfig()
         self.ripeRewardsConfig = staticcall Defaults(_defaults).ripeRewardsConfig()
 
+        # security signers
+        securitySigners: DynArray[address, 10] = staticcall Defaults(_defaults).securitySigners()
+        for signer: address in securitySigners:
+            self._addSecuritySigner(signer)
+
+        # whitelisted creators
+        whitelistedCreators: DynArray[address, 50] = staticcall Defaults(_defaults).whitelistedCreators()
+        for creator: address in whitelistedCreators:
+            self._addWhitelistedCreator(creator)
+
 
 ######################
 # User Wallet Config #
