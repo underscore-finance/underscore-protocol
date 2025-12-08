@@ -30,8 +30,8 @@ CLICK_PROMPTS = {
     },
     "environment": {
         "prompt": "Inform the environment name",
-        "default": "dev",
-        "help": f"Environment of manifests that are written and read by migration scripts to pass state from previous migrations. Defaults to `dev`.",
+        "default": "v1.1",
+        "help": f"Environment of manifests that are written and read by migration scripts to pass state from previous migrations. Defaults to `v1.1`.",
     },
     "start_timestamp": {
         "prompt": "Start timestamp",
@@ -53,13 +53,13 @@ CLICK_PROMPTS = {
     },
     "blueprint": {
         "prompt": "Blueprint",
-        "default": "",
-        "help": "Blueprint to use for the migration. Defaults to ``.",
+        "default": "base",
+        "help": "Blueprint to use for the migration. Defaults to `base`.",
     },
     "chain": {
         "prompt": "Chain name",
-        "default": "local",
-        "help": "Chain name for custom configuration on the deployment (ex: eth-mainnet, eth-sepolia, base-mainnet, base-sepolia).  Defaults to `local`",
+        "default": "base-mainnet",
+        "help": "Chain name for custom configuration on the deployment (ex: eth-mainnet, eth-sepolia, base-mainnet, base-sepolia).  Defaults to `base-mainnet`",
         "type": click.Choice(["local", "base-mainnet", "base-sepolia", "eth-sepolia", "eth-mainnet", "base-mainnet", "base-sepolia"], case_sensitive=False),
 
     },
@@ -69,8 +69,8 @@ CLICK_PROMPTS = {
         "help": "Account name for deployment. Defaults to `DEPLOYER`"
     },
     "is_retry": {
-        "prompt": "Ignore current logs (always run transactions)?",
-        "help": "Ignore previous log files",
+        "prompt": "Use previous logs?",
+        "help": "Use previous logs instead of running transactions again.",
         "default": False,
     },
     "manifest": {
@@ -112,7 +112,7 @@ def param_prompt(ctx, param, value):
     if value != default_val:
         return value
 
-    if prompt is None or (ctx.params.get("silent") and optional):
+    if prompt is None or (not ctx.params.get("should-ask") and optional):
         return value
 
     should_prompt = True
@@ -144,7 +144,7 @@ def param_prompt(ctx, param, value):
 
 
 @click.command()
-@click.option("--silent", is_flag=True, default=False, help="Run command without prompts.")
+@click.option("--should-ask", is_flag=True, default=False, help="Should ask values for prompts not specified instead of using default values.")
 @click.option(
     "--safe",
     default=CLICK_PROMPTS["safe"]["default"],
@@ -215,7 +215,7 @@ def param_prompt(ctx, param, value):
     callback=param_prompt,
 )
 def cli(
-    silent,
+    should_ask,
     safe,
     fork,
     is_retry,
