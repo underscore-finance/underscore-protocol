@@ -48,6 +48,7 @@ interface RipeTeller:
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
     def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
     def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
+    def deleverageUser(_user: address = msg.sender, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
 
 interface Ledger:
@@ -84,6 +85,9 @@ interface UserWalletConfig:
 
 interface UserWallet:
     def walletConfig() -> address: view
+
+interface LevgVault:
+    def indexOfManager(_manager: address) -> uint256: view
 
 struct DeleverageAsset:
     vaultId: uint256
@@ -951,11 +955,16 @@ def repayDebt(
 
 @external
 def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
-    walletConfig: address = staticcall UserWallet(_user).walletConfig()
-    assert staticcall UserWalletConfig(walletConfig).isAgentSender(msg.sender) # dev: no perms
-
+    assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     return extcall RipeTeller(teller).deleverageWithSpecificAssets(_assets, _user)
+
+
+@external
+def deleverageUser(_user: address, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256:
+    assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    return extcall RipeTeller(teller).deleverageUser(_user, _targetRepayAmount)
 
 
 # shared utils
@@ -979,6 +988,22 @@ def _resetTellerApproval(_asset: address, _teller: address):
 @internal
 def _isUserWalletOrEarnVault(_user: address) -> bool:
     return staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user) or staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_user)
+
+
+@view
+@internal
+def _canCallDeleverage(_user: address, _caller: address) -> bool:
+
+    # user wallets
+    if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user):
+        walletConfig: address = staticcall UserWallet(_user).walletConfig()
+        return staticcall UserWalletConfig(walletConfig).isAgentSender(_caller)
+
+    # earn vaults
+    if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_user):
+        return staticcall LevgVault(_user).indexOfManager(_caller) != 0
+
+    return False
 
 
 #################
