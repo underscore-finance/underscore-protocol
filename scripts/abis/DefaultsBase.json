@@ -246,26 +246,27 @@
     ]
   },
   {
-    "stateMutability": "nonpayable",
-    "type": "constructor",
-    "inputs": [
+    "stateMutability": "view",
+    "type": "function",
+    "name": "securitySigners",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "_walletTemplate",
-        "type": "address"
-      },
-      {
-        "name": "_configTemplate",
-        "type": "address"
-      },
-      {
-        "name": "_startingAgent",
-        "type": "address"
-      },
-      {
-        "name": "_rewardsAsset",
-        "type": "address"
+        "name": "",
+        "type": "address[]"
       }
-    ],
-    "outputs": []
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "whitelistedCreators",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
   }
 ]

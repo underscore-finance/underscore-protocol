@@ -246,6 +246,30 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "securitySigners",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "whitelistedCreators",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "constructor",
     "inputs": [
