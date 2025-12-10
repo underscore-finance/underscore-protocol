@@ -185,7 +185,7 @@ def lego_underscore(fork, lego_book, undy_hq_deploy, governance, alpha_token, mo
 def lego_extrafi(fork, lego_book, undy_hq_deploy, governance, alpha_token, mock_ripe):
     EXTRAFI_POOL = alpha_token if fork == "local" else INTEGRATION_ADDYS[fork]["EXTRAFI_POOL"]
     RIPE_HQ = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
-    addr = boa.load("contracts/legos/yield/ExtraFi.vy", undy_hq_deploy, EXTRAFI_POOL, RIPE_HQ, name="lego_extrafi")
+    addr = boa.load("contracts/legos/yield/ExtraFi.vy", undy_hq_deploy, EXTRAFI_POOL, RIPE_HQ, [], name="lego_extrafi")
     lego_book.startAddNewAddressToRegistry(addr, "ExtraFi Lego", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     assert lego_book.confirmNewAddressToRegistry(addr, sender=governance.address) != 0
