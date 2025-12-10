@@ -9,6 +9,13 @@ import contracts.modules.Addys as addys
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
+interface LevgVault:
+    def vaultToLegoId(_vaultToken: address) -> uint256: view
+    def collateralAsset() -> RipeAsset: view
+    def leverageAsset() -> RipeAsset: view
+    def asset() -> address: view
+    def USDC() -> address: view
+
 interface YieldLego:
     def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256: view
     def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
@@ -22,6 +29,10 @@ interface RipeMissionControl:
     def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool: view
     def getFirstVaultIdForAsset(_asset: address) -> uint256: view
 
+interface RipeCreditEngine:
+    def getUserDebtAmount(_user: address) -> uint256: view
+    def getBorrowRate(_user: address) -> uint256: view
+
 interface RipeRegistry:
     def savingsGreen() -> address: view
     def greenToken() -> address: view
@@ -29,11 +40,12 @@ interface RipeRegistry:
 interface RipeDepositVault:
     def getTotalAmountForUser(_user: address, _asset: address) -> uint256: view
 
-interface RipeCreditEngine:
-    def getUserDebtAmount(_user: address) -> uint256: view
-
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+
+struct RipeAsset:
+    vaultToken: address
+    ripeVaultId: uint256
 
 # ripe addrs
 RIPE_REGISTRY: public(immutable(address))
@@ -621,3 +633,141 @@ def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaul
 
     # check ripe collateral asset
     return self._isSupportedAssetInVault(_ripeVaultId, _vaultToken)
+
+
+####################
+# Helper Functions #
+####################
+
+
+@view
+@external
+def getBorrowRate(_levgVault: address) -> uint256:
+    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall RipeCreditEngine(creditEngine).getBorrowRate(_levgVault)
+
+
+@view
+@external
+def getDebtAmount(_levgVault: address) -> uint256:
+    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall RipeCreditEngine(creditEngine).getUserDebtAmount(_levgVault)
+
+
+# vault token amounts
+
+
+@view
+@external
+def getVaultTokenAmounts(_levgVault: address, _isCollateralAsset: bool) -> (uint256, uint256):
+    assetData: RipeAsset = empty(RipeAsset)
+    if _isCollateralAsset:
+        assetData = staticcall LevgVault(_levgVault).collateralAsset()
+    else:
+        assetData = staticcall LevgVault(_levgVault).leverageAsset()
+
+    vaultToken: address = assetData.vaultToken
+    ripeVaultId: uint256 = assetData.ripeVaultId
+
+    # 1. vault token in wallet
+    vaultTokenInWallet: uint256 = 0
+    if vaultToken != empty(address):
+        vaultTokenInWallet = staticcall IERC20(vaultToken).balanceOf(_levgVault)
+
+    # 2. vault token in Ripe
+    vaultTokenInRipe: uint256 = 0
+    if vaultToken != empty(address) and ripeVaultId != 0:
+        ripeVaultBook: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_VAULT_BOOK_ID)
+        ripeDepositAddr: address = staticcall Registry(ripeVaultBook).getAddr(ripeVaultId)
+        if ripeDepositAddr != empty(address):
+            vaultTokenInRipe = self._getCollateralBalance(_levgVault, vaultToken, ripeDepositAddr)
+
+    return vaultTokenInWallet, vaultTokenInRipe
+
+
+# underlying amounts
+
+
+@view
+@external
+def getUnderlyingAmounts(_levgVault: address, _isCollateralAsset: bool) -> (uint256, uint256, uint256, uint256):
+    underlyingAsset: address = empty(address)
+    assetData: RipeAsset = empty(RipeAsset)
+    if _isCollateralAsset:
+        underlyingAsset = staticcall LevgVault(_levgVault).asset()
+        assetData = staticcall LevgVault(_levgVault).collateralAsset()
+    else:
+        underlyingAsset = staticcall LevgVault(_levgVault).USDC()
+        assetData = staticcall LevgVault(_levgVault).leverageAsset()
+
+    vaultToken: address = assetData.vaultToken
+    ripeVaultId: uint256 = assetData.ripeVaultId
+    legoBook: address = addys._getLegoBookAddr()
+
+    # 1. underlying asset in wallet
+    underlyingInWallet: uint256 = staticcall IERC20(underlyingAsset).balanceOf(_levgVault)
+
+    # 2. vault token in wallet -> converted to underlying via lego
+    vaultTokenInWalletConverted: uint256 = 0
+    if vaultToken != empty(address):
+        vaultTokenInWallet: uint256 = staticcall IERC20(vaultToken).balanceOf(_levgVault)
+        if vaultTokenInWallet != 0:
+            legoId: uint256 = staticcall LevgVault(_levgVault).vaultToLegoId(vaultToken)
+            legoAddr: address = staticcall Registry(legoBook).getAddr(legoId)
+            if legoAddr != empty(address):
+                vaultTokenInWalletConverted = staticcall YieldLego(legoAddr).getUnderlyingAmount(vaultToken, vaultTokenInWallet)
+
+    # ripe addresses
+    ripeHq: address = RIPE_REGISTRY
+    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+
+    # 3. underlying asset deposited in Ripe Protocol (raw)
+    underlyingInRipe: uint256 = self._getCollateralBalanceNoRipeVaultId(_levgVault, underlyingAsset, ripeMc, ripeVaultBook)
+
+    # 4. vault token in Ripe -> converted to underlying via lego
+    vaultTokenInRipeConverted: uint256 = 0
+    if vaultToken != empty(address) and ripeVaultId != 0:
+        ripeDepositAddr: address = staticcall Registry(ripeVaultBook).getAddr(ripeVaultId)
+        if ripeDepositAddr != empty(address):
+            vaultTokenInRipe: uint256 = self._getCollateralBalance(_levgVault, vaultToken, ripeDepositAddr)
+            if vaultTokenInRipe != 0:
+                legoId: uint256 = staticcall LevgVault(_levgVault).vaultToLegoId(vaultToken)
+                legoAddr: address = staticcall Registry(legoBook).getAddr(legoId)
+                if legoAddr != empty(address):
+                    vaultTokenInRipeConverted = staticcall YieldLego(legoAddr).getUnderlyingAmount(vaultToken, vaultTokenInRipe)
+
+    return underlyingInWallet, vaultTokenInWalletConverted, underlyingInRipe, vaultTokenInRipeConverted
+
+
+# green amounts
+
+
+@view
+@external
+def getGreenAmounts(_levgVault: address) -> (uint256, uint256, uint256, uint256):
+    ripeHq: address = RIPE_REGISTRY
+    ripeMc: address = staticcall Registry(ripeHq).getAddr(RIPE_MISSION_CONTROL_ID)
+    ripeVaultBook: address = staticcall Registry(ripeHq).getAddr(RIPE_VAULT_BOOK_ID)
+    creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
+
+    # 1. user debt in Ripe Protocol (denominated in GREEN)
+    userDebt: uint256 = self._getUserDebtAmount(_levgVault, creditEngine)
+
+    # 2. GREEN in wallet
+    greenInWallet: uint256 = staticcall IERC20(GREEN_TOKEN).balanceOf(_levgVault)
+
+    # 3. sGREEN in wallet -> converted to GREEN
+    savingsGreen: address = SAVINGS_GREEN
+    sGreenInWalletConverted: uint256 = 0
+    sGreenInWallet: uint256 = staticcall IERC20(savingsGreen).balanceOf(_levgVault)
+    if sGreenInWallet != 0:
+        sGreenInWalletConverted = self._getUnderlyingAmount(savingsGreen, sGreenInWallet)
+
+    # 4. sGREEN in Ripe -> converted to GREEN
+    sGreenInRipeConverted: uint256 = 0
+    sGreenInRipe: uint256 = self._getCollateralBalanceNoRipeVaultId(_levgVault, savingsGreen, ripeMc, ripeVaultBook)
+    if sGreenInRipe != 0:
+        sGreenInRipeConverted = self._getUnderlyingAmount(savingsGreen, sGreenInRipe)
+
+    return userDebt, greenInWallet, sGreenInWalletConverted, sGreenInRipeConverted

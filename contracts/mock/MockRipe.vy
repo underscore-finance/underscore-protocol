@@ -12,6 +12,7 @@ mockPrices: public(HashMap[address, uint256]) # asset -> price in USD (18 decima
 userCollateral: public(HashMap[address, HashMap[address, uint256]]) # user -> asset -> amount
 userDebt: public(HashMap[address, uint256]) # user -> debt amount
 snapshotsCalled: public(HashMap[address, uint256]) # Track snapshot calls for testing
+borrowRate: public(uint256) # mock borrow rate
 
 GREEN_TOKEN: public(immutable(address))
 SAVINGS_GREEN: public(immutable(address))
@@ -46,6 +47,11 @@ def setUserDebt(_user: address, _debtAmount: uint256):
 @external
 def setUserCollateral(_user: address, _asset: address, _amount: uint256):
     self.userCollateral[_user][_asset] = _amount
+
+
+@external
+def setBorrowRate(_rate: uint256):
+    self.borrowRate = _rate
 
 
 ###########################
@@ -302,6 +308,12 @@ def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -
 @external
 def getUserDebtAmount(_user: address) -> uint256:
     return self.userDebt[_user]
+
+
+@view
+@external
+def getBorrowRate(_user: address) -> uint256:
+    return self.borrowRate
 
 
 @view
