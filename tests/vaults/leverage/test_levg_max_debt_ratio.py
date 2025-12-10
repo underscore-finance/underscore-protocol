@@ -47,11 +47,6 @@ def setup_usdc_vault(undy_levg_vault_usdc, vault_registry, switchboard_alpha, mo
     mock_usdc.approve(vault.address, user_deposit, sender=starter_agent.address)
     vault.deposit(user_deposit, starter_agent.address, sender=starter_agent.address)
 
-    # Mint collateral USDC directly to vault for addCollateral operations
-    # (deposits get converted to vault tokens, so vault needs separate USDC)
-    collateral_usdc = 200_000 * SIX_DECIMALS
-    mock_usdc.mint(vault.address, collateral_usdc, sender=governance.address)
-
     return vault
 
 
@@ -229,7 +224,7 @@ def test_get_max_borrow_amount_with_limit_usdc(
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,
+        True,  # isUsdcVault
     )
 
     # Should be 70% of 50,000 = 35,000 GREEN (18 decimals)
@@ -265,7 +260,7 @@ def test_get_max_borrow_amount_with_partial_debt_usdc(
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,
+        True,  # isUsdcVault
     )
 
     # Should be 35,000 - 3,000 = 32,000 GREEN remaining
@@ -301,7 +296,7 @@ def test_get_max_borrow_amount_at_limit_usdc(
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,
+        True,  # isUsdcVault
     )
 
     # Should be 0 (at limit)
@@ -645,7 +640,7 @@ def test_withdrawal_decreases_borrow_capacity(
         vault.collateralAsset()[1],
         new_capital,
         70_00,
-        True,
+        True,  # isUsdcVault
     )
 
     # Max should be 70% of new capital minus existing debt
@@ -812,3 +807,201 @@ def test_ratio_change_applies_immediately(
     )
     assert amount_borrowed == 15_000 * EIGHTEEN_DECIMALS
     assert mock_ripe.userDebt(vault.address) == 40_000 * EIGHTEEN_DECIMALS
+
+
+##########################################
+# 6. getMaxBorrowAmountForVault Tests #
+##########################################
+
+
+def test_get_max_borrow_amount_for_vault_usdc(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    switchboard_alpha,
+):
+    """Test getMaxBorrowAmountForVault calculates correct limit for USDC vault"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # netUserCapital should be 50,000 USDC
+    assert vault.netUserCapital() == 50_000 * SIX_DECIMALS
+
+    # Get max borrow amount using the simplified function
+    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
+
+    # Should be 70% of 50,000 = 35,000 GREEN (18 decimals)
+    expected_max = 35_000 * EIGHTEEN_DECIMALS
+    assert max_borrow == expected_max
+
+
+def test_get_max_borrow_amount_for_vault_with_existing_debt(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    mock_ripe,
+    switchboard_alpha,
+):
+    """Test getMaxBorrowAmountForVault accounts for existing debt"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # Set existing debt of 10k
+    mock_ripe.setUserDebt(vault.address, 10_000 * EIGHTEEN_DECIMALS)
+
+    # Get max borrow amount
+    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
+
+    # Should be 70% of 50,000 - 10,000 = 35,000 - 10,000 = 25,000 GREEN
+    expected_max = 25_000 * EIGHTEEN_DECIMALS
+    assert max_borrow == expected_max
+
+
+def test_get_max_borrow_amount_for_vault_zero_ratio(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    switchboard_alpha,
+):
+    """Test getMaxBorrowAmountForVault returns max when ratio is zero (unlimited)"""
+    vault = setup_usdc_vault
+
+    # Set maxDebtRatio to 0 (unlimited)
+    vault.setMaxDebtRatio(0, sender=switchboard_alpha.address)
+    assert vault.maxDebtRatio() == 0
+
+    # Get max borrow amount
+    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
+
+    # Should return max_value(uint256) for unlimited borrowing
+    assert max_borrow == MAX_UINT256
+
+
+def test_get_max_borrow_amount_for_vault_cbbtc(
+    setup_prices,
+    setup_cbbtc_vault,
+    levg_vault_helper,
+    switchboard_alpha,
+):
+    """Test getMaxBorrowAmountForVault works with cbBTC vault"""
+    vault = setup_cbbtc_vault
+
+    # Set 50% max debt ratio
+    vault.setMaxDebtRatio(50_00, sender=switchboard_alpha.address)
+
+    # netUserCapital should be 3 cbBTC (8 decimals) from fixture
+    assert vault.netUserCapital() == 3 * EIGHT_DECIMALS
+
+    # Get max borrow amount
+    # Note: cbBTC vault uses _getTotalUnderlying which includes the 10 cbBTC
+    # minted directly to vault in fixture (3 deposited + 10 minted = 13 cbBTC)
+    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
+
+    # 13 cbBTC at $90,000 = $1,170,000 USD value
+    # 50% of $1,170,000 = $585,000 GREEN (18 decimals)
+    expected_max = 585_000 * EIGHTEEN_DECIMALS
+    assert max_borrow == expected_max
+
+
+#############################################
+# 7. getTrueMaxBorrowAmountForVault Tests #
+#############################################
+
+
+def test_get_true_max_borrow_debt_ratio_is_limiting(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    mock_ripe,
+    switchboard_alpha,
+):
+    """Test getTrueMaxBorrowAmountForVault when debt ratio is more restrictive"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio (allows 35k)
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # Set credit engine max borrow amount to 100k (less restrictive)
+    mock_ripe.setMaxBorrowAmount(vault.address, 100_000 * EIGHTEEN_DECIMALS)
+
+    # Get true max borrow amount
+    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
+
+    # Should return 35k (debt ratio limit), not 100k (credit engine limit)
+    expected_max = 35_000 * EIGHTEEN_DECIMALS
+    assert true_max == expected_max
+
+
+def test_get_true_max_borrow_credit_engine_is_limiting(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    mock_ripe,
+    switchboard_alpha,
+):
+    """Test getTrueMaxBorrowAmountForVault when credit engine is more restrictive"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio (allows 35k)
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # Set credit engine max borrow amount to 20k (more restrictive)
+    mock_ripe.setMaxBorrowAmount(vault.address, 20_000 * EIGHTEEN_DECIMALS)
+
+    # Get true max borrow amount
+    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
+
+    # Should return 20k (credit engine limit), not 35k (debt ratio limit)
+    expected_max = 20_000 * EIGHTEEN_DECIMALS
+    assert true_max == expected_max
+
+
+def test_get_true_max_borrow_both_equal(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    mock_ripe,
+    switchboard_alpha,
+):
+    """Test getTrueMaxBorrowAmountForVault when both limits are equal"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio (allows 35k)
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # Set credit engine max borrow amount to exactly 35k
+    mock_ripe.setMaxBorrowAmount(vault.address, 35_000 * EIGHTEEN_DECIMALS)
+
+    # Get true max borrow amount
+    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
+
+    # Should return 35k
+    expected_max = 35_000 * EIGHTEEN_DECIMALS
+    assert true_max == expected_max
+
+
+def test_get_true_max_borrow_credit_engine_zero(
+    setup_prices,
+    setup_usdc_vault,
+    levg_vault_helper,
+    mock_ripe,
+    switchboard_alpha,
+):
+    """Test getTrueMaxBorrowAmountForVault when credit engine returns zero"""
+    vault = setup_usdc_vault
+
+    # Set 70% max debt ratio (allows 35k)
+    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+
+    # Set credit engine max borrow amount to 0
+    mock_ripe.setMaxBorrowAmount(vault.address, 0)
+
+    # Get true max borrow amount
+    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
+
+    # Should return 0 (credit engine limit)
+    assert true_max == 0

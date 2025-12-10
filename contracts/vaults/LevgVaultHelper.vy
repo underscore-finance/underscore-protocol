@@ -13,6 +13,8 @@ interface LevgVault:
     def vaultToLegoId(_vaultToken: address) -> uint256: view
     def collateralAsset() -> RipeAsset: view
     def leverageAsset() -> RipeAsset: view
+    def netUserCapital() -> uint256: view
+    def maxDebtRatio() -> uint256: view
     def asset() -> address: view
     def USDC() -> address: view
 
@@ -21,6 +23,11 @@ interface YieldLego:
     def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256: view
     def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
 
+interface RipeCreditEngine:
+    def getMaxBorrowAmount(_user: address) -> uint256: view
+    def getUserDebtAmount(_user: address) -> uint256: view
+    def getBorrowRate(_user: address) -> uint256: view
+
 interface RipePriceDesk:
     def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256: view
     def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256: view
@@ -28,10 +35,6 @@ interface RipePriceDesk:
 interface RipeMissionControl:
     def isSupportedAssetInVault(_vaultId: uint256, _asset: address) -> bool: view
     def getFirstVaultIdForAsset(_asset: address) -> uint256: view
-
-interface RipeCreditEngine:
-    def getUserDebtAmount(_user: address) -> uint256: view
-    def getBorrowRate(_user: address) -> uint256: view
 
 interface RipeRegistry:
     def savingsGreen() -> address: view
@@ -159,6 +162,23 @@ def getMaxBorrowAmount(
     _isUsdcVault: bool,
     _legoBook: address = empty(address),
 ) -> uint256:
+    leverageAsset: RipeAsset = staticcall LevgVault(_wallet).leverageAsset()
+    return self._getMaxBorrowAmount(_wallet, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenLegoId, _collateralVaultTokenRipeVaultId, _netUserCapital, _maxDebtRatio, leverageAsset.vaultToken, _legoBook)
+
+
+@view
+@internal
+def _getMaxBorrowAmount(
+    _wallet: address,
+    _underlyingAsset: address,
+    _collateralVaultToken: address,
+    _collateralVaultTokenLegoId: uint256,
+    _collateralVaultTokenRipeVaultId: uint256,
+    _netUserCapital: uint256,
+    _maxDebtRatio: uint256,
+    _leverageVaultToken: address,
+    _legoBook: address,
+) -> uint256:
     if _maxDebtRatio == 0:
         return max_value(uint256)
 
@@ -171,12 +191,9 @@ def getMaxBorrowAmount(
     priceDesk: address = staticcall Registry(ripeHq).getAddr(RIPE_PRICE_DESK_ID)
     creditEngine: address = staticcall Registry(ripeHq).getAddr(RIPE_CREDIT_ENGINE_ID)
 
-    # NOTE: for usdc vaults, there may not be a clear distinction between collateral and leverage vaults
-    # so using netUserCapital as the underlying asset amount for extra safety
-
-    # get underlying asset amount
+    # for some usdc vaults where collateral + leverage are same, use netUserCapital only (can't distinguish user capital from leveraged positions)
     underlyingAmount: uint256 = 0
-    if _isUsdcVault:
+    if _collateralVaultToken == _leverageVaultToken:
         underlyingAmount = _netUserCapital
     else:
         underlyingAmount = self._getTotalUnderlying(
@@ -188,7 +205,7 @@ def getMaxBorrowAmount(
             empty(address),
             0,
             0,
-            False, # !
+            False,
             False, # safe underlying amount
             legoBook,
             ripeMc,
@@ -771,3 +788,44 @@ def getGreenAmounts(_levgVault: address) -> (uint256, uint256, uint256, uint256)
         sGreenInRipeConverted = self._getUnderlyingAmount(savingsGreen, sGreenInRipe)
 
     return userDebt, greenInWallet, sGreenInWalletConverted, sGreenInRipeConverted
+
+
+# max borrow
+
+
+@view
+@external
+def getTrueMaxBorrowAmountForVault(_vault: address) -> uint256:
+    maxDebtRatioLimit: uint256 = self._getMaxBorrowAmountForVault(_vault)
+    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    maxBorrowAmount: uint256 = staticcall RipeCreditEngine(creditEngine).getMaxBorrowAmount(_vault)
+    return min(maxDebtRatioLimit, maxBorrowAmount)
+
+
+@view
+@external
+def getMaxBorrowAmountForVault(_vault: address) -> uint256:
+    return self._getMaxBorrowAmountForVault(_vault)
+
+
+@view
+@internal
+def _getMaxBorrowAmountForVault(_vault: address) -> uint256:
+    underlyingAsset: address = staticcall LevgVault(_vault).asset()
+    collateralAsset: RipeAsset = staticcall LevgVault(_vault).collateralAsset()
+    leverageAsset: RipeAsset = staticcall LevgVault(_vault).leverageAsset()
+    netUserCapital: uint256 = staticcall LevgVault(_vault).netUserCapital()
+    maxDebtRatio: uint256 = staticcall LevgVault(_vault).maxDebtRatio()
+    collateralVaultTokenLegoId: uint256 = staticcall LevgVault(_vault).vaultToLegoId(collateralAsset.vaultToken)
+
+    return self._getMaxBorrowAmount(
+        _vault,
+        underlyingAsset,
+        collateralAsset.vaultToken,
+        collateralVaultTokenLegoId,
+        collateralAsset.ripeVaultId,
+        netUserCapital,
+        maxDebtRatio,
+        leverageAsset.vaultToken,
+        empty(address),
+    )

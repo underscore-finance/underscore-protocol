@@ -13,6 +13,7 @@ userCollateral: public(HashMap[address, HashMap[address, uint256]]) # user -> as
 userDebt: public(HashMap[address, uint256]) # user -> debt amount
 snapshotsCalled: public(HashMap[address, uint256]) # Track snapshot calls for testing
 borrowRate: public(uint256) # mock borrow rate
+mockMaxBorrowAmount: public(HashMap[address, uint256]) # user/vault -> max borrow amount
 
 GREEN_TOKEN: public(immutable(address))
 SAVINGS_GREEN: public(immutable(address))
@@ -324,6 +325,17 @@ def getMaxWithdrawableForAsset(
     _asset: address,
 ) -> uint256:
     return max_value(uint256)
+
+
+@external
+def setMaxBorrowAmount(_user: address, _amount: uint256):
+    self.mockMaxBorrowAmount[_user] = _amount
+
+
+@view
+@external
+def getMaxBorrowAmount(_user: address) -> uint256:
+    return self.mockMaxBorrowAmount[_user]
 
 
 ################################
