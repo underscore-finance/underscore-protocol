@@ -20,6 +20,7 @@ USER_WALLET_CONFIG_TEMPLATE: constant(address) = 0xbF7bAdf4c71102cA49b3f82D50348
 
 # agent
 STARTING_AGENT: constant(address) = 0x761fCDFfF8B187901eA11415237632A3F7E0203B
+WALLET_CREATOR: constant(address) = 0x84edC07f0Cead3275059373F8FA47A566Dd429df
 
 # rewards
 REWARDS_ASSET: constant(address) = 0x2A0a59d6B975828e781EcaC125dBA40d7ee5dDC0
@@ -116,10 +117,10 @@ def ripeRewardsConfig() -> cs.RipeRewardsConfig:
 @view
 @external
 def securitySigners() -> DynArray[address, 10]:
-    return []
+    return [WALLET_CREATOR]
 
 
 @view
 @external
 def whitelistedCreators() -> DynArray[address, 50]:
-    return []
+    return [WALLET_CREATOR]

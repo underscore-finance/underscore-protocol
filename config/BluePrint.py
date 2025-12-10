@@ -39,6 +39,10 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip GHO",
         "symbol": "undyGHO",
     },
+    "VIRTUAL": {
+        "name": "Underscore Blue Chip Virtual",
+        "symbol": "undyVirtual",
+    },
     "LEVG_USDC": {
         "name": "Underscore Leveraged USD",
         "symbol": "undyLevgUSD",
