@@ -15,27 +15,16 @@ MONTH_IN_BLOCKS: constant(uint256) = 30 * DAY_IN_BLOCKS
 YEAR_IN_BLOCKS: constant(uint256) = 365 * DAY_IN_BLOCKS
 
 # user wallet templates
-USER_WALLET_TEMPLATE: immutable(address)
-USER_WALLET_CONFIG_TEMPLATE: immutable(address)
+USER_WALLET_TEMPLATE: constant(address) = 0x880E453Ec494FB17bffba537BeaB4Cc6CD1B7C12
+USER_WALLET_CONFIG_TEMPLATE: constant(address) = 0xbF7bAdf4c71102cA49b3f82D50348256cE6C10Fb
 
 # agent
-STARTING_AGENT: immutable(address)
+STARTING_AGENT: constant(address) = 0x761fCDFfF8B187901eA11415237632A3F7E0203B
+WALLET_CREATOR: constant(address) = 0x84edC07f0Cead3275059373F8FA47A566Dd429df
 
 # rewards
-REWARDS_ASSET: immutable(address)
-
-
-@deploy
-def __init__(
-    _walletTemplate: address,
-    _configTemplate: address,
-    _startingAgent: address,
-    _rewardsAsset: address,
-):
-    USER_WALLET_TEMPLATE = _walletTemplate
-    USER_WALLET_CONFIG_TEMPLATE = _configTemplate
-    STARTING_AGENT = _startingAgent
-    REWARDS_ASSET = _rewardsAsset
+REWARDS_ASSET: constant(address) = 0x2A0a59d6B975828e781EcaC125dBA40d7ee5dDC0
+BONUS_ASSET: constant(address) = 0x2A0a59d6B975828e781EcaC125dBA40d7ee5dDC0
 
 
 # general configs
@@ -47,7 +36,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
     return cs.UserWalletConfig(
         walletTemplate = USER_WALLET_TEMPLATE,
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
-        numUserWalletsAllowed = 0,
+        numUserWalletsAllowed = 100_000,
         enforceCreatorWhitelist = True,
         minKeyActionTimeLock = DAY_IN_BLOCKS // 2,
         maxKeyActionTimeLock = 2 * WEEK_IN_BLOCKS,
@@ -68,7 +57,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
             performanceFee = 20_00,
             ambassadorBonusRatio = 100_00,
             bonusRatio = 100_00,
-            bonusAsset = REWARDS_ASSET,
+            bonusAsset = BONUS_ASSET,
         ),
     )
 
@@ -114,3 +103,24 @@ def chequeConfig() -> cs.ChequeConfig:
         expensiveDelayBlocks = DAY_IN_BLOCKS,
         defaultExpiryBlocks = 2 * DAY_IN_BLOCKS,
     )
+
+
+@view
+@external
+def ripeRewardsConfig() -> cs.RipeRewardsConfig:
+    return cs.RipeRewardsConfig(
+        stakeRatio = 80_00,
+        lockDuration = 6 * MONTH_IN_BLOCKS,
+    )
+
+
+@view
+@external
+def securitySigners() -> DynArray[address, 10]:
+    return [WALLET_CREATOR]
+
+
+@view
+@external
+def whitelistedCreators() -> DynArray[address, 50]:
+    return [WALLET_CREATOR]

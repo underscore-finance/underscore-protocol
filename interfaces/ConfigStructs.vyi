@@ -58,3 +58,7 @@ struct ChequeConfig:
     periodLength: uint256
     expensiveDelayBlocks: uint256
     defaultExpiryBlocks: uint256
+
+struct RipeRewardsConfig:
+    stakeRatio: uint256
+    lockDuration: uint256

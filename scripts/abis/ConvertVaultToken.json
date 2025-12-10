@@ -1,0 +1,48 @@
+[
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "convertVaultToken",
+    "inputs": [
+      {
+        "name": "_fromVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_toVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "convertVaultToken",
+    "inputs": [
+      {
+        "name": "_fromVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_toVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_fromAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  }
+]

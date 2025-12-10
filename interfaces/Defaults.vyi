@@ -32,3 +32,27 @@ def payeeConfig() -> cs.PayeeConfig:
 @external
 def chequeConfig() -> cs.ChequeConfig:
     ...
+
+
+@view
+@external
+def ripeRewardsConfig() -> cs.RipeRewardsConfig:
+    ...
+
+
+# security signers
+
+
+@view
+@external
+def securitySigners() -> DynArray[address, 10]:
+    ...
+
+
+# whitelisted creators
+
+
+@view
+@external
+def whitelistedCreators() -> DynArray[address, 50]:
+    ...

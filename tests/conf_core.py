@@ -322,8 +322,6 @@ def loot_distributor(undy_hq_deploy, mock_ripe_token, mock_ripe, fork):
         undy_hq_deploy,
         mock_ripe_token,
         mock_ripe,
-        PARAMS[fork]["LOOT_DISTRIBUTOR_RIPE_STAKE_RATIO"],
-        PARAMS[fork]["LOOT_DISTRIBUTOR_RIPE_LOCK_DURATION"],
         name="loot_distributor",
     )
 

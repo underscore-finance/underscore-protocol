@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Deployments
 
-**Generated:** 2025-12-01 22:48:38 UTC
-**Block:** 38919958
+**Generated:** 2025-12-04 20:01:00 UTC
+**Block:** 39044529
 **Network:** Base Mainnet
 
 Complete list of all live contract addresses in the Underscore Protocol.
@@ -121,4 +121,4 @@ Complete list of all live contract addresses in the Underscore Protocol.
 ================================================================================
 
 ---
-*Report generated at block 38919958 on 2025-12-01 22:48:38 UTC*
+*Report generated at block 39044529 on 2025-12-04 20:01:00 UTC*

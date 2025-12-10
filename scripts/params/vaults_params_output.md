@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Vault Parameters
 
-**Generated:** 2025-12-01 22:32:38 UTC
-**Block:** 38919434
+**Generated:** 2025-12-04 20:00:07 UTC
+**Block:** 39044466
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -22,11 +22,11 @@
 
 | ID | Name | Type | Total Assets (Max) | Total Assets (Low) | HQ |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Underscore Blue Chip USD | Earn | 300.48K  | 300.38K  | Y |
+| 1 | Underscore Blue Chip USD | Earn | 312.32K  | 312.28K  | Y |
 | 2 | Underscore Blue Chip ETH | Earn | 3.17  | 3.17  | Y |
-| 3 | Underscore Blue Chip BTC | Earn | 0.02  | 0.02  | Y |
+| 3 | Underscore Blue Chip BTC | Earn | 0.03  | 0.03  | Y |
 | 4 | Underscore Blue Chip AERO | Earn | 5.19K  | 5.19K  | Y |
-| 5 | Underscore Blue Chip EURC | Earn | 178.05  | 178.03  | Y |
+| 5 | Underscore Blue Chip EURC | Earn | 178.13  | 178.08  | Y |
 | 6 | Underscore Blue Chip USDS | Earn | 99.12  | 99.12  | Y |
 | 7 | Underscore Blue Chip CBETH | Earn | 0.02  | 0.02  | Y |
 | 8 | Underscore Blue Chip GHO | Earn | 99.13  | 99.13  | Y |
@@ -108,14 +108,14 @@ UNDY_HQ: Verified
 ### EarnVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
-| totalSupply (shares) | 299,431.453565 |
-| totalAssets (max) | 300,481.023432 |
-| totalAssets (low) | 300,377.462498 |
-| sharePrice (1 share =) | 1.003505 |
+| totalSupply (shares) | 311,028.741798 |
+| totalAssets (max) | 312,323.263936 |
+| totalAssets (low) | 312,275.723288 |
+| sharePrice (1 share =) | 1.004162 |
 | numAssets (yield positions) | 6 |
-| lastUnderlyingBal | 300,693.742363 |
-| pendingYieldRealized | 1,276.873428 |
-| claimablePerformanceFees | 266.038624 |
+| lastUnderlyingBal | 312,639.12037 |
+| pendingYieldRealized | 1,579.423013 |
+| claimablePerformanceFees | 315.891644 |
 | numManagers | 2 |
 
 **Yield Position Assets (6):**
@@ -185,16 +185,16 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 3.164134977557775841 |
-| totalAssets (max) | 3.166275494264907842 |
-| totalAssets (low) | 3.166221252946236575 |
-| sharePrice (1 share =) | 1.000676493487892893 |
-| numAssets (yield positions) | 5 |
-| lastUnderlyingBal | 3.16678362105959943 |
-| pendingYieldRealized | 0.002598497890786815 |
-| claimablePerformanceFees | 0.000522592774023768 |
+| totalAssets (max) | 3.16655340165328969 |
+| totalAssets (low) | 3.166527611038985945 |
+| sharePrice (1 share =) | 1.000764323934556055 |
+| numAssets (yield positions) | 6 |
+| lastUnderlyingBal | 3.167128881959222486 |
+| pendingYieldRealized | 0.002943758790409847 |
+| claimablePerformanceFees | 0.000592069621119203 |
 | numManagers | 2 |
 
-**Yield Position Assets (5):**
+**Yield Position Assets (6):**
 | Index | Vault Token | Lego ID |
 | --- | --- | --- |
 | 1 | MORPHO_SEAMLESS_WETH (0x27D8c7273fd3fcC6956a0B370cE5Fd4A7fc65c18) | 7 |
@@ -202,6 +202,7 @@ UNDY_HQ: Verified
 | 3 | MORPHO_MOONWELL_WETH (0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1) | 7 |
 | 4 | COMPOUNDV3_WETH (0x46e6b214b524310239732D51387075E0e70970bf) | 3 |
 | 5 | MORPHO_GAUNTLET_WETH_CORE (0x6b13c060F13Af1fdB319F52315BbbF3fb1D88844) | 7 |
+| 6 | AAVEV3_WETH (0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7) | 2 |
 
 **Managers (2):**
 
@@ -254,14 +255,14 @@ UNDY_HQ: Verified
 ### EarnVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
-| totalSupply (shares) | 0.02366282 |
-| totalAssets (max) | 0.02366379 |
-| totalAssets (low) | 0.02366329 |
-| sharePrice (1 share =) | 1.00004099 |
+| totalSupply (shares) | 0.02565143 |
+| totalAssets (max) | 0.02565275 |
+| totalAssets (low) | 0.0256526 |
+| sharePrice (1 share =) | 1.00005145 |
 | numAssets (yield positions) | 4 |
-| lastUnderlyingBal | 0.02366375 |
-| pendingYieldRealized | 0.00000299 |
-| claimablePerformanceFees | 0.00000075 |
+| lastUnderlyingBal | 0.02565357 |
+| pendingYieldRealized | 0.00000418 |
+| claimablePerformanceFees | 0.00000083 |
 | numManagers | 2 |
 
 **Yield Position Assets (4):**
@@ -319,14 +320,14 @@ UNDY_HQ: Verified
 ### EarnVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
-| totalSupply (shares) | 5,181.24173284260177752 |
-| totalAssets (max) | 5,186.122619491181467311 |
-| totalAssets (low) | 5,186.054033911204896867 |
-| sharePrice (1 share =) | 1.000942030289311058 |
+| totalSupply (shares) | 5,181.2564458691767868 |
+| totalAssets (max) | 5,186.891046564884163672 |
+| totalAssets (low) | 5,186.719511213886107726 |
+| sharePrice (1 share =) | 1.00108749697193633 |
 | numAssets (yield positions) | 2 |
-| lastUnderlyingBal | 5,186.593668927108410571 |
-| pendingYieldRealized | 5.376886106578088409 |
-| claimablePerformanceFees | 1.219020236809034818 |
+| lastUnderlyingBal | 5,188.021384151168604149 |
+| pendingYieldRealized | 6.760117209789870962 |
+| claimablePerformanceFees | 1.407444905876493513 |
 | numManagers | 2 |
 
 **Yield Position Assets (2):**
@@ -388,24 +389,23 @@ UNDY_HQ: Verified
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 177.854931 |
-| totalAssets (max) | 178.050754 |
-| totalAssets (low) | 178.026189 |
-| sharePrice (1 share =) | 1.001101 |
-| numAssets (yield positions) | 6 |
-| lastUnderlyingBal | 177.803649 |
-| pendingYieldRealized | 0.226027 |
-| claimablePerformanceFees | 0.048724 |
+| totalAssets (max) | 178.134545 |
+| totalAssets (low) | 178.082421 |
+| sharePrice (1 share =) | 1.001572 |
+| numAssets (yield positions) | 5 |
+| lastUnderlyingBal | 178.170271 |
+| pendingYieldRealized | 0.314429 |
+| claimablePerformanceFees | 0.069675 |
 | numManagers | 2 |
 
-**Yield Position Assets (6):**
+**Yield Position Assets (5):**
 | Index | Vault Token | Lego ID |
 | --- | --- | --- |
-| 1 | `0x90DA57E0A6C0d166Bf15764E03b83745Dc90025B` | 2 |
+| 1 | MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 7 |
 | 2 | FLUID_EURC (0x1943FA26360f038230442525Cf1B9125b5DCB401) | 5 |
 | 3 | MOONWELL_EURC (0xb682c840B5F4FC58B20769E691A6fa1305A501a2) | 6 |
 | 4 | MORPHO_GAUNTLET_EURC_CORE (0x1c155be6bC51F2c37d472d4C2Eba7a637806e122) | 7 |
 | 5 | EULER_EURC (0x9ECD9fbbdA32b81dee51AdAed28c5C5039c87117) | 4 |
-| 6 | MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 7 |
 
 **Managers (2):**
 
@@ -622,15 +622,15 @@ UNDY_HQ: Verified
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
 | isLeveragedVault | True |
-| shouldEnforceAllowlist | False |
+| shouldEnforceAllowlist | True |
 
 ### LevgVaultWallet Storage
 | Parameter | Value |
 | --- | --- |
 | totalSupply (shares) | 3 |
-| totalAssets (max) | 3.002496 |
-| totalAssets (low) | 3.001185 |
-| sharePrice (1 share =) | 1.000832 |
+| totalAssets (max) | 3.004461 |
+| totalAssets (low) | 3.004297 |
+| sharePrice (1 share =) | 1.001487 |
 | collateralAsset.vaultToken | Underscore Blue Chip USD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) |
 | collateralAsset.ripeVaultId | 5 |
 | leverageAsset.vaultToken | Underscore Blue Chip USD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) |
@@ -640,7 +640,7 @@ UNDY_HQ: Verified
 | usdcSlippageAllowed | 1.00% |
 | greenSlippageAllowed | 1.00% |
 | levgVaultHelper | `0xCCE531215D9841E3D69b1Db4e31e1005331DAe4c` |
-| numManagers | 1 |
+| numManagers | 2 |
 
 ### LevgVaultHelper Configuration
 | Parameter | Value |
@@ -650,9 +650,12 @@ UNDY_HQ: Verified
 | SAVINGS_GREEN | SAVINGS_GREEN (0xaa0f13488CE069A7B5a099457c753A7CFBE04d36) |
 | USDC | USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
 
-**Managers (1):**
+**Managers (2):**
 
 **Manager 1:** `0xaDd738FD4e8b43c7923E170d1789f5E2140Cba9F`
+  - Type: Unknown (not EarnVaultAgent)
+
+**Manager 2:** `0x699308fEb03b9AF84C52F2d67cAcE4ea847aB73E`
   - Type: Unknown (not EarnVaultAgent)
 
 ### Underscore Leveraged cbBTC
@@ -673,7 +676,7 @@ UNDY_HQ: Verified
 | shouldAutoDeposit | True |
 | defaultTargetVaultToken | None |
 | isLeveragedVault | True |
-| shouldEnforceAllowlist | False |
+| shouldEnforceAllowlist | True |
 
 ### LevgVaultWallet Storage
 | Parameter | Value |
@@ -709,4 +712,4 @@ UNDY_HQ: Verified
 ================================================================================
 
 ---
-*Report generated at block 38919434 on 2025-12-01 22:34:55 UTC*
+*Report generated at block 39044466 on 2025-12-04 20:02:08 UTC*

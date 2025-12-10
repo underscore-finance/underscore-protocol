@@ -357,16 +357,40 @@ def test_stablecoin_status_persistence(mission_control, switchboard_alpha, alice
 
 def test_security_settings_persistence(mission_control, switchboard_alpha, alice, bob):
     """Security settings should persist after being set"""
+    # Capture initial state (other fixtures may have added entries)
+    initial_security_signers = mission_control.numSecuritySigners()
+    initial_whitelisted_creators = mission_control.numWhitelistedCreators()
+
     # Test canPerformSecurityAction
     assert not mission_control.canPerformSecurityAction(alice)
     mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
     assert mission_control.canPerformSecurityAction(alice)
-    
+    assert mission_control.numSecuritySigners() == initial_security_signers + 1
+    alice_index = mission_control.indexOfSecuritySigner(alice)
+    assert alice_index != 0
+    assert mission_control.securitySigners(alice_index) == alice
+
+    # Test removal
+    mission_control.setCanPerformSecurityAction(alice, False, sender=switchboard_alpha.address)
+    assert not mission_control.canPerformSecurityAction(alice)
+    assert mission_control.numSecuritySigners() == initial_security_signers
+    assert mission_control.indexOfSecuritySigner(alice) == 0
+
     # Test creatorWhitelist
     assert not mission_control.creatorWhitelist(bob)
     mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
     assert mission_control.creatorWhitelist(bob)
-    
+    assert mission_control.numWhitelistedCreators() == initial_whitelisted_creators + 1
+    bob_index = mission_control.indexOfWhitelistedCreator(bob)
+    assert bob_index != 0
+    assert mission_control.whitelistedCreators(bob_index) == bob
+
+    # Test removal
+    mission_control.setCreatorWhitelist(bob, False, sender=switchboard_alpha.address)
+    assert not mission_control.creatorWhitelist(bob)
+    assert mission_control.numWhitelistedCreators() == initial_whitelisted_creators
+    assert mission_control.indexOfWhitelistedCreator(bob) == 0
+
     # Test isLockedSigner
     assert not mission_control.isLockedSigner(alice)
     mission_control.setLockedSigner(alice, True, sender=switchboard_alpha.address)
@@ -464,6 +488,284 @@ def test_get_swap_fee_logic(mission_control, switchboard_alpha, alice, bob, char
     mission_control.setAssetConfig(charlie, (
         True, createTxFees(100, 50, 200), createAmbassadorRevShare(), createAssetYieldConfig()
     ), sender=switchboard_alpha.address)
-    
+
     # Asset swap fee should take precedence
     assert mission_control.getSwapFee(alice, charlie) == 100
+
+
+######################################
+# Iterable Security Signers Tests    #
+######################################
+
+
+def test_security_signers_iterable_add(mission_control, switchboard_alpha, alice, bob, charlie):
+    """Adding multiple security signers should update iterable storage correctly"""
+    # Capture initial state
+    initial_count = mission_control.numSecuritySigners()
+
+    # Add alice
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 1
+    alice_idx = mission_control.indexOfSecuritySigner(alice)
+    assert alice_idx != 0
+    assert mission_control.securitySigners(alice_idx) == alice
+    assert mission_control.canPerformSecurityAction(alice)
+
+    # Add bob
+    mission_control.setCanPerformSecurityAction(bob, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 2
+    bob_idx = mission_control.indexOfSecuritySigner(bob)
+    assert bob_idx != 0
+    assert mission_control.securitySigners(bob_idx) == bob
+    assert mission_control.canPerformSecurityAction(bob)
+
+    # Add charlie
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 3
+    charlie_idx = mission_control.indexOfSecuritySigner(charlie)
+    assert charlie_idx != 0
+    assert mission_control.securitySigners(charlie_idx) == charlie
+    assert mission_control.canPerformSecurityAction(charlie)
+
+    # Verify all are still accessible via their indices
+    assert mission_control.securitySigners(alice_idx) == alice
+    assert mission_control.securitySigners(bob_idx) == bob
+    assert mission_control.securitySigners(charlie_idx) == charlie
+
+
+def test_security_signers_iterable_remove(mission_control, switchboard_alpha, alice, bob, charlie):
+    """Removing a security signer should use swap-and-pop pattern"""
+    # Capture initial state
+    initial_count = mission_control.numSecuritySigners()
+
+    # Add alice, bob, charlie
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(bob, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+
+    assert mission_control.numSecuritySigners() == initial_count + 3
+    alice_idx = mission_control.indexOfSecuritySigner(alice)
+    bob_idx = mission_control.indexOfSecuritySigner(bob)
+    charlie_idx = mission_control.indexOfSecuritySigner(charlie)
+
+    # Remove bob (middle element) - charlie should swap to bob's position
+    mission_control.setCanPerformSecurityAction(bob, False, sender=switchboard_alpha.address)
+
+    assert mission_control.numSecuritySigners() == initial_count + 2
+    assert not mission_control.canPerformSecurityAction(bob)
+    assert mission_control.indexOfSecuritySigner(bob) == 0  # removed
+
+    # charlie moved to bob's old index
+    assert mission_control.securitySigners(bob_idx) == charlie
+    assert mission_control.indexOfSecuritySigner(charlie) == bob_idx
+
+    # alice unchanged
+    assert mission_control.securitySigners(alice_idx) == alice
+    assert mission_control.indexOfSecuritySigner(alice) == alice_idx
+    assert mission_control.canPerformSecurityAction(alice)
+    assert mission_control.canPerformSecurityAction(charlie)
+
+
+def test_security_signers_add_duplicate(mission_control, switchboard_alpha, alice):
+    """Adding the same signer twice should be idempotent"""
+    # Capture initial state
+    initial_count = mission_control.numSecuritySigners()
+
+    # Add alice
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 1
+    alice_idx = mission_control.indexOfSecuritySigner(alice)
+    assert alice_idx != 0
+
+    # Add alice again - should be no-op
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 1  # unchanged
+    assert mission_control.indexOfSecuritySigner(alice) == alice_idx  # unchanged
+    assert mission_control.securitySigners(alice_idx) == alice
+
+
+def test_security_signers_remove_nonexistent(mission_control, switchboard_alpha, alice):
+    """Removing a non-existent signer should be a no-op"""
+    initial_count = mission_control.numSecuritySigners()
+
+    # Remove alice (never added) - should be no-op
+    mission_control.setCanPerformSecurityAction(alice, False, sender=switchboard_alpha.address)
+
+    assert mission_control.numSecuritySigners() == initial_count  # unchanged
+    assert mission_control.indexOfSecuritySigner(alice) == 0
+
+
+def test_security_signers_remove_last(mission_control, switchboard_alpha, alice, bob):
+    """Removing the last signer should not require a swap"""
+    # Capture initial state
+    initial_count = mission_control.numSecuritySigners()
+
+    # Add alice and bob
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(bob, True, sender=switchboard_alpha.address)
+
+    assert mission_control.numSecuritySigners() == initial_count + 2
+    alice_idx = mission_control.indexOfSecuritySigner(alice)
+    bob_idx = mission_control.indexOfSecuritySigner(bob)
+    assert mission_control.securitySigners(alice_idx) == alice
+    assert mission_control.securitySigners(bob_idx) == bob
+
+    # Remove bob (last element)
+    mission_control.setCanPerformSecurityAction(bob, False, sender=switchboard_alpha.address)
+
+    assert mission_control.numSecuritySigners() == initial_count + 1
+    assert mission_control.indexOfSecuritySigner(bob) == 0
+    assert not mission_control.canPerformSecurityAction(bob)
+
+    # alice unchanged
+    assert mission_control.securitySigners(alice_idx) == alice
+    assert mission_control.indexOfSecuritySigner(alice) == alice_idx
+    assert mission_control.canPerformSecurityAction(alice)
+
+
+def test_security_signers_add_remove_add(mission_control, switchboard_alpha, alice):
+    """Adding, removing, then re-adding should work correctly"""
+    # Capture initial state
+    initial_count = mission_control.numSecuritySigners()
+
+    # Add alice
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 1
+    first_idx = mission_control.indexOfSecuritySigner(alice)
+    assert first_idx != 0
+
+    # Remove alice
+    mission_control.setCanPerformSecurityAction(alice, False, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count
+    assert mission_control.indexOfSecuritySigner(alice) == 0
+    assert not mission_control.canPerformSecurityAction(alice)
+
+    # Add alice again - should get a new index
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numSecuritySigners() == initial_count + 1
+    new_idx = mission_control.indexOfSecuritySigner(alice)
+    assert new_idx != 0
+    assert mission_control.securitySigners(new_idx) == alice
+    assert mission_control.canPerformSecurityAction(alice)
+
+
+#########################################
+# Iterable Whitelisted Creators Tests   #
+#########################################
+
+
+def test_whitelisted_creators_iterable_add(mission_control, switchboard_alpha, alice, bob, charlie):
+    """Adding multiple whitelisted creators should update iterable storage correctly"""
+    # Capture initial state
+    initial_count = mission_control.numWhitelistedCreators()
+
+    # Add alice
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numWhitelistedCreators() == initial_count + 1
+    alice_idx = mission_control.indexOfWhitelistedCreator(alice)
+    assert alice_idx != 0
+    assert mission_control.whitelistedCreators(alice_idx) == alice
+    assert mission_control.creatorWhitelist(alice)
+
+    # Add bob
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
+    assert mission_control.numWhitelistedCreators() == initial_count + 2
+    bob_idx = mission_control.indexOfWhitelistedCreator(bob)
+    assert bob_idx != 0
+    assert mission_control.whitelistedCreators(bob_idx) == bob
+    assert mission_control.creatorWhitelist(bob)
+
+    # Add charlie
+    mission_control.setCreatorWhitelist(charlie, True, sender=switchboard_alpha.address)
+    assert mission_control.numWhitelistedCreators() == initial_count + 3
+    charlie_idx = mission_control.indexOfWhitelistedCreator(charlie)
+    assert charlie_idx != 0
+    assert mission_control.whitelistedCreators(charlie_idx) == charlie
+    assert mission_control.creatorWhitelist(charlie)
+
+
+def test_whitelisted_creators_iterable_remove(mission_control, switchboard_alpha, alice, bob, charlie):
+    """Removing a whitelisted creator should use swap-and-pop pattern"""
+    # Capture initial state
+    initial_count = mission_control.numWhitelistedCreators()
+
+    # Add alice, bob, charlie
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
+    mission_control.setCreatorWhitelist(charlie, True, sender=switchboard_alpha.address)
+
+    assert mission_control.numWhitelistedCreators() == initial_count + 3
+    alice_idx = mission_control.indexOfWhitelistedCreator(alice)
+    bob_idx = mission_control.indexOfWhitelistedCreator(bob)
+    charlie_idx = mission_control.indexOfWhitelistedCreator(charlie)
+
+    # Remove bob (middle element) - charlie should swap to bob's position
+    mission_control.setCreatorWhitelist(bob, False, sender=switchboard_alpha.address)
+
+    assert mission_control.numWhitelistedCreators() == initial_count + 2
+    assert not mission_control.creatorWhitelist(bob)
+    assert mission_control.indexOfWhitelistedCreator(bob) == 0  # removed
+
+    # charlie moved to bob's old index
+    assert mission_control.whitelistedCreators(bob_idx) == charlie
+    assert mission_control.indexOfWhitelistedCreator(charlie) == bob_idx
+
+    # alice unchanged
+    assert mission_control.whitelistedCreators(alice_idx) == alice
+    assert mission_control.indexOfWhitelistedCreator(alice) == alice_idx
+    assert mission_control.creatorWhitelist(alice)
+    assert mission_control.creatorWhitelist(charlie)
+
+
+def test_whitelisted_creators_add_duplicate(mission_control, switchboard_alpha, alice):
+    """Adding the same creator twice should be idempotent"""
+    # Capture initial state
+    initial_count = mission_control.numWhitelistedCreators()
+
+    # Add alice
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numWhitelistedCreators() == initial_count + 1
+    alice_idx = mission_control.indexOfWhitelistedCreator(alice)
+    assert alice_idx != 0
+
+    # Add alice again - should be no-op
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+    assert mission_control.numWhitelistedCreators() == initial_count + 1  # unchanged
+    assert mission_control.indexOfWhitelistedCreator(alice) == alice_idx  # unchanged
+
+
+def test_whitelisted_creators_remove_nonexistent(mission_control, switchboard_alpha, alice):
+    """Removing a non-existent creator should be a no-op"""
+    initial_count = mission_control.numWhitelistedCreators()
+
+    # Remove alice (never added) - should be no-op
+    mission_control.setCreatorWhitelist(alice, False, sender=switchboard_alpha.address)
+
+    assert mission_control.numWhitelistedCreators() == initial_count  # unchanged
+    assert mission_control.indexOfWhitelistedCreator(alice) == 0
+
+
+def test_whitelisted_creators_iteration_after_removal(mission_control, switchboard_alpha, alice, bob, charlie, sally, whale):
+    """After removal, iteration should have no gaps"""
+    # Capture initial state
+    initial_count = mission_control.numWhitelistedCreators()
+
+    # Add 5 creators
+    creators = [alice, bob, charlie, sally, whale]
+    for creator in creators:
+        mission_control.setCreatorWhitelist(creator, True, sender=switchboard_alpha.address)
+
+    assert mission_control.numWhitelistedCreators() == initial_count + 5
+
+    # Remove bob
+    mission_control.setCreatorWhitelist(bob, False, sender=switchboard_alpha.address)
+
+    # Verify no gaps - can iterate from 1 to numWhitelistedCreators-1
+    num = mission_control.numWhitelistedCreators()
+    assert num == initial_count + 4  # removed 1
+
+    # All indices 1 to num-1 should have valid addresses (not zero)
+    for i in range(1, num):
+        addr = mission_control.whitelistedCreators(i)
+        assert addr != ZERO_ADDRESS
+        assert mission_control.indexOfWhitelistedCreator(addr) == i

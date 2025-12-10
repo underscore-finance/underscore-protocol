@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Lego Parameters
 
-**Generated:** 2025-12-01 22:54:35 UTC
-**Block:** 38920141
+**Generated:** 2025-12-06 23:58:52 UTC
+**Block:** 39138055
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -85,6 +85,8 @@ Legos that generate yield through lending protocols and yield vaults.
 # Ripe Protocol
 Address: `0x272812fC816a6a8C1A2988b24D06878493459A54`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -93,10 +95,14 @@ Address: `0x272812fC816a6a8C1A2988b24D06878493459A54`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| GREEN (0xd1Eac76497D06Cf15475A5e3984D5bC03de7C707) | SAVINGS_GREEN (0xaa0f13488CE069A7B5a099457c753A7CFBE04d36) | 18 |
+### Registered Assets (1)
+
+#### GREEN (0xd1Eac76497D06Cf15475A5e3984D5bC03de7C707)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| SAVINGS_GREEN (0xaa0f13488CE069A7B5a099457c753A7CFBE04d36) | 18 | 1.057425 | 2025-12-05 19:54 | 5 |
 
 ================================================================================
 
@@ -104,6 +110,8 @@ Address: `0x272812fC816a6a8C1A2988b24D06878493459A54`
 # Aave v3
 Address: `0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -112,10 +120,28 @@ Address: `0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| WETH (0x4200000000000000000000000000000000000006) | AAVEV3_WETH (0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7) | 18 |
+### Registered Assets (3)
+
+#### WETH (0x4200000000000000000000000000000000000006)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| AAVEV3_WETH (0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7) | 18 | 0.000000 | Never | 0 |
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| aBasEURC (0x90DA57E0A6C0d166Bf15764E03b83745Dc90025B) | 6 | 0.000000 | Never | 0 |
+
+#### CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| AAVEV3_CBBTC (0xBdb9300b7CDE636d9cD4AFF00f6F009fFBBc8EE6) | 8 | 0.000000 | Never | 0 |
 
 ================================================================================
 
@@ -123,6 +149,8 @@ Address: `0xac80b9465d70AAFBe492A08baeA5c6e9d77b1478`
 # Compound v3
 Address: `0x590FB39919c5F0323a93B54f2634d010b6ECfbA7`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -131,11 +159,21 @@ Address: `0x590FB39919c5F0323a93B54f2634d010b6ECfbA7`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631) | COMPOUNDV3_AERO (0x784efeB622244d2348d4F2522f8860B96fbEcE89) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | COMPOUNDV3_WETH (0x46e6b214b524310239732D51387075E0e70970bf) | 18 |
+### Registered Assets (2)
+
+#### AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| COMPOUNDV3_AERO (0x784efeB622244d2348d4F2522f8860B96fbEcE89) | 18 | 0.000000 | Never | 0 |
+
+#### WETH (0x4200000000000000000000000000000000000006)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| COMPOUNDV3_WETH (0x46e6b214b524310239732D51387075E0e70970bf) | 18 | 0.000000 | Never | 0 |
 
 ================================================================================
 
@@ -143,6 +181,8 @@ Address: `0x590FB39919c5F0323a93B54f2634d010b6ECfbA7`
 # Euler
 Address: `0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -151,10 +191,21 @@ Address: `0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | EULER_EURC (0x9ECD9fbbdA32b81dee51AdAed28c5C5039c87117) | 6 |
+### Registered Assets (2)
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| EULER_EURC (0x9ECD9fbbdA32b81dee51AdAed28c5C5039c87117) | 6 | 1.026235 | 2025-12-05 15:30 | 16 |
+
+#### CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| EULER_CBBTC (0x882018411Bc4A020A879CEE183441fC9fa5D7f8B) | 8 | 1.000698 | 2025-12-05 23:30 | 1 |
 
 ================================================================================
 
@@ -162,6 +213,8 @@ Address: `0x7f52A8bCF7589e157961dbc072e1C5E45A3F4fd6`
 # Fluid
 Address: `0x67E7bcC1deBd060251a9ECeA37002a3986E74f93`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -170,11 +223,21 @@ Address: `0x67E7bcC1deBd060251a9ECeA37002a3986E74f93`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | FLUID_EURC (0x1943FA26360f038230442525Cf1B9125b5DCB401) | 6 |
-| WETH (0x4200000000000000000000000000000000000006) | FLUID_WETH (0x9272D6153133175175Bc276512B2336BE3931CE9) | 18 |
+### Registered Assets (2)
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| FLUID_EURC (0x1943FA26360f038230442525Cf1B9125b5DCB401) | 6 | 1.071836 | 2025-12-05 15:30 | 10 |
+
+#### WETH (0x4200000000000000000000000000000000000006)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| FLUID_WETH (0x9272D6153133175175Bc276512B2336BE3931CE9) | 18 | 1.020281 | 2025-11-29 12:33 | 1 |
 
 ================================================================================
 
@@ -182,6 +245,8 @@ Address: `0x67E7bcC1deBd060251a9ECeA37002a3986E74f93`
 # Moonwell
 Address: `0x0657CF4683870b8420bB8Da57db83e5F9A1ad804`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -190,12 +255,35 @@ Address: `0x0657CF4683870b8420bB8Da57db83e5F9A1ad804`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | MOONWELL_EURC (0xb682c840B5F4FC58B20769E691A6fa1305A501a2) | 8 |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | MOONWELL_USDC (0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22) | 8 |
-| AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631) | MOONWELL_AERO (0x73902f619CEB9B31FD8EFecf435CbDf89E369Ba6) | 8 |
+### Registered Assets (4)
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MOONWELL_EURC (0xb682c840B5F4FC58B20769E691A6fa1305A501a2) | 8 | 0.000215 | 2025-12-05 15:30 | 13 |
+
+#### USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MOONWELL_USDC (0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22) | 8 | 0.000224 | 2025-12-04 19:30 | 8 |
+
+#### AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MOONWELL_AERO (0x73902f619CEB9B31FD8EFecf435CbDf89E369Ba6) | 8 | 231359360.452507 | 2025-11-28 23:10 | 1 |
+
+#### CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MOONWELL_CBBTC (0xF877ACaFA28c19b96727966690b2f44d35aD5976) | 8 | 0.020058 | 2025-12-05 23:30 | 7 |
 
 ================================================================================
 
@@ -203,6 +291,8 @@ Address: `0x0657CF4683870b8420bB8Da57db83e5F9A1ad804`
 # Morpho
 Address: `0x14852dcEEA98d5E781335bA8ea8d4B3a14508868`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -211,22 +301,47 @@ Address: `0x14852dcEEA98d5E781335bA8ea8d4B3a14508868`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | MORPHO_IONIC_USDC (0x23479229e52Ab6aaD312D0B03DF9F33B46753B5e) | 18 |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | MORPHO_RE7_USDC (0x12AFDeFb2237a5963e7BAb3e2D46ad0eee70406e) | 18 |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | bbqUSDC (0xBEEFA7B88064FeEF0cEe02AAeBBd95D30df3878F) | 18 |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | steakUSDC (0xBEEFE94c8aD530842bfE7d8B397938fFc1cb83b2) | 18 |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | gtUSDCf (0x236919F11ff9eA9550A4287696C2FC9e18E6e890) | 18 |
-| CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf) | MORPHO_MOONWELL_CBBTC (0x543257eF2161176D7C8cD90BA65C2d4CaEF5a796) | 18 |
-| CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf) | MORPHO_GAUNTLET_CBBTC_CORE (0x6770216aC60F634483Ec073cBABC4011c94307Cb) | 18 |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | MORPHO_GAUNTLET_EURC_CORE (0x1c155be6bC51F2c37d472d4C2Eba7a637806e122) | 18 |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | MORPHO_SEAMLESS_WETH (0x27D8c7273fd3fcC6956a0B370cE5Fd4A7fc65c18) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | MORPHO_IONIC_WETH (0x5A32099837D89E3a794a44fb131CBbAD41f87a8C) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | MORPHO_MOONWELL_WETH (0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | MORPHO_GAUNTLET_WETH_CORE (0x6b13c060F13Af1fdB319F52315BbbF3fb1D88844) | 18 |
+### Registered Assets (4)
+
+#### USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+**Opportunities:** 7
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MORPHO_IONIC_USDC (0x23479229e52Ab6aaD312D0B03DF9F33B46753B5e) | 18 | 0.000000 | 2025-12-06 14:10 | 11 |
+| MORPHO_RE7_USDC (0x12AFDeFb2237a5963e7BAb3e2D46ad0eee70406e) | 18 | 0.000000 | 2025-12-06 14:10 | 8 |
+| bbqUSDC (0xBEEFA7B88064FeEF0cEe02AAeBBd95D30df3878F) | 18 | 0.000000 | 2025-12-06 15:30 | 14 |
+| steakUSDC (0xBEEFE94c8aD530842bfE7d8B397938fFc1cb83b2) | 18 | 0.000000 | 2025-12-06 16:10 | 16 |
+| gtUSDCf (0x236919F11ff9eA9550A4287696C2FC9e18E6e890) | 18 | 0.000000 | 2025-11-28 08:38 | 2 |
+| MORPHO_GAUNTLET_USDC_PRIME (0xeE8F4eC5672F09119b96Ab6fB59C27E1b7e44b61) | 18 | 0.000000 | 2025-12-06 15:30 | 4 |
+
+#### CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf)
+**Opportunities:** 4
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MORPHO_MOONWELL_CBBTC (0x543257eF2161176D7C8cD90BA65C2d4CaEF5a796) | 18 | 0.000000 | 2025-12-05 10:26 | 9 |
+| MORPHO_GAUNTLET_CBBTC_CORE (0x6770216aC60F634483Ec073cBABC4011c94307Cb) | 18 | 0.000000 | 2025-12-04 14:10 | 5 |
+| MORPHO_SEAMLESS_CBBTC (0x5a47C803488FE2BB0A0EAaf346b420e4dF22F3C7) | 18 | 0.000000 | 2025-12-05 23:30 | 5 |
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 4
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MORPHO_GAUNTLET_EURC_CORE (0x1c155be6bC51F2c37d472d4C2Eba7a637806e122) | 18 | 0.000000 | 2025-12-05 15:30 | 7 |
+| MORPHO_STEAKHOUSE_EURC (0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5) | 18 | 0.000000 | 2025-12-05 15:30 | 6 |
+| MORPHO_MOONWELL_EURC (0xf24608E0CCb972b0b0f4A6446a0BBf58c701a026) | 18 | 0.000000 | 2025-12-05 15:30 | 2 |
+
+#### WETH (0x4200000000000000000000000000000000000006)
+**Opportunities:** 5
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| MORPHO_SEAMLESS_WETH (0x27D8c7273fd3fcC6956a0B370cE5Fd4A7fc65c18) | 18 | 1.018192 | 2025-12-06 15:30 | 14 |
+| MORPHO_IONIC_WETH (0x5A32099837D89E3a794a44fb131CBbAD41f87a8C) | 18 | 1.018489 | 2025-12-06 15:30 | 14 |
+| MORPHO_MOONWELL_WETH (0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1) | 18 | 1.020441 | 2025-12-05 11:10 | 11 |
+| MORPHO_GAUNTLET_WETH_CORE (0x6b13c060F13Af1fdB319F52315BbbF3fb1D88844) | 18 | 1.039902 | 2025-12-06 15:30 | 6 |
 
 ================================================================================
 
@@ -234,6 +349,8 @@ Address: `0x14852dcEEA98d5E781335bA8ea8d4B3a14508868`
 # Underscore Lego
 Address: `0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -242,13 +359,42 @@ Address: `0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | undyUSD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) | 6 |
-| AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631) | undyAERO (0x96F1a7ce331F40afe866F3b707c223e377661087) | 18 |
-| WETH (0x4200000000000000000000000000000000000006) | undyETH (0x02981DB1a99A14912b204437e7a2E02679B57668) | 18 |
-| EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42) | undyEURC (0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8) | 6 |
+### Registered Assets (5)
+
+#### USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| undyUSD (0xb33852cfd0c22647AAC501a6Af59Bc4210a686Bf) | 6 | 1.004307 | 2025-12-05 19:54 | 6 |
+
+#### AERO (0x940181a94A35A4569E4529A3CDfB74e38FD98631)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| undyAERO (0x96F1a7ce331F40afe866F3b707c223e377661087) | 18 | 1.001045 | 2025-12-03 17:00 | 5 |
+
+#### WETH (0x4200000000000000000000000000000000000006)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| undyETH (0x02981DB1a99A14912b204437e7a2E02679B57668) | 18 | 1.000582 | 2025-11-28 22:41 | 2 |
+
+#### EURC (0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| undyEURC (0x1cb8DAB80f19fC5Aca06C2552AECd79015008eA8) | 6 | 1.000937 | 2025-11-28 22:39 | 1 |
+
+#### CBBTC (0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| undyBTC (0x3fb0fC9D3Ddd543AD1b748Ed2286a022f4638493) | 8 | 1.000051 | 2025-12-04 14:09 | 3 |
 
 ================================================================================
 
@@ -256,6 +402,8 @@ Address: `0x0f79a5A21dC0829ce3B4C72d75a94f67927Af9E9`
 # 40 Acres
 Address: `0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -264,10 +412,14 @@ Address: `0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | FORTY_ACRES_USDC (0xB99B6dF96d4d5448cC0a5B3e0ef7896df9507Cf5) | 6 |
+### Registered Assets (1)
+
+#### USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| FORTY_ACRES_USDC (0xB99B6dF96d4d5448cC0a5B3e0ef7896df9507Cf5) | 6 | 1829.094297 | 2025-12-06 15:30 | 0 |
 
 ================================================================================
 
@@ -275,6 +427,8 @@ Address: `0x39F5EDd73ce1682Da63C92C34fBbBEdB07156514`
 # Wasabi
 Address: `0xe67Ef17B6c82a555CB040173273FB271fcc43BEd`
 
+**Status:** ✅ Active
+
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
 | --- | --- |
@@ -283,16 +437,22 @@ Address: `0xe67Ef17B6c82a555CB040173273FB271fcc43BEd`
 | maxUpsideDeviation | 10.00% |
 | staleTime | 86,400 seconds (24 hours) |
 
-### Registered Assets & Vault Tokens
-| Underlying Asset | Vault Token | Decimals |
-| --- | --- | --- |
-| USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) | WASABI_USDC (0x1C4a802FD6B591BB71dAA01D8335e43719048B24) | 6 |
+### Registered Assets (1)
+
+#### USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+**Opportunities:** 2
+
+| Vault Token | Decimals | Avg Price/Share | Last Snapshot | Next Index |
+| --- | --- | --- | --- | --- |
+| WASABI_USDC (0x1C4a802FD6B591BB71dAA01D8335e43719048B24) | 6 | 1.079862 | 2025-12-06 15:30 | 10 |
 
 ================================================================================
 
 <a id="avantis"></a>
 # Avantis
 Address: `0xc88CD884bdFa8F2D93e32a13EE16543b8a2CF1f0`
+
+**Status:** ✅ Active
 
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
@@ -309,6 +469,8 @@ Address: `0xc88CD884bdFa8F2D93e32a13EE16543b8a2CF1f0`
 <a id="sky-psm"></a>
 # Sky Psm
 Address: `0xEe7B4F2338389A6453E85a65976F3241986492CF`
+
+**Status:** ✅ Active
 
 ### Snapshot Price Config (YieldLegoData Module)
 | Parameter | Value |
@@ -334,6 +496,8 @@ Address: `0x43B2a72595016D765E2A66e4c2Cf3026619784D1`
 
 *DEX Lego - used for swaps, not yield generation*
 
+**Status:** ✅ Active
+
 ================================================================================
 
 <a id="aero-slipstream"></a>
@@ -341,6 +505,8 @@ Address: `0x43B2a72595016D765E2A66e4c2Cf3026619784D1`
 Address: `0x2DD267Ab1BA631E93e7c6a9EA6fbcc48882770bd`
 
 *DEX Lego - used for swaps, not yield generation*
+
+**Status:** ✅ Active
 
 ================================================================================
 
@@ -350,6 +516,8 @@ Address: `0x7192867D67329800345750f5A281Ce1352C3dF65`
 
 *DEX Lego - used for swaps, not yield generation*
 
+**Status:** ✅ Active
+
 ================================================================================
 
 <a id="uniswap-v2"></a>
@@ -357,6 +525,8 @@ Address: `0x7192867D67329800345750f5A281Ce1352C3dF65`
 Address: `0x95979aEF0F70887f31701944b658948890F56fd7`
 
 *DEX Lego - used for swaps, not yield generation*
+
+**Status:** ✅ Active
 
 ================================================================================
 
@@ -366,7 +536,9 @@ Address: `0xEa1f7604E751b54AF321636DBc2dc75C0045e7A5`
 
 *DEX Lego - used for swaps, not yield generation*
 
+**Status:** ✅ Active
+
 ================================================================================
 
 ---
-*Report generated at block 38920141 on 2025-12-01 22:55:14 UTC*
+*Report generated at block 39138055 on 2025-12-07 00:00:08 UTC*
