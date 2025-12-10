@@ -1274,6 +1274,127 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getBorrowRate",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtAmount",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getVaultTokenAmounts",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_isCollateralAsset",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUnderlyingAmounts",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_isCollateralAsset",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getGreenAmounts",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "RIPE_REGISTRY",
     "inputs": [],
     "outputs": [

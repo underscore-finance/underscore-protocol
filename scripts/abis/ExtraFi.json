@@ -84,6 +84,23 @@
     "type": "event"
   },
   {
+    "name": "AssetOpportunityAdded",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "LegoPauseModified",
     "inputs": [
       {
@@ -139,23 +156,6 @@
         "name": "staleTime",
         "type": "uint256",
         "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
-    "name": "AssetOpportunityAdded",
-    "inputs": [
-      {
-        "name": "asset",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "vaultAddr",
-        "type": "address",
-        "indexed": true
       }
     ],
     "anonymous": false,
@@ -1271,6 +1271,18 @@
       {
         "name": "_vaultAddr",
         "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "registerVaultTokensGlobally",
+    "inputs": [
+      {
+        "name": "_vaultTokens",
+        "type": "address[]"
       }
     ],
     "outputs": []
@@ -3082,6 +3094,10 @@
       {
         "name": "_ripeRegistry",
         "type": "address"
+      },
+      {
+        "name": "_reserveIds",
+        "type": "uint256[]"
       }
     ],
     "outputs": []
