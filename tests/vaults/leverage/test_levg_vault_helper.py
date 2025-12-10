@@ -1393,3 +1393,337 @@ def test_mixed_decimal_conversions_with_usdc_and_debt(
     # For WETH: $2k + $10k - $5k = $7k / $2k = 3.5 WETH
     # Should properly handle all decimal conversions
     assert total_assets > underlying_amount
+
+
+#####################################
+# 10. New View Function Tests       #
+#####################################
+
+
+def test_get_borrow_rate(
+    levg_vault_helper,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """Test getBorrowRate returns the borrow rate from Ripe"""
+    # Set a mock borrow rate (5% = 500 basis points)
+    mock_borrow_rate = 500
+    mock_ripe.setBorrowRate(mock_borrow_rate)
+
+    rate = levg_vault_helper.getBorrowRate(undy_levg_vault_usdc.address)
+    assert rate == mock_borrow_rate
+
+
+def test_get_debt_amount(
+    levg_vault_helper,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """Test getDebtAmount returns the user's debt"""
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    result = levg_vault_helper.getDebtAmount(undy_levg_vault_usdc.address)
+    assert result == debt_amount
+
+
+def test_get_debt_amount_zero(
+    levg_vault_helper,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """Test getDebtAmount returns zero when no debt"""
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    result = levg_vault_helper.getDebtAmount(undy_levg_vault_usdc.address)
+    assert result == 0
+
+
+@pytest.mark.parametrize("vault_type", ["usdc", "cbbtc", "weth"])
+def test_get_underlying_amounts_in_wallet(
+    vault_type,
+    levg_vault_helper,
+    setup_mock_prices,
+    governance,
+    mint_to_vault,
+    get_vault_config,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    mock_usdc_collateral_vault,
+    mock_cbbtc_collateral_vault,
+    mock_weth_collateral_vault,
+    mock_usdc_leverage_vault,
+):
+    """Test getUnderlyingAmounts with underlying in wallet only"""
+    config = get_vault_config(
+        vault_type, undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth,
+        mock_usdc, mock_cbbtc, mock_weth, mock_usdc_collateral_vault,
+        mock_cbbtc_collateral_vault, mock_weth_collateral_vault, mock_usdc_leverage_vault,
+    )
+
+    underlying_amount = 1_000 * config["decimals"]
+    mint_to_vault(config["underlying"], config["vault"].address, underlying_amount, config["is_weth"])
+
+    # Test collateral asset side
+    (underlying_wallet, vault_token_wallet, underlying_ripe, vault_token_ripe) = \
+        levg_vault_helper.getUnderlyingAmounts(config["vault"].address, True)
+
+    assert underlying_wallet == underlying_amount
+    assert underlying_ripe == 0
+
+
+def test_get_green_amounts_with_debt(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    mock_green_token,
+    mock_savings_green_token,
+    undy_levg_vault_usdc,
+    governance,
+):
+    """Test getGreenAmounts returns correct debt and balances"""
+    # Set debt
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # Mint GREEN to vault wallet
+    green_amount = 1_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
+        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
+
+    assert user_debt == debt_amount
+    assert green_wallet == green_amount
+    assert sgreen_wallet_converted == 0
+    assert sgreen_ripe_converted == 0
+
+
+def test_get_green_amounts_with_sgreen(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    mock_green_token,
+    mock_savings_green_token,
+    undy_levg_vault_usdc,
+    governance,
+):
+    """Test getGreenAmounts with sGREEN in wallet"""
+    # No debt
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    # Mint GREEN to vault, then deposit to get sGREEN
+    green_amount = 2_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+    mock_green_token.approve(mock_savings_green_token.address, green_amount, sender=undy_levg_vault_usdc.address)
+    sgreen_amount = mock_savings_green_token.deposit(green_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
+        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
+
+    assert user_debt == 0
+    assert green_wallet == 0
+    # sGREEN converts 1:1 to GREEN in the mock
+    assert sgreen_wallet_converted == sgreen_amount
+
+
+def test_get_green_amounts_sgreen_in_ripe(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    mock_savings_green_token,
+    undy_levg_vault_usdc,
+):
+    """Test getGreenAmounts with sGREEN deposited in Ripe"""
+    # Set sGREEN collateral in Ripe
+    sgreen_in_ripe = 3_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_in_ripe)
+
+    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
+        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
+
+    # sGREEN in Ripe should be converted to GREEN
+    assert sgreen_ripe_converted == sgreen_in_ripe
+
+
+@pytest.mark.parametrize("vault_type", ["usdc", "cbbtc", "weth"])
+def test_get_vault_token_amounts_in_wallet(
+    vault_type,
+    levg_vault_helper,
+    setup_mock_prices,
+    governance,
+    mint_to_vault,
+    get_vault_config,
+    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    undy_levg_vault_weth,
+    mock_usdc,
+    mock_cbbtc,
+    mock_weth,
+    mock_usdc_collateral_vault,
+    mock_cbbtc_collateral_vault,
+    mock_weth_collateral_vault,
+    mock_usdc_leverage_vault,
+):
+    """Test getVaultTokenAmounts with vault token in wallet"""
+    config = get_vault_config(
+        vault_type, undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth,
+        mock_usdc, mock_cbbtc, mock_weth, mock_usdc_collateral_vault,
+        mock_cbbtc_collateral_vault, mock_weth_collateral_vault, mock_usdc_leverage_vault,
+    )
+
+    # Mint underlying to vault, then deposit to get vault tokens
+    underlying_amount = 500 * config["decimals"]
+    mint_to_vault(config["underlying"], config["vault"].address, underlying_amount, config["is_weth"])
+    config["underlying"].approve(config["collateral_vault"].address, underlying_amount, sender=config["vault"].address)
+    vault_token_amount = config["collateral_vault"].deposit(underlying_amount, config["vault"].address, sender=config["vault"].address)
+
+    (vault_token_wallet, vault_token_ripe) = \
+        levg_vault_helper.getVaultTokenAmounts(config["vault"].address, True)
+
+    assert vault_token_wallet == vault_token_amount
+    assert vault_token_ripe == 0
+
+
+def test_get_vault_token_amounts_in_ripe(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    mock_usdc_collateral_vault,
+    undy_levg_vault_usdc,
+):
+    """Test getVaultTokenAmounts with vault token deposited in Ripe"""
+    # Set vault token collateral in Ripe
+    vault_token_in_ripe = 1_000 * SIX_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc_collateral_vault.address, vault_token_in_ripe)
+
+    (vault_token_wallet, vault_token_ripe) = \
+        levg_vault_helper.getVaultTokenAmounts(undy_levg_vault_usdc.address, True)
+
+    assert vault_token_ripe == vault_token_in_ripe
+
+
+def test_get_underlying_amounts_vault_token_in_wallet(
+    levg_vault_helper,
+    setup_mock_prices,
+    governance,
+    mint_to_vault,
+    undy_levg_vault_usdc,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+):
+    """Test getUnderlyingAmounts with vault token in wallet converted to underlying"""
+    # Mint USDC to vault, then deposit to get vault tokens
+    underlying_amount = 1_000 * SIX_DECIMALS
+    mint_to_vault(mock_usdc, undy_levg_vault_usdc.address, underlying_amount, False)
+    mock_usdc.approve(mock_usdc_collateral_vault.address, underlying_amount, sender=undy_levg_vault_usdc.address)
+    vault_token_amount = mock_usdc_collateral_vault.deposit(underlying_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
+        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
+
+    assert underlying_wallet == 0
+    assert vault_token_wallet_converted == underlying_amount  # 1:1 in mock
+    assert underlying_ripe == 0
+    assert vault_token_ripe_converted == 0
+
+
+def test_get_underlying_amounts_in_ripe(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_usdc,
+):
+    """Test getUnderlyingAmounts with underlying deposited in Ripe"""
+    # Set underlying collateral in Ripe
+    underlying_in_ripe = 2_000 * SIX_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, underlying_in_ripe)
+
+    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
+        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
+
+    assert underlying_wallet == 0
+    assert vault_token_wallet_converted == 0
+    assert underlying_ripe == underlying_in_ripe
+    assert vault_token_ripe_converted == 0
+
+
+def test_get_underlying_amounts_vault_token_in_ripe(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_usdc_collateral_vault,
+    mock_usdc,
+    governance,
+    mint_to_vault,
+):
+    """Test getUnderlyingAmounts with vault token in Ripe converted to underlying"""
+    # First deposit underlying to get vault tokens (so convertToAssets works)
+    underlying_amount = 1_000 * SIX_DECIMALS
+    mint_to_vault(mock_usdc, undy_levg_vault_usdc.address, underlying_amount, False)
+    mock_usdc.approve(mock_usdc_collateral_vault.address, underlying_amount, sender=undy_levg_vault_usdc.address)
+    mock_usdc_collateral_vault.deposit(underlying_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    # Transfer vault tokens to Ripe (simulate via setUserCollateral)
+    vault_token_in_ripe = 500 * SIX_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc_collateral_vault.address, vault_token_in_ripe)
+
+    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
+        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
+
+    # vault_token_ripe_converted should be the underlying value of vault tokens in Ripe
+    assert vault_token_ripe_converted == vault_token_in_ripe  # 1:1 in mock
+
+
+def test_get_underlying_amounts_leverage_asset(
+    levg_vault_helper,
+    setup_mock_prices,
+    governance,
+    mint_to_vault,
+    undy_levg_vault_cbbtc,
+    mock_usdc,
+    mock_usdc_leverage_vault,
+):
+    """Test getUnderlyingAmounts for leverage asset side (USDC)"""
+    # Mint USDC to vault wallet
+    usdc_amount = 5_000 * SIX_DECIMALS
+    mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
+
+    # Test leverage asset side (_isCollateralAsset=False)
+    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
+        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_cbbtc.address, False)
+
+    assert underlying_wallet == usdc_amount
+    assert vault_token_wallet_converted == 0
+    assert underlying_ripe == 0
+    assert vault_token_ripe_converted == 0
+
+
+def test_get_vault_token_amounts_leverage_asset(
+    levg_vault_helper,
+    setup_mock_prices,
+    governance,
+    mint_to_vault,
+    undy_levg_vault_cbbtc,
+    mock_usdc,
+    mock_usdc_leverage_vault,
+):
+    """Test getVaultTokenAmounts for leverage asset side"""
+    # Mint USDC to vault, then deposit to get leverage vault tokens
+    usdc_amount = 1_000 * SIX_DECIMALS
+    mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
+    mock_usdc.approve(mock_usdc_leverage_vault.address, usdc_amount, sender=undy_levg_vault_cbbtc.address)
+    vault_token_amount = mock_usdc_leverage_vault.deposit(usdc_amount, undy_levg_vault_cbbtc.address, sender=undy_levg_vault_cbbtc.address)
+
+    # Test leverage asset side (_isCollateralAsset=False)
+    (vault_token_wallet, vault_token_ripe) = \
+        levg_vault_helper.getVaultTokenAmounts(undy_levg_vault_cbbtc.address, False)
+
+    assert vault_token_wallet == vault_token_amount
+    assert vault_token_ripe == 0
