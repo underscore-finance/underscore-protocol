@@ -88,7 +88,7 @@ HUNDRED_PERCENT: constant(uint256) = 100_00
 
 
 @deploy
-def __init__(_undyHq: address, _extraFiPool: address, _ripeRegistry: address):
+def __init__(_undyHq: address, _extraFiPool: address, _ripeRegistry: address, _reserveIds: DynArray[uint256, 10]):
     addys.__init__(_undyHq)
     yld.__init__(False)
 
@@ -97,6 +97,13 @@ def __init__(_undyHq: address, _extraFiPool: address, _ripeRegistry: address):
 
     assert _ripeRegistry != empty(address) # dev: invalid addrs
     RIPE_REGISTRY = _ripeRegistry
+
+    # register vault tokens for provided reserve ids
+    for rid: uint256 in _reserveIds:
+        asset: address = staticcall ExtraFiPool(_extraFiPool).getUnderlyingTokenAddress(rid)
+        vaultAddr: address = staticcall ExtraFiPool(_extraFiPool).getETokenAddress(rid)
+        assert empty(address) not in [asset, vaultAddr] # dev: invalid reserve id
+        self._registerVaultTokenLocally(asset, vaultAddr, rid)
 
 
 @view
@@ -447,6 +454,16 @@ def _deregisterVaultTokenLocally(_asset: address, _vaultAddr: address):
 
 
 # ledger registration
+
+
+@external
+def registerVaultTokensGlobally(_vaultTokens: DynArray[address, 10]):
+    ledger: address = addys._getLedgerAddr()
+    legoBook: address = addys._getLegoBookAddr()
+    for vt: address in _vaultTokens:
+        vaultInfo: ls.VaultTokenInfo = yld.vaultToAsset[vt]
+        if vaultInfo.decimals != 0 and empty(address) not in [vt, vaultInfo.underlyingAsset]:
+            self._registerVaultTokenGlobally(vaultInfo.underlyingAsset, vt, vaultInfo.decimals, ledger, legoBook)
 
 
 @internal

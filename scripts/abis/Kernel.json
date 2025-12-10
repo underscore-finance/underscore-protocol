@@ -1,0 +1,352 @@
+[
+  {
+    "name": "WhitelistAddrPending",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "addedBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WhitelistAddrConfirmed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmedBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WhitelistAddrCancelled",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WhitelistAddrRemoved",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "removedBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addPendingWhitelistAddr",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmWhitelistAddr",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingWhitelistAddr",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "removeWhitelistAddr",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canManageWhitelist",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_caller",
+        "type": "address"
+      },
+      {
+        "name": "_action",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistConfig",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_caller",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "wallet",
+            "type": "address"
+          },
+          {
+            "name": "isWhitelisted",
+            "type": "bool"
+          },
+          {
+            "name": "pendingWhitelist",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "initiatedBlock",
+                "type": "uint256"
+              },
+              {
+                "name": "confirmBlock",
+                "type": "uint256"
+              },
+              {
+                "name": "currentOwner",
+                "type": "address"
+              }
+            ]
+          },
+          {
+            "name": "isExistingPayee",
+            "type": "bool"
+          },
+          {
+            "name": "isExistingCheque",
+            "type": "bool"
+          },
+          {
+            "name": "timeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "walletConfig",
+            "type": "address"
+          },
+          {
+            "name": "isManager",
+            "type": "bool"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool"
+          },
+          {
+            "name": "whitelistPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canAddPending",
+                "type": "bool"
+              },
+              {
+                "name": "canConfirm",
+                "type": "bool"
+              },
+              {
+                "name": "canCancel",
+                "type": "bool"
+              },
+              {
+                "name": "canRemove",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "globalWhitelistPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canAddPending",
+                "type": "bool"
+              },
+              {
+                "name": "canConfirm",
+                "type": "bool"
+              },
+              {
+                "name": "canCancel",
+                "type": "bool"
+              },
+              {
+                "name": "canRemove",
+                "type": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "UNDY_HQ",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  }
+]

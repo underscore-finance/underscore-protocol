@@ -1,0 +1,3561 @@
+[
+  {
+    "name": "CanDepositSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "canDeposit",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CanWithdrawSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "canWithdraw",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "MaxDepositAmountSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "maxDepositAmount",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "VaultOpsFrozenSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isFrozen",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RedemptionBufferSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "buffer",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "MinYieldWithdrawAmountSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PerformanceFeeSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "performanceFee",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DefaultTargetVaultTokenSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "targetVaultToken",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ShouldAutoDepositSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "shouldAutoDeposit",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "IsLeveragedVaultSet",
+    "inputs": [
+      {
+        "name": "vaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isLeveragedVault",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ApprovedVaultTokenSet",
+    "inputs": [
+      {
+        "name": "undyVaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "underlyingAsset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultToken",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isApproved",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "shouldMaxWithdraw",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "VaultTokenAdded",
+    "inputs": [
+      {
+        "name": "undyVaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "underlyingAsset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultToken",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "VaultTokenRemoved",
+    "inputs": [
+      {
+        "name": "undyVaultAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "underlyingAsset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultToken",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetVaultTokenAdded",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultToken",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetVaultTokenRemoved",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "vaultToken",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ShouldEnforceAllowlistSet",
+    "inputs": [
+      {
+        "name": "undyVault",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "shouldEnforce",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AllowlistSet",
+    "inputs": [
+      {
+        "name": "undyVault",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isAllowed",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeTimeLockModified",
+    "inputs": [
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RegistryTimeLockModified",
+    "inputs": [
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeStarted",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeConfirmed",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeCancelled",
+    "inputs": [
+      {
+        "name": "cancelledGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovRelinquished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "UndyHqSetupFinished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "timeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DepartmentPauseModified",
+    "inputs": [
+      {
+        "name": "isPaused",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DepartmentFundsRecovered",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "balance",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "NewAddressPending",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "NewAddressConfirmed",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "regId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "NewAddressCancelled",
+    "inputs": [
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AddressDisablePending",
+    "inputs": [
+      {
+        "name": "regId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "version",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AddressDisableConfirmed",
+    "inputs": [
+      {
+        "name": "regId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "version",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AddressDisableCancelled",
+    "inputs": [
+      {
+        "name": "regId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "indexed": false
+      },
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "registry",
+        "type": "string",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHqFromGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canGovern",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getGovernors",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingGovChange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "startGovernanceChange",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "relinquishGov",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setGovTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidGovTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "governance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newGov",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numGovChanges",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "govChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRegistryDescription",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidNewAddress",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidAddressUpdate",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      },
+      {
+        "name": "_newAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidAddressDisable",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRegistryTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidRegistryTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRegistryTimeLockAfterSetup",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRegistryTimeLockAfterSetup",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minRegistryTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxRegistryTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidAddr",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidRegId",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRegId",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddr",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddrInfo",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "name": "version",
+            "type": "uint256"
+          },
+          {
+            "name": "lastModified",
+            "type": "uint256"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddrDescription",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNumAddrs",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getLastAddr",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getLastRegId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "registryChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "addrInfo",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "name": "version",
+            "type": "uint256"
+          },
+          {
+            "name": "lastModified",
+            "type": "uint256"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "addrToRegId",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numAddrs",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingNewAddr",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAddrUpdate",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newAddr",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAddrDisable",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddys",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "hq",
+            "type": "address"
+          },
+          {
+            "name": "undyToken",
+            "type": "address"
+          },
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "switchboard",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "walletBackpack",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHq",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canMintUndy",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "pause",
+    "inputs": [
+      {
+        "name": "_shouldPause",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFunds",
+    "inputs": [
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFundsMany",
+    "inputs": [
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_assets",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isPaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isEarnVault",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isLeveragedVault",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isBasicEarnVault",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasConfig",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "startAddNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_description",
+        "type": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canDeposit",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canWithdraw",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canWithdraw",
+        "type": "bool"
+      },
+      {
+        "name": "_isVaultOpsFrozen",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnforceAllowlist",
+        "type": "bool"
+      },
+      {
+        "name": "_approvedVaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_minYieldWithdrawAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultTargetVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canDeposit",
+        "type": "bool"
+      },
+      {
+        "name": "_canWithdraw",
+        "type": "bool"
+      },
+      {
+        "name": "_isVaultOpsFrozen",
+        "type": "bool"
+      },
+      {
+        "name": "_redemptionBuffer",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelNewAddressToRegistry",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "startAddressDisableInRegistry",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmAddressDisableInRegistry",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelAddressDisableInRegistry",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_canDeposit",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanWithdraw",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_canWithdraw",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setMaxDepositAmount",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_maxDepositAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setVaultOpsFrozen",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isFrozen",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setShouldAutoDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_shouldAutoDeposit",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setMinYieldWithdrawAmount",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setIsLeveragedVault",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_isLeveragedVault",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setShouldEnforceAllowlist",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_shouldEnforce",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAllowed",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "name": "_isAllowed",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setAllowedBatch",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_users",
+        "type": "address[]"
+      },
+      {
+        "name": "_isAllowed",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setDefaultTargetVaultToken",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_targetVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidDefaultTargetVaultToken",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_targetVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setPerformanceFee",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidPerformanceFee",
+    "inputs": [
+      {
+        "name": "_performanceFee",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRedemptionBuffer",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_buffer",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidRedemptionBuffer",
+    "inputs": [
+      {
+        "name": "_buffer",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setApprovedVaultToken",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_isApproved",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldMaxWithdraw",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setApprovedVaultTokens",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_vaultTokens",
+        "type": "address[]"
+      },
+      {
+        "name": "_isApproved",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldMaxWithdraw",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getApprovedVaultTokens",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAssetVaultTokens",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNumApprovedVaultTokens",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNumAssetVaultTokens",
+    "inputs": [
+      {
+        "name": "_asset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isApprovedVaultTokenForAsset",
+    "inputs": [
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canWithdraw",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxDepositAmount",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isVaultOpsFrozen",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "redemptionBuffer",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minYieldWithdrawAmount",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "redemptionConfig",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getPerformanceFee",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDefaultTargetVaultToken",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "shouldAutoDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "shouldEnforceAllowlist",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isUserAllowed",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_userAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isApprovedVaultTokenByAddr",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "checkVaultApprovals",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getVaultConfig",
+    "inputs": [
+      {
+        "name": "_regId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "canWithdraw",
+            "type": "bool"
+          },
+          {
+            "name": "maxDepositAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "isVaultOpsFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "redemptionBuffer",
+            "type": "uint256"
+          },
+          {
+            "name": "minYieldWithdrawAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "performanceFee",
+            "type": "uint256"
+          },
+          {
+            "name": "shouldAutoDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "defaultTargetVaultToken",
+            "type": "address"
+          },
+          {
+            "name": "isLeveragedVault",
+            "type": "bool"
+          },
+          {
+            "name": "shouldEnforceAllowlist",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getVaultConfigByAddr",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "canWithdraw",
+            "type": "bool"
+          },
+          {
+            "name": "maxDepositAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "isVaultOpsFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "redemptionBuffer",
+            "type": "uint256"
+          },
+          {
+            "name": "minYieldWithdrawAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "performanceFee",
+            "type": "uint256"
+          },
+          {
+            "name": "shouldAutoDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "defaultTargetVaultToken",
+            "type": "address"
+          },
+          {
+            "name": "isLeveragedVault",
+            "type": "bool"
+          },
+          {
+            "name": "shouldEnforceAllowlist",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getVaultActionDataBundle",
+    "inputs": [
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_signer",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          },
+          {
+            "name": "vaultAsset",
+            "type": "address"
+          },
+          {
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "legoAddr",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getVaultActionDataWithFrozenStatus",
+    "inputs": [
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          },
+          {
+            "name": "vaultAsset",
+            "type": "address"
+          },
+          {
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "legoAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getLegoDataFromVaultToken",
+    "inputs": [
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getLegoAddrFromVaultToken",
+    "inputs": [
+      {
+        "name": "_vaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDepositConfig",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDepositConfig",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canUserDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canUserDeposit",
+    "inputs": [
+      {
+        "name": "_undyVaultAddr",
+        "type": "address"
+      },
+      {
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "vaultConfigs",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "canWithdraw",
+            "type": "bool"
+          },
+          {
+            "name": "maxDepositAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "isVaultOpsFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "redemptionBuffer",
+            "type": "uint256"
+          },
+          {
+            "name": "minYieldWithdrawAmount",
+            "type": "uint256"
+          },
+          {
+            "name": "performanceFee",
+            "type": "uint256"
+          },
+          {
+            "name": "shouldAutoDeposit",
+            "type": "bool"
+          },
+          {
+            "name": "defaultTargetVaultToken",
+            "type": "address"
+          },
+          {
+            "name": "isLeveragedVault",
+            "type": "bool"
+          },
+          {
+            "name": "shouldEnforceAllowlist",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isApprovedVaultToken",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "approvedVaultTokens",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "indexOfApprovedVaultToken",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numApprovedVaultTokens",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "assetVaultTokens",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "indexOfAssetVaultToken",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numAssetVaultTokens",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "assetVaultTokenRefCount",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isAllowed",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      },
+      {
+        "name": "arg1",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_tempGov",
+        "type": "address"
+      },
+      {
+        "name": "_minRegistryTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxRegistryTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  }
+]

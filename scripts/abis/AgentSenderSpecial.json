@@ -1,0 +1,2415 @@
+[
+  {
+    "name": "NonceIncremented",
+    "inputs": [
+      {
+        "name": "userWallet",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "oldNonce",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newNonce",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeInitiated",
+    "inputs": [
+      {
+        "name": "prevOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeConfirmed",
+    "inputs": [
+      {
+        "name": "prevOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeCancelled",
+    "inputs": [
+      {
+        "name": "cancelledOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipTimeLockSet",
+    "inputs": [
+      {
+        "name": "numBlocks",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "changeOwnership",
+    "inputs": [
+      {
+        "name": "_newOwner",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmOwnershipChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelOwnershipChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingOwnerChange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setOwnershipTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "ownershipTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newOwner",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "MIN_OWNERSHIP_TIMELOCK",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "MAX_OWNERSHIP_TIMELOCK",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_wantsSavingsGreen",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_wantsSavingsGreen",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnterStabPool",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_wantsSavingsGreen",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnterStabPool",
+        "type": "bool"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_wantsSavingsGreen",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnterStabPool",
+        "type": "bool"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addCollateralAndBorrow",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_greenBorrowAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_wantsSavingsGreen",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldEnterStabPool",
+        "type": "bool"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_repayAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_repayAsset",
+        "type": "address"
+      },
+      {
+        "name": "_repayAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_repayAsset",
+        "type": "address"
+      },
+      {
+        "name": "_repayAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_removeCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "repayAndWithdraw",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_yieldPosition",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_repayAsset",
+        "type": "address"
+      },
+      {
+        "name": "_repayAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_removeCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_withdrawFrom",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_withdrawFrom",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_withdrawFrom",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_withdrawFrom",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_transferTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "rebalanceYieldPositionsWithSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_withdrawFrom",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultToken",
+            "type": "address"
+          },
+          {
+            "name": "vaultTokenAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_transferTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimIncentivesAndSwap",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_depositTo",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "vaultAddr",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "name": "_debtLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_addCollateralAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "incrementNonce",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNonce",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "currentNonce",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "UNDY_HQ",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "RIPE_GREEN_TOKEN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "RIPE_SAVINGS_GREEN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_minTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_greenToken",
+        "type": "address"
+      },
+      {
+        "name": "_savingsGreen",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  }
+]

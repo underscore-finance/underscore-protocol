@@ -1,0 +1,1664 @@
+[
+  {
+    "name": "PendingRecoverFundsAction",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingRecoverFundsManyAction",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numAssets",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingRecoverNftAction",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "collection",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "nftTokenId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingLootAdjustAction",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newClaimable",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingRecoverDepositRewardsAction",
+    "inputs": [
+      {
+        "name": "lootAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AssetDataUpdated",
+    "inputs": [
+      {
+        "name": "numUsers",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "AllAssetDataUpdated",
+    "inputs": [
+      {
+        "name": "numUsers",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingSetEjectionModeAction",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "shouldEject",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PauseExecuted",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "shouldPause",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RecoverFundsExecuted",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RecoverFundsManyExecuted",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numAssets",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RecoverNftExecuted",
+    "inputs": [
+      {
+        "name": "contractAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "collection",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "nftTokenId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DepositPointsUpdated",
+    "inputs": [
+      {
+        "name": "numUsers",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LootClaimedForUser",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LootClaimedForManyUsers",
+    "inputs": [
+      {
+        "name": "numUsers",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LootAdjusted",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newClaimable",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RecoverDepositRewardsExecuted",
+    "inputs": [
+      {
+        "name": "lootAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "SetEjectionModeExecuted",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "shouldEject",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeTimeLockModified",
+    "inputs": [
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ExpirationSet",
+    "inputs": [
+      {
+        "name": "expiration",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ActionTimeLockSet",
+    "inputs": [
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "prevTimeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeStarted",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeConfirmed",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovChangeCancelled",
+    "inputs": [
+      {
+        "name": "cancelledGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "GovRelinquished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "UndyHqSetupFinished",
+    "inputs": [
+      {
+        "name": "prevGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newGov",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "timeLock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddys",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "hq",
+            "type": "address"
+          },
+          {
+            "name": "undyToken",
+            "type": "address"
+          },
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "switchboard",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "walletBackpack",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHq",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHqFromGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canGovern",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getGovernors",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingGovChange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "startGovernanceChange",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelGovernanceChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "relinquishGov",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setGovTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidGovTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxGovChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "finishUndyHqSetup",
+    "inputs": [
+      {
+        "name": "_newGov",
+        "type": "address"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "governance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingGov",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newGov",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "numGovChanges",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "govChangeTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canConfirmAction",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isExpired",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingAction",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getActionConfirmationBlock",
+    "inputs": [
+      {
+        "name": "_actionId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidActionTimeLock",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "minActionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "maxActionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setExpiration",
+    "inputs": [
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLockAfterSetup",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setActionTimeLockAfterSetup",
+    "inputs": [
+      {
+        "name": "_newTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "expiration",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "pause",
+    "inputs": [
+      {
+        "name": "_contractAddr",
+        "type": "address"
+      },
+      {
+        "name": "_shouldPause",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFunds",
+    "inputs": [
+      {
+        "name": "_contractAddr",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFundsMany",
+    "inputs": [
+      {
+        "name": "_contractAddr",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_assets",
+        "type": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverNft",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      },
+      {
+        "name": "_collection",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimLootForUser",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "claimLootForManyUsers",
+    "inputs": [
+      {
+        "name": "_users",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "adjustLoot",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_newClaimable",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverDepositRewards",
+    "inputs": [
+      {
+        "name": "_lootAddr",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "updateDepositPoints",
+    "inputs": [
+      {
+        "name": "_users",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "updateAssetData",
+    "inputs": [
+      {
+        "name": "_bundles",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "shouldCheckYield",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "updateAllAssetData",
+    "inputs": [
+      {
+        "name": "_bundles",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "shouldCheckYield",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setEjectionMode",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "name": "_shouldEject",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "executePendingAction",
+    "inputs": [
+      {
+        "name": "_aid",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingAction",
+    "inputs": [
+      {
+        "name": "_aid",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionType",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingPauseActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "contractAddr",
+            "type": "address"
+          },
+          {
+            "name": "shouldPause",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRecoverFundsActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "contractAddr",
+            "type": "address"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRecoverFundsManyActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "contractAddr",
+            "type": "address"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "assets",
+            "type": "address[]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRecoverNftActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "contractAddr",
+            "type": "address"
+          },
+          {
+            "name": "collection",
+            "type": "address"
+          },
+          {
+            "name": "nftTokenId",
+            "type": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingLootAdjustActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "newClaimable",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRecoverDepositRewardsActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "lootAddr",
+            "type": "address"
+          },
+          {
+            "name": "recipient",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingSetEjectionModeActions",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "name": "shouldEject",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_tempGov",
+        "type": "address"
+      },
+      {
+        "name": "_minConfigTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxConfigTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  }
+]

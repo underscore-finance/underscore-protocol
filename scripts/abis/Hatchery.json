@@ -1,0 +1,375 @@
+[
+  {
+    "name": "UserWalletCreated",
+    "inputs": [
+      {
+        "name": "mainAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "configAddr",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "ambassador",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "groupId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DepartmentPauseModified",
+    "inputs": [
+      {
+        "name": "isPaused",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "DepartmentFundsRecovered",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "balance",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddys",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "hq",
+            "type": "address"
+          },
+          {
+            "name": "undyToken",
+            "type": "address"
+          },
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "switchboard",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "walletBackpack",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getUndyHq",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canMintUndy",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "pause",
+    "inputs": [
+      {
+        "name": "_shouldPause",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFunds",
+    "inputs": [
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "recoverFundsMany",
+    "inputs": [
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_assets",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isPaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_owner",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_ambassador",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_ambassador",
+        "type": "address"
+      },
+      {
+        "name": "_groupId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "doesWalletStillHaveTrialFundsWithAddys",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "name": "_walletConfig",
+        "type": "address"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_appraiser",
+        "type": "address"
+      },
+      {
+        "name": "_ledger",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "WETH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "ETH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_wethAddr",
+        "type": "address"
+      },
+      {
+        "name": "_ethAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  }
+]

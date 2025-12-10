@@ -1,8 +1,8 @@
 ================================================================================
 # Underscore Protocol Production Parameters
 
-**Generated:** 2025-12-01 22:57:25 UTC
-**Block:** 38920221
+**Generated:** 2025-12-07 00:00:57 UTC
+**Block:** 39138127
 **Network:** Base Mainnet
 
 ## Table of Contents
@@ -10,17 +10,25 @@
 1. [Executive Summary](#executive-summary)
 2. **Registries**
    - [UndyHq Configuration](#undy-hq)
+   - [UNDY Token State](#undy-token)
    - [Switchboard Registry](#switchboard-registry) (includes all config contracts)
 3. **Core Protocol**
+   - [Department Pause States](#department-pause-states)
    - [WalletBackpack Components](#wallet-backpack)
    - [MissionControl Configuration](#mission-control)
      - [User Wallet Config](#user-wallet-config)
+     - [Per-Asset Configs](#per-asset-configs)
      - [Agent Config](#agent-config)
      - [Manager Config](#manager-config)
      - [Payee Config](#payee-config)
      - [Cheque Config](#cheque-config)
+     - [RIPE Rewards Config](#ripe-rewards-config)
+     - [Security Signers](#security-signers)
+     - [Creator Whitelist](#creator-whitelist)
    - [LootDistributor Config](#loot-distributor)
    - [Ledger Statistics](#ledger)
+     - [Vault Token Registry](#vault-token-registry)
+     - [Backpack Items](#backpack-items)
 
 > **Note:** Contract addresses: `deployments_output.md`
 > **Note:** Vault configuration: `vaults_params_output.md`
@@ -32,7 +40,7 @@
 
 | Metric | Value |
 | --- | --- |
-| **Total User Wallets** | 254 |
+| **Total User Wallets** | 257 |
 | **Registered Legos** | 17 |
 | **Earn Vaults** | 10 |
 
@@ -71,6 +79,18 @@ Address: 0x44Cf3c4f000DFD76a35d03298049D37bE688D6F9
 | 9 | Billing | Billing (0xB61dDF5a56b4a008f072087BBe411A9B6F576E4e) | No | No |
 | 10 | Vault Registry | VaultRegistry (0x1C17ef5Ef2AefcEE958E7e3dC345e96aBfF4e3Cf) | No | No |
 
+### Pending Registry Changes
+
+*No pending registry changes in UndyHq.*
+
+================================================================================
+
+<a id="undy-token"></a>
+# UNDY Token State
+Address: 0x0000000000000000000000000000000000000000
+
+*Could not fetch UNDY token state: Failed to retrieve data from API: {'status': '0', 'message': 'NOTOK', 'result': 'Contract source code not verified'}*
+
 ================================================================================
 
 <a id="switchboard-registry"></a>
@@ -89,6 +109,10 @@ Address: 0xd6B83538214B7e7d57Cd9faCd260E284a5fe4e11
 | governance | None |
 | govChangeTimeLock | 43200 blocks (~1.0d) |
 | pendingGov | None |
+
+### Pending Registry Changes
+
+*No pending registry changes in Switchboard.*
 
 ### Registered Config Contracts
 | ID | Description | Address |
@@ -115,6 +139,8 @@ Address: `0xB7d32916c8E7F74f70aF7ECFcb35B04358E50bAc`
 | actionTimeLock | 0 blocks (~0s) |
 | expiration | 1296000 blocks (~30.0d) |
 
+*No pending actions (checked 4 action IDs)*
+
 ### SwitchboardBravo
 Address: `0x5ed80D2F832da36CCCCd26F856C72b1AdD359B84`
 
@@ -133,6 +159,8 @@ Address: `0x5ed80D2F832da36CCCCd26F856C72b1AdD359B84`
 | actionTimeLock | 0 blocks (~0s) |
 | expiration | 1296000 blocks (~30.0d) |
 
+*No pending actions (action counter at 1)*
+
 ### SwitchboardCharlie
 Address: `0xDd7507f7FC1845Ba0f07C3f0164D7b114C150117`
 
@@ -150,6 +178,25 @@ Address: `0xDd7507f7FC1845Ba0f07C3f0164D7b114C150117`
 | maxActionTimeLock | 1296000 blocks (~30.0d) |
 | actionTimeLock | 0 blocks (~0s) |
 | expiration | 1296000 blocks (~30.0d) |
+
+**Pending Actions (1):**
+
+| Action ID | Initiated | Confirm After | Expires | Can Confirm | Expired |
+| --- | --- | --- | --- | --- | --- |
+| 4 | Block 39045695 | Block 39045695 | Block 40341695 | True | False |
+
+================================================================================
+
+<a id="department-pause-states"></a>
+# Department Pause States
+
+### Department Status
+| Department | Status |
+| --- | --- |
+| Appraiser | Active |
+| Billing | Active |
+| Hatchery | Active |
+| LootDistributor | Active |
 
 ================================================================================
 
@@ -233,7 +280,11 @@ Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 | startingAgent | AgentWrapper (0x761fCDFfF8B187901eA11415237632A3F7E0203B) |
 | startingAgentActivationLength | 31536000 blocks (~730.0d) |
 
-*Could not fetch AgentWrapper senders: Failed to retrieve data from API: {'status': '0', 'message': 'NOTOK', 'result': 'Contract source code not verified'}*
+**Registered Senders (2):**
+| Index | Address | Type |
+| --- | --- | --- |
+| 1 | `0x459f7612F3DFe7b1d7f10c2D01e68dd9AfeA66E9` | AgentSenderGeneric |
+| 2 | `0xF02Bc5c9a1A57015C09c4e1B89A273a2849874D3` | AgentSenderSpecial |
 
 <a id="manager-config"></a>
 
@@ -266,6 +317,26 @@ Address: 0x89c8A842CD9428024294cB6a52c28D5EB23e2cBE
 | expensiveDelayBlocks | 43200 blocks (~1.0d) |
 | defaultExpiryBlocks | 86400 blocks (~2.0d) |
 
+<a id="per-asset-configs"></a>
+
+### Per-Asset Configs
+
+*Asset-specific fee, ambassador revenue share, and yield configurations.*
+
+*No assets with custom configurations found.*
+
+<a id="ripe-rewards-config"></a>
+
+*Could not fetch RIPE rewards config from MissionControl (not available in this contract version - check LootDistributor).*
+
+<a id="security-signers"></a>
+
+*Could not fetch security signers (not available in this contract version).*
+
+<a id="creator-whitelist"></a>
+
+*Could not fetch creator whitelist (not available in this contract version).*
+
 ================================================================================
 
 <a id="loot-distributor"></a>
@@ -282,6 +353,12 @@ Address: 0x23d69D99061acf04c6e86f58692F533E4f039dE8
 | RIPE_TOKEN | RIPE (0x2A0a59d6B975828e781EcaC125dBA40d7ee5dDC0) |
 | RIPE_REGISTRY | `0x6162df1b329E157479F8f1407E888260E0EC3d2b` |
 
+### Total Claimable Loot
+
+*Accumulated loot per asset across all ambassadors (global pool).*
+
+*No accumulated loot found for known tokens.*
+
 ================================================================================
 
 <a id="ledger"></a>
@@ -291,16 +368,72 @@ Address: 0x9e97A2e527890E690c7FA978696A88EFA868c5D0
 ### Protocol Statistics
 | Parameter | Value |
 | --- | --- |
-| numUserWallets | 254 |
+| numUserWallets | 257 |
 
 ### Global Points
 | Parameter | Value |
 | --- | --- |
-| usdValue | 212.00K USD |
-| depositPoints | 115,004,967,475 |
-| lastUpdate (block) | 38,830,098 |
+| usdValue | 224.63K USD |
+| depositPoints | 181,862,301,884 |
+| lastUpdate (block) | 39,135,784 |
+
+<a id="vault-token-registry"></a>
+
+### Vault Token Registry
+
+*Vault tokens registered in Ledger with their underlying assets and lego associations.*
+
+**Found 37 registered vault tokens:**
+
+| Vault Token | Underlying | Lego ID | Decimals | Rebasing |
+| --- | --- | --- | --- | --- |
+| SAVINGS_GREEN | GREEN | 1 | 18 | No |
+| AAVEV3_WETH | WETH | 2 | 18 | Yes |
+| aBasEURC | EURC | 2 | 6 | Yes |
+| AAVEV3_CBBTC | CBBTC | 2 | 8 | Yes |
+| COMPOUNDV3_AERO | AERO | 3 | 18 | Yes |
+| COMPOUNDV3_WETH | WETH | 3 | 18 | Yes |
+| EULER_EURC | EURC | 4 | 6 | No |
+| EULER_CBBTC | CBBTC | 4 | 8 | No |
+| FLUID_EURC | EURC | 5 | 6 | No |
+| FLUID_WETH | WETH | 5 | 18 | No |
+| MOONWELL_EURC | EURC | 6 | 8 | No |
+| MOONWELL_USDC | USDC | 6 | 8 | No |
+| MOONWELL_AERO | AERO | 6 | 8 | No |
+| MOONWELL_CBBTC | CBBTC | 6 | 8 | No |
+| MORPHO_IONIC_USDC | USDC | 7 | 18 | No |
+| MORPHO_RE7_USDC | USDC | 7 | 18 | No |
+| bbqUSDC | USDC | 7 | 18 | No |
+| steakUSDC | USDC | 7 | 18 | No |
+| gtUSDCf | USDC | 7 | 18 | No |
+| MORPHO_GAUNTLET_USDC_PRIME | USDC | 7 | 18 | No |
+| MORPHO_MOONWELL_CBBTC | CBBTC | 7 | 18 | No |
+| MORPHO_GAUNTLET_CBBTC_CORE | CBBTC | 7 | 18 | No |
+| MORPHO_SEAMLESS_CBBTC | CBBTC | 7 | 18 | No |
+| MORPHO_GAUNTLET_EURC_CORE | EURC | 7 | 18 | No |
+| MORPHO_STEAKHOUSE_EURC | EURC | 7 | 18 | No |
+| MORPHO_MOONWELL_EURC | EURC | 7 | 18 | No |
+| MORPHO_SEAMLESS_WETH | WETH | 7 | 18 | No |
+| MORPHO_IONIC_WETH | WETH | 7 | 18 | No |
+| MORPHO_MOONWELL_WETH | WETH | 7 | 18 | No |
+| MORPHO_GAUNTLET_WETH_CORE | WETH | 7 | 18 | No |
+| Underscore Blue Chip USD | USDC | 13 | 6 | No |
+| Underscore Blue Chip AERO | AERO | 13 | 18 | No |
+| Underscore Blue Chip ETH | WETH | 13 | 18 | No |
+| Underscore Blue Chip EURC | EURC | 13 | 6 | No |
+| Underscore Blue Chip BTC | CBBTC | 13 | 8 | No |
+| FORTY_ACRES_USDC | USDC | 15 | 6 | No |
+| WASABI_USDC | USDC | 15 | 6 | No |
+
+<a id="backpack-items"></a>
+
+### Backpack Items
+
+*Assets registered as backpack items (can be held in user wallet backpacks).*
+
+*No backpack items found among known assets.*
 
 ================================================================================
 
 ---
-*Report generated at block 38920221 on 2025-12-01 22:57:47 UTC*
+*Report generated at block 39138127 on 2025-12-07 00:05:08 UTC*

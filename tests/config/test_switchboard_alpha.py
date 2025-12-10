@@ -2727,93 +2727,113 @@ def test_creator_whitelist_and_locked_signer_interaction(switchboard_alpha, gove
 ########################
 
 
-def test_set_ripe_lock_duration_success(switchboard_alpha, governance, loot_distributor):
-    """Test successful setting of ripe rewards config"""
+def test_set_ripe_rewards_config_success(switchboard_alpha, governance, mission_control):
+    """Test successful setting of ripe rewards config with timelock"""
     # Set new ripe rewards config
     new_stake_ratio = 75_00  # 75%
     new_duration = 50400  # blocks (~7 days on Ethereum)
 
-    # Call setRipeRewardsConfig as governance
-    switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
+    # Store original values
+    original_config = mission_control.ripeRewardsConfig()
 
-    # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
+    # Call setRipeRewardsConfig as governance - initiates pending action
+    aid = switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
+
+    # Verify pending event was emitted
+    logs = filter_logs(switchboard_alpha, "PendingRipeRewardsConfigChange")
+    assert len(logs) == 1
+    assert logs[0].ripeStakeRatio == new_stake_ratio
+    assert logs[0].ripeLockDuration == new_duration
+    assert logs[0].actionId == aid
+
+    # Values should NOT be set yet (still pending)
+    ripe_config = mission_control.ripeRewardsConfig()
+    assert ripe_config[0] == original_config[0]
+    assert ripe_config[1] == original_config[1]
+
+    # Time travel past timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+
+    # Execute pending action
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify confirmation event was emitted
+    logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSet")
     assert len(logs) == 1
     assert logs[0].ripeStakeRatio == new_stake_ratio
     assert logs[0].ripeLockDuration == new_duration
 
-    # Verify the values were set in LootDistributor
-    assert loot_distributor.ripeStakeRatio() == new_stake_ratio
-    assert loot_distributor.ripeLockDuration() == new_duration
+    # Verify the values were set in MissionControl
+    ripe_config = mission_control.ripeRewardsConfig()
+    assert ripe_config[0] == new_stake_ratio
+    assert ripe_config[1] == new_duration
 
 
-def test_set_ripe_lock_duration_different_values(switchboard_alpha, governance, loot_distributor):
+def test_set_ripe_rewards_config_different_values(switchboard_alpha, governance, mission_control):
     """Test setting different ripe rewards config values"""
-    # Test with ~1 day (7200 blocks at 12s/block) and 90% stake ratio
-    stake_ratio_90 = 90_00
-    duration_1_day = 7200
-    switchboard_alpha.setRipeRewardsConfig(stake_ratio_90, duration_1_day, sender=governance.address)
-    assert loot_distributor.ripeStakeRatio() == stake_ratio_90
-    assert loot_distributor.ripeLockDuration() == duration_1_day
+    configs = [
+        (90_00, 7200),      # 90%, ~1 day
+        (50_00, 216000),    # 50%, ~30 days
+        (0, 1),             # 0%, minimum duration
+        (100_00, 2628000),  # 100%, ~1 year
+    ]
 
-    # Test with ~30 days (216,000 blocks) and 50% stake ratio
-    stake_ratio_50 = 50_00
-    duration_30_days = 216000
-    switchboard_alpha.setRipeRewardsConfig(stake_ratio_50, duration_30_days, sender=governance.address)
-    assert loot_distributor.ripeStakeRatio() == stake_ratio_50
-    assert loot_distributor.ripeLockDuration() == duration_30_days
+    for stake_ratio, duration in configs:
+        aid = switchboard_alpha.setRipeRewardsConfig(stake_ratio, duration, sender=governance.address)
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        switchboard_alpha.executePendingAction(aid, sender=governance.address)
 
-    # Test with 0% stake ratio and minimum lock duration
-    stake_ratio_0 = 0
-    duration_min = 1
-    switchboard_alpha.setRipeRewardsConfig(stake_ratio_0, duration_min, sender=governance.address)
-    assert loot_distributor.ripeStakeRatio() == stake_ratio_0
-    assert loot_distributor.ripeLockDuration() == duration_min
-
-    # Test with ~1 year (2,628,000 blocks) and 100% stake ratio
-    stake_ratio_100 = 100_00
-    duration_1_year = 2628000
-    switchboard_alpha.setRipeRewardsConfig(stake_ratio_100, duration_1_year, sender=governance.address)
-    assert loot_distributor.ripeStakeRatio() == stake_ratio_100
-    assert loot_distributor.ripeLockDuration() == duration_1_year
+        ripe_config = mission_control.ripeRewardsConfig()
+        assert ripe_config[0] == stake_ratio
+        assert ripe_config[1] == duration
 
 
-def test_set_ripe_lock_duration_non_governance_reverts(switchboard_alpha, alice, loot_distributor):
+def test_set_ripe_rewards_config_non_governance_reverts(switchboard_alpha, alice, mission_control):
     """Test that non-governance addresses cannot set ripe rewards config"""
     new_stake_ratio = 85_00
     new_duration = 50400  # blocks (~7 days)
 
     # Store the current values before the failed attempt
-    current_stake_ratio = loot_distributor.ripeStakeRatio()
-    current_duration = loot_distributor.ripeLockDuration()
+    ripe_config = mission_control.ripeRewardsConfig()
+    current_stake_ratio = ripe_config[0]
+    current_duration = ripe_config[1]
 
     with boa.reverts("no perms"):
         switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=alice)
 
     # Verify the values were not changed
-    assert loot_distributor.ripeStakeRatio() == current_stake_ratio
-    assert loot_distributor.ripeLockDuration() == current_duration
+    ripe_config = mission_control.ripeRewardsConfig()
+    assert ripe_config[0] == current_stake_ratio
+    assert ripe_config[1] == current_duration
 
 
-def test_set_ripe_lock_duration_multiple_updates(switchboard_alpha, governance, loot_distributor):
-    """Test multiple consecutive updates to ripe rewards config"""
-    configs = [
-        (80_00, 100),
-        (60_00, 500),
-        (50_00, 1000),
-        (90_00, 7200),
-        (100_00, 50400)
-    ]  # (stake_ratio, duration) pairs
+def test_set_ripe_rewards_config_invalid_stake_ratio_reverts(switchboard_alpha, governance):
+    """Test that stake ratio > 100% reverts"""
+    with boa.reverts("invalid ripe rewards config"):
+        switchboard_alpha.setRipeRewardsConfig(100_01, 1000, sender=governance.address)
 
-    for stake_ratio, duration in configs:
-        switchboard_alpha.setRipeRewardsConfig(stake_ratio, duration, sender=governance.address)
-        assert loot_distributor.ripeStakeRatio() == stake_ratio
-        assert loot_distributor.ripeLockDuration() == duration
 
-        # Verify each update emits an event
-        logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSetFromSwitchboard")
-        assert logs[-1].ripeStakeRatio == stake_ratio
-        assert logs[-1].ripeLockDuration == duration
+def test_set_ripe_rewards_config_zero_duration_reverts(switchboard_alpha, governance):
+    """Test that zero lock duration reverts"""
+    with boa.reverts("invalid ripe rewards config"):
+        switchboard_alpha.setRipeRewardsConfig(50_00, 0, sender=governance.address)
+
+
+def test_set_ripe_rewards_config_execute_before_timelock_fails(switchboard_alpha, governance, mission_control):
+    """Test that executing before timelock returns False"""
+    original_config = mission_control.ripeRewardsConfig()
+
+    aid = switchboard_alpha.setRipeRewardsConfig(75_00, 50400, sender=governance.address)
+
+    # Try to execute before timelock - should return False
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == False
+
+    # Values should still be original
+    ripe_config = mission_control.ripeRewardsConfig()
+    assert ripe_config[0] == original_config[0]
+    assert ripe_config[1] == original_config[1]
 
 
 ###################################
@@ -3417,3 +3437,300 @@ def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, 
     assert aid_remove == 0
     assert agent_wrapper.indexOfSender(new_sender) == 0
     assert agent_wrapper.numSenders() == num_senders_after_add - 1
+
+
+###########################################
+# New Mission Control Optional Arg Tests #
+###########################################
+
+
+@pytest.fixture(scope="module")
+def new_mission_control(undy_hq_deploy, defaults):
+    """Deploy a new MissionControl that is NOT registered in UndyHq"""
+    return boa.load(
+        "contracts/data/MissionControl.vy",
+        undy_hq_deploy,
+        defaults,
+        name="new_mission_control",
+    )
+
+
+def test_mission_control_arg_with_new_mc_direct_write(switchboard_alpha, governance, mission_control, new_mission_control):
+    """Test that passing a new mission control updates that MC instead of the current one"""
+    # Set creator whitelist on the NEW mission control (direct write, no timelock)
+    creator = governance.address
+    switchboard_alpha.setCreatorWhitelist(
+        creator,
+        True,
+        new_mission_control.address,  # target the new MC
+        sender=governance.address
+    )
+
+    # Verify the NEW mission control was updated
+    assert new_mission_control.creatorWhitelist(creator) == True
+
+
+def test_mission_control_arg_with_new_mc_timelock_function(switchboard_alpha, governance, mission_control, new_mission_control, alpha_token):
+    """Test that timelock functions store and use the new mission control"""
+    asset = alpha_token.address
+
+    # Set full asset config on the NEW mission control
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        100,    # txFeesSwapFee (1%)
+        50,     # txFeesStableSwapFee (0.5%)
+        500,    # txFeesRewardsFee (5%)
+        5000,   # ambassadorRevShareSwapRatio (50%)
+        5000,   # ambassadorRevShareRewardsRatio (50%)
+        5000,   # ambassadorRevShareYieldRatio (50%)
+        500,    # maxYieldIncrease (5%)
+        1000,   # performanceFee (10%)
+        2500,   # ambassadorBonusRatio (25%)
+        1000,   # bonusRatio (10%)
+        ZERO_ADDRESS,  # bonusAsset
+        new_mission_control.address,  # target the new MC
+        sender=governance.address
+    )
+
+    # Verify pending mission control is stored
+    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
+
+    # Time travel and execute
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify the NEW mission control was updated
+    new_mc_asset_config = new_mission_control.assetConfig(asset)
+    assert new_mc_asset_config.hasConfig == True
+    assert new_mc_asset_config.txFees.swapFee == 100
+
+    # Verify the CURRENT mission control was NOT updated
+    current_mc_asset_config = mission_control.assetConfig(asset)
+    assert current_mc_asset_config.hasConfig == False  # Should still be unconfigured
+
+
+def test_mission_control_arg_empty_uses_current(switchboard_alpha, governance, mission_control, alice):
+    """Test that empty address (default) uses the current mission control"""
+    # Set locked signer on current MC (empty _missionControl arg)
+    switchboard_alpha.setLockedSigner(
+        alice,
+        True,
+        # Not passing _missionControl, uses default empty(address)
+        sender=governance.address
+    )
+
+    # Verify the CURRENT mission control was updated
+    assert mission_control.isLockedSigner(alice) == True
+
+
+def test_mission_control_arg_rejects_current_mc(switchboard_alpha, governance, mission_control):
+    """Test that passing the current mission control reverts"""
+    with boa.reverts("use empty for current mission control"):
+        switchboard_alpha.setCreatorWhitelist(
+            governance.address,
+            True,
+            mission_control.address,  # passing current MC should fail
+            sender=governance.address
+        )
+
+
+def test_mission_control_arg_rejects_eoa(switchboard_alpha, governance):
+    """Test that passing an EOA (non-contract) fails -
+    Note: The is_contract check may behave differently in boa testing environment.
+    This test verifies the transaction fails when targeting a non-contract address."""
+    # Use a random address that is definitely not a contract
+    random_eoa = "0x0000000000000000000000000000000000001234"
+    # In the test env, is_contract may return True but extcall will still fail
+    # We just verify that the transaction reverts (regardless of reason)
+    with boa.reverts():
+        switchboard_alpha.setCreatorWhitelist(
+            governance.address,
+            True,
+            random_eoa,  # EOA is not a contract
+            sender=governance.address
+        )
+
+
+def test_mission_control_arg_rejects_zero_address_as_explicit(switchboard_alpha, governance, mission_control):
+    """Test that zero address works as default (doesn't revert as invalid)"""
+    # Zero address should work as it means "use current MC"
+    switchboard_alpha.setLockedSigner(
+        governance.address,
+        True,
+        ZERO_ADDRESS,  # explicitly passing zero should work
+        sender=governance.address
+    )
+
+    # Verify it used the current mission control
+    assert mission_control.isLockedSigner(governance.address) == True
+
+
+def test_mission_control_arg_granular_asset_setter(switchboard_alpha, governance, mission_control, new_mission_control, alpha_token):
+    """Test granular asset setters read from and write to the specified MC"""
+    asset = alpha_token.address
+
+    # First, set full asset config on the NEW mission control
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        100,    # txFeesSwapFee (1%)
+        50,     # txFeesStableSwapFee (0.5%)
+        500,    # txFeesRewardsFee (5%)
+        5000,   # ambassadorRevShareSwapRatio (50%)
+        5000,   # ambassadorRevShareRewardsRatio (50%)
+        5000,   # ambassadorRevShareYieldRatio (50%)
+        500,    # maxYieldIncrease (5%)
+        1000,   # performanceFee (10%)
+        2500,   # ambassadorBonusRatio (25%)
+        1000,   # bonusRatio (10%)
+        ZERO_ADDRESS,
+        new_mission_control.address,
+        sender=governance.address
+    )
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify config exists on new MC
+    assert new_mission_control.assetConfig(asset).hasConfig == True
+
+    # Now update tx fees on the new MC using the granular setter
+    aid2 = switchboard_alpha.setAssetTxFees(
+        asset,
+        200,    # new swapFee (2%)
+        100,    # new stableSwapFee (1%)
+        800,    # new rewardsFee (8%)
+        new_mission_control.address,  # target the new MC
+        sender=governance.address
+    )
+
+    # Execute
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
+    assert result == True
+
+    # Verify the NEW mission control was updated
+    new_mc_config = new_mission_control.assetConfig(asset)
+    assert new_mc_config.txFees.swapFee == 200
+    assert new_mc_config.txFees.stableSwapFee == 100
+    assert new_mc_config.txFees.rewardsFee == 800
+
+
+def test_mission_control_arg_security_action(switchboard_alpha, governance, new_mission_control, bob):
+    """Test setCanPerformSecurityAction with new mission control"""
+    # Enable security action on NEW mission control (immediate removal path)
+    # First we need to add via timelock
+    aid = switchboard_alpha.setCanPerformSecurityAction(
+        bob,
+        True,
+        new_mission_control.address,
+        sender=governance.address
+    )
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify bob can perform security action on the NEW MC
+    assert new_mission_control.canPerformSecurityAction(bob) == True
+
+
+def test_mission_control_arg_user_wallet_config(switchboard_alpha, governance, new_mission_control, wallet_template_v2, config_template_v2):
+    """Test user wallet config functions with new mission control"""
+    # Set user wallet templates on the NEW mission control
+    aid = switchboard_alpha.setUserWalletTemplates(
+        wallet_template_v2.address,
+        config_template_v2.address,
+        new_mission_control.address,
+        sender=governance.address
+    )
+
+    # Verify pending mission control is stored
+    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    assert result == True
+
+    # Verify the NEW mission control was updated
+    new_mc_config = new_mission_control.userWalletConfig()
+    assert new_mc_config.walletTemplate == wallet_template_v2.address
+    assert new_mc_config.configTemplate == config_template_v2.address
+
+
+def test_mission_control_arg_cancel_clears_pending_mc(switchboard_alpha, governance, new_mission_control, alpha_token):
+    """Test that canceling a pending action clears the pending mission control"""
+    asset = alpha_token.address
+
+    # Initiate action with new MC
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        100, 50, 500, 5000, 5000, 5000, 500, 1000, 2500, 1000, ZERO_ADDRESS,
+        new_mission_control.address,
+        sender=governance.address
+    )
+
+    # Verify pending MC is stored
+    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
+
+    # Cancel the action
+    switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+
+    # Verify pending MC is cleared
+    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_mission_control_arg_execute_clears_pending_mc(switchboard_alpha, governance, new_mission_control, alpha_token):
+    """Test that executing a pending action clears the pending mission control"""
+    asset = alpha_token.address
+
+    # Initiate action with new MC
+    aid = switchboard_alpha.setAssetConfig(
+        asset,
+        100, 50, 500, 5000, 5000, 5000, 500, 1000, 2500, 1000, ZERO_ADDRESS,
+        new_mission_control.address,
+        sender=governance.address
+    )
+
+    # Verify pending MC is stored
+    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
+
+    # Execute after timelock
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify pending MC is cleared
+    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_mission_control_arg_ripe_rewards_config(switchboard_alpha, governance, new_mission_control):
+    """Test setRipeRewardsConfig with new mission control (timelock function)"""
+    stake_ratio = 6500  # 65% - use a unique value for this test
+    lock_duration = 99999
+
+    # Get initial value
+    initial_config = new_mission_control.ripeRewardsConfig()
+
+    # Initiate pending action on new MC
+    aid = switchboard_alpha.setRipeRewardsConfig(
+        stake_ratio,
+        lock_duration,
+        new_mission_control.address,
+        sender=governance.address
+    )
+
+    # Verify pending MC is stored
+    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
+
+    # Time travel and execute
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    # Verify the NEW mission control was updated
+    ripe_config = new_mission_control.ripeRewardsConfig()
+    assert ripe_config[0] == stake_ratio
+    assert ripe_config[1] == lock_duration
+
+    # Verify pending MC is cleared
+    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
