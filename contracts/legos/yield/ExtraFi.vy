@@ -39,7 +39,9 @@ interface ExtraFiPool:
     def redeem(_reserveId: uint256, _eTokenAmount: uint256, _recipient: address, _receiveNativeETH: bool) -> uint256: nonpayable
     def deposit(_reserveId: uint256, _amount: uint256, _onBehalfOf: address, _referralCode: uint16) -> uint256: payable
     def getUnderlyingTokenAddress(_reserveId: uint256) -> address: view
+    def utilizationRateOfReserve(_reserveId: uint256) -> uint256: view
     def totalLiquidityOfReserve(_reserveId: uint256) -> uint256: view
+    def borrowingRateOfReserve(_reserveId: uint256) -> uint256: view
     def totalBorrowsOfReserve(_reserveId: uint256) -> uint256: view
     def exchangeRateOfReserve(_reserveId: uint256) -> uint256: view
     def getETokenAddress(_reserveId: uint256) -> address: view
@@ -81,6 +83,7 @@ vaultTokenToReserveId: public(HashMap[address, uint256]) # vault token -> reserv
 
 EXTRAFI_POOL: public(immutable(address))
 RIPE_REGISTRY: public(immutable(address))
+EXTRAFI_FEE_RATE_BPS: constant(uint256) = 15_00
 
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
@@ -367,6 +370,33 @@ def getUtilizationRatio(_vaultToken: address) -> uint256:
         return 0
     totalBorrows: uint256 = self._totalBorrows(_vaultToken)
     return totalBorrows * HUNDRED_PERCENT // totalAssets
+
+
+# apy
+
+
+@view
+@external
+def getSupplyAPY(_vaultToken: address) -> uint256:
+    reserveId: uint256 = self.vaultTokenToReserveId[_vaultToken]
+    if reserveId == 0:
+        return 0
+
+    # get rates from ExtraFi pool (both scaled to 1e18)
+    extraFiPool: address = EXTRAFI_POOL
+    borrowRate: uint256 = staticcall ExtraFiPool(extraFiPool).borrowingRateOfReserve(reserveId)
+    utilizationRate: uint256 = staticcall ExtraFiPool(extraFiPool).utilizationRateOfReserve(reserveId)
+
+    # Supply APY = borrowRate * utilization * (1 - feeRate)
+    # borrowRate and utilizationRate are scaled to 1e18
+    # Protocol fee is 15% (1500 basis points), so suppliers get 85%
+    supplierShareBps: uint256 = HUNDRED_PERCENT - EXTRAFI_FEE_RATE_BPS
+
+    supplyRate: uint256 = borrowRate * utilizationRate // (10 ** 18)
+    supplyRate = supplyRate * supplierShareBps // HUNDRED_PERCENT
+
+    # Convert from 1e18 to basis points (100_00 = 100%)
+    return supplyRate * HUNDRED_PERCENT // (10 ** 18)
 
 
 # extras
