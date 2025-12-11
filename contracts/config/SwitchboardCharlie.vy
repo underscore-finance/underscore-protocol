@@ -1114,7 +1114,7 @@ def setLevgVaultHelper(_vaultAddr: address, _levgVaultHelper: address) -> uint25
 def setMaxDebtRatio(_vaultAddr: address, _ratio: uint256) -> uint256:
     assert gov._canGovern(msg.sender) # dev: no perms
     assert staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert _ratio <= 100_00 # dev: ratio too high (max 100%)
+    assert _ratio <= 300_00 # dev: ratio too high (max 300%)
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.MAX_DEBT_RATIO
