@@ -115,7 +115,7 @@ def getTotalUnderlyingAmount(
     ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
     legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
 
-    return self._getTotalUnderlyingAmount(_levgVault, vaultToken, _shouldGetMax, ripeVaultId, legoBook, ripeVaultBook, ripeMissionControl)
+    return self._getTotalUnderlyingAmount(_levgVault, vaultToken, _isCollateralAsset, _shouldGetMax, ripeVaultId, legoBook, ripeVaultBook, ripeMissionControl)
 
 
 @view
@@ -123,13 +123,15 @@ def getTotalUnderlyingAmount(
 def _getTotalUnderlyingAmount(
     _levgVault: address,
     _vaultToken: address,
+    _isCollateralAsset: bool,
     _shouldGetMax: bool,
     _ripeVaultId: uint256,
     _legoBook: address,
     _ripeVaultBook: address,
     _ripeMissionControl: address,
 ) -> uint256:
-    underlyingNaked: uint256 = self._getAmountForAsset(_levgVault, staticcall IERC4626(_levgVault).asset(), 0, _ripeVaultBook, _ripeMissionControl)
+    underlyingAsset: address = staticcall IERC4626(_levgVault).asset() if _isCollateralAsset else USDC
+    underlyingNaked: uint256 = self._getAmountForAsset(_levgVault, underlyingAsset, 0, _ripeVaultBook, _ripeMissionControl)
     underlyingFromVault: uint256 = self._getUnderlyingAmountForVaultToken(_levgVault, _vaultToken, _shouldGetMax, _ripeVaultId, _legoBook, _ripeVaultBook, _ripeMissionControl)
     return underlyingNaked + underlyingFromVault
 
@@ -418,7 +420,7 @@ def _getSwappableUsdcAmount(
         return 0
 
     # total usdc amount (in wallet, naked on ripe, via vault token)
-    usdcAmount: uint256 = self._getTotalUnderlyingAmount(_levgVault, leverageVaultToken, False, leverageVaultTokenRipeVaultId, _legoBook, _ripeVaultBook, _ripeMissionControl)
+    usdcAmount: uint256 = self._getTotalUnderlyingAmount(_levgVault, leverageVaultToken, False, False, leverageVaultTokenRipeVaultId, _legoBook, _ripeVaultBook, _ripeMissionControl)
 
     # user debt amount
     userDebtAmount: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault) # 18 decimals
@@ -556,6 +558,7 @@ def _getMaxBorrowAmountByMaxDebtRatio(
         underlyingAmount = self._getTotalUnderlyingAmount(
             _levgVault,
             collateralVaultToken,
+            True, # is collateral asset
             False, # conservative, safe underlying amount
             collateralVaultTokenRipeVaultId,
             _legoBook,

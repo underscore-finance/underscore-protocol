@@ -685,6 +685,13 @@ def levg_vault_helper(mock_ripe, mock_usdc, fork, undy_hq_deploy):
     return boa.load("contracts/vaults/LevgVaultHelper.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="levg_vault_helper")
 
 
+@pytest.fixture(scope="session")
+def levg_vault_tools(mock_ripe, mock_usdc, fork, undy_hq_deploy):
+    RIPE_REGISTRY = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
+    USDC = mock_usdc if fork == "local" else TOKENS[fork]["USDC"]
+    return boa.load("contracts/helpers/LevgVaultTools.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="levg_vault_tools")
+
+
 # usdc leverage vault
 
 
