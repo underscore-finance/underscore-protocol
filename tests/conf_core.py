@@ -38,6 +38,7 @@ def undy_hq(
     loot_distributor,
     billing,
     vault_registry,
+    helpers_deploy,
 ):
     # data
 
@@ -84,6 +85,10 @@ def undy_hq(
     # 10
     assert undy_hq_deploy.startAddNewAddressToRegistry(vault_registry, "Vault Registry", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(vault_registry, sender=deploy3r) == 10
+
+    # 11
+    assert undy_hq_deploy.startAddNewAddressToRegistry(helpers_deploy, "Helpers", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(helpers_deploy, sender=deploy3r) == 11
 
     # special permission setup
 

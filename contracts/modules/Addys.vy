@@ -41,6 +41,7 @@ APPRAISER_ID: constant(uint256) = 7
 WALLET_BACKPACK_ID: constant(uint256) = 8
 BILLING_ID: constant(uint256) = 9
 VAULT_REGISTRY_ID: constant(uint256) = 10
+HELPERS_ID: constant(uint256) = 11
 
 
 @deploy
@@ -317,3 +318,18 @@ def _getVaultRegistryId() -> uint256:
 @internal
 def _getVaultRegistryAddr() -> address:
     return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(VAULT_REGISTRY_ID)
+
+
+# helpers
+
+
+@view
+@internal
+def _getHelpersId() -> uint256:
+    return HELPERS_ID
+
+
+@view
+@internal
+def _getHelpersAddr() -> address:
+    return staticcall UndyHq(UNDY_HQ_FOR_ADDYS).getAddr(HELPERS_ID)

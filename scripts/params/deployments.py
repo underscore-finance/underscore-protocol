@@ -31,6 +31,7 @@ from params_utils import (
     WALLET_BACKPACK_ID,
     BILLING_ID,
     VAULT_REGISTRY_ID,
+    HELPERS_ID,
     ZERO_ADDRESS,
     setup_boa_etherscan,
     boa_fork_context,
@@ -79,6 +80,7 @@ def load_core_addresses(hq):
         "WalletBackpack": str(hq.getAddr(WALLET_BACKPACK_ID)),
         "Billing": str(hq.getAddr(BILLING_ID)),
         "VaultRegistry": str(hq.getAddr(VAULT_REGISTRY_ID)),
+        "Helpers": str(hq.getAddr(HELPERS_ID)),
     }
 
 

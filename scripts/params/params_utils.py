@@ -44,6 +44,7 @@ APPRAISER_ID = 7
 WALLET_BACKPACK_ID = 8
 BILLING_ID = 9
 VAULT_REGISTRY_ID = 10
+HELPERS_ID = 11
 
 # Build KNOWN_TOKENS from BluePrint (invert address -> symbol mapping)
 KNOWN_TOKENS = {addr.lower(): symbol for symbol, addr in TOKENS.get("base", {}).items()}
