@@ -1354,7 +1354,7 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "isLegoAddr",
+    "name": "isHelpersAddr",
     "inputs": [
       {
         "name": "_addr",
@@ -1538,7 +1538,7 @@
         "type": "address"
       },
       {
-        "name": "_initialGov",
+        "name": "_tempGov",
         "type": "address"
       },
       {
