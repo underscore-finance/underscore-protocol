@@ -28,7 +28,8 @@ def setup_mock_swap_lego_in_legobook(lego_book, mock_swap_lego, governance):
 
 
 @pytest.fixture(scope="module")
-def setup_prices(mock_ripe, mock_green_token, mock_savings_green_token, mock_usdc, mock_cbbtc, mock_weth, mock_swap_lego, governance, setup_mock_swap_lego_in_legobook):
+def setup_prices(mock_ripe, mock_green_token, mock_savings_green_token, mock_usdc, mock_cbbtc, mock_weth, mock_swap_lego, governance, setup_mock_swap_lego_in_legobook,
+                 undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth):
     """Set up prices for all assets"""
     # Ripe prices (for debt calculations)
     mock_ripe.setPrice(mock_green_token, 1 * EIGHTEEN_DECIMALS)
@@ -40,6 +41,11 @@ def setup_prices(mock_ripe, mock_green_token, mock_savings_green_token, mock_usd
     # Swap lego prices (for GREEN <-> USDC swaps)
     mock_swap_lego.setPrice(mock_green_token.address, 1 * EIGHTEEN_DECIMALS, sender=governance.address)
     mock_swap_lego.setPrice(mock_usdc.address, 1 * EIGHTEEN_DECIMALS, sender=governance.address)
+
+    # Set max borrow amounts for all vaults so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_usdc.address, MAX_UINT256)
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, MAX_UINT256)
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_weth.address, MAX_UINT256)
 
     return mock_ripe
 

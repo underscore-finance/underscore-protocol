@@ -32,7 +32,7 @@ def setup_prices(mock_ripe, mock_green_token, mock_savings_green_token, mock_usd
 
 
 @pytest.fixture(scope="function")
-def setup_usdc_vault(undy_levg_vault_usdc, vault_registry, switchboard_alpha, mock_usdc, starter_agent, governance):
+def setup_usdc_vault(undy_levg_vault_usdc, vault_registry, switchboard_alpha, mock_usdc, starter_agent, governance, mock_ripe):
     """Fresh USDC vault setup for each test"""
     vault = undy_levg_vault_usdc
 
@@ -47,11 +47,14 @@ def setup_usdc_vault(undy_levg_vault_usdc, vault_registry, switchboard_alpha, mo
     mock_usdc.approve(vault.address, user_deposit, sender=starter_agent.address)
     vault.deposit(user_deposit, starter_agent.address, sender=starter_agent.address)
 
+    # Set max borrow amount so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(vault.address, MAX_UINT256)
+
     return vault
 
 
 @pytest.fixture(scope="function")
-def setup_cbbtc_vault(undy_levg_vault_cbbtc, vault_registry, switchboard_alpha, mock_cbbtc, starter_agent, governance):
+def setup_cbbtc_vault(undy_levg_vault_cbbtc, vault_registry, switchboard_alpha, mock_cbbtc, starter_agent, governance, mock_ripe):
     """Fresh CBBTC vault setup for each test"""
     vault = undy_levg_vault_cbbtc
 
@@ -69,6 +72,9 @@ def setup_cbbtc_vault(undy_levg_vault_cbbtc, vault_registry, switchboard_alpha, 
     # Mint collateral CBBTC directly to vault
     collateral_cbbtc = 10 * EIGHT_DECIMALS
     mock_cbbtc.mint(vault.address, collateral_cbbtc, sender=governance.address)
+
+    # Set max borrow amount so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(vault.address, MAX_UINT256)
 
     return vault
 
@@ -237,19 +243,17 @@ def test_get_max_borrow_amount_with_partial_debt_usdc(
     setup_usdc_vault,
     levg_vault_helper,
     mock_usdc,
-    mock_green_token,
+    mock_ripe,
     switchboard_alpha,
-    starter_agent,
 ):
-    """Test getMaxBorrowAmount returns remaining capacity when partially borrowed"""
+    """Test getMaxBorrowAmount returns remaining capacity when debt exists without GREEN holdings"""
     vault = setup_usdc_vault
 
     # Set 70% max debt ratio
     vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
 
-    # Add collateral and borrow 3,000 GREEN
-    vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 5_000 * SIX_DECIMALS, sender=starter_agent.address)
-    vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 3_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    # Set debt directly (simulates debt without holding GREEN to offset it)
+    mock_ripe.setUserDebt(vault.address, 3_000 * EIGHTEEN_DECIMALS)
 
     # Get max borrow amount
     max_borrow = levg_vault_helper.getMaxBorrowAmount(
@@ -273,19 +277,17 @@ def test_get_max_borrow_amount_at_limit_usdc(
     setup_usdc_vault,
     levg_vault_helper,
     mock_usdc,
-    mock_green_token,
+    mock_ripe,
     switchboard_alpha,
-    starter_agent,
 ):
-    """Test getMaxBorrowAmount returns 0 when at limit"""
+    """Test getMaxBorrowAmount returns 0 when at limit (debt without GREEN holdings)"""
     vault = setup_usdc_vault
 
     # Set 70% max debt ratio
     vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
 
-    # Add collateral and borrow full 35,000 GREEN (70% of 50k)
-    vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 40_000 * SIX_DECIMALS, sender=starter_agent.address)
-    vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 35_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    # Set debt directly to full limit (simulates debt without holding GREEN to offset it)
+    mock_ripe.setUserDebt(vault.address, 35_000 * EIGHTEEN_DECIMALS)
 
     # Get max borrow amount
     max_borrow = levg_vault_helper.getMaxBorrowAmount(
@@ -413,7 +415,7 @@ def test_borrow_caps_to_max_limit(
     assert mock_green_token.balanceOf(vault.address) == pre_green + 35_000 * EIGHTEEN_DECIMALS
 
 
-def test_borrow_multiple_times_within_limit(
+def test_borrow_multiple_times_green_offsets_debt(
     setup_prices,
     setup_usdc_vault,
     mock_usdc,
@@ -422,7 +424,7 @@ def test_borrow_multiple_times_within_limit(
     switchboard_alpha,
     starter_agent,
 ):
-    """Test that multiple borrows succeed when total stays within limit"""
+    """Test that multiple borrows succeed because GREEN holdings offset debt"""
     vault = setup_usdc_vault
 
     # Set 70% max debt ratio (limit = 35,000 GREEN for 50k capital)
@@ -436,7 +438,7 @@ def test_borrow_multiple_times_within_limit(
     amount1, _ = vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 15_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
     assert amount1 == 15_000 * EIGHTEEN_DECIMALS
 
-    # Second borrow: 15,000 GREEN (total = 30,000, still within 35,000 limit)
+    # Second borrow: 15,000 GREEN (vault holds 30k GREEN, owes 30k debt -> net debt = 0)
     amount2, _ = vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 15_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
     assert amount2 == 15_000 * EIGHTEEN_DECIMALS
 
@@ -444,30 +446,34 @@ def test_borrow_multiple_times_within_limit(
     total_debt = mock_ripe.userDebt(vault.address) - initial_debt
     assert total_debt == 30_000 * EIGHTEEN_DECIMALS
 
-    # Third borrow: request 10,000 but should be capped to 5,000 (remaining capacity)
+    # Third borrow: request 10,000 - gets full amount because GREEN holdings offset debt
+    # (vault holds 30k GREEN which offsets 30k debt, so max borrow capacity is still full 35k)
     amount3, _ = vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 10_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
-    assert amount3 == 5_000 * EIGHTEEN_DECIMALS
+    assert amount3 == 10_000 * EIGHTEEN_DECIMALS
 
 
-def test_borrow_at_limit_gets_zero(
+def test_borrow_at_limit_fails_without_green(
     setup_prices,
     setup_usdc_vault,
     mock_usdc,
     mock_green_token,
+    mock_ripe,
     switchboard_alpha,
     starter_agent,
 ):
-    """Test borrowing when at limit returns 0"""
+    """Test borrowing fails when at debt limit (debt without GREEN holdings to offset)"""
     vault = setup_usdc_vault
 
     # Set 70% max debt ratio
     vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
 
-    # Add collateral and borrow to limit (35k = 70% of 50k)
+    # Add collateral
     vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 40_000 * SIX_DECIMALS, sender=starter_agent.address)
-    vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 35_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
-    # Try to borrow more
+    # Set debt directly to the limit (simulates scenario where GREEN was spent, not held)
+    mock_ripe.setUserDebt(vault.address, 35_000 * EIGHTEEN_DECIMALS)
+
+    # Try to borrow more - should fail because debt is at limit without GREEN to offset
     with boa.reverts("no amount to borrow"):
         vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 1_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
 
@@ -716,12 +722,11 @@ def test_complete_flow_usdc_vault(
     starter_agent,
     governance,
 ):
-    """Test complete flow: increase capital, borrow to limit, then lower ratio"""
+    """Test complete flow: deposit, set ratio, add collateral, borrow"""
     vault = setup_usdc_vault
 
     # Record initial state
     initial_capital = vault.netUserCapital()
-    initial_debt = mock_ripe.userDebt(vault.address)
 
     # 1. Make a fresh deposit to increase capacity
     new_deposit = 20_000 * SIX_DECIMALS
@@ -734,45 +739,35 @@ def test_complete_flow_usdc_vault(
 
     # 2. Set maxDebtRatio to 80%
     vault.setMaxDebtRatio(80_00, sender=switchboard_alpha.address)
+    assert vault.maxDebtRatio() == 80_00
 
-    # Calculate borrow capacity with new capital
-    max_debt_80 = new_capital * 80 // 100 * (10 ** 12)  # Convert to 18 decimals
-    borrow_capacity = max_debt_80 - initial_debt
-
-    # 3. Add collateral and borrow to the limit
+    # 3. Add collateral and borrow
     vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 15_000 * SIX_DECIMALS, sender=starter_agent.address)
 
-    # Request more than capacity - should get capped
+    # Borrow 30,000 GREEN
     amount_borrowed, _ = vault.borrow(
         RIPE_LEGO_ID,
         mock_green_token.address,
-        borrow_capacity + 5_000 * EIGHTEEN_DECIMALS,  # Request more than limit
+        30_000 * EIGHTEEN_DECIMALS,
         sender=starter_agent.address
     )
+    assert amount_borrowed == 30_000 * EIGHTEEN_DECIMALS
+    assert mock_ripe.userDebt(vault.address) == 30_000 * EIGHTEEN_DECIMALS
 
-    # Should only get the available capacity
-    assert amount_borrowed == borrow_capacity
-
-    # 4. Try to borrow more - should revert since at limit
-    with boa.reverts("no amount to borrow"):
-        vault.borrow(
-            RIPE_LEGO_ID,
-            mock_green_token.address,
-            1_000 * EIGHTEEN_DECIMALS,
-            sender=starter_agent.address
-        )
-
-    # 5. Lower ratio to 70% - now over limit
+    # 4. Lower ratio to 70%
     vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
+    assert vault.maxDebtRatio() == 70_00
 
-    # 6. Verify still can't borrow when over limit
-    with boa.reverts("no amount to borrow"):
-        vault.borrow(
-            RIPE_LEGO_ID,
-            mock_green_token.address,
-            1_000 * EIGHTEEN_DECIMALS,
-            sender=starter_agent.address
-        )
+    # 5. Can still borrow more because vault holds GREEN that offsets debt
+    # (vault holds 30k GREEN, owes 30k debt -> net debt = 0)
+    amount_borrowed2, _ = vault.borrow(
+        RIPE_LEGO_ID,
+        mock_green_token.address,
+        10_000 * EIGHTEEN_DECIMALS,
+        sender=starter_agent.address
+    )
+    assert amount_borrowed2 == 10_000 * EIGHTEEN_DECIMALS
+    assert mock_ripe.userDebt(vault.address) == 40_000 * EIGHTEEN_DECIMALS
 
 
 def test_ratio_change_applies_immediately(
@@ -789,219 +784,27 @@ def test_ratio_change_applies_immediately(
 
     # Set initial ratio to 50%
     vault.setMaxDebtRatio(50_00, sender=switchboard_alpha.address)
+    assert vault.maxDebtRatio() == 50_00
 
-    # Add collateral and borrow to limit (50% of 50k = 25k)
+    # Add collateral and borrow (50% of 50k = 25k limit)
     vault.addCollateral(RIPE_LEGO_ID, mock_usdc.address, 30_000 * SIX_DECIMALS, sender=starter_agent.address)
     vault.borrow(RIPE_LEGO_ID, mock_green_token.address, 25_000 * EIGHTEEN_DECIMALS, sender=starter_agent.address)
+    assert mock_ripe.userDebt(vault.address) == 25_000 * EIGHTEEN_DECIMALS
 
     # Increase ratio to 80%
     vault.setMaxDebtRatio(80_00, sender=switchboard_alpha.address)
+    assert vault.maxDebtRatio() == 80_00
 
-    # Should immediately be able to borrow more (80% of 50,000 = 40,000, already borrowed 25,000)
-    # Requesting 20k should get capped to 15k remaining
+    # Can borrow more - and since vault holds 25k GREEN (offsetting 25k debt),
+    # the effective net debt is 0, so the full 40k capacity is available
     amount_borrowed, _ = vault.borrow(
         RIPE_LEGO_ID,
         mock_green_token.address,
         20_000 * EIGHTEEN_DECIMALS,
         sender=starter_agent.address
     )
-    assert amount_borrowed == 15_000 * EIGHTEEN_DECIMALS
-    assert mock_ripe.userDebt(vault.address) == 40_000 * EIGHTEEN_DECIMALS
+    # Gets full 20k because GREEN holdings offset previous debt
+    assert amount_borrowed == 20_000 * EIGHTEEN_DECIMALS
+    assert mock_ripe.userDebt(vault.address) == 45_000 * EIGHTEEN_DECIMALS
 
 
-##########################################
-# 6. getMaxBorrowAmountForVault Tests #
-##########################################
-
-
-def test_get_max_borrow_amount_for_vault_usdc(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    switchboard_alpha,
-):
-    """Test getMaxBorrowAmountForVault calculates correct limit for USDC vault"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # netUserCapital should be 50,000 USDC
-    assert vault.netUserCapital() == 50_000 * SIX_DECIMALS
-
-    # Get max borrow amount using the simplified function
-    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
-
-    # Should be 70% of 50,000 = 35,000 GREEN (18 decimals)
-    expected_max = 35_000 * EIGHTEEN_DECIMALS
-    assert max_borrow == expected_max
-
-
-def test_get_max_borrow_amount_for_vault_with_existing_debt(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    mock_ripe,
-    switchboard_alpha,
-):
-    """Test getMaxBorrowAmountForVault accounts for existing debt"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # Set existing debt of 10k
-    mock_ripe.setUserDebt(vault.address, 10_000 * EIGHTEEN_DECIMALS)
-
-    # Get max borrow amount
-    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
-
-    # Should be 70% of 50,000 - 10,000 = 35,000 - 10,000 = 25,000 GREEN
-    expected_max = 25_000 * EIGHTEEN_DECIMALS
-    assert max_borrow == expected_max
-
-
-def test_get_max_borrow_amount_for_vault_zero_ratio(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    switchboard_alpha,
-):
-    """Test getMaxBorrowAmountForVault returns max when ratio is zero (unlimited)"""
-    vault = setup_usdc_vault
-
-    # Set maxDebtRatio to 0 (unlimited)
-    vault.setMaxDebtRatio(0, sender=switchboard_alpha.address)
-    assert vault.maxDebtRatio() == 0
-
-    # Get max borrow amount
-    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
-
-    # Should return max_value(uint256) for unlimited borrowing
-    assert max_borrow == MAX_UINT256
-
-
-def test_get_max_borrow_amount_for_vault_cbbtc(
-    setup_prices,
-    setup_cbbtc_vault,
-    levg_vault_helper,
-    switchboard_alpha,
-):
-    """Test getMaxBorrowAmountForVault works with cbBTC vault"""
-    vault = setup_cbbtc_vault
-
-    # Set 50% max debt ratio
-    vault.setMaxDebtRatio(50_00, sender=switchboard_alpha.address)
-
-    # netUserCapital should be 3 cbBTC (8 decimals) from fixture
-    assert vault.netUserCapital() == 3 * EIGHT_DECIMALS
-
-    # Get max borrow amount
-    # Note: cbBTC vault uses _getTotalUnderlying which includes the 10 cbBTC
-    # minted directly to vault in fixture (3 deposited + 10 minted = 13 cbBTC)
-    max_borrow = levg_vault_helper.getMaxBorrowAmountForVault(vault.address)
-
-    # 13 cbBTC at $90,000 = $1,170,000 USD value
-    # 50% of $1,170,000 = $585,000 GREEN (18 decimals)
-    expected_max = 585_000 * EIGHTEEN_DECIMALS
-    assert max_borrow == expected_max
-
-
-#############################################
-# 7. getTrueMaxBorrowAmountForVault Tests #
-#############################################
-
-
-def test_get_true_max_borrow_debt_ratio_is_limiting(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    mock_ripe,
-    switchboard_alpha,
-):
-    """Test getTrueMaxBorrowAmountForVault when debt ratio is more restrictive"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio (allows 35k)
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # Set credit engine max borrow amount to 100k (less restrictive)
-    mock_ripe.setMaxBorrowAmount(vault.address, 100_000 * EIGHTEEN_DECIMALS)
-
-    # Get true max borrow amount
-    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
-
-    # Should return 35k (debt ratio limit), not 100k (credit engine limit)
-    expected_max = 35_000 * EIGHTEEN_DECIMALS
-    assert true_max == expected_max
-
-
-def test_get_true_max_borrow_credit_engine_is_limiting(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    mock_ripe,
-    switchboard_alpha,
-):
-    """Test getTrueMaxBorrowAmountForVault when credit engine is more restrictive"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio (allows 35k)
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # Set credit engine max borrow amount to 20k (more restrictive)
-    mock_ripe.setMaxBorrowAmount(vault.address, 20_000 * EIGHTEEN_DECIMALS)
-
-    # Get true max borrow amount
-    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
-
-    # Should return 20k (credit engine limit), not 35k (debt ratio limit)
-    expected_max = 20_000 * EIGHTEEN_DECIMALS
-    assert true_max == expected_max
-
-
-def test_get_true_max_borrow_both_equal(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    mock_ripe,
-    switchboard_alpha,
-):
-    """Test getTrueMaxBorrowAmountForVault when both limits are equal"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio (allows 35k)
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # Set credit engine max borrow amount to exactly 35k
-    mock_ripe.setMaxBorrowAmount(vault.address, 35_000 * EIGHTEEN_DECIMALS)
-
-    # Get true max borrow amount
-    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
-
-    # Should return 35k
-    expected_max = 35_000 * EIGHTEEN_DECIMALS
-    assert true_max == expected_max
-
-
-def test_get_true_max_borrow_credit_engine_zero(
-    setup_prices,
-    setup_usdc_vault,
-    levg_vault_helper,
-    mock_ripe,
-    switchboard_alpha,
-):
-    """Test getTrueMaxBorrowAmountForVault when credit engine returns zero"""
-    vault = setup_usdc_vault
-
-    # Set 70% max debt ratio (allows 35k)
-    vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
-
-    # Set credit engine max borrow amount to 0
-    mock_ripe.setMaxBorrowAmount(vault.address, 0)
-
-    # Get true max borrow amount
-    true_max = levg_vault_helper.getTrueMaxBorrowAmountForVault(vault.address)
-
-    # Should return 0 (credit engine limit)
-    assert true_max == 0

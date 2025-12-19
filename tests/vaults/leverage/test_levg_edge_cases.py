@@ -37,6 +37,7 @@ def setup_vault_for_edge_cases(
     undy_levg_vault_usdc,
     vault_registry,
     switchboard_alpha,
+    mock_ripe,
 ):
     """Set up vault for edge case testing"""
     vault = undy_levg_vault_usdc
@@ -45,6 +46,9 @@ def setup_vault_for_edge_cases(
     vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
+
+    # Set max borrow amount so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(vault.address, MAX_UINT256)
 
     return vault
 
@@ -391,6 +395,9 @@ def test_price_discrepancy_between_assets(
     vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
+
+    # Set max borrow amount so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(vault.address, MAX_UINT256)
 
     # Set extreme price discrepancy
     # WETH = $2000, USDC = $1, GREEN = $0.01

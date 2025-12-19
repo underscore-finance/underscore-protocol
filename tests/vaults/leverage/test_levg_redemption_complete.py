@@ -1,6 +1,6 @@
 import pytest
 import boa
-from constants import EIGHTEEN_DECIMALS
+from constants import EIGHTEEN_DECIMALS, MAX_UINT256
 
 # Decimal constants
 SIX_DECIMALS = 10 ** 6
@@ -389,6 +389,9 @@ def test_redemption_with_deleverage_integration(
     vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
+
+    # Set max borrow amount so Ripe credit engine doesn't limit borrowing
+    mock_ripe.setMaxBorrowAmount(vault.address, MAX_UINT256)
 
     # User deposits
     deposit_amount = 20_000 * SIX_DECIMALS
