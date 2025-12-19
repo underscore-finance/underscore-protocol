@@ -692,6 +692,34 @@ def levg_vault_tools(mock_ripe, mock_usdc, fork, undy_hq_deploy):
     return boa.load("contracts/helpers/LevgVaultTools.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="levg_vault_tools")
 
 
+@pytest.fixture(scope="session")
+def helpers_deploy(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/Helpers.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="helpers",
+    )
+
+
+@pytest.fixture(scope="session")
+def helpers(helpers_deploy, governance, lego_tools, levg_vault_tools):
+    # Register LegoTools first
+    assert helpers_deploy.startAddNewAddressToRegistry(lego_tools, "LegoTools", sender=governance.address)
+    assert helpers_deploy.confirmNewAddressToRegistry(lego_tools, sender=governance.address) == 1
+
+    # Register LevgVaultTools second
+    assert helpers_deploy.startAddNewAddressToRegistry(levg_vault_tools, "LevgVaultTools", sender=governance.address)
+    assert helpers_deploy.confirmNewAddressToRegistry(levg_vault_tools, sender=governance.address) == 2
+
+    # Finish setup
+    assert helpers_deploy.setRegistryTimeLockAfterSetup(sender=governance.address)
+
+    return helpers_deploy
+
+
 # usdc leverage vault
 
 

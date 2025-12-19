@@ -39,10 +39,6 @@ import contracts.modules.DeptBasics as deptBasics
 from interfaces import LegoPartner as Lego
 from interfaces import Department
 
-event LegoToolsSet:
-    addr: indexed(address)
-
-legoTools: public(address)
 
 
 @deploy
@@ -130,35 +126,6 @@ def confirmAddressDisableInRegistry(_regId: uint256) -> bool:
 def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return registry._cancelAddressDisableInRegistry(_regId)
-
-
-##############
-# Lego Tools #
-##############
-
-
-@external
-def setLegoTools(_addr: address) -> bool:
-    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    if not self._isValidLegoTools(_addr):
-        return False
-    self.legoTools = _addr
-    log LegoToolsSet(addr = _addr)
-    return True
-
-
-@view
-@external 
-def isValidLegoTools(_addr: address) -> bool:
-    return self._isValidLegoTools(_addr)
-
-
-@view
-@internal 
-def _isValidLegoTools(_addr: address) -> bool:
-    if not _addr.is_contract or _addr == empty(address):
-        return False
-    return _addr != self.legoTools
 
 
 #############

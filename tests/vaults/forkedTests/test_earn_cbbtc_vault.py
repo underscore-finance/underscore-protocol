@@ -1657,21 +1657,15 @@ def test_cbbtc_vault_multiple_users_random_operations(
             "vault_addr": vault_addr,
         }
 
-    # Simulate 12 random user deposits
-    for i in range(12):
-        user = random.choice(users)
-        protocol = random.choice(test_protocols)
+    # Helper to do a deposit for a user
+    def do_deposit(user, protocol):
         info = protocol_info[protocol]
-
-        # Random deposit amount (1 to 20 cbBTC)
         amount = random.randint(1, 20) * (10 ** asset.decimals())
 
-        # User deposits to vault
         asset.transfer(user, amount, sender=whale)
         asset.approve(undy_btc_vault, MAX_UINT256, sender=user)
         undy_btc_vault.deposit(amount, user, sender=user)
 
-        # Deposit to yield protocol
         undy_btc_vault.depositForYield(
             info["lego_id"],
             asset,
@@ -1681,6 +1675,14 @@ def test_cbbtc_vault_multiple_users_random_operations(
         )
 
         user_deposits[user] += amount
+
+    # Ensure each user gets at least one deposit (prevents 0 shares edge case)
+    for user in users:
+        do_deposit(user, random.choice(test_protocols))
+
+    # Simulate 9 more random user deposits (12 total)
+    for i in range(9):
+        do_deposit(random.choice(users), random.choice(test_protocols))
 
     # Record each user's shares and expected assets
     user_shares = {}

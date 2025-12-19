@@ -23,13 +23,12 @@ def lego_tools(
     alpha_token,
     weth,
     lego_book,
-    switchboard_alpha,
 ):
     usdc = alpha_token
     if fork != "local":
         usdc = TOKENS[fork]["USDC"]
 
-    h = boa.load(
+    return boa.load(
         "contracts/legos/LegoTools.vy",
         undy_hq_deploy,
         usdc,
@@ -47,8 +46,6 @@ def lego_tools(
         lego_book.getRegId(lego_curve),
         name="lego_tools",
     )
-    assert lego_book.setLegoTools(h, sender=switchboard_alpha.address)
-    return h
 
 
 # ripe lego
