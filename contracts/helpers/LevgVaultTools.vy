@@ -340,8 +340,6 @@ def _getUnderlyingGreenAmount(
     _ripeVaultBook: address,
     _ripeMissionControl: address,
 ) -> uint256:
-
-    # green amount
     green: address = _green if _green != empty(address) else GREEN_TOKEN
     greenAmount: uint256 = staticcall IERC20(green).balanceOf(_levgVault)
 
