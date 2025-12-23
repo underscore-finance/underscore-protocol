@@ -374,3 +374,4 @@ class LEGO_IDS(IntFlag):
     WASABI = 15,
     AVANTIS = 16,
     SKY_PSM = 17,
+    EXTRA_FI = 18,
