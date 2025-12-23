@@ -354,9 +354,37 @@ def getTotalAmountForUser(_user: address, _asset: address) -> uint256:
 ########################
 
 
+struct DeleverageAsset:
+    vaultId: uint256
+    asset: address
+    targetRepayAmount: uint256
+
+
 @external
 def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool:
     return True
+
+
+@external
+def deleverageUser(_user: address = msg.sender, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256:
+    # Simple stub - reduces user debt by target amount
+    targetAmount: uint256 = _targetRepayAmount if _targetRepayAmount != max_value(uint256) else self.userDebt[_user]
+    actualAmount: uint256 = min(targetAmount, self.userDebt[_user])
+    if actualAmount > 0:
+        self.userDebt[_user] -= actualAmount
+    return actualAmount
+
+
+@external
+def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, 25], _user: address = msg.sender) -> uint256:
+    # Simple stub - sum of target amounts, reduce from user debt
+    total: uint256 = 0
+    for asset: DeleverageAsset in _assets:
+        total += asset.targetRepayAmount
+    actualAmount: uint256 = min(total, self.userDebt[_user])
+    if actualAmount > 0:
+        self.userDebt[_user] -= actualAmount
+    return actualAmount
 
 
 ###########################

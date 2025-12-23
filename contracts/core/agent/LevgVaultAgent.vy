@@ -1,6 +1,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 #     ╔════════════════════════════════════════════════════════════════════════════════╗
 #     ║  ** Leverage Vault Agent **                                                    ║
@@ -33,15 +34,6 @@ struct Signature:
     nonce: uint256
     expiration: uint256
 
-struct ActionInstruction:
-    usePrevAmountOut: bool     # Use output from previous instruction as amount
-    action: uint8              # Action type: 10-50 for standard ops
-    legoId: uint16             # Protocol/Lego ID
-    asset: address             # Primary asset/token
-    target: address            # vaultAddr for deposits, etc.
-    amount: uint256            # Primary amount (or max_value for "all")
-    extraData: bytes32         # Protocol-specific extra data
-
 struct PositionAsset:
     positionType: uint8  # 0=collateral, 1=leverage, 2=stabPool(sGREEN)
     amount: uint256      # Amount (max_value for all)
@@ -72,10 +64,7 @@ RIPE_STAB_POOL_ID: constant(uint256) = 1
 LEGO_BOOK_ID: constant(uint256) = 3
 
 # max on lists
-MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
-MAX_PROOFS: constant(uint256) = 25
-MAX_BATCH_INSTRUCTIONS: constant(uint256) = 15
 MAX_POSITIONS: constant(uint256) = 10
 
 # unified signature validation
@@ -86,16 +75,6 @@ SIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000
 POSITION_COLLATERAL: constant(uint8) = 0
 POSITION_LEVERAGE: constant(uint8) = 1
 POSITION_STAB_POOL: constant(uint8) = 2
-
-# action codes for 1:1 mappings
-ACTION_DEPOSIT_YIELD: constant(uint8) = 10
-ACTION_WITHDRAW_YIELD: constant(uint8) = 11
-ACTION_SWAP: constant(uint8) = 20
-ACTION_ADD_COLLATERAL: constant(uint8) = 40
-ACTION_REMOVE_COLLATERAL: constant(uint8) = 41
-ACTION_BORROW: constant(uint8) = 42
-ACTION_REPAY_DEBT: constant(uint8) = 43
-ACTION_CLAIM_INCENTIVES: constant(uint8) = 50
 
 # workflow action codes
 WORKFLOW_BORROW_AND_EARN: constant(uint8) = 100
@@ -124,202 +103,6 @@ def __init__(
     UNDY_HQ = _undyHq
     GREEN = _greenToken
     SAVINGS_GREEN = _savingsGreen
-
-
-#########
-# Yield #
-#########
-
-
-@external
-def depositForYield(
-    _levgWallet: address,
-    _legoId: uint256,
-    _asset: address,
-    _vaultAddr: address = empty(address),
-    _amount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, address, uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_DEPOSIT_YIELD, _levgWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData)
-
-
-@external
-def withdrawFromYield(
-    _levgWallet: address,
-    _legoId: uint256,
-    _vaultToken: address,
-    _amount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, address, uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_WITHDRAW_YIELD, _levgWallet, _legoId, _vaultToken, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraData, False)
-
-
-###################
-# Swap / Exchange #
-###################
-
-
-@external
-def swapTokens(
-    _levgWallet: address,
-    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
-    _sig: Signature = empty(Signature),
-) -> (address, uint256, address, uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_SWAP, _levgWallet, _swapInstructions, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).swapTokens(_swapInstructions)
-
-
-###################
-# Debt Management #
-###################
-
-
-@external
-def addCollateral(
-    _levgWallet: address,
-    _legoId: uint256,
-    _asset: address,
-    _amount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_ADD_COLLATERAL, _levgWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).addCollateral(_legoId, _asset, _amount, _extraData)
-
-
-@external
-def removeCollateral(
-    _levgWallet: address,
-    _legoId: uint256,
-    _asset: address,
-    _amount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_REMOVE_COLLATERAL, _levgWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).removeCollateral(_legoId, _asset, _amount, _extraData)
-
-
-@external
-def borrow(
-    _levgWallet: address,
-    _legoId: uint256,
-    _borrowAsset: address,
-    _amount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_BORROW, _levgWallet, _legoId, _borrowAsset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).borrow(_legoId, _borrowAsset, _amount, _extraData)
-
-
-@external
-def repayDebt(
-    _levgWallet: address,
-    _legoId: uint256,
-    _paymentAsset: address,
-    _paymentAmount: uint256 = max_value(uint256),
-    _extraData: bytes32 = empty(bytes32),
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_REPAY_DEBT, _levgWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraData)
-
-
-#################
-# Claim Rewards #
-#################
-
-
-@external
-def claimIncentives(
-    _levgWallet: address,
-    _legoId: uint256,
-    _rewardToken: address = empty(address),
-    _rewardAmount: uint256 = max_value(uint256),
-    _proofs: DynArray[bytes32, MAX_PROOFS] = [],
-    _sig: Signature = empty(Signature),
-) -> (uint256, uint256):
-    self._authenticateAccess(_levgWallet, keccak256(abi_encode(ACTION_CLAIM_INCENTIVES, _levgWallet, _legoId, _rewardToken, _rewardAmount, _proofs, _sig.nonce, _sig.expiration)), _sig)
-    return extcall Wallet(_levgWallet).claimIncentives(_legoId, _rewardToken, _rewardAmount, _proofs)
-
-
-#################
-# Batch Actions #
-#################
-
-
-@external
-def performBatchActions(
-    _levgWallet: address,
-    _instructions: DynArray[ActionInstruction, MAX_BATCH_INSTRUCTIONS],
-    _sig: Signature = empty(Signature),
-) -> bool:
-    assert len(_instructions) > 0 # dev: no instructions
-    messageHash: bytes32 = keccak256(abi_encode(_levgWallet, _instructions, _sig.nonce, _sig.expiration))
-    self._authenticateAccess(_levgWallet, messageHash, _sig)
-
-    prevAmountReceived: uint256 = 0
-    for instruction: ActionInstruction in _instructions:
-        prevAmountReceived = self._executeAction(_levgWallet, instruction, prevAmountReceived)
-
-    return True
-
-
-@internal
-def _executeAction(_levgWallet: address, instruction: ActionInstruction, _prevAmount: uint256) -> uint256:
-    nextAmount: uint256 = instruction.amount
-    if instruction.usePrevAmountOut and _prevAmount != 0:
-        nextAmount = _prevAmount
-
-    txUsdValue: uint256 = 0
-
-    # deposit for yield
-    if instruction.action == ACTION_DEPOSIT_YIELD:
-        assetAmount: uint256 = 0
-        vaultToken: address = empty(address)
-        vaultTokenAmount: uint256 = 0
-        assetAmount, vaultToken, vaultTokenAmount, txUsdValue = extcall Wallet(_levgWallet).depositForYield(convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.extraData)
-        return vaultTokenAmount
-
-    # withdraw from yield
-    elif instruction.action == ACTION_WITHDRAW_YIELD:
-        vaultTokensBurned: uint256 = 0
-        underlyingAsset: address = empty(address)
-        underlyingAmount: uint256 = 0
-        vaultTokensBurned, underlyingAsset, underlyingAmount, txUsdValue = extcall Wallet(_levgWallet).withdrawFromYield(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData, False)
-        return underlyingAmount
-
-    # add collateral
-    elif instruction.action == ACTION_ADD_COLLATERAL:
-        amountDeposited: uint256 = 0
-        amountDeposited, txUsdValue = extcall Wallet(_levgWallet).addCollateral(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-        return amountDeposited
-
-    # remove collateral
-    elif instruction.action == ACTION_REMOVE_COLLATERAL:
-        amountRemoved: uint256 = 0
-        amountRemoved, txUsdValue = extcall Wallet(_levgWallet).removeCollateral(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-        return amountRemoved
-
-    # borrow
-    elif instruction.action == ACTION_BORROW:
-        borrowAmount: uint256 = 0
-        borrowAmount, txUsdValue = extcall Wallet(_levgWallet).borrow(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-        return borrowAmount
-
-    # repay debt
-    elif instruction.action == ACTION_REPAY_DEBT:
-        repaidAmount: uint256 = 0
-        repaidAmount, txUsdValue = extcall Wallet(_levgWallet).repayDebt(convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
-        return repaidAmount
-
-    else:
-        raise "Invalid action"
 
 
 #########################
