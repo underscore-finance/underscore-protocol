@@ -580,11 +580,11 @@ def test_set_max_debt_ratio_success_max_hundred_percent(switchboard_charlie, und
 
 
 def test_set_max_debt_ratio_exceeds_max_fails(switchboard_charlie, undy_levg_vault_usdc, governance):
-    """Test that ratio > 100% is rejected"""
-    with boa.reverts("ratio too high (max 100%)"):
+    """Test that ratio > 300% is rejected"""
+    with boa.reverts("ratio too high (max 300%)"):
         switchboard_charlie.setMaxDebtRatio(
             undy_levg_vault_usdc.address,
-            10001,  # 100.01%
+            30001,  # 300.01%
             sender=governance.address
         )
 

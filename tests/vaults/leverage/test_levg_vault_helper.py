@@ -152,14 +152,14 @@ def test_is_supported_ripe_asset(
 ###################################
 
 
-def test_get_swappable_usdc_amount_no_debt(
+def test_get_swappable_usdc_amount_returns_zero_for_usdc_vault(
     levg_vault_helper,
     setup_mock_prices,
     undy_levg_vault_usdc,
     mock_usdc_leverage_vault,
     mock_usdc,
 ):
-    """Test getSwappableUsdcAmount when user has no debt - should allow full amount"""
+    """Test getSwappableUsdcAmount returns 0 for USDC vaults (function is for non-USDC vaults only)"""
     current_balance = 10_000 * SIX_DECIMALS  # 10k USDC
     amount_in = 5_000 * SIX_DECIMALS  # Want to swap 5k
 
@@ -172,50 +172,8 @@ def test_get_swappable_usdc_amount_no_debt(
         1,  # ripe vault ID
     )
 
-    # With no debt, should be able to swap the full requested amount
-    assert swappable == amount_in
-
-
-def test_get_swappable_usdc_amount_with_debt(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    undy_levg_vault_usdc,
-    mock_usdc_leverage_vault,
-    mock_usdc,
-    mock_green_token,
-    governance,
-):
-    """Test getSwappableUsdcAmount when user has debt - should limit swappable amount"""
-    # Give wallet some USDC balance
-    current_balance = 20_000 * SIX_DECIMALS  # 20k USDC
-    mock_usdc.mint(undy_levg_vault_usdc.address, current_balance, sender=governance.address)
-
-    # Give wallet some GREEN collateral (set via mock)
-    green_amount = 10_000 * EIGHTEEN_DECIMALS  # 10k GREEN
-    mock_green_token.transfer(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_green_token, green_amount)
-
-    # Add debt (5k GREEN debt)
-    debt_amount = 5_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
-
-    # Total positive value = 20k USDC + 10k GREEN = 30k
-    # Debt = 5k GREEN
-    # Available to swap = 30k - 5k = 25k USDC equivalent
-    swappable = levg_vault_helper.getSwappableUsdcAmount(
-        undy_levg_vault_usdc.address,
-        MAX_UINT256,  # Want to swap everything
-        current_balance,
-        mock_usdc_leverage_vault.address,
-        2,  # lego ID
-        1,  # ripe vault ID
-    )
-
-    # Should be limited by debt calculation
-    # With surplus after debt, should be able to swap some amount
-    assert swappable > 0
-    # Don't check exact amount due to potential mock implementation differences
+    # USDC vaults should return 0 - this function is for non-USDC vaults that borrow USDC
+    assert swappable == 0
 
 
 def test_perform_post_swap_validation_green_to_usdc_pass(
@@ -441,78 +399,6 @@ def test_get_total_assets_for_usdc_vault_with_debt(
     assert total_assets <= usdc_amount
 
 
-def test_get_total_assets_for_non_usdc_vault_no_debt(
-    levg_vault_helper,
-    setup_mock_prices,
-    undy_levg_vault_usdc,
-    mock_weth,
-    mock_weth_whale,
-    mock_usdc_collateral_vault,
-    mock_usdc_leverage_vault,
-):
-    """Test total assets for non-USDC vault (WETH) with no debt"""
-    # Give wallet 5 WETH
-    weth_amount = 5 * EIGHTEEN_DECIMALS
-    mock_weth.transfer(undy_levg_vault_usdc.address, weth_amount, sender=mock_weth_whale)
-
-    total_assets = levg_vault_helper.getTotalAssetsForNonUsdcVault(
-        undy_levg_vault_usdc.address,
-        mock_weth.address,  # underlying asset
-        mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
-        1,  # collateral ripe vault ID
-        mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
-        1,  # leverage ripe vault ID
-    )
-
-    # With no debt and 5 WETH, total assets should be 5 WETH
-    assert total_assets == weth_amount
-
-
-def test_get_total_assets_for_non_usdc_vault_with_debt(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    undy_levg_vault_usdc,
-    mock_weth,
-    mock_weth_whale,
-    mock_usdc_collateral_vault,
-    mock_usdc_leverage_vault,
-    mock_usdc,
-    governance,
-):
-    """Test total assets for non-USDC vault with debt"""
-    # WETH price already set to $2000 in setup_mock_prices
-
-    # Give wallet 5 WETH = $10k value
-    weth_amount = 5 * EIGHTEEN_DECIMALS
-    mock_weth.transfer(undy_levg_vault_usdc.address, weth_amount, sender=mock_weth_whale)
-
-    # Give wallet 2k USDC
-    mock_usdc.mint(undy_levg_vault_usdc.address, 2_000 * SIX_DECIMALS, sender=governance.address)
-
-    # Add 1k GREEN debt
-    debt_amount = 1_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
-
-    # Total value: 5 WETH ($10k) + 2k USDC - 1k debt = $11k
-    # $11k / $2000 per WETH = 5.5 WETH
-    total_assets = levg_vault_helper.getTotalAssetsForNonUsdcVault(
-        undy_levg_vault_usdc.address,
-        mock_weth.address,
-        mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
-        1,  # collateral ripe vault ID
-        mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
-        1,  # leverage ripe vault ID
-    )
-
-    # Should be slightly more than original 5 WETH due to USDC surplus after debt
-    assert total_assets > weth_amount
-
-
 ############################################
 # 4. sGREEN (Savings GREEN) Scenarios Tests #
 ############################################
@@ -632,44 +518,6 @@ def test_get_total_assets_usdc_vault_with_mixed_green_and_sgreen(
     # Total should be 10k USDC + 2k GREEN + 3k sGREEN = 15k USDC
     expected = usdc_amount + (5_000 * SIX_DECIMALS)
     assert total_assets >= expected * 99 // 100
-
-
-def test_get_swappable_usdc_with_sgreen_collateral(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    undy_levg_vault_usdc,
-    mock_usdc_leverage_vault,
-    mock_usdc,
-    mock_savings_green_token,
-    governance,
-):
-    """Test getSwappableUsdcAmount when user has sGREEN collateral and debt"""
-    # Give wallet 20k USDC
-    current_balance = 20_000 * SIX_DECIMALS
-    mock_usdc.mint(undy_levg_vault_usdc.address, current_balance, sender=governance.address)
-
-    # Set sGREEN collateral on Ripe
-    sgreen_amount = 10_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token, sgreen_amount)
-
-    # Add 5k GREEN debt
-    debt_amount = 5_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
-
-    # Total positive value = 20k USDC + 10k sGREEN = 30k
-    # Debt = 5k GREEN
-    # Available to swap = 30k - 5k = 25k USDC equivalent
-    swappable = levg_vault_helper.getSwappableUsdcAmount(
-        undy_levg_vault_usdc.address,
-        MAX_UINT256,
-        current_balance,
-        mock_usdc_leverage_vault.address,
-        2,  # lego ID
-        1,  # ripe vault ID
-    )
-
-    assert swappable > 0
 
 
 ###########################################
@@ -1395,335 +1243,427 @@ def test_mixed_decimal_conversions_with_usdc_and_debt(
     assert total_assets > underlying_amount
 
 
-#####################################
-# 10. New View Function Tests       #
-#####################################
+###############################
+# 9. getMaxBorrowAmount Tests #
+###############################
 
 
-def test_get_borrow_rate(
+def test_get_max_borrow_amount_no_debt(
     levg_vault_helper,
+    setup_mock_prices,
     mock_ripe,
-    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    governance,
 ):
-    """Test getBorrowRate returns the borrow rate from Ripe"""
-    # Set a mock borrow rate (5% = 500 basis points)
-    mock_borrow_rate = 500
-    mock_ripe.setBorrowRate(mock_borrow_rate)
+    """Test max borrow with no existing debt equals collateral_usd * maxDebtRatio"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
 
-    rate = levg_vault_helper.getBorrowRate(undy_levg_vault_usdc.address)
-    assert rate == mock_borrow_rate
+    # Set a high Ripe max so debt ratio is the limiting factor
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, 1_000_000 * EIGHTEEN_DECIMALS)
+
+    result = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital (not used for non-USDC vault)
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # Default maxDebtRatio is 100% (10000 / 10000)
+    # 1 cbBTC = $90,000 -> max borrow = $90,000 * 100% = $90,000
+    expected_max_borrow = 90_000 * EIGHTEEN_DECIMALS
+    assert result == expected_max_borrow
 
 
-def test_get_debt_amount(
+def test_get_max_borrow_amount_with_debt(
     levg_vault_helper,
+    setup_mock_prices,
     mock_ripe,
-    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    governance,
 ):
-    """Test getDebtAmount returns the user's debt"""
-    debt_amount = 5_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+    """Test max borrow calculation with existing debt reduces capacity"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
 
-    result = levg_vault_helper.getDebtAmount(undy_levg_vault_usdc.address)
-    assert result == debt_amount
+    # Set a high Ripe max so debt ratio is the limiting factor
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, 1_000_000 * EIGHTEEN_DECIMALS)
+
+    # First get max borrow with no debt
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+    result_no_debt = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # Now add debt and verify capacity is reduced
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+    result_with_debt = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # With debt, remaining capacity should be reduced by exactly the debt amount
+    assert result_with_debt == result_no_debt - debt_amount
 
 
-def test_get_debt_amount_zero(
+def test_get_max_borrow_amount_green_offsets_debt(
     levg_vault_helper,
+    setup_mock_prices,
     mock_ripe,
-    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    mock_green_token,
+    governance,
 ):
-    """Test getDebtAmount returns zero when no debt"""
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+    """Test that GREEN offsets debt, increasing borrow capacity"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
 
-    result = levg_vault_helper.getDebtAmount(undy_levg_vault_usdc.address)
+    debt_amount = 30_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    # Set a high Ripe max so debt ratio is the limiting factor
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, 1_000_000 * EIGHTEEN_DECIMALS)
+
+    # Get max borrow WITHOUT green
+    result_without_green = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # Add GREEN to wallet
+    green_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    # Get max borrow WITH green
+    result_with_green = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # GREEN should offset debt, increasing capacity by exactly the GREEN amount
+    assert result_with_green == result_without_green + green_amount
+
+
+def test_get_max_borrow_amount_returns_min_of_limits(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    governance,
+):
+    """Test getMaxBorrowAmount returns min of debt ratio limit and Ripe LTV limit"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+
+    # Set Ripe max to a LOWER value than debt ratio would allow
+    ripe_max = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, ripe_max)
+
+    result = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100% (would allow $90k)
+        False,  # isUsdcVault
+    )
+
+    # Result should be the lower Ripe limit
+    assert result == ripe_max
+
+
+def test_get_max_borrow_amount_underwater_returns_zero(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    governance,
+):
+    """Test returns 0 when debt exceeds max allowed by debt ratio"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    # Set debt higher than collateral value
+    debt_amount = 100_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    # Set a high Ripe max so debt ratio is the limiting factor
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, 1_000_000 * EIGHTEEN_DECIMALS)
+
+    result = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        10000,  # maxDebtRatio = 100%
+        False,  # isUsdcVault
+    )
+
+    # Should return 0 when underwater
     assert result == 0
 
 
-@pytest.mark.parametrize("vault_type", ["usdc", "cbbtc", "weth"])
-def test_get_underlying_amounts_in_wallet(
-    vault_type,
-    levg_vault_helper,
-    setup_mock_prices,
-    governance,
-    mint_to_vault,
-    get_vault_config,
-    undy_levg_vault_usdc,
-    undy_levg_vault_cbbtc,
-    undy_levg_vault_weth,
-    mock_usdc,
-    mock_cbbtc,
-    mock_weth,
-    mock_usdc_collateral_vault,
-    mock_cbbtc_collateral_vault,
-    mock_weth_collateral_vault,
-    mock_usdc_leverage_vault,
-):
-    """Test getUnderlyingAmounts with underlying in wallet only"""
-    config = get_vault_config(
-        vault_type, undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth,
-        mock_usdc, mock_cbbtc, mock_weth, mock_usdc_collateral_vault,
-        mock_cbbtc_collateral_vault, mock_weth_collateral_vault, mock_usdc_leverage_vault,
-    )
-
-    underlying_amount = 1_000 * config["decimals"]
-    mint_to_vault(config["underlying"], config["vault"].address, underlying_amount, config["is_weth"])
-
-    # Test collateral asset side
-    (underlying_wallet, vault_token_wallet, underlying_ripe, vault_token_ripe) = \
-        levg_vault_helper.getUnderlyingAmounts(config["vault"].address, True)
-
-    assert underlying_wallet == underlying_amount
-    assert underlying_ripe == 0
-
-
-def test_get_green_amounts_with_debt(
+def test_get_max_borrow_amount_zero_debt_ratio_returns_max(
     levg_vault_helper,
     setup_mock_prices,
     mock_ripe,
-    mock_green_token,
-    mock_savings_green_token,
-    undy_levg_vault_usdc,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
     governance,
 ):
-    """Test getGreenAmounts returns correct debt and balances"""
-    # Set debt
+    """Test returns Ripe max when maxDebtRatio is 0 (unlimited)"""
+    cbbtc_amount = 1 * EIGHT_DECIMALS
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+
+    ripe_max = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setMaxBorrowAmount(undy_levg_vault_cbbtc.address, ripe_max)
+
+    result = levg_vault_helper.getMaxBorrowAmount(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,
+        mock_cbbtc_collateral_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+        0,  # netUserCapital
+        0,  # maxDebtRatio = 0 (unlimited by debt ratio)
+        False,  # isUsdcVault
+    )
+
+    # When maxDebtRatio=0, debt ratio limit is max_value, so Ripe limit wins
+    assert result == ripe_max
+
+
+##############################
+# 10. isValidVaultToken Tests #
+##############################
+
+
+def test_is_valid_vault_token_returns_true(
+    levg_vault_helper,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+):
+    """Test returns True for valid vault token with proper lego and Ripe support"""
+    result = levg_vault_helper.isValidVaultToken(
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        1,  # ripe vault ID
+        2,  # lego ID
+    )
+
+    assert result == True
+
+
+def test_is_valid_vault_token_zero_addresses(
+    levg_vault_helper,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+):
+    """Test returns False for empty addresses or zero IDs"""
+    # Empty underlying asset
+    assert levg_vault_helper.isValidVaultToken(
+        "0x0000000000000000000000000000000000000000",
+        mock_usdc_collateral_vault.address,
+        1,
+        2,
+    ) == False
+
+    # Empty vault token
+    assert levg_vault_helper.isValidVaultToken(
+        mock_usdc.address,
+        "0x0000000000000000000000000000000000000000",
+        1,
+        2,
+    ) == False
+
+    # Zero ripe vault ID
+    assert levg_vault_helper.isValidVaultToken(
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        0,
+        2,
+    ) == False
+
+    # Zero lego ID
+    assert levg_vault_helper.isValidVaultToken(
+        mock_usdc.address,
+        mock_usdc_collateral_vault.address,
+        1,
+        0,
+    ) == False
+
+
+#####################################
+# 11. getVaultBookAndDeleverage Test #
+#####################################
+
+
+def test_get_vault_book_and_deleverage(
+    levg_vault_helper,
+):
+    """Test returns correct addresses from registry"""
+    (vault_book, deleverage) = levg_vault_helper.getVaultBookAndDeleverage()
+
+    # Both addresses should be non-zero (mock registry returns valid addresses)
+    assert vault_book != "0x0000000000000000000000000000000000000000"
+    assert deleverage != "0x0000000000000000000000000000000000000000"
+
+
+###########################################
+# 12. getSwappableUsdcAmount Enhanced Tests #
+###########################################
+
+
+def test_get_swappable_usdc_green_fully_covers_debt(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_usdc,
+    mock_usdc_leverage_vault,
+    mock_green_token,
+    governance,
+):
+    """Test when GREEN fully covers debt, all USDC is swappable"""
+    # Give vault 10k USDC
+    usdc_amount = 10_000 * SIX_DECIMALS
+    mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
+
+    # Add 5k debt
     debt_amount = 5_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
 
-    # Mint GREEN to vault wallet
-    green_amount = 1_000 * EIGHTEEN_DECIMALS
-    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+    # Add 10k GREEN (more than covers debt)
+    green_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
 
-    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
-        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
-
-    assert user_debt == debt_amount
-    assert green_wallet == green_amount
-    assert sgreen_wallet_converted == 0
-    assert sgreen_ripe_converted == 0
-
-
-def test_get_green_amounts_with_sgreen(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    mock_green_token,
-    mock_savings_green_token,
-    undy_levg_vault_usdc,
-    governance,
-):
-    """Test getGreenAmounts with sGREEN in wallet"""
-    # No debt
-    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
-
-    # Mint GREEN to vault, then deposit to get sGREEN
-    green_amount = 2_000 * EIGHTEEN_DECIMALS
-    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
-    mock_green_token.approve(mock_savings_green_token.address, green_amount, sender=undy_levg_vault_usdc.address)
-    sgreen_amount = mock_savings_green_token.deposit(green_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
-
-    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
-        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
-
-    assert user_debt == 0
-    assert green_wallet == 0
-    # sGREEN converts 1:1 to GREEN in the mock
-    assert sgreen_wallet_converted == sgreen_amount
-
-
-def test_get_green_amounts_sgreen_in_ripe(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    mock_savings_green_token,
-    undy_levg_vault_usdc,
-):
-    """Test getGreenAmounts with sGREEN deposited in Ripe"""
-    # Set sGREEN collateral in Ripe
-    sgreen_in_ripe = 3_000 * EIGHTEEN_DECIMALS
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_in_ripe)
-
-    (user_debt, green_wallet, sgreen_wallet_converted, sgreen_ripe_converted) = \
-        levg_vault_helper.getGreenAmounts(undy_levg_vault_usdc.address)
-
-    # sGREEN in Ripe should be converted to GREEN
-    assert sgreen_ripe_converted == sgreen_in_ripe
-
-
-@pytest.mark.parametrize("vault_type", ["usdc", "cbbtc", "weth"])
-def test_get_vault_token_amounts_in_wallet(
-    vault_type,
-    levg_vault_helper,
-    setup_mock_prices,
-    governance,
-    mint_to_vault,
-    get_vault_config,
-    undy_levg_vault_usdc,
-    undy_levg_vault_cbbtc,
-    undy_levg_vault_weth,
-    mock_usdc,
-    mock_cbbtc,
-    mock_weth,
-    mock_usdc_collateral_vault,
-    mock_cbbtc_collateral_vault,
-    mock_weth_collateral_vault,
-    mock_usdc_leverage_vault,
-):
-    """Test getVaultTokenAmounts with vault token in wallet"""
-    config = get_vault_config(
-        vault_type, undy_levg_vault_usdc, undy_levg_vault_cbbtc, undy_levg_vault_weth,
-        mock_usdc, mock_cbbtc, mock_weth, mock_usdc_collateral_vault,
-        mock_cbbtc_collateral_vault, mock_weth_collateral_vault, mock_usdc_leverage_vault,
+    swappable = levg_vault_helper.getSwappableUsdcAmount(
+        undy_levg_vault_cbbtc.address,
+        MAX_UINT256,
+        usdc_amount,
+        mock_usdc_leverage_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
     )
 
-    # Mint underlying to vault, then deposit to get vault tokens
-    underlying_amount = 500 * config["decimals"]
-    mint_to_vault(config["underlying"], config["vault"].address, underlying_amount, config["is_weth"])
-    config["underlying"].approve(config["collateral_vault"].address, underlying_amount, sender=config["vault"].address)
-    vault_token_amount = config["collateral_vault"].deposit(underlying_amount, config["vault"].address, sender=config["vault"].address)
-
-    (vault_token_wallet, vault_token_ripe) = \
-        levg_vault_helper.getVaultTokenAmounts(config["vault"].address, True)
-
-    assert vault_token_wallet == vault_token_amount
-    assert vault_token_ripe == 0
+    # GREEN covers all debt, so all USDC should be swappable
+    assert swappable == usdc_amount
 
 
-def test_get_vault_token_amounts_in_ripe(
+def test_get_swappable_usdc_green_partially_covers_debt(
     levg_vault_helper,
     setup_mock_prices,
     mock_ripe,
-    mock_usdc_collateral_vault,
-    undy_levg_vault_usdc,
-):
-    """Test getVaultTokenAmounts with vault token deposited in Ripe"""
-    # Set vault token collateral in Ripe
-    vault_token_in_ripe = 1_000 * SIX_DECIMALS
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc_collateral_vault.address, vault_token_in_ripe)
-
-    (vault_token_wallet, vault_token_ripe) = \
-        levg_vault_helper.getVaultTokenAmounts(undy_levg_vault_usdc.address, True)
-
-    assert vault_token_ripe == vault_token_in_ripe
-
-
-def test_get_underlying_amounts_vault_token_in_wallet(
-    levg_vault_helper,
-    setup_mock_prices,
-    governance,
-    mint_to_vault,
-    undy_levg_vault_usdc,
-    mock_usdc,
-    mock_usdc_collateral_vault,
-):
-    """Test getUnderlyingAmounts with vault token in wallet converted to underlying"""
-    # Mint USDC to vault, then deposit to get vault tokens
-    underlying_amount = 1_000 * SIX_DECIMALS
-    mint_to_vault(mock_usdc, undy_levg_vault_usdc.address, underlying_amount, False)
-    mock_usdc.approve(mock_usdc_collateral_vault.address, underlying_amount, sender=undy_levg_vault_usdc.address)
-    vault_token_amount = mock_usdc_collateral_vault.deposit(underlying_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
-
-    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
-        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
-
-    assert underlying_wallet == 0
-    assert vault_token_wallet_converted == underlying_amount  # 1:1 in mock
-    assert underlying_ripe == 0
-    assert vault_token_ripe_converted == 0
-
-
-def test_get_underlying_amounts_in_ripe(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    undy_levg_vault_usdc,
-    mock_usdc,
-):
-    """Test getUnderlyingAmounts with underlying deposited in Ripe"""
-    # Set underlying collateral in Ripe
-    underlying_in_ripe = 2_000 * SIX_DECIMALS
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, underlying_in_ripe)
-
-    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
-        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
-
-    assert underlying_wallet == 0
-    assert vault_token_wallet_converted == 0
-    assert underlying_ripe == underlying_in_ripe
-    assert vault_token_ripe_converted == 0
-
-
-def test_get_underlying_amounts_vault_token_in_ripe(
-    levg_vault_helper,
-    setup_mock_prices,
-    mock_ripe,
-    undy_levg_vault_usdc,
-    mock_usdc_collateral_vault,
-    mock_usdc,
-    governance,
-    mint_to_vault,
-):
-    """Test getUnderlyingAmounts with vault token in Ripe converted to underlying"""
-    # First deposit underlying to get vault tokens (so convertToAssets works)
-    underlying_amount = 1_000 * SIX_DECIMALS
-    mint_to_vault(mock_usdc, undy_levg_vault_usdc.address, underlying_amount, False)
-    mock_usdc.approve(mock_usdc_collateral_vault.address, underlying_amount, sender=undy_levg_vault_usdc.address)
-    mock_usdc_collateral_vault.deposit(underlying_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
-
-    # Transfer vault tokens to Ripe (simulate via setUserCollateral)
-    vault_token_in_ripe = 500 * SIX_DECIMALS
-    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc_collateral_vault.address, vault_token_in_ripe)
-
-    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
-        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_usdc.address, True)
-
-    # vault_token_ripe_converted should be the underlying value of vault tokens in Ripe
-    assert vault_token_ripe_converted == vault_token_in_ripe  # 1:1 in mock
-
-
-def test_get_underlying_amounts_leverage_asset(
-    levg_vault_helper,
-    setup_mock_prices,
-    governance,
-    mint_to_vault,
     undy_levg_vault_cbbtc,
     mock_usdc,
     mock_usdc_leverage_vault,
+    mock_green_token,
+    governance,
 ):
-    """Test getUnderlyingAmounts for leverage asset side (USDC)"""
-    # Mint USDC to vault wallet
+    """Test when GREEN partially covers debt, less USDC is swappable"""
+    # Give vault 10k USDC
+    usdc_amount = 10_000 * SIX_DECIMALS
+    mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
+
+    # Add 8k debt
+    debt_amount = 8_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    # Add 3k GREEN (partially covers debt, leaving 5k debt)
+    green_amount = 3_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    swappable = levg_vault_helper.getSwappableUsdcAmount(
+        undy_levg_vault_cbbtc.address,
+        MAX_UINT256,
+        usdc_amount,
+        mock_usdc_leverage_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+    )
+
+    # Remaining debt = 8k - 3k = 5k needs to come from USDC
+    # Swappable = 10k - 5k = 5k USDC
+    assert swappable > 0
+    assert swappable < usdc_amount
+
+
+def test_get_swappable_usdc_underwater_returns_zero(
+    levg_vault_helper,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_usdc,
+    mock_usdc_leverage_vault,
+    governance,
+):
+    """Test returns 0 when remaining debt exceeds USDC value"""
+    # Give vault only 5k USDC
     usdc_amount = 5_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
 
-    # Test leverage asset side (_isCollateralAsset=False)
-    (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
-        levg_vault_helper.getUnderlyingAmounts(undy_levg_vault_cbbtc.address, False)
+    # Add 10k debt (more than USDC value)
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
 
-    assert underlying_wallet == usdc_amount
-    assert vault_token_wallet_converted == 0
-    assert underlying_ripe == 0
-    assert vault_token_ripe_converted == 0
+    swappable = levg_vault_helper.getSwappableUsdcAmount(
+        undy_levg_vault_cbbtc.address,
+        MAX_UINT256,
+        usdc_amount,
+        mock_usdc_leverage_vault.address,
+        2,  # lego ID
+        1,  # ripe vault ID
+    )
+
+    # Debt exceeds USDC, so nothing is swappable
+    assert swappable == 0
 
 
-def test_get_vault_token_amounts_leverage_asset(
-    levg_vault_helper,
-    setup_mock_prices,
-    governance,
-    mint_to_vault,
-    undy_levg_vault_cbbtc,
-    mock_usdc,
-    mock_usdc_leverage_vault,
-):
-    """Test getVaultTokenAmounts for leverage asset side"""
-    # Mint USDC to vault, then deposit to get leverage vault tokens
-    usdc_amount = 1_000 * SIX_DECIMALS
-    mock_usdc.mint(undy_levg_vault_cbbtc.address, usdc_amount, sender=governance.address)
-    mock_usdc.approve(mock_usdc_leverage_vault.address, usdc_amount, sender=undy_levg_vault_cbbtc.address)
-    vault_token_amount = mock_usdc_leverage_vault.deposit(usdc_amount, undy_levg_vault_cbbtc.address, sender=undy_levg_vault_cbbtc.address)
-
-    # Test leverage asset side (_isCollateralAsset=False)
-    (vault_token_wallet, vault_token_ripe) = \
-        levg_vault_helper.getVaultTokenAmounts(undy_levg_vault_cbbtc.address, False)
-
-    assert vault_token_wallet == vault_token_amount
-    assert vault_token_ripe == 0

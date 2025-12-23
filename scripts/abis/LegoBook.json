@@ -1,17 +1,5 @@
 [
   {
-    "name": "LegoToolsSet",
-    "inputs": [
-      {
-        "name": "addr",
-        "type": "address",
-        "indexed": true
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
     "name": "GovChangeTimeLockModified",
     "inputs": [
       {
@@ -1538,52 +1526,6 @@
       {
         "name": "",
         "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setLegoTools",
-    "inputs": [
-      {
-        "name": "_addr",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "isValidLegoTools",
-    "inputs": [
-      {
-        "name": "_addr",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "legoTools",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
       }
     ]
   },

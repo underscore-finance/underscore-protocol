@@ -31,6 +31,7 @@ from params_utils import (
     WALLET_BACKPACK_ID,
     BILLING_ID,
     VAULT_REGISTRY_ID,
+    HELPERS_ID,
     ZERO_ADDRESS,
     setup_boa_etherscan,
     boa_fork_context,
@@ -55,7 +56,6 @@ class DeploymentState:
         self.vaults = {}
         self.legos = {}
         self.switchboard_configs = {}
-        self.lego_tools = None
 
 
 state = DeploymentState()
@@ -80,6 +80,7 @@ def load_core_addresses(hq):
         "WalletBackpack": str(hq.getAddr(WALLET_BACKPACK_ID)),
         "Billing": str(hq.getAddr(BILLING_ID)),
         "VaultRegistry": str(hq.getAddr(VAULT_REGISTRY_ID)),
+        "Helpers": str(hq.getAddr(HELPERS_ID)),
     }
 
 
@@ -140,9 +141,6 @@ def load_legos(lb_addr):
     legos = {}
     num_legos = lb.numAddrs()
 
-    # Also get LegoTools
-    lego_tools = str(lb.legoTools())
-
     for i in range(1, num_legos):
         time.sleep(RPC_DELAY)
         addr = str(lb.getAddr(i))
@@ -150,7 +148,7 @@ def load_legos(lb_addr):
             addr_info = lb.addrInfo(i)
             legos[i] = {"address": addr, "description": addr_info.description}
 
-    return legos, lego_tools
+    return legos
 
 
 def load_switchboard_configs(sb_addr):
@@ -199,7 +197,7 @@ def initialize_deployments():
     # Load legos
     lb_addr = state.core_addresses.get("LegoBook")
     if lb_addr and lb_addr != ZERO_ADDRESS:
-        state.legos, state.lego_tools = load_legos(lb_addr)
+        state.legos = load_legos(lb_addr)
 
     # Load switchboard configs
     sb_addr = state.core_addresses.get("Switchboard")
@@ -304,13 +302,6 @@ def print_all_addresses():
     for config_id, config_info in sorted(state.switchboard_configs.items()):
         print(f"| {config_id} | {config_info['description']} | `{config_info['address']}` |")
 
-    # Other Contracts
-    print("\n<a id=\"other-contracts\"></a>")
-    print("## Other Contracts")
-    print("\n| Contract | Address |")
-    print("| --- | --- |")
-    if state.lego_tools and state.lego_tools != ZERO_ADDRESS:
-        print(f"| LegoTools | `{state.lego_tools}` |")
 
 
 # ============================================================================

@@ -38,6 +38,7 @@ def undy_hq(
     loot_distributor,
     billing,
     vault_registry,
+    helpers_deploy,
 ):
     # data
 
@@ -84,6 +85,10 @@ def undy_hq(
     # 10
     assert undy_hq_deploy.startAddNewAddressToRegistry(vault_registry, "Vault Registry", sender=deploy3r)
     assert undy_hq_deploy.confirmNewAddressToRegistry(vault_registry, sender=deploy3r) == 10
+
+    # 11
+    assert undy_hq_deploy.startAddNewAddressToRegistry(helpers_deploy, "Helpers", sender=deploy3r)
+    assert undy_hq_deploy.confirmNewAddressToRegistry(helpers_deploy, sender=deploy3r) == 11
 
     # special permission setup
 
@@ -683,6 +688,41 @@ def levg_vault_helper(mock_ripe, mock_usdc, fork, undy_hq_deploy):
     RIPE_REGISTRY = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
     USDC = mock_usdc if fork == "local" else TOKENS[fork]["USDC"]
     return boa.load("contracts/vaults/LevgVaultHelper.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="levg_vault_helper")
+
+
+@pytest.fixture(scope="session")
+def levg_vault_tools(mock_ripe, mock_usdc, fork, undy_hq_deploy):
+    RIPE_REGISTRY = mock_ripe if fork == "local" else INTEGRATION_ADDYS[fork]["RIPE_HQ_V1"]
+    USDC = mock_usdc if fork == "local" else TOKENS[fork]["USDC"]
+    return boa.load("contracts/helpers/LevgVaultTools.vy", undy_hq_deploy, RIPE_REGISTRY, USDC, name="levg_vault_tools")
+
+
+@pytest.fixture(scope="session")
+def helpers_deploy(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/registries/Helpers.vy",
+        undy_hq_deploy,
+        ZERO_ADDRESS,
+        PARAMS[fork]["UNDY_HQ_MIN_REG_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_REG_TIMELOCK"],
+        name="helpers",
+    )
+
+
+@pytest.fixture(scope="session")
+def helpers(helpers_deploy, governance, lego_tools, levg_vault_tools):
+    # Register LegoTools first
+    assert helpers_deploy.startAddNewAddressToRegistry(lego_tools, "LegoTools", sender=governance.address)
+    assert helpers_deploy.confirmNewAddressToRegistry(lego_tools, sender=governance.address) == 1
+
+    # Register LevgVaultTools second
+    assert helpers_deploy.startAddNewAddressToRegistry(levg_vault_tools, "LevgVaultTools", sender=governance.address)
+    assert helpers_deploy.confirmNewAddressToRegistry(levg_vault_tools, sender=governance.address) == 2
+
+    # Finish setup
+    assert helpers_deploy.setRegistryTimeLockAfterSetup(sender=governance.address)
+
+    return helpers_deploy
 
 
 # usdc leverage vault

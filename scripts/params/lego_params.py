@@ -188,7 +188,6 @@ def fetch_lego_book_data():
     # Registry Config (AddressRegistry Module)
     num_addrs = lb.numAddrs()
     rows = [
-        ("legoTools", format_address(str(lb.legoTools()), _get_known_addresses, try_fetch=True)),
         ("numAddrs (legos)", num_addrs - 1 if num_addrs > 0 else 0),
         ("registryChangeTimeLock", format_blocks_to_time(lb.registryChangeTimeLock())),
     ]
