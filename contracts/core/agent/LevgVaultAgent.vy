@@ -76,7 +76,7 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
 MAX_PROOFS: constant(uint256) = 25
 MAX_BATCH_INSTRUCTIONS: constant(uint256) = 15
-MAX_POSITIONS: constant(uint256) = 25
+MAX_POSITIONS: constant(uint256) = 10
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -118,6 +118,8 @@ def __init__(
     _greenToken: address,
     _savingsGreen: address,
 ):
+    assert _greenToken != empty(address) # dev: invalid green token
+    assert _savingsGreen != empty(address) # dev: invalid savings green
     ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
     UNDY_HQ = _undyHq
     GREEN = _greenToken
@@ -343,8 +345,8 @@ def borrowAndEarnYield(
     _borrowAmount: uint256 = 0,
     _wantsSavingsGreen: bool = True,
     _shouldEnterStabPool: bool = True,
-    # step 6: swap
-    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
+    # step 6: swap (single instruction)
+    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),
     # step 7: post-swap deposits (any position type, with optional add-to-ripe)
     _postSwapDeposits: DynArray[DepositYieldPosition, MAX_POSITIONS] = [],
     _sig: Signature = empty(Signature),
@@ -360,7 +362,7 @@ def borrowAndEarnYield(
         _borrowAmount,
         _wantsSavingsGreen,
         _shouldEnterStabPool,
-        _swapInstructions,
+        _swapInstruction,
         _postSwapDeposits,
         _sig.nonce,
         _sig.expiration
@@ -448,22 +450,25 @@ def borrowAndEarnYield(
             borrowExtraData
         )
 
-    # step 6: swap tokens
-    if len(_swapInstructions) != 0 and len(_swapInstructions[0].tokenPath) != 0:
-        swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = _swapInstructions
-        tokenIn: address = swapInstructions[0].tokenPath[0]
+    # step 6: swap tokens (single instruction)
+    # NOTE: amountIn behavior:
+    #   - amountIn = 0: auto-chain from borrow output (uses borrowAmountReceived if tokenIn matches)
+    #   - amountIn > 0: use explicit amount (opt-out of auto-chaining)
+    if len(_swapInstruction.tokenPath) != 0:
+        swapInstruction: Wallet.SwapInstruction = _swapInstruction
+        tokenIn: address = swapInstruction.tokenPath[0]
         swapBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(_levgWallet)
 
-        # if first token_in matches borrow_asset, use borrow_amount_received as input
-        if borrowAmountReceived != 0 and tokenIn == borrowAsset:
-            swapInstructions[0].amountIn = min(borrowAmountReceived, swapBalance)
+        # only auto-chain if user didn't specify explicit amountIn
+        if swapInstruction.amountIn == 0 and borrowAmountReceived != 0 and tokenIn == borrowAsset and swapBalance != 0:
+            swapInstruction.amountIn = min(borrowAmountReceived, swapBalance)
         else:
-            swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, swapBalance)
+            swapInstruction.amountIn = min(swapInstruction.amountIn, swapBalance)
 
         tokenInResult: address = empty(address)
         amountIn: uint256 = 0
         swapUsdValue: uint256 = 0
-        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens(swapInstructions)
+        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens([swapInstruction])
 
     # step 7: post-swap deposits
     for op: DepositYieldPosition in _postSwapDeposits:
@@ -517,7 +522,7 @@ def deleverage(
     # option c: manual deleverage (mode 2)
     _removeCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],
     _withdrawPositions: DynArray[PositionAsset, MAX_POSITIONS] = [],
-    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
+    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),
     # common: repay debt
     _repayAsset: address = empty(address),
     _repayAmount: uint256 = 0,
@@ -533,7 +538,7 @@ def deleverage(
         _deleverageAssets,
         _removeCollateral,
         _withdrawPositions,
-        _swapInstructions,
+        _swapInstruction,
         _repayAsset,
         _repayAmount,
         _shouldSweepAllForRepay,
@@ -605,21 +610,24 @@ def deleverage(
                 )
 
         # step 2c: swap tokens (usdc -> green)
-        if len(_swapInstructions) != 0 and len(_swapInstructions[0].tokenPath) != 0:
-            swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = _swapInstructions
-            tokenIn: address = swapInstructions[0].tokenPath[0]
+        # NOTE: amountIn behavior:
+        #   - amountIn = 0: auto-chain from last withdraw output (uses withdrawAmount if tokenIn matches)
+        #   - amountIn > 0: use explicit amount (opt-out of auto-chaining)
+        if len(_swapInstruction.tokenPath) != 0:
+            swapInstruction: Wallet.SwapInstruction = _swapInstruction
+            tokenIn: address = swapInstruction.tokenPath[0]
             tokenInBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(_levgWallet)
 
-            # if first tokenIn matches withdrawAsset, use withdrawAmount as input
-            if withdrawAmount != 0 and tokenIn == withdrawAsset:
-                swapInstructions[0].amountIn = min(withdrawAmount, tokenInBalance)
+            # only auto-chain if user didn't specify explicit amountIn
+            if swapInstruction.amountIn == 0 and withdrawAmount != 0 and tokenIn == withdrawAsset and tokenInBalance != 0:
+                swapInstruction.amountIn = min(withdrawAmount, tokenInBalance)
             else:
-                swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, tokenInBalance)
+                swapInstruction.amountIn = min(swapInstruction.amountIn, tokenInBalance)
 
             tokenInResult: address = empty(address)
             amountIn: uint256 = 0
             swapUsdValue: uint256 = 0
-            tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens(swapInstructions)
+            tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens([swapInstruction])
 
     # step 3: repay debt (works for all modes)
     if _repayAsset != empty(address):
@@ -648,8 +656,8 @@ def compoundYieldGains(
     _removeCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],
     # step 2: withdraw from yield
     _withdrawPositions: DynArray[PositionAsset, MAX_POSITIONS] = [],
-    # step 3: swap to collateral token
-    _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
+    # step 3: swap to collateral token (single instruction)
+    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),
     # step 4: post-swap deposits (any position type, with optional add-to-ripe)
     _postSwapDeposits: DynArray[DepositYieldPosition, MAX_POSITIONS] = [],
     # step 5: add as collateral
@@ -662,7 +670,7 @@ def compoundYieldGains(
         _levgWallet,
         _removeCollateral,
         _withdrawPositions,
-        _swapInstructions,
+        _swapInstruction,
         _postSwapDeposits,
         _addCollateral,
         _sig.nonce,
@@ -715,22 +723,25 @@ def compoundYieldGains(
                 False
             )
 
-    # step 3: swap to collateral token
-    if len(_swapInstructions) != 0 and len(_swapInstructions[0].tokenPath) != 0:
-        swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = _swapInstructions
-        tokenIn: address = swapInstructions[0].tokenPath[0]
+    # step 3: swap to collateral token (single instruction)
+    # NOTE: amountIn behavior:
+    #   - amountIn = 0: auto-chain from last withdraw output (uses withdrawAmount if tokenIn matches)
+    #   - amountIn > 0: use explicit amount (opt-out of auto-chaining)
+    if len(_swapInstruction.tokenPath) != 0:
+        swapInstruction: Wallet.SwapInstruction = _swapInstruction
+        tokenIn: address = swapInstruction.tokenPath[0]
         tokenInBalance: uint256 = staticcall IERC20(tokenIn).balanceOf(_levgWallet)
 
-        # if first tokenIn matches withdrawAsset, use withdrawAmount as input
-        if withdrawAmount != 0 and tokenIn == withdrawAsset:
-            swapInstructions[0].amountIn = min(withdrawAmount, tokenInBalance)
+        # only auto-chain if user didn't specify explicit amountIn
+        if swapInstruction.amountIn == 0 and withdrawAmount != 0 and tokenIn == withdrawAsset and tokenInBalance != 0:
+            swapInstruction.amountIn = min(withdrawAmount, tokenInBalance)
         else:
-            swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, tokenInBalance)
+            swapInstruction.amountIn = min(swapInstruction.amountIn, tokenInBalance)
 
         tokenInResult: address = empty(address)
         amountIn: uint256 = 0
         swapUsdValue: uint256 = 0
-        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens(swapInstructions)
+        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall Wallet(_levgWallet).swapTokens([swapInstruction])
 
     # step 4: post-swap deposits
     for op: DepositYieldPosition in _postSwapDeposits:
@@ -821,7 +832,7 @@ def _getCollateralData(
     elif _positionType == POSITION_STAB_POOL:
         return SAVINGS_GREEN, RIPE_STAB_POOL_ID
     else:
-        return empty(address), 0
+        raise "invalid position type"
 
 
 @view
@@ -840,7 +851,7 @@ def _getWithdrawData(
     elif _positionType == POSITION_STAB_POOL:
         return SAVINGS_GREEN, RIPE_LEGO_ID
     else:
-        return empty(address), 0
+        raise "invalid position type"
 
 
 @view
@@ -861,7 +872,7 @@ def _getDepositData(
     elif _positionType == POSITION_STAB_POOL:
         return SAVINGS_GREEN, GREEN, RIPE_LEGO_ID, RIPE_STAB_POOL_ID
     else:
-        return empty(address), empty(address), 0, 0
+        raise "invalid position type"
 
 
 @internal
