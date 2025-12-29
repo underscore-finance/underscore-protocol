@@ -610,14 +610,8 @@ def _getMaxBorrowAmountByMaxDebtRatio(
     # convert to USD value
     underlyingUsdValue: uint256 = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(underlyingAsset, underlyingAmount, True)
 
-    # current debt amount (in GREEN, 18 decimals, treated as $1 USD)
-    currentDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
-
-    # user's GREEN can offset debt (GREEN is 18 decimals, treated as $1 USD)
-    greenAmount: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
-    remainingDebt: uint256 = 0
-    if currentDebt > greenAmount:
-        remainingDebt = currentDebt - greenAmount
+    # remaining debt after GREEN offset (GREEN is 18 decimals, treated as $1 USD)
+    remainingDebt: uint256 = self._getNetUserDebt(_levgVault, _creditEngine, _ripeVaultBook, _ripeMissionControl)
 
     # max allowed debt (in USD)
     maxAllowedDebt: uint256 = underlyingUsdValue * maxDebtRatio // HUNDRED_PERCENT
@@ -634,6 +628,27 @@ def _getMaxBorrowAmountByRipeLtv(
     _creditEngine: address,
 ) -> uint256:
     return staticcall RipeCreditEngine(_creditEngine).getMaxBorrowAmount(_levgVault)
+
+
+@view
+@internal
+def _getNetUserDebt(
+    _levgVault: address,
+    _creditEngine: address,
+    _ripeVaultBook: address,
+    _ripeMissionControl: address,
+) -> uint256:
+    # get user debt in GREEN (18 decimals)
+    userDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
+
+    # get underlying GREEN amount (in wallet and from sGREEN)
+    greenSurplus: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
+
+    # if GREEN >= debt, return 0 (no net debt exists)
+    if greenSurplus >= userDebt:
+        return 0
+
+    return userDebt - greenSurplus
 
 
 @view

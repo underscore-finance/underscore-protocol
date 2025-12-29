@@ -1666,3 +1666,232 @@ def test_get_debt_to_ripe_collateral_ratio_over_100_percent(
     result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
 
     assert result == 15000
+
+
+#####################################
+# 15. getNetUserDebt Tests          #
+#####################################
+
+
+def test_get_net_user_debt_no_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """No debt means net debt is 0."""
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_with_debt_no_green(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """Debt with no GREEN returns full debt amount."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == debt_amount
+
+
+def test_get_net_user_debt_green_fully_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """GREEN fully covers debt, net debt is 0."""
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_green_exactly_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """GREEN exactly equals debt, net debt is 0."""
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_green_partially_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """$10k debt - $3k GREEN = $7k net debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 3_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_sgreen_in_wallet_counts(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    mock_savings_green_token,
+    governance,
+):
+    """sGREEN in wallet is converted and offsets debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # Deposit GREEN into sGREEN (in wallet)
+    green_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+    mock_green_token.approve(mock_savings_green_token.address, green_amount, sender=undy_levg_vault_usdc.address)
+    mock_savings_green_token.deposit(green_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    # Get expected converted amount
+    sgreen_balance = mock_savings_green_token.balanceOf(undy_levg_vault_usdc.address)
+    converted_green = mock_savings_green_token.previewRedeem(sgreen_balance)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - converted_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_sgreen_on_ripe_counts(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_savings_green_token,
+):
+    """sGREEN on Ripe is converted and offsets debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # Set sGREEN on Ripe
+    sgreen_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_amount)
+
+    # Get expected converted amount
+    converted_green = mock_savings_green_token.previewRedeem(sgreen_amount)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - converted_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_mixed_sources(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    mock_savings_green_token,
+    governance,
+):
+    """GREEN from all sources (wallet, sGREEN wallet, sGREEN Ripe) offset debt."""
+    debt_amount = 20_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # 1. GREEN in wallet
+    green_wallet = 3_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_wallet, sender=governance.address)
+
+    # 2. Deposit some GREEN into sGREEN (kept in wallet)
+    green_for_sgreen = 4_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_for_sgreen, sender=governance.address)
+    mock_green_token.approve(mock_savings_green_token.address, green_for_sgreen, sender=undy_levg_vault_usdc.address)
+    mock_savings_green_token.deposit(green_for_sgreen, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    # 3. sGREEN on Ripe
+    sgreen_ripe = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_ripe)
+
+    # Calculate total GREEN value
+    sgreen_wallet_balance = mock_savings_green_token.balanceOf(undy_levg_vault_usdc.address)
+    total_sgreen = sgreen_wallet_balance + sgreen_ripe
+    converted_sgreen = mock_savings_green_token.previewRedeem(total_sgreen)
+    total_green = green_wallet + converted_sgreen
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - total_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_cbbtc_vault(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_green_token,
+    governance,
+):
+    """Test getNetUserDebt works for cbBTC vault."""
+    debt_amount = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    green_amount = 20_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_cbbtc.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_weth_vault(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_weth,
+    mock_green_token,
+    governance,
+):
+    """Test getNetUserDebt works for WETH vault."""
+    debt_amount = 100_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_weth.address, debt_amount)
+
+    green_amount = 25_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_weth.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_weth.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt

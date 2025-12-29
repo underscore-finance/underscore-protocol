@@ -615,14 +615,8 @@ def _getMaxBorrowAmountByMaxDebtRatio(
     # convert to USD value
     underlyingUsdValue: uint256 = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(underlyingAsset, underlyingAmount, False)
 
-    # current debt amount (in GREEN, 18 decimals, treated as $1 USD)
-    currentDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
-
-    # user's GREEN can offset debt (GREEN is 18 decimals, treated as $1 USD)
-    greenAmount: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
-    remainingDebt: uint256 = 0
-    if currentDebt > greenAmount:
-        remainingDebt = currentDebt - greenAmount
+    # remaining debt after GREEN offset (GREEN is 18 decimals, treated as $1 USD)
+    remainingDebt: uint256 = self._getNetUserDebt(_levgVault, _creditEngine, _ripeVaultBook, _ripeMissionControl)
 
     # max allowed debt (in USD)
     maxAllowedDebt: uint256 = underlyingUsdValue * maxDebtRatio // HUNDRED_PERCENT
@@ -654,6 +648,47 @@ def _getMaxBorrowAmountByRipeLtv(
     _creditEngine: address,
 ) -> uint256:
     return staticcall RipeCreditEngine(_creditEngine).getMaxBorrowAmount(_levgVault)
+
+
+# net user debt
+
+
+@view
+@external
+def getNetUserDebt(
+    _levgVault: address,
+    _ripeVaultBook: address = empty(address),
+    _ripeMissionControl: address = empty(address),
+    _ripeHq: address = empty(address),
+) -> uint256:
+    # resolve addresses
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(_ripeVaultBook, ripeHq)
+    ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
+    creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
+
+    return self._getNetUserDebt(_levgVault, creditEngine, ripeVaultBook, ripeMissionControl)
+
+
+@view
+@internal
+def _getNetUserDebt(
+    _levgVault: address,
+    _creditEngine: address,
+    _ripeVaultBook: address,
+    _ripeMissionControl: address,
+) -> uint256:
+    # get user debt in GREEN (18 decimals)
+    userDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
+
+    # get underlying GREEN amount (in wallet and from sGREEN)
+    greenSurplus: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
+
+    # if GREEN >= debt, return 0 (no net debt exists)
+    if greenSurplus >= userDebt:
+        return 0
+
+    return userDebt - greenSurplus
 
 
 ####################
@@ -704,18 +739,10 @@ def _getDebtToDepositRatio(
     _creditEngine: address,
     _ripePriceDesk: address,
 ) -> uint256:
-    # get user debt in GREEN (18 decimals)
-    userDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
-
-    # get underlying GREEN amount (in wallet and from sGREEN)
-    greenSurplus: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
-
-    # if GREEN >= debt, return 0 (no net debt exists)
-    if greenSurplus >= userDebt:
-        return 0
-
     # calculate net debt (numerator)
-    netDebt: uint256 = userDebt - greenSurplus
+    netDebt: uint256 = self._getNetUserDebt(_levgVault, _creditEngine, _ripeVaultBook, _ripeMissionControl)
+    if netDebt == 0:
+        return 0
 
     # get vault token data
     leverageVaultToken: address = _leverageVaultToken
@@ -822,18 +849,10 @@ def getDebtToRipeCollateralRatio(
     ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
     creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
 
-    # get user debt in GREEN (18 decimals)
-    userDebt: uint256 = staticcall RipeCreditEngine(creditEngine).getUserDebtAmount(_levgVault)
-
-    # get underlying GREEN amount (in wallet and from sGREEN)
-    greenSurplus: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), ripeVaultBook, ripeMissionControl)
-
-    # if GREEN >= debt, return 0 (no net debt exists)
-    if greenSurplus >= userDebt:
-        return 0
-
     # calculate net debt
-    netDebt: uint256 = userDebt - greenSurplus
+    netDebt: uint256 = self._getNetUserDebt(_levgVault, creditEngine, ripeVaultBook, ripeMissionControl)
+    if netDebt == 0:
+        return 0
 
     # get total Ripe collateral value (USD, 18 decimals)
     ripeCollateralValue: uint256 = staticcall RipeCreditEngine(creditEngine).getCollateralValue(_levgVault)
