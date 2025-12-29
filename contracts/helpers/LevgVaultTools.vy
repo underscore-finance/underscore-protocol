@@ -358,6 +358,38 @@ def _getUnderlyingGreenAmount(
     return greenAmount
 
 
+@view
+@external
+def getSavingsGreenBalances(_ripeHq: address = empty(address)) -> (uint256, uint256, uint256, uint256):
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(empty(address), ripeHq)
+    savingsGreen: address = SAVINGS_GREEN
+
+    # get stab pool address
+    stabPoolAddr: address = staticcall Registry(ripeVaultBook).getAddr(STAB_POOL_ID)
+    if stabPoolAddr == empty(address):
+        return 0, 0, 0, 0
+
+    # total savings green supply
+    totalSavingsGreen: uint256 = staticcall IERC20(savingsGreen).totalSupply()
+    if totalSavingsGreen == 0:
+        return 0, 0, 0, 0
+
+    # sGREEN in stab pool
+    sGreenInStabPool: uint256 = staticcall IERC20(savingsGreen).balanceOf(stabPoolAddr)
+    greenInStabPool: uint256 = 0
+    if sGreenInStabPool != 0:
+        greenInStabPool = staticcall IERC4626(savingsGreen).previewRedeem(sGreenInStabPool)
+
+    # sGREEN not in stab pool
+    sGreenNotInStabPool: uint256 = totalSavingsGreen - sGreenInStabPool
+    greenNotInStabPool: uint256 = 0
+    if sGreenNotInStabPool != 0:
+        greenNotInStabPool = staticcall IERC4626(savingsGreen).previewRedeem(sGreenNotInStabPool)
+
+    return sGreenInStabPool, greenInStabPool, sGreenNotInStabPool, greenNotInStabPool
+
+
 ################
 # Swap Helpers #
 ################
