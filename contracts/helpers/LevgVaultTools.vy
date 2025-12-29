@@ -50,6 +50,9 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface RipeEndaomentPsm:
+    def getAvailableUsdc() -> uint256: view
+
 struct VaultToken:
     legoId: uint256
     underlyingAsset: address
@@ -70,6 +73,7 @@ RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
 RIPE_VAULT_BOOK_ID: constant(uint256) = 8
 RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
+RIPE_ENDAOMENT_PSM_ID: constant(uint256) = 22
 STAB_POOL_ID: constant(uint256) = 1
 
 HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
@@ -462,6 +466,14 @@ def getDebtAmount(_levgVault: address, _ripeHq: address = empty(address)) -> uin
     ripeHq: address = self._getRipeHq(_ripeHq)
     creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
     return staticcall RipeCreditEngine(creditEngine).getUserDebtAmount(_levgVault)
+
+
+@view
+@external
+def getAvailableUsdcFromEndaomentPsm(_ripeHq: address = empty(address)) -> uint256:
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    endaomentPsm: address = staticcall Registry(ripeHq).getAddr(RIPE_ENDAOMENT_PSM_ID)
+    return staticcall RipeEndaomentPsm(endaomentPsm).getAvailableUsdc()
 
 
 # true max borrow amount
