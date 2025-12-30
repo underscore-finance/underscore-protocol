@@ -10,10 +10,10 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
 interface LevgVaultHelper:
-    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
-    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
-    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenLegoId: uint256, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
-    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenLegoId: uint256, _collateralVaultTokenRipeVaultId: uint256, _netUserCapital: uint256, _maxDebtRatio: uint256, _isUsdcVault: bool, _legoBook: address = empty(address)) -> uint256: view
+    def getTotalAssetsForNonUsdcVault(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
+    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _netUserCapital: uint256, _maxDebtRatio: uint256, _legoBook: address = empty(address)) -> uint256: view
     def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdcSlippageAllowed: uint256, _greenSlippageAllowed: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view
     def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256, _vaultBook: address = empty(address)) -> uint256: view
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
@@ -348,7 +348,6 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
             origAmountIn,
             currentBalance,
             levgData.vaultToken,
-            self.vaultToLegoId[levgData.vaultToken],
             levgData.ripeVaultId,
             usdc,
             green,
@@ -550,11 +549,9 @@ def borrow(
             self,
             ad.vaultAsset,
             collData.vaultToken,
-            self.vaultToLegoId[collData.vaultToken],
             collData.ripeVaultId,
             self.netUserCapital,
             maxDebtRatio,
-            ad.vaultAsset == USDC,
             ad.legoBook,
         )
         amount = min(amount, maxBorrowableAmount)
@@ -650,10 +647,8 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
         return staticcall LevgVaultHelper(levgVaultHelper).getTotalAssetsForUsdcVault(
             self,
             collData.vaultToken,
-            self.vaultToLegoId[collData.vaultToken],
             collData.ripeVaultId,
             levgData.vaultToken,
-            self.vaultToLegoId[levgData.vaultToken],
             levgData.ripeVaultId,
             _shouldGetMax,
             usdc,
@@ -667,10 +662,8 @@ def _getTotalAssets(_shouldGetMax: bool) -> uint256:
         self,
         underlyingAsset,
         collData.vaultToken,
-        self.vaultToLegoId[collData.vaultToken],
         collData.ripeVaultId,
         levgData.vaultToken,
-        self.vaultToLegoId[levgData.vaultToken],
         levgData.ripeVaultId,
         _shouldGetMax,
         usdc,
