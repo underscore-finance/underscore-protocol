@@ -15,6 +15,7 @@ interface LevgVault:
     def leverageAsset() -> RipeAsset: view
     def netUserCapital() -> uint256: view
     def maxDebtRatio() -> uint256: view
+    def isRawAssetCollateral() -> bool: view
 
 interface YieldLego:
     def getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) -> uint256: view
@@ -376,6 +377,26 @@ def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaul
     return self._isSupportedAssetInVault(_ripeVaultId, _vaultToken)
 
 
+# validate raw asset collateral (no vault wrapping, e.g., cbXRP, uSOL)
+
+
+@view
+@external
+def isValidRawAssetCollateral(_underlyingAsset: address, _rawAsset: address, _ripeVaultId: uint256) -> bool:
+    if empty(address) in [_underlyingAsset, _rawAsset]:
+        return False
+
+    if _ripeVaultId == 0:
+        return False
+
+    # raw asset must BE the underlying asset
+    if _rawAsset != _underlyingAsset:
+        return False
+
+    # check ripe supports this raw asset in the specified vault
+    return self._isSupportedAssetInVault(_ripeVaultId, _rawAsset)
+
+
 #####################
 # Core Internal Fns #
 #####################
@@ -471,6 +492,13 @@ def _getUnderlyingAmountWithVaultTokenAmount(
     # get lego id (if necessary)
     legoId: uint256 = self._getLegoIdForVaultToken(_levgVault, _vaultToken, _undyVaultTokenLegoId)
     if legoId == 0:
+
+        # verify this is truly raw asset collateral (not just a missing lego)
+        underlyingAsset: address = staticcall IERC4626(_levgVault).asset()
+        if _vaultToken == underlyingAsset and staticcall LevgVault(_levgVault).isRawAssetCollateral():
+            return _vaultTokenAmount
+
+        # legoId is 0 but not raw asset collateral - invalid state
         return 0
 
     # underscore lego address

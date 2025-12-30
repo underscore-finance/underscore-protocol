@@ -21,6 +21,7 @@ interface LevgVaultWallet:
     def indexOfManager(_manager: address) -> uint256: view
     def collateralAsset() -> RipeAsset: view
     def leverageAsset() -> RipeAsset: view
+    def isRawAssetCollateral() -> bool: view
 
 interface RipeLego:
     def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256: nonpayable
@@ -587,16 +588,20 @@ def _fetchPositionData(_levgWallet: address) -> (RipeAsset, RipeAsset, address, 
     collData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).collateralAsset()
     levgData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).leverageAsset()
 
+    collLegoId: uint256 = staticcall LevgVaultWallet(_levgWallet).vaultToLegoId(collData.vaultToken)
+    levgLegoId: uint256 = staticcall LevgVaultWallet(_levgWallet).vaultToLegoId(levgData.vaultToken)
+
     collUnderlyingAsset: address = empty(address)
     if collData.vaultToken != empty(address):
-        collUnderlyingAsset = staticcall IERC4626(collData.vaultToken).asset()
+        if collLegoId == 0:
+            # raw asset collateral: vaultToken IS the underlying asset
+            collUnderlyingAsset = collData.vaultToken
+        else:
+            collUnderlyingAsset = staticcall IERC4626(collData.vaultToken).asset()
 
     levgUnderlyingAsset: address = empty(address)
     if levgData.vaultToken != empty(address):
         levgUnderlyingAsset = staticcall IERC4626(levgData.vaultToken).asset()
-
-    collLegoId: uint256 = staticcall LevgVaultWallet(_levgWallet).vaultToLegoId(collData.vaultToken)
-    levgLegoId: uint256 = staticcall LevgVaultWallet(_levgWallet).vaultToLegoId(levgData.vaultToken)
 
     return collData, levgData, collUnderlyingAsset, levgUnderlyingAsset, collLegoId, levgLegoId
 
@@ -694,6 +699,22 @@ def _processDeposit(
         depositAmount = _deposit.amount
     else:
         depositAmount = max_value(uint256)
+
+    # raw asset collateral (legoId=0): skip yield deposit, optionally add raw asset to Ripe
+    if legoId == 0 and _deposit.positionType == POSITION_COLLATERAL:
+        if _deposit.shouldAddToRipeCollateral:
+            # determine actual amount to add
+            rawAssetAmount: uint256 = depositAmount
+            if depositAmount == max_value(uint256):
+                rawAssetAmount = staticcall IERC20(underlyingAsset).balanceOf(_levgWallet)
+            if rawAssetAmount != 0:
+                extcall Wallet(_levgWallet).addCollateral(
+                    RIPE_LEGO_ID,
+                    underlyingAsset,
+                    rawAssetAmount,
+                    convert(ripeVaultId, bytes32)
+                )
+        return
 
     vaultTokenReceived: uint256 = 0
     receivedVaultToken: address = empty(address)
