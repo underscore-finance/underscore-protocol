@@ -302,6 +302,7 @@ def test_perform_post_swap_validation_other_swaps_pass(
 def test_get_total_assets_for_usdc_vault_no_debt(
     levg_vault_helper,
     setup_mock_prices,
+    mock_ripe,
     undy_levg_vault_usdc,
     mock_usdc_collateral_vault,
     mock_usdc_leverage_vault,
@@ -309,6 +310,13 @@ def test_get_total_assets_for_usdc_vault_no_debt(
     governance,
 ):
     """Test total assets for USDC vault with no debt"""
+    # Reset mock state (clear any pollution from previous tests)
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    # Get current wallet balance to account for any existing USDC
+    existing_usdc = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     # Give wallet 10k USDC
     usdc_amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, usdc_amount, sender=governance.address)
@@ -321,8 +329,9 @@ def test_get_total_assets_for_usdc_vault_no_debt(
         1,  # leverage ripe vault ID
     )
 
-    # With no debt and 10k USDC, total assets should be 10k
-    assert total_assets == usdc_amount
+    # With no debt, total assets should be wallet balance (existing + minted)
+    expected = existing_usdc + usdc_amount
+    assert total_assets == expected
 
 
 def test_get_total_assets_for_usdc_vault_with_surplus(
@@ -370,9 +379,16 @@ def test_get_total_assets_for_usdc_vault_with_debt(
     governance,
 ):
     """Test total assets for USDC vault with debt (reduces value)"""
+    # Reset mock state (clear any pollution from previous tests)
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+
+    # Get current wallet balance to account for any existing USDC
+    existing_usdc = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     # Give wallet 10k USDC
     usdc_amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, usdc_amount, sender=governance.address)
+    total_usdc = existing_usdc + usdc_amount
 
     # Add 3k GREEN debt
     debt_amount = 3_000 * EIGHTEEN_DECIMALS
@@ -386,10 +402,10 @@ def test_get_total_assets_for_usdc_vault_with_debt(
         1,  # leverage ripe vault ID
     )
 
-    # Total should be 10k USDC - 3k debt = 7k USDC
-    expected = usdc_amount - (3_000 * SIX_DECIMALS)
+    # Total should be (existing + 10k) USDC - 3k debt
+    expected = total_usdc - (3_000 * SIX_DECIMALS)
     assert total_assets >= expected * 99 // 100  # Allow 1% tolerance
-    assert total_assets <= usdc_amount
+    assert total_assets <= total_usdc
 
 
 ############################################
