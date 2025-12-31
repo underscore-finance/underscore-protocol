@@ -545,6 +545,14 @@ def _getTotalUnderlyingAmount(
     _ripeMissionControl: address,
 ) -> uint256:
     underlyingAsset: address = staticcall IERC4626(_levgVault).asset() if _isCollateralAsset else USDC
+
+    # For raw asset collateral, the vault token IS the underlying asset.
+    # In this case, _getAmountForAsset already captures wallet + Ripe collateral,
+    # so we should NOT also add underlyingFromVault (which would double count).
+    if _isCollateralAsset and _vaultToken == underlyingAsset and staticcall LevgVault(_levgVault).isRawAssetCollateral():
+        return self._getAmountForAsset(_levgVault, underlyingAsset, _ripeVaultId, _ripeVaultBook, _ripeMissionControl)
+
+    # Standard case: underlying naked + underlying from vault token
     underlyingNaked: uint256 = self._getAmountForAsset(_levgVault, underlyingAsset, 0, _ripeVaultBook, _ripeMissionControl)
     underlyingFromVault: uint256 = self._getUnderlyingAmountForVaultToken(_levgVault, _vaultToken, _shouldGetMax, _ripeVaultId, _legoBook, _ripeVaultBook, _ripeMissionControl)
     return underlyingNaked + underlyingFromVault

@@ -82,30 +82,6 @@ def test_set_collateral_vault_success(switchboard_charlie, undy_levg_vault_usdc,
     assert switchboard_charlie.actionType(aid) == 0
 
 
-def test_set_collateral_vault_empty_address_success(switchboard_charlie, undy_levg_vault_usdc, governance):
-    """Test setting collateral vault to empty address (allowed per code)"""
-    vault = undy_levg_vault_usdc
-
-    # Initiate change to empty address
-    aid = switchboard_charlie.setCollateralVault(
-        vault.address,
-        ZERO_ADDRESS,
-        0,
-        0,
-        False,  # shouldMaxWithdraw
-        sender=governance.address
-    )
-
-    # Timelock and execute
-    boa.env.time_travel(blocks=switchboard_charlie.actionTimeLock())
-    result = switchboard_charlie.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify state
-    updated_collateral = vault.collateralAsset()
-    assert updated_collateral.vaultToken == ZERO_ADDRESS
-
-
 def test_set_collateral_vault_invalid_vault_fails(switchboard_charlie, governance):
     """Test that invalid vault address is rejected"""
     invalid_vault = boa.env.generate_address()

@@ -1588,6 +1588,22 @@ def test_redeem_checks_collateral_vault_before_leverage_vault(
     """Test that redemption checks collateral vault first, then leverage vault"""
     vault = undy_levg_vault_usdc
 
+    # Sweep any pre-existing idle USDC from prior tests into leverage vault
+    # This ensures our redemption test will use collateral vault, not idle USDC
+    pre_idle_usdc = mock_usdc.balanceOf(vault.address)
+    if pre_idle_usdc > 0:
+        vault.depositForYield(
+            2,
+            mock_usdc.address,
+            mock_usdc_leverage_vault.address,
+            pre_idle_usdc,
+            sender=starter_agent.address
+        )
+
+    # Capture initial balances to handle shared fixture state
+    initial_collateral_balance = mock_usdc_collateral_vault.balanceOf(vault.address)
+    initial_leverage_balance = mock_usdc_leverage_vault.balanceOf(vault.address)
+
     # 1. User deposits USDC into vault to get shares (with auto-deposit)
     deposit_amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(bob, deposit_amount, sender=governance.address)
@@ -1601,7 +1617,9 @@ def test_redeem_checks_collateral_vault_before_leverage_vault(
 
     # 2. After auto-deposit, manually split: withdraw from collateral and deposit some into leverage
     collateral_balance = mock_usdc_collateral_vault.balanceOf(vault.address)
-    half = collateral_balance // 2
+    # Calculate the increase from THIS deposit only
+    collateral_increase = collateral_balance - initial_collateral_balance
+    half = collateral_increase // 2
 
     # Withdraw half from collateral vault
     vault.withdrawFromYield(
@@ -1629,8 +1647,12 @@ def test_redeem_checks_collateral_vault_before_leverage_vault(
     # Enable withdrawals
     vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
 
-    # 3. User redeems small amount - should come from idle USDC and collateral vault first
-    small_shares = shares // 10  # 10% of shares
+    # 3. Redeem 10% of THIS deposit's shares - should come from collateral first
+    # Using shares from THIS deposit ensures we redeem a meaningful amount
+    small_shares = shares // 10
+    if small_shares == 0:
+        small_shares = 1
+
     vault.redeem(small_shares, bob, bob, sender=bob)
 
     # Verify collateral vault was used (reduced), leverage vault untouched
