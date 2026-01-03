@@ -14,6 +14,7 @@ userDebt: public(HashMap[address, uint256]) # user -> debt amount
 snapshotsCalled: public(HashMap[address, uint256]) # Track snapshot calls for testing
 borrowRate: public(uint256) # mock borrow rate
 mockMaxBorrowAmount: public(HashMap[address, uint256]) # user/vault -> max borrow amount
+mockCollateralValue: public(HashMap[address, uint256]) # user -> collateral value (USD, 18 decimals)
 
 GREEN_TOKEN: public(immutable(address))
 SAVINGS_GREEN: public(immutable(address))
@@ -338,6 +339,17 @@ def getMaxBorrowAmount(_user: address) -> uint256:
     return self.mockMaxBorrowAmount[_user]
 
 
+@external
+def setCollateralValue(_user: address, _value: uint256):
+    self.mockCollateralValue[_user] = _value
+
+
+@view
+@external
+def getCollateralValue(_user: address) -> uint256:
+    return self.mockCollateralValue[_user]
+
+
 ################################
 # RIPE DEPOSIT VAULT INTERFACE #
 ################################
@@ -354,9 +366,37 @@ def getTotalAmountForUser(_user: address, _asset: address) -> uint256:
 ########################
 
 
+struct DeleverageAsset:
+    vaultId: uint256
+    asset: address
+    targetRepayAmount: uint256
+
+
 @external
 def deleverageForWithdrawal(_user: address, _vaultId: uint256, _asset: address, _amount: uint256) -> bool:
     return True
+
+
+@external
+def deleverageUser(_user: address = msg.sender, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256:
+    # Simple stub - reduces user debt by target amount
+    targetAmount: uint256 = _targetRepayAmount if _targetRepayAmount != max_value(uint256) else self.userDebt[_user]
+    actualAmount: uint256 = min(targetAmount, self.userDebt[_user])
+    if actualAmount > 0:
+        self.userDebt[_user] -= actualAmount
+    return actualAmount
+
+
+@external
+def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, 25], _user: address = msg.sender) -> uint256:
+    # Simple stub - sum of target amounts, reduce from user debt
+    total: uint256 = 0
+    for asset: DeleverageAsset in _assets:
+        total += asset.targetRepayAmount
+    actualAmount: uint256 = min(total, self.userDebt[_user])
+    if actualAmount > 0:
+        self.userDebt[_user] -= actualAmount
+    return actualAmount
 
 
 ###########################

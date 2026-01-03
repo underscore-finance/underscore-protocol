@@ -168,7 +168,6 @@ def test_get_swappable_usdc_amount_returns_zero_for_usdc_vault(
         amount_in,
         current_balance,
         mock_usdc_leverage_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
     )
 
@@ -303,6 +302,7 @@ def test_perform_post_swap_validation_other_swaps_pass(
 def test_get_total_assets_for_usdc_vault_no_debt(
     levg_vault_helper,
     setup_mock_prices,
+    mock_ripe,
     undy_levg_vault_usdc,
     mock_usdc_collateral_vault,
     mock_usdc_leverage_vault,
@@ -310,6 +310,13 @@ def test_get_total_assets_for_usdc_vault_no_debt(
     governance,
 ):
     """Test total assets for USDC vault with no debt"""
+    # Reset mock state (clear any pollution from previous tests)
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    # Get current wallet balance to account for any existing USDC
+    existing_usdc = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     # Give wallet 10k USDC
     usdc_amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, usdc_amount, sender=governance.address)
@@ -317,15 +324,14 @@ def test_get_total_assets_for_usdc_vault_no_debt(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
-    # With no debt and 10k USDC, total assets should be 10k
-    assert total_assets == usdc_amount
+    # With no debt, total assets should be wallet balance (existing + minted)
+    expected = existing_usdc + usdc_amount
+    assert total_assets == expected
 
 
 def test_get_total_assets_for_usdc_vault_with_surplus(
@@ -352,10 +358,8 @@ def test_get_total_assets_for_usdc_vault_with_surplus(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -375,9 +379,16 @@ def test_get_total_assets_for_usdc_vault_with_debt(
     governance,
 ):
     """Test total assets for USDC vault with debt (reduces value)"""
+    # Reset mock state (clear any pollution from previous tests)
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+
+    # Get current wallet balance to account for any existing USDC
+    existing_usdc = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     # Give wallet 10k USDC
     usdc_amount = 10_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, usdc_amount, sender=governance.address)
+    total_usdc = existing_usdc + usdc_amount
 
     # Add 3k GREEN debt
     debt_amount = 3_000 * EIGHTEEN_DECIMALS
@@ -386,17 +397,15 @@ def test_get_total_assets_for_usdc_vault_with_debt(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
-    # Total should be 10k USDC - 3k debt = 7k USDC
-    expected = usdc_amount - (3_000 * SIX_DECIMALS)
+    # Total should be (existing + 10k) USDC - 3k debt
+    expected = total_usdc - (3_000 * SIX_DECIMALS)
     assert total_assets >= expected * 99 // 100  # Allow 1% tolerance
-    assert total_assets <= usdc_amount
+    assert total_assets <= total_usdc
 
 
 ############################################
@@ -431,10 +440,8 @@ def test_get_total_assets_usdc_vault_with_sgreen_surplus(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -466,10 +473,8 @@ def test_get_total_assets_usdc_vault_with_sgreen_on_ripe(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -508,10 +513,8 @@ def test_get_total_assets_usdc_vault_with_mixed_green_and_sgreen(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -567,10 +570,8 @@ def test_get_total_assets_non_usdc_vault_no_debt(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -635,10 +636,8 @@ def test_get_total_assets_non_usdc_vault_with_debt(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -694,10 +693,8 @@ def test_get_total_assets_non_usdc_vault_with_usdc_surplus(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -758,10 +755,8 @@ def test_get_total_assets_non_usdc_vault_with_sgreen_surplus(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -826,10 +821,8 @@ def test_get_total_assets_non_usdc_vault_underwater(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -865,10 +858,8 @@ def test_total_assets_usdc_vault_with_collateral_on_ripe(
     total_assets = levg_vault_helper.getTotalAssetsForUsdcVault(
         undy_levg_vault_usdc.address,
         mock_usdc_collateral_vault.address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         mock_usdc_leverage_vault.address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -928,10 +919,8 @@ def test_total_assets_non_usdc_vault_with_collateral_and_leverage_vault(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -997,10 +986,8 @@ def test_non_usdc_vault_usdc_covers_debt_with_surplus(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -1069,10 +1056,8 @@ def test_non_usdc_vault_debt_exceeds_usdc_underwater(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -1104,7 +1089,6 @@ def test_get_swappable_usdc_when_debt_exceeds_value(
         MAX_UINT256,
         current_balance,
         mock_usdc_leverage_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
     )
 
@@ -1165,10 +1149,8 @@ def test_non_usdc_decimal_precision_calculations(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -1229,10 +1211,8 @@ def test_mixed_decimal_conversions_with_usdc_and_debt(
         config["vault"].address,
         config["underlying"].address,
         config["collateral_vault"].address,
-        2,  # collateral lego ID
         1,  # collateral ripe vault ID
         config["leverage_vault"].address,
-        2,  # leverage lego ID
         1,  # leverage ripe vault ID
     )
 
@@ -1269,11 +1249,9 @@ def test_get_max_borrow_amount_no_debt(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital (not used for non-USDC vault)
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # Default maxDebtRatio is 100% (10000 / 10000)
@@ -1304,11 +1282,9 @@ def test_get_max_borrow_amount_with_debt(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # Now add debt and verify capacity is reduced
@@ -1318,11 +1294,9 @@ def test_get_max_borrow_amount_with_debt(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # With debt, remaining capacity should be reduced by exactly the debt amount
@@ -1354,11 +1328,9 @@ def test_get_max_borrow_amount_green_offsets_debt(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # Add GREEN to wallet
@@ -1370,11 +1342,9 @@ def test_get_max_borrow_amount_green_offsets_debt(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # GREEN should offset debt, increasing capacity by exactly the GREEN amount
@@ -1403,11 +1373,9 @@ def test_get_max_borrow_amount_returns_min_of_limits(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100% (would allow $90k)
-        False,  # isUsdcVault
     )
 
     # Result should be the lower Ripe limit
@@ -1438,11 +1406,9 @@ def test_get_max_borrow_amount_underwater_returns_zero(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         10000,  # maxDebtRatio = 100%
-        False,  # isUsdcVault
     )
 
     # Should return 0 when underwater
@@ -1470,11 +1436,9 @@ def test_get_max_borrow_amount_zero_debt_ratio_returns_max(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
         0,  # netUserCapital
         0,  # maxDebtRatio = 0 (unlimited by debt ratio)
-        False,  # isUsdcVault
     )
 
     # When maxDebtRatio=0, debt ratio limit is max_value, so Ripe limit wins
@@ -1590,7 +1554,6 @@ def test_get_swappable_usdc_green_fully_covers_debt(
         MAX_UINT256,
         usdc_amount,
         mock_usdc_leverage_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
     )
 
@@ -1626,7 +1589,6 @@ def test_get_swappable_usdc_green_partially_covers_debt(
         MAX_UINT256,
         usdc_amount,
         mock_usdc_leverage_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
     )
 
@@ -1659,7 +1621,6 @@ def test_get_swappable_usdc_underwater_returns_zero(
         MAX_UINT256,
         usdc_amount,
         mock_usdc_leverage_vault.address,
-        2,  # lego ID
         1,  # ripe vault ID
     )
 

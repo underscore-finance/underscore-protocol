@@ -194,11 +194,9 @@ def test_get_max_borrow_amount_no_limit_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],  # vaultToken
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],  # ripeVaultId
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should return max_value
@@ -226,11 +224,9 @@ def test_get_max_borrow_amount_with_limit_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 70% of 50,000 = 35,000 GREEN (18 decimals)
@@ -260,11 +256,9 @@ def test_get_max_borrow_amount_with_partial_debt_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 35,000 - 3,000 = 32,000 GREEN remaining
@@ -294,11 +288,9 @@ def test_get_max_borrow_amount_at_limit_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 0 (at limit)
@@ -334,11 +326,9 @@ def test_get_max_borrow_amount_cbbtc_vault(
         vault.address,
         mock_cbbtc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
         vault.netUserCapital(),
         vault.maxDebtRatio(),
-        False,  # not USDC vault
     )
 
     # Fixture deposits 3 CBBTC as user capital + 10 CBBTC for collateral operations
@@ -642,11 +632,9 @@ def test_withdrawal_decreases_borrow_capacity(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
         new_capital,
         70_00,
-        True,  # isUsdcVault
     )
 
     # Max should be 70% of new capital minus existing debt
