@@ -166,7 +166,6 @@ def test_get_swappable_usdc_amount_returns_zero_for_usdc_vault(
     swappable = levg_vault_helper.getSwappableUsdcAmount(
         undy_levg_vault_usdc.address,
         amount_in,
-        current_balance,
         mock_usdc_leverage_vault.address,
         1,  # ripe vault ID
     )
@@ -1087,7 +1086,6 @@ def test_get_swappable_usdc_when_debt_exceeds_value(
     swappable = levg_vault_helper.getSwappableUsdcAmount(
         undy_levg_vault_usdc.address,
         MAX_UINT256,
-        current_balance,
         mock_usdc_leverage_vault.address,
         1,  # ripe vault ID
     )
@@ -1552,7 +1550,6 @@ def test_get_swappable_usdc_green_fully_covers_debt(
     swappable = levg_vault_helper.getSwappableUsdcAmount(
         undy_levg_vault_cbbtc.address,
         MAX_UINT256,
-        usdc_amount,
         mock_usdc_leverage_vault.address,
         1,  # ripe vault ID
     )
@@ -1587,7 +1584,6 @@ def test_get_swappable_usdc_green_partially_covers_debt(
     swappable = levg_vault_helper.getSwappableUsdcAmount(
         undy_levg_vault_cbbtc.address,
         MAX_UINT256,
-        usdc_amount,
         mock_usdc_leverage_vault.address,
         1,  # ripe vault ID
     )
@@ -1619,7 +1615,6 @@ def test_get_swappable_usdc_underwater_returns_zero(
     swappable = levg_vault_helper.getSwappableUsdcAmount(
         undy_levg_vault_cbbtc.address,
         MAX_UINT256,
-        usdc_amount,
         mock_usdc_leverage_vault.address,
         1,  # ripe vault ID
     )

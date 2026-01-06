@@ -100,7 +100,6 @@ def __init__(_undyHq: address, _ripeRegistry: address, _usdc: address):
 def getSwappableUsdcAmount(
     _wallet: address,
     _amountIn: uint256,
-    _currentBalance: uint256,
     _leverageVaultToken: address,
     _leverageVaultTokenRipeVaultId: uint256,
     _usdc: address = empty(address),
