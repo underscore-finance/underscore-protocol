@@ -12,9 +12,13 @@ SIX_DECIMALS = 10 ** 6
 EIGHT_DECIMALS = 10 ** 8
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def setup_mock_swap_lego_in_legobook(lego_book, mock_swap_lego, governance):
     """Register mock_swap_lego in the lego book"""
+    # Check if already registered (session-scoped lego_book may already have it)
+    if lego_book.isLegoAddr(mock_swap_lego.address):
+        return mock_swap_lego
+
     lego_book.startAddNewAddressToRegistry(mock_swap_lego.address, "Mock Swap Lego", sender=governance.address)
     boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
     lego_id = lego_book.confirmNewAddressToRegistry(mock_swap_lego.address, sender=governance.address)

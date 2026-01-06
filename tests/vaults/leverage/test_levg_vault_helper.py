@@ -1250,7 +1250,7 @@ def test_get_max_borrow_amount_no_debt(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital (not used for non-USDC vault)
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1283,7 +1283,7 @@ def test_get_max_borrow_amount_with_debt(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1295,7 +1295,7 @@ def test_get_max_borrow_amount_with_debt(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1329,7 +1329,7 @@ def test_get_max_borrow_amount_green_offsets_debt(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1343,7 +1343,7 @@ def test_get_max_borrow_amount_green_offsets_debt(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1374,7 +1374,7 @@ def test_get_max_borrow_amount_returns_min_of_limits(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100% (would allow $90k)
     )
 
@@ -1407,7 +1407,7 @@ def test_get_max_borrow_amount_underwater_returns_zero(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         10000,  # maxDebtRatio = 100%
     )
 
@@ -1437,7 +1437,7 @@ def test_get_max_borrow_amount_zero_debt_ratio_returns_max(
         mock_cbbtc.address,
         mock_cbbtc_collateral_vault.address,
         1,  # ripe vault ID
-        0,  # netUserCapital
+        0,  # netUserShares (0 = fetch from contract)
         0,  # maxDebtRatio = 0 (unlimited by debt ratio)
     )
 
