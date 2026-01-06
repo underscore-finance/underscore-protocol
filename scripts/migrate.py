@@ -78,6 +78,11 @@ CLICK_PROMPTS = {
         "default": "current",
         "help": "Manifest to use for the migration. Defaults to `current`.",
     },
+    "block": {
+        "prompt": "Block",
+        "default": "0",
+        "help": "Block to use for the fork. Defaults to `0` for latest block.",
+    },
 }
 
 
@@ -214,6 +219,12 @@ def param_prompt(ctx, param, value):
     help=CLICK_PROMPTS["is_retry"]["help"],
     callback=param_prompt,
 )
+@click.option(
+    "--block",
+    default=CLICK_PROMPTS["block"]["default"],
+    help=CLICK_PROMPTS["block"]["help"],
+    callback=param_prompt,
+)
 def cli(
     should_ask,
     safe,
@@ -228,6 +239,7 @@ def cli(
     blueprint,
     account,
     ledger,
+    block,
 ):
     """
     Deploys the protocol by running migration scripts.
@@ -287,7 +299,6 @@ def cli(
     log.info("")
     vyper_files = load_vyper_files()
     log.info(f"Loaded {len(vyper_files)} Vyper files.")
-    log.h2("Running migrations...")
 
     migrations = MigrationRunner(
         f"{MIGRATION_SCRIPTS_DIR}/{chain}/{environment}",
@@ -306,17 +317,26 @@ def cli(
                 deploy_args, start_timestamp, end_timestamp, not single)
 
     elif fork:
-        with boa.fork(final_rpc, allow_dirty=True) as env:
+        kwargs = {
+            "allow_dirty": True,
+        }
+        if block != '0':
+            kwargs["block_identifier"] = int(block)
+
+        label = f"block {block}" if block != '0' else "latest block"
+        with boa.fork(final_rpc, **kwargs) as env:
             try:
                 env.set_balance(sender.address, 10*10**18)
                 log.h2('Deployer wallet funded with 10 ETH')
             except:
                 log.h2('Cannot fund deployer wallet')
+            log.h2(f"Running migrations on fork from {label}...")
             total_gas = migrations.run(
                 deploy_args, start_timestamp, end_timestamp, not single)
     else:
         with boa.set_network_env(final_rpc) as env:
             env.add_account(sender)
+            log.h2("Running migrations in production...")
             total_gas = migrations.run(
                 deploy_args, start_timestamp, end_timestamp, not single)
 

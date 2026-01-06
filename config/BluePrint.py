@@ -43,17 +43,17 @@ VAULT_INFO = {
         "name": "Underscore Blue Chip Virtual",
         "symbol": "undyVirtual",
     },
-    "LEVG_USDC": {
-        "name": "Underscore Leveraged USD",
-        "symbol": "undyLevgUSD",
+    "AMP_USDC": {
+        "name": "Underscore Amplified USDC",
+        "symbol": "undyAmpUSDC",
     },
-    "LEVG_CBBTC": {
-        "name": "Underscore Leveraged cbBTC",
-        "symbol": "undyLevgCBBTC",
+    "AMP_CBBTC": {
+        "name": "Underscore Amplified cbBTC",
+        "symbol": "undyAmpCBBTC",
     },
-    "LEVG_WETH": {
-        "name": "Underscore Leveraged WETH",
-        "symbol": "undyLevgWETH",
+    "AMP_WETH": {
+        "name": "Underscore Amplified WETH",
+        "symbol": "undyAmpWETH",
     },
 }
 
@@ -91,6 +91,8 @@ PARAMS = {
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
         "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
         "EARN_VAULT_STALE_TIME": 60 * 60 * 24,  # 1 day
+        # ripe collateral vault id
+        "RIPE_COLLATERAL_VAULT_ID": 5,
     },
     "local": {
         # undy hq - gov changes (blocks)
