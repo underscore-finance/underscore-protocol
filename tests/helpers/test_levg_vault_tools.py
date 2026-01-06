@@ -310,15 +310,22 @@ def test_get_amount_for_asset_in_wallet_only(
     setup_mock_prices,
     undy_levg_vault_usdc,
     mock_usdc,
+    mock_ripe,
     governance,
 ):
     """Test getting asset amount when only in wallet"""
+    # Clear any previous ripe collateral state
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+
+    # Record existing balance (session-scoped fixture may have prior state)
+    existing_balance = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     amount = 5_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, amount, sender=governance.address)
 
     result = levg_vault_tools.getAmountForAsset(undy_levg_vault_usdc.address, mock_usdc.address)
 
-    assert result == amount
+    assert result == existing_balance + amount
 
 
 def test_get_amount_for_asset_on_ripe_only(
@@ -329,12 +336,15 @@ def test_get_amount_for_asset_on_ripe_only(
     mock_usdc,
 ):
     """Test getting asset amount when deposited on Ripe"""
+    # Record existing wallet balance (session-scoped fixture may have prior state)
+    existing_wallet_balance = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     amount = 3_000 * SIX_DECIMALS
     mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, amount)
 
     result = levg_vault_tools.getAmountForAsset(undy_levg_vault_usdc.address, mock_usdc.address)
 
-    assert result == amount
+    assert result == existing_wallet_balance + amount
 
 
 def test_get_amount_for_asset_in_both_locations(
@@ -346,6 +356,9 @@ def test_get_amount_for_asset_in_both_locations(
     governance,
 ):
     """Test getting asset amount when in both wallet and Ripe"""
+    # Record existing wallet balance (session-scoped fixture may have prior state)
+    existing_wallet_balance = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     wallet_amount = 2_000 * SIX_DECIMALS
     ripe_amount = 3_000 * SIX_DECIMALS
 
@@ -354,7 +367,7 @@ def test_get_amount_for_asset_in_both_locations(
 
     result = levg_vault_tools.getAmountForAsset(undy_levg_vault_usdc.address, mock_usdc.address)
 
-    assert result == wallet_amount + ripe_amount
+    assert result == existing_wallet_balance + wallet_amount + ripe_amount
 
 
 ##########################################
@@ -988,6 +1001,10 @@ def test_get_underlying_amounts_all_four_values(
     _test,
 ):
     """Test underlying amounts breakdown with proper lego setup."""
+    # Record existing balances (session-scoped fixture may have prior state)
+    existing_usdc_balance = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+    existing_vault_token_balance = mock_usdc_collateral_vault.balanceOf(undy_levg_vault_usdc.address)
+
     wallet_underlying = 1_000 * SIX_DECIMALS
     mock_usdc.mint(undy_levg_vault_usdc.address, wallet_underlying, sender=governance.address)
 
@@ -1005,9 +1022,10 @@ def test_get_underlying_amounts_all_four_values(
     (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
         levg_vault_tools.getUnderlyingAmounts(undy_levg_vault_usdc.address, True, False)
 
-    # Assert all 4 return values
-    assert underlying_wallet == wallet_underlying
-    _test(deposit_amount, vault_token_wallet_converted, 100)
+    # Assert all 4 return values (account for pre-existing balances)
+    assert underlying_wallet == existing_usdc_balance + wallet_underlying
+    # vault_token_wallet_converted should include both existing and new vault tokens
+    _test(deposit_amount, vault_token_wallet_converted - existing_vault_token_balance, 100)
     assert underlying_ripe == ripe_underlying
     _test(ripe_vault_token, vault_token_ripe_converted, 100)
 
@@ -1040,12 +1058,16 @@ def test_edge_case_decimal_precision_usdc(
     governance,
 ):
     """Test decimal precision handling for 6 decimal USDC"""
+    # Clear ripe collateral state and record existing balance
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_usdc.address, 0)
+    existing_balance = mock_usdc.balanceOf(undy_levg_vault_usdc.address)
+
     precise_amount = 123_456
     mock_usdc.mint(undy_levg_vault_usdc.address, precise_amount, sender=governance.address)
 
     result = levg_vault_tools.getAmountForAsset(undy_levg_vault_usdc.address, mock_usdc.address)
 
-    assert result == precise_amount
+    assert result == existing_balance + precise_amount
 
 
 def test_edge_case_decimal_precision_cbbtc(
@@ -1234,3 +1256,726 @@ def test_get_swappable_usdc_leverage_vault_tokens_on_ripe(
     # With no debt, the vault tokens on Ripe should be converted and counted
     # The wallet still has the vault tokens, so total should be 2x
     _test(vault_deposit * 2, result, 100)
+
+
+#####################################
+# 12. getDebtToDepositRatio Tests   #
+#####################################
+
+
+def test_get_debt_to_deposit_ratio_no_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    governance,
+):
+    """No debt means 0% debt ratio, regardless of deposits."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_to_deposit_ratio_green_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_green_token,
+    governance,
+):
+    """GREEN fully covers debt, net debt is 0, so ratio is 0%."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    green_amount = 15_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_to_deposit_ratio_50_percent(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    governance,
+):
+    """$45k debt / $90k deposits = 50% = 5000 basis points."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 45_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 5000
+
+
+def test_get_debt_to_deposit_ratio_green_partially_offsets(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_green_token,
+    governance,
+):
+    """$50k debt - $5k GREEN = $45k net debt / $90k = 50%."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    green_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 5000
+
+
+def test_get_debt_to_deposit_ratio_usdc_vault_uses_total_assets(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+    governance,
+    vault_registry,
+    starter_agent,
+    switchboard_alpha,
+):
+    """USDC vault uses totalAssets directly.
+
+    Since totalAssets(shouldGetMax=False) returns net equity (assets - debt), the ratio is
+    calculated against net equity dynamically based on current state.
+    """
+    vault = undy_levg_vault_usdc
+
+    # Enable vault operations
+    vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
+
+    # Clear any existing debt
+    mock_ripe.setUserDebt(vault.address, 0)
+
+    # Record pre-existing state
+    existing_assets = vault.totalAssets()
+
+    # Deposit 100k USDC
+    deposit_amount = 100_000 * SIX_DECIMALS
+    mock_usdc.mint(starter_agent.address, deposit_amount, sender=governance.address)
+    mock_usdc.approve(vault.address, deposit_amount, sender=starter_agent.address)
+    vault.deposit(deposit_amount, starter_agent.address, sender=starter_agent.address)
+
+    # Total assets after deposit (no debt yet)
+    total_assets_before_debt = vault.totalAssets()
+
+    # Set debt (18 decimals for GREEN)
+    debt_amount = 30_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(vault.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToDepositRatio(
+        vault.address,
+        mock_usdc.address,                    # _underlyingAsset
+        mock_usdc_collateral_vault.address,   # _collateralVaultToken
+        0,                                    # _collateralVaultTokenRipeVaultId
+        mock_usdc_collateral_vault.address,   # _leverageVaultToken
+    )
+
+    # Calculate expected: debt / (totalAssets - debt)
+    total_assets_after_debt = total_assets_before_debt - (30_000 * SIX_DECIMALS)
+    expected_ratio = (30_000 * SIX_DECIMALS * 10000) // total_assets_after_debt
+
+    assert result == expected_ratio
+
+
+def test_get_debt_to_deposit_ratio_no_deposits_returns_zero(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+):
+    """With no deposits, ratio is 0 (not divide by zero error)."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_to_deposit_ratio_over_100_percent(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    governance,
+):
+    """$135k debt / $90k deposits = 150% = 15000 basis points."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # 1 cbBTC = $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 135_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToDepositRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 15000
+
+
+#####################################
+# 13. getDebtUtilization Tests      #
+#####################################
+
+
+def test_get_debt_utilization_no_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    governance,
+):
+    """No debt means 0% utilization."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+
+    result = levg_vault_tools.getDebtUtilization(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_utilization_50_percent_of_max(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    mock_usdc_leverage_vault,
+    governance,
+):
+    """35% debt ratio with 70% max = 50% utilization."""
+    # debtRatio = 35% = 3500 bps -> deposit $90k, debt $31.5k
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 31_500 * EIGHTEEN_DECIMALS  # 35% of $90k
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    # maxDebtRatio = 70% = 7000 bps
+    # Pass all params: _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId,
+    #                  _leverageVaultToken, _totalAssets, _maxDebtRatio
+    result = levg_vault_tools.getDebtUtilization(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,                   # _underlyingAsset
+        mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
+        0,                                    # _collateralVaultTokenRipeVaultId
+        mock_usdc_leverage_vault.address,     # _leverageVaultToken
+        0,                                    # _totalAssets
+        7000,                                 # _maxDebtRatio
+    )
+
+    # 3500 / 7000 = 50% = 5000 bps
+    assert result == 5000
+
+
+def test_get_debt_utilization_at_max(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    mock_usdc_leverage_vault,
+    governance,
+):
+    """70% debt ratio with 70% max = 100% utilization."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 63_000 * EIGHTEEN_DECIMALS  # 70% of $90k
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtUtilization(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,                   # _underlyingAsset
+        mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
+        0,                                    # _collateralVaultTokenRipeVaultId
+        mock_usdc_leverage_vault.address,     # _leverageVaultToken
+        0,                                    # _totalAssets
+        7000,                                 # _maxDebtRatio
+    )
+
+    # 7000 / 7000 = 100% = 10000 bps
+    assert result == 10000
+
+
+def test_get_debt_utilization_over_max(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    mock_cbbtc_collateral_vault,
+    mock_usdc_leverage_vault,
+    governance,
+):
+    """84% debt ratio with 70% max = 120% utilization (over limit)."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 75_600 * EIGHTEEN_DECIMALS  # 84% of $90k
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtUtilization(
+        undy_levg_vault_cbbtc.address,
+        mock_cbbtc.address,                   # _underlyingAsset
+        mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
+        0,                                    # _collateralVaultTokenRipeVaultId
+        mock_usdc_leverage_vault.address,     # _leverageVaultToken
+        0,                                    # _totalAssets
+        7000,                                 # _maxDebtRatio
+    )
+
+    # 8400 / 7000 = 120% = 12000 bps
+    assert result == 12000
+
+
+def test_get_debt_utilization_uses_vault_max_debt_ratio(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_cbbtc,
+    governance,
+):
+    """When _maxDebtRatio is 0, function fetches from vault's maxDebtRatio()."""
+    cbbtc_amount = 1 * EIGHT_DECIMALS  # $90,000
+    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, cbbtc_amount, sender=governance.address)
+
+    debt_amount = 45_000 * EIGHTEEN_DECIMALS  # 50% of $90k
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    # Get the vault's maxDebtRatio to calculate expected utilization
+    vault_max_debt_ratio = undy_levg_vault_cbbtc.maxDebtRatio()
+
+    # If vault has no limit, return 0
+    if vault_max_debt_ratio == 0:
+        expected_result = 0
+    else:
+        # debtRatio = 5000 (50%), utilization = 5000 * 10000 / vault_max_debt_ratio
+        expected_result = 5000 * 10000 // vault_max_debt_ratio
+
+    result = levg_vault_tools.getDebtUtilization(undy_levg_vault_cbbtc.address)
+
+    assert result == expected_result
+
+
+def test_get_debt_utilization_usdc_vault(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_usdc,
+    mock_usdc_collateral_vault,
+    governance,
+    vault_registry,
+    starter_agent,
+    switchboard_alpha,
+):
+    """USDC vault debt utilization.
+
+    Since convertToAssets uses totalAssets (which subtracts debt):
+    - We deposit fresh USDC and calculate expected utilization dynamically
+    - Account for any pre-existing balance in session-scoped vault
+    """
+    vault = undy_levg_vault_usdc
+
+    # Enable vault operations
+    vault_registry.setCanDeposit(vault.address, True, sender=switchboard_alpha.address)
+    vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
+
+    # Clear any existing debt first
+    mock_ripe.setUserDebt(vault.address, 0)
+
+    # Record pre-existing state
+    existing_assets = vault.totalAssets()
+
+    # Deposit 100k USDC
+    deposit_amount = 100_000 * SIX_DECIMALS
+    mock_usdc.mint(starter_agent.address, deposit_amount, sender=governance.address)
+    mock_usdc.approve(vault.address, deposit_amount, sender=starter_agent.address)
+    vault.deposit(deposit_amount, starter_agent.address, sender=starter_agent.address)
+
+    # Total assets after deposit (no debt yet)
+    total_assets_before_debt = vault.totalAssets()
+    assert total_assets_before_debt == existing_assets + deposit_amount
+
+    # Debt is in GREEN (18 decimals)
+    debt_amount = 40_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(vault.address, debt_amount)
+
+    result = levg_vault_tools.getDebtUtilization(
+        vault.address,
+        mock_usdc.address,                    # _underlyingAsset
+        mock_usdc_collateral_vault.address,   # _collateralVaultToken
+        0,                                    # _collateralVaultTokenRipeVaultId
+        mock_usdc_collateral_vault.address,   # _leverageVaultToken (same for USDC vault)
+        vault.getTotalAssets(False),          # _totalAssets
+        8000,                                 # _maxDebtRatio
+    )
+
+    # Calculate expected: totalAssets - debt (in USDC terms)
+    # totalAssets after debt = total_assets_before_debt - 40k
+    total_assets_after_debt = total_assets_before_debt - (40_000 * SIX_DECIMALS)
+    # debt ratio = 40k / total_assets_after_debt
+    debt_ratio_bps = (40_000 * SIX_DECIMALS * 10000) // total_assets_after_debt
+    # utilization = debt_ratio / max_debt_ratio * 10000
+    expected_utilization = debt_ratio_bps * 10000 // 8000
+
+    assert result == expected_utilization
+
+
+###########################################
+# 14. getDebtToRipeCollateralRatio Tests  #
+###########################################
+
+
+def test_get_debt_to_ripe_collateral_ratio_no_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+):
+    """No debt means 0% ratio regardless of collateral."""
+    mock_ripe.setCollateralValue(undy_levg_vault_cbbtc.address, 100_000 * EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, 0)
+
+    result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_to_ripe_collateral_ratio_50_percent(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+):
+    """$50k debt / $100k collateral = 50%."""
+    collateral_value = 100_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setCollateralValue(undy_levg_vault_cbbtc.address, collateral_value)
+
+    debt_amount = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 5000
+
+
+def test_get_debt_to_ripe_collateral_ratio_green_offsets(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_green_token,
+    governance,
+):
+    """$50k debt - $10k GREEN = $40k net / $100k collateral = 40%."""
+    collateral_value = 100_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setCollateralValue(undy_levg_vault_cbbtc.address, collateral_value)
+
+    debt_amount = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    green_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 4000
+
+
+def test_get_debt_to_ripe_collateral_ratio_no_collateral(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+):
+    """With no collateral, ratio is 0 (not divide by zero)."""
+    mock_ripe.setCollateralValue(undy_levg_vault_cbbtc.address, 0)
+
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 0
+
+
+def test_get_debt_to_ripe_collateral_ratio_over_100_percent(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+):
+    """$75k debt / $50k collateral = 150%."""
+    collateral_value = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setCollateralValue(undy_levg_vault_cbbtc.address, collateral_value)
+
+    debt_amount = 75_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    result = levg_vault_tools.getDebtToRipeCollateralRatio(undy_levg_vault_cbbtc.address)
+
+    assert result == 15000
+
+
+#####################################
+# 15. getNetUserDebt Tests          #
+#####################################
+
+
+def test_get_net_user_debt_no_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """No debt means net debt is 0."""
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, 0)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_with_debt_no_green(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+):
+    """Debt with no GREEN returns full debt amount."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == debt_amount
+
+
+def test_get_net_user_debt_green_fully_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """GREEN fully covers debt, net debt is 0."""
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_green_exactly_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """GREEN exactly equals debt, net debt is 0."""
+    debt_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    assert result == 0
+
+
+def test_get_net_user_debt_green_partially_covers_debt(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    governance,
+):
+    """$10k debt - $3k GREEN = $7k net debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    green_amount = 3_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_sgreen_in_wallet_counts(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    mock_savings_green_token,
+    governance,
+):
+    """sGREEN in wallet is converted and offsets debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # Deposit GREEN into sGREEN (in wallet)
+    green_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_amount, sender=governance.address)
+    mock_green_token.approve(mock_savings_green_token.address, green_amount, sender=undy_levg_vault_usdc.address)
+    mock_savings_green_token.deposit(green_amount, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    # Get expected converted amount
+    sgreen_balance = mock_savings_green_token.balanceOf(undy_levg_vault_usdc.address)
+    converted_green = mock_savings_green_token.previewRedeem(sgreen_balance)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - converted_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_sgreen_on_ripe_counts(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_savings_green_token,
+):
+    """sGREEN on Ripe is converted and offsets debt."""
+    debt_amount = 10_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # Set sGREEN on Ripe
+    sgreen_amount = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_amount)
+
+    # Get expected converted amount
+    converted_green = mock_savings_green_token.previewRedeem(sgreen_amount)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - converted_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_mixed_sources(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_usdc,
+    mock_green_token,
+    mock_savings_green_token,
+    governance,
+):
+    """GREEN from all sources (wallet, sGREEN wallet, sGREEN Ripe) offset debt."""
+    debt_amount = 20_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_usdc.address, debt_amount)
+
+    # 1. GREEN in wallet
+    green_wallet = 3_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_wallet, sender=governance.address)
+
+    # 2. Deposit some GREEN into sGREEN (kept in wallet)
+    green_for_sgreen = 4_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_usdc.address, green_for_sgreen, sender=governance.address)
+    mock_green_token.approve(mock_savings_green_token.address, green_for_sgreen, sender=undy_levg_vault_usdc.address)
+    mock_savings_green_token.deposit(green_for_sgreen, undy_levg_vault_usdc.address, sender=undy_levg_vault_usdc.address)
+
+    # 3. sGREEN on Ripe
+    sgreen_ripe = 5_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_usdc.address, mock_savings_green_token.address, sgreen_ripe)
+
+    # Calculate total GREEN value
+    sgreen_wallet_balance = mock_savings_green_token.balanceOf(undy_levg_vault_usdc.address)
+    total_sgreen = sgreen_wallet_balance + sgreen_ripe
+    converted_sgreen = mock_savings_green_token.previewRedeem(total_sgreen)
+    total_green = green_wallet + converted_sgreen
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_usdc.address)
+
+    expected_net_debt = debt_amount - total_green
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_cbbtc_vault(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_cbbtc,
+    mock_green_token,
+    governance,
+):
+    """Test getNetUserDebt works for cbBTC vault."""
+    debt_amount = 50_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_cbbtc.address, debt_amount)
+
+    green_amount = 20_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_cbbtc.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_cbbtc.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt
+
+
+def test_get_net_user_debt_weth_vault(
+    levg_vault_tools,
+    setup_mock_prices,
+    mock_ripe,
+    undy_levg_vault_weth,
+    mock_green_token,
+    governance,
+):
+    """Test getNetUserDebt works for WETH vault."""
+    debt_amount = 100_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(undy_levg_vault_weth.address, debt_amount)
+
+    green_amount = 25_000 * EIGHTEEN_DECIMALS
+    mock_green_token.mint(undy_levg_vault_weth.address, green_amount, sender=governance.address)
+
+    result = levg_vault_tools.getNetUserDebt(undy_levg_vault_weth.address)
+
+    expected_net_debt = debt_amount - green_amount
+    assert result == expected_net_debt

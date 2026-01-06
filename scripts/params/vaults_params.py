@@ -317,8 +317,6 @@ def fetch_levg_vault_wallet_storage(vault, decimals, vault_info):
     time.sleep(RPC_DELAY)
     max_debt_ratio = vault.maxDebtRatio()
     time.sleep(RPC_DELAY)
-    net_user_capital = vault.netUserCapital()
-    time.sleep(RPC_DELAY)
     usdc_slippage = vault.usdcSlippageAllowed()
     time.sleep(RPC_DELAY)
     green_slippage = vault.greenSlippageAllowed()
@@ -337,7 +335,6 @@ def fetch_levg_vault_wallet_storage(vault, decimals, vault_info):
         ("leverageAsset.vaultToken", format_address(str(leverage_asset[0]), _get_known_addresses)),
         ("leverageAsset.ripeVaultId", leverage_asset[1]),
         ("maxDebtRatio", format_percent(max_debt_ratio)),
-        ("netUserCapital", format_token_amount_precise(net_user_capital, decimals)),
         ("usdcSlippageAllowed", format_percent(usdc_slippage)),
         ("greenSlippageAllowed", format_percent(green_slippage)),
         ("levgVaultHelper", format_address(levg_helper, _get_known_addresses)),

@@ -1142,6 +1142,18 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "isRawAssetCollateral",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "managers",
     "inputs": [
       {
@@ -1213,18 +1225,6 @@
     "stateMutability": "view",
     "type": "function",
     "name": "maxDebtRatio",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "netUserCapital",
     "inputs": [],
     "outputs": [
       {

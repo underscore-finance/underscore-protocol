@@ -858,6 +858,59 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getSavingsGreenBalances",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getSavingsGreenBalances",
+    "inputs": [
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getSwappableUsdcAmount",
     "inputs": [
       {
@@ -1284,6 +1337,35 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getAvailableUsdcFromEndaomentPsm",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAvailableUsdcFromEndaomentPsm",
+    "inputs": [
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getTrueMaxBorrowAmount",
     "inputs": [
       {
@@ -1470,7 +1552,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       }
     ],
@@ -1507,7 +1589,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -1548,7 +1630,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -1593,7 +1675,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -1642,7 +1724,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -1695,7 +1777,7 @@
         "type": "address"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -1775,6 +1857,947 @@
       },
       {
         "name": "_creditEngine",
+        "type": "address"
+      },
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNetUserDebt",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNetUserDebt",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNetUserDebt",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNetUserDebt",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      },
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToDepositRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      },
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxDebtRatio",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxDebtRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxDebtRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxDebtRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtUtilization",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_collateralVaultTokenRipeVaultId",
+        "type": "uint256"
+      },
+      {
+        "name": "_leverageVaultToken",
+        "type": "address"
+      },
+      {
+        "name": "_totalAssets",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxDebtRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_legoBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      },
+      {
+        "name": "_ripeHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToRipeCollateralRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToRipeCollateralRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToRipeCollateralRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDebtToRipeCollateralRatio",
+    "inputs": [
+      {
+        "name": "_levgVault",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultBook",
+        "type": "address"
+      },
+      {
+        "name": "_ripeMissionControl",
         "type": "address"
       },
       {

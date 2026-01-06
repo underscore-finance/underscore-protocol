@@ -95,10 +95,6 @@
         "type": "address"
       },
       {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_leverageVaultTokenRipeVaultId",
         "type": "uint256"
       }
@@ -130,10 +126,6 @@
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -171,10 +163,6 @@
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -216,10 +204,6 @@
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -265,10 +249,6 @@
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -316,24 +296,16 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
         "name": "_maxDebtRatio",
         "type": "uint256"
-      },
-      {
-        "name": "_isUsdcVault",
-        "type": "bool"
       }
     ],
     "outputs": [
@@ -361,15 +333,11 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
-        "name": "_netUserCapital",
+        "name": "_totalAssets",
         "type": "uint256"
       },
       {
@@ -377,10 +345,6 @@
         "type": "uint256"
       },
       {
-        "name": "_isUsdcVault",
-        "type": "bool"
-      },
-      {
         "name": "_legoBook",
         "type": "address"
       }
@@ -529,20 +493,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -570,20 +526,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -615,20 +563,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -664,20 +604,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -717,20 +649,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -774,20 +698,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -839,20 +755,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -884,20 +792,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -933,20 +833,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -986,20 +878,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -1043,20 +927,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -1104,20 +980,12 @@
         "type": "address"
       },
       {
-        "name": "_collateralVaultTokenLegoId",
-        "type": "uint256"
-      },
-      {
         "name": "_collateralVaultTokenRipeVaultId",
         "type": "uint256"
       },
       {
         "name": "_leverageVaultToken",
         "type": "address"
-      },
-      {
-        "name": "_leverageVaultTokenLegoId",
-        "type": "uint256"
       },
       {
         "name": "_leverageVaultTokenRipeVaultId",
@@ -1261,6 +1129,31 @@
       },
       {
         "name": "_legoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidRawAssetCollateral",
+    "inputs": [
+      {
+        "name": "_underlyingAsset",
+        "type": "address"
+      },
+      {
+        "name": "_rawAsset",
+        "type": "address"
+      },
+      {
+        "name": "_ripeVaultId",
         "type": "uint256"
       }
     ],

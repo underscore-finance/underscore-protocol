@@ -41,7 +41,7 @@ def setup_usdc_vault(undy_levg_vault_usdc, vault_registry, switchboard_alpha, mo
     vault_registry.setCanWithdraw(vault.address, True, sender=switchboard_alpha.address)
     vault_registry.setShouldAutoDeposit(vault.address, False, sender=switchboard_alpha.address)
 
-    # Setup: deposit 50k USDC as user capital (tracked in netUserCapital)
+    # Setup: deposit 50k USDC as user capital
     user_deposit = 50_000 * SIX_DECIMALS
     mock_usdc.mint(starter_agent.address, user_deposit, sender=governance.address)
     mock_usdc.approve(vault.address, user_deposit, sender=starter_agent.address)
@@ -194,11 +194,9 @@ def test_get_max_borrow_amount_no_limit_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],  # vaultToken
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],  # ripeVaultId
-        vault.netUserCapital(),
+        vault.getTotalAssets(False),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should return max_value
@@ -218,19 +216,17 @@ def test_get_max_borrow_amount_with_limit_usdc(
     # Set 70% max debt ratio
     vault.setMaxDebtRatio(70_00, sender=switchboard_alpha.address)
 
-    # netUserCapital should be 50,000 USDC
-    assert vault.netUserCapital() == 50_000 * SIX_DECIMALS
+    # totalAssets should be 50,000 USDC
+    assert vault.getTotalAssets(False) == 50_000 * SIX_DECIMALS
 
     # Get max borrow amount
     max_borrow = levg_vault_helper.getMaxBorrowAmount(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
-        vault.netUserCapital(),
+        vault.getTotalAssets(False),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 70% of 50,000 = 35,000 GREEN (18 decimals)
@@ -260,11 +256,9 @@ def test_get_max_borrow_amount_with_partial_debt_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
-        vault.netUserCapital(),
+        vault.getTotalAssets(False),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 35,000 - 3,000 = 32,000 GREEN remaining
@@ -294,11 +288,9 @@ def test_get_max_borrow_amount_at_limit_usdc(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
-        vault.netUserCapital(),
+        vault.getTotalAssets(False),
         vault.maxDebtRatio(),
-        True,  # isUsdcVault
     )
 
     # Should be 0 (at limit)
@@ -334,11 +326,9 @@ def test_get_max_borrow_amount_cbbtc_vault(
         vault.address,
         mock_cbbtc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
-        vault.netUserCapital(),
+        0,  # _totalAssets (not used for non-USDC vaults)
         vault.maxDebtRatio(),
-        False,  # not USDC vault
     )
 
     # Fixture deposits 3 CBBTC as user capital + 10 CBBTC for collateral operations
@@ -523,7 +513,7 @@ def test_borrow_at_300_percent_limit(
     # Set 300% max debt ratio
     vault.setMaxDebtRatio(300_00, sender=switchboard_alpha.address)
 
-    # netUserCapital is 50,000 USDC from setup
+    # totalAssets is 50,000 USDC from setup
     # At 300%, max borrow = 150,000 GREEN
     expected_max = 150_000 * EIGHTEEN_DECIMALS
 
@@ -559,14 +549,14 @@ def test_deposit_increases_borrow_capacity(
     starter_agent,
     governance,
 ):
-    """Test that deposits increase netUserCapital and borrowing capacity"""
+    """Test that deposits increase totalAssets and borrowing capacity"""
     vault = setup_usdc_vault
 
     # Set 100% max debt ratio to ensure we have capacity regardless of prior state
     vault.setMaxDebtRatio(100_00, sender=switchboard_alpha.address)
 
     # Record initial state
-    initial_capital = vault.netUserCapital()
+    initial_capital = vault.getTotalAssets(False)
     initial_debt = mock_ripe.userDebt(vault.address)
 
     # Make another deposit
@@ -575,8 +565,8 @@ def test_deposit_increases_borrow_capacity(
     mock_usdc.approve(vault.address, additional_deposit, sender=starter_agent.address)
     vault.deposit(additional_deposit, starter_agent.address, sender=starter_agent.address)
 
-    # netUserCapital should increase by deposit amount
-    new_capital = vault.netUserCapital()
+    # totalAssets should increase by deposit amount
+    new_capital = vault.getTotalAssets(False)
     assert new_capital == initial_capital + additional_deposit
 
     # New max borrow capacity (100% of capital)
@@ -615,21 +605,21 @@ def test_withdrawal_decreases_borrow_capacity(
     switchboard_alpha,
     starter_agent,
 ):
-    """Test that withdrawals decrease netUserCapital"""
+    """Test that withdrawals decrease totalAssets"""
     vault = setup_usdc_vault
 
     # Set 100% max debt ratio to avoid limits
     vault.setMaxDebtRatio(100_00, sender=switchboard_alpha.address)
 
     # Record initial capital
-    initial_capital = vault.netUserCapital()
+    initial_capital = vault.getTotalAssets(False)
 
     # Withdraw 2,000 USDC (use withdraw() which takes assets, not shares)
     withdraw_amount = 2_000 * SIX_DECIMALS
     vault.withdraw(withdraw_amount, starter_agent.address, starter_agent.address, sender=starter_agent.address)
 
-    # netUserCapital should decrease by the withdrawn amount
-    new_capital = vault.netUserCapital()
+    # totalAssets should decrease by withdrawn amount
+    new_capital = vault.getTotalAssets(False)
     capital_decrease = initial_capital - new_capital
 
     # Should have decreased by approximately the withdraw amount
@@ -642,11 +632,9 @@ def test_withdrawal_decreases_borrow_capacity(
         vault.address,
         mock_usdc.address,
         vault.collateralAsset()[0],
-        vault.vaultToLegoId(vault.collateralAsset()[0]),
         vault.collateralAsset()[1],
-        new_capital,
-        70_00,
-        True,  # isUsdcVault
+        vault.getTotalAssets(False),
+        vault.maxDebtRatio(),
     )
 
     # Max should be 70% of new capital minus existing debt
@@ -726,7 +714,7 @@ def test_complete_flow_usdc_vault(
     vault = setup_usdc_vault
 
     # Record initial state
-    initial_capital = vault.netUserCapital()
+    initial_capital = vault.getTotalAssets(False)
 
     # 1. Make a fresh deposit to increase capacity
     new_deposit = 20_000 * SIX_DECIMALS
@@ -734,7 +722,7 @@ def test_complete_flow_usdc_vault(
     mock_usdc.approve(vault.address, new_deposit, sender=starter_agent.address)
     vault.deposit(new_deposit, starter_agent.address, sender=starter_agent.address)
 
-    new_capital = vault.netUserCapital()
+    new_capital = vault.getTotalAssets(False)
     assert new_capital == initial_capital + new_deposit
 
     # 2. Set maxDebtRatio to 80%

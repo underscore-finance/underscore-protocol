@@ -3,7 +3,7 @@
 # @version 0.4.3
 
 #     ╔════════════════════════════════════════════════════════╗
-#     ║  ** LevgVaultTools (Frontend) **                      ║
+#     ║  ** LevgVaultTools (Frontend) **                       ║
 #     ║  Convenience functions for frontend / web app usage    ║
 #     ╚════════════════════════════════════════════════════════╝
 
@@ -15,13 +15,16 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 
 interface LevgVault:
+    def convertToAssetsSafe(_shares: uint256) -> uint256: view
+    def getTotalAssets(_shouldGetMax: bool) -> uint256: view
     def vaultToLegoId(_vaultToken: address) -> uint256: view
+    def isRawAssetCollateral() -> bool: view
     def collateralAsset() -> RipeAsset: view
     def leverageAsset() -> RipeAsset: view
-    def netUserCapital() -> uint256: view
     def maxDebtRatio() -> uint256: view
 
 interface RipeCreditEngine:
+    def getCollateralValue(_user: address) -> uint256: view
     def getMaxBorrowAmount(_user: address) -> uint256: view
     def getUserDebtAmount(_user: address) -> uint256: view
     def getBorrowRate(_user: address) -> uint256: view
@@ -50,6 +53,9 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface RipeEndaomentPsm:
+    def getAvailableUsdc() -> uint256: view
+
 struct VaultToken:
     legoId: uint256
     underlyingAsset: address
@@ -70,6 +76,7 @@ RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
 RIPE_PRICE_DESK_ID: constant(uint256) = 7
 RIPE_VAULT_BOOK_ID: constant(uint256) = 8
 RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
+RIPE_ENDAOMENT_PSM_ID: constant(uint256) = 22
 STAB_POOL_ID: constant(uint256) = 1
 
 HUNDRED_PERCENT: constant(uint256) = 100_00  # 100.00%
@@ -131,6 +138,14 @@ def _getTotalUnderlyingAmount(
     _ripeMissionControl: address,
 ) -> uint256:
     underlyingAsset: address = staticcall IERC4626(_levgVault).asset() if _isCollateralAsset else USDC
+
+    # For raw asset collateral, the vault token IS the underlying asset.
+    # In this case, _getAmountForAsset already captures wallet + Ripe collateral,
+    # so we should NOT also add underlyingFromVault (which would double count).
+    if _isCollateralAsset and _vaultToken == underlyingAsset and staticcall LevgVault(_levgVault).isRawAssetCollateral():
+        return self._getAmountForAsset(_levgVault, underlyingAsset, _ripeVaultId, _ripeVaultBook, _ripeMissionControl)
+
+    # Standard case: underlying naked + underlying from vault token
     underlyingNaked: uint256 = self._getAmountForAsset(_levgVault, underlyingAsset, 0, _ripeVaultBook, _ripeMissionControl)
     underlyingFromVault: uint256 = self._getUnderlyingAmountForVaultToken(_levgVault, _vaultToken, _shouldGetMax, _ripeVaultId, _legoBook, _ripeVaultBook, _ripeMissionControl)
     return underlyingNaked + underlyingFromVault
@@ -244,6 +259,13 @@ def _getUnderlyingAmountWithVaultTokenAmount(
     # get lego id (if necessary)
     legoId: uint256 = self._getLegoIdForVaultToken(_levgVault, _vaultToken, _undyVaultTokenLegoId)
     if legoId == 0:
+
+        # verify this is truly raw asset collateral (not just a missing lego)
+        underlyingAsset: address = staticcall IERC4626(_levgVault).asset()
+        if _vaultToken == underlyingAsset and staticcall LevgVault(_levgVault).isRawAssetCollateral():
+            return _vaultTokenAmount
+
+        # legoId is 0 but not raw asset collateral - invalid state
         return 0
 
     # underscore lego address
@@ -354,6 +376,38 @@ def _getUnderlyingGreenAmount(
     return greenAmount
 
 
+@view
+@external
+def getSavingsGreenBalances(_ripeHq: address = empty(address)) -> (uint256, uint256, uint256, uint256):
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(empty(address), ripeHq)
+    savingsGreen: address = SAVINGS_GREEN
+
+    # get stab pool address
+    stabPoolAddr: address = staticcall Registry(ripeVaultBook).getAddr(STAB_POOL_ID)
+    if stabPoolAddr == empty(address):
+        return 0, 0, 0, 0
+
+    # total savings green supply
+    totalSavingsGreen: uint256 = staticcall IERC20(savingsGreen).totalSupply()
+    if totalSavingsGreen == 0:
+        return 0, 0, 0, 0
+
+    # sGREEN in stab pool
+    sGreenInStabPool: uint256 = staticcall IERC20(savingsGreen).balanceOf(stabPoolAddr)
+    greenInStabPool: uint256 = 0
+    if sGreenInStabPool != 0:
+        greenInStabPool = staticcall IERC4626(savingsGreen).previewRedeem(sGreenInStabPool)
+
+    # sGREEN not in stab pool
+    sGreenNotInStabPool: uint256 = totalSavingsGreen - sGreenInStabPool
+    greenNotInStabPool: uint256 = 0
+    if sGreenNotInStabPool != 0:
+        greenNotInStabPool = staticcall IERC4626(savingsGreen).previewRedeem(sGreenNotInStabPool)
+
+    return sGreenInStabPool, greenInStabPool, sGreenNotInStabPool, greenNotInStabPool
+
+
 ################
 # Swap Helpers #
 ################
@@ -440,7 +494,7 @@ def _getSwappableUsdcAmount(
     if remainingDebt >= usdcValue:
         return 0
 
-    return staticcall RipePriceDesk(_ripePriceDesk).getAssetAmount(usdc, usdcValue - remainingDebt, True)
+    return staticcall RipePriceDesk(_ripePriceDesk).getAssetAmount(usdc, usdcValue - remainingDebt, False)
 
 
 ##################
@@ -462,6 +516,14 @@ def getDebtAmount(_levgVault: address, _ripeHq: address = empty(address)) -> uin
     ripeHq: address = self._getRipeHq(_ripeHq)
     creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
     return staticcall RipeCreditEngine(creditEngine).getUserDebtAmount(_levgVault)
+
+
+@view
+@external
+def getAvailableUsdcFromEndaomentPsm(_ripeHq: address = empty(address)) -> uint256:
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    endaomentPsm: address = staticcall Registry(ripeHq).getAddr(RIPE_ENDAOMENT_PSM_ID)
+    return staticcall RipeEndaomentPsm(endaomentPsm).getAvailableUsdc()
 
 
 # true max borrow amount
@@ -494,7 +556,7 @@ def getMaxBorrowAmountByMaxDebtRatio(
     _collateralVaultToken: address = empty(address),
     _collateralVaultTokenRipeVaultId: uint256 = 0,
     _leverageVaultToken: address = empty(address),
-    _netUserCapital: uint256 = 0,
+    _totalAssets: uint256 = 0,
     _maxDebtRatio: uint256 = 0,
     _legoBook: address = empty(address),
     _ripeVaultBook: address = empty(address),
@@ -509,7 +571,7 @@ def getMaxBorrowAmountByMaxDebtRatio(
     ripePriceDesk: address = self._getRipePriceDesk(empty(address), ripeHq)
     creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
 
-    return self._getMaxBorrowAmountByMaxDebtRatio(_levgVault, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _leverageVaultToken, _netUserCapital, _maxDebtRatio, legoBook, ripeVaultBook, ripeMissionControl, ripePriceDesk, creditEngine)
+    return self._getMaxBorrowAmountByMaxDebtRatio(_levgVault, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _leverageVaultToken, _totalAssets, _maxDebtRatio, legoBook, ripeVaultBook, ripeMissionControl, ripePriceDesk, creditEngine)
 
 
 @view
@@ -520,7 +582,7 @@ def _getMaxBorrowAmountByMaxDebtRatio(
     _collateralVaultToken: address,
     _collateralVaultTokenRipeVaultId: uint256,
     _leverageVaultToken: address,
-    _netUserCapital: uint256,
+    _totalAssets: uint256,
     _maxDebtRatio: uint256,
     _legoBook: address,
     _ripeVaultBook: address,
@@ -546,10 +608,13 @@ def _getMaxBorrowAmountByMaxDebtRatio(
         collateralVaultToken = levgData.vaultToken
         collateralVaultTokenRipeVaultId = levgData.ripeVaultId
 
-    # for usdc leverage vaults, use netUserCapital only (otherwise can't distinguish user capital from leveraged positions)
+    # for usdc leverage vaults, use totalAssets directly (passed by caller)
     underlyingAmount: uint256 = 0
     if collateralVaultToken == leverageVaultToken:
-        underlyingAmount = _netUserCapital if _netUserCapital != 0 else staticcall LevgVault(_levgVault).netUserCapital()
+        if _totalAssets != 0:
+            underlyingAmount = _totalAssets
+        else:
+            underlyingAmount = staticcall LevgVault(_levgVault).getTotalAssets(False)
 
     # typical leverage vault
     else:
@@ -568,16 +633,10 @@ def _getMaxBorrowAmountByMaxDebtRatio(
     underlyingAsset: address = _underlyingAsset if _underlyingAsset != empty(address) else staticcall IERC4626(_levgVault).asset()
 
     # convert to USD value
-    underlyingUsdValue: uint256 = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(underlyingAsset, underlyingAmount, True)
+    underlyingUsdValue: uint256 = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(underlyingAsset, underlyingAmount, False)
 
-    # current debt amount (in GREEN, 18 decimals, treated as $1 USD)
-    currentDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
-
-    # user's GREEN can offset debt (GREEN is 18 decimals, treated as $1 USD)
-    greenAmount: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
-    remainingDebt: uint256 = 0
-    if currentDebt > greenAmount:
-        remainingDebt = currentDebt - greenAmount
+    # remaining debt after GREEN offset (GREEN is 18 decimals, treated as $1 USD)
+    remainingDebt: uint256 = self._getNetUserDebt(_levgVault, _creditEngine, _ripeVaultBook, _ripeMissionControl)
 
     # max allowed debt (in USD)
     maxAllowedDebt: uint256 = underlyingUsdValue * maxDebtRatio // HUNDRED_PERCENT
@@ -609,6 +668,226 @@ def _getMaxBorrowAmountByRipeLtv(
     _creditEngine: address,
 ) -> uint256:
     return staticcall RipeCreditEngine(_creditEngine).getMaxBorrowAmount(_levgVault)
+
+
+# net user debt
+
+
+@view
+@external
+def getNetUserDebt(
+    _levgVault: address,
+    _ripeVaultBook: address = empty(address),
+    _ripeMissionControl: address = empty(address),
+    _ripeHq: address = empty(address),
+) -> uint256:
+    # resolve addresses
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(_ripeVaultBook, ripeHq)
+    ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
+    creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
+
+    return self._getNetUserDebt(_levgVault, creditEngine, ripeVaultBook, ripeMissionControl)
+
+
+@view
+@internal
+def _getNetUserDebt(
+    _levgVault: address,
+    _creditEngine: address,
+    _ripeVaultBook: address,
+    _ripeMissionControl: address,
+) -> uint256:
+    # get user debt in GREEN (18 decimals)
+    userDebt: uint256 = staticcall RipeCreditEngine(_creditEngine).getUserDebtAmount(_levgVault)
+
+    # get underlying GREEN amount (in wallet and from sGREEN)
+    greenSurplus: uint256 = self._getUnderlyingGreenAmount(_levgVault, empty(address), empty(address), _ripeVaultBook, _ripeMissionControl)
+
+    # if GREEN >= debt, return 0 (no net debt exists)
+    if greenSurplus >= userDebt:
+        return 0
+
+    return userDebt - greenSurplus
+
+
+####################
+# Important Ratios #
+####################
+
+
+# debt to deposit ratio
+
+
+@view
+@external
+def getDebtToDepositRatio(
+    _levgVault: address,
+    _underlyingAsset: address = empty(address),
+    _collateralVaultToken: address = empty(address),
+    _collateralVaultTokenRipeVaultId: uint256 = 0,
+    _leverageVaultToken: address = empty(address),
+    _totalAssets: uint256 = 0,
+    _legoBook: address = empty(address),
+    _ripeVaultBook: address = empty(address),
+    _ripeMissionControl: address = empty(address),
+    _ripeHq: address = empty(address),
+) -> uint256:
+    # resolve addresses
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(_ripeVaultBook, ripeHq)
+    ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
+    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
+    creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
+    ripePriceDesk: address = self._getRipePriceDesk(empty(address), ripeHq)
+
+    return self._getDebtToDepositRatio(_levgVault, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _leverageVaultToken, _totalAssets, legoBook, ripeVaultBook, ripeMissionControl, creditEngine, ripePriceDesk)
+
+
+@view
+@internal
+def _getDebtToDepositRatio(
+    _levgVault: address,
+    _underlyingAsset: address,
+    _collateralVaultToken: address,
+    _collateralVaultTokenRipeVaultId: uint256,
+    _leverageVaultToken: address,
+    _totalAssets: uint256,
+    _legoBook: address,
+    _ripeVaultBook: address,
+    _ripeMissionControl: address,
+    _creditEngine: address,
+    _ripePriceDesk: address,
+) -> uint256:
+    # calculate net debt (numerator)
+    netDebt: uint256 = self._getNetUserDebt(_levgVault, _creditEngine, _ripeVaultBook, _ripeMissionControl)
+    if netDebt == 0:
+        return 0
+
+    # get vault token data
+    leverageVaultToken: address = _leverageVaultToken
+    if leverageVaultToken == empty(address):
+        levgData: RipeAsset = staticcall LevgVault(_levgVault).leverageAsset()
+        leverageVaultToken = levgData.vaultToken
+
+    collateralVaultToken: address = _collateralVaultToken
+    collateralVaultTokenRipeVaultId: uint256 = _collateralVaultTokenRipeVaultId
+    if collateralVaultToken == empty(address) or collateralVaultTokenRipeVaultId == 0:
+        levgData: RipeAsset = staticcall LevgVault(_levgVault).collateralAsset()
+        collateralVaultToken = levgData.vaultToken
+        collateralVaultTokenRipeVaultId = levgData.ripeVaultId
+
+    # calculate denominator (user deposits in USD, 18 decimals)
+    depositUsdValue: uint256 = 0
+
+    # for USDC vaults (where collateralVaultToken == leverageVaultToken): use totalAssets directly
+    if collateralVaultToken == leverageVaultToken:
+        netUserCapital: uint256 = 0
+        if _totalAssets != 0:
+            netUserCapital = _totalAssets
+        else:
+            netUserCapital = staticcall LevgVault(_levgVault).getTotalAssets(False)
+        if netUserCapital != 0:
+            depositUsdValue = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(USDC, netUserCapital, False)
+
+    # for non-USDC vaults: use collateralAsset total underlying amount
+    else:
+        underlyingAmount: uint256 = self._getTotalUnderlyingAmount(
+            _levgVault,
+            collateralVaultToken,
+            True, # is collateral asset
+            False, # conservative, safe underlying amount
+            collateralVaultTokenRipeVaultId,
+            _legoBook,
+            _ripeVaultBook,
+            _ripeMissionControl,
+        )
+        underlyingAsset: address = _underlyingAsset if _underlyingAsset != empty(address) else staticcall IERC4626(_levgVault).asset()
+        depositUsdValue = staticcall RipePriceDesk(_ripePriceDesk).getUsdValue(underlyingAsset, underlyingAmount, False)
+
+    # if no deposits, return 0
+    if depositUsdValue == 0:
+        return 0
+
+    # calculate ratio in basis points: (netDebt * HUNDRED_PERCENT) / depositUsdValue
+    return netDebt * HUNDRED_PERCENT // depositUsdValue
+
+
+# debt utilization
+
+
+@view
+@external
+def getDebtUtilization(
+    _levgVault: address,
+    _underlyingAsset: address = empty(address),
+    _collateralVaultToken: address = empty(address),
+    _collateralVaultTokenRipeVaultId: uint256 = 0,
+    _leverageVaultToken: address = empty(address),
+    _totalAssets: uint256 = 0,
+    _maxDebtRatio: uint256 = 0,
+    _legoBook: address = empty(address),
+    _ripeVaultBook: address = empty(address),
+    _ripeMissionControl: address = empty(address),
+    _ripeHq: address = empty(address),
+) -> uint256:
+    # resolve addresses
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(_ripeVaultBook, ripeHq)
+    ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
+    legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
+    creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
+    ripePriceDesk: address = self._getRipePriceDesk(empty(address), ripeHq)
+
+    # get current debt ratio
+    debtToDepositRatio: uint256 = self._getDebtToDepositRatio(_levgVault, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, _leverageVaultToken, _totalAssets, legoBook, ripeVaultBook, ripeMissionControl, creditEngine, ripePriceDesk)
+
+    # if no net debt, utilization is 0
+    if debtToDepositRatio == 0:
+        return 0
+
+    # get max debt ratio
+    maxDebtRatio: uint256 = _maxDebtRatio if _maxDebtRatio != 0 else staticcall LevgVault(_levgVault).maxDebtRatio()
+
+    # if no max debt ratio set (unlimited), return 0
+    if maxDebtRatio == 0:
+        return 0
+
+    # calculate utilization: what % of max debt ratio are we using
+    return debtToDepositRatio * HUNDRED_PERCENT // maxDebtRatio
+
+
+# debt to ripe collateral ratio
+
+
+@view
+@external
+def getDebtToRipeCollateralRatio(
+    _levgVault: address,
+    _ripeVaultBook: address = empty(address),
+    _ripeMissionControl: address = empty(address),
+    _ripeHq: address = empty(address),
+) -> uint256:
+    # resolve addresses
+    ripeHq: address = self._getRipeHq(_ripeHq)
+    ripeVaultBook: address = self._getRipeVaultBook(_ripeVaultBook, ripeHq)
+    ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
+    creditEngine: address = self._getRipeCreditEngine(empty(address), ripeHq)
+
+    # calculate net debt
+    netDebt: uint256 = self._getNetUserDebt(_levgVault, creditEngine, ripeVaultBook, ripeMissionControl)
+    if netDebt == 0:
+        return 0
+
+    # get total Ripe collateral value (USD, 18 decimals)
+    ripeCollateralValue: uint256 = staticcall RipeCreditEngine(creditEngine).getCollateralValue(_levgVault)
+
+    # if no collateral, return 0
+    if ripeCollateralValue == 0:
+        return 0
+
+    # calculate ratio in basis points
+    return netDebt * HUNDRED_PERCENT // ripeCollateralValue
 
 
 ################
