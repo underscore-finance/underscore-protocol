@@ -14,7 +14,7 @@ interface LevgVaultHelper:
     def getTotalAssetsForUsdcVault(_wallet: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _leverageVaultToken: address, _leverageVaultTokenRipeVaultId: uint256, _shouldGetMax: bool = True, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
     def getSwappableUsdcAmount(_wallet: address, _amountIn: uint256, _currentBalance: uint256, _leverageVaultToken: address, _leverageVaultTokenRipeVaultId: uint256, _usdc: address = empty(address), _green: address = empty(address), _savingsGreen: address = empty(address), _legoBook: address = empty(address)) -> uint256: view
     def performPostSwapValidation(_tokenIn: address, _tokenInAmount: uint256, _tokenOut: address, _tokenOutAmount: uint256, _usdcSlippageAllowed: uint256, _greenSlippageAllowed: uint256, _usdc: address = empty(address), _green: address = empty(address)) -> bool: view
-    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _netUserShares: uint256, _maxDebtRatio: uint256, _legoBook: address = empty(address)) -> uint256: view
+    def getMaxBorrowAmount(_wallet: address, _underlyingAsset: address, _collateralVaultToken: address, _collateralVaultTokenRipeVaultId: uint256, _totalAssets: uint256, _maxDebtRatio: uint256, _legoBook: address = empty(address)) -> uint256: view
     def getCollateralBalance(_user: address, _asset: address, _ripeVaultId: uint256, _vaultBook: address = empty(address)) -> uint256: view
     def isValidVaultToken(_underlyingAsset: address, _vaultToken: address, _ripeVaultId: uint256, _legoId: uint256) -> bool: view
     def isValidRawAssetCollateral(_underlyingAsset: address, _rawAsset: address, _ripeVaultId: uint256) -> bool: view
@@ -107,7 +107,6 @@ greenSlippageAllowed: public(uint256) # basis points (100 = 1%)
 
 # leverage limits
 maxDebtRatio: public(uint256) # max debt as % of capital, basis points (7000 = 70%, max 300_00)
-netUserShares: public(uint256) # tracks LevgVault shares (deposits - withdrawals)
 
 # constants
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100.00%
@@ -550,7 +549,7 @@ def borrow(
             ad.vaultAsset,
             collData.vaultToken,
             collData.ripeVaultId,
-            self.netUserShares,
+            self._getTotalAssets(False),
             maxDebtRatio,
             ad.legoBook,
         )

@@ -1349,7 +1349,7 @@ def test_get_debt_to_deposit_ratio_green_partially_offsets(
     assert result == 5000
 
 
-def test_get_debt_to_deposit_ratio_usdc_vault_uses_net_user_shares(
+def test_get_debt_to_deposit_ratio_usdc_vault_uses_total_assets(
     levg_vault_tools,
     setup_mock_prices,
     mock_ripe,
@@ -1361,9 +1361,9 @@ def test_get_debt_to_deposit_ratio_usdc_vault_uses_net_user_shares(
     starter_agent,
     switchboard_alpha,
 ):
-    """USDC vault uses netUserShares converted to assets.
+    """USDC vault uses totalAssets directly.
 
-    Since convertToAssets uses totalAssets (which subtracts debt), the ratio is
+    Since totalAssets(shouldGetMax=False) returns net equity (assets - debt), the ratio is
     calculated against net equity dynamically based on current state.
     """
     vault = undy_levg_vault_usdc
@@ -1378,7 +1378,7 @@ def test_get_debt_to_deposit_ratio_usdc_vault_uses_net_user_shares(
     # Record pre-existing state
     existing_assets = vault.totalAssets()
 
-    # Deposit 100k USDC to set netUserShares
+    # Deposit 100k USDC
     deposit_amount = 100_000 * SIX_DECIMALS
     mock_usdc.mint(starter_agent.address, deposit_amount, sender=governance.address)
     mock_usdc.approve(vault.address, deposit_amount, sender=starter_agent.address)
@@ -1484,14 +1484,14 @@ def test_get_debt_utilization_50_percent_of_max(
 
     # maxDebtRatio = 70% = 7000 bps
     # Pass all params: _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId,
-    #                  _leverageVaultToken, _netUserShares, _maxDebtRatio
+    #                  _leverageVaultToken, _totalAssets, _maxDebtRatio
     result = levg_vault_tools.getDebtUtilization(
         undy_levg_vault_cbbtc.address,
         mock_cbbtc.address,                   # _underlyingAsset
         mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
         0,                                    # _collateralVaultTokenRipeVaultId
         mock_usdc_leverage_vault.address,     # _leverageVaultToken
-        0,                                    # _netUserShares
+        0,                                    # _totalAssets
         7000,                                 # _maxDebtRatio
     )
 
@@ -1522,7 +1522,7 @@ def test_get_debt_utilization_at_max(
         mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
         0,                                    # _collateralVaultTokenRipeVaultId
         mock_usdc_leverage_vault.address,     # _leverageVaultToken
-        0,                                    # _netUserShares
+        0,                                    # _totalAssets
         7000,                                 # _maxDebtRatio
     )
 
@@ -1553,7 +1553,7 @@ def test_get_debt_utilization_over_max(
         mock_cbbtc_collateral_vault.address,  # _collateralVaultToken
         0,                                    # _collateralVaultTokenRipeVaultId
         mock_usdc_leverage_vault.address,     # _leverageVaultToken
-        0,                                    # _netUserShares
+        0,                                    # _totalAssets
         7000,                                 # _maxDebtRatio
     )
 
@@ -1621,7 +1621,7 @@ def test_get_debt_utilization_usdc_vault(
     # Record pre-existing state
     existing_assets = vault.totalAssets()
 
-    # Deposit 100k USDC to set netUserShares
+    # Deposit 100k USDC
     deposit_amount = 100_000 * SIX_DECIMALS
     mock_usdc.mint(starter_agent.address, deposit_amount, sender=governance.address)
     mock_usdc.approve(vault.address, deposit_amount, sender=starter_agent.address)
@@ -1641,7 +1641,7 @@ def test_get_debt_utilization_usdc_vault(
         mock_usdc_collateral_vault.address,   # _collateralVaultToken
         0,                                    # _collateralVaultTokenRipeVaultId
         mock_usdc_collateral_vault.address,   # _leverageVaultToken (same for USDC vault)
-        vault.netUserShares(),                # _netUserShares
+        vault.getTotalAssets(False),          # _totalAssets
         8000,                                 # _maxDebtRatio
     )
 

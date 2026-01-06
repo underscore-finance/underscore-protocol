@@ -248,9 +248,6 @@ def _depositIntoVault(
 
     token._mint(_recipient, _shares)
 
-    # track user shares
-    vaultWallet.netUserShares += _shares
-
     log Deposit(sender=msg.sender, owner=_recipient, assets=_amount, shares=_shares)
 
 
@@ -359,10 +356,6 @@ def _redeemFromVault(
 
     # burn shares
     token._burn(_owner, _shares)
-
-    # track user shares
-    netUserShares: uint256 = vaultWallet.netUserShares
-    vaultWallet.netUserShares = netUserShares - min(netUserShares, _shares)
 
     # transfer assets to recipient
     assert extcall IERC20(_asset).transfer(_recipient, actualAmount, default_return_value=True) # dev: withdrawal failed

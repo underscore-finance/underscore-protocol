@@ -11,11 +11,11 @@ from ethereum.ercs import IERC4626
 
 interface LevgVault:
     def convertToAssetsSafe(_shares: uint256) -> uint256: view
+    def getTotalAssets(_shouldGetMax: bool) -> uint256: view
     def vaultToLegoId(_vaultToken: address) -> uint256: view
     def collateralAsset() -> RipeAsset: view
     def isRawAssetCollateral() -> bool: view
     def leverageAsset() -> RipeAsset: view
-    def netUserShares() -> uint256: view
     def maxDebtRatio() -> uint256: view
 
 interface YieldLego:
@@ -130,7 +130,7 @@ def getMaxBorrowAmount(
     _underlyingAsset: address,
     _collateralVaultToken: address,
     _collateralVaultTokenRipeVaultId: uint256,
-    _netUserShares: uint256,
+    _totalAssets: uint256,
     _maxDebtRatio: uint256,
     _legoBook: address = empty(address),
 ) -> uint256:
@@ -143,7 +143,7 @@ def getMaxBorrowAmount(
     legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
 
     leverageAsset: RipeAsset = staticcall LevgVault(_wallet).leverageAsset()
-    maxDebtRatioLimit: uint256 = self._getMaxBorrowAmountByMaxDebtRatio(_wallet, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, leverageAsset.vaultToken, _netUserShares, _maxDebtRatio, legoBook, ripeVaultBook, ripeMissionControl, ripePriceDesk, creditEngine)
+    maxDebtRatioLimit: uint256 = self._getMaxBorrowAmountByMaxDebtRatio(_wallet, _underlyingAsset, _collateralVaultToken, _collateralVaultTokenRipeVaultId, leverageAsset.vaultToken, _totalAssets, _maxDebtRatio, legoBook, ripeVaultBook, ripeMissionControl, ripePriceDesk, creditEngine)
     maxBorrowAmount: uint256 = self._getMaxBorrowAmountByRipeLtv(_wallet, creditEngine)
     return min(maxDebtRatioLimit, maxBorrowAmount)
 
@@ -242,24 +242,6 @@ def getTotalAssetsForUsdcVault(
         usdcAmount += staticcall RipePriceDesk(ripePriceDesk).getAssetAmount(usdc, usdValueOfGreen, True)
 
     return usdcAmount
-
-
-# net user capital
-
-
-@view
-@internal
-def _getNetUserCapital(_levgVault: address) -> uint256:
-    netUserShares: uint256 = staticcall LevgVault(_levgVault).netUserShares()
-    if netUserShares == 0:
-        return 0
-    return staticcall LevgVault(_levgVault).convertToAssetsSafe(netUserShares)
-
-
-@view
-@external
-def getNetUserCapital(_levgVault: address) -> uint256:
-    return self._getNetUserCapital(_levgVault)
 
 
 # non-usdc vault
@@ -608,7 +590,7 @@ def _getMaxBorrowAmountByMaxDebtRatio(
     _collateralVaultToken: address,
     _collateralVaultTokenRipeVaultId: uint256,
     _leverageVaultToken: address,
-    _netUserShares: uint256,
+    _totalAssets: uint256,
     _maxDebtRatio: uint256,
     _legoBook: address,
     _ripeVaultBook: address,
@@ -634,13 +616,13 @@ def _getMaxBorrowAmountByMaxDebtRatio(
         collateralVaultToken = levgData.vaultToken
         collateralVaultTokenRipeVaultId = levgData.ripeVaultId
 
-    # for usdc leverage vaults, use netUserShares converted to assets (captures accrued interest)
+    # for usdc leverage vaults, use totalAssets directly (passed by caller)
     underlyingAmount: uint256 = 0
     if collateralVaultToken == leverageVaultToken:
-        if _netUserShares != 0:
-            underlyingAmount = staticcall LevgVault(_levgVault).convertToAssetsSafe(_netUserShares)
+        if _totalAssets != 0:
+            underlyingAmount = _totalAssets
         else:
-            underlyingAmount = self._getNetUserCapital(_levgVault)
+            underlyingAmount = staticcall LevgVault(_levgVault).getTotalAssets(False)
 
     # typical leverage vault
     else:
