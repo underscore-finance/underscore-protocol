@@ -7,14 +7,15 @@ interface AgentSenderGeneric:
 
 # unified signature validation
 SIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000000000000000000000
+DEFAULT_DOMAIN_NAME_HASH: constant(bytes32) = keccak256('UnderscoreAgent')
 
 
 @view
 @internal
-def _domainSeparator(_agentSender: address) -> bytes32:
+def _domainSeparator(_agentSender: address, _domainNameHash: bytes32 = DEFAULT_DOMAIN_NAME_HASH) -> bytes32:
     return keccak256(abi_encode(
         keccak256('EIP712Domain(string name,uint256 chainId,address verifyingContract)'),
-        keccak256('UnderscoreAgent'),
+        _domainNameHash,
         chain.id,
         _agentSender
     ))
@@ -22,11 +23,11 @@ def _domainSeparator(_agentSender: address) -> bytes32:
 
 @view
 @internal
-def _getFullDigest(_agentSender: address, _messageHash: bytes32) -> bytes32:
+def _getFullDigest(_agentSender: address, _messageHash: bytes32, _domainNameHash: bytes32 = DEFAULT_DOMAIN_NAME_HASH) -> bytes32:
     """
     Get the full EIP-712 digest that needs to be signed
     """
-    domain_separator: bytes32 = self._domainSeparator(_agentSender)
+    domain_separator: bytes32 = self._domainSeparator(_agentSender, _domainNameHash)
     return keccak256(concat(SIG_PREFIX, domain_separator, _messageHash))
 
 
