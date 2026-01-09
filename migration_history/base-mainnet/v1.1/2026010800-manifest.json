@@ -1,0 +1,2952 @@
+{
+  "contracts": {
+    "LevgVaultAgentSigHelper": {
+      "address": "0x36C25579E7502D1F7CB84B603a1b6D3E32572c8E",
+      "abi": [
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            },
+            {
+              "name": "_shouldEnterStabPool",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            },
+            {
+              "name": "_shouldEnterStabPool",
+              "type": "bool"
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            },
+            {
+              "name": "_shouldEnterStabPool",
+              "type": "bool"
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            },
+            {
+              "name": "_shouldEnterStabPool",
+              "type": "bool"
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getBorrowAndEarnYieldHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_depositPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_borrowAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_wantsSavingsGreen",
+              "type": "bool"
+            },
+            {
+              "name": "_shouldEnterStabPool",
+              "type": "bool"
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_repayAsset",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_repayAsset",
+              "type": "address"
+            },
+            {
+              "name": "_repayAmount",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_repayAsset",
+              "type": "address"
+            },
+            {
+              "name": "_repayAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_shouldSweepAllForRepay",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_repayAsset",
+              "type": "address"
+            },
+            {
+              "name": "_repayAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_shouldSweepAllForRepay",
+              "type": "bool"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDeleverageHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_mode",
+              "type": "uint8"
+            },
+            {
+              "name": "_autoDeleverageAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_deleverageAssets",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "vaultId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "asset",
+                  "type": "address"
+                },
+                {
+                  "name": "targetRepayAmount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_repayAsset",
+              "type": "address"
+            },
+            {
+              "name": "_repayAmount",
+              "type": "uint256"
+            },
+            {
+              "name": "_shouldSweepAllForRepay",
+              "type": "bool"
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getCompoundYieldGainsHash",
+          "inputs": [
+            {
+              "name": "_levgVaultAgent",
+              "type": "address"
+            },
+            {
+              "name": "_levgWallet",
+              "type": "address"
+            },
+            {
+              "name": "_removeCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_withdrawPositions",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_swapInstruction",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "amountIn",
+                  "type": "uint256"
+                },
+                {
+                  "name": "minAmountOut",
+                  "type": "uint256"
+                },
+                {
+                  "name": "tokenPath",
+                  "type": "address[]"
+                },
+                {
+                  "name": "poolPath",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_postSwapDeposits",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "name": "shouldAddToRipeCollateral",
+                  "type": "bool"
+                },
+                {
+                  "name": "shouldSweepAll",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_addCollateral",
+              "type": "tuple[]",
+              "components": [
+                {
+                  "name": "positionType",
+                  "type": "uint8"
+                },
+                {
+                  "name": "amount",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_nonce",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiration",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "contracts/modules/SigHelper.vy": {
+            "content": "#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\ninterface AgentSenderGeneric:\n    def currentNonce(_userWallet: address) -> uint256: view\n\n# unified signature validation\nSIG_PREFIX: constant(bytes32) = 0x1901000000000000000000000000000000000000000000000000000000000000\nDEFAULT_DOMAIN_NAME_HASH: constant(bytes32) = keccak256('UnderscoreAgent')\n\n\n@view\n@internal\ndef _domainSeparator(_agentSender: address, _domainNameHash: bytes32 = DEFAULT_DOMAIN_NAME_HASH) -> bytes32:\n    return keccak256(abi_encode(\n        keccak256('EIP712Domain(string name,uint256 chainId,address verifyingContract)'),\n        _domainNameHash,\n        chain.id,\n        _agentSender\n    ))\n\n\n@view\n@internal\ndef _getFullDigest(_agentSender: address, _messageHash: bytes32, _domainNameHash: bytes32 = DEFAULT_DOMAIN_NAME_HASH) -> bytes32:\n    \"\"\"\n    Get the full EIP-712 digest that needs to be signed\n    \"\"\"\n    domain_separator: bytes32 = self._domainSeparator(_agentSender, _domainNameHash)\n    return keccak256(concat(SIG_PREFIX, domain_separator, _messageHash))\n\n\n@view\n@internal\ndef _getNonce(_agentSender: address, _userWallet: address) -> uint256:\n    return staticcall AgentSenderGeneric(_agentSender).currentNonce(_userWallet)\n\n\n@view\n@internal\ndef _getNonceAndExpiration(_agentSender: address, _userWallet: address, _nonce: uint256, _expiration: uint256) -> (uint256, uint256):\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    if _nonce == 0:\n        nonce = self._getNonce(_agentSender, _userWallet)\n    if _expiration == 0:\n        expiration = block.timestamp + 3600  # 1 hour default\n\n    return (nonce, expiration)\n\n",
+            "sha256sum": "bce8a4dc8f2d4b3dbfeb1d98cd0d70e0df0d9917d1b2431e64eef6f2e6bffc52"
+          },
+          "interfaces/Wallet.vyi": {
+            "content": "# @version 0.4.3\n\nstruct SwapInstruction:\n    legoId: uint256\n    amountIn: uint256\n    minAmountOut: uint256\n    tokenPath: DynArray[address, MAX_TOKEN_PATH]\n    poolPath: DynArray[address, MAX_TOKEN_PATH - 1]\n\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\nMAX_TOKEN_PATH: constant(uint256) = 5\nMAX_PROOFS: constant(uint256) = 25\n\n\n@view\n@external\ndef onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _data: Bytes[1024]) -> bytes4:\n    ...\n\n\n@pure\n@external\ndef apiVersion() -> String[28]:\n    ...\n\n\n##################\n# Transfer Funds #\n##################\n\n\n@external\ndef transferFunds(\n    _recipient: address,\n    _asset: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _isCheque: bool = False,\n    _isSpecialTx: bool = False,\n) -> (uint256, uint256):\n    ...\n\n\n#########\n# Yield #\n#########\n\n\n# deposit\n\n\n@external\ndef depositForYield(\n    _legoId: uint256,\n    _asset: address,\n    _vaultAddr: address = empty(address),\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# withdraw\n\n\n@external\ndef withdrawFromYield(\n    _legoId: uint256,\n    _vaultToken: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n    _isSpecialTx: bool = False,\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n# rebalance position\n\n\n@external\ndef rebalanceYieldPosition(\n    _fromLegoId: uint256,\n    _fromVaultToken: address,\n    _toLegoId: uint256,\n    _toVaultAddr: address = empty(address),\n    _fromVaultAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, address, uint256, uint256):\n    ...\n\n\n###################\n# Swap / Exchange #\n###################\n\n\n@external\ndef swapTokens(_instructions: DynArray[SwapInstruction, MAX_SWAP_INSTRUCTIONS]) -> (address, uint256, address, uint256, uint256):\n    ...\n\n\n# mint / redeem\n\n\n@external\ndef mintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _amountIn: uint256 = max_value(uint256),\n    _minAmountOut: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, bool, uint256):\n    ...\n\n\n@external\ndef confirmMintOrRedeemAsset(\n    _legoId: uint256,\n    _tokenIn: address,\n    _tokenOut: address,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n###################\n# Debt Management #\n###################\n\n\n# add collateral\n\n\n@external\ndef addCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# remove collateral\n\n\n@external\ndef removeCollateral(\n    _legoId: uint256,\n    _asset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# borrow\n\n\n@external\ndef borrow(\n    _legoId: uint256,\n    _borrowAsset: address,\n    _amount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n# repay debt\n\n\n@external\ndef repayDebt(\n    _legoId: uint256,\n    _paymentAsset: address,\n    _paymentAmount: uint256 = max_value(uint256),\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256):\n    ...\n\n\n#################\n# Claim Rewards #\n#################\n\n\n@external\ndef claimIncentives(\n    _legoId: uint256,\n    _rewardToken: address = empty(address),\n    _rewardAmount: uint256 = max_value(uint256),\n    _proofs: DynArray[bytes32, MAX_PROOFS] = [],\n) -> (uint256, uint256):\n    ...\n\n\n################\n# Wrapped ETH #\n################\n\n\n# eth -> weth\n\n\n@payable\n@external\ndef convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n# weth -> eth\n\n\n@external\ndef convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):\n    ...\n\n\n#################\n# Add Liquidity #\n#################\n\n\n# add / remove liquidity (simple)\n\n\n@external\ndef addLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _minLpAmount: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidity(\n    _legoId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _lpToken: address,\n    _lpAmount: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n# add / remove liquidity (concentrated)\n\n\n@external\ndef addLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _amountA: uint256 = max_value(uint256),\n    _amountB: uint256 = max_value(uint256),\n    _tickLower: int24 = min_value(int24),\n    _tickUpper: int24 = max_value(int24),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256, uint256):\n    ...\n\n\n@external\ndef removeLiquidityConcentrated(\n    _legoId: uint256,\n    _nftAddr: address,\n    _nftTokenId: uint256,\n    _pool: address,\n    _tokenA: address,\n    _tokenB: address,\n    _liqToRemove: uint256 = max_value(uint256),\n    _minAmountA: uint256 = 0,\n    _minAmountB: uint256 = 0,\n    _extraData: bytes32 = empty(bytes32),\n) -> (uint256, uint256, uint256, uint256):\n    ...\n\n\n#############\n# Utilities #\n#############\n\n\n# recover nft\n\n\n@external\ndef recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):\n    ...\n",
+            "sha256sum": "5fd15f8da6c599f20c3c5a765632b224190eede7c05057d45df54563b94cd15c"
+          },
+          "contracts/core/agent/LevgVaultAgentSigHelper.vy": {
+            "content": "#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Leverage Vault Agent Signature Helper **                                   \u2551\n#     \u2551  Generates message hashes for LevgVaultAgent signatures                        \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nimport contracts.modules.SigHelper as sigHelper\nfrom interfaces import Wallet\n\nstruct PositionAsset:\n    positionType: uint8  # 0=collateral, 1=leverage, 2=stabPool(sGREEN)\n    amount: uint256      # Amount (max_value for all)\n\nstruct DeleverageAsset:\n    vaultId: uint256\n    asset: address\n    targetRepayAmount: uint256\n\nstruct DepositYieldPosition:\n    positionType: uint8              # 0=collateral, 1=leverage, 2=stabPool(GREEN\u2192sGREEN)\n    amount: uint256                  # amount to deposit (ignored if shouldSweepAll is true)\n    shouldAddToRipeCollateral: bool  # after deposit, add vault token to ripe\n    shouldSweepAll: bool             # deposit full wallet balance regardless of chaining\n\n# max on lists\nMAX_DELEVERAGE_ASSETS: constant(uint256) = 25\nMAX_POSITIONS: constant(uint256) = 10\nMAX_SWAP_INSTRUCTIONS: constant(uint256) = 5\n\n# workflow action codes\nWORKFLOW_BORROW_AND_EARN: constant(uint8) = 100\nWORKFLOW_DELEVERAGE: constant(uint8) = 101\nWORKFLOW_COMPOUND_YIELD: constant(uint8) = 102\n\n# domain name hash for LevgVaultAgent\nDOMAIN_NAME_HASH: constant(bytes32) = keccak256('LevgVaultAgent')\n\n\n#####################\n# Borrow & Earn     #\n#####################\n\n\n@view\n@external\ndef getBorrowAndEarnYieldHash(\n    _levgVaultAgent: address,\n    _levgWallet: address,\n    _removeCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _withdrawPositions: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _depositPositions: DynArray[DepositYieldPosition, MAX_POSITIONS] = [],\n    _addCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _borrowAmount: uint256 = 0,\n    _wantsSavingsGreen: bool = True,\n    _shouldEnterStabPool: bool = True,\n    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),\n    _postSwapDeposits: DynArray[DepositYieldPosition, MAX_POSITIONS] = [],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for borrowAndEarnYield function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_levgVaultAgent, _levgWallet, _nonce, _expiration)\n\n    messageHash: bytes32 = keccak256(abi_encode(\n        WORKFLOW_BORROW_AND_EARN,\n        _levgWallet,\n        _removeCollateral,\n        _withdrawPositions,\n        _depositPositions,\n        _addCollateral,\n        _borrowAmount,\n        _wantsSavingsGreen,\n        _shouldEnterStabPool,\n        _swapInstruction,\n        _postSwapDeposits,\n        nonce,\n        expiration\n    ))\n\n    return (sigHelper._getFullDigest(_levgVaultAgent, messageHash, DOMAIN_NAME_HASH), nonce, expiration)\n\n\n##############\n# Deleverage #\n##############\n\n\n@view\n@external\ndef getDeleverageHash(\n    _levgVaultAgent: address,\n    _levgWallet: address,\n    _mode: uint8 = 0,\n    _autoDeleverageAmount: uint256 = 0,\n    _deleverageAssets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [],\n    _removeCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _withdrawPositions: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),\n    _repayAsset: address = empty(address),\n    _repayAmount: uint256 = 0,\n    _shouldSweepAllForRepay: bool = False,\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for deleverage function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_levgVaultAgent, _levgWallet, _nonce, _expiration)\n\n    messageHash: bytes32 = keccak256(abi_encode(\n        WORKFLOW_DELEVERAGE,\n        _levgWallet,\n        _mode,\n        _autoDeleverageAmount,\n        _deleverageAssets,\n        _removeCollateral,\n        _withdrawPositions,\n        _swapInstruction,\n        _repayAsset,\n        _repayAmount,\n        _shouldSweepAllForRepay,\n        nonce,\n        expiration\n    ))\n\n    return (sigHelper._getFullDigest(_levgVaultAgent, messageHash, DOMAIN_NAME_HASH), nonce, expiration)\n\n\n#######################\n# Compound Yield Gains #\n#######################\n\n\n@view\n@external\ndef getCompoundYieldGainsHash(\n    _levgVaultAgent: address,\n    _levgWallet: address,\n    _removeCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _withdrawPositions: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _swapInstruction: Wallet.SwapInstruction = empty(Wallet.SwapInstruction),\n    _postSwapDeposits: DynArray[DepositYieldPosition, MAX_POSITIONS] = [],\n    _addCollateral: DynArray[PositionAsset, MAX_POSITIONS] = [],\n    _nonce: uint256 = 0,\n    _expiration: uint256 = 0,\n) -> (bytes32, uint256, uint256):\n    \"\"\"\n    Get message hash for compoundYieldGains function\n    \"\"\"\n    nonce: uint256 = _nonce\n    expiration: uint256 = _expiration\n    nonce, expiration = sigHelper._getNonceAndExpiration(_levgVaultAgent, _levgWallet, _nonce, _expiration)\n\n    messageHash: bytes32 = keccak256(abi_encode(\n        WORKFLOW_COMPOUND_YIELD,\n        _levgWallet,\n        _removeCollateral,\n        _withdrawPositions,\n        _swapInstruction,\n        _postSwapDeposits,\n        _addCollateral,\n        nonce,\n        expiration\n    ))\n\n    return (sigHelper._getFullDigest(_levgVaultAgent, messageHash, DOMAIN_NAME_HASH), nonce, expiration)\n",
+            "sha256sum": "2991a58efbffd62797ab6b774b51d0dc21bb86889188133a876716456bf21eb7"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/core/agent/LevgVaultAgentSigHelper.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "da8d7e3a508fb0ebfc32a36b89dc947ef9998a59c6990d8e30c97737cad7ea48"
+      },
+      "args": "",
+      "file": "contracts/core/agent/LevgVaultAgentSigHelper.vy"
+    }
+  }
+}
