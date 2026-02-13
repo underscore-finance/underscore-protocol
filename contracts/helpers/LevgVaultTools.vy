@@ -952,13 +952,14 @@ def getUnderlyingAmounts(
     ripeMissionControl: address = self._getRipeMissionControl(_ripeMissionControl, ripeHq)
     legoBook: address = _legoBook if _legoBook != empty(address) else addys._getLegoBookAddr()
 
-    return self._getUnderlyingAmounts(_levgVault, vaultToken, ripeVaultId, _shouldGetMax, legoBook, ripeVaultBook, ripeMissionControl)
+    return self._getUnderlyingAmounts(_levgVault, _isCollateralAsset, vaultToken, ripeVaultId, _shouldGetMax, legoBook, ripeVaultBook, ripeMissionControl)
 
 
 @view
 @internal
 def _getUnderlyingAmounts(
     _levgVault: address,
+    _isCollateralAsset: bool,
     _vaultToken: address,
     _ripeVaultId: uint256,
     _shouldGetMax: bool,
@@ -970,7 +971,7 @@ def _getUnderlyingAmounts(
         return 0, 0, 0, 0
 
     # 1. underlying asset in wallet
-    underlyingAsset: address = staticcall IERC4626(_levgVault).asset()
+    underlyingAsset: address = staticcall IERC4626(_levgVault).asset() if _isCollateralAsset else USDC
     underlyingInWallet: uint256 = staticcall IERC20(underlyingAsset).balanceOf(_levgVault)
 
     # 2. vault token in wallet -> converted to underlying via lego

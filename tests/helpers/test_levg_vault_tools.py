@@ -1134,13 +1134,15 @@ def test_get_underlying_amounts_leverage_asset(
 ):
     """Test getUnderlyingAmounts with _isCollateralAsset=False (leverage vault token).
 
-    Note: When querying leverage asset, the function still uses the levg vault's
-    core asset (cbBTC) for "underlying" values, while vault token conversion
-    uses the leverage vault token's underlying (USDC).
+    When querying leverage asset, the "underlying" values should be USDC
+    (the leverage token's underlying), not the levg vault core asset (cbBTC).
     """
-    # Raw cbBTC in wallet (underlying refers to the levg vault's core asset)
-    wallet_cbbtc = 5 * EIGHT_DECIMALS
-    mock_cbbtc.mint(undy_levg_vault_cbbtc.address, wallet_cbbtc, sender=governance.address)
+    # Record existing balances (session-scoped fixture may have prior state)
+    existing_usdc_balance = mock_usdc.balanceOf(undy_levg_vault_cbbtc.address)
+
+    # Raw USDC in wallet (underlying for leverage side)
+    wallet_usdc = 125 * SIX_DECIMALS
+    mock_usdc.mint(undy_levg_vault_cbbtc.address, wallet_usdc, sender=governance.address)
 
     # Deposit USDC into leverage vault to get vault tokens
     vault_deposit = 500 * SIX_DECIMALS
@@ -1148,7 +1150,11 @@ def test_get_underlying_amounts_leverage_asset(
     mock_usdc.approve(mock_usdc_leverage_vault.address, vault_deposit, sender=undy_levg_vault_cbbtc.address)
     mock_usdc_leverage_vault.deposit(vault_deposit, undy_levg_vault_cbbtc.address, sender=undy_levg_vault_cbbtc.address)
 
-    # Raw cbBTC on Ripe (underlying refers to the levg vault's core asset)
+    # Raw USDC on Ripe (underlying for leverage side)
+    ripe_usdc = 300 * SIX_DECIMALS
+    mock_ripe.setUserCollateral(undy_levg_vault_cbbtc.address, mock_usdc.address, ripe_usdc)
+
+    # Raw cbBTC on Ripe should not be included in leverage-side underlying values
     ripe_cbbtc = 3 * EIGHT_DECIMALS
     mock_ripe.setUserCollateral(undy_levg_vault_cbbtc.address, mock_cbbtc.address, ripe_cbbtc)
 
@@ -1160,9 +1166,9 @@ def test_get_underlying_amounts_leverage_asset(
     (underlying_wallet, vault_token_wallet_converted, underlying_ripe, vault_token_ripe_converted) = \
         levg_vault_tools.getUnderlyingAmounts(undy_levg_vault_cbbtc.address, False, False)
 
-    # "underlying" values are the levg vault's core asset (cbBTC)
-    assert underlying_wallet == wallet_cbbtc
-    assert underlying_ripe == ripe_cbbtc
+    # "underlying" values are USDC for leverage-side queries
+    assert underlying_wallet == existing_usdc_balance + wallet_usdc
+    assert underlying_ripe == ripe_usdc
     # Vault token values are leverage vault tokens converted to USDC
     _test(vault_deposit, vault_token_wallet_converted, 100)
     _test(ripe_vault_token, vault_token_ripe_converted, 100)
