@@ -55,6 +55,18 @@ VAULT_INFO = {
         "name": "Underscore Amplified WETH",
         "symbol": "undyAmpWETH",
     },
+    "LEVG_USDC": {
+        "name": "Underscore Leverage USDC",
+        "symbol": "undyLevgUSDC",
+    },
+    "LEVG_CBBTC": {
+        "name": "Underscore Leverage cbBTC",
+        "symbol": "undyLevgCBBTC",
+    },
+    "LEVG_WETH": {
+        "name": "Underscore Leverage WETH",
+        "symbol": "undyLevgWETH",
+    },
 }
 
 PARAMS = {

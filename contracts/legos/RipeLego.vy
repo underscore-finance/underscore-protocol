@@ -77,6 +77,12 @@ interface EndaomentPsm:
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
 
+interface LevgVault:
+    def indexOfManager(_manager: address) -> uint256: view
+
+interface CreditEngine:
+    def getUserDebtAmount(_user: address) -> uint256: view
+
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
@@ -85,9 +91,6 @@ interface UserWalletConfig:
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-interface LevgVault:
-    def indexOfManager(_manager: address) -> uint256: view
 
 struct DeleverageAsset:
     vaultId: uint256
@@ -167,6 +170,7 @@ RIPE_TOKEN: public(immutable(address))
 USDC: public(immutable(address))
 
 RIPE_MISSION_CONTROL_ID: constant(uint256) = 5
+RIPE_CREDIT_ENGINE_ID: constant(uint256) = 13
 RIPE_TELLER_ID: constant(uint256) = 17
 RIPE_ENDAOMENT_PSM_ID: constant(uint256) = 22
 
@@ -1004,6 +1008,13 @@ def _canCallDeleverage(_user: address, _caller: address) -> bool:
         return staticcall LevgVault(_user).indexOfManager(_caller) != 0
 
     return False
+
+
+@view
+@external
+def getUserDebtAmount(_user: address) -> uint256:
+    creditEngine: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_CREDIT_ENGINE_ID)
+    return staticcall CreditEngine(creditEngine).getUserDebtAmount(_user)
 
 
 #################
