@@ -37,6 +37,13 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
     yield setupAgentTestAsset
 
 
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
+
+
 ####################
 # Yield Lego Tests #
 ####################
@@ -814,6 +821,7 @@ def test_agent_transfer_funds_basic(
     user_wallet,
     charlie,
     bob,
+    valid_transfer_recipient,
     alpha_token,
     alpha_token_whale
 ):
@@ -834,7 +842,7 @@ def test_agent_transfer_funds_basic(
     actual_transfer_amount, usd_value = starter_agent_sender.transferFunds(
         starter_agent.address,
         user_wallet.address,
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         transfer_amount,
         False,
@@ -846,7 +854,7 @@ def test_agent_transfer_funds_basic(
     # Verify events
     assert log.op == 1  # transfer funds
     assert log.asset1 == alpha_token.address
-    assert log.asset2 == bob
+    assert log.asset2 == valid_transfer_recipient
     assert log.amount1 == actual_transfer_amount
     assert log.usdValue == usd_value
 
@@ -856,7 +864,7 @@ def test_agent_transfer_funds_basic(
     
     # Verify balances
     assert alpha_token.balanceOf(user_wallet) == amount - transfer_amount
-    assert alpha_token.balanceOf(bob) == transfer_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == transfer_amount
 
 
 def test_agent_claim_rewards_basic(
@@ -1016,4 +1024,3 @@ def test_agent_convert_weth_to_eth_basic(
     
     # Verify balances
     assert weth.balanceOf(user_wallet) == weth_amount - convert_amount
-

@@ -36,6 +36,13 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
     yield setupAgentTestAsset
 
 
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
+
+
 @pytest.fixture(scope="module")
 def createActionInstruction():
     def createActionInstruction(
@@ -370,6 +377,7 @@ def test_batch_mixed_operations(
     whale,
     mock_ripe,
     bob,
+    valid_transfer_recipient,
 ):
     """Test batch with mixed operation types: transfer, deposit yield, swap"""
     
@@ -401,7 +409,7 @@ def test_batch_mixed_operations(
             action=1,  # transferFunds
             legoId=0,
             asset=yield_underlying_token.address,
-            target=bob,  # Transfer to bob (owner of wallet)
+            target=valid_transfer_recipient,
             amount=50 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
@@ -456,7 +464,7 @@ def test_batch_mixed_operations(
     assert logs[2].amount1 == 150 * EIGHTEEN_DECIMALS
     
     # Check final balances
-    assert yield_underlying_token.balanceOf(bob) == 50 * EIGHTEEN_DECIMALS
+    assert yield_underlying_token.balanceOf(valid_transfer_recipient) == 50 * EIGHTEEN_DECIMALS
     assert yield_underlying_token.balanceOf(user_wallet) == 150 * EIGHTEEN_DECIMALS
     assert yield_vault_token.balanceOf(user_wallet) > 0
     assert mock_dex_asset.balanceOf(user_wallet) == 50 * EIGHTEEN_DECIMALS
@@ -881,6 +889,7 @@ def test_batch_complex_prev_amount_chain(
     whale,
     mock_ripe,
     bob,
+    valid_transfer_recipient,
 ):
     """Test complex chain using usePrevAmountOut across multiple operations"""
     
@@ -934,7 +943,7 @@ def test_batch_complex_prev_amount_chain(
             action=1,  # transferFunds
             usePrevAmountOut=True,
             asset=mock_dex_lp_token.address,
-            target=bob,
+            target=valid_transfer_recipient,
             amount=0,  # Will use all of previous output
         )
     ]
@@ -960,7 +969,7 @@ def test_batch_complex_prev_amount_chain(
     
     # Final balance checks
     assert mock_dex_asset.balanceOf(user_wallet) == 600 * EIGHTEEN_DECIMALS  # 1000 - 400
-    assert mock_dex_lp_token.balanceOf(bob) == 400 * EIGHTEEN_DECIMALS  # All transferred
+    assert mock_dex_lp_token.balanceOf(valid_transfer_recipient) == 400 * EIGHTEEN_DECIMALS  # All transferred
 
 
 def test_batch_pending_mint_redeem(

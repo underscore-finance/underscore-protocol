@@ -38,6 +38,13 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
     yield setupAgentTestAsset
 
 
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
+
+
 @pytest.fixture(scope="module")
 def test_signer():
     """Create a test signer for signature testing"""
@@ -449,6 +456,7 @@ def test_batch_actions_signature_validation(
     mock_dex_asset_alt,
     whale,
     bob,
+    valid_transfer_recipient,
     create_signature_struct
 ):
     """Test signature validation for batch actions"""
@@ -461,11 +469,11 @@ def test_batch_actions_signature_validation(
         _lego_id=3
     )
 
-    # Create transfer instruction - transfers go to wallet owner (bob), not agent owner
+    # Create transfer instruction to an explicitly valid non-owner recipient.
     instruction = createActionInstruction(
         action=1,  # TRANSFER
         asset=mock_dex_asset.address,
-        target=bob,
+        target=valid_transfer_recipient,
         amount=10 * EIGHTEEN_DECIMALS
     )
 
@@ -773,6 +781,7 @@ def test_batch_max_instructions(
     mock_dex_asset,
     whale,
     bob,
+    valid_transfer_recipient,
     create_signature_struct
 ):
     """Test batch actions with exactly 15 instructions (MAX_INSTRUCTIONS)"""
@@ -791,7 +800,7 @@ def test_batch_max_instructions(
         instruction = createActionInstruction(
             action=1,  # TRANSFER
             asset=mock_dex_asset.address,
-            target=bob,
+            target=valid_transfer_recipient,
             amount=1 * EIGHTEEN_DECIMALS  # Small amount per transfer
         )
         instructions.append(instruction)
@@ -811,7 +820,7 @@ def test_batch_max_instructions(
     extra_instruction = createActionInstruction(
         action=1,  # TRANSFER
         asset=mock_dex_asset.address,
-        target=bob,
+        target=valid_transfer_recipient,
         amount=1 * EIGHTEEN_DECIMALS
     )
     instructions.append(extra_instruction)
@@ -913,5 +922,4 @@ def test_ecrecover_edge_cases(
             invalid_v_sig,
             sender=alice
         )
-
 

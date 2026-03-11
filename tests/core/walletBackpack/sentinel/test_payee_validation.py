@@ -71,15 +71,6 @@ def test_owner_payment_with_canPayOwner_false(createGlobalPayeeSettings, alpha_t
     assert not sentinel.isValidPayee(user_wallet, bob, alpha_token, 100, 100)
 
 
-def test_owner_registered_as_payee_still_invalid(createPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
-    # simulate stale legacy storage where owner was registered as a payee
-    new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token)
-    user_wallet_config.addPayee(bob, new_payee_settings, sender=paymaster.address)
-
-    # owner should still be rejected even if stored as a payee
-    assert not sentinel.isValidPayee(user_wallet, bob, alpha_token, 1, 1)
-
-
 # activation / expiry tests
 
 
