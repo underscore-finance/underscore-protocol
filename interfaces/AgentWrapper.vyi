@@ -16,6 +16,15 @@ def transferFunds(
 ) -> (uint256, uint256):
     ...
 
+@external
+def createAndPayCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+) -> (uint256, uint256):
+    ...
+
 #########
 # Yield #
 #########

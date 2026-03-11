@@ -12,7 +12,7 @@ from interfaces import Wallet
 
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
-    action: uint8              # Action type: 1=transfer, 2=weth2eth, 3=eth2weth, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
+    action: uint8              # Action type: 1=transfer, 2=weth2eth, 3=eth2weth, 4=createAndPayCheque, 10=depositYield, 11=withdrawYield, 12=rebalanceYield, 20=swap, 21=mint/redeem, 22=confirmMint/redeem, 30=addLiq, 31=removeLiq, 32=addLiqConc, 33=removeLiqConc, 40=addCollateral, 41=removeCollateral, 42=borrow, 43=repay, 50=claimRewards
     legoId: uint16             # Protocol/Lego ID (use amount2 for toLegoId in rebalance)
     asset: address             # Primary asset/token (or vaultToken for withdrawals)
     target: address            # Varies: recipient/vaultAddr/tokenOut/pool based on action
@@ -56,6 +56,26 @@ def getTransferFundsHash(
     expiration: uint256 = _expiration
     nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
     return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, nonce, expiration))), nonce, expiration)
+
+
+@view
+@external
+def getCreateAndPayChequeHash(
+    _agentSender: address,
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _nonce: uint256 = 0,
+    _expiration: uint256 = 0,
+) -> (bytes32, uint256, uint256):
+    """
+    Get message hash for createAndPayCheque function
+    """
+    nonce: uint256 = _nonce
+    expiration: uint256 = _expiration
+    nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
+    return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(convert(4, uint8), _userWallet, _recipient, _asset, _amount, nonce, expiration))), nonce, expiration)
 
 
 #########
@@ -516,4 +536,3 @@ def getBatchActionsHash(
     expiration: uint256 = _expiration
     nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
     return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(_userWallet, _instructions, nonce, expiration))), nonce, expiration)
-

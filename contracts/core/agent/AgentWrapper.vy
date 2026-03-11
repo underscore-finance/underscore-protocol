@@ -23,6 +23,17 @@ implements: AgentWrapper
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletConfigStructs as wcs
+
+interface ChequeBook:
+    def createCheque(_userWallet: address, _recipient: address, _asset: address, _amount: uint256, _unlockNumBlocks: uint256, _expiryNumBlocks: uint256, _canManagerPay: bool, _canBePulled: bool) -> bool: nonpayable
+
+interface UserWalletConfig:
+    def cheques(_recipient: address) -> wcs.Cheque: view
+    def chequeBook() -> address: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -77,6 +88,35 @@ def transferFunds(
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 1, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, _isCheque, False)
+
+
+@external
+def createAndPayCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+) -> (uint256, uint256):
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    log AgentAction(action = 4, userWallet = _userWallet, sender = msg.sender)
+
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
+    existingCheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
+    assert not existingCheque.active # dev: recipient has active cheque
+
+    assert extcall ChequeBook(chequeBook).createCheque(
+        _userWallet,
+        _recipient,
+        _asset,
+        _amount,
+        0,
+        0,
+        True,
+        False,
+    )
+
+    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
 
 
 #########

@@ -44,6 +44,63 @@ def valid_transfer_recipient(user_wallet_config, migrator, sally):
     return sally
 
 
+def _set_instant_cheque_settings(
+    cheque_book,
+    user_wallet,
+    owner,
+    createChequeSettings,
+    _instant_usd_threshold,
+    _expensive_delay_blocks=1,
+    _can_managers_create_cheques=True,
+    _can_manager_pay=True,
+):
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    timelock = wallet_config.timeLock()
+    min_expensive_delay = cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY()
+    settings = createChequeSettings(
+        _instantUsdThreshold=_instant_usd_threshold,
+        _expensiveDelayBlocks=max(_expensive_delay_blocks, timelock, min_expensive_delay),
+        _defaultExpiryBlocks=timelock,
+        _canManagersCreateCheques=_can_managers_create_cheques,
+        _canManagerPay=_can_manager_pay,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *settings, sender=owner)
+    return settings
+
+
+def _set_agent_transfer_perms(
+    user_wallet_config,
+    high_command,
+    starter_agent,
+    createManagerSettings,
+    createTransferPerms,
+    _can_transfer,
+    _can_create_cheque,
+    _allowed_payees=None,
+):
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    transfer_perms = createTransferPerms(
+        _canTransfer=_can_transfer,
+        _canCreateCheque=_can_create_cheque,
+        _canAddPendingPayee=original_settings.transferPerms.canAddPendingPayee,
+        _allowedPayees=list(original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
+    )
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=original_settings.limits,
+        _legoPerms=original_settings.legoPerms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=original_settings.whitelistPerms,
+        _transferPerms=transfer_perms,
+        _allowedAssets=list(original_settings.allowedAssets),
+        _canClaimLoot=original_settings.canClaimLoot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+    return original_settings
+
+
 ####################
 # Yield Lego Tests #
 ####################
@@ -1024,3 +1081,469 @@ def test_agent_convert_weth_to_eth_basic(
     
     # Verify balances
     assert weth.balanceOf(user_wallet) == weth_amount - convert_amount
+
+
+def test_agent_create_and_pay_cheque_happy_path(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    mock_ripe,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    amount = 25 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    recipient_balance_before = alpha_token.balanceOf(alice)
+    wallet_balance_before = alpha_token.balanceOf(user_wallet)
+
+    amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    agent_log = filter_logs(starter_agent_sender, "AgentAction")[0]
+    wallet_log = filter_logs(starter_agent_sender, "WalletAction")[0]
+
+    assert agent_log.action == 4
+    assert agent_log.userWallet == user_wallet.address
+    assert agent_log.sender == starter_agent_sender.address
+
+    assert wallet_log.op == 1
+    assert wallet_log.asset1 == alpha_token.address
+    assert wallet_log.amount1 == amount
+    assert wallet_log.usdValue == usd_value
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+    assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
+    assert user_wallet_config.cheques(alice).active == False
+
+
+def test_agent_create_and_pay_cheque_reverts_above_threshold(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    amount = 60 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=50 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=10,
+    )
+
+    active_cheques_before = user_wallet_config.numActiveCheques()
+
+    with boa.reverts():
+        starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+    assert user_wallet_config.numActiveCheques() == active_cheques_before
+    assert user_wallet_config.cheques(alice).active == False
+
+
+def test_agent_create_and_pay_cheque_reverts_when_global_can_manager_pay_disabled(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _can_manager_pay=False,
+    )
+
+    with boa.reverts():
+        starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            25 * EIGHTEEN_DECIMALS,
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+
+def test_agent_create_and_pay_cheque_reverts_when_managers_cannot_create_cheques(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _can_managers_create_cheques=False,
+    )
+
+    with boa.reverts():
+        starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            25 * EIGHTEEN_DECIMALS,
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+
+def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_create_cheque(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    high_command,
+    createChequeSettings,
+    createManagerSettings,
+    createTransferPerms,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    original_settings = _set_agent_transfer_perms(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        createTransferPerms,
+        _can_transfer=True,
+        _can_create_cheque=False,
+    )
+
+    try:
+        with boa.reverts():
+            starter_agent_sender.createAndPayCheque(
+                starter_agent.address,
+                user_wallet.address,
+                alice,
+                alpha_token.address,
+                25 * EIGHTEEN_DECIMALS,
+                (b"", 0, 0),
+                sender=charlie
+            )
+    finally:
+        user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
+
+
+def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_transfer(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    high_command,
+    createChequeSettings,
+    createManagerSettings,
+    createTransferPerms,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    original_settings = _set_agent_transfer_perms(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        createTransferPerms,
+        _can_transfer=False,
+        _can_create_cheque=True,
+    )
+
+    try:
+        with boa.reverts():
+            starter_agent_sender.createAndPayCheque(
+                starter_agent.address,
+                user_wallet.address,
+                alice,
+                alpha_token.address,
+                25 * EIGHTEEN_DECIMALS,
+                (b"", 0, 0),
+                sender=charlie
+            )
+    finally:
+        user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
+
+
+def test_agent_create_and_pay_cheque_reverts_for_blocked_allowed_payees(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    sally,
+    charlie,
+    high_command,
+    createChequeSettings,
+    createManagerSettings,
+    createTransferPerms,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    original_settings = _set_agent_transfer_perms(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        createTransferPerms,
+        _can_transfer=True,
+        _can_create_cheque=True,
+        _allowed_payees=[sally],
+    )
+
+    try:
+        with boa.reverts():
+            starter_agent_sender.createAndPayCheque(
+                starter_agent.address,
+                user_wallet.address,
+                alice,
+                alpha_token.address,
+                25 * EIGHTEEN_DECIMALS,
+                (b"", 0, 0),
+                sender=charlie
+            )
+    finally:
+        user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
+
+
+def test_agent_create_and_pay_cheque_reverts_for_existing_active_cheque(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    amount = 25 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob
+    )
+
+    active_cheques_before = user_wallet_config.numActiveCheques()
+
+    with boa.reverts("recipient has active cheque"):
+        starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+    assert user_wallet_config.numActiveCheques() == active_cheques_before
+    assert user_wallet_config.cheques(alice).active == True
+
+    user_wallet_config.cancelCheque(alice, sender=cheque_book.address)
+
+
+def test_agent_create_and_pay_cheque_reverts_for_insufficient_balance(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    wallet_amount = 10 * EIGHTEEN_DECIMALS
+    requested_amount = 25 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=wallet_amount,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    active_cheques_before = user_wallet_config.numActiveCheques()
+
+    with boa.reverts():
+        starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            requested_amount,
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+    assert user_wallet_config.numActiveCheques() == active_cheques_before
+    assert user_wallet_config.cheques(alice).active == False
