@@ -639,6 +639,48 @@ def test_createCheque_fails_validation_checks(
         )
 
 
+def test_createCheque_rejects_owner_as_recipient(
+    bob, alpha_token, mock_ripe,
+    user_wallet, cheque_book,
+):
+    """Owner must use a separate wallet if they want to receive cheque funds"""
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    with boa.reverts("invalid cheque"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            bob,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            ONE_DAY_IN_BLOCKS,
+            ONE_WEEK_IN_BLOCKS,
+            True,
+            False,
+            sender=bob
+        )
+
+
 def test_createCheque_expiry_calculation_paths(
     bob, alice, charlie, alpha_token, mock_ripe,
     user_wallet, user_wallet_config, cheque_book,
@@ -1225,4 +1267,3 @@ def test_cancelCheque_function_returns_true(
     
     # Function should return True
     assert result == True
-

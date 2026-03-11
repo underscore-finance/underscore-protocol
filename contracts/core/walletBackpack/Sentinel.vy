@@ -480,10 +480,6 @@ def _isValidPayeeAndGetData(
     if _isWhitelisted:
         return True, empty(wcs.PayeeData)
 
-    # check if recipient is owner
-    if _isOwner and _globalConfig.canPayOwner:
-        return True, empty(wcs.PayeeData)
-
     # registered payee
     if not _isPayee:
         return False, empty(wcs.PayeeData)

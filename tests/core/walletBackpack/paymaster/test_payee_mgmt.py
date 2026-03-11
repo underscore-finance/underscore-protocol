@@ -5,6 +5,51 @@ from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import filter_logs
 
 
+#########################
+# Global Payee Settings #
+#########################
+
+
+def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob):
+    """Paymaster should ignore canPayOwner input and emit the stored value"""
+    start_delay = user_wallet_config.timeLock()
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS,
+    )
+
+    result = paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        start_delay,
+        ONE_DAY_IN_BLOCKS,
+        10,
+        100,
+        True,
+        usd_limits,
+        True,
+        sender=bob,
+    )
+
+    assert result == True
+
+    saved = user_wallet_config.globalPayeeSettings()
+    assert saved.defaultPeriodLength == 2 * ONE_DAY_IN_BLOCKS
+    assert saved.startDelay == start_delay
+    assert saved.activationLength == ONE_DAY_IN_BLOCKS
+    assert saved.maxNumTxsPerPeriod == 10
+    assert saved.txCooldownBlocks == 100
+    assert saved.failOnZeroPrice == True
+    assert saved.canPayOwner == False
+    assert saved.canPull == True
+
+    event = filter_logs(paymaster, "GlobalPayeeSettingsModified")[-1]
+    assert event.user == user_wallet.address
+    assert event.canPayOwner == False
+    assert event.canPull == True
+
+
 #############
 # Add Payee #
 #############
@@ -60,6 +105,31 @@ def test_add_payee_verifies_caller_is_owner(paymaster, user_wallet, createPayeeL
             createPayeeLimits(),  # unitLimits
             usd_limits,  # usdLimits
             sender=alice  # Not the owner
+        )
+
+
+def test_add_payee_rejects_owner_as_payee(paymaster, user_wallet, createPayeeLimits, bob):
+    """Owner must use a separate wallet if they want to receive payee payments"""
+    usd_limits = createPayeeLimits(
+        _perTxCap=1000 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=10000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=100000 * EIGHTEEN_DECIMALS
+    )
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPayee(
+            user_wallet,
+            bob,
+            False,
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            usd_limits,
+            sender=bob
         )
 
 
@@ -982,6 +1052,38 @@ def test_owner_cannot_add_pending_payee(paymaster, user_wallet, createPayeeLimit
         )
 
 
+def test_add_pending_payee_rejects_owner_as_payee(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, high_command):
+    """Managers cannot add the owner as a pending payee"""
+    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    user_wallet_config.setGlobalManagerSettings(
+        createGlobalManagerSettings(_transferPerms=global_transfer_perms),
+        sender=high_command.address
+    )
+
+    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    user_wallet_config.addManager(
+        alice,
+        createManagerSettings(_transferPerms=manager_transfer_perms),
+        sender=high_command.address
+    )
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.addPendingPayee(
+            user_wallet,
+            bob,
+            False,
+            2 * ONE_DAY_IN_BLOCKS,
+            10,
+            0,
+            True,
+            ZERO_ADDRESS,
+            False,
+            createPayeeLimits(),
+            createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+            sender=alice
+        )
+
+
 def test_non_manager_cannot_add_pending_payee(paymaster, user_wallet, createPayeeLimits, alice, charlie):
     """Test that non-manager cannot add pending payee"""
     # Charlie (not a manager) tries to add pending payee
@@ -1283,6 +1385,23 @@ def test_confirm_pending_payee_by_owner(paymaster, user_wallet, user_wallet_conf
     # Verify pending payee is cleared
     pending_after = user_wallet_config.pendingPayees(charlie)
     assert pending_after.initiatedBlock == 0
+
+
+def test_confirm_pending_payee_rejects_owner_as_payee(paymaster, user_wallet, user_wallet_config, createPayeeSettings, bob):
+    """Stale pending entries for the owner cannot be confirmed into payees"""
+    current_block = boa.env.evm.patch.block_number
+    pending = (
+        createPayeeSettings(),
+        current_block,
+        current_block + 10,
+        bob,
+    )
+    user_wallet_config.addPendingPayee(bob, pending, sender=paymaster.address)
+
+    boa.env.time_travel(blocks=10)
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.confirmPendingPayee(user_wallet, bob, sender=bob)
 
 
 def test_confirm_pending_payee_before_timelock_fails(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalManagerSettings, createTransferPerms, createManagerSettings, alice, bob, charlie, high_command):

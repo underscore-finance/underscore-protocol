@@ -190,7 +190,6 @@ def setGlobalPayeeSettings(
     _txCooldownBlocks: uint256,
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
-    _canPayOwner: bool,
     _canPull: bool,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
@@ -200,7 +199,7 @@ def setGlobalPayeeSettings(
     assert msg.sender == config.owner # dev: no perms
 
     # validate global settings
-    assert self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, _canPull, config.timeLock) # dev: invalid settings
+    assert self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPull, config.timeLock) # dev: invalid settings
 
     # update global settings in wallet config
     settings: wcs.GlobalPayeeSettings = wcs.GlobalPayeeSettings(
@@ -211,7 +210,7 @@ def setGlobalPayeeSettings(
         txCooldownBlocks = _txCooldownBlocks,
         failOnZeroPrice = _failOnZeroPrice,
         usdLimits = _usdLimits,
-        canPayOwner = _canPayOwner,
+        canPayOwner = False,
         canPull = _canPull,
     )
     extcall UserWalletConfig(config.walletConfig).setGlobalPayeeSettings(settings)
@@ -224,7 +223,7 @@ def setGlobalPayeeSettings(
         maxNumTxsPerPeriod = _maxNumTxsPerPeriod,
         txCooldownBlocks = _txCooldownBlocks,
         failOnZeroPrice = _failOnZeroPrice,
-        canPayOwner = _canPayOwner,
+        canPayOwner = False,
         canPull = _canPull,
         usdPerTxCap = _usdLimits.perTxCap,
         usdPerPeriodCap = _usdLimits.perPeriodCap,
@@ -314,6 +313,7 @@ def updatePayee(
     # only owner can update payee
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
     assert msg.sender == config.owner # dev: no perms
+    assert _payee not in [empty(address), config.owner, config.wallet, config.walletConfig] # dev: invalid payee settings
 
     # validate payee settings
     assert self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, config.globalPayeeSettings.canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits) # dev: invalid payee settings
@@ -455,6 +455,7 @@ def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
     # only owner can confirm pending payee
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
     assert msg.sender == config.owner # dev: no perms
+    assert _payee not in [empty(address), config.owner, config.wallet, config.walletConfig] # dev: invalid payee settings
     
     # get pending payee
     pendingPayee: wcs.PendingPayee = staticcall UserWalletConfig(config.walletConfig).pendingPayees(_payee)
@@ -761,11 +762,10 @@ def isValidGlobalPayeeSettings(
     _txCooldownBlocks: uint256,
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
-    _canPayOwner: bool,
     _canPull: bool,
 ) -> bool:
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, empty(address))
-    return self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPayOwner, _canPull, config.timeLock)
+    return self._isValidGlobalPayeeSettings(_defaultPeriodLength, _startDelay, _activationLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _usdLimits, _canPull, config.timeLock)
 
 
 @view
@@ -778,7 +778,6 @@ def _isValidGlobalPayeeSettings(
     _txCooldownBlocks: uint256,
     _failOnZeroPrice: bool,
     _usdLimits: wcs.PayeeLimits,
-    _canPayOwner: bool,
     _canPull: bool,
     _timeLock: uint256,
 ) -> bool:
@@ -996,6 +995,6 @@ def createDefaultGlobalPayeeSettings(
         txCooldownBlocks = 0,
         failOnZeroPrice = False,
         usdLimits = empty(wcs.PayeeLimits),
-        canPayOwner = True,
+        canPayOwner = False,
         canPull = False,
     )

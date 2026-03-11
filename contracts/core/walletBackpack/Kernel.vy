@@ -129,6 +129,7 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     c: wcs.WhitelistConfigBundle = self._getWhitelistConfig(_userWallet, _whitelistAddr, msg.sender)
     assert self._canManageWhitelist(c.isOwner, c.isManager, wcs.WhitelistAction.CONFIRM_WHITELIST, c.whitelistPerms, c.globalWhitelistPerms) # dev: no perms
 
+    assert _whitelistAddr not in [empty(address), c.wallet, c.owner, c.walletConfig] # dev: invalid addr
     assert c.pendingWhitelist.initiatedBlock != 0 # dev: no pending whitelist
     assert c.pendingWhitelist.confirmBlock != 0 and block.number >= c.pendingWhitelist.confirmBlock # dev: time delay not reached
     assert c.pendingWhitelist.currentOwner == c.owner # dev: owner must match

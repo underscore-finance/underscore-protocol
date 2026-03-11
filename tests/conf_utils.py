@@ -445,7 +445,7 @@ def createGlobalPayeeSettings(createPayeeLimits):
         _txCooldownBlocks = 0, # no cooldown by default
         _failOnZeroPrice = False, # accept zero-priced transactions by default
         _usdLimits = None,
-        _canPayOwner = True, # allow payments to owner by default
+        _canPayOwner = False, # owner-pay bypass disabled by default
         _canPull = True, # allow payments to payees by default
     ):
         if _usdLimits is None:
@@ -677,4 +677,3 @@ def createCheque():
             _active,
         )
     yield createCheque
-

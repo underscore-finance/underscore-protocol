@@ -265,6 +265,7 @@ def cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
     toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
+    toOwner: address = staticcall UserWalletConfig(toConfig).owner()
 
     # 1. copy global manager settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
@@ -293,6 +294,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
     # 3. copy global payee settings
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
+    globalPayeeSettings.canPayOwner = False
     extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
     
     # 4. copy all payees
@@ -301,7 +303,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     if numPayees > 1:
         for i: uint256 in range(1, numPayees, bound=max_value(uint256)):
             payee: address = staticcall UserWalletConfig(fromConfig).payees(i)
-            if payee == empty(address):
+            if payee in [empty(address), toOwner, _toWallet, toConfig]:
                 continue
 
             payeeSettings: wcs.PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
@@ -315,9 +317,11 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     if numWhitelisted > 1:
         for i: uint256 in range(1, numWhitelisted, bound=max_value(uint256)):
             addr: address = staticcall UserWalletConfig(fromConfig).whitelistAddr(i)
-            if addr != empty(address):
-                extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
-                whitelistCopied += 1
+            if addr in [empty(address), toOwner, _toWallet, toConfig]:
+                continue
+
+            extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
+            whitelistCopied += 1
 
     # NOTE (FIX L-04): Cheque settings are NOT migrated - destination wallet uses default settings
     # Individual cheques are also NOT migrated - users must manually recreate them
