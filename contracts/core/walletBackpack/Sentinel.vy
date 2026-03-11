@@ -476,6 +476,10 @@ def _isValidPayeeAndGetData(
     _payeeData: wcs.PayeeData,
 ) -> (bool, wcs.PayeeData):
 
+    # owner can never be a valid payment recipient
+    if _isOwner:
+        return False, empty(wcs.PayeeData)
+
     # whitelisted
     if _isWhitelisted:
         return True, empty(wcs.PayeeData)
