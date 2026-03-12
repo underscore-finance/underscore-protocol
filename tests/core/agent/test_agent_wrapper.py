@@ -1312,6 +1312,7 @@ def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_create_cheque(
         _can_transfer=True,
         _can_create_cheque=False,
     )
+    active_cheques_before = user_wallet_config.numActiveCheques()
 
     try:
         with boa.reverts():
@@ -1324,6 +1325,8 @@ def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_create_cheque(
                 (b"", 0, 0),
                 sender=charlie
             )
+        assert user_wallet_config.numActiveCheques() == active_cheques_before
+        assert user_wallet_config.cheques(alice).active == False
     finally:
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
@@ -1380,6 +1383,73 @@ def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_transfer(
                 (b"", 0, 0),
                 sender=charlie
             )
+    finally:
+        user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
+
+
+def test_agent_create_and_pay_cheque_does_not_consume_generic_manager_quota_on_create(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    high_command,
+    createChequeSettings,
+    createManagerSettings,
+    createManagerLimits,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=createManagerLimits(_maxNumTxsPerPeriod=1, _txCooldownBlocks=1),
+        _legoPerms=original_settings.legoPerms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=original_settings.whitelistPerms,
+        _transferPerms=original_settings.transferPerms,
+        _allowedAssets=list(original_settings.allowedAssets),
+        _canClaimLoot=original_settings.canClaimLoot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+
+    try:
+        amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            25 * EIGHTEEN_DECIMALS,
+            (b"", 0, 0),
+            sender=charlie
+        )
+        manager_data = user_wallet_config.managerPeriodData(starter_agent.address)
+
+        assert amount_paid == 25 * EIGHTEEN_DECIMALS
+        assert usd_value == 25 * EIGHTEEN_DECIMALS
+        assert manager_data.numTxsInPeriod == 1
+        assert manager_data.totalNumTxs == 1
+        assert manager_data.lastTxBlock == boa.env.evm.patch.block_number
+        assert user_wallet_config.cheques(alice).active == False
     finally:
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 

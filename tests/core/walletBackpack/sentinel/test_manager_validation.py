@@ -274,6 +274,47 @@ def test_manager_allowed_payees_restriction(createManagerSettings, createTransfe
     assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER, [], [], sally)
 
 
+def test_manager_pay_cheque_requires_transfer_permission_only(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
+    transfer_perms = createTransferPerms(_canTransfer=True, _canCreateCheque=False)
+    new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE)
+
+
+def test_manager_pay_cheque_fails_without_transfer_permission(createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
+    transfer_perms = createTransferPerms(_canTransfer=False, _canCreateCheque=True)
+    new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE)
+
+
+def test_manager_pay_cheque_ignores_global_cheque_create_permission(createGlobalManagerSettings, createManagerSettings, createTransferPerms, alice, sentinel, user_wallet, user_wallet_config, high_command):
+    new_global_manager_settings = createGlobalManagerSettings(
+        _transferPerms=createTransferPerms(_canTransfer=True, _canCreateCheque=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+
+    transfer_perms = createTransferPerms(_canTransfer=True, _canCreateCheque=False)
+    new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE)
+
+
+def test_manager_pay_cheque_ignores_allowed_payees(createManagerSettings, createTransferPerms, alice, bob, sally, sentinel, user_wallet, user_wallet_config, high_command):
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[bob],
+    )
+    new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], sally)
+
+
 # transaction limits
 
 

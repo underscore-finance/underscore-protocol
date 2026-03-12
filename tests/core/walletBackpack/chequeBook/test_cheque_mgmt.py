@@ -267,6 +267,256 @@ def test_createCheque_manager_respects_global_manager_canCreateCheque(
         )
 
 
+def test_createCheque_manager_respects_manager_allowed_assets(
+    bob, alice, charlie, alpha_token, bravo_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, high_command,
+    createManagerSettings, createTransferPerms,
+):
+    manager_settings = createManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[bravo_token.address],
+    )
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        False,
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    with boa.reverts("not authorized to create cheques"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            charlie,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            ONE_DAY_IN_BLOCKS,
+            ONE_WEEK_IN_BLOCKS,
+            True,
+            False,
+            sender=alice
+        )
+
+
+def test_createCheque_manager_respects_global_manager_allowed_assets(
+    bob, alice, charlie, alpha_token, bravo_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, high_command,
+    createGlobalManagerSettings, createManagerSettings, createTransferPerms,
+):
+    global_settings = createGlobalManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[bravo_token.address],
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    manager_settings = createManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+    )
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        False,
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    with boa.reverts("not authorized to create cheques"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            charlie,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            ONE_DAY_IN_BLOCKS,
+            ONE_WEEK_IN_BLOCKS,
+            True,
+            False,
+            sender=alice
+        )
+
+
+def test_createCheque_manager_succeeds_when_manager_and_global_assets_allow_asset(
+    bob, alice, charlie, alpha_token, bravo_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, high_command,
+    createGlobalManagerSettings, createManagerSettings, createTransferPerms,
+):
+    global_settings = createGlobalManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[alpha_token.address, bravo_token.address],
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    manager_settings = createManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[alpha_token.address],
+    )
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        False,
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=alice
+    )
+
+    stored_cheque = user_wallet_config.cheques(charlie)
+    assert stored_cheque.active == True
+    assert stored_cheque.asset == alpha_token.address
+
+
+def test_createCheque_owner_ignores_manager_asset_allowlists(
+    bob, alice, charlie, alpha_token, bravo_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, high_command,
+    createGlobalManagerSettings, createManagerSettings, createTransferPerms,
+):
+    global_settings = createGlobalManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[bravo_token.address],
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    manager_settings = createManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+        _allowedAssets=[bravo_token.address],
+    )
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        False,
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob
+    )
+
+    stored_cheque = user_wallet_config.cheques(charlie)
+    assert stored_cheque.active == True
+    assert stored_cheque.asset == alpha_token.address
+
+
 def test_createCheque_fails_invalid_inputs(
     bob, alice, alpha_token, mock_ripe,
     user_wallet, cheque_book,

@@ -157,10 +157,11 @@ def createCheque(
         config.owner == msg.sender,
         config.isCreatorManager,
         config.chequeSettings.canManagersCreateCheques,
-        globalManagerSettings.transferPerms.canCreateCheque,
+        _asset,
+        globalManagerSettings,
         config.managerSettings,
     ) # dev: not authorized to create cheques
-    
+
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
@@ -218,14 +219,16 @@ def canCreateCheque(
     _isCreatorOwner: bool,
     _isCreatorManager: bool,
     _canManagersCreateCheques: bool,
-    _globalManagerCanCreateCheque: bool,
+    _asset: address,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
     _managerSettings: wcs.ManagerSettings,
 ) -> bool:
     return self._canCreateCheque(
         _isCreatorOwner,
         _isCreatorManager,
         _canManagersCreateCheques,
-        _globalManagerCanCreateCheque,
+        _asset,
+        _globalManagerSettings,
         _managerSettings,
     )
 
@@ -236,7 +239,8 @@ def _canCreateCheque(
     _isCreatorOwner: bool,
     _isCreatorManager: bool,
     _canManagersCreateCheques: bool,
-    _globalManagerCanCreateCheque: bool,
+    _asset: address,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
     _managerSettings: wcs.ManagerSettings,
 ) -> bool:
 
@@ -253,11 +257,19 @@ def _canCreateCheque(
         return False
 
     # check global manager settings
-    if not _globalManagerCanCreateCheque:
+    if not _globalManagerSettings.transferPerms.canCreateCheque:
         return False
     
     # check manager's specific transfer permissions
     if not _managerSettings.transferPerms.canCreateCheque:
+        return False
+
+    # manager-specific asset restrictions apply to manager-created cheques
+    if len(_managerSettings.allowedAssets) != 0 and _asset not in _managerSettings.allowedAssets:
+        return False
+
+    # global manager asset restrictions apply to all managers
+    if len(_globalManagerSettings.allowedAssets) != 0 and _asset not in _globalManagerSettings.allowedAssets:
         return False
     
     # check if manager is active (within start/expiry blocks)
