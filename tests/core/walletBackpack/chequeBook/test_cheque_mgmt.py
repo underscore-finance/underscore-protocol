@@ -204,6 +204,69 @@ def test_createCheque_fails_access_control(
         )
 
 
+def test_createCheque_manager_respects_global_manager_canCreateCheque(
+    bob, alice, charlie, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, high_command,
+    createGlobalManagerSettings, createManagerSettings, createTransferPerms,
+):
+    """Test that manager cheque creation respects global manager transfer permissions"""
+    global_settings = createGlobalManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=False,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    manager_settings = createManagerSettings(
+        _transferPerms=createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _canAddPendingPayee=True,
+            _allowedPayees=[],
+        ),
+    )
+    user_wallet_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob
+    )
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    with boa.reverts("not authorized to create cheques"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            charlie,
+            alpha_token.address,
+            50 * EIGHTEEN_DECIMALS,
+            ONE_DAY_IN_BLOCKS,
+            ONE_WEEK_IN_BLOCKS,
+            True,
+            False,
+            sender=alice
+        )
+
+
 def test_createCheque_fails_invalid_inputs(
     bob, alice, alpha_token, mock_ripe,
     user_wallet, cheque_book,

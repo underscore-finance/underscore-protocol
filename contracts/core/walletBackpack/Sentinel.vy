@@ -180,8 +180,8 @@ def _checkManagerPermsAndLimitsPreAction(
             if lid != 0 and lid not in _legoPerms.allowedLegos:
                 return False
 
-    # check allowed payees
-    if _txRecipient != empty(address) and len(_transferPerms.allowedPayees) != 0:
+    # payee allowlists only apply to standard transfers, not cheque payments
+    if _txAction == ws.ActionType.TRANSFER and _txRecipient != empty(address) and len(_transferPerms.allowedPayees) != 0:
         if _txRecipient not in _transferPerms.allowedPayees:
             return False
 

@@ -1429,7 +1429,8 @@ def test_canCreateCheque_owner_can_always_create(
         True,   # _isCreatorOwner
         False,  # _isCreatorManager
         False,  # _canManagersCreateCheques (globally disabled)
-        manager_settings
+        False,  # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1444,7 +1445,8 @@ def test_canCreateCheque_non_owner_non_manager_cannot_create(
         False,  # _isCreatorOwner
         False,  # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1461,7 +1463,26 @@ def test_canCreateCheque_manager_cannot_create_when_globally_disabled(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         False,  # _canManagersCreateCheques (globally disabled)
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
+    )
+    assert can_create == False
+
+
+def test_canCreateCheque_manager_cannot_create_when_global_manager_disabled(
+    cheque_book, createManagerSettings
+):
+    """Test that managers cannot create cheques when global manager settings disable it"""
+    manager_settings = createManagerSettings(
+        _transferPerms=(True, True, True, [])  # All permissions enabled
+    )
+
+    can_create = cheque_book.canCreateCheque(
+        False,  # _isCreatorOwner
+        True,   # _isCreatorManager
+        True,   # _canManagersCreateCheques
+        False,  # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1485,7 +1506,8 @@ def test_canCreateCheque_manager_cannot_create_without_permission(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques (globally enabled)
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1509,7 +1531,8 @@ def test_canCreateCheque_manager_can_create_with_permission(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques (globally enabled)
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1531,7 +1554,8 @@ def test_canCreateCheque_manager_cannot_create_before_start_block(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1558,7 +1582,8 @@ def test_canCreateCheque_manager_can_create_after_start_block(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1586,7 +1611,8 @@ def test_canCreateCheque_manager_cannot_create_after_expiry(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1611,7 +1637,8 @@ def test_canCreateCheque_manager_can_create_before_expiry(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1634,7 +1661,8 @@ def test_canCreateCheque_manager_can_create_with_zero_expiry(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1659,7 +1687,8 @@ def test_canCreateCheque_manager_at_exact_expiry_block(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
 
@@ -1684,7 +1713,8 @@ def test_canCreateCheque_manager_at_exact_start_block(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1713,7 +1743,8 @@ def test_canCreateCheque_complex_scenario_all_conditions_met(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == True
 
@@ -1734,7 +1765,8 @@ def test_canCreateCheque_complex_scenario_one_condition_fails(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         False,  # _canManagersCreateCheques (FAIL: globally disabled)
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
     
@@ -1750,7 +1782,8 @@ def test_canCreateCheque_complex_scenario_one_condition_fails(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
     
@@ -1766,8 +1799,8 @@ def test_canCreateCheque_complex_scenario_one_condition_fails(
         False,  # _isCreatorOwner
         True,   # _isCreatorManager
         True,   # _canManagersCreateCheques
-        manager_settings
+        True,   # _globalManagerCanCreateCheque
+        manager_settings,
     )
     assert can_create == False
-
 

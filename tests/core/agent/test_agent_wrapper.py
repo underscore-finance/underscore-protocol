@@ -1384,7 +1384,7 @@ def test_agent_create_and_pay_cheque_reverts_when_manager_cannot_transfer(
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
 
-def test_agent_create_and_pay_cheque_reverts_for_blocked_allowed_payees(
+def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
     setupAgentTestAsset,
     starter_agent,
     starter_agent_sender,
@@ -1402,6 +1402,7 @@ def test_agent_create_and_pay_cheque_reverts_for_blocked_allowed_payees(
     createManagerSettings,
     createTransferPerms,
 ):
+    amount = 25 * EIGHTEEN_DECIMALS
     setupAgentTestAsset(
         _asset=alpha_token,
         _amount=100 * EIGHTEEN_DECIMALS,
@@ -1427,17 +1428,24 @@ def test_agent_create_and_pay_cheque_reverts_for_blocked_allowed_payees(
         _allowed_payees=[sally],
     )
 
+    recipient_balance_before = alpha_token.balanceOf(alice)
+    wallet_balance_before = alpha_token.balanceOf(user_wallet)
+
     try:
-        with boa.reverts():
-            starter_agent_sender.createAndPayCheque(
-                starter_agent.address,
-                user_wallet.address,
-                alice,
-                alpha_token.address,
-                25 * EIGHTEEN_DECIMALS,
-                (b"", 0, 0),
-                sender=charlie
-            )
+        amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            (b"", 0, 0),
+            sender=charlie
+        )
+        assert amount_paid == amount
+        assert usd_value == amount
+        assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+        assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
+        assert user_wallet_config.cheques(alice).active == False
     finally:
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
