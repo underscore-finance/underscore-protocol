@@ -331,6 +331,12 @@ def _totalBorrows(_fortyAcresLoans: address) -> uint256:
 @view
 @external
 def getAvailLiquidity(_vaultToken: address) -> uint256:
+    return self._getAvailLiquidity(_vaultToken)
+
+
+@view
+@internal
+def _getAvailLiquidity(_vaultToken: address) -> uint256:
     if _vaultToken != FORTY_ACRES_USDC_VAULT:
         return 0
     totalAssets: uint256 = self._totalAssets(_vaultToken)
@@ -562,9 +568,15 @@ def withdrawFromYield(
     assert vaultTokenAmount != 0 # dev: nothing to transfer
     assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
 
-    # withdraw assets from lego partner
-    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
-    assert assetAmountReceived != 0 # dev: no asset amount received
+    assetAmountReceived: uint256 = 0
+    availLiquidity: uint256 = self._getAvailLiquidity(_vaultToken)
+    if availLiquidity != 0:
+        redeemVaultTokenAmount: uint256 = min(vaultTokenAmount, staticcall IERC4626(_vaultToken).convertToShares(availLiquidity))
+        if redeemVaultTokenAmount != 0:
+
+            # withdraw assets from lego partner
+            assetAmountReceived = extcall IERC4626(_vaultToken).redeem(redeemVaultTokenAmount, _recipient, self)
+            assert assetAmountReceived != 0 # dev: no asset amount received
 
     # refund if full withdrawal didn't happen
     currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -574,7 +586,10 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
+    usdValue: uint256 = 0
+    if assetAmountReceived != 0:
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
+
     log FortyAcresWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,

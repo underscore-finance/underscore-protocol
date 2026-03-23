@@ -1,8 +1,9 @@
 import pytest
 import boa
 
-from constants import EIGHTEEN_DECIMALS
+from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from conf_utils import filter_logs
+from config.BluePrint import PARAMS
 
 
 @pytest.fixture(scope="module")
@@ -20,6 +21,56 @@ def prepareVaultWithYield(undy_usd_vault, yield_underlying_token, yield_underlyi
         return _deposit_amount
 
     yield prepareVaultWithYield
+
+
+@pytest.fixture
+def local_usdc_earn_vault_for_40_acres_redemption(
+    fork,
+    undy_hq,
+    vault_registry,
+    governance,
+    starter_agent,
+    switchboard_alpha,
+    mock_usdc,
+    mock_40_acres_usdc_vault,
+):
+    if fork != "local":
+        pytest.skip("local only")
+
+    backup_vault = boa.load("contracts/mock/MockErc4626Vault.vy", mock_usdc, name="backup_usdc_yield_vault")
+    vault = boa.load(
+        "contracts/vaults/EarnVault.vy",
+        mock_usdc.address,
+        "Local USDC Vault",
+        "lvUSDC",
+        undy_hq,
+        PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"],
+        PARAMS[fork]["UNDY_HQ_MAX_GOV_TIMELOCK"],
+        starter_agent,
+        name="local_usdc_earn_vault_for_40_acres_redemption",
+    )
+
+    vault_registry.startAddNewAddressToRegistry(vault.address, "Local 40 Acres Redemption Vault", sender=governance.address)
+    boa.env.time_travel(blocks=vault_registry.registryChangeTimeLock())
+    vault_registry.confirmNewAddressToRegistry(
+        vault.address,
+        False,
+        False,
+        [mock_40_acres_usdc_vault.address, backup_vault.address],
+        0,
+        0,
+        0,
+        ZERO_ADDRESS,
+        False,
+        True,
+        True,
+        False,
+        2_00,
+        sender=governance.address,
+    )
+    vault_registry.setPerformanceFee(vault.address, 0, sender=switchboard_alpha.address)
+
+    return vault, backup_vault
 
 
 ###########################
@@ -96,6 +147,80 @@ def test_redemption_with_sufficient_vault_balance(undy_usd_vault, yield_underlyi
 
     final_balance = yield_underlying_token.balanceOf(bob)
     assert final_balance == initial_balance + withdraw_amount
+
+
+@pytest.local
+def test_redemption_continues_when_40_acres_returns_zero(
+    local_usdc_earn_vault_for_40_acres_redemption,
+    lego_book,
+    lego_40_acres,
+    mock_yield_lego,
+    mock_usdc,
+    mock_40_acres_usdc_vault,
+    mock_40_acres_loans,
+    governance,
+    starter_agent,
+    bob,
+):
+    vault, backup_vault = local_usdc_earn_vault_for_40_acres_redemption
+    forty_acres_lego_id = lego_book.getRegId(lego_40_acres)
+    backup_lego_id = lego_book.getRegId(mock_yield_lego)
+
+    user_deposit = 300 * 10 ** mock_usdc.decimals()
+    forty_acres_deposit = 120 * 10 ** mock_usdc.decimals()
+    backup_deposit = 120 * 10 ** mock_usdc.decimals()
+    withdraw_amount = 150 * 10 ** mock_usdc.decimals()
+
+    mock_usdc.transfer(bob, user_deposit, sender=governance.address)
+    mock_usdc.approve(vault.address, user_deposit, sender=bob)
+    shares = vault.deposit(user_deposit, bob, sender=bob)
+    assert shares == user_deposit
+
+    vault.depositForYield(
+        forty_acres_lego_id,
+        mock_usdc.address,
+        mock_40_acres_usdc_vault.address,
+        forty_acres_deposit,
+        sender=starter_agent.address,
+    )
+    vault.depositForYield(
+        backup_lego_id,
+        mock_usdc.address,
+        backup_vault.address,
+        backup_deposit,
+        sender=starter_agent.address,
+    )
+
+    assert mock_usdc.balanceOf(vault.address) == user_deposit - forty_acres_deposit - backup_deposit
+    assert mock_40_acres_usdc_vault.balanceOf(vault.address) == forty_acres_deposit
+    assert backup_vault.balanceOf(vault.address) == backup_deposit
+
+    mock_40_acres_usdc_vault.transferAssetOut(governance.address, forty_acres_deposit, sender=governance.address)
+    mock_40_acres_loans.setActiveAssets(forty_acres_deposit, sender=governance.address)
+
+    balance_before = mock_usdc.balanceOf(bob)
+    withdrawn = vault.withdraw(withdraw_amount, bob, bob, sender=bob)
+    assert withdrawn == withdraw_amount
+    assert mock_usdc.balanceOf(bob) == balance_before + withdraw_amount
+
+    logs = filter_logs(vault, "EarnVaultWithdrawal")
+    assert len(logs) == 2
+
+    first_log = logs[0]
+    assert first_log.vaultToken == mock_40_acres_usdc_vault.address
+    assert first_log.underlyingAsset == mock_usdc.address
+    assert first_log.vaultTokenBurned == 0
+    assert first_log.underlyingAmountReceived == 0
+    assert first_log.legoId == forty_acres_lego_id
+
+    second_log = logs[1]
+    assert second_log.vaultToken == backup_vault.address
+    assert second_log.underlyingAsset == mock_usdc.address
+    assert second_log.underlyingAmountReceived > 0
+    assert second_log.legoId == backup_lego_id
+
+    assert mock_40_acres_usdc_vault.balanceOf(vault.address) == forty_acres_deposit
+    assert backup_vault.balanceOf(vault.address) < backup_deposit
 
 
 def test_redemption_single_position_partial(prepareVaultWithYield, undy_usd_vault, yield_underlying_token, yield_underlying_token_whale, bob):
@@ -1712,4 +1837,3 @@ def test_position_in_both_fee_and_dereg_transient_lists(undy_usd_vault, yield_un
     # Position should be deregistered (processed in Phase 3 for fees, then Phase 4 for cleanup)
     assert undy_usd_vault.indexOfAsset(yield_vault_token.address) == 0, "Position deregistered after being in both fee and dereg lists"
     assert undy_usd_vault.numAssets() == 1, "Only default asset remains"
-
