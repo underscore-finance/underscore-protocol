@@ -913,7 +913,7 @@ def setDefaultTargetVaultToken(_vaultAddr: address, _targetVaultToken: address) 
     assert gov._canGovern(msg.sender) # dev: no perms
     vr: address = addys._getVaultRegistryAddr()
     assert staticcall VaultRegistry(vr).isEarnVault(_vaultAddr) # dev: invalid vault addr
-    assert not staticcall VaultRegistry(vr).isApprovedVaultToken(_vaultAddr, _targetVaultToken) # dev: vault token already approved
+    assert staticcall VaultRegistry(vr).isApprovedVaultToken(_vaultAddr, _targetVaultToken) # dev: invalid vault token
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.DEFAULT_TARGET_VAULT_TOKEN

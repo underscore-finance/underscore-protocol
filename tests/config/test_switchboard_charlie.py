@@ -1123,10 +1123,9 @@ def test_set_performance_fee_non_governance_fails(switchboard_charlie, undy_usd_
 # setDefaultTargetVaultToken tests
 
 
-def test_set_default_target_vault_token_success(switchboard_charlie, vault_registry, undy_usd_vault, governance):
-    """Test successful default target vault token update to zero address"""
-    # Set to zero address (the only valid non-approved option)
-    target_token = ZERO_ADDRESS
+def test_set_default_target_vault_token_success(switchboard_charlie, vault_registry, undy_usd_vault, governance, yield_vault_token):
+    """Test successful default target vault token update to an approved vault token"""
+    target_token = yield_vault_token.address
 
     # Initiate change
     aid = switchboard_charlie.setDefaultTargetVaultToken(
@@ -1160,13 +1159,14 @@ def test_set_default_target_vault_token_success(switchboard_charlie, vault_regis
     assert exec_logs[-1].targetVaultToken == target_token
 
 
-def test_set_default_target_vault_token_already_approved_fails(switchboard_charlie, undy_usd_vault, governance, yield_vault_token):
-    """Test that setting an already approved vault token as default fails"""
-    # yield_vault_token is already approved
-    with boa.reverts("vault token already approved"):
+def test_set_default_target_vault_token_non_approved_fails(switchboard_charlie, undy_usd_vault, governance):
+    """Test that setting a non-approved vault token as default fails"""
+    target_token = boa.env.generate_address()
+
+    with boa.reverts("invalid vault token"):
         switchboard_charlie.setDefaultTargetVaultToken(
             undy_usd_vault.address,
-            yield_vault_token.address,
+            target_token,
             sender=governance.address
         )
 
