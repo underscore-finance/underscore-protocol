@@ -329,6 +329,16 @@ def mock_aave_v3_pool():
     return boa.load("contracts/mock/MockAaveV3Pool.vy", name="mock_aave_v3_pool")
 
 
+@pytest.fixture(scope="session")
+def mock_40_acres_loans():
+    return boa.load("contracts/mock/Mock40AcresLoans.vy", name="mock_40_acres_loans")
+
+
+@pytest.fixture(scope="session")
+def mock_40_acres_usdc_vault(mock_usdc):
+    return boa.load("contracts/mock/Mock40AcresVault.vy", mock_usdc, name="mock_40_acres_usdc_vault")
+
+
 ###############
 # Other Mocks #
 ###############
