@@ -87,10 +87,6 @@
         "type": "uint256"
       },
       {
-        "name": "_currentBalance",
-        "type": "uint256"
-      },
-      {
         "name": "_leverageVaultToken",
         "type": "address"
       },
@@ -117,10 +113,6 @@
       },
       {
         "name": "_amountIn",
-        "type": "uint256"
-      },
-      {
-        "name": "_currentBalance",
         "type": "uint256"
       },
       {
@@ -154,10 +146,6 @@
       },
       {
         "name": "_amountIn",
-        "type": "uint256"
-      },
-      {
-        "name": "_currentBalance",
         "type": "uint256"
       },
       {
@@ -195,10 +183,6 @@
       },
       {
         "name": "_amountIn",
-        "type": "uint256"
-      },
-      {
-        "name": "_currentBalance",
         "type": "uint256"
       },
       {
@@ -240,10 +224,6 @@
       },
       {
         "name": "_amountIn",
-        "type": "uint256"
-      },
-      {
-        "name": "_currentBalance",
         "type": "uint256"
       },
       {
