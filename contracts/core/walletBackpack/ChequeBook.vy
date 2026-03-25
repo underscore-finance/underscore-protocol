@@ -893,7 +893,7 @@ def createDefaultChequeSettings(
         expensiveDelayBlocks = _expensiveDelayBlocks,
         defaultExpiryBlocks = _defaultExpiryBlocks,
         allowedAssets = [],
-        canManagersCreateCheques = False,
+        canManagersCreateCheques = True,
         canManagerPay = True,
-        canBePulled = False,
+        canBePulled = True,
     )

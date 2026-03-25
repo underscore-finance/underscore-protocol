@@ -1,0 +1,1512 @@
+{
+  "contracts": {
+    "ChequeBook": {
+      "address": "0x68ad259f7Fd1C734779EB4e8b94b826d7D11a61e",
+      "abi": [
+        {
+          "name": "ChequeCreated",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "asset",
+              "type": "address",
+              "indexed": false
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "usdValue",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "unlockBlock",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "expiryBlock",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "canManagerPay",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "canBePulled",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "creator",
+              "type": "address",
+              "indexed": true
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "ChequeCancelled",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "recipient",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "asset",
+              "type": "address",
+              "indexed": false
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "usdValue",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "unlockBlock",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "expiryBlock",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "canManagerPay",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "canBePulled",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "cancelledBy",
+              "type": "address",
+              "indexed": true
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "name": "ChequeSettingsModified",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true
+            },
+            {
+              "name": "maxNumActiveCheques",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "maxChequeUsdValue",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "instantUsdThreshold",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "perPeriodPaidUsdCap",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "maxNumChequesPaidPerPeriod",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "payCooldownBlocks",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "perPeriodCreatedUsdCap",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "maxNumChequesCreatedPerPeriod",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "createCooldownBlocks",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "periodLength",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "expensiveDelayBlocks",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "defaultExpiryBlocks",
+              "type": "uint256",
+              "indexed": false
+            },
+            {
+              "name": "canManagersCreateCheques",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "canManagerPay",
+              "type": "bool",
+              "indexed": false
+            },
+            {
+              "name": "canBePulled",
+              "type": "bool",
+              "indexed": false
+            }
+          ],
+          "anonymous": false,
+          "type": "event"
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "createCheque",
+          "inputs": [
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_unlockNumBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiryNumBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_canManagerPay",
+              "type": "bool"
+            },
+            {
+              "name": "_canBePulled",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canCreateCheque",
+          "inputs": [
+            {
+              "name": "_isCreatorOwner",
+              "type": "bool"
+            },
+            {
+              "name": "_isCreatorManager",
+              "type": "bool"
+            },
+            {
+              "name": "_canManagersCreateCheques",
+              "type": "bool"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_globalManagerSettings",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "managerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "startDelay",
+                  "type": "uint256"
+                },
+                {
+                  "name": "activationLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "canOwnerManage",
+                  "type": "bool"
+                },
+                {
+                  "name": "limits",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxUsdValuePerTx",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxUsdValuePerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxUsdValueLifetime",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxNumTxsPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "txCooldownBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "failOnZeroPrice",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "legoPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canManageYield",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canBuyAndSell",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canManageDebt",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canManageLiq",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canClaimRewards",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "onlyApprovedYieldOpps",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "allowedLegos",
+                      "type": "uint256[]"
+                    }
+                  ]
+                },
+                {
+                  "name": "swapPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "mustHaveUsdValue",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "maxNumSwapsPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxSlippage",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "whitelistPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canAddPending",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canConfirm",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canCancel",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canRemove",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "transferPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canTransfer",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canCreateCheque",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canAddPendingPayee",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "allowedPayees",
+                      "type": "address[]"
+                    }
+                  ]
+                },
+                {
+                  "name": "allowedAssets",
+                  "type": "address[]"
+                }
+              ]
+            },
+            {
+              "name": "_managerSettings",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "startBlock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "expiryBlock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "limits",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxUsdValuePerTx",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxUsdValuePerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxUsdValueLifetime",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxNumTxsPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "txCooldownBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "failOnZeroPrice",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "legoPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canManageYield",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canBuyAndSell",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canManageDebt",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canManageLiq",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canClaimRewards",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "onlyApprovedYieldOpps",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "allowedLegos",
+                      "type": "uint256[]"
+                    }
+                  ]
+                },
+                {
+                  "name": "swapPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "mustHaveUsdValue",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "maxNumSwapsPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxSlippage",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "whitelistPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canAddPending",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canConfirm",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canCancel",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canRemove",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "transferPerms",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "canTransfer",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canCreateCheque",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canAddPendingPayee",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "allowedPayees",
+                      "type": "address[]"
+                    }
+                  ]
+                },
+                {
+                  "name": "allowedAssets",
+                  "type": "address[]"
+                },
+                {
+                  "name": "canClaimLoot",
+                  "type": "bool"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isValidNewCheque",
+          "inputs": [
+            {
+              "name": "_wallet",
+              "type": "address"
+            },
+            {
+              "name": "_walletConfig",
+              "type": "address"
+            },
+            {
+              "name": "_owner",
+              "type": "address"
+            },
+            {
+              "name": "_isRecipientOnWhitelist",
+              "type": "bool"
+            },
+            {
+              "name": "_chequeSettings",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "maxNumActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxChequeUsdValue",
+                  "type": "uint256"
+                },
+                {
+                  "name": "instantUsdThreshold",
+                  "type": "uint256"
+                },
+                {
+                  "name": "perPeriodPaidUsdCap",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxNumChequesPaidPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "payCooldownBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "perPeriodCreatedUsdCap",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxNumChequesCreatedPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "createCooldownBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "periodLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "expensiveDelayBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "defaultExpiryBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "allowedAssets",
+                  "type": "address[]"
+                },
+                {
+                  "name": "canManagersCreateCheques",
+                  "type": "bool"
+                },
+                {
+                  "name": "canManagerPay",
+                  "type": "bool"
+                },
+                {
+                  "name": "canBePulled",
+                  "type": "bool"
+                }
+              ]
+            },
+            {
+              "name": "_chequeData",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "numChequesPaidInPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalUsdValuePaidInPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalNumChequesPaid",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalUsdValuePaid",
+                  "type": "uint256"
+                },
+                {
+                  "name": "lastChequePaidBlock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "numChequesCreatedInPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalUsdValueCreatedInPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalNumChequesCreated",
+                  "type": "uint256"
+                },
+                {
+                  "name": "totalUsdValueCreated",
+                  "type": "uint256"
+                },
+                {
+                  "name": "lastChequeCreatedBlock",
+                  "type": "uint256"
+                },
+                {
+                  "name": "periodStartBlock",
+                  "type": "uint256"
+                }
+              ]
+            },
+            {
+              "name": "_isExistingCheque",
+              "type": "bool"
+            },
+            {
+              "name": "_numActiveCheques",
+              "type": "uint256"
+            },
+            {
+              "name": "_isExistingPayee",
+              "type": "bool"
+            },
+            {
+              "name": "_timeLock",
+              "type": "uint256"
+            },
+            {
+              "name": "_recipient",
+              "type": "address"
+            },
+            {
+              "name": "_asset",
+              "type": "address"
+            },
+            {
+              "name": "_amount",
+              "type": "uint256"
+            },
+            {
+              "name": "_unlockNumBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_expiryNumBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_canManagerPay",
+              "type": "bool"
+            },
+            {
+              "name": "_canBePulled",
+              "type": "bool"
+            },
+            {
+              "name": "_creator",
+              "type": "address"
+            },
+            {
+              "name": "_usdValue",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "cancelCheque",
+          "inputs": [
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_recipient",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "function",
+          "name": "setChequeSettings",
+          "inputs": [
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_maxNumActiveCheques",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxChequeUsdValue",
+              "type": "uint256"
+            },
+            {
+              "name": "_instantUsdThreshold",
+              "type": "uint256"
+            },
+            {
+              "name": "_perPeriodPaidUsdCap",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxNumChequesPaidPerPeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_payCooldownBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_perPeriodCreatedUsdCap",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxNumChequesCreatedPerPeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_createCooldownBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_periodLength",
+              "type": "uint256"
+            },
+            {
+              "name": "_expensiveDelayBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_defaultExpiryBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_allowedAssets",
+              "type": "address[]"
+            },
+            {
+              "name": "_canManagersCreateCheques",
+              "type": "bool"
+            },
+            {
+              "name": "_canManagerPay",
+              "type": "bool"
+            },
+            {
+              "name": "_canBePulled",
+              "type": "bool"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isValidChequeSettings",
+          "inputs": [
+            {
+              "name": "_maxNumActiveCheques",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxChequeUsdValue",
+              "type": "uint256"
+            },
+            {
+              "name": "_instantUsdThreshold",
+              "type": "uint256"
+            },
+            {
+              "name": "_perPeriodPaidUsdCap",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxNumChequesPaidPerPeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_payCooldownBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_perPeriodCreatedUsdCap",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxNumChequesCreatedPerPeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_createCooldownBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_periodLength",
+              "type": "uint256"
+            },
+            {
+              "name": "_expensiveDelayBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_defaultExpiryBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_timeLock",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getChequeConfig",
+          "inputs": [
+            {
+              "name": "_userWallet",
+              "type": "address"
+            },
+            {
+              "name": "_creator",
+              "type": "address"
+            },
+            {
+              "name": "_recipient",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "wallet",
+                  "type": "address"
+                },
+                {
+                  "name": "walletConfig",
+                  "type": "address"
+                },
+                {
+                  "name": "owner",
+                  "type": "address"
+                },
+                {
+                  "name": "isRecipientOnWhitelist",
+                  "type": "bool"
+                },
+                {
+                  "name": "isCreatorManager",
+                  "type": "bool"
+                },
+                {
+                  "name": "managerSettings",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "startBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "expiryBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "limits",
+                      "type": "tuple",
+                      "components": [
+                        {
+                          "name": "maxUsdValuePerTx",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "maxUsdValuePerPeriod",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "maxUsdValueLifetime",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "maxNumTxsPerPeriod",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "txCooldownBlocks",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "failOnZeroPrice",
+                          "type": "bool"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "legoPerms",
+                      "type": "tuple",
+                      "components": [
+                        {
+                          "name": "canManageYield",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canBuyAndSell",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canManageDebt",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canManageLiq",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canClaimRewards",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "onlyApprovedYieldOpps",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "allowedLegos",
+                          "type": "uint256[]"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "swapPerms",
+                      "type": "tuple",
+                      "components": [
+                        {
+                          "name": "mustHaveUsdValue",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "maxNumSwapsPerPeriod",
+                          "type": "uint256"
+                        },
+                        {
+                          "name": "maxSlippage",
+                          "type": "uint256"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "whitelistPerms",
+                      "type": "tuple",
+                      "components": [
+                        {
+                          "name": "canAddPending",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canConfirm",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canCancel",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canRemove",
+                          "type": "bool"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "transferPerms",
+                      "type": "tuple",
+                      "components": [
+                        {
+                          "name": "canTransfer",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canCreateCheque",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "canAddPendingPayee",
+                          "type": "bool"
+                        },
+                        {
+                          "name": "allowedPayees",
+                          "type": "address[]"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "allowedAssets",
+                      "type": "address[]"
+                    },
+                    {
+                      "name": "canClaimLoot",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "chequeSettings",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "maxNumActiveCheques",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxChequeUsdValue",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "instantUsdThreshold",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "perPeriodPaidUsdCap",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxNumChequesPaidPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "payCooldownBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "perPeriodCreatedUsdCap",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "maxNumChequesCreatedPerPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "createCooldownBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "periodLength",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "expensiveDelayBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "defaultExpiryBlocks",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "allowedAssets",
+                      "type": "address[]"
+                    },
+                    {
+                      "name": "canManagersCreateCheques",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canManagerPay",
+                      "type": "bool"
+                    },
+                    {
+                      "name": "canBePulled",
+                      "type": "bool"
+                    }
+                  ]
+                },
+                {
+                  "name": "chequeData",
+                  "type": "tuple",
+                  "components": [
+                    {
+                      "name": "numChequesPaidInPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalUsdValuePaidInPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalNumChequesPaid",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalUsdValuePaid",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "lastChequePaidBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "numChequesCreatedInPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalUsdValueCreatedInPeriod",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalNumChequesCreated",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "totalUsdValueCreated",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "lastChequeCreatedBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "name": "periodStartBlock",
+                      "type": "uint256"
+                    }
+                  ]
+                },
+                {
+                  "name": "isExistingCheque",
+                  "type": "bool"
+                },
+                {
+                  "name": "numActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "isExistingPayee",
+                  "type": "bool"
+                },
+                {
+                  "name": "timeLock",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "createDefaultChequeSettings",
+          "inputs": [
+            {
+              "name": "_maxNumActiveCheques",
+              "type": "uint256"
+            },
+            {
+              "name": "_instantUsdThreshold",
+              "type": "uint256"
+            },
+            {
+              "name": "_periodLength",
+              "type": "uint256"
+            },
+            {
+              "name": "_expensiveDelayBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_defaultExpiryBlocks",
+              "type": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "maxNumActiveCheques",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxChequeUsdValue",
+                  "type": "uint256"
+                },
+                {
+                  "name": "instantUsdThreshold",
+                  "type": "uint256"
+                },
+                {
+                  "name": "perPeriodPaidUsdCap",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxNumChequesPaidPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "payCooldownBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "perPeriodCreatedUsdCap",
+                  "type": "uint256"
+                },
+                {
+                  "name": "maxNumChequesCreatedPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "name": "createCooldownBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "periodLength",
+                  "type": "uint256"
+                },
+                {
+                  "name": "expensiveDelayBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "defaultExpiryBlocks",
+                  "type": "uint256"
+                },
+                {
+                  "name": "allowedAssets",
+                  "type": "address[]"
+                },
+                {
+                  "name": "canManagersCreateCheques",
+                  "type": "bool"
+                },
+                {
+                  "name": "canManagerPay",
+                  "type": "bool"
+                },
+                {
+                  "name": "canBePulled",
+                  "type": "bool"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "UNDY_HQ",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "MIN_CHEQUE_PERIOD",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "MAX_CHEQUE_PERIOD",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "MIN_EXPENSIVE_CHEQUE_DELAY",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "MAX_UNLOCK_BLOCKS",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "MAX_EXPIRY_BLOCKS",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "stateMutability": "nonpayable",
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_minChequePeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxChequePeriod",
+              "type": "uint256"
+            },
+            {
+              "name": "_minExpensiveChequeDelay",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxUnlockBlocks",
+              "type": "uint256"
+            },
+            {
+              "name": "_maxExpiryBlocks",
+              "type": "uint256"
+            }
+          ],
+          "outputs": []
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "interfaces/WalletConfigStructs.vyi": {
+            "content": "# @version 0.4.3\n\nMAX_CONFIG_ASSETS: constant(uint256) = 40\nMAX_CONFIG_LEGOS: constant(uint256) = 25\nMAX_ALLOWED_PAYEES: constant(uint256) = 40\n\nflag WhitelistAction:\n    ADD_PENDING\n    CONFIRM_WHITELIST\n    CANCEL_WHITELIST\n    REMOVE_WHITELIST\n\nflag BackpackType:\n    WALLET_KERNEL\n    WALLET_SENTINEL\n    WALLET_HIGH_COMMAND\n    WALLET_PAYMASTER\n    WALLET_CHEQUE_BOOK\n    WALLET_MIGRATOR\n\n# payees\n\nstruct PayeeData:\n    numTxsInPeriod: uint256\n    totalUnitsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUnits: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n\nstruct PayeeSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    canPull: bool\n    periodLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    primaryAsset: address\n    onlyPrimaryAsset: bool\n    unitLimits: PayeeLimits\n    usdLimits: PayeeLimits\n\nstruct GlobalPayeeSettings:\n    defaultPeriodLength: uint256\n    startDelay: uint256\n    activationLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    usdLimits: PayeeLimits\n    canPayOwner: bool\n    canPull: bool\n\nstruct PayeeLimits:\n    perTxCap: uint256\n    perPeriodCap: uint256\n    lifetimeCap: uint256\n\nstruct PendingPayee:\n    settings: PayeeSettings\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct PayeeManagementBundle:\n    owner: address\n    wallet: address\n    isRegisteredPayee: bool\n    isWhitelisted: bool\n    isExistingCheque: bool\n    payeeSettings: PayeeSettings\n    globalPayeeSettings: GlobalPayeeSettings\n    timeLock: uint256\n    walletConfig: address\n\nstruct RecipientConfigBundle:\n    isWhitelisted: bool\n    isOwner: bool\n    isPayee: bool\n    config: PayeeSettings\n    globalConfig: GlobalPayeeSettings\n    data: PayeeData\n\nstruct WhitelistConfigBundle:\n    owner: address\n    wallet: address\n    isWhitelisted: bool\n    pendingWhitelist: PendingWhitelist\n    isExistingPayee: bool\n    isExistingCheque: bool\n    timeLock: uint256\n    walletConfig: address\n    isManager: bool\n    isOwner: bool\n    whitelistPerms: WhitelistPerms\n    globalWhitelistPerms: WhitelistPerms\n\nstruct PendingWhitelist:\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\n# cheques\n\nstruct Cheque:\n    recipient: address\n    asset: address\n    amount: uint256\n    creationBlock: uint256\n    unlockBlock: uint256\n    expiryBlock: uint256\n    usdValueOnCreation: uint256\n    canManagerPay: bool\n    canBePulled: bool\n    creator: address\n    active: bool\n\nstruct ChequeSettings:\n    maxNumActiveCheques: uint256\n    maxChequeUsdValue: uint256\n    instantUsdThreshold: uint256\n    perPeriodPaidUsdCap: uint256\n    maxNumChequesPaidPerPeriod: uint256\n    payCooldownBlocks: uint256\n    perPeriodCreatedUsdCap: uint256\n    maxNumChequesCreatedPerPeriod: uint256\n    createCooldownBlocks: uint256\n    periodLength: uint256\n    expensiveDelayBlocks: uint256\n    defaultExpiryBlocks: uint256\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canManagersCreateCheques: bool\n    canManagerPay: bool\n    canBePulled: bool\n\nstruct ChequeData:\n    numChequesPaidInPeriod: uint256\n    totalUsdValuePaidInPeriod: uint256\n    totalNumChequesPaid: uint256\n    totalUsdValuePaid: uint256\n    lastChequePaidBlock: uint256\n    numChequesCreatedInPeriod: uint256\n    totalUsdValueCreatedInPeriod: uint256\n    totalNumChequesCreated: uint256\n    totalUsdValueCreated: uint256\n    lastChequeCreatedBlock: uint256\n    periodStartBlock: uint256\n\nstruct ChequeManagementBundle:\n    wallet: address\n    walletConfig: address\n    owner: address\n    isRecipientOnWhitelist: bool\n    isCreatorManager: bool\n    managerSettings: ManagerSettings\n    chequeSettings: ChequeSettings\n    chequeData: ChequeData\n    isExistingCheque: bool\n    numActiveCheques: uint256\n    isExistingPayee: bool\n    timeLock: uint256\n\n# managers\n\nstruct ManagerData:\n    numTxsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n    numSwapsInPeriod: uint256\n\nstruct ManagerSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canClaimLoot: bool\n\nstruct GlobalManagerSettings:\n    managerPeriod: uint256\n    startDelay: uint256\n    activationLength: uint256\n    canOwnerManage: bool\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n\nstruct ManagerLimits:\n    maxUsdValuePerTx: uint256\n    maxUsdValuePerPeriod: uint256\n    maxUsdValueLifetime: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n\nstruct LegoPerms:\n    canManageYield: bool\n    canBuyAndSell: bool\n    canManageDebt: bool\n    canManageLiq: bool\n    canClaimRewards: bool\n    onlyApprovedYieldOpps: bool\n    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]\n\nstruct SwapPerms:\n    mustHaveUsdValue: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippage: uint256\n\nstruct WhitelistPerms:\n    canAddPending: bool\n    canConfirm: bool\n    canCancel: bool\n    canRemove: bool\n\nstruct TransferPerms:\n    canTransfer: bool\n    canCreateCheque: bool\n    canAddPendingPayee: bool\n    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]\n\nstruct ManagerConfigBundle:\n    isOwner: bool\n    isManager: bool\n    config: ManagerSettings\n    globalConfig: GlobalManagerSettings\n    data: ManagerData\n    payee: address\n\nstruct ManagerSettingsBundle:\n    owner: address\n    isManager: bool\n    timeLock: uint256\n    walletConfig: address\n    legoBook: address\n    globalManagerSettings: GlobalManagerSettings\n\n# migration\n\nstruct MigrationConfigBundle:\n    owner: address\n    isFrozen: bool\n    numPayees: uint256\n    numWhitelisted: uint256\n    numManagers: uint256\n    startingAgent: address\n    startingAgentIndex: uint256\n    hasPendingOwnerChange: bool\n    groupId: uint256\n    numActiveCheques: uint256\n",
+            "sha256sum": "31165468feeac632a1376c70970ce5124f8951392c4deaa01a26176c7f26718a"
+          },
+          "contracts/core/walletBackpack/ChequeBook.vy": {
+            "content": "#    \u2513 \u250f  \u2513\u2513   \n#    \u2503\u2503\u2503\u250f\u2513\u2503\u2503\u250f\u2513\u254b\n#    \u2517\u253b\u251b\u2517\u253b\u2517\u2517\u2517 \u2517\n#     ______   __  __   ______   ______   __  __   ______       ______   ______   ______   __  __    \n#    /\\  ___\\ /\\ \\_\\ \\ /\\  ___\\ /\\  __ \\ /\\ \\/\\ \\ /\\  ___\\     /\\  == \\ /\\  __ \\ /\\  __ \\ /\\ \\/ /    \n#    \\ \\ \\____\\ \\  __ \\\\ \\  __\\ \\ \\ \\/\\_\\\\ \\ \\_\\ \\\\ \\  __\\     \\ \\  __< \\ \\ \\/\\ \\\\ \\ \\/\\ \\\\ \\  _\"-.  \n#     \\ \\_____\\\\ \\_\\ \\_\\\\ \\_____\\\\ \\___\\_\\\\ \\_____\\\\ \\_____\\    \\ \\_____\\\\ \\_____\\\\ \\_____\\\\ \\_\\ \\_\\ \n#      \\/_____/ \\/_/\\/_/ \\/_____/ \\/___/_/ \\/_____/ \\/_____/     \\/_____/ \\/_____/ \\/_____/ \\/_/\\/_/ \n#                                                                                                \n#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Cheque Book **                           \u2551\n#     \u2551  Cheque book functionality for user wallets  \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nfrom interfaces import WalletConfigStructs as wcs\n\ninterface UserWalletConfig:\n    def createCheque(_recipient: address, _cheque: wcs.Cheque, _chequeData: wcs.ChequeData, _isExistingCheque: bool): nonpayable\n    def managerSettings(_addr: address) -> wcs.ManagerSettings: view\n    def setChequeSettings(_config: wcs.ChequeSettings): nonpayable\n    def globalManagerSettings() -> wcs.GlobalManagerSettings: view\n    def indexOfWhitelist(_addr: address) -> uint256: view\n    def cheques(_recipient: address) -> wcs.Cheque: view\n    def cancelCheque(_recipient: address): nonpayable\n    def indexOfManager(_addr: address) -> uint256: view\n    def indexOfPayee(_addr: address) -> uint256: view\n    def chequeSettings() -> wcs.ChequeSettings: view\n    def chequePeriodData() -> wcs.ChequeData: view\n    def numActiveCheques() -> uint256: view\n    def timeLock() -> uint256: view\n    def owner() -> address: view\n\ninterface Appraiser:\n    def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable\n\ninterface MissionControl:\n    def canPerformSecurityAction(_addr: address) -> bool: view\n\ninterface Ledger:\n    def isUserWallet(_user: address) -> bool: view\n\ninterface Registry:\n    def getAddr(_regId: uint256) -> address: view\n\ninterface UserWallet:\n    def walletConfig() -> address: view\n\nevent ChequeCreated:\n    user: indexed(address)\n    recipient: indexed(address)\n    asset: address\n    amount: uint256\n    usdValue: uint256\n    unlockBlock: uint256\n    expiryBlock: uint256\n    canManagerPay: bool\n    canBePulled: bool\n    creator: indexed(address)\n\nevent ChequeCancelled:\n    user: indexed(address)\n    recipient: indexed(address)\n    asset: address\n    amount: uint256\n    usdValue: uint256\n    unlockBlock: uint256\n    expiryBlock: uint256\n    canManagerPay: bool\n    canBePulled: bool\n    cancelledBy: indexed(address)\n\nevent ChequeSettingsModified:\n    user: indexed(address)\n    maxNumActiveCheques: uint256\n    maxChequeUsdValue: uint256\n    instantUsdThreshold: uint256\n    perPeriodPaidUsdCap: uint256\n    maxNumChequesPaidPerPeriod: uint256\n    payCooldownBlocks: uint256\n    perPeriodCreatedUsdCap: uint256\n    maxNumChequesCreatedPerPeriod: uint256\n    createCooldownBlocks: uint256\n    periodLength: uint256\n    expensiveDelayBlocks: uint256\n    defaultExpiryBlocks: uint256\n    canManagersCreateCheques: bool\n    canManagerPay: bool\n    canBePulled: bool\n\nUNDY_HQ: public(immutable(address))\nLEDGER_ID: constant(uint256) = 1\nMISSION_CONTROL_ID: constant(uint256) = 2\nAPPRAISER_ID: constant(uint256) = 7\nMAX_CONFIG_ASSETS: constant(uint256) = 40\n\nMIN_CHEQUE_PERIOD: public(immutable(uint256))\nMAX_CHEQUE_PERIOD: public(immutable(uint256))\nMIN_EXPENSIVE_CHEQUE_DELAY: public(immutable(uint256))\nMAX_UNLOCK_BLOCKS: public(immutable(uint256))\nMAX_EXPIRY_BLOCKS: public(immutable(uint256))\n\n\n@deploy\ndef __init__(\n    _undyHq: address,\n    _minChequePeriod: uint256,\n    _maxChequePeriod: uint256,\n    _minExpensiveChequeDelay: uint256,\n    _maxUnlockBlocks: uint256,\n    _maxExpiryBlocks: uint256,\n):\n    assert _undyHq != empty(address) # dev: invalid undy hq\n    UNDY_HQ = _undyHq\n\n    assert _minChequePeriod != 0 and _minChequePeriod < _maxChequePeriod # dev: invalid cheque period\n    MIN_CHEQUE_PERIOD = _minChequePeriod\n    MAX_CHEQUE_PERIOD = _maxChequePeriod\n\n    assert _minExpensiveChequeDelay != 0 # dev: invalid expensive cheque delay\n    MIN_EXPENSIVE_CHEQUE_DELAY = _minExpensiveChequeDelay\n\n    assert _maxUnlockBlocks != 0 # dev: invalid unlock blocks\n    MAX_UNLOCK_BLOCKS = _maxUnlockBlocks\n\n    assert _maxExpiryBlocks != 0 # dev: invalid expiry blocks\n    MAX_EXPIRY_BLOCKS = _maxExpiryBlocks\n\n\n#####################\n# Cheque Management #\n#####################\n\n\n@external\ndef createCheque(\n    _userWallet: address,\n    _recipient: address,\n    _asset: address,\n    _amount: uint256,\n    _unlockNumBlocks: uint256,\n    _expiryNumBlocks: uint256,\n    _canManagerPay: bool,\n    _canBePulled: bool,\n) -> bool:\n    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet\n\n    # get cheque config / data\n    config: wcs.ChequeManagementBundle = self._getChequeConfig(_userWallet, msg.sender, _recipient)\n    globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(config.walletConfig).globalManagerSettings()\n\n    # check if caller can create cheques\n    assert self._canCreateCheque(\n        config.owner == msg.sender,\n        config.isCreatorManager,\n        config.chequeSettings.canManagersCreateCheques,\n        _asset,\n        globalManagerSettings,\n        config.managerSettings,\n    ) # dev: not authorized to create cheques\n\n    # get USD value\n    appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)\n    usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)\n\n    # validate and create cheque\n    isValid: bool = False\n    cheque: wcs.Cheque = empty(wcs.Cheque)\n    updatedChequeData: wcs.ChequeData = empty(wcs.ChequeData)\n    isValid, cheque, updatedChequeData = self._isValidNewCheque(\n        config.wallet,\n        config.walletConfig,\n        config.owner,\n        config.isRecipientOnWhitelist,\n        config.chequeSettings,\n        config.chequeData,\n        config.isExistingCheque,\n        config.numActiveCheques,\n        config.isExistingPayee,\n        config.timeLock,\n        _recipient,\n        _asset,\n        _amount,\n        _unlockNumBlocks,\n        _expiryNumBlocks,\n        _canManagerPay,\n        _canBePulled,\n        msg.sender,\n        usdValue,\n    )\n    assert isValid # dev: invalid cheque\n\n    # save cheque\n    extcall UserWalletConfig(config.walletConfig).createCheque(_recipient, cheque, updatedChequeData, config.isExistingCheque)\n    log ChequeCreated(\n        user = _userWallet,\n        recipient = _recipient,\n        asset = _asset,\n        amount = _amount,\n        usdValue = usdValue,\n        unlockBlock = cheque.unlockBlock,\n        expiryBlock = cheque.expiryBlock,\n        canManagerPay = _canManagerPay,\n        canBePulled = _canBePulled,\n        creator = msg.sender,\n    )\n    return True\n\n\n# can create cheque\n\n\n@view\n@external\ndef canCreateCheque(\n    _isCreatorOwner: bool,\n    _isCreatorManager: bool,\n    _canManagersCreateCheques: bool,\n    _asset: address,\n    _globalManagerSettings: wcs.GlobalManagerSettings,\n    _managerSettings: wcs.ManagerSettings,\n) -> bool:\n    return self._canCreateCheque(\n        _isCreatorOwner,\n        _isCreatorManager,\n        _canManagersCreateCheques,\n        _asset,\n        _globalManagerSettings,\n        _managerSettings,\n    )\n\n\n@view\n@internal\ndef _canCreateCheque(\n    _isCreatorOwner: bool,\n    _isCreatorManager: bool,\n    _canManagersCreateCheques: bool,\n    _asset: address,\n    _globalManagerSettings: wcs.GlobalManagerSettings,\n    _managerSettings: wcs.ManagerSettings,\n) -> bool:\n\n    # owner can always create cheques\n    if _isCreatorOwner:\n        return True\n\n    # if not owner, must be a manager\n    if not _isCreatorManager:\n        return False\n\n    # check global setting - can managers create cheques\n    if not _canManagersCreateCheques:\n        return False\n\n    # check global manager settings\n    if not _globalManagerSettings.transferPerms.canCreateCheque:\n        return False\n\n    # check manager's specific transfer permissions\n    if not _managerSettings.transferPerms.canCreateCheque:\n        return False\n\n    # manager-specific asset restrictions apply to manager-created cheques\n    if len(_managerSettings.allowedAssets) != 0 and _asset not in _managerSettings.allowedAssets:\n        return False\n\n    # global manager asset restrictions apply to all managers\n    if len(_globalManagerSettings.allowedAssets) != 0 and _asset not in _globalManagerSettings.allowedAssets:\n        return False\n\n    # check if manager is active (within start/expiry blocks)\n    if _managerSettings.startBlock > block.number:\n        return False\n    if _managerSettings.expiryBlock != 0 and _managerSettings.expiryBlock <= block.number:\n        return False\n\n    return True\n\n\n# is valid new cheque\n\n\n@view\n@external\ndef isValidNewCheque(\n    _wallet: address,\n    _walletConfig: address,\n    _owner: address,\n    _isRecipientOnWhitelist: bool,\n    _chequeSettings: wcs.ChequeSettings,\n    _chequeData: wcs.ChequeData,\n    _isExistingCheque: bool,\n    _numActiveCheques: uint256,\n    _isExistingPayee: bool,\n    _timeLock: uint256,\n    _recipient: address,\n    _asset: address,\n    _amount: uint256,\n    _unlockNumBlocks: uint256,\n    _expiryNumBlocks: uint256,\n    _canManagerPay: bool,\n    _canBePulled: bool,\n    _creator: address,\n    _usdValue: uint256,\n) -> bool:\n    isValid: bool = False\n    cheque: wcs.Cheque = empty(wcs.Cheque)\n    chequeData: wcs.ChequeData = empty(wcs.ChequeData)    \n    isValid, cheque, chequeData = self._isValidNewCheque(\n        _wallet,\n        _walletConfig,\n        _owner,\n        _isRecipientOnWhitelist,\n        _chequeSettings,\n        _chequeData,\n        _isExistingCheque,\n        _numActiveCheques,\n        _isExistingPayee,\n        _timeLock,\n        _recipient,\n        _asset,\n        _amount,\n        _unlockNumBlocks,\n        _expiryNumBlocks,\n        _canManagerPay,\n        _canBePulled,\n        _creator,\n        _usdValue,\n    )\n    return isValid\n\n\n@view\n@internal\ndef _isValidNewCheque(\n    _wallet: address,\n    _walletConfig: address,\n    _owner: address,\n    _isRecipientOnWhitelist: bool,\n    _chequeSettings: wcs.ChequeSettings,\n    _chequeData: wcs.ChequeData,\n    _isExistingCheque: bool,\n    _numActiveCheques: uint256,\n    _isExistingPayee: bool,\n    _timeLock: uint256,\n    _recipient: address,\n    _asset: address,\n    _amount: uint256,\n    _unlockNumBlocks: uint256,\n    _expiryNumBlocks: uint256,\n    _canManagerPay: bool,\n    _canBePulled: bool,\n    _creator: address,\n    _usdValue: uint256,\n) -> (bool, wcs.Cheque, wcs.ChequeData):\n\n    # validate recipient\n    if _recipient == empty(address):\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n    if _recipient in [_wallet, _walletConfig, _owner]:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # cheque recipients can't be whitelisted\n    if _isRecipientOnWhitelist:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # cheque recipients can't be existing payees\n    if _isExistingPayee:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # validate asset and amount\n    if _asset == empty(address):\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n    if _amount == 0:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # check if asset is allowed\n    if len(_chequeSettings.allowedAssets) != 0:\n        if _asset not in _chequeSettings.allowedAssets:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # validate canBePulled and canManagerPay against global settings\n    if _canBePulled and not _chequeSettings.canBePulled:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n    if _canManagerPay and not _chequeSettings.canManagerPay:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # check max number of active cheques (only if creating new cheque, not replacing)\n    if not _isExistingCheque and _chequeSettings.maxNumActiveCheques != 0:\n        if _numActiveCheques >= _chequeSettings.maxNumActiveCheques:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # get latest cheque data (with period reset if needed)\n    chequeData: wcs.ChequeData = self._getLatestChequeData(_chequeData, _chequeSettings.periodLength)\n\n    # check creation cooldown\n    if _chequeSettings.createCooldownBlocks != 0 and chequeData.lastChequeCreatedBlock != 0:\n        if block.number < chequeData.lastChequeCreatedBlock + _chequeSettings.createCooldownBlocks:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # check max num cheques created per period\n    if _chequeSettings.maxNumChequesCreatedPerPeriod != 0:\n        if chequeData.numChequesCreatedInPeriod >= _chequeSettings.maxNumChequesCreatedPerPeriod:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # if no usd value, return False\n    if _usdValue == 0:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # check max cheque USD value\n    if _chequeSettings.maxChequeUsdValue != 0:\n        if _usdValue > _chequeSettings.maxChequeUsdValue:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # check per period created USD cap\n    if _chequeSettings.perPeriodCreatedUsdCap != 0:\n        if chequeData.totalUsdValueCreatedInPeriod + _usdValue > _chequeSettings.perPeriodCreatedUsdCap:\n            return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # cannot be too long\n    if _unlockNumBlocks > MAX_UNLOCK_BLOCKS:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # calculate unlock block\n    unlockBlock: uint256 = block.number + _unlockNumBlocks\n\n    # apply time lock if USD value exceeds instant threshold\n    if _chequeSettings.instantUsdThreshold != 0 and _usdValue > _chequeSettings.instantUsdThreshold:\n        if _chequeSettings.expensiveDelayBlocks != 0:\n            unlockBlock = max(unlockBlock, block.number + _chequeSettings.expensiveDelayBlocks)\n        else:\n            unlockBlock = max(unlockBlock, block.number + _timeLock)\n\n    # calculate expiry block\n    expiryBlock: uint256 = 0\n    if _expiryNumBlocks != 0:\n        expiryBlock = unlockBlock + _expiryNumBlocks\n    elif _chequeSettings.defaultExpiryBlocks != 0:\n        expiryBlock = unlockBlock + _chequeSettings.defaultExpiryBlocks\n    else:\n        expiryBlock = unlockBlock + _timeLock\n\n    # cannot be too long (active duration)\n    activeDuration: uint256 = expiryBlock - unlockBlock\n    if activeDuration > MAX_EXPIRY_BLOCKS:\n        return False, empty(wcs.Cheque), empty(wcs.ChequeData)\n\n    # create cheque\n    cheque: wcs.Cheque = wcs.Cheque(\n        recipient = _recipient,\n        asset = _asset,\n        amount = _amount,\n        creationBlock = block.number,\n        unlockBlock = unlockBlock,\n        expiryBlock = expiryBlock,\n        usdValueOnCreation = _usdValue,\n        canManagerPay = _canManagerPay,\n        canBePulled = _canBePulled,\n        creator = _creator,\n        active = True,\n    )\n\n    # update cheque data\n    chequeData.numChequesCreatedInPeriod += 1\n    chequeData.totalUsdValueCreatedInPeriod += _usdValue\n    chequeData.totalNumChequesCreated += 1\n    chequeData.totalUsdValueCreated += _usdValue\n    chequeData.lastChequeCreatedBlock = block.number\n\n    return True, cheque, chequeData\n\n\n# get latest cheque data (period reset)\n\n\n@view\n@internal\ndef _getLatestChequeData(_chequeData: wcs.ChequeData, _periodLength: uint256) -> wcs.ChequeData:\n    chequeData: wcs.ChequeData = _chequeData\n\n    # initialize period if first cheque\n    if chequeData.periodStartBlock == 0:\n        chequeData.periodStartBlock = block.number\n\n    # check if current period has ended\n    elif _periodLength != 0 and block.number >= chequeData.periodStartBlock + _periodLength:\n\n        # reset paid period data\n        chequeData.numChequesPaidInPeriod = 0\n        chequeData.totalUsdValuePaidInPeriod = 0\n\n        # reset created period data\n        chequeData.numChequesCreatedInPeriod = 0\n        chequeData.totalUsdValueCreatedInPeriod = 0\n        chequeData.periodStartBlock = block.number\n\n    return chequeData\n\n\n# cancel cheque\n\n\n@external\ndef cancelCheque(_userWallet: address, _recipient: address) -> bool:\n    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet\n\n    # get wallet config\n    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()\n    owner: address = staticcall UserWalletConfig(walletConfig).owner()\n\n    # check permissions - only owner or security action can cancel\n    if msg.sender != owner:\n        assert self._canPerformSecurityAction(msg.sender) # dev: no perms\n\n    # check if cheque exists\n    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)\n    assert cheque.active # dev: no active cheque\n\n    # cancel the cheque\n    extcall UserWalletConfig(walletConfig).cancelCheque(_recipient)\n    log ChequeCancelled(\n        user = _userWallet,\n        recipient = _recipient,\n        asset = cheque.asset,\n        amount = cheque.amount,\n        usdValue = cheque.usdValueOnCreation,\n        unlockBlock = cheque.unlockBlock,\n        expiryBlock = cheque.expiryBlock,\n        canManagerPay = cheque.canManagerPay,\n        canBePulled = cheque.canBePulled,\n        cancelledBy = msg.sender,\n    )\n    return True\n\n\n###################\n# Cheque Settings #\n###################\n\n\n# set cheque settings\n\n\n@external\ndef setChequeSettings(\n    _userWallet: address,\n    _maxNumActiveCheques: uint256,\n    _maxChequeUsdValue: uint256,\n    _instantUsdThreshold: uint256,\n    _perPeriodPaidUsdCap: uint256,\n    _maxNumChequesPaidPerPeriod: uint256,\n    _payCooldownBlocks: uint256,\n    _perPeriodCreatedUsdCap: uint256,\n    _maxNumChequesCreatedPerPeriod: uint256,\n    _createCooldownBlocks: uint256,\n    _periodLength: uint256,\n    _expensiveDelayBlocks: uint256,\n    _defaultExpiryBlocks: uint256,\n    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],\n    _canManagersCreateCheques: bool,\n    _canManagerPay: bool,\n    _canBePulled: bool,\n) -> bool:\n    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet\n\n    # only owner can set cheque settings\n    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()\n    assert msg.sender == staticcall UserWalletConfig(walletConfig).owner() # dev: no perms\n\n    # validate cheque settings with timelock\n    assert self._isValidChequeSettings(\n        _maxNumActiveCheques,\n        _maxChequeUsdValue,\n        _instantUsdThreshold,\n        _perPeriodPaidUsdCap,\n        _maxNumChequesPaidPerPeriod,\n        _payCooldownBlocks,\n        _perPeriodCreatedUsdCap,\n        _maxNumChequesCreatedPerPeriod,\n        _createCooldownBlocks,\n        _periodLength,\n        _expensiveDelayBlocks,\n        _defaultExpiryBlocks,\n        staticcall UserWalletConfig(walletConfig).timeLock(),\n    ) # dev: invalid cheque settings\n\n    # create settings\n    settings: wcs.ChequeSettings = wcs.ChequeSettings(\n        maxNumActiveCheques = _maxNumActiveCheques,\n        maxChequeUsdValue = _maxChequeUsdValue,\n        instantUsdThreshold = _instantUsdThreshold,\n        perPeriodPaidUsdCap = _perPeriodPaidUsdCap,\n        maxNumChequesPaidPerPeriod = _maxNumChequesPaidPerPeriod,\n        payCooldownBlocks = _payCooldownBlocks,\n        perPeriodCreatedUsdCap = _perPeriodCreatedUsdCap,\n        maxNumChequesCreatedPerPeriod = _maxNumChequesCreatedPerPeriod,\n        createCooldownBlocks = _createCooldownBlocks,\n        periodLength = _periodLength,\n        expensiveDelayBlocks = _expensiveDelayBlocks,\n        defaultExpiryBlocks = _defaultExpiryBlocks,\n        allowedAssets = _allowedAssets,\n        canManagersCreateCheques = _canManagersCreateCheques,\n        canManagerPay = _canManagerPay,\n        canBePulled = _canBePulled,\n    )\n\n    # update settings\n    extcall UserWalletConfig(walletConfig).setChequeSettings(settings)\n    log ChequeSettingsModified(\n        user = _userWallet,\n        maxNumActiveCheques = _maxNumActiveCheques,\n        maxChequeUsdValue = _maxChequeUsdValue,\n        instantUsdThreshold = _instantUsdThreshold,\n        perPeriodPaidUsdCap = _perPeriodPaidUsdCap,\n        maxNumChequesPaidPerPeriod = _maxNumChequesPaidPerPeriod,\n        payCooldownBlocks = _payCooldownBlocks,\n        perPeriodCreatedUsdCap = _perPeriodCreatedUsdCap,\n        maxNumChequesCreatedPerPeriod = _maxNumChequesCreatedPerPeriod,\n        createCooldownBlocks = _createCooldownBlocks,\n        periodLength = _periodLength,\n        expensiveDelayBlocks = _expensiveDelayBlocks,\n        defaultExpiryBlocks = _defaultExpiryBlocks,\n        canManagersCreateCheques = _canManagersCreateCheques,\n        canManagerPay = _canManagerPay,\n        canBePulled = _canBePulled,\n    )\n    return True\n\n\n# cheque settings validation\n\n\n@view\n@external\ndef isValidChequeSettings(\n    _maxNumActiveCheques: uint256,\n    _maxChequeUsdValue: uint256,\n    _instantUsdThreshold: uint256,\n    _perPeriodPaidUsdCap: uint256,\n    _maxNumChequesPaidPerPeriod: uint256,\n    _payCooldownBlocks: uint256,\n    _perPeriodCreatedUsdCap: uint256,\n    _maxNumChequesCreatedPerPeriod: uint256,\n    _createCooldownBlocks: uint256,\n    _periodLength: uint256,\n    _expensiveDelayBlocks: uint256,\n    _defaultExpiryBlocks: uint256,\n    _timeLock: uint256,\n) -> bool:\n    return self._isValidChequeSettings(\n        _maxNumActiveCheques,\n        _maxChequeUsdValue,\n        _instantUsdThreshold,\n        _perPeriodPaidUsdCap,\n        _maxNumChequesPaidPerPeriod,\n        _payCooldownBlocks,\n        _perPeriodCreatedUsdCap,\n        _maxNumChequesCreatedPerPeriod,\n        _createCooldownBlocks,\n        _periodLength,\n        _expensiveDelayBlocks,\n        _defaultExpiryBlocks,\n        _timeLock,\n    )\n\n\n@view\n@internal\ndef _isValidChequeSettings(\n    _maxNumActiveCheques: uint256,\n    _maxChequeUsdValue: uint256,\n    _instantUsdThreshold: uint256,\n    _perPeriodPaidUsdCap: uint256,\n    _maxNumChequesPaidPerPeriod: uint256,\n    _payCooldownBlocks: uint256,\n    _perPeriodCreatedUsdCap: uint256,\n    _maxNumChequesCreatedPerPeriod: uint256,\n    _createCooldownBlocks: uint256,\n    _periodLength: uint256,\n    _expensiveDelayBlocks: uint256,\n    _defaultExpiryBlocks: uint256,\n    _timeLock: uint256,\n) -> bool:\n\n    # validate period length\n    if not self._isValidChequePeriod(_periodLength):\n        return False\n\n    # validate cooldowns\n    if not self._isValidChequeCooldowns(_payCooldownBlocks, _createCooldownBlocks, _periodLength):\n        return False\n\n    # validate expensive delay\n    if not self._isValidExpensiveDelay(_expensiveDelayBlocks, _timeLock):\n        return False\n\n    # validate USD caps consistency\n    if not self._isValidChequeUsdCaps(_maxChequeUsdValue, _perPeriodPaidUsdCap, _perPeriodCreatedUsdCap):\n        return False\n\n    # validate instant threshold configuration\n    if not self._isValidInstantThreshold(_instantUsdThreshold, _expensiveDelayBlocks):\n        return False\n\n    # validate expiry blocks\n    if not self._isValidExpiryBlocks(_defaultExpiryBlocks, _timeLock):\n        return False\n\n    return True\n\n\n# validate cheque period\n\n\n@view\n@internal\ndef _isValidChequePeriod(_periodLength: uint256) -> bool:\n    # period length cannot be zero\n    if _periodLength == 0:\n        return False\n    return _periodLength >= MIN_CHEQUE_PERIOD and _periodLength <= MAX_CHEQUE_PERIOD\n\n\n# validate cheque cooldowns\n\n\n@view\n@internal\ndef _isValidChequeCooldowns(_payCooldownBlocks: uint256, _createCooldownBlocks: uint256, _periodLength: uint256) -> bool:\n    # cooldowns cannot exceed period length\n    if _payCooldownBlocks > _periodLength:\n        return False\n    if _createCooldownBlocks > _periodLength:\n        return False\n\n    return True\n\n\n# validate expensive delay\n\n\n@view\n@internal\ndef _isValidExpensiveDelay(_expensiveDelayBlocks: uint256, _timeLock: uint256) -> bool:\n    # NOTE: When set to zero, expensive cheque delay will use UserWalletConfig.timeLock()\n    if _expensiveDelayBlocks == 0:\n        return True\n\n    # must meet minimum and cannot be less than current timelock\n    if _expensiveDelayBlocks < MIN_EXPENSIVE_CHEQUE_DELAY:\n        return False\n    if _expensiveDelayBlocks < _timeLock:\n        return False\n\n    # cannot exceed maximum unlock blocks\n    if _expensiveDelayBlocks > MAX_UNLOCK_BLOCKS:\n        return False\n    return True\n\n\n# validate cheque USD caps consistency\n\n\n@view\n@internal\ndef _isValidChequeUsdCaps(_maxChequeUsdValue: uint256, _perPeriodPaidUsdCap: uint256, _perPeriodCreatedUsdCap: uint256) -> bool:\n    if _maxChequeUsdValue == 0:\n        return True\n\n    # per-cheque cap should not exceed period caps\n    if _perPeriodPaidUsdCap != 0 and _maxChequeUsdValue > _perPeriodPaidUsdCap:\n        return False\n    if _perPeriodCreatedUsdCap != 0 and _maxChequeUsdValue > _perPeriodCreatedUsdCap:\n        return False\n\n    return True\n\n\n# validate instant threshold configuration\n\n\n@view\n@internal\ndef _isValidInstantThreshold(_instantUsdThreshold: uint256, _expensiveDelayBlocks: uint256) -> bool:\n    # instant threshold cannot be zero\n    if _instantUsdThreshold == 0:\n        return False\n    # if instant threshold is set, expensive delay must be set\n    if _expensiveDelayBlocks == 0:\n        return False\n    return True\n\n\n# validate expiry blocks\n\n\n@view\n@internal\ndef _isValidExpiryBlocks(_defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool:\n    # NOTE: When set to zero, expiry blocks will use UserWalletConfig.timeLock()\n    if _defaultExpiryBlocks == 0:\n        return True\n    if _defaultExpiryBlocks > MAX_EXPIRY_BLOCKS:\n        return False\n    if _defaultExpiryBlocks < _timeLock:\n        return False\n    return True\n\n\n#############\n# Utilities #\n#############\n\n# get cheque management bundle\n\n\n@view\n@external\ndef getChequeConfig(_userWallet: address, _creator: address, _recipient: address) -> wcs.ChequeManagementBundle:\n    return self._getChequeConfig(_userWallet, _creator, _recipient)\n\n\n@view\n@internal\ndef _getChequeConfig(_userWallet: address, _creator: address, _recipient: address) -> wcs.ChequeManagementBundle:\n    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()\n    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)\n    return wcs.ChequeManagementBundle(\n        wallet = _userWallet,\n        walletConfig = walletConfig,\n        owner = staticcall UserWalletConfig(walletConfig).owner(),\n        isRecipientOnWhitelist = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_recipient) != 0,\n        isCreatorManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_creator) != 0,\n        managerSettings = staticcall UserWalletConfig(walletConfig).managerSettings(_creator),\n        chequeSettings = staticcall UserWalletConfig(walletConfig).chequeSettings(),\n        chequeData = staticcall UserWalletConfig(walletConfig).chequePeriodData(),\n        isExistingCheque = cheque.active,\n        numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),\n        isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_recipient) != 0,\n        timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),\n    )\n\n\n# is valid user wallet\n\n\n@view\n@internal\ndef _isValidUserWallet(_userWallet: address) -> bool:\n    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)\n    return staticcall Ledger(ledger).isUserWallet(_userWallet)\n\n\n# can perform security action\n\n\n@view\n@internal\ndef _canPerformSecurityAction(_addr: address) -> bool:\n    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)\n    if missionControl == empty(address):\n        return False\n    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)\n\n\n# default cheque settings\n\n\n@view\n@external\ndef createDefaultChequeSettings(\n    _maxNumActiveCheques: uint256,\n    _instantUsdThreshold: uint256,\n    _periodLength: uint256,\n    _expensiveDelayBlocks: uint256,\n    _defaultExpiryBlocks: uint256,\n) -> wcs.ChequeSettings:\n    return wcs.ChequeSettings(\n        maxNumActiveCheques = _maxNumActiveCheques,\n        maxChequeUsdValue = 0,\n        instantUsdThreshold = _instantUsdThreshold,\n        perPeriodPaidUsdCap = 0,\n        maxNumChequesPaidPerPeriod = 0,\n        payCooldownBlocks = 0,\n        perPeriodCreatedUsdCap = 0,\n        maxNumChequesCreatedPerPeriod = 0,\n        createCooldownBlocks = 0,\n        periodLength = _periodLength,\n        expensiveDelayBlocks = _expensiveDelayBlocks,\n        defaultExpiryBlocks = _defaultExpiryBlocks,\n        allowedAssets = [],\n        canManagersCreateCheques = True,\n        canManagerPay = True,\n        canBePulled = True,\n    )\n",
+            "sha256sum": "af82308a5a48879226010939792f6854953d17420fdafb9e55b43460c8161f94"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/core/walletBackpack/ChequeBook.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "a1f2085e7d8914eecb0328c5623778574cccc8dc8c996782a15de98baa88c5f7"
+      },
+      "args": "00000000000000000000000044cf3c4f000dfd76a35d03298049d37be688d6f9000000000000000000000000000000000000000000000000000000000000a8c00000000000000000000000000000000000000000000000000000000000f099c00000000000000000000000000000000000000000000000000000000000005460000000000000000000000000000000000000000000000000000000000013c68000000000000000000000000000000000000000000000000000000000003b5380",
+      "file": "contracts/core/walletBackpack/ChequeBook.vy"
+    }
+  }
+}
