@@ -36,6 +36,13 @@ def prepareAssetForWalletTx(user_wallet, alpha_token, alpha_token_whale, mock_ri
     yield prepareAssetForWalletTx
 
 
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
+
+
 def test_prepare_asset_for_wallet_tx_fixture(prepareAssetForWalletTx, alpha_token, user_wallet):
     """Test prepareAssetForWalletTx fixture"""
 
@@ -61,20 +68,20 @@ def test_prepare_asset_for_wallet_tx_fixture(prepareAssetForWalletTx, alpha_toke
 ##################
 
 
-def test_user_wallet_transfer_funds(prepareAssetForWalletTx, user_wallet, bob, alpha_token):
+def test_user_wallet_transfer_funds(prepareAssetForWalletTx, user_wallet, bob, alpha_token, valid_transfer_recipient):
     """Test basic transfer of funds"""
 
     original_amount = prepareAssetForWalletTx()
 
     # transfer funds
     transfer_amount = 50 * EIGHTEEN_DECIMALS
-    actual_transfer_amount, usd_value = user_wallet.transferFunds(bob, alpha_token.address, transfer_amount, sender=bob)
+    actual_transfer_amount, usd_value = user_wallet.transferFunds(valid_transfer_recipient, alpha_token.address, transfer_amount, sender=bob)
 
     # event
     log = filter_logs(user_wallet, "WalletAction")[0]
     assert log.op == 1
     assert log.asset1 == alpha_token.address
-    assert log.asset2 == bob
+    assert log.asset2 == valid_transfer_recipient
     assert log.amount1 == transfer_amount == actual_transfer_amount
     assert log.amount2 == 0
     assert log.usdValue == usd_value == 100 * EIGHTEEN_DECIMALS
@@ -90,17 +97,17 @@ def test_user_wallet_transfer_funds(prepareAssetForWalletTx, user_wallet, bob, a
 
     # balances
     assert alpha_token.balanceOf(user_wallet) == original_amount - transfer_amount
-    assert alpha_token.balanceOf(bob) == transfer_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == transfer_amount
 
 
-def test_transfer_entire_balance_with_max_value(prepareAssetForWalletTx, user_wallet, bob, alpha_token):
+def test_transfer_entire_balance_with_max_value(prepareAssetForWalletTx, user_wallet, bob, alpha_token, valid_transfer_recipient):
     """Test transferring entire balance using max_value(uint256)"""
     
     original_amount = prepareAssetForWalletTx()
     
     # transfer using max_value to transfer entire balance
     actual_transfer_amount, usd_value = user_wallet.transferFunds(
-        bob, 
+        valid_transfer_recipient,
         alpha_token.address, 
         MAX_UINT256,
         sender=bob
@@ -112,14 +119,14 @@ def test_transfer_entire_balance_with_max_value(prepareAssetForWalletTx, user_wa
     
     # wallet should be empty
     assert alpha_token.balanceOf(user_wallet) == 0
-    assert alpha_token.balanceOf(bob) == original_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == original_amount
     
     # storage should reflect empty balance
     data = user_wallet.assetData(alpha_token.address)
     assert data.assetBalance == 0
 
 
-def test_transfer_eth_native_token(user_wallet, bob, fork, mock_ripe):
+def test_transfer_eth_native_token(user_wallet, bob, fork, mock_ripe, valid_transfer_recipient):
     """Test transferring ETH (native token)"""
     
     # send ETH to wallet
@@ -132,12 +139,12 @@ def test_transfer_eth_native_token(user_wallet, bob, fork, mock_ripe):
     
     # get initial balances
     initial_wallet_balance = boa.env.get_balance(user_wallet.address)
-    initial_bob_balance = boa.env.get_balance(bob)
+    initial_recipient_balance = boa.env.get_balance(valid_transfer_recipient)
     
     # transfer ETH 
     transfer_amount = int(0.5 * EIGHTEEN_DECIMALS) # 0.5 ETH
     actual_transfer_amount, usd_value = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         ETH,
         transfer_amount,
         sender=bob
@@ -147,7 +154,7 @@ def test_transfer_eth_native_token(user_wallet, bob, fork, mock_ripe):
     log = filter_logs(user_wallet, "WalletAction")[0]
     assert log.op == 1
     assert log.asset1 == ETH
-    assert log.asset2 == bob
+    assert log.asset2 == valid_transfer_recipient
     assert log.amount1 == transfer_amount
     assert log.amount2 == 0
     assert log.usdValue == usd_value
@@ -160,8 +167,8 @@ def test_transfer_eth_native_token(user_wallet, bob, fork, mock_ripe):
     
     # verify balances
     assert boa.env.get_balance(user_wallet.address) == initial_wallet_balance - transfer_amount
-    assert boa.env.get_balance(bob) == initial_bob_balance + transfer_amount
-    
+    assert boa.env.get_balance(valid_transfer_recipient) == initial_recipient_balance + transfer_amount
+
 
 def test_transfer_zero_amount_fails(prepareAssetForWalletTx, user_wallet, bob, alpha_token):
     """Test that transferring zero amount fails"""
@@ -178,7 +185,7 @@ def test_transfer_zero_amount_fails(prepareAssetForWalletTx, user_wallet, bob, a
         )
 
 
-def test_transfer_amount_exceeding_balance(prepareAssetForWalletTx, user_wallet, bob, alpha_token):
+def test_transfer_amount_exceeding_balance(prepareAssetForWalletTx, user_wallet, bob, alpha_token, valid_transfer_recipient):
     """Test transferring amount that exceeds balance - should transfer available balance"""
     
     original_amount = prepareAssetForWalletTx()
@@ -186,7 +193,7 @@ def test_transfer_amount_exceeding_balance(prepareAssetForWalletTx, user_wallet,
     # attempt to transfer more than balance - should transfer available balance only
     requested_amount = original_amount + 1000 * EIGHTEEN_DECIMALS
     actual_transfer_amount, usd_value = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         requested_amount,
         sender=bob
@@ -198,18 +205,18 @@ def test_transfer_amount_exceeding_balance(prepareAssetForWalletTx, user_wallet,
     
     # wallet should be empty
     assert alpha_token.balanceOf(user_wallet) == 0
-    assert alpha_token.balanceOf(bob) == original_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == original_amount
 
 
-def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob, alpha_token):
+def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob, alpha_token, valid_transfer_recipient):
     """Test multiple sequential transfers to same recipient update balances correctly"""
     
     original_amount = prepareAssetForWalletTx()
     
-    # first transfer to bob
+    # first transfer to recipient
     transfer1_amount = 30 * EIGHTEEN_DECIMALS
     actual_transfer1, usd_value1 = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         transfer1_amount,
         sender=bob
@@ -217,12 +224,12 @@ def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob
     
     assert actual_transfer1 == transfer1_amount
     assert alpha_token.balanceOf(user_wallet) == original_amount - transfer1_amount
-    assert alpha_token.balanceOf(bob) == transfer1_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == transfer1_amount
     
-    # second transfer to bob
+    # second transfer to recipient
     transfer2_amount = 20 * EIGHTEEN_DECIMALS
     actual_transfer2, usd_value2 = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         transfer2_amount,
         sender=bob
@@ -230,12 +237,12 @@ def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob
     
     assert actual_transfer2 == transfer2_amount
     assert alpha_token.balanceOf(user_wallet) == original_amount - transfer1_amount - transfer2_amount
-    assert alpha_token.balanceOf(bob) == transfer1_amount + transfer2_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == transfer1_amount + transfer2_amount
     
-    # third transfer to bob
+    # third transfer to recipient
     transfer3_amount = 25 * EIGHTEEN_DECIMALS
     actual_transfer3, usd_value3 = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         transfer3_amount,
         sender=bob
@@ -243,7 +250,7 @@ def test_multiple_sequential_transfers(prepareAssetForWalletTx, user_wallet, bob
     
     assert actual_transfer3 == transfer3_amount
     assert alpha_token.balanceOf(user_wallet) == original_amount - transfer1_amount - transfer2_amount - transfer3_amount
-    assert alpha_token.balanceOf(bob) == transfer1_amount + transfer2_amount + transfer3_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == transfer1_amount + transfer2_amount + transfer3_amount
     
     # verify final storage state
     data = user_wallet.assetData(alpha_token.address)
@@ -545,7 +552,7 @@ def test_yield_price_per_share_update_via_updateAssetData(prepareAssetForWalletT
     assert updated_vault_data.assetBalance == vault_tokens_received  # balance unchanged
 
 
-def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig):
+def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_wallet, bob, yield_underlying_token, yield_underlying_token_whale, yield_vault_token, setUserWalletConfig, valid_transfer_recipient):
     """Test that yield profits are detected when transferring yield assets"""
     
     # set stale blocks to a known value and disable yield fee
@@ -588,7 +595,7 @@ def test_yield_profits_detection_on_transfer(prepareAssetForWalletTx, user_walle
     # transfer some vault tokens - this should trigger yield profit detection
     transfer_amount = vault_tokens_received // 2
     _, _ = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         yield_vault_token.address,
         transfer_amount,
         sender=bob
@@ -1452,7 +1459,8 @@ def test_eject_mode_blocks_manager_transfers(
     alpha_token,
     high_command,
     switchboard_alpha,
-    createManagerSettings
+    createManagerSettings,
+    valid_transfer_recipient
 ):
     """Test that managers cannot transfer funds when wallet is in eject mode (FIX L-02)"""
     # Prepare asset
@@ -1465,7 +1473,7 @@ def test_eject_mode_blocks_manager_transfers(
     # Verify alice can transfer in normal mode
     transfer_amount = 10 * EIGHTEEN_DECIMALS
     actual_amount, usd_value = user_wallet.transferFunds(
-        bob,
+        valid_transfer_recipient,
         alpha_token.address,
         transfer_amount,
         sender=alice
@@ -1479,23 +1487,23 @@ def test_eject_mode_blocks_manager_transfers(
     # Manager should not be able to transfer in eject mode
     with boa.reverts("only owner can act in eject mode"):
         user_wallet.transferFunds(
-            bob,
+            valid_transfer_recipient,
             alpha_token.address,
             transfer_amount,
             sender=alice
         )
 
 
-def test_eject_mode_allows_owner_transfers(
+def test_eject_mode_allows_owner_transfers_to_valid_recipient(
     prepareAssetForWalletTx,
     user_wallet,
     user_wallet_config,
     bob,
-    charlie,
+    valid_transfer_recipient,
     alpha_token,
     switchboard_alpha
 ):
-    """Test that owner can still transfer funds to owner address in eject mode (FIX L-02)"""
+    """Test that owner can still transfer funds to a valid recipient in eject mode (FIX L-02)"""
     # Prepare asset
     amount = prepareAssetForWalletTx()
 
@@ -1503,12 +1511,11 @@ def test_eject_mode_allows_owner_transfers(
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
 
-    # Owner should be able to transfer to owner's own address in eject mode
-    # (transferring funds out of wallet to owner's EOA)
+    # Owner should still be able to transfer funds to a valid recipient in eject mode.
     transfer_amount = 50 * EIGHTEEN_DECIMALS
-    initial_bob_balance = alpha_token.balanceOf(bob)
+    initial_recipient_balance = alpha_token.balanceOf(valid_transfer_recipient)
     actual_amount, usd_value = user_wallet.transferFunds(
-        bob,  # Transfer to owner's address
+        valid_transfer_recipient,
         alpha_token.address,
         transfer_amount,
         sender=bob
@@ -1516,5 +1523,5 @@ def test_eject_mode_allows_owner_transfers(
     assert actual_amount == transfer_amount
 
     # Verify balance
-    assert alpha_token.balanceOf(bob) == initial_bob_balance + transfer_amount
+    assert alpha_token.balanceOf(valid_transfer_recipient) == initial_recipient_balance + transfer_amount
     assert alpha_token.balanceOf(user_wallet) == amount - transfer_amount

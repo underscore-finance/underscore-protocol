@@ -480,10 +480,6 @@
         ]
       },
       {
-        "name": "_canPayOwner",
-        "type": "bool"
-      },
-      {
         "name": "_canPull",
         "type": "bool"
       }
@@ -1604,10 +1600,6 @@
             "type": "uint256"
           }
         ]
-      },
-      {
-        "name": "_canPayOwner",
-        "type": "bool"
       },
       {
         "name": "_canPull",

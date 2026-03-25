@@ -263,6 +263,162 @@
         "type": "bool"
       },
       {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_globalManagerSettings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "managerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "startDelay",
+            "type": "uint256"
+          },
+          {
+            "name": "activationLength",
+            "type": "uint256"
+          },
+          {
+            "name": "canOwnerManage",
+            "type": "bool"
+          },
+          {
+            "name": "limits",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxUsdValuePerTx",
+                "type": "uint256"
+              },
+              {
+                "name": "maxUsdValuePerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "maxUsdValueLifetime",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumTxsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "txCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "failOnZeroPrice",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "legoPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canManageYield",
+                "type": "bool"
+              },
+              {
+                "name": "canBuyAndSell",
+                "type": "bool"
+              },
+              {
+                "name": "canManageDebt",
+                "type": "bool"
+              },
+              {
+                "name": "canManageLiq",
+                "type": "bool"
+              },
+              {
+                "name": "canClaimRewards",
+                "type": "bool"
+              },
+              {
+                "name": "onlyApprovedYieldOpps",
+                "type": "bool"
+              },
+              {
+                "name": "allowedLegos",
+                "type": "uint256[]"
+              }
+            ]
+          },
+          {
+            "name": "swapPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "mustHaveUsdValue",
+                "type": "bool"
+              },
+              {
+                "name": "maxNumSwapsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "maxSlippage",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "whitelistPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canAddPending",
+                "type": "bool"
+              },
+              {
+                "name": "canConfirm",
+                "type": "bool"
+              },
+              {
+                "name": "canCancel",
+                "type": "bool"
+              },
+              {
+                "name": "canRemove",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "transferPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canTransfer",
+                "type": "bool"
+              },
+              {
+                "name": "canCreateCheque",
+                "type": "bool"
+              },
+              {
+                "name": "canAddPendingPayee",
+                "type": "bool"
+              },
+              {
+                "name": "allowedPayees",
+                "type": "address[]"
+              }
+            ]
+          },
+          {
+            "name": "allowedAssets",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
         "name": "_managerSettings",
         "type": "tuple",
         "components": [

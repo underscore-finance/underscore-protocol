@@ -35,6 +35,7 @@ class ACTION_TYPE(IntFlag):
     REMOVE_LIQ = 32768  # 2^15
     ADD_LIQ_CONC = 65536  # 2^16
     REMOVE_LIQ_CONC = 131072  # 2^17
+    PAY_CHEQUE = 262144  # 2^18
 
 
 # Action types for UserWallet operations

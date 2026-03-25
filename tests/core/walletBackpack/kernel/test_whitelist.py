@@ -209,6 +209,28 @@ def test_add_pending_whitelist_invalid_addresses(kernel, user_wallet, user_walle
         kernel.addPendingWhitelistAddr(user_wallet, user_wallet_config.address, sender=bob)
 
 
+def test_add_pending_whitelist_rejects_owner(kernel, user_wallet, bob):
+    """Owner cannot whitelist themselves as a payment destination"""
+    with boa.reverts("invalid addr"):
+        kernel.addPendingWhitelistAddr(user_wallet, bob, sender=bob)
+
+
+def test_confirm_whitelist_rejects_owner(kernel, user_wallet, user_wallet_config, bob):
+    """Stale pending owner whitelist entries cannot be confirmed"""
+    current_block = boa.env.evm.patch.block_number
+    pending = (
+        current_block,
+        current_block + 10,
+        bob,
+    )
+    user_wallet_config.addPendingWhitelistAddr(bob, pending, sender=kernel.address)
+
+    boa.env.time_travel(blocks=10)
+
+    with boa.reverts("invalid addr"):
+        kernel.confirmWhitelistAddr(user_wallet, bob, sender=bob)
+
+
 def test_add_pending_whitelist_already_pending(kernel, user_wallet, bob, charlie):
     """Test cannot add duplicate pending whitelist"""
     # Add pending whitelist first time
@@ -1002,4 +1024,3 @@ def test_remove_whitelist_pending_exists(kernel, user_wallet, user_wallet_config
     # Verify pending exists
     pending = user_wallet_config.pendingWhitelist(alice)
     assert pending.initiatedBlock != 0
-

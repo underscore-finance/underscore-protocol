@@ -25,6 +25,7 @@ def test_create_user_wallet_basic(hatchery, alice):
     # Verify wallet config
     wallet_config = UserWalletConfig.at(wallet.walletConfig())
     assert wallet_config.owner() == alice
+    assert wallet_config.globalPayeeSettings().canPayOwner == False
 
 
 def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger, mission_control, switchboard_alpha):

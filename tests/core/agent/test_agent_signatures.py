@@ -4,6 +4,7 @@ from eth_account import Account
 from eth_account.messages import encode_typed_data
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from config.BluePrint import PARAMS
 from contracts.core.userWallet import UserWalletConfig
 from conf_utils import filter_logs
 
@@ -36,6 +37,13 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
         return _amount
 
     yield setupAgentTestAsset
+
+
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
 
 
 @pytest.fixture(scope="module")
@@ -98,6 +106,51 @@ def createActionInstruction():
         )
 
     yield createActionInstruction
+
+
+@pytest.fixture(scope="module")
+def user_wallet_signature_helper():
+    return boa.load(
+        "contracts/core/agent/UserWalletSignatureHelper.vy",
+        name="user_wallet_signature_helper",
+    )
+
+
+@pytest.fixture(scope="module")
+def signed_agent_sender(undy_hq_deploy, test_signer, fork, starter_agent, switchboard_alpha):
+    sender = boa.load(
+        "contracts/core/agent/AgentSenderGeneric.vy",
+        undy_hq_deploy,
+        test_signer.address,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="signed_agent_sender",
+    )
+    starter_agent.addSender(sender, sender=switchboard_alpha.address)
+    return sender
+
+
+def _set_instant_cheque_settings(
+    cheque_book,
+    user_wallet,
+    owner,
+    createChequeSettings,
+    _instant_usd_threshold,
+    _expensive_delay_blocks=1,
+):
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    timelock = wallet_config.timeLock()
+    min_expensive_delay = cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY()
+    settings = createChequeSettings(
+        _instantUsdThreshold=_instant_usd_threshold,
+        _expensiveDelayBlocks=max(_expensive_delay_blocks, timelock, min_expensive_delay),
+        _defaultExpiryBlocks=timelock,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *settings, sender=owner)
+    return settings
 
 
 ######################
@@ -449,6 +502,7 @@ def test_batch_actions_signature_validation(
     mock_dex_asset_alt,
     whale,
     bob,
+    valid_transfer_recipient,
     create_signature_struct
 ):
     """Test signature validation for batch actions"""
@@ -461,11 +515,11 @@ def test_batch_actions_signature_validation(
         _lego_id=3
     )
 
-    # Create transfer instruction - transfers go to wallet owner (bob), not agent owner
+    # Create transfer instruction to an explicitly valid non-owner recipient.
     instruction = createActionInstruction(
         action=1,  # TRANSFER
         asset=mock_dex_asset.address,
-        target=bob,
+        target=valid_transfer_recipient,
         amount=10 * EIGHTEEN_DECIMALS
     )
 
@@ -773,6 +827,7 @@ def test_batch_max_instructions(
     mock_dex_asset,
     whale,
     bob,
+    valid_transfer_recipient,
     create_signature_struct
 ):
     """Test batch actions with exactly 15 instructions (MAX_INSTRUCTIONS)"""
@@ -791,7 +846,7 @@ def test_batch_max_instructions(
         instruction = createActionInstruction(
             action=1,  # TRANSFER
             asset=mock_dex_asset.address,
-            target=bob,
+            target=valid_transfer_recipient,
             amount=1 * EIGHTEEN_DECIMALS  # Small amount per transfer
         )
         instructions.append(instruction)
@@ -811,7 +866,7 @@ def test_batch_max_instructions(
     extra_instruction = createActionInstruction(
         action=1,  # TRANSFER
         asset=mock_dex_asset.address,
-        target=bob,
+        target=valid_transfer_recipient,
         amount=1 * EIGHTEEN_DECIMALS
     )
     instructions.append(extra_instruction)
@@ -915,3 +970,152 @@ def test_ecrecover_edge_cases(
         )
 
 
+def test_create_and_pay_cheque_signature_hash_differs_from_transfer(
+    user_wallet_signature_helper,
+    signed_agent_sender,
+    user_wallet,
+    alice,
+    alpha_token,
+):
+    amount = 15 * EIGHTEEN_DECIMALS
+    instant_digest, instant_nonce, instant_expiration = user_wallet_signature_helper.getCreateAndPayChequeHash(
+        signed_agent_sender.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+    )
+    transfer_digest, transfer_nonce, transfer_expiration = user_wallet_signature_helper.getTransferFundsHash(
+        signed_agent_sender.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+    )
+
+    assert instant_digest != transfer_digest
+    assert instant_nonce == transfer_nonce
+    assert instant_expiration == transfer_expiration
+
+
+def test_create_and_pay_cheque_valid_signature_succeeds(
+    setupAgentTestAsset,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+):
+    amount = 20 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    digest, nonce, expiration = user_wallet_signature_helper.getCreateAndPayChequeHash(
+        signed_agent_sender.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    recipient_balance_before = alpha_token.balanceOf(alice)
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    amount_paid, usd_value = signed_agent_sender.createAndPayCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        signature,
+        sender=alice
+    )
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce + 1
+    assert user_wallet_config.cheques(alice).active == False
+
+
+def test_create_and_pay_cheque_rejects_transfer_signature(
+    setupAgentTestAsset,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+):
+    amount = 10 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    digest, nonce, expiration = user_wallet_signature_helper.getTransferFundsHash(
+        signed_agent_sender.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    with boa.reverts("invalid signer"):
+        signed_agent_sender.createAndPayCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            signature,
+            sender=alice
+        )
+
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce

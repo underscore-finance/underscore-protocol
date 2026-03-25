@@ -36,6 +36,13 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
     yield setupAgentTestAsset
 
 
+@pytest.fixture
+def valid_transfer_recipient(user_wallet_config, migrator, sally):
+    if user_wallet_config.indexOfWhitelist(sally) == 0:
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+    return sally
+
+
 @pytest.fixture(scope="module")
 def createActionInstruction():
     def createActionInstruction(
@@ -82,6 +89,29 @@ def createActionInstruction():
         )
 
     yield createActionInstruction
+
+
+def _set_instant_cheque_settings(
+    cheque_book,
+    user_wallet,
+    owner,
+    createChequeSettings,
+    _instant_usd_threshold,
+    _expensive_delay_blocks=1,
+):
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    timelock = wallet_config.timeLock()
+    min_expensive_delay = cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY()
+    settings = createChequeSettings(
+        _instantUsdThreshold=_instant_usd_threshold,
+        _expensiveDelayBlocks=max(_expensive_delay_blocks, timelock, min_expensive_delay),
+        _defaultExpiryBlocks=timelock,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *settings, sender=owner)
+    return settings
 
 
 ########################
@@ -370,6 +400,7 @@ def test_batch_mixed_operations(
     whale,
     mock_ripe,
     bob,
+    valid_transfer_recipient,
 ):
     """Test batch with mixed operation types: transfer, deposit yield, swap"""
     
@@ -401,7 +432,7 @@ def test_batch_mixed_operations(
             action=1,  # transferFunds
             legoId=0,
             asset=yield_underlying_token.address,
-            target=bob,  # Transfer to bob (owner of wallet)
+            target=valid_transfer_recipient,
             amount=50 * EIGHTEEN_DECIMALS,
         ),
         createActionInstruction(
@@ -456,7 +487,7 @@ def test_batch_mixed_operations(
     assert logs[2].amount1 == 150 * EIGHTEEN_DECIMALS
     
     # Check final balances
-    assert yield_underlying_token.balanceOf(bob) == 50 * EIGHTEEN_DECIMALS
+    assert yield_underlying_token.balanceOf(valid_transfer_recipient) == 50 * EIGHTEEN_DECIMALS
     assert yield_underlying_token.balanceOf(user_wallet) == 150 * EIGHTEEN_DECIMALS
     assert yield_vault_token.balanceOf(user_wallet) > 0
     assert mock_dex_asset.balanceOf(user_wallet) == 50 * EIGHTEEN_DECIMALS
@@ -881,6 +912,7 @@ def test_batch_complex_prev_amount_chain(
     whale,
     mock_ripe,
     bob,
+    valid_transfer_recipient,
 ):
     """Test complex chain using usePrevAmountOut across multiple operations"""
     
@@ -934,7 +966,7 @@ def test_batch_complex_prev_amount_chain(
             action=1,  # transferFunds
             usePrevAmountOut=True,
             asset=mock_dex_lp_token.address,
-            target=bob,
+            target=valid_transfer_recipient,
             amount=0,  # Will use all of previous output
         )
     ]
@@ -960,7 +992,7 @@ def test_batch_complex_prev_amount_chain(
     
     # Final balance checks
     assert mock_dex_asset.balanceOf(user_wallet) == 600 * EIGHTEEN_DECIMALS  # 1000 - 400
-    assert mock_dex_lp_token.balanceOf(bob) == 400 * EIGHTEEN_DECIMALS  # All transferred
+    assert mock_dex_lp_token.balanceOf(valid_transfer_recipient) == 400 * EIGHTEEN_DECIMALS  # All transferred
 
 
 def test_batch_pending_mint_redeem(
@@ -1193,3 +1225,146 @@ def test_batch_borrow_with_prev_collateral(
     assert mock_dex_asset.balanceOf(user_wallet) == 500 * EIGHTEEN_DECIMALS  # 1000 - 500
     assert mock_dex_asset_alt.balanceOf(user_wallet) == 0  # All used as collateral
     assert mock_dex_debt_token.balanceOf(user_wallet) == 200 * EIGHTEEN_DECIMALS  # Borrowed
+
+
+def test_batch_create_and_pay_cheque(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    amount = 30 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    instructions = [
+        createActionInstruction(
+            action=4,
+            asset=alpha_token.address,
+            target=alice,
+            amount=amount,
+        )
+    ]
+
+    wallet_balance_before = alpha_token.balanceOf(user_wallet)
+    recipient_balance_before = alpha_token.balanceOf(alice)
+
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
+        user_wallet.address,
+        instructions,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    logs = filter_logs(starter_agent_sender, "WalletAction")
+    agent_logs = filter_logs(starter_agent_sender, "AgentAction")
+
+    assert result == True
+    assert len(logs) == 1
+    assert logs[0].op == 1
+    assert logs[0].amount1 == amount
+    assert agent_logs[0].action == 4
+    assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
+    assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+    assert user_wallet_config.cheques(alice).active == False
+
+
+def test_batch_create_and_pay_cheque_with_prev_amount_out(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    mock_dex_asset,
+    mock_dex_asset_alt,
+    whale,
+    mock_ripe,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=300 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=3,
+        _shouldCheckYield=False
+    )
+    mock_ripe.setPrice(mock_dex_asset_alt, 3 * EIGHTEEN_DECIMALS)
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=200 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    instructions = [
+        createActionInstruction(
+            action=20,
+            legoId=3,
+            asset=mock_dex_asset.address,
+            target=mock_dex_asset_alt.address,
+            amount=40 * EIGHTEEN_DECIMALS,
+            swapInstructions=[(
+                3,
+                40 * EIGHTEEN_DECIMALS,
+                0,
+                [mock_dex_asset.address, mock_dex_asset_alt.address],
+                []
+            )]
+        ),
+        createActionInstruction(
+            action=4,
+            usePrevAmountOut=True,
+            asset=mock_dex_asset_alt.address,
+            target=alice,
+            amount=0,
+        )
+    ]
+
+    recipient_balance_before = mock_dex_asset_alt.balanceOf(alice)
+
+    result = starter_agent_sender.performBatchActions(
+        starter_agent.address,
+        user_wallet.address,
+        instructions,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    logs = filter_logs(starter_agent_sender, "WalletAction")
+
+    assert result == True
+    assert len(logs) == 2
+    assert logs[0].op == 20
+    assert logs[1].op == 1
+    assert logs[1].asset1 == mock_dex_asset_alt.address
+    assert logs[1].amount1 == logs[0].amount2
+    assert mock_dex_asset_alt.balanceOf(alice) == recipient_balance_before + logs[0].amount2
+    assert user_wallet_config.cheques(alice).active == False

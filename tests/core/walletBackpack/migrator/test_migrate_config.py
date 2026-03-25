@@ -565,9 +565,10 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
         _maxNumTxsPerPeriod=25,    # unique value
         _txCooldownBlocks=10,      # unique value
         _failOnZeroPrice=True,     # different from default
-        _canPayOwner=False         # different from default
+        _canPayOwner=True          # legacy-enabled source value
     )
     from_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
+    assert from_config.globalPayeeSettings().canPayOwner == True
     
     # Create target wallet
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
@@ -596,6 +597,33 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     assert copied_global_payee.txCooldownBlocks == 10
     assert copied_global_payee.failOnZeroPrice == True
     assert copied_global_payee.canPayOwner == False
+
+
+def test_clone_config_skips_owner_payee_and_whitelist(migrator, hatchery, bob, alice, paymaster, createPayeeSettings):
+    """Legacy owner payee/whitelist entries should not be copied into the destination wallet"""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+
+    payee_settings = createPayeeSettings()
+    from_config.addPayee(bob, payee_settings, sender=paymaster.address)
+    from_config.addPayee(alice, payee_settings, sender=paymaster.address)
+    from_config.addWhitelistAddrViaMigrator(bob, sender=migrator.address)
+    from_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+
+    result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+    assert result is True
+
+    assert to_config.indexOfPayee(bob) == 0
+    assert to_config.indexOfPayee(alice) != 0
+    assert to_config.indexOfWhitelist(bob) == 0
+    assert to_config.indexOfWhitelist(alice) != 0
+
+    event = filter_logs(migrator, "ConfigCloned")[0]
+    assert event.numPayeesCopied == 1
+    assert event.numWhitelistCopied == 1
 
 
 def test_clone_config_starting_agent_exclusion(migrator, hatchery, bob, alice, charlie, high_command, createManagerSettings, starter_agent):
@@ -797,5 +825,3 @@ def test_migrate_all_partial_funds_migration(migrator, hatchery, bob, alice, hig
     assert len(funds_events) == 1
     assert len(config_events) == 1
     assert funds_events[0].numAssetsMigrated == 1  # Only one asset actually migrated
-
-

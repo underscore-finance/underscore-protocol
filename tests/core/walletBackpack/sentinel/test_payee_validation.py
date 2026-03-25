@@ -58,8 +58,8 @@ def test_owner_payment_with_canPayOwner_true(createGlobalPayeeSettings, alpha_to
     new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=True)
     user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
     
-    # owner (bob) should be valid payee
-    assert sentinel.isValidPayee(user_wallet, bob, alpha_token, 100, 100)
+    # owner (bob) should still not be a valid payee
+    assert not sentinel.isValidPayee(user_wallet, bob, alpha_token, 100, 100)
 
 
 def test_owner_payment_with_canPayOwner_false(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):

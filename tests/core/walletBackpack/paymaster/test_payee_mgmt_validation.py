@@ -29,7 +29,6 @@ def test_valid_global_payee_settings(paymaster, user_wallet, createPayeeLimits, 
         100,  # _txCooldownBlocks: Must be <= periodLength
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -52,7 +51,6 @@ def test_valid_global_payee_settings_zero_cooldown(paymaster, user_wallet, creat
         0,  # _txCooldownBlocks: Zero cooldown
         True,  # _failOnZeroPrice: Must be True when USD limits are set
         usd_limits,  # _usdLimits
-        True,  # _canPayOwner
         True  # _canPull
     )
 
@@ -71,7 +69,6 @@ def test_invalid_period_length_too_short(paymaster, user_wallet, createPayeeLimi
         0,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -90,7 +87,6 @@ def test_invalid_period_length_too_long(paymaster, user_wallet, createPayeeLimit
         0,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -111,7 +107,6 @@ def test_invalid_cooldown_exceeds_period(paymaster, user_wallet, createPayeeLimi
         period_length + 1,  # _txCooldownBlocks: Exceeds period
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -134,7 +129,6 @@ def test_invalid_payee_limits_per_tx_exceeds_period(paymaster, user_wallet, crea
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -157,7 +151,6 @@ def test_invalid_payee_limits_period_exceeds_lifetime(paymaster, user_wallet, cr
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -176,7 +169,6 @@ def test_invalid_activation_length_too_short(paymaster, user_wallet, createPayee
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -195,7 +187,6 @@ def test_invalid_activation_length_too_long(paymaster, user_wallet, createPayeeL
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -216,7 +207,6 @@ def test_invalid_start_delay_below_timelock(paymaster, user_wallet, user_wallet_
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -235,7 +225,6 @@ def test_invalid_start_delay_exceeds_max(paymaster, user_wallet, createPayeeLimi
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -259,7 +248,6 @@ def test_valid_limits_with_zero_values(paymaster, user_wallet, createPayeeLimits
         100,  # _txCooldownBlocks
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -280,7 +268,6 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
         0,  # _txCooldownBlocks
         True,  # _failOnZeroPrice: Must be True when USD limits are set
         usd_limits,  # _usdLimits
-        True,  # _canPayOwner
         True  # _canPull
     )
     
@@ -294,7 +281,6 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
         PARAMS[fork]["PAYMASTER_MAX_PAYEE_PERIOD"],  # _txCooldownBlocks: At period length
         True,  # _failOnZeroPrice
         usd_limits,  # _usdLimits
-        False,  # _canPayOwner
         True  # _canPull
     )
 
@@ -1329,7 +1315,6 @@ def test_invalid_global_payee_settings_usd_limits_without_fail_on_zero_price(pay
         0,
         False,  # failOnZeroPrice=False is invalid with USD limits
         usd_limits,
-        False,
         True
     )
 
@@ -1353,7 +1338,6 @@ def test_valid_global_payee_settings_usd_limits_with_fail_on_zero_price(paymaste
         0,
         True,  # failOnZeroPrice=True is required with USD limits
         usd_limits,
-        False,
         True
     )
 
@@ -1373,7 +1357,6 @@ def test_valid_global_payee_settings_no_usd_limits_fail_on_zero_price_false(paym
         0,
         False,  # failOnZeroPrice=False is OK when no USD limits
         usd_limits,
-        False,
         True
     )
 
@@ -1472,21 +1455,20 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(paymaster, user_walle
     usd_limits_1 = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
     assert not paymaster.isValidGlobalPayeeSettings(
         user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
-        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_1, False, True
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_1, True
     )
 
     # Test with only perPeriodCap set
     usd_limits_2 = createPayeeLimits(_perPeriodCap=5000 * EIGHTEEN_DECIMALS)
     assert not paymaster.isValidGlobalPayeeSettings(
         user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
-        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_2, False, True
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_2, True
     )
 
     # Test with only lifetimeCap set
     usd_limits_3 = createPayeeLimits(_lifetimeCap=10000 * EIGHTEEN_DECIMALS)
     assert not paymaster.isValidGlobalPayeeSettings(
         user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
-        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_3, False, True
+        ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_3, True
     )
-
 

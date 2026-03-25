@@ -22,6 +22,7 @@ interface UserWalletConfig:
     def createCheque(_recipient: address, _cheque: wcs.Cheque, _chequeData: wcs.ChequeData, _isExistingCheque: bool): nonpayable
     def managerSettings(_addr: address) -> wcs.ManagerSettings: view
     def setChequeSettings(_config: wcs.ChequeSettings): nonpayable
+    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfWhitelist(_addr: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
     def cancelCheque(_recipient: address): nonpayable
@@ -149,15 +150,18 @@ def createCheque(
 
     # get cheque config / data
     config: wcs.ChequeManagementBundle = self._getChequeConfig(_userWallet, msg.sender, _recipient)
+    globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(config.walletConfig).globalManagerSettings()
     
     # check if caller can create cheques
     assert self._canCreateCheque(
         config.owner == msg.sender,
         config.isCreatorManager,
         config.chequeSettings.canManagersCreateCheques,
+        _asset,
+        globalManagerSettings,
         config.managerSettings,
     ) # dev: not authorized to create cheques
-    
+
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
@@ -215,12 +219,16 @@ def canCreateCheque(
     _isCreatorOwner: bool,
     _isCreatorManager: bool,
     _canManagersCreateCheques: bool,
+    _asset: address,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
     _managerSettings: wcs.ManagerSettings,
 ) -> bool:
     return self._canCreateCheque(
         _isCreatorOwner,
         _isCreatorManager,
         _canManagersCreateCheques,
+        _asset,
+        _globalManagerSettings,
         _managerSettings,
     )
 
@@ -231,6 +239,8 @@ def _canCreateCheque(
     _isCreatorOwner: bool,
     _isCreatorManager: bool,
     _canManagersCreateCheques: bool,
+    _asset: address,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
     _managerSettings: wcs.ManagerSettings,
 ) -> bool:
 
@@ -245,9 +255,21 @@ def _canCreateCheque(
     # check global setting - can managers create cheques
     if not _canManagersCreateCheques:
         return False
+
+    # check global manager settings
+    if not _globalManagerSettings.transferPerms.canCreateCheque:
+        return False
     
     # check manager's specific transfer permissions
     if not _managerSettings.transferPerms.canCreateCheque:
+        return False
+
+    # manager-specific asset restrictions apply to manager-created cheques
+    if len(_managerSettings.allowedAssets) != 0 and _asset not in _managerSettings.allowedAssets:
+        return False
+
+    # global manager asset restrictions apply to all managers
+    if len(_globalManagerSettings.allowedAssets) != 0 and _asset not in _globalManagerSettings.allowedAssets:
         return False
     
     # check if manager is active (within start/expiry blocks)
