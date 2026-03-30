@@ -21,17 +21,17 @@ def test_owner_can_manage_all_whitelist_actions(kernel, user_wallet, bob):
 
 def test_manager_whitelist_permissions_individual(createGlobalManagerSettings, createWhitelistPerms, sally, createManagerSettings, kernel, user_wallet, user_wallet_config, alice, high_command):
     """Test manager permissions for individual whitelist actions"""
-    # Set global permissions to allow all actions
+    # Simulate stale onchain configs that still have canAddPending enabled.
     global_whitelist_perms = createWhitelistPerms(_canAddPending=True, _canConfirm=True, _canCancel=True, _canRemove=True)
     new_global_manager_settings = createGlobalManagerSettings(_whitelistPerms=global_whitelist_perms)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
     
-    # Test canAddPending permission only
+    # Manager ADD_PENDING should still be blocked at runtime.
     manager_whitelist_perms = createWhitelistPerms(_canAddPending=True, _canConfirm=False, _canCancel=False, _canRemove=False)
     new_manager_settings = createManagerSettings(_whitelistPerms=manager_whitelist_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
     
-    assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
+    assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CONFIRM_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CANCEL_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.REMOVE_WHITELIST)
@@ -56,14 +56,14 @@ def test_manager_whitelist_permissions_multiple(createGlobalManagerSettings, cre
     new_manager_settings = createManagerSettings(_whitelistPerms=whitelist_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
     
-    assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
+    assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
     assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CONFIRM_WHITELIST)
     assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CANCEL_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.REMOVE_WHITELIST)
 
 
 def test_global_whitelist_permissions_override(createGlobalManagerSettings, createWhitelistPerms, createManagerSettings, kernel, user_wallet, user_wallet_config, alice, high_command):
-    """Test that both manager and global permissions must be true"""
+    """Test that manager ADD_PENDING stays blocked even if both configs allow it"""
     # Set global permissions to allow all
     global_whitelist_perms = createWhitelistPerms(_canAddPending=True, _canConfirm=True, _canCancel=True, _canRemove=True)
     new_global_manager_settings = createGlobalManagerSettings(_whitelistPerms=global_whitelist_perms)
@@ -74,8 +74,7 @@ def test_global_whitelist_permissions_override(createGlobalManagerSettings, crea
     new_manager_settings = createManagerSettings(_whitelistPerms=manager_whitelist_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
     
-    # Only ADD_PENDING should be allowed (both global and manager are true)
-    assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
+    assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CONFIRM_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CANCEL_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.REMOVE_WHITELIST)
@@ -83,7 +82,7 @@ def test_global_whitelist_permissions_override(createGlobalManagerSettings, crea
 
 def test_global_permissions_restrict_manager(createGlobalManagerSettings, createWhitelistPerms, createManagerSettings, kernel, user_wallet, user_wallet_config, alice, high_command):
     """Test that global permissions can restrict manager permissions"""
-    # Set global permissions to deny all except ADD_PENDING
+    # Set global permissions to deny all except stale ADD_PENDING.
     global_whitelist_perms = createWhitelistPerms(_canAddPending=True, _canConfirm=False, _canCancel=False, _canRemove=False)
     new_global_manager_settings = createGlobalManagerSettings(_whitelistPerms=global_whitelist_perms)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -93,8 +92,7 @@ def test_global_permissions_restrict_manager(createGlobalManagerSettings, create
     new_manager_settings = createManagerSettings(_whitelistPerms=manager_whitelist_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
     
-    # Only ADD_PENDING should be allowed (global restricts the others)
-    assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
+    assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CONFIRM_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.CANCEL_WHITELIST)
     assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.REMOVE_WHITELIST)
@@ -139,8 +137,8 @@ def test_whitelist_management_example(createGlobalManagerSettings, createWhiteli
     # owner can manage
     assert kernel.canManageWhitelist(user_wallet, bob, WHITELIST_ACTION.ADD_PENDING)
 
-    # manager -- allowed
-    assert kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
+    # manager -- blocked even with stale stored perms
+    assert not kernel.canManageWhitelist(user_wallet, alice, WHITELIST_ACTION.ADD_PENDING)
 
     # another manager -- not allowed
     whitelist_perms = createWhitelistPerms(_canAddPending=False)
@@ -440,8 +438,8 @@ def test_add_pending_whitelist_invalid_user_wallet(kernel, bob, alice):
 
 
 def test_add_pending_whitelist_by_manager(createGlobalManagerSettings, createWhitelistPerms, createManagerSettings, kernel, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test manager can add pending whitelist with proper permissions"""
-    # Setup manager with add pending permission
+    """Test manager cannot add pending whitelist even with stale stored permissions"""
+    # Direct config writes simulate legacy manager settings that still have canAddPending enabled.
     whitelist_perms = createWhitelistPerms(_canAddPending=True, _canConfirm=False, _canCancel=False, _canRemove=False)
     new_global_manager_settings = createGlobalManagerSettings(_whitelistPerms=whitelist_perms)
     user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
@@ -449,12 +447,12 @@ def test_add_pending_whitelist_by_manager(createGlobalManagerSettings, createWhi
     new_manager_settings = createManagerSettings(_whitelistPerms=whitelist_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
     
-    # Manager adds pending whitelist
-    kernel.addPendingWhitelistAddr(user_wallet, charlie, sender=alice)
-    
-    # Verify event shows manager as addedBy
-    log = filter_logs(kernel, "WhitelistAddrPending")[0]
-    assert log.addedBy == alice
+    with boa.reverts("no perms"):
+        kernel.addPendingWhitelistAddr(user_wallet, charlie, sender=alice)
+
+    pending = user_wallet_config.pendingWhitelist(charlie)
+    assert pending.initiatedBlock == 0
+    assert len(filter_logs(kernel, "WhitelistAddrPending")) == 0
 
 
 #######################

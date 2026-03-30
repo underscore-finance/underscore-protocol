@@ -210,7 +210,7 @@ def _canManageWhitelist(
 
     # add to whitelist
     if _action == wcs.WhitelistAction.ADD_PENDING:
-        return _config.canAddPending and _globalConfig.canAddPending
+        return False
     
     # confirm whitelist
     elif _action == wcs.WhitelistAction.CONFIRM_WHITELIST:

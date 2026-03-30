@@ -493,6 +493,10 @@ def _isValidNewManager(
     if not self._validateSwapPerms(_swapPerms):
         return False, empty(wcs.ManagerSettings)
 
+    # validate whitelist perms
+    if not self._validateWhitelistPerms(_whitelistPerms):
+        return False, empty(wcs.ManagerSettings)
+
     # validate transfer perms
     if not self._validateTransferPerms(_transferPerms, _walletConfig):
         return False, empty(wcs.ManagerSettings)
@@ -565,6 +569,10 @@ def _validateManagerOnUpdate(
 
     # validate swap perms
     if not self._validateSwapPerms(_swapPerms):
+        return False
+
+    # validate whitelist perms
+    if not self._validateWhitelistPerms(_whitelistPerms):
         return False
 
     # validate transfer perms
@@ -642,6 +650,10 @@ def _validateGlobalManagerSettings(
     if not self._validateSwapPerms(_swapPerms):
         return False
 
+    # validate whitelist perms
+    if not self._validateWhitelistPerms(_whitelistPerms):
+        return False
+
     # validate transfer perms
     if not self._validateTransferPerms(_transferPerms, _walletConfig):
         return False
@@ -706,6 +718,12 @@ def _validateManagerLimits(_limits: wcs.ManagerLimits, _managerPeriod: uint256) 
         return False
 
     return True
+
+
+@pure
+@internal
+def _validateWhitelistPerms(_whitelistPerms: wcs.WhitelistPerms) -> bool:
+    return not _whitelistPerms.canAddPending
 
 
 @view
@@ -829,6 +847,7 @@ def createDefaultGlobalManagerSettings(
     config.activationLength = _defaultActivationLength
     config.canOwnerManage = True
     config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(_mustHaveUsdValueOnSwaps, _maxNumSwapsPerPeriod, _maxSlippageOnSwaps, _onlyApprovedYieldOpps)
+    config.whitelistPerms.canAddPending = False
     return config
 
 
@@ -850,6 +869,7 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
         canClaimLoot = True,
     )
     config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(False, 0, 0, False)
+    config.whitelistPerms.canAddPending = False
     return config
 
 
@@ -880,7 +900,7 @@ def _createHappyManagerDefaults(
         canAddPending = False,
         canConfirm = True,
         canCancel = True,
-        canRemove = False,
+        canRemove = True,
     ), wcs.TransferPerms(
         canTransfer = True,
         canCreateCheque = True,
