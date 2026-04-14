@@ -166,7 +166,7 @@ pygments==2.19.2
     #   rich
 pymdown-extensions==10.16.1
     # via mkdocs-material
-pytest==8.4.2
+pytest==9.0.3
     # via
     #   pytest-cov
     #   titanoboa
