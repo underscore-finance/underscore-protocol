@@ -904,7 +904,7 @@ def _createHappyManagerDefaults(
     ), wcs.TransferPerms(
         canTransfer = True,
         canCreateCheque = True,
-        canAddPendingPayee = True,
+        canAddPendingPayee = False,
         allowedPayees = [],
     )
 

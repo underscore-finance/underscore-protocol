@@ -103,6 +103,12 @@ struct PendingWhitelist:
     confirmBlock: uint256
     currentOwner: address
 
+struct PendingTimeLock:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 # cheques
 
 struct Cheque:
@@ -135,6 +141,12 @@ struct ChequeSettings:
     canManagersCreateCheques: bool
     canManagerPay: bool
     canBePulled: bool
+
+struct PendingChequeSettings:
+    settings: ChequeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
 
 struct ChequeData:
     numChequesPaidInPeriod: uint256

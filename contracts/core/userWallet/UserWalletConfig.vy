@@ -129,6 +129,7 @@ globalPayeeSettings: public(wcs.GlobalPayeeSettings)
 
 # config
 timeLock: public(uint256)
+pendingTimeLock: public(wcs.PendingTimeLock)
 isFrozen: public(bool)
 inEjectMode: public(bool)
 groupId: public(uint256)
@@ -239,6 +240,83 @@ def setWallet(_wallet: address) -> bool:
 @external
 def apiVersion() -> String[28]:
     return API_VERSION
+
+
+#############
+# Time Lock #
+#############
+
+
+@external
+def setTimeLock(_numBlocks: uint256):
+    assert msg.sender == ownership.owner # dev: no perms
+    assert self._isValidTimeLock(_numBlocks) # dev: invalid delay
+
+    currentTimeLock: uint256 = self.timeLock
+    pending: wcs.PendingTimeLock = self.pendingTimeLock
+    hasPending: bool = pending.confirmBlock != 0
+
+    if _numBlocks >= currentTimeLock:
+        if hasPending:
+            self.pendingTimeLock = empty(wcs.PendingTimeLock)
+
+        if _numBlocks == currentTimeLock:
+            return
+
+        self.timeLock = _numBlocks
+        return
+
+    assert not hasPending # dev: pending time lock already exists
+
+    confirmBlock: uint256 = block.number + currentTimeLock
+    self.pendingTimeLock = wcs.PendingTimeLock(
+        newTimeLock = _numBlocks,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+        currentOwner = ownership.owner,
+    )
+
+
+@external
+def setTimeLockViaMigrator(_numBlocks: uint256):
+    assert msg.sender == self.migrator # dev: no perms
+    assert self.pendingTimeLock.confirmBlock == 0 # dev: pending time lock exists
+    assert self._isValidTimeLock(_numBlocks) # dev: invalid delay
+
+    if _numBlocks == self.timeLock:
+        return
+
+    self.timeLock = _numBlocks
+
+
+@external
+def confirmPendingTimeLock():
+    assert msg.sender == ownership.owner # dev: no perms
+
+    pending: wcs.PendingTimeLock = self.pendingTimeLock
+    assert pending.confirmBlock != 0 # dev: no pending time lock
+    assert block.number >= pending.confirmBlock # dev: time delay not reached
+    assert pending.currentOwner == ownership.owner # dev: owner must match
+    assert self._isValidTimeLock(pending.newTimeLock) # dev: invalid delay
+
+    self.timeLock = pending.newTimeLock
+    self.pendingTimeLock = empty(wcs.PendingTimeLock)
+
+
+@external
+def cancelPendingTimeLock():
+    if msg.sender != ownership.owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    pending: wcs.PendingTimeLock = self.pendingTimeLock
+    assert pending.confirmBlock != 0 # dev: no pending time lock
+    self.pendingTimeLock = empty(wcs.PendingTimeLock)
+
+
+@view
+@internal
+def _isValidTimeLock(_numBlocks: uint256) -> bool:
+    return _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK
 
 
 #####################

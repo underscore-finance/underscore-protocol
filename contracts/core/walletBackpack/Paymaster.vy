@@ -455,13 +455,13 @@ def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
     # only owner can confirm pending payee
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
     assert msg.sender == config.owner # dev: no perms
-    assert _payee not in [empty(address), config.owner, config.wallet, config.walletConfig] # dev: invalid payee settings
     
     # get pending payee
     pendingPayee: wcs.PendingPayee = staticcall UserWalletConfig(config.walletConfig).pendingPayees(_payee)
     assert pendingPayee.initiatedBlock != 0 # dev: no pending payee
     assert pendingPayee.confirmBlock != 0 and block.number >= pendingPayee.confirmBlock # dev: time delay not reached
     assert pendingPayee.currentOwner == config.owner # dev: must be same owner
+    assert self._isValidPendingPayeeConfirmation(_payee, config, pendingPayee) # dev: invalid payee settings
     
     # confirm the pending payee
     extcall UserWalletConfig(config.walletConfig).confirmPendingPayee(_payee)
@@ -708,6 +708,58 @@ def _isValidPayeeUpdate(
 
     # validate pull payee
     if not self._validatePullPayee(_canPull, _globalCanPull, _unitLimits, _usdLimits):
+        return False
+
+    return True
+
+
+# validate pending payee confirmation
+
+
+@view
+@internal
+def _isValidPendingPayeeConfirmation(
+    _payee: address,
+    _config: wcs.PayeeManagementBundle,
+    _pendingPayee: wcs.PendingPayee,
+) -> bool:
+    settings: wcs.PayeeSettings = _pendingPayee.settings
+
+    # invalid payee or recipient path changed during timelock
+    if _payee in [empty(address), _config.owner, _config.wallet, _config.walletConfig]:
+        return False
+    if _config.isRegisteredPayee or _config.isWhitelisted or _config.isExistingCheque:
+        return False
+
+    # revalidate stored timing against current policy before promotion
+    if settings.startBlock < _pendingPayee.initiatedBlock or settings.expiryBlock <= settings.startBlock:
+        return False
+
+    startDelay: uint256 = settings.startBlock - _pendingPayee.initiatedBlock
+    minStartDelay: uint256 = max(_config.timeLock, _config.globalPayeeSettings.startDelay)
+    if not self._validateStartDelay(startDelay, minStartDelay):
+        return False
+
+    activationLength: uint256 = settings.expiryBlock - settings.startBlock
+    if activationLength > _config.globalPayeeSettings.activationLength:
+        return False
+    if not self._validateActivationLength(activationLength):
+        return False
+
+    # revalidate payee settings against current rules
+    if not self._validatePayeePeriod(settings.periodLength):
+        return False
+    if not self._validatePayeeCooldown(settings.txCooldownBlocks, settings.periodLength):
+        return False
+    if not self._validatePrimaryAsset(settings.primaryAsset, settings.onlyPrimaryAsset):
+        return False
+    if not self._validatePayeeLimits(settings.unitLimits):
+        return False
+    if not self._validatePayeeLimits(settings.usdLimits):
+        return False
+    if not self._validateFailOnZeroPriceWithUsdLimits(settings.failOnZeroPrice, settings.usdLimits):
+        return False
+    if not self._validatePullPayee(settings.canPull, _config.globalPayeeSettings.canPull, settings.unitLimits, settings.usdLimits):
         return False
 
     return True

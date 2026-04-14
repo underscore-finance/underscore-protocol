@@ -25,18 +25,6 @@ def pending_payee(createPayeeSettings, user_wallet):
     )
 
 
-@pytest.fixture
-def pending_payee(createPayeeSettings, user_wallet):
-    """Create a pending payee struct"""
-    settings = createPayeeSettings()
-    return (
-        settings,                               # settings
-        boa.env.evm.patch.block_number,        # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet.address,                    # currentOwner
-    )
-
-
 ##########################
 # Whitelist Access Tests #
 ##########################
@@ -714,6 +702,183 @@ def test_time_delay_enforcement(user_wallet_config, kernel, paymaster, alice, pe
     # Should succeed after time delay
     boa.env.time_travel(blocks=10)  # Now at confirmBlock
     user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
+
+
+###################
+# Time Lock Tests #
+###################
+
+
+def test_set_time_lock_access(user_wallet_config, alice):
+    """Only the owner can request time lock changes"""
+    with boa.reverts("no perms"):
+        user_wallet_config.setTimeLock(user_wallet_config.timeLock() + 1, sender=alice)
+
+
+def test_set_time_lock_invalid_delay(user_wallet_config, bob):
+    """Time lock updates must stay within the configured bounds"""
+    with boa.reverts("invalid delay"):
+        user_wallet_config.setTimeLock(0, sender=bob)
+
+    with boa.reverts("invalid delay"):
+        user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK() + 1, sender=bob)
+
+
+def test_set_time_lock_increase_applies_immediately(user_wallet_config, bob):
+    """Increasing the wallet time lock should update live state immediately"""
+    new_time_lock = user_wallet_config.timeLock() + 10
+    user_wallet_config.setTimeLock(new_time_lock, sender=bob)
+
+    assert user_wallet_config.timeLock() == new_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_set_time_lock_decrease_stages_pending(user_wallet_config, bob):
+    """Decreasing the wallet time lock should stage pending state"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    assert user_wallet_config.timeLock() == higher_time_lock
+    assert pending.confirmBlock != 0
+    assert pending.newTimeLock == lower_time_lock
+    assert pending.currentOwner == bob
+    assert pending.confirmBlock == pending.initiatedBlock + higher_time_lock
+
+
+def test_set_time_lock_second_decrease_reverts_while_pending_exists(user_wallet_config, bob):
+    """A second staged time lock decrease should be rejected while one is already pending"""
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    with boa.reverts("pending time lock already exists"):
+        user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+
+def test_confirm_pending_time_lock_after_delay_updates_live(user_wallet_config, bob):
+    """Pending time lock decreases should confirm after the live time lock delay"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    with boa.reverts("time delay not reached"):
+        user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+    user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    assert user_wallet_config.timeLock() == lower_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+    pending = user_wallet_config.pendingTimeLock()
+    assert pending.newTimeLock == 0
+    assert pending.confirmBlock == 0
+    assert pending.currentOwner == ZERO_ADDRESS
+
+
+def test_confirm_pending_time_lock_at_exact_confirm_block_succeeds(user_wallet_config, bob):
+    """Pending time lock confirms should work exactly at confirmBlock"""
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number - 1)
+    with boa.reverts("time delay not reached"):
+        user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    boa.env.time_travel(blocks=1)
+    user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    assert user_wallet_config.timeLock() == user_wallet_config.MIN_TIMELOCK()
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_cancel_pending_time_lock_security_action_can_cancel(
+    user_wallet_config, bob, alice, mission_control, switchboard_alpha
+):
+    """Owner security operators should be able to cancel pending time lock decreases"""
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    user_wallet_config.cancelPendingTimeLock(sender=alice)
+
+    assert user_wallet_config.timeLock() == higher_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_cancel_pending_time_lock_non_security_reverts(user_wallet_config, bob, charlie):
+    """Non-owner callers without security permission cannot cancel pending time locks"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    with boa.reverts("no perms"):
+        user_wallet_config.cancelPendingTimeLock(sender=charlie)
+
+
+def test_confirm_pending_time_lock_owner_changed_reverts(user_wallet_config, bob, alice):
+    """Pending time lock confirms should fail after ownership changes"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    user_wallet_config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.ownershipTimeLock())
+    user_wallet_config.confirmOwnershipChange(sender=alice)
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+
+    with boa.reverts("owner must match"):
+        user_wallet_config.confirmPendingTimeLock(sender=alice)
+
+    user_wallet_config.cancelPendingTimeLock(sender=alice)
+
+
+def test_set_time_lock_increase_clears_pending_decrease(user_wallet_config, bob):
+    """An immediate non-decrease should clear any staged time lock reduction"""
+    current_time_lock = min(user_wallet_config.MIN_TIMELOCK() + 1, user_wallet_config.MAX_TIMELOCK())
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    tightened_time_lock = user_wallet_config.MAX_TIMELOCK()
+    user_wallet_config.setTimeLock(tightened_time_lock, sender=bob)
+
+    assert user_wallet_config.timeLock() == tightened_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_set_time_lock_same_value_clears_pending(user_wallet_config, bob):
+    """Re-submitting the live time lock should clear any staged decrease"""
+    current_time_lock = min(user_wallet_config.MIN_TIMELOCK() + 1, user_wallet_config.MAX_TIMELOCK())
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+
+    assert user_wallet_config.timeLock() == current_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_set_time_lock_via_migrator_access_and_pending_guard(user_wallet_config, bob, alice, migrator):
+    """The migrator-only time lock setter should not bypass a staged decrease"""
+    with boa.reverts("no perms"):
+        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=alice)
+
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    with boa.reverts("pending time lock exists"):
+        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=migrator.address)
 
 
 #######################

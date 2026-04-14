@@ -3,7 +3,7 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from contracts.core.userWallet import UserWalletConfig
-from conf_utils import filter_logs
+from conf_utils import filter_logs, set_live_cheque_settings
 
 
 @pytest.fixture(scope="module")
@@ -110,7 +110,7 @@ def _set_instant_cheque_settings(
         _canManagerPay=True,
         _canBePulled=False,
     )
-    cheque_book.setChequeSettings(user_wallet.address, *settings, sender=owner)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *settings, sender=owner)
     return settings
 
 

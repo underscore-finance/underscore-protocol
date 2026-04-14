@@ -6,6 +6,38 @@ from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs
 
 
+def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
+    restrictive = createChequeSettings(
+        _maxNumActiveCheques=2,
+        _maxChequeUsdValue=300 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=25 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *restrictive, sender=sender)
+
+    widening = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *widening, sender=sender)
+
+
+def stage_pending_time_lock(user_wallet_config, *, sender):
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=sender)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=sender)
+
+
 ########################
 # Migration Validation #
 ########################
@@ -98,6 +130,49 @@ def test_cannot_migrate_with_pending_owner_change(migrator, user_wallet, user_wa
     # Test migrateFunds fails with proper revert
     with boa.reverts("invalid migration"):
         migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+
+
+def test_cannot_migrate_with_pending_cheque_settings(
+    migrator, user_wallet, hatchery, bob, cheque_book, createChequeSettings
+):
+    """Funds migration should be blocked if either wallet has pending cheque settings"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+    stage_pending_cheque_settings(cheque_book, new_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(new_wallet.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    cheque_book.cancelPendingChequeSettings(new_wallet.address, sender=bob)
+
+
+def test_cannot_migrate_with_pending_time_lock(migrator, user_wallet, user_wallet_config, hatchery, bob):
+    """Funds migration should be blocked if either wallet has a pending time lock change"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    stage_pending_time_lock(user_wallet_config, sender=bob)
+    assert user_wallet_config.pendingTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    user_wallet_config.cancelPendingTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+
+    stage_pending_time_lock(new_wallet_config, sender=bob)
+    assert new_wallet_config.pendingTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    new_wallet_config.cancelPendingTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
 # Test group ID restriction

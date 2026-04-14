@@ -7,6 +7,19 @@ from conf_utils import filter_logs
 ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
 
 
+def set_live_cheque_settings(cheque_book, user_wallet, *settings, sender):
+    tx = cheque_book.setChequeSettings(user_wallet, *settings, sender=sender)
+
+    pending = cheque_book.pendingChequeSettingsMeta(user_wallet)
+    if pending[1] != 0:
+        blocks_to_wait = pending[1] - boa.env.evm.patch.block_number
+        if blocks_to_wait > 0:
+            boa.env.time_travel(blocks=blocks_to_wait)
+        cheque_book.confirmPendingChequeSettings(user_wallet, sender=sender)
+
+    return tx
+
+
 #########################
 # Cheque - Pull Payment #
 #########################
@@ -17,7 +30,7 @@ def test_pullPaymentAsCheque_success_basic(
 ):
     """Test successful pull payment as cheque with basic setup"""
     # Setup cheque settings with canBePulled enabled
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -92,7 +105,7 @@ def test_pullPaymentAsCheque_prevents_double_pulling(
 ):
     """Cheque cannot be pulled multiple times (vulnerability mitigation)"""
     # Setup cheque settings with canBePulled enabled
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -192,7 +205,7 @@ def test_pullPaymentAsCheque_multiple_cheques_each_work_once(
 ):
     """Test that multiple different cheques can each be pulled once, but not twice"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -290,7 +303,7 @@ def test_pullPaymentAsCheque_fails_cheque_settings_disabled(
 ):
     """Test that pull payment fails when cheque settings canBePulled is disabled"""
     # Setup cheque settings with canBePulled disabled
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -342,7 +355,7 @@ def test_pullPaymentAsCheque_fails_cheque_canBePulled_disabled(
 ):
     """Test that pull payment fails when specific cheque canBePulled is disabled"""
     # Setup cheque settings with canBePulled enabled globally
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -389,12 +402,92 @@ def test_pullPaymentAsCheque_fails_cheque_canBePulled_disabled(
         )
 
 
+def test_pending_canBePulled_widening_does_not_affect_pull_path(
+    billing, bob, alice, alpha_token, alpha_token_whale,
+    user_wallet, user_wallet_config, cheque_book, mock_ripe
+):
+    """Pending canBePulled widenings must not unlock pull payments before confirmation"""
+    set_live_cheque_settings(
+        cheque_book,
+        user_wallet.address,
+        0,  # maxNumActiveCheques
+        0,  # maxChequeUsdValue
+        100 * EIGHTEEN_DECIMALS,  # instantUsdThreshold
+        0,  # perPeriodPaidUsdCap
+        0,  # maxNumChequesPaidPerPeriod
+        0,  # payCooldownBlocks
+        0,  # perPeriodCreatedUsdCap
+        0,  # maxNumChequesCreatedPerPeriod
+        0,  # createCooldownBlocks
+        ONE_MONTH_IN_BLOCKS,  # periodLength
+        ONE_DAY_IN_BLOCKS,  # expensiveDelayBlocks
+        0,  # defaultExpiryBlocks
+        [],  # allowedAssets
+        True,  # canManagersCreateCheques
+        True,  # canManagerPay
+        False,  # canBePulled
+        sender=bob,
+    )
+
+    amount = 50 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        ONE_DAY_IN_BLOCKS,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        True,
+        sender=bob,
+    )
+
+    pending_event = filter_logs(cheque_book, "ChequeSettingsPending")[-1]
+    assert pending_event.canBePulled == True
+    assert billing.canPullPaymentAsCheque(user_wallet.address, alice) == False
+
+    boa.env.time_travel(blocks=ONE_DAY_IN_BLOCKS + 1)
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    with boa.reverts("no perms"):
+        billing.pullPaymentAsCheque(
+            user_wallet.address,
+            alpha_token.address,
+            amount,
+            sender=alice,
+        )
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
 def test_pullPaymentAsCheque_fails_no_cheque_exists(
     billing, bob, alice, alpha_token, user_wallet, cheque_book
 ):
     """Test that pull payment fails when no cheque exists for recipient"""
     # Setup cheque settings with canBePulled enabled
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -430,7 +523,7 @@ def test_pullPaymentAsCheque_insufficient_funds_reverts(
 ):
     """Test that pull payment reverts when wallet has insufficient funds"""
     # Setup cheque settings and create cheque
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -489,7 +582,7 @@ def test_pullPaymentAsCheque_with_vault_withdrawal(
 ):
     """Test pull payment that requires withdrawal from vault"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -584,7 +677,7 @@ def test_pullPaymentAsCheque_with_multiple_vaults(
 ):
     """Test pull payment that withdraws from multiple vaults"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -694,7 +787,7 @@ def test_pullPaymentAsCheque_partial_funds_reverts(
 ):
     """Test that pull payment reverts when wallet has partial funds (cheques require full payment)"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -758,7 +851,7 @@ def test_pullPaymentAsCheque_with_yield_gains(
 ):
     """Test pull payment when vault has generated yield"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -883,7 +976,7 @@ def test_canPullPaymentAsCheque_view_function(
     mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
     
     # Test Case 1: Both global and cheque canBePulled are False
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -920,7 +1013,7 @@ def test_canPullPaymentAsCheque_view_function(
     assert billing.canPullPaymentAsCheque(user_wallet.address, alice) == False
     
     # Test Case 2: Enable global canBePulled, existing alice cheque still has canBePulled=False
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -990,7 +1083,7 @@ def test_pullPaymentAsCheque_deregisters_empty_vault(
 ):
     """Test that empty vault assets are deregistered after withdrawal"""
     # Setup cheque settings
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -1919,7 +2012,7 @@ def test_pullPaymentAsCheque_blocked_in_eject_mode(
 ):
     """Test that cheque recipients cannot pull payments while wallet is in eject mode (FIX M-09)"""
     # Setup cheque settings with canBePulled enabled
-    cheque_book.setChequeSettings(
+    set_live_cheque_settings(cheque_book,
         user_wallet.address,
         0,  # maxNumActiveCheques
         0,  # maxChequeUsdValue
@@ -2003,4 +2096,3 @@ def test_pullPaymentAsCheque_blocked_in_eject_mode(
             amount,
             sender=alice
         )
-

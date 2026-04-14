@@ -22,6 +22,7 @@ from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
+    def setTimeLockViaMigrator(_numBlocks: uint256): nonpayable
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
@@ -45,6 +46,12 @@ interface UserWalletConfig:
     def groupId() -> uint256: view
     def owner() -> address: view
     def isFrozen() -> bool: view
+    def chequeBook() -> address: view
+    def pendingTimeLock() -> wcs.PendingTimeLock: view
+    def timeLock() -> uint256: view
+
+interface ChequeBook:
+    def hasPendingChequeSettings(_userWallet: address) -> bool: view
 
 interface UserWallet:
     def assetData(_asset: address) -> ws.WalletAssetData: view
@@ -190,6 +197,15 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     if not staticcall Ledger(ledger).isUserWallet(_toWallet):
         return False
 
+    if self._hasPendingChequeSettings(_fromWallet):
+        return False
+    if self._hasPendingChequeSettings(_toWallet):
+        return False
+    if self._hasPendingTimeLock(_fromWallet):
+        return False
+    if self._hasPendingTimeLock(_toWallet):
+        return False
+
     # get fromWallet data
     fromData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_fromWallet)
 
@@ -266,6 +282,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
     toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
     toOwner: address = staticcall UserWalletConfig(toConfig).owner()
+
+    # 0. copy wallet time lock
+    timeLock: uint256 = staticcall UserWalletConfig(fromConfig).timeLock()
+    extcall UserWalletConfig(toConfig).setTimeLockViaMigrator(timeLock)
 
     # 1. copy global manager settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
@@ -359,6 +379,15 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
     if not staticcall Ledger(ledger).isUserWallet(_toWallet):
         return False
 
+    if self._hasPendingChequeSettings(_fromWallet):
+        return False
+    if self._hasPendingChequeSettings(_toWallet):
+        return False
+    if self._hasPendingTimeLock(_fromWallet):
+        return False
+    if self._hasPendingTimeLock(_toWallet):
+        return False
+
     # get toWallet data
     toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
 
@@ -428,6 +457,22 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
 @external
 def getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle:
     return self._getMigrationConfigBundle(_userWallet)
+
+
+@view
+@internal
+def _hasPendingChequeSettings(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
+    return staticcall ChequeBook(chequeBook).hasPendingChequeSettings(_userWallet)
+
+
+@view
+@internal
+def _hasPendingTimeLock(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    pending: wcs.PendingTimeLock = staticcall UserWalletConfig(walletConfig).pendingTimeLock()
+    return pending.confirmBlock != 0
 
 
 @view

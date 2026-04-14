@@ -7,6 +7,19 @@ def filter_logs(contract, event_name, _strict=False):
     return [e for e in contract.get_logs(strict=_strict) if type(e).__name__ == event_name]
 
 
+def set_live_cheque_settings(cheque_book, user_wallet, *settings, sender):
+    tx = cheque_book.setChequeSettings(user_wallet, *settings, sender=sender)
+
+    pending = cheque_book.pendingChequeSettingsMeta(user_wallet)
+    if pending[1] != 0:
+        blocks_to_wait = pending[1] - boa.env.evm.patch.block_number
+        if blocks_to_wait > 0:
+            boa.env.time_travel(blocks=blocks_to_wait)
+        cheque_book.confirmPendingChequeSettings(user_wallet, sender=sender)
+
+    return tx
+
+
 @pytest.fixture(scope="session")
 def _test():
     def _test(_expectedValue, _actualValue, _buffer=50):
@@ -415,7 +428,7 @@ def createTransferPerms():
     def createTransferPerms(
         _canTransfer = True,
         _canCreateCheque = True,
-        _canAddPendingPayee = True,
+        _canAddPendingPayee = False,
         _allowedPayees = [],
     ):
         return (

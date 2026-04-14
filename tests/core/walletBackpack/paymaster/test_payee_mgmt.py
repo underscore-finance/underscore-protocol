@@ -1649,6 +1649,161 @@ def test_confirm_pending_payee_owner_changed_fails(paymaster, user_wallet, user_
         paymaster.confirmPendingPayee(user_wallet, charlie, sender=alice)
 
 
+def test_confirm_pending_payee_fails_if_address_becomes_whitelisted_during_timelock(
+    paymaster, kernel, user_wallet, user_wallet_config, createPayeeLimits,
+    createGlobalManagerSettings, createTransferPerms, createManagerSettings,
+    alice, bob, sally, high_command
+):
+    """Pending payees should be revalidated against whitelist state before confirmation"""
+    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+
+    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    paymaster.addPendingPayee(
+        user_wallet,
+        sally,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+        sender=alice,
+    )
+
+    payee_pending = user_wallet_config.pendingPayees(sally)
+    kernel.addPendingWhitelistAddr(user_wallet, sally, sender=bob)
+    whitelist_pending = user_wallet_config.pendingWhitelist(sally)
+
+    blocks_to_wait = max(payee_pending.confirmBlock, whitelist_pending.confirmBlock) - boa.env.evm.patch.block_number
+    boa.env.time_travel(blocks=blocks_to_wait)
+    kernel.confirmWhitelistAddr(user_wallet, sally, sender=bob)
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.confirmPendingPayee(user_wallet, sally, sender=bob)
+
+
+def test_confirm_pending_payee_fails_if_address_gets_cheque_during_timelock(
+    paymaster, cheque_book, user_wallet, user_wallet_config, createPayeeLimits,
+    createGlobalManagerSettings, createTransferPerms, createManagerSettings,
+    alice, bob, sally, high_command, alpha_token, mock_ripe
+):
+    """Pending payees should fail confirmation if the address receives an active cheque first"""
+    from constants import ONE_MONTH_IN_BLOCKS
+
+    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+
+    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    paymaster.addPendingPayee(
+        user_wallet,
+        sally,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+        sender=alice,
+    )
+
+    cheque_book.setChequeSettings(
+        user_wallet.address,
+        0,
+        0,
+        100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        [],
+        True,
+        True,
+        False,
+        sender=bob,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    cheque_book.createCheque(
+        user_wallet.address,
+        sally,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS * 7,
+        True,
+        False,
+        sender=bob,
+    )
+
+    pending = user_wallet_config.pendingPayees(sally)
+    blocks_to_wait = pending.confirmBlock - boa.env.evm.patch.block_number
+    boa.env.time_travel(blocks=blocks_to_wait)
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.confirmPendingPayee(user_wallet, sally, sender=bob)
+
+
+def test_confirm_pending_payee_fails_if_global_canpull_disabled_during_timelock(
+    paymaster, user_wallet, user_wallet_config, createPayeeLimits, createGlobalPayeeSettings,
+    createGlobalManagerSettings, createTransferPerms, createManagerSettings,
+    alice, bob, charlie, high_command
+):
+    """Pending pull payees should be revalidated against current global canPull settings"""
+    global_payee_settings = createGlobalPayeeSettings(_canPull=True)
+    user_wallet_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
+
+    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
+    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
+
+    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
+    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
+    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
+
+    paymaster.addPendingPayee(
+        user_wallet,
+        charlie,
+        True,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(_perTxCap=100),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+        sender=alice,
+    )
+
+    user_wallet_config.setGlobalPayeeSettings(createGlobalPayeeSettings(_canPull=False), sender=paymaster.address)
+
+    pending = user_wallet_config.pendingPayees(charlie)
+    blocks_to_wait = pending.confirmBlock - boa.env.evm.patch.block_number
+    boa.env.time_travel(blocks=blocks_to_wait)
+
+    with boa.reverts("invalid payee settings"):
+        paymaster.confirmPendingPayee(user_wallet, charlie, sender=bob)
+
+
 def test_confirm_pending_payee_invalid_wallet_fails(paymaster, alice, bob):
     """Test that confirming on invalid wallet fails"""
     # Try to confirm on bob's address (not a user wallet)
