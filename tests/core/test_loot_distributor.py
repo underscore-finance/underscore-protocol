@@ -2739,6 +2739,65 @@ def test_loot_claim_cool_off_applies_to_all_claim_functions(loot_distributor, us
     assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
 
 
+def test_switchboard_bypasses_all_claim_validation(
+    loot_distributor,
+    ambassador_wallet,
+    alice,
+    alpha_token,
+    alpha_token_whale,
+    setUserWalletConfig,
+    setupClaimableLoot,
+    switchboard_alpha,
+):
+    """
+    Switchboards must pass _validateCanClaimLoot before the manager-settings
+    staticcall so that older UserWalletConfig deployments (with an older
+    ManagerSettings struct layout) don't revert the whole claim flow.
+    """
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    setUserWalletConfig(_lootClaimCoolOffPeriod=100)
+
+    sb = switchboard_alpha.address
+
+    # Switchboard passes validation even without any per-wallet permission set up.
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, sb) == True
+
+    # Switchboard can successfully claim on the wallet's behalf.
+    assert loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=sb) > 0
+
+
+def test_switchboard_bypasses_cool_off_period(
+    loot_distributor,
+    ambassador_wallet,
+    alice,
+    alpha_token,
+    alpha_token_whale,
+    setUserWalletConfig,
+    setupClaimableLoot,
+    switchboard_alpha,
+):
+    """
+    Switchboards ignore the cool-off period since they are trusted contracts.
+    Contrast with `test_loot_claim_cool_off_period` which enforces cool-off
+    for EOA/owner callers.
+    """
+    setupClaimableLoot(100 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    setUserWalletConfig(_lootClaimCoolOffPeriod=100)
+
+    sb = switchboard_alpha.address
+
+    # Alice (owner) claims; cool-off now active for alice.
+    loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=alice)
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, alice) == False
+
+    # Switchboard is unaffected by cool-off.
+    assert loot_distributor.validateCanClaimLoot(ambassador_wallet, sb) == True
+
+    # And can still claim if new loot appears before cool-off expires.
+    setupClaimableLoot(50 * EIGHTEEN_DECIMALS, token=alpha_token, token_whale=alpha_token_whale)
+    assert loot_distributor.claimRevShareAndBonusLoot(ambassador_wallet, sender=sb) > 0
+
+
 def test_claim_deposit_rewards_twice(loot_distributor, user_wallet, ambassador_wallet, bob, alpha_token, alpha_token_whale, setUserWalletConfig, switchboard_alpha, hatchery, charlie, ledger):
     """ Test user cannot claim rewards twice """
     

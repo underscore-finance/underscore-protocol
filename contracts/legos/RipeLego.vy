@@ -70,6 +70,9 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
+interface MissionControl:
+    def canPerformSecurityAction(_signer: address) -> bool: view
+
 interface EndaomentPsm:
     def redeemGreen(_paymentAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _isPaymentSavingsGreen: bool = False) -> uint256: nonpayable
     def mintGreen(_usdcAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _wantsSavingsGreen: bool = False) -> uint256: nonpayable
@@ -1021,6 +1024,11 @@ def getUserDebtAmount(_user: address) -> uint256:
 # Claim Rewards #
 #################
 
+@view
+@internal
+def _canClaimRewards(_sender: address) -> bool:
+    return self._isAllowedToPerformAction(_sender) or staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_sender)
+
 
 @external
 def claimIncentives(
@@ -1030,7 +1038,7 @@ def claimIncentives(
     _proofs: DynArray[bytes32, MAX_PROOFS],
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
-    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    assert self._canClaimRewards(msg.sender) # dev: no perms
     return self._claimRewards(_user, _rewardToken, _rewardAmount, _miniAddys)
 
 
@@ -1042,7 +1050,7 @@ def claimRewards(
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, uint256):
-    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
+    assert self._canClaimRewards(msg.sender) # dev: no perms
     return self._claimRewards(_user, _rewardToken, _rewardAmount, _miniAddys)
 
 

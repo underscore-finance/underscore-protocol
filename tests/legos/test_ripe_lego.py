@@ -773,6 +773,61 @@ def test_ripe_claim_rewards(
     assert ripe_claimed == 0
 
 
+def test_ripe_claim_rewards_from_security_signer(
+    lego_ripe,
+    setup_mock_prices,
+    mock_ripe_token,
+    mission_control,
+    switchboard_alpha,
+    alice,
+    bob,
+):
+    """
+    Security signers (e.g. the claimer bot) can claim rewards on behalf
+    of a user without having to be a user wallet or earn vault. This enables
+    the off-chain cron that daily-claims for user wallets.
+    """
+    # Grant alice canPerformSecurityAction
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    pre = mock_ripe_token.balanceOf(bob)
+    ripe_claimed, usd_value = lego_ripe.claimRewards(
+        bob,              # _user (beneficiary)
+        mock_ripe_token,  # rewardToken
+        MAX_UINT256,
+        b'\x00' * 32,
+        sender=alice,     # caller is the security signer
+    )
+    assert mock_ripe_token.balanceOf(bob) > pre
+    assert usd_value > 0
+    assert ripe_claimed == 0
+
+
+def test_ripe_claim_incentives_from_security_signer(
+    lego_ripe,
+    setup_mock_prices,
+    mock_ripe_token,
+    mission_control,
+    switchboard_alpha,
+    alice,
+    bob,
+):
+    """Same as claimRewards but for the claimIncentives entrypoint."""
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    pre = mock_ripe_token.balanceOf(bob)
+    ripe_claimed, usd_value = lego_ripe.claimIncentives(
+        bob,
+        mock_ripe_token,
+        MAX_UINT256,
+        [],  # proofs
+        sender=alice,
+    )
+    assert mock_ripe_token.balanceOf(bob) > pre
+    assert usd_value > 0
+    assert ripe_claimed == 0
+
+
 def test_ripe_borrow_invalid_asset_fails(
     lego_ripe,
     setup_mock_prices,
