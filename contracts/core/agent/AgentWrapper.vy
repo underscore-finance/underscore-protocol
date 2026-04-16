@@ -19,10 +19,10 @@
 
 # @version 0.4.3
 
-implements: AgentWrapper
+implements: IAgentWrapper
 
 from interfaces import Wallet
-from interfaces import AgentWrapper
+from interfaces import IAgentWrapper
 from interfaces import WalletConfigStructs as wcs
 
 interface ChequeBook:
@@ -61,16 +61,19 @@ SWITCHBOARD_ID: constant(uint256) = 4
 
 
 @deploy
-def __init__(_undyHq: address, _groupId: uint256):
+def __init__(_undyHq: address, _groupId: uint256, _senders: DynArray[address, 5]):
     assert _undyHq != empty(address) # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     # group id
     self.groupId = _groupId
-
+    
     # not using 0 index
     self.numSenders = 1
 
+    # senders
+    for sender: address in _senders:
+        self._registerSender(sender)   
 
 ##################
 # Transfer Funds #

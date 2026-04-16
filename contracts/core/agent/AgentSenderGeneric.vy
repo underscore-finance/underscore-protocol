@@ -25,7 +25,7 @@ exports: ownership.__interface__
 import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
-from interfaces import AgentWrapper
+from interfaces import IAgentWrapper
 
 struct Signature:
     signature: Bytes[65]
@@ -92,7 +92,7 @@ def transferFunds(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(1, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).transferFunds(_userWallet, _recipient, _asset, _amount, _isCheque)
+    return extcall IAgentWrapper(_agentWrapper).transferFunds(_userWallet, _recipient, _asset, _amount, _isCheque)
 
 
 @external
@@ -105,7 +105,7 @@ def createAndPayCheque(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(4, uint8), _userWallet, _recipient, _asset, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).createAndPayCheque(_userWallet, _recipient, _asset, _amount)
+    return extcall IAgentWrapper(_agentWrapper).createAndPayCheque(_userWallet, _recipient, _asset, _amount)
 
 
 #########
@@ -125,7 +125,7 @@ def depositForYield(
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(10, uint8), _userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).depositForYield(_userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).depositForYield(_userWallet, _legoId, _asset, _vaultAddr, _amount, _extraData)
 
 
 @external
@@ -139,7 +139,7 @@ def withdrawFromYield(
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(11, uint8), _userWallet, _legoId, _vaultToken, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).withdrawFromYield(_userWallet, _legoId, _vaultToken, _amount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).withdrawFromYield(_userWallet, _legoId, _vaultToken, _amount, _extraData)
 
 
 @external
@@ -155,7 +155,7 @@ def rebalanceYieldPosition(
     _sig: Signature = empty(Signature),
 ) -> (uint256, address, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(12, uint8), _userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).rebalanceYieldPosition(_userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).rebalanceYieldPosition(_userWallet, _fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData)
 
 
 ###################
@@ -171,7 +171,7 @@ def swapTokens(
     _sig: Signature = empty(Signature),
 ) -> (address, uint256, address, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(20, uint8), _userWallet, _swapInstructions, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).swapTokens(_userWallet, _swapInstructions)
+    return extcall IAgentWrapper(_agentWrapper).swapTokens(_userWallet, _swapInstructions)
 
 
 @external
@@ -187,7 +187,7 @@ def mintOrRedeemAsset(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, bool, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(21, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).mintOrRedeemAsset(_userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).mintOrRedeemAsset(_userWallet, _legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
 
 
 @external
@@ -201,7 +201,7 @@ def confirmMintOrRedeemAsset(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(22, uint8), _userWallet, _legoId, _tokenIn, _tokenOut, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).confirmMintOrRedeemAsset(_userWallet, _legoId, _tokenIn, _tokenOut, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).confirmMintOrRedeemAsset(_userWallet, _legoId, _tokenIn, _tokenOut, _extraData)
 
 
 ###################
@@ -220,7 +220,7 @@ def addCollateral(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(40, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).addCollateral(_userWallet, _legoId, _asset, _amount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).addCollateral(_userWallet, _legoId, _asset, _amount, _extraData)
 
 
 @external
@@ -234,7 +234,7 @@ def removeCollateral(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(41, uint8), _userWallet, _legoId, _asset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).removeCollateral(_userWallet, _legoId, _asset, _amount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).removeCollateral(_userWallet, _legoId, _asset, _amount, _extraData)
 
 
 @external
@@ -248,7 +248,7 @@ def borrow(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(42, uint8), _userWallet, _legoId, _borrowAsset, _amount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).borrow(_userWallet, _legoId, _borrowAsset, _amount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).borrow(_userWallet, _legoId, _borrowAsset, _amount, _extraData)
 
 
 @external
@@ -262,7 +262,7 @@ def repayDebt(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(43, uint8), _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).repayDebt(_userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).repayDebt(_userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData)
 
 
 #################
@@ -281,7 +281,7 @@ def claimIncentives(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(50, uint8), _userWallet, _legoId, _rewardToken, _rewardAmount, _proofs, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).claimIncentives(_userWallet, _legoId, _rewardToken, _rewardAmount, _proofs)
+    return extcall IAgentWrapper(_agentWrapper).claimIncentives(_userWallet, _legoId, _rewardToken, _rewardAmount, _proofs)
 
 
 ###############
@@ -292,13 +292,13 @@ def claimIncentives(
 @external
 def convertWethToEth(_agentWrapper: address, _userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(2, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).convertWethToEth(_userWallet, _amount)
+    return extcall IAgentWrapper(_agentWrapper).convertWethToEth(_userWallet, _amount)
 
 
 @external
 def convertEthToWeth(_agentWrapper: address, _userWallet: address, _amount: uint256 = max_value(uint256), _sig: Signature = empty(Signature)) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(3, uint8), _userWallet, _amount, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).convertEthToWeth(_userWallet, _amount)
+    return extcall IAgentWrapper(_agentWrapper).convertEthToWeth(_userWallet, _amount)
 
 
 #############
@@ -323,7 +323,7 @@ def addLiquidity(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(30, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).addLiquidity(_userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).addLiquidity(_userWallet, _legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
 
 
 @external
@@ -342,7 +342,7 @@ def removeLiquidity(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(31, uint8), _userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).removeLiquidity(_userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).removeLiquidity(_userWallet, _legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
 
 
 @external
@@ -365,7 +365,7 @@ def addLiquidityConcentrated(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(32, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).addLiquidityConcentrated(_userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).addLiquidityConcentrated(_userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
 
 
 @external
@@ -385,7 +385,7 @@ def removeLiquidityConcentrated(
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256, uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(33, uint8), _userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).removeLiquidityConcentrated(_userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData)
+    return extcall IAgentWrapper(_agentWrapper).removeLiquidityConcentrated(_userWallet, _legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData)
 
 
 #################
@@ -423,36 +423,36 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
     if instruction.action == 1:
         # Extract isCheque from the least significant bit of extraData
         isCheque: bool = convert(convert(instruction.extraData, uint256) & 1, bool)
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).transferFunds(_userWallet, instruction.target, instruction.asset, nextAmount, isCheque)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).transferFunds(_userWallet, instruction.target, instruction.asset, nextAmount, isCheque)
         return nextAmount
 
     # convert weth to eth
     elif instruction.action == 2:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).convertWethToEth(_userWallet, nextAmount)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).convertWethToEth(_userWallet, nextAmount)
         return nextAmount
 
     # convert eth to weth
     elif instruction.action == 3:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).convertEthToWeth(_userWallet, nextAmount)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).convertEthToWeth(_userWallet, nextAmount)
         return nextAmount
 
     # create and pay cheque
     elif instruction.action == 4:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).createAndPayCheque(_userWallet, instruction.target, instruction.asset, nextAmount)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).createAndPayCheque(_userWallet, instruction.target, instruction.asset, nextAmount)
         return nextAmount
 
     # deposit for yield
     elif instruction.action == 10:
         assetAmount: uint256 = 0
         vaultToken: address = empty(address)
-        assetAmount, vaultToken, nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).depositForYield(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.extraData)
+        assetAmount, vaultToken, nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).depositForYield(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.extraData)
         return nextAmount
 
     # withdraw from yield
     elif instruction.action == 11:
         underlyingAmount: uint256 = 0
         underlyingToken: address = empty(address)
-        underlyingAmount, underlyingToken, nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).withdrawFromYield(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+        underlyingAmount, underlyingToken, nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).withdrawFromYield(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # rebalance yield position (not a UserWallet op code, but valid AgentWrapper action)
@@ -461,7 +461,7 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
         underlyingToken: address = empty(address)
         # NOTE: amount2 is used as toLegoId (not an amount!)
         # Params: fromLegoId, fromVaultToken, toLegoId (amount2), toVaultAddr (target), fromVaultAmount
-        underlyingAmount, underlyingToken, nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).rebalanceYieldPosition(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.amount2, instruction.target, nextAmount, instruction.extraData)
+        underlyingAmount, underlyingToken, nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).rebalanceYieldPosition(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.amount2, instruction.target, nextAmount, instruction.extraData)
         return nextAmount
 
     # swap tokens
@@ -471,51 +471,51 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
         tokenIn: address = empty(address)
         amountIn: uint256 = 0
         tokenOut: address = empty(address)
-        tokenIn, amountIn, tokenOut, nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).swapTokens(_userWallet, instruction.swapInstructions)
+        tokenIn, amountIn, tokenOut, nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).swapTokens(_userWallet, instruction.swapInstructions)
         return nextAmount
 
     # mint or redeem asset
     elif instruction.action == 21:
         assetTokenAmount: uint256 = 0
         isPending: bool = False
-        assetTokenAmount, nextAmount, isPending, txUsdValue = extcall AgentWrapper(_agentWrapper).mintOrRedeemAsset(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.minOut1, instruction.extraData)
+        assetTokenAmount, nextAmount, isPending, txUsdValue = extcall IAgentWrapper(_agentWrapper).mintOrRedeemAsset(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, nextAmount, instruction.minOut1, instruction.extraData)
         return nextAmount
 
     # confirm mint or redeem asset
     elif instruction.action == 22:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).confirmMintOrRedeemAsset(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, instruction.extraData)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).confirmMintOrRedeemAsset(_userWallet, convert(instruction.legoId, uint256), instruction.asset, instruction.target, instruction.extraData)
         return nextAmount
 
     # add collateral
     elif instruction.action == 40:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).addCollateral(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).addCollateral(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # remove collateral
     elif instruction.action == 41:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).removeCollateral(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).removeCollateral(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # borrow
     elif instruction.action == 42:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).borrow(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).borrow(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # repay debt
     elif instruction.action == 43:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).repayDebt(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).repayDebt(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.extraData)
         return nextAmount
 
     # claim incentives
     elif instruction.action == 50:
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).claimIncentives(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.proofs)
+        nextAmount, txUsdValue = extcall IAgentWrapper(_agentWrapper).claimIncentives(_userWallet, convert(instruction.legoId, uint256), instruction.asset, nextAmount, instruction.proofs)
         return nextAmount
 
     # add liquidity
     elif instruction.action == 30:
         amountA: uint256 = 0
         amountB: uint256 = 0
-        nextAmount, amountA, amountB, txUsdValue = extcall AgentWrapper(_agentWrapper).addLiquidity(_userWallet, convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, nextAmount, instruction.amount2, instruction.minOut1, instruction.minOut2, convert(instruction.auxData, uint256), instruction.extraData)
+        nextAmount, amountA, amountB, txUsdValue = extcall IAgentWrapper(_agentWrapper).addLiquidity(_userWallet, convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, nextAmount, instruction.amount2, instruction.minOut1, instruction.minOut2, convert(instruction.auxData, uint256), instruction.extraData)
         return nextAmount
 
     # remove liquidity
@@ -526,7 +526,7 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
         lpAmountBurned: uint256 = 0
         # Params: legoId, pool (target), tokenA, tokenB, lpToken, lpAmount, minAmountA (minOut1), minAmountB (minOut2)
         # NOTE: Returns (amountA, amountB, lpBurned) - we pass forward amountA only
-        nextAmount, amountB, lpAmountBurned, txUsdValue = extcall AgentWrapper(_agentWrapper).removeLiquidity(_userWallet, convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, lpToken, nextAmount, instruction.minOut1, instruction.minOut2, instruction.extraData)
+        nextAmount, amountB, lpAmountBurned, txUsdValue = extcall IAgentWrapper(_agentWrapper).removeLiquidity(_userWallet, convert(instruction.legoId, uint256), instruction.target, instruction.asset, instruction.asset2, lpToken, nextAmount, instruction.minOut1, instruction.minOut2, instruction.extraData)
         return nextAmount
 
     # add liquidity concentrated
@@ -535,7 +535,7 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
         pool: address = convert(convert(instruction.auxData, uint256) >> 96, address)
         nftId: uint256 = convert(instruction.auxData, uint256) & convert(max_value(uint96), uint256)
         # Params: legoId, nftAddr (target), nftId, pool, tokenA, tokenB, amountA, amountB (amount2)
-        extcall AgentWrapper(_agentWrapper).addLiquidityConcentrated(_userWallet, convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, nextAmount, instruction.amount2, instruction.tickLower, instruction.tickUpper, instruction.minOut1, instruction.minOut2, instruction.extraData)
+        extcall IAgentWrapper(_agentWrapper).addLiquidityConcentrated(_userWallet, convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, nextAmount, instruction.amount2, instruction.tickLower, instruction.tickUpper, instruction.minOut1, instruction.minOut2, instruction.extraData)
         return 0
 
     # remove liquidity concentrated
@@ -547,7 +547,7 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
         amountB: uint256 = 0
         # Params: legoId, nftAddr (target), nftId, pool, tokenA, tokenB, liqToRemove, minAmountA (minOut1), minAmountB (minOut2)
         # NOTE: Returns (amountA, amountB, liquidity) - we pass forward amountA only
-        nextAmount, amountA, amountB, txUsdValue = extcall AgentWrapper(_agentWrapper).removeLiquidityConcentrated(_userWallet, convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, nextAmount, instruction.minOut1, instruction.minOut2, instruction.extraData)
+        nextAmount, amountA, amountB, txUsdValue = extcall IAgentWrapper(_agentWrapper).removeLiquidityConcentrated(_userWallet, convert(instruction.legoId, uint256), instruction.target, nftId, pool, instruction.asset, instruction.asset2, nextAmount, instruction.minOut1, instruction.minOut2, instruction.extraData)
         return nextAmount
 
     else:
