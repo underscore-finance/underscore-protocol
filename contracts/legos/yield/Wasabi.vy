@@ -80,7 +80,8 @@ RIPE_REGISTRY: public(immutable(address))
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 HUNDRED_PERCENT: constant(uint256) = 100_00
-MIN_WITHDRAWAL_AMOUNT: constant(uint256) = 10 * 10 ** 6 # $10
+MIN_WITHDRAWAL_UNITS: constant(uint256) = 10 # 10 whole underlying units; $10 for USDC
+WASABI_EMERGENCY_PRICE_PER_SHARE: constant(uint256) = 1_107_017 # 1.107017 USDC per 1e6 Wasabi shares
 
 
 @deploy
@@ -173,7 +174,10 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
 @view
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).previewRedeem(_vaultTokenAmount)
+    # temp emergency peg: restore live pricing after users exit Wasabi
+    # return staticcall IERC4626(_vaultToken).previewRedeem(_vaultTokenAmount)
+    vaultTokenDecimals: uint256 = self._getVaultTokenDecimals(_vaultToken)
+    return self._getEmergencyPeggedUnderlyingAmount(_vaultToken, _vaultTokenAmount, vaultTokenDecimals)
 
 
 # underlying amount (safe)
@@ -192,8 +196,9 @@ def _getUnderlyingAmountSafe(_vaultToken: address, _vaultTokenBalance: uint256) 
     if vaultInfo.decimals == 0:
         return 0 # not registered
 
-    # safe underlying amount (using cached weighted average from snapshots)
-    return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
+    # temp emergency peg: restore cached snapshot pricing after users exit Wasabi
+    # return _vaultTokenBalance * vaultInfo.lastAveragePricePerShare // (10 ** vaultInfo.decimals)
+    return self._getEmergencyPeggedUnderlyingAmount(_vaultToken, _vaultTokenBalance, vaultInfo.decimals)
 
 
 # underlying data (combined)
@@ -260,6 +265,55 @@ def _isRebasing() -> bool:
     return False
 
 
+# emergency peg
+
+
+@view
+@internal
+def _getAssetDecimals(_asset: address) -> uint256:
+    return convert(staticcall IERC20Detailed(_asset).decimals(), uint256)
+
+
+@view
+@internal
+def _getVaultTokenDecimals(_vaultToken: address) -> uint256:
+    decimals: uint256 = yld.vaultToAsset[_vaultToken].decimals
+    if decimals == 0:
+        decimals = convert(staticcall IERC20Detailed(_vaultToken).decimals(), uint256)
+    return decimals
+
+
+@view
+@internal
+def _getEmergencyPeggedPricePerShare(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    return WASABI_EMERGENCY_PRICE_PER_SHARE
+
+
+@view
+@internal
+def _getEmergencyPeggedUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256, _vaultTokenDecimals: uint256) -> uint256:
+    if _vaultTokenAmount == 0 or _vaultTokenDecimals == 0:
+        return 0
+
+    pricePerShare: uint256 = self._getEmergencyPeggedPricePerShare(_vaultToken)
+    if pricePerShare == 0:
+        return 0
+
+    return _vaultTokenAmount * pricePerShare // (10 ** _vaultTokenDecimals)
+
+
+@view
+@internal
+def _getMinWithdrawalAmount(_vaultToken: address) -> uint256:
+    asset: address = self._getUnderlyingAsset(_vaultToken)
+    if asset == empty(address):
+        return 0
+    return MIN_WITHDRAWAL_UNITS * 10 ** self._getAssetDecimals(asset)
+
+
 # price per share
 
 
@@ -277,7 +331,9 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
 @view
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
-    return staticcall IERC4626(_vaultToken).previewRedeem(10 ** _decimals)
+    # temp emergency peg: restore live PPS after users exit Wasabi
+    # return staticcall IERC4626(_vaultToken).previewRedeem(10 ** _decimals)
+    return self._getEmergencyPeggedPricePerShare(_vaultToken)
 
 
 # vault token amount
@@ -286,6 +342,7 @@ def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
 @view
 @external
 def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: address) -> uint256:
+    # actual withdrawal sizing stays live
     return staticcall IERC4626(_vaultToken).convertToShares(_assetAmount)
 
 
@@ -301,7 +358,10 @@ def totalAssets(_vaultToken: address) -> uint256:
 @view
 @internal
 def _totalAssets(_vaultToken: address) -> uint256:
-    return staticcall IERC4626(_vaultToken).totalAssets()
+    # temp emergency peg: restore live total assets after users exit Wasabi
+    # return staticcall IERC4626(_vaultToken).totalAssets()
+    vaultTokenDecimals: uint256 = self._getVaultTokenDecimals(_vaultToken)
+    return self._getEmergencyPeggedUnderlyingAmount(_vaultToken, staticcall IERC20(_vaultToken).totalSupply(), vaultTokenDecimals)
 
 
 # total borrows
@@ -519,7 +579,7 @@ def withdrawFromYield(
 
     # skip withdrawal if liquidity is too low, but still refresh price snapshot
     availLiquidity: uint256 = self._getAvailLiquidity(_vaultToken)
-    if availLiquidity <= MIN_WITHDRAWAL_AMOUNT:
+    if availLiquidity <= self._getMinWithdrawalAmount(_vaultToken):
         pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
         yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
         return 0, vaultInfo.underlyingAsset, 0, 0
