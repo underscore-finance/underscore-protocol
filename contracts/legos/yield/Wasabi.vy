@@ -80,6 +80,7 @@ RIPE_REGISTRY: public(immutable(address))
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 HUNDRED_PERCENT: constant(uint256) = 100_00
+MIN_WITHDRAWAL_AMOUNT: constant(uint256) = 10 * 10 ** 6 # $10
 
 
 @deploy
@@ -482,47 +483,7 @@ def depositForYield(
     _recipient: address,
     _miniAddys: ws.MiniAddys = empty(ws.MiniAddys),
 ) -> (uint256, address, uint256, uint256):
-    assert self._isAllowedToPerformAction(msg.sender) # dev: no perms
-    assert not yld.isPaused # dev: paused
-    miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
-    vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnDeposit(_asset, _vaultAddr, miniAddys.ledger, miniAddys.legoBook)
-
-    # pre balances
-    preLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
-
-    # transfer deposit asset to this contract
-    depositAmount: uint256 = min(_amount, staticcall IERC20(_asset).balanceOf(msg.sender))
-    assert depositAmount != 0 # dev: nothing to transfer
-    assert extcall IERC20(_asset).transferFrom(msg.sender, self, depositAmount, default_return_value=True) # dev: transfer failed
-
-    # deposit assets into lego partner
-    vaultTokenAmountReceived: uint256 = extcall IERC4626(_vaultAddr).deposit(depositAmount, _recipient)
-    assert vaultTokenAmountReceived != 0 # dev: no vault tokens received
-
-    # refund if full deposit didn't get through
-    currentLegoBalance: uint256 = staticcall IERC20(_asset).balanceOf(self)
-    refundAssetAmount: uint256 = 0
-    if currentLegoBalance > preLegoBalance:
-        refundAssetAmount = currentLegoBalance - preLegoBalance
-        assert extcall IERC20(_asset).transfer(msg.sender, refundAssetAmount, default_return_value=True) # dev: transfer failed
-        depositAmount -= refundAssetAmount
-
-    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(_asset, depositAmount)
-    log WasabiDeposit(
-        sender = msg.sender,
-        asset = _asset,
-        vaultToken = _vaultAddr,
-        assetAmountDeposited = depositAmount,
-        usdValue = usdValue,
-        vaultTokenAmountReceived = vaultTokenAmountReceived,
-        recipient = _recipient,
-    )
-
-    # add price snapshot
-    pricePerShare: uint256 = self._getPricePerShare(_vaultAddr, vaultInfo.decimals)
-    yld._addPriceSnapshot(_vaultAddr, pricePerShare, vaultInfo.decimals)
-
-    return depositAmount, _vaultAddr, vaultTokenAmountReceived, usdValue
+    raise "not allowing deposits right now"
 
 
 # vault info on deposit
@@ -556,6 +517,13 @@ def withdrawFromYield(
     miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
     vaultInfo: ls.VaultTokenInfo = self._getVaultInfoOnWithdrawal(_vaultToken, miniAddys.ledger, miniAddys.legoBook)
 
+    # skip withdrawal if liquidity is too low, but still refresh price snapshot
+    availLiquidity: uint256 = self._getAvailLiquidity(_vaultToken)
+    if availLiquidity <= MIN_WITHDRAWAL_AMOUNT:
+        pricePerShare: uint256 = self._getPricePerShare(_vaultToken, vaultInfo.decimals)
+        yld._addPriceSnapshot(_vaultToken, pricePerShare, vaultInfo.decimals)
+        return 0, vaultInfo.underlyingAsset, 0, 0
+
     # pre balances
     preLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
 
@@ -564,9 +532,13 @@ def withdrawFromYield(
     assert vaultTokenAmount != 0 # dev: nothing to transfer
     assert extcall IERC20(_vaultToken).transferFrom(msg.sender, self, vaultTokenAmount, default_return_value=True) # dev: transfer failed
 
-    # withdraw assets from lego partner
-    assetAmountReceived: uint256 = extcall IERC4626(_vaultToken).redeem(vaultTokenAmount, _recipient, self)
-    assert assetAmountReceived != 0 # dev: no asset amount received
+    assetAmountReceived: uint256 = 0
+    redeemVaultTokenAmount: uint256 = min(vaultTokenAmount, staticcall IERC4626(_vaultToken).convertToShares(availLiquidity))
+    if redeemVaultTokenAmount != 0:
+
+        # withdraw assets from lego partner
+        assetAmountReceived = extcall IERC4626(_vaultToken).redeem(redeemVaultTokenAmount, _recipient, self)
+        assert assetAmountReceived != 0 # dev: no asset amount received
 
     # refund if full withdrawal didn't happen
     currentLegoVaultBalance: uint256 = staticcall IERC20(_vaultToken).balanceOf(self)
@@ -576,7 +548,10 @@ def withdrawFromYield(
         assert extcall IERC20(_vaultToken).transfer(msg.sender, refundVaultTokenAmount, default_return_value=True) # dev: transfer failed
         vaultTokenAmount -= refundVaultTokenAmount
 
-    usdValue: uint256 = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
+    usdValue: uint256 = 0
+    if assetAmountReceived != 0:
+        usdValue = staticcall Appraiser(miniAddys.appraiser).getUnderlyingUsdValue(vaultInfo.underlyingAsset, assetAmountReceived)
+
     log WasabiWithdrawal(
         sender = msg.sender,
         asset = vaultInfo.underlyingAsset,
