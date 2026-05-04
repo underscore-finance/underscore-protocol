@@ -205,10 +205,10 @@ def addManager(
         canConfirmWhitelist = _whitelistPerms.canConfirm,
         canCancelWhitelist = _whitelistPerms.canCancel,
         canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        canTransfer = settings.transferPerms.canTransfer,
+        canCreateCheque = settings.transferPerms.canCreateCheque,
+        canAddPendingPayee = settings.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(settings.transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
         canClaimLoot = _canClaimLoot,
     )
@@ -244,7 +244,7 @@ def updateManager(
     settings.legoPerms = _legoPerms
     settings.swapPerms = _swapPerms
     settings.whitelistPerms = _whitelistPerms
-    settings.transferPerms = _transferPerms
+    settings.transferPerms = self._sanitizeTransferPerms(_transferPerms)
     settings.allowedAssets = _allowedAssets
     settings.canClaimLoot = _canClaimLoot
     extcall UserWalletConfig(config.walletConfig).updateManager(_manager, settings)
@@ -270,10 +270,10 @@ def updateManager(
         canConfirmWhitelist = _whitelistPerms.canConfirm,
         canCancelWhitelist = _whitelistPerms.canCancel,
         canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        canTransfer = settings.transferPerms.canTransfer,
+        canCreateCheque = settings.transferPerms.canCreateCheque,
+        canAddPendingPayee = settings.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(settings.transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
         canClaimLoot = _canClaimLoot,
     )
@@ -365,6 +365,7 @@ def setGlobalManagerSettings(
     assert self._validateGlobalManagerSettings(_managerPeriod, _startDelay, _activationLength, _canOwnerManage, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.timeLock, config.legoBook, config.walletConfig) # dev: invalid settings
 
     # update config
+    sanitizedTransferPerms: wcs.TransferPerms = self._sanitizeTransferPerms(_transferPerms)
     settings: wcs.GlobalManagerSettings = wcs.GlobalManagerSettings(
         managerPeriod = _managerPeriod,
         startDelay = _startDelay,
@@ -374,7 +375,7 @@ def setGlobalManagerSettings(
         legoPerms = _legoPerms,
         swapPerms = _swapPerms,
         whitelistPerms = _whitelistPerms,
-        transferPerms = _transferPerms,
+        transferPerms = sanitizedTransferPerms,
         allowedAssets = _allowedAssets,
     )
     extcall UserWalletConfig(config.walletConfig).setGlobalManagerSettings(settings)
@@ -401,10 +402,10 @@ def setGlobalManagerSettings(
         canConfirmWhitelist = _whitelistPerms.canConfirm,
         canCancelWhitelist = _whitelistPerms.canCancel,
         canRemoveWhitelist = _whitelistPerms.canRemove,
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = _transferPerms.canAddPendingPayee,
-        numAllowedRecipients = len(_transferPerms.allowedPayees),
+        canTransfer = settings.transferPerms.canTransfer,
+        canCreateCheque = settings.transferPerms.canCreateCheque,
+        canAddPendingPayee = settings.transferPerms.canAddPendingPayee,
+        numAllowedRecipients = len(settings.transferPerms.allowedPayees),
         numAllowedAssets = len(_allowedAssets),
     )
     return True
@@ -506,6 +507,7 @@ def _isValidNewManager(
         return False, empty(wcs.ManagerSettings)
 
     # create settings
+    sanitizedTransferPerms: wcs.TransferPerms = self._sanitizeTransferPerms(_transferPerms)
     settings: wcs.ManagerSettings = wcs.ManagerSettings(
         startBlock = block.number + startDelay,
         expiryBlock = block.number + startDelay + activationLength,
@@ -513,7 +515,7 @@ def _isValidNewManager(
         legoPerms = _legoPerms,
         swapPerms = _swapPerms,
         whitelistPerms = _whitelistPerms,
-        transferPerms = _transferPerms,
+        transferPerms = sanitizedTransferPerms,
         allowedAssets = _allowedAssets,
         canClaimLoot = _canClaimLoot,
     )
@@ -726,6 +728,17 @@ def _validateWhitelistPerms(_whitelistPerms: wcs.WhitelistPerms) -> bool:
     return not _whitelistPerms.canAddPending
 
 
+@pure
+@internal
+def _sanitizeTransferPerms(_transferPerms: wcs.TransferPerms) -> wcs.TransferPerms:
+    return wcs.TransferPerms(
+        canTransfer = _transferPerms.canTransfer,
+        canCreateCheque = _transferPerms.canCreateCheque,
+        canAddPendingPayee = False,
+        allowedPayees = _transferPerms.allowedPayees,
+    )
+
+
 @view
 @internal
 def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _legoBookAddr: address) -> bool:
@@ -848,6 +861,7 @@ def createDefaultGlobalManagerSettings(
     config.canOwnerManage = True
     config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(_mustHaveUsdValueOnSwaps, _maxNumSwapsPerPeriod, _maxSlippageOnSwaps, _onlyApprovedYieldOpps)
     config.whitelistPerms.canAddPending = False
+    config.transferPerms.canAddPendingPayee = False
     return config
 
 
@@ -870,6 +884,7 @@ def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.M
     )
     config.legoPerms, config.swapPerms, config.whitelistPerms, config.transferPerms = self._createHappyManagerDefaults(False, 0, 0, False)
     config.whitelistPerms.canAddPending = False
+    config.transferPerms.canAddPendingPayee = False
     return config
 
 

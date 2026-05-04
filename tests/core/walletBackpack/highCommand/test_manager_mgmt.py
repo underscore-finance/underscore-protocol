@@ -180,6 +180,7 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
+        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
 
@@ -235,6 +236,7 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     # Verify transfer permissions
     assert saved_settings.transferPerms.canTransfer == True
     assert saved_settings.transferPerms.canCreateCheque == False
+    assert saved_settings.transferPerms.canAddPendingPayee == False
     assert len(saved_settings.transferPerms.allowedPayees) == 0
     
     # Verify allowed assets
@@ -262,7 +264,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         createLegoPerms(),
             createSwapPerms(),
         createWhitelistPerms(),
-        createTransferPerms(),
+        createTransferPerms(_canAddPendingPayee=True),
         [],
         False,  # canClaimLoot
         sender=bob
@@ -281,6 +283,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
     assert event.maxUsdValueLifetime == 200000 * 10**6
     assert event.maxNumTxsPerPeriod == 100
     assert event.txCooldownBlocks == 200
+    assert event.canAddPendingPayee == False
     
     # Verify timing
     assert event.startBlock > 0
@@ -732,7 +735,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     # Verify new transfer permissions
     assert updated_settings.transferPerms.canTransfer == True
     assert updated_settings.transferPerms.canCreateCheque == False
-    assert updated_settings.transferPerms.canAddPendingPayee == True
+    assert updated_settings.transferPerms.canAddPendingPayee == False
     assert len(updated_settings.transferPerms.allowedPayees) == 0
     
     # Verify new allowed assets
@@ -799,6 +802,7 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
     assert event.maxUsdValueLifetime == 300000 * 10**6
     assert event.maxNumTxsPerPeriod == 150
     assert event.txCooldownBlocks == 300
+    assert event.canAddPendingPayee == False
 
 
 def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
@@ -2141,7 +2145,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     # Check transfer permissions
     assert global_settings.transferPerms.canTransfer == True
     assert global_settings.transferPerms.canCreateCheque == False
-    assert global_settings.transferPerms.canAddPendingPayee == True
+    assert global_settings.transferPerms.canAddPendingPayee == False
     assert len(global_settings.transferPerms.allowedPayees) == 0
     
     # Check allowed assets
@@ -2182,7 +2186,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     transfer_perms = createTransferPerms(
         _canTransfer=False,
         _canCreateCheque=True,
-        _canAddPendingPayee=False,
+        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
 

@@ -109,7 +109,6 @@ payeePeriodData: public(HashMap[address, wcs.PayeeData])
 payees: public(HashMap[uint256, address]) # index -> payee
 indexOfPayee: public(HashMap[address, uint256]) # payee -> index
 numPayees: public(uint256) # num payees
-pendingPayees: public(HashMap[address, wcs.PendingPayee])
 
 # whitelist
 whitelistAddr: public(HashMap[uint256, address]) # index -> whitelist
@@ -758,31 +757,6 @@ def removePayee(_payee: address):
 def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings):
     assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
     self.globalPayeeSettings = _config
-
-
-# pending payees (when managers add payees)
-
-
-@external
-def addPendingPayee(_payee: address, _pending: wcs.PendingPayee):
-    assert msg.sender == self.paymaster # dev: no perms
-    self.pendingPayees[_payee] = _pending
-
-
-@external
-def confirmPendingPayee(_payee: address):
-    assert msg.sender == self.paymaster # dev: no perms
-    pending: wcs.PendingPayee = self.pendingPayees[_payee]
-    assert pending.confirmBlock != 0 and pending.confirmBlock <= block.number # dev: time delay not reached
-    self.payeeSettings[_payee] = pending.settings
-    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
-    self._registerPayee(_payee)
-
-
-@external
-def cancelPendingPayee(_payee: address):
-    assert msg.sender == self.paymaster # dev: no perms
-    self.pendingPayees[_payee] = empty(wcs.PendingPayee)
 
 
 ###################

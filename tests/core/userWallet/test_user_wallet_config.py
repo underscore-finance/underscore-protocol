@@ -13,18 +13,6 @@ def pending_whitelist(user_wallet):
     )
 
 
-@pytest.fixture
-def pending_payee(createPayeeSettings, user_wallet):
-    """Create a pending payee struct"""
-    settings = createPayeeSettings()
-    return (
-        settings,                               # settings
-        boa.env.evm.patch.block_number,        # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet.address,                    # currentOwner
-    )
-
-
 ##########################
 # Whitelist Access Tests #
 ##########################
@@ -141,27 +129,6 @@ def test_set_global_payee_settings_access(user_wallet_config, bob, createGlobalP
     # Non-authorized address should fail
     with boa.reverts("no perms"):
         user_wallet_config.setGlobalPayeeSettings(settings, sender=bob)
-
-
-def test_add_pending_payee_access(user_wallet_config, alice, bob, pending_payee):
-    """Only paymaster should be able to add pending payee"""
-    # Non-paymaster address should fail
-    with boa.reverts("no perms"):
-        user_wallet_config.addPendingPayee(alice, pending_payee, sender=bob)
-
-
-def test_confirm_pending_payee_access(user_wallet_config, alice, bob):
-    """Only paymaster should be able to confirm pending payee"""
-    # Non-paymaster address should fail
-    with boa.reverts("no perms"):
-        user_wallet_config.confirmPendingPayee(alice, sender=bob)
-
-
-def test_cancel_pending_payee_access(user_wallet_config, alice, bob):
-    """Only paymaster should be able to cancel pending payee"""
-    # Non-paymaster address should fail
-    with boa.reverts("no perms"):
-        user_wallet_config.cancelPendingPayee(alice, sender=bob)
 
 
 #######################
@@ -450,41 +417,6 @@ def test_payee_persistence(user_wallet_config, paymaster, alice, bob, charlie, c
     assert saved_settings.startBlock == 0
 
 
-def test_pending_payee_persistence(user_wallet_config, paymaster, alice, createPayeeSettings):
-    """Test pending payee functionality"""
-    # Create pending payee
-    settings = createPayeeSettings(_canPull=True)
-    pending_data = (
-        settings,
-        boa.env.evm.patch.block_number,         # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet_config.wallet(),            # currentOwner
-    )
-    
-    # Add pending
-    user_wallet_config.addPendingPayee(alice, pending_data, sender=paymaster.address)
-    
-    # Verify pending data
-    saved_pending = user_wallet_config.pendingPayees(alice)
-    assert saved_pending.initiatedBlock == pending_data[1]
-    assert saved_pending.confirmBlock == pending_data[2]
-    assert saved_pending.currentOwner == pending_data[3]
-    assert saved_pending.settings.canPull == True
-    
-    # Time travel and confirm
-    boa.env.time_travel(blocks=100)
-    user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
-    
-    # Verify payee registered with settings
-    assert user_wallet_config.indexOfPayee(alice) > 0
-    saved_settings = user_wallet_config.payeeSettings(alice)
-    assert saved_settings.canPull == True
-    
-    # Verify pending cleared
-    saved_pending = user_wallet_config.pendingPayees(alice)
-    assert saved_pending.confirmBlock == 0
-
-
 def test_global_payee_settings_persistence(user_wallet_config, paymaster, createGlobalPayeeSettings):
     """Test global payee settings persistence"""
     # Set global settings
@@ -662,7 +594,7 @@ def test_remove_non_existent_items(user_wallet_config, kernel, high_command, pay
     assert user_wallet_config.numPayees() == initial_payee_count
 
 
-def test_time_delay_enforcement(user_wallet_config, kernel, paymaster, alice, pending_whitelist, createPayeeSettings, user_wallet):
+def test_time_delay_enforcement(user_wallet_config, kernel, alice, pending_whitelist, user_wallet):
     """Test that time delays are enforced for pending items"""
     # Test whitelist time delay with fresh pending data
     fresh_pending = (
@@ -681,28 +613,6 @@ def test_time_delay_enforcement(user_wallet_config, kernel, paymaster, alice, pe
     boa.env.time_travel(blocks=10)  # Now at confirmBlock
     user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
     
-    # Remove alice from whitelist first to test payee
-    user_wallet_config.removeWhitelistAddr(alice, sender=kernel.address)
-    
-    # Test payee time delay
-    settings = createPayeeSettings()
-    fresh_payee_data = (
-        settings,
-        boa.env.evm.patch.block_number,         # initiatedBlock
-        boa.env.evm.patch.block_number + 10,    # confirmBlock (10 blocks later)
-        user_wallet_config.wallet(),             # currentOwner
-    )
-    user_wallet_config.addPendingPayee(alice, fresh_payee_data, sender=paymaster.address)
-    
-    # Should fail before time delay
-    # Current block is still less than confirmBlock
-    with boa.reverts("time delay not reached"):
-        user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
-    
-    # Should succeed after time delay
-    boa.env.time_travel(blocks=10)  # Now at confirmBlock
-    user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
-
 
 ###################
 # Time Lock Tests #

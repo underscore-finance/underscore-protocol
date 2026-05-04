@@ -3,7 +3,7 @@ import boa
 
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
-from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from constants import ZERO_ADDRESS
 from conf_utils import filter_logs
 
 
@@ -26,6 +26,18 @@ def test_create_user_wallet_basic(hatchery, alice):
     wallet_config = UserWalletConfig.at(wallet.walletConfig())
     assert wallet_config.owner() == alice
     assert wallet_config.globalPayeeSettings().canPayOwner == False
+
+
+def test_create_user_wallet_disables_pending_payee_manager_perms_by_default(hatchery, setAgentConfig, alice, charlie):
+    """New wallets should not store manager pending-payee creation perms"""
+    setAgentConfig(_startingAgent=charlie)
+
+    wallet_address = hatchery.createUserWallet(sender=alice)
+    wallet = UserWallet.at(wallet_address)
+    wallet_config = UserWalletConfig.at(wallet.walletConfig())
+
+    assert wallet_config.globalManagerSettings().transferPerms.canAddPendingPayee == False
+    assert wallet_config.managerSettings(charlie).transferPerms.canAddPendingPayee == False
 
 
 def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger, mission_control, switchboard_alpha):

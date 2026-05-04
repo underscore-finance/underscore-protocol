@@ -292,6 +292,44 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setTimeLockViaMigrator",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmPendingTimeLock",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingTimeLock",
+    "inputs": [],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "checkSignerPermissionsAndGetBundle",
@@ -1663,138 +1701,6 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
-    "name": "addPendingPayee",
-    "inputs": [
-      {
-        "name": "_payee",
-        "type": "address"
-      },
-      {
-        "name": "_pending",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "settings",
-            "type": "tuple",
-            "components": [
-              {
-                "name": "startBlock",
-                "type": "uint256"
-              },
-              {
-                "name": "expiryBlock",
-                "type": "uint256"
-              },
-              {
-                "name": "canPull",
-                "type": "bool"
-              },
-              {
-                "name": "periodLength",
-                "type": "uint256"
-              },
-              {
-                "name": "maxNumTxsPerPeriod",
-                "type": "uint256"
-              },
-              {
-                "name": "txCooldownBlocks",
-                "type": "uint256"
-              },
-              {
-                "name": "failOnZeroPrice",
-                "type": "bool"
-              },
-              {
-                "name": "primaryAsset",
-                "type": "address"
-              },
-              {
-                "name": "onlyPrimaryAsset",
-                "type": "bool"
-              },
-              {
-                "name": "unitLimits",
-                "type": "tuple",
-                "components": [
-                  {
-                    "name": "perTxCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "perPeriodCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "lifetimeCap",
-                    "type": "uint256"
-                  }
-                ]
-              },
-              {
-                "name": "usdLimits",
-                "type": "tuple",
-                "components": [
-                  {
-                    "name": "perTxCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "perPeriodCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "lifetimeCap",
-                    "type": "uint256"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "name": "initiatedBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "confirmBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "currentOwner",
-            "type": "address"
-          }
-        ]
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "confirmPendingPayee",
-    "inputs": [
-      {
-        "name": "_payee",
-        "type": "address"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "cancelPendingPayee",
-    "inputs": [
-      {
-        "name": "_payee",
-        "type": "address"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
     "name": "createCheque",
     "inputs": [
       {
@@ -2926,115 +2832,6 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "pendingPayees",
-    "inputs": [
-      {
-        "name": "arg0",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "settings",
-            "type": "tuple",
-            "components": [
-              {
-                "name": "startBlock",
-                "type": "uint256"
-              },
-              {
-                "name": "expiryBlock",
-                "type": "uint256"
-              },
-              {
-                "name": "canPull",
-                "type": "bool"
-              },
-              {
-                "name": "periodLength",
-                "type": "uint256"
-              },
-              {
-                "name": "maxNumTxsPerPeriod",
-                "type": "uint256"
-              },
-              {
-                "name": "txCooldownBlocks",
-                "type": "uint256"
-              },
-              {
-                "name": "failOnZeroPrice",
-                "type": "bool"
-              },
-              {
-                "name": "primaryAsset",
-                "type": "address"
-              },
-              {
-                "name": "onlyPrimaryAsset",
-                "type": "bool"
-              },
-              {
-                "name": "unitLimits",
-                "type": "tuple",
-                "components": [
-                  {
-                    "name": "perTxCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "perPeriodCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "lifetimeCap",
-                    "type": "uint256"
-                  }
-                ]
-              },
-              {
-                "name": "usdLimits",
-                "type": "tuple",
-                "components": [
-                  {
-                    "name": "perTxCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "perPeriodCap",
-                    "type": "uint256"
-                  },
-                  {
-                    "name": "lifetimeCap",
-                    "type": "uint256"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "name": "initiatedBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "confirmBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "currentOwner",
-            "type": "address"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
     "name": "whitelistAddr",
     "inputs": [
       {
@@ -3553,6 +3350,36 @@
       {
         "name": "",
         "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
+          }
+        ]
       }
     ]
   },

@@ -19,18 +19,12 @@
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
-    def addPendingPayee(_payee: address, _pending: wcs.PendingPayee): nonpayable
     def updatePayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
     def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
-    def managerSettings(_addr: address) -> wcs.ManagerSettings: view
-    def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
-    def pendingPayees(_payee: address) -> wcs.PendingPayee: view
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
     def indexOfWhitelist(_addr: address) -> uint256: view
-    def confirmPendingPayee(_payee: address): nonpayable
-    def cancelPendingPayee(_payee: address): nonpayable
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
     def cheques(_addr: address) -> wcs.Cheque: view
@@ -106,39 +100,6 @@ event GlobalPayeeSettingsModified:
     usdPerTxCap: uint256
     usdPerPeriodCap: uint256
     usdLifetimeCap: uint256
-
-event PayeePending:
-    user: indexed(address)
-    payee: indexed(address)
-    confirmBlock: uint256
-    addedBy: indexed(address)
-    canPull: bool
-    periodLength: uint256
-    maxNumTxsPerPeriod: uint256
-    txCooldownBlocks: uint256
-    failOnZeroPrice: bool
-    primaryAsset: address
-    onlyPrimaryAsset: bool
-    unitPerTxCap: uint256
-    unitPerPeriodCap: uint256
-    unitLifetimeCap: uint256
-    usdPerTxCap: uint256
-    usdPerPeriodCap: uint256
-    usdLifetimeCap: uint256
-
-event PayeePendingConfirmed:
-    user: indexed(address)
-    payee: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    confirmedBy: indexed(address)
-
-event PayeePendingCancelled:
-    user: indexed(address)
-    payee: indexed(address)
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    cancelledBy: indexed(address)
 
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
@@ -382,127 +343,6 @@ def removePayee(_userWallet: address, _payee: address) -> bool:
 ##################
 
 
-# add pending payee (for managers)
-
-
-@external
-def addPendingPayee(
-    _userWallet: address,
-    _payee: address,
-    _canPull: bool,
-    _periodLength: uint256,
-    _maxNumTxsPerPeriod: uint256,
-    _txCooldownBlocks: uint256,
-    _failOnZeroPrice: bool,
-    _primaryAsset: address,
-    _onlyPrimaryAsset: bool,
-    _unitLimits: wcs.PayeeLimits,
-    _usdLimits: wcs.PayeeLimits,
-    _startDelay: uint256 = 0,
-    _activationLength: uint256 = 0,
-) -> bool:
-    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
-
-    # check if caller has permission to add pending payee
-    config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
-    assert self._canAddPendingPayee(msg.sender, _payee, config.owner, config.walletConfig) # dev: no permission to add pending payee
-
-    # validate and prepare payee settings
-    isValid: bool = False
-    settings: wcs.PayeeSettings = empty(wcs.PayeeSettings)
-    isValid, settings = self._isValidNewPayee(_payee, config, _canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits, _startDelay, _activationLength)
-    assert isValid # dev: invalid payee settings
-
-    # create pending payee with timelock
-    confirmBlock: uint256 = block.number + config.timeLock
-    pending: wcs.PendingPayee = wcs.PendingPayee(
-        settings = settings,
-        initiatedBlock = block.number,
-        confirmBlock = confirmBlock,
-        currentOwner = config.owner,
-    )
-    extcall UserWalletConfig(config.walletConfig).addPendingPayee(_payee, pending)
-
-    log PayeePending(
-        user = _userWallet,
-        payee = _payee,
-        confirmBlock = confirmBlock,
-        addedBy = msg.sender,
-        canPull = settings.canPull,
-        periodLength = settings.periodLength,
-        maxNumTxsPerPeriod = settings.maxNumTxsPerPeriod,
-        txCooldownBlocks = settings.txCooldownBlocks,
-        failOnZeroPrice = settings.failOnZeroPrice,
-        primaryAsset = settings.primaryAsset,
-        onlyPrimaryAsset = settings.onlyPrimaryAsset,
-        unitPerTxCap = settings.unitLimits.perTxCap,
-        unitPerPeriodCap = settings.unitLimits.perPeriodCap,
-        unitLifetimeCap = settings.unitLimits.lifetimeCap,
-        usdPerTxCap = settings.usdLimits.perTxCap,
-        usdPerPeriodCap = settings.usdLimits.perPeriodCap,
-        usdLifetimeCap = settings.usdLimits.lifetimeCap,
-    )
-    return True
-
-
-# confirm pending payee (for owner)
-
-
-@external
-def confirmPendingPayee(_userWallet: address, _payee: address) -> bool:
-    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
-
-    # only owner can confirm pending payee
-    config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
-    assert msg.sender == config.owner # dev: no perms
-    
-    # get pending payee
-    pendingPayee: wcs.PendingPayee = staticcall UserWalletConfig(config.walletConfig).pendingPayees(_payee)
-    assert pendingPayee.initiatedBlock != 0 # dev: no pending payee
-    assert pendingPayee.confirmBlock != 0 and block.number >= pendingPayee.confirmBlock # dev: time delay not reached
-    assert pendingPayee.currentOwner == config.owner # dev: must be same owner
-    assert self._isValidPendingPayeeConfirmation(_payee, config, pendingPayee) # dev: invalid payee settings
-    
-    # confirm the pending payee
-    extcall UserWalletConfig(config.walletConfig).confirmPendingPayee(_payee)
-    log PayeePendingConfirmed(
-        user = _userWallet,
-        payee = _payee,
-        initiatedBlock = pendingPayee.initiatedBlock,
-        confirmBlock = pendingPayee.confirmBlock,
-        confirmedBy = msg.sender
-    )
-    return True
-
-
-# cancel pending payee
-
-
-@external
-def cancelPendingPayee(_userWallet: address, _payee: address) -> bool:
-    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
-
-    # only owner or payee can cancel pending payee
-    config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
-    if msg.sender not in [config.owner, _payee]:
-        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
-
-    # get pending payee
-    pendingPayee: wcs.PendingPayee = staticcall UserWalletConfig(config.walletConfig).pendingPayees(_payee)
-    assert pendingPayee.initiatedBlock != 0 # dev: no pending payee
-
-    # cancel the pending payee
-    extcall UserWalletConfig(config.walletConfig).cancelPendingPayee(_payee)
-    log PayeePendingCancelled(
-        user = _userWallet,
-        payee = _payee,
-        initiatedBlock = pendingPayee.initiatedBlock,
-        confirmBlock = pendingPayee.confirmBlock,
-        cancelledBy = msg.sender
-    )
-    return True
-
-
 ####################
 # Payee Validation #
 ####################
@@ -711,93 +551,6 @@ def _isValidPayeeUpdate(
         return False
 
     return True
-
-
-# validate pending payee confirmation
-
-
-@view
-@internal
-def _isValidPendingPayeeConfirmation(
-    _payee: address,
-    _config: wcs.PayeeManagementBundle,
-    _pendingPayee: wcs.PendingPayee,
-) -> bool:
-    settings: wcs.PayeeSettings = _pendingPayee.settings
-
-    # invalid payee or recipient path changed during timelock
-    if _payee in [empty(address), _config.owner, _config.wallet, _config.walletConfig]:
-        return False
-    if _config.isRegisteredPayee or _config.isWhitelisted or _config.isExistingCheque:
-        return False
-
-    # revalidate stored timing against current policy before promotion
-    if settings.startBlock < _pendingPayee.initiatedBlock or settings.expiryBlock <= settings.startBlock:
-        return False
-
-    startDelay: uint256 = settings.startBlock - _pendingPayee.initiatedBlock
-    minStartDelay: uint256 = max(_config.timeLock, _config.globalPayeeSettings.startDelay)
-    if not self._validateStartDelay(startDelay, minStartDelay):
-        return False
-
-    activationLength: uint256 = settings.expiryBlock - settings.startBlock
-    if activationLength > _config.globalPayeeSettings.activationLength:
-        return False
-    if not self._validateActivationLength(activationLength):
-        return False
-
-    # revalidate payee settings against current rules
-    if not self._validatePayeePeriod(settings.periodLength):
-        return False
-    if not self._validatePayeeCooldown(settings.txCooldownBlocks, settings.periodLength):
-        return False
-    if not self._validatePrimaryAsset(settings.primaryAsset, settings.onlyPrimaryAsset):
-        return False
-    if not self._validatePayeeLimits(settings.unitLimits):
-        return False
-    if not self._validatePayeeLimits(settings.usdLimits):
-        return False
-    if not self._validateFailOnZeroPriceWithUsdLimits(settings.failOnZeroPrice, settings.usdLimits):
-        return False
-    if not self._validatePullPayee(settings.canPull, _config.globalPayeeSettings.canPull, settings.unitLimits, settings.usdLimits):
-        return False
-
-    return True
-
-
-# validate pending payee
-
-
-@view
-@external
-def canAddPendingPayee(_userWallet: address, _payee: address, _caller: address) -> bool:
-    config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
-    return self._canAddPendingPayee(_caller, _payee, config.owner, config.walletConfig)
-
-
-@view
-@internal
-def _canAddPendingPayee(_caller: address, _payee: address, _owner: address, _walletConfig: address) -> bool:
-    # owner can always add payees directly (not pending)
-    if _caller == _owner:
-        return False
-
-    # check if caller is a manager
-    if staticcall UserWalletConfig(_walletConfig).indexOfManager(_caller) == 0:
-        return False
-
-    pendingPayee: wcs.PendingPayee = staticcall UserWalletConfig(_walletConfig).pendingPayees(_payee)
-    if pendingPayee.initiatedBlock != 0:
-        return False
-
-    # check if manager is active
-    managerSettings: wcs.ManagerSettings = staticcall UserWalletConfig(_walletConfig).managerSettings(_caller)
-    if managerSettings.startBlock > block.number or managerSettings.expiryBlock <= block.number:
-        return False
-    
-    # check if manager has permission
-    globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(_walletConfig).globalManagerSettings()
-    return managerSettings.transferPerms.canAddPendingPayee and globalManagerSettings.transferPerms.canAddPendingPayee
 
 
 # validate global payee settings
