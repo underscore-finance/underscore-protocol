@@ -8,8 +8,8 @@ YEAR_IN_BLOCKS = DAY_IN_BLOCKS * 365
 
 VAULT_INFO = {
     "USDC": {
-        "name": "Underscore Blue Chip USD",
-        "symbol": "undyUSD",
+        "name": "Underscore Core USDC",
+        "symbol": "undyUSDC",
     },
     "WETH": {
         "name": "Underscore Blue Chip ETH",
