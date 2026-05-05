@@ -73,9 +73,6 @@ event ChequeCancelled:
     canBePulled: bool
     cancelledBy: indexed(address)
 
-# NOTE: allowedAssets is intentionally kept out of cheque settings events;
-# callers should read chequeSettings() or pendingChequeSettings(user).settings
-# for the full config.
 event ChequeSettingsModified:
     user: indexed(address)
     maxNumActiveCheques: uint256
@@ -137,9 +134,7 @@ MAX_CHEQUE_PERIOD: public(immutable(uint256))
 MIN_EXPENSIVE_CHEQUE_DELAY: public(immutable(uint256))
 MAX_UNLOCK_BLOCKS: public(immutable(uint256))
 MAX_EXPIRY_BLOCKS: public(immutable(uint256))
-# NOTE: returns raw pending storage. Callers must verify currentOwner
-# matches walletConfig.owner() and that block.number >= confirmBlock and
-# the settings still pass _isValidChequeSettings under current timeLock.
+
 pendingChequeSettings: public(HashMap[address, wcs.PendingChequeSettings])
 
 
