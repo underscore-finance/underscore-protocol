@@ -1374,6 +1374,40 @@ def test_batch_pay_cheque_expected_block_and_prev_amount_rules(
     assert user_wallet_config.cheques(recipient).active == True
     assert alpha_token.balanceOf(recipient) == recipient_balance_before
 
+    boa.env.time_travel(blocks=1)
+    cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+    replacement_creation_block = user_wallet_config.cheques(recipient).creationBlock
+    assert replacement_creation_block != creation_block
+
+    with boa.reverts("stale cheque"):
+        starter_agent_sender.performBatchActions(
+            starter_agent.address,
+            user_wallet.address,
+            [
+                createActionInstruction(
+                    action=6,
+                    asset=alpha_token.address,
+                    target=recipient,
+                    amount=amount,
+                    amount2=creation_block,
+                )
+            ],
+            (b"", 0, 0),
+            sender=charlie,
+        )
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before
+
     assert starter_agent_sender.performBatchActions(
         starter_agent.address,
         user_wallet.address,
@@ -1383,7 +1417,7 @@ def test_batch_pay_cheque_expected_block_and_prev_amount_rules(
                 asset=alpha_token.address,
                 target=recipient,
                 amount=amount,
-                amount2=creation_block,
+                amount2=replacement_creation_block,
             )
         ],
         (b"", 0, 0),

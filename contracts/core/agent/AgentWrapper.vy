@@ -23,18 +23,14 @@ implements: AgentWrapper
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
-from interfaces import WalletConfigStructs as wcs
 
 interface ChequeBook:
     def createCheque(_userWallet: address, _recipient: address, _asset: address, _amount: uint256, _unlockNumBlocks: uint256, _expiryNumBlocks: uint256, _canManagerPay: bool, _canBePulled: bool) -> bool: nonpayable
-    def cancelCheque(_userWallet: address, _recipient: address) -> bool: nonpayable
 
 interface UserWalletConfig:
-    def cheques(_recipient: address) -> wcs.Cheque: view
     def chequeBook() -> address: view
     def kernel() -> address: view
     def highCommand() -> address: view
-    def numManagers() -> uint256: view
     def indexOfManager(_manager: address) -> uint256: view
 
 interface UserWallet:
@@ -120,15 +116,13 @@ def createAndPayCheque(
     _amount: uint256,
 ) -> (uint256, uint256):
     """
-    Action 4: approved sender creates and pays a cheque atomically; manager cheque + pay perms; no expected block needed.
+    Action 4: approved sender creates and pays a cheque atomically; manager cheque perms; ChequeBook handles replace logic.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 4, userWallet = _userWallet, sender = msg.sender)
 
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
-    existingCheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
-    assert not existingCheque.active # dev: recipient has active cheque
 
     assert extcall ChequeBook(chequeBook).createCheque(
         _userWallet,
@@ -156,13 +150,10 @@ def createCheque(
     _canBePulled: bool,
 ) -> bool:
     """
-    Action 5: approved sender creates a cheque; manager cheque perms; active cheque replacement is blocked.
+    Action 5: approved sender creates a cheque; manager cheque perms; ChequeBook handles replace logic.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-    existingCheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
-    assert not existingCheque.active # dev: recipient has active cheque
-
     chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
     log AgentAction(action = 5, userWallet = _userWallet, sender = msg.sender)
     return extcall ChequeBook(chequeBook).createCheque(
@@ -183,32 +174,13 @@ def payCheque(
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _expectedCreationBlock: uint256,
 ) -> (uint256, uint256):
     """
-    Action 6: approved sender pays an existing cheque; cheque pay perms; expected creation block prevents stale signatures.
+    Action 6: approved sender pays an existing cheque; cheque pay perms; signed-sender layer enforces freshness.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
-    assert _expectedCreationBlock != 0 # dev: invalid expected block
-    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
-    assert cheque.creationBlock == _expectedCreationBlock # dev: stale cheque
-
     log AgentAction(action = 6, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
-
-
-@external
-def cancelCheque(_userWallet: address, _recipient: address) -> bool:
-    """
-    Action 7: approved sender forwards cheque cancellation; owner/security signer perms; normal manager wrappers revert.
-    """
-    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
-    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-    chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
-    result: bool = extcall ChequeBook(chequeBook).cancelCheque(_userWallet, _recipient)
-    log AgentAction(action = 7, userWallet = _userWallet, sender = msg.sender)
-    return result
 
 
 #########
@@ -428,11 +400,10 @@ def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
 @external
 def removeSelfAsManager(_userWallet: address) -> bool:
     """
-    Action 70: approved sender removes this wrapper as manager; HighCommand perms; single-manager wallets are rejected.
+    Action 70: approved sender removes this wrapper as manager; HighCommand perms; starter-agent removal blocked in HighCommand.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-    assert staticcall UserWalletConfig(walletConfig).numManagers() > 2 # dev: only manager
     highCommand: address = staticcall UserWalletConfig(walletConfig).highCommand()
     assert extcall HighCommand(highCommand).removeManager(_userWallet, self) # dev: remove manager failed
     assert staticcall UserWalletConfig(walletConfig).indexOfManager(self) == 0 # dev: still manager

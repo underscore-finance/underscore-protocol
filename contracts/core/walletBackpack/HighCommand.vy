@@ -27,6 +27,7 @@ interface UserWalletConfig:
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
     def removeManager(_manager: address): nonpayable
+    def startingAgent() -> address: view
     def timeLock() -> uint256: view
     def owner() -> address: view
 
@@ -291,6 +292,9 @@ def removeManager(_userWallet: address, _manager: address) -> bool:
     if msg.sender not in [config.owner, _manager]:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
     assert config.isManager # dev: manager not found
+    startingAgent: address = staticcall UserWalletConfig(config.walletConfig).startingAgent()
+    if startingAgent != empty(address):
+        assert _manager != startingAgent # dev: cannot remove starter agent
 
     extcall UserWalletConfig(config.walletConfig).removeManager(_manager)
     log ManagerRemoved(user = _userWallet, manager = _manager)

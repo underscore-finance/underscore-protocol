@@ -127,25 +127,6 @@ def getPayChequeHash(
     return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(convert(6, uint8), _agentWrapper, _userWallet, _recipient, _asset, _amount, _expectedCreationBlock, nonce, expiration))), nonce, expiration)
 
 
-@view
-@external
-def getCancelChequeHash(
-    _agentSender: address,
-    _agentWrapper: address,
-    _userWallet: address,
-    _recipient: address,
-    _nonce: uint256 = 0,
-    _expiration: uint256 = 0,
-) -> (bytes32, uint256, uint256):
-    """
-    Get message hash for cancelCheque function
-    """
-    nonce: uint256 = _nonce
-    expiration: uint256 = _expiration
-    nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
-    return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(convert(7, uint8), _agentWrapper, _userWallet, _recipient, nonce, expiration))), nonce, expiration)
-
-
 #########
 # Yield #
 #########

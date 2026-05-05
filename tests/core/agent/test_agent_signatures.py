@@ -813,7 +813,6 @@ def test_all_signature_helper_hashes_change_when_top_level_fields_mutate(
         (user_wallet_signature_helper.getCreateAndPayChequeHash, generic_common + [alice, alpha_token.address, 10, nonce, expiration]),
         (user_wallet_signature_helper.getCreateChequeHash, generic_common + [alice, alpha_token.address, 10, 1, 2, True, False, nonce, expiration]),
         (user_wallet_signature_helper.getPayChequeHash, generic_common + [alice, alpha_token.address, 10, 123, nonce, expiration]),
-        (user_wallet_signature_helper.getCancelChequeHash, generic_common + [alice, nonce, expiration]),
         (user_wallet_signature_helper.getDepositForYieldHash, generic_common + [3, alpha_token.address, bravo_token.address, 10, data_a, nonce, expiration]),
         (user_wallet_signature_helper.getWithdrawFromYieldHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
         (user_wallet_signature_helper.getRebalanceYieldPositionHash, generic_common + [3, alpha_token.address, 4, bravo_token.address, 10, data_a, nonce, expiration]),
@@ -1888,6 +1887,81 @@ def test_non_manager_wrapper_signature_reverts_downstream_no_perms(
             sender=alice,
         )
     assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+
+
+def test_pay_cheque_signature_expected_creation_block_zero_reverts(
+    setupAgentTestAsset,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+):
+    amount = 11 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.cheques(alice).active == True
+
+    digest, nonce, expiration = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        0,
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    with boa.reverts("invalid expected block"):
+        signed_agent_sender.payCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            0,
+            signature,
+            sender=alice
+        )
+
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+    assert user_wallet_config.cheques(alice).active == True
 
 
 def test_pay_cheque_signature_expected_creation_block_blocks_stale_replay(

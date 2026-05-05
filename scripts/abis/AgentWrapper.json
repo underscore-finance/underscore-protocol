@@ -206,10 +206,6 @@
       {
         "name": "_amount",
         "type": "uint256"
-      },
-      {
-        "name": "_expectedCreationBlock",
-        "type": "uint256"
       }
     ],
     "outputs": [
@@ -220,27 +216,6 @@
       {
         "name": "",
         "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "cancelCheque",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_recipient",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
       }
     ]
   },

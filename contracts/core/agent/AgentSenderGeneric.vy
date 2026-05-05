@@ -26,6 +26,13 @@ import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletConfigStructs as wcs
+
+interface UserWallet:
+    def walletConfig() -> address: view
+
+interface UserWalletConfig:
+    def cheques(_recipient: address) -> wcs.Cheque: view
 
 struct Signature:
     signature: Bytes[65]
@@ -124,6 +131,16 @@ def createCheque(
     return extcall AgentWrapper(_agentWrapper).createCheque(_userWallet, _recipient, _asset, _amount, _unlockNumBlocks, _expiryNumBlocks, _canManagerPay, _canBePulled)
 
 
+# enforce signed-message freshness: cheque must still match expected creation block
+@view
+@internal
+def _assertChequeVersionMatches(_userWallet: address, _recipient: address, _expectedCreationBlock: uint256):
+    assert _expectedCreationBlock != 0 # dev: invalid expected block
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
+    assert cheque.creationBlock == _expectedCreationBlock # dev: stale cheque
+
+
 @external
 def payCheque(
     _agentWrapper: address,
@@ -134,20 +151,9 @@ def payCheque(
     _expectedCreationBlock: uint256,
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
-    assert _expectedCreationBlock != 0 # dev: invalid expected block
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(6, uint8), _agentWrapper, _userWallet, _recipient, _asset, _amount, _expectedCreationBlock, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, _recipient, _asset, _amount, _expectedCreationBlock)
-
-
-@external
-def cancelCheque(
-    _agentWrapper: address,
-    _userWallet: address,
-    _recipient: address,
-    _sig: Signature = empty(Signature),
-) -> bool:
-    self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(7, uint8), _agentWrapper, _userWallet, _recipient, _sig.nonce, _sig.expiration)), _sig)
-    return extcall AgentWrapper(_agentWrapper).cancelCheque(_userWallet, _recipient)
+    self._assertChequeVersionMatches(_userWallet, _recipient, _expectedCreationBlock)
+    return extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, _recipient, _asset, _amount)
 
 
 #########
@@ -578,8 +584,8 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
     # pay cheque
     elif instruction.action == 6:
         assert not instruction.usePrevAmountOut # dev: cannot use prev amount
-        assert instruction.amount2 != 0 # dev: invalid expected block
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, instruction.target, instruction.asset, nextAmount, instruction.amount2)
+        self._assertChequeVersionMatches(_userWallet, instruction.target, instruction.amount2)
+        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, instruction.target, instruction.asset, nextAmount)
         return nextAmount
 
     # deposit for yield

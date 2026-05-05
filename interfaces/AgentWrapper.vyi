@@ -43,12 +43,7 @@ def payCheque(
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _expectedCreationBlock: uint256,
 ) -> (uint256, uint256):
-    ...
-
-@external
-def cancelCheque(_userWallet: address, _recipient: address) -> bool:
     ...
 
 #########

@@ -1162,6 +1162,45 @@ def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet
     assert user_wallet_config.indexOfManager(alice) == 0
 
 
+def test_remove_starting_agent_reverts_for_owner_security_and_self(
+    high_command,
+    user_wallet,
+    user_wallet_config,
+    starter_agent,
+    bob,
+    charlie,
+    mission_control,
+    switchboard_alpha,
+):
+    """Test that starting agent cannot be removed through HighCommand"""
+    assert user_wallet_config.startingAgent() == starter_agent.address
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=bob,
+        )
+
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=charlie,
+        )
+
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=starter_agent.address,
+        )
+
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+
 def test_remove_manager_not_found(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, alice, bob):
     """Test that cannot remove a non-existent manager"""
     # Setup: set global settings but don't add alice as manager
