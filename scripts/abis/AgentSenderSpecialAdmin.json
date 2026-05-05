@@ -1,0 +1,937 @@
+[
+  {
+    "name": "NonceIncremented",
+    "inputs": [
+      {
+        "name": "userWallet",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "oldNonce",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newNonce",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeInitiated",
+    "inputs": [
+      {
+        "name": "prevOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeConfirmed",
+    "inputs": [
+      {
+        "name": "prevOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipChangeCancelled",
+    "inputs": [
+      {
+        "name": "cancelledOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "OwnershipTimeLockSet",
+    "inputs": [
+      {
+        "name": "numBlocks",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "changeOwnership",
+    "inputs": [
+      {
+        "name": "_newOwner",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmOwnershipChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelOwnershipChange",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingOwnerChange",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setOwnershipTimeLock",
+    "inputs": [
+      {
+        "name": "_numBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "ownershipTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newOwner",
+            "type": "address"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "MIN_OWNERSHIP_TIMELOCK",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "MAX_OWNERSHIP_TIMELOCK",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "issuePullCheques",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_cheques",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "issuePullCheques",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_cheques",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "whitelistMaintenance",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "whitelistMaintenance",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "whitelistMaintenance",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "whitelistMaintenance",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_removeAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "whitelistMaintenance",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_removeAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_cheque",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "harvestAndIssueCheque",
+    "inputs": [
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_cheque",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_sig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "name": "expiration",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "incrementNonce",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getNonce",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "currentNonce",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_minTimeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxTimeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  }
+]

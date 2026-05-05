@@ -327,6 +327,61 @@ def test_setChequeSettings_widening_creates_pending_only(
     assert not cheque_book.hasPendingChequeSettings(user_wallet.address)
 
 
+def test_pendingChequeSettings_public_getter_returns_full_pending_config(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    """The public pending settings getter should expose the full staged config"""
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _maxChequeUsdValue=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _perPeriodPaidUsdCap=0,
+        _maxNumChequesPaidPerPeriod=0,
+        _payCooldownBlocks=0,
+        _perPeriodCreatedUsdCap=0,
+        _maxNumChequesCreatedPerPeriod=0,
+        _createCooldownBlocks=0,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=True,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+
+    pending = cheque_book.pendingChequeSettings(user_wallet.address)
+    meta = cheque_book.pendingChequeSettingsMeta(user_wallet.address)
+
+    assert pending.initiatedBlock == meta[0]
+    assert pending.confirmBlock == meta[1]
+    assert pending.currentOwner == bob
+    assert pending.confirmBlock == pending.initiatedBlock + user_wallet_config.timeLock()
+
+    settings = pending.settings
+    assert settings.maxNumActiveCheques == staged[0]
+    assert settings.maxChequeUsdValue == staged[1]
+    assert settings.instantUsdThreshold == staged[2]
+    assert settings.perPeriodPaidUsdCap == staged[3]
+    assert settings.maxNumChequesPaidPerPeriod == staged[4]
+    assert settings.payCooldownBlocks == staged[5]
+    assert settings.perPeriodCreatedUsdCap == staged[6]
+    assert settings.maxNumChequesCreatedPerPeriod == staged[7]
+    assert settings.createCooldownBlocks == staged[8]
+    assert settings.periodLength == staged[9]
+    assert settings.expensiveDelayBlocks == staged[10]
+    assert settings.defaultExpiryBlocks == staged[11]
+    assert list(settings.allowedAssets) == list(staged[12])
+    assert settings.canManagersCreateCheques == staged[13]
+    assert settings.canManagerPay == staged[14]
+    assert settings.canBePulled == staged[15]
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
 def test_setChequeSettings_allowedAssets_additional_asset_becomes_pending(
     bob, alpha_token, bravo_token, user_wallet, user_wallet_config, cheque_book, createChequeSettings
 ):

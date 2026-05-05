@@ -869,7 +869,7 @@ def test_batch_claim_rewards(
     # Create batch: claim rewards
     instructions = [
         createActionInstruction(
-            action=50,  # claimRewards
+            action=50,  # claimIncentives
             legoId=3,
             asset=mock_dex_asset.address,
             amount=50 * EIGHTEEN_DECIMALS,
@@ -1288,6 +1288,163 @@ def test_batch_create_and_pay_cheque(
     assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
     assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
     assert user_wallet_config.cheques(alice).active == False
+
+
+def test_batch_pay_cheque_expected_block_and_prev_amount_rules(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    charlie,
+    createChequeSettings,
+    env,
+):
+    recipient = env.generate_address("batch_pay_cheque_recipient")
+    amount = 12 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+    cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+    creation_block = user_wallet_config.cheques(recipient).creationBlock
+    recipient_balance_before = alpha_token.balanceOf(recipient)
+
+    with boa.reverts("invalid expected block"):
+        starter_agent_sender.performBatchActions(
+            starter_agent.address,
+            user_wallet.address,
+            [
+                createActionInstruction(
+                    action=6,
+                    asset=alpha_token.address,
+                    target=recipient,
+                    amount=amount,
+                    amount2=0,
+                )
+            ],
+            (b"", 0, 0),
+            sender=charlie,
+        )
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before
+
+    with boa.reverts("cannot use prev amount"):
+        starter_agent_sender.performBatchActions(
+            starter_agent.address,
+            user_wallet.address,
+            [
+                createActionInstruction(
+                    action=6,
+                    usePrevAmountOut=True,
+                    asset=alpha_token.address,
+                    target=recipient,
+                    amount=amount,
+                    amount2=creation_block,
+                )
+            ],
+            (b"", 0, 0),
+            sender=charlie,
+        )
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before
+
+    assert starter_agent_sender.performBatchActions(
+        starter_agent.address,
+        user_wallet.address,
+        [
+            createActionInstruction(
+                action=6,
+                asset=alpha_token.address,
+                target=recipient,
+                amount=amount,
+                amount2=creation_block,
+            )
+        ],
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert user_wallet_config.cheques(recipient).active == False
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before + amount
+
+
+def test_batch_new_actions_reject_prev_amount_out(
+    createActionInstruction,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    alpha_token,
+    alice,
+    charlie,
+):
+    for action in [6, 60, 61, 62, 80, 81, 82]:
+        with boa.reverts("cannot use prev amount"):
+            starter_agent_sender.performBatchActions(
+                starter_agent.address,
+                user_wallet.address,
+                [
+                    createActionInstruction(
+                        action=action,
+                        usePrevAmountOut=True,
+                        asset=alpha_token.address,
+                        target=alice,
+                        amount=1,
+                        amount2=1,
+                    )
+                ],
+                (b"", 0, 0),
+                sender=charlie,
+            )
+
+
+def test_batch_confirm_whitelist_addr_action(
+    createActionInstruction,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    kernel,
+    bob,
+    charlie,
+    env,
+):
+    pending_addr = env.generate_address("batch_confirm_whitelist")
+    kernel.addPendingWhitelistAddr(user_wallet.address, pending_addr, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+
+    assert starter_agent_sender.performBatchActions(
+        starter_agent.address,
+        user_wallet.address,
+        [createActionInstruction(action=60, target=pending_addr)],
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert user_wallet_config.indexOfWhitelist(pending_addr) != 0
 
 
 def test_batch_create_and_pay_cheque_with_prev_amount_out(

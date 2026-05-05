@@ -1672,6 +1672,107 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingChequeSettings",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "settings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxNumActiveCheques",
+                "type": "uint256"
+              },
+              {
+                "name": "maxChequeUsdValue",
+                "type": "uint256"
+              },
+              {
+                "name": "instantUsdThreshold",
+                "type": "uint256"
+              },
+              {
+                "name": "perPeriodPaidUsdCap",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumChequesPaidPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "payCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "perPeriodCreatedUsdCap",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumChequesCreatedPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "createCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "periodLength",
+                "type": "uint256"
+              },
+              {
+                "name": "expensiveDelayBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "defaultExpiryBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "allowedAssets",
+                "type": "address[]"
+              },
+              {
+                "name": "canManagersCreateCheques",
+                "type": "bool"
+              },
+              {
+                "name": "canManagerPay",
+                "type": "bool"
+              },
+              {
+                "name": "canBePulled",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "constructor",
     "inputs": [

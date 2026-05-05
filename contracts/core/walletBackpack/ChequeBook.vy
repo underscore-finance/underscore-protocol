@@ -134,7 +134,7 @@ MAX_CHEQUE_PERIOD: public(immutable(uint256))
 MIN_EXPENSIVE_CHEQUE_DELAY: public(immutable(uint256))
 MAX_UNLOCK_BLOCKS: public(immutable(uint256))
 MAX_EXPIRY_BLOCKS: public(immutable(uint256))
-pendingChequeSettings: HashMap[address, wcs.PendingChequeSettings]
+pendingChequeSettings: public(HashMap[address, wcs.PendingChequeSettings])
 
 
 @deploy

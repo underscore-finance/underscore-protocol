@@ -9,6 +9,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -39,6 +43,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -90,6 +98,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -145,6 +157,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -204,6 +220,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -267,6 +287,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -356,6 +380,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -467,6 +495,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -582,6 +614,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -704,6 +740,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -734,6 +774,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -785,6 +829,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -854,6 +902,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -949,6 +1001,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1048,6 +1104,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1151,6 +1211,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1275,6 +1339,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1400,6 +1468,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1529,6 +1601,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       }
@@ -1555,6 +1631,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1602,6 +1682,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1675,6 +1759,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1770,6 +1858,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1883,6 +1975,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2000,6 +2096,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2124,6 +2224,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       }
@@ -2150,6 +2254,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2183,6 +2291,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2220,6 +2332,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2261,6 +2377,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2306,6 +2426,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2377,6 +2501,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2470,6 +2598,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2567,6 +2699,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2682,6 +2818,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2804,6 +2944,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2890,6 +3034,1096 @@
           {
             "name": "amount",
             "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getIssuePullChequesHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_cheques",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getIssuePullChequesHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_cheques",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getIssuePullChequesHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_cheques",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_removeAddrs",
+        "type": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_removeAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getWhitelistMaintenanceHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_confirmAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_cancelPendingAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_removeAddrs",
+        "type": "address[]"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_cheque",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_cheque",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getHarvestAndIssueChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_rewardLegoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardToken",
+        "type": "address"
+      },
+      {
+        "name": "_rewardAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_rewardProofs",
+        "type": "bytes32[]"
+      },
+      {
+        "name": "_swapInstructions",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenPath",
+            "type": "address[]"
+          },
+          {
+            "name": "poolPath",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_cheque",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "name": "unlockNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "expiryNumBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
           }
         ]
       },

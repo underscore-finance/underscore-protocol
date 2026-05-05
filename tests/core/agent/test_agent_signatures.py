@@ -3,7 +3,7 @@ import boa
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 
-from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, MAX_UINT256, ZERO_ADDRESS
 from config.BluePrint import PARAMS
 from contracts.core.userWallet import UserWalletConfig
 from conf_utils import filter_logs, set_live_cheque_settings
@@ -117,6 +117,14 @@ def user_wallet_signature_helper():
 
 
 @pytest.fixture(scope="module")
+def agent_sender_special_sig_helper():
+    return boa.load(
+        "contracts/core/agent/AgentSenderSpecialSigHelper.vy",
+        name="agent_sender_special_sig_helper",
+    )
+
+
+@pytest.fixture(scope="module")
 def signed_agent_sender(undy_hq_deploy, test_signer, fork, starter_agent, switchboard_alpha):
     sender = boa.load(
         "contracts/core/agent/AgentSenderGeneric.vy",
@@ -130,6 +138,44 @@ def signed_agent_sender(undy_hq_deploy, test_signer, fork, starter_agent, switch
     return sender
 
 
+@pytest.fixture(scope="module")
+def signed_agent_sender_special(
+    undy_hq_deploy,
+    test_signer,
+    fork,
+    starter_agent,
+    switchboard_alpha,
+    mock_green_token,
+    mock_savings_green_token,
+):
+    sender = boa.load(
+        "contracts/core/agent/AgentSenderSpecial.vy",
+        undy_hq_deploy,
+        test_signer.address,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        mock_green_token.address,
+        mock_savings_green_token.address,
+        name="signed_agent_sender_special",
+    )
+    starter_agent.addSender(sender, sender=switchboard_alpha.address)
+    return sender
+
+
+@pytest.fixture(scope="module")
+def signed_agent_sender_special_admin(undy_hq_deploy, test_signer, fork, starter_agent, switchboard_alpha):
+    sender = boa.load(
+        "contracts/core/agent/AgentSenderSpecialAdmin.vy",
+        undy_hq_deploy,
+        test_signer.address,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="signed_agent_sender_special_admin",
+    )
+    starter_agent.addSender(sender, sender=switchboard_alpha.address)
+    return sender
+
+
 def _set_instant_cheque_settings(
     cheque_book,
     user_wallet,
@@ -137,6 +183,8 @@ def _set_instant_cheque_settings(
     createChequeSettings,
     _instant_usd_threshold,
     _expensive_delay_blocks=1,
+    _can_manager_pay=True,
+    _can_be_pulled=False,
 ):
     wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
     timelock = wallet_config.timeLock()
@@ -146,8 +194,8 @@ def _set_instant_cheque_settings(
         _expensiveDelayBlocks=max(_expensive_delay_blocks, timelock, min_expensive_delay),
         _defaultExpiryBlocks=timelock,
         _canManagersCreateCheques=True,
-        _canManagerPay=True,
-        _canBePulled=False,
+        _canManagerPay=_can_manager_pay,
+        _canBePulled=_can_be_pulled,
     )
     set_live_cheque_settings(cheque_book, user_wallet.address, *settings, sender=owner)
     return settings
@@ -185,6 +233,7 @@ def test_owner_bypass_no_signature(
     empty_sig = create_signature_struct(b'', 0, 0)
 
     # Owner should execute without signature verification
+    nonce_before = starter_agent_sender.currentNonce(user_wallet.address)
     asset_deposited, vault_token, vault_tokens_received, usd_value = starter_agent_sender.depositForYield(
         starter_agent.address,
         user_wallet.address,
@@ -201,6 +250,7 @@ def test_owner_bypass_no_signature(
     assert asset_deposited == amount
     assert vault_tokens_received > 0
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens_received
+    assert starter_agent_sender.currentNonce(user_wallet.address) == nonce_before
 
 
 def test_expired_signature_rejected(
@@ -543,6 +593,619 @@ def test_batch_actions_signature_validation(
             empty_sig,
             sender=alice  # Non-owner
         )
+
+
+def test_batch_actions_signed_helper_hash_executes(
+    setupAgentTestAsset,
+    createActionInstruction,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alice,
+    mock_dex_asset,
+    whale,
+    valid_transfer_recipient,
+    test_signer,
+    create_signature_struct,
+):
+    setupAgentTestAsset(
+        _asset=mock_dex_asset,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=whale,
+        _lego_id=3,
+    )
+
+    instruction = createActionInstruction(
+        action=1,
+        asset=mock_dex_asset.address,
+        target=valid_transfer_recipient,
+        amount=3 * EIGHTEEN_DECIMALS,
+    )
+    digest, nonce, expiration = user_wallet_signature_helper.getBatchActionsHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        [instruction],
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    nonce_before = signed_agent_sender.currentNonce(user_wallet.address)
+
+    assert signed_agent_sender.performBatchActions(
+        starter_agent.address,
+        user_wallet.address,
+        [instruction],
+        signature,
+        sender=alice,
+    )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce_before + 1
+
+
+def test_new_generic_hashes_change_when_top_level_fields_mutate(
+    createActionInstruction,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alice,
+    bob,
+    alpha_token,
+    bravo_token,
+):
+    base_create = user_wallet_signature_helper.getCreateChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        10,
+        1,
+        2,
+        True,
+        False,
+        7,
+        1000,
+    )[0]
+    create_mutations = [
+        (signed_agent_sender.address, bob, user_wallet.address, alice, alpha_token.address, 10, 1, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, bob, alice, alpha_token.address, 10, 1, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, bob, alpha_token.address, 10, 1, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, bravo_token.address, 10, 1, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 11, 1, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 2, 2, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 1, 3, True, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 1, 2, False, False, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 1, 2, True, True, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 1, 2, True, False, 8, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 1, 2, True, False, 7, 1001),
+    ]
+    for args in create_mutations:
+        assert user_wallet_signature_helper.getCreateChequeHash(*args)[0] != base_create
+
+    base_pay = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        10,
+        123,
+        7,
+        1000,
+    )[0]
+    pay_mutations = [
+        (signed_agent_sender.address, bob, user_wallet.address, alice, alpha_token.address, 10, 123, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, bob, alice, alpha_token.address, 10, 123, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, bob, alpha_token.address, 10, 123, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, bravo_token.address, 10, 123, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 11, 123, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 124, 7, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 123, 8, 1000),
+        (signed_agent_sender.address, starter_agent.address, user_wallet.address, alice, alpha_token.address, 10, 123, 7, 1001),
+    ]
+    for args in pay_mutations:
+        assert user_wallet_signature_helper.getPayChequeHash(*args)[0] != base_pay
+
+    instruction = createActionInstruction(action=80)
+    base_batch = user_wallet_signature_helper.getBatchActionsHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        [instruction],
+        7,
+        1000,
+    )[0]
+    assert user_wallet_signature_helper.getBatchActionsHash(
+        signed_agent_sender.address,
+        bob,
+        user_wallet.address,
+        [instruction],
+        7,
+        1000,
+    )[0] != base_batch
+    assert user_wallet_signature_helper.getBatchActionsHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        [createActionInstruction(action=81)],
+        7,
+        1000,
+    )[0] != base_batch
+    assert user_wallet_signature_helper.getBatchActionsHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        [instruction, createActionInstruction(action=82)],
+        7,
+        1000,
+    )[0] != base_batch
+
+
+def _mutated_hash_arg_variants(value, alt_address, fallback_address):
+    if isinstance(value, bool):
+        return [not value]
+    if isinstance(value, int):
+        return [value + 1]
+    if isinstance(value, bytes):
+        if len(value) == 0:
+            return []
+        return [b"\x02" * len(value)]
+    if isinstance(value, list):
+        if len(value) == 0:
+            return []
+        variants = []
+        for item_idx, item in enumerate(value):
+            for mutated_item in _mutated_hash_arg_variants(item, alt_address, fallback_address):
+                mutated = list(value)
+                mutated[item_idx] = mutated_item
+                variants.append(mutated)
+        variants.append(list(value) + [value[0]])
+        return variants
+    if isinstance(value, tuple):
+        variants = []
+        for item_idx, item in enumerate(value):
+            for mutated_item in _mutated_hash_arg_variants(item, alt_address, fallback_address):
+                mutated = list(value)
+                mutated[item_idx] = mutated_item
+                variants.append(tuple(mutated))
+        return variants
+    return [fallback_address if value == alt_address else alt_address]
+
+
+def _assert_helper_digest_changes_for_each_top_level_arg(getter, args, alt_address, fallback_address):
+    base = getter(*args)[0]
+    for idx, value in enumerate(args):
+        for mutated_value in _mutated_hash_arg_variants(value, alt_address, fallback_address):
+            mutated_args = list(args)
+            mutated_args[idx] = mutated_value
+            assert getter(*mutated_args)[0] != base, f"{getter} arg {idx} mutation did not change digest: {mutated_value!r}"
+
+
+def test_all_signature_helper_hashes_change_when_top_level_fields_mutate(
+    createActionInstruction,
+    starter_agent,
+    signed_agent_sender,
+    signed_agent_sender_special,
+    signed_agent_sender_special_admin,
+    user_wallet_signature_helper,
+    agent_sender_special_sig_helper,
+    user_wallet,
+    alice,
+    bob,
+    alpha_token,
+    bravo_token,
+):
+    nonce = 7
+    expiration = 1000
+    data_a = b"\x01" * 32
+    swap_instruction = (3, 10, 1, [alpha_token.address, bravo_token.address], [bob])
+    action_instruction = createActionInstruction(
+        action=1,
+        asset=alpha_token.address,
+        target=alice,
+        amount=10,
+        extraData=data_a,
+    )
+
+    generic_common = [signed_agent_sender.address, starter_agent.address, user_wallet.address]
+    generic_cases = [
+        (user_wallet_signature_helper.getTransferFundsHash, generic_common + [alice, alpha_token.address, 10, nonce, expiration]),
+        (user_wallet_signature_helper.getCreateAndPayChequeHash, generic_common + [alice, alpha_token.address, 10, nonce, expiration]),
+        (user_wallet_signature_helper.getCreateChequeHash, generic_common + [alice, alpha_token.address, 10, 1, 2, True, False, nonce, expiration]),
+        (user_wallet_signature_helper.getPayChequeHash, generic_common + [alice, alpha_token.address, 10, 123, nonce, expiration]),
+        (user_wallet_signature_helper.getCancelChequeHash, generic_common + [alice, nonce, expiration]),
+        (user_wallet_signature_helper.getDepositForYieldHash, generic_common + [3, alpha_token.address, bravo_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getWithdrawFromYieldHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getRebalanceYieldPositionHash, generic_common + [3, alpha_token.address, 4, bravo_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getSwapTokensHash, generic_common + [[swap_instruction], nonce, expiration]),
+        (user_wallet_signature_helper.getMintOrRedeemAssetHash, generic_common + [3, alpha_token.address, bravo_token.address, 10, 1, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getConfirmMintOrRedeemAssetHash, generic_common + [3, alpha_token.address, bravo_token.address, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getAddCollateralHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getRemoveCollateralHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getBorrowHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getRepayDebtHash, generic_common + [3, alpha_token.address, 10, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getConvertWethToEthHash, generic_common + [10, nonce, expiration]),
+        (user_wallet_signature_helper.getConvertEthToWethHash, generic_common + [10, nonce, expiration]),
+        (user_wallet_signature_helper.getAddLiquidityHash, generic_common + [3, bob, alpha_token.address, bravo_token.address, 10, 11, 1, 2, 3, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getRemoveLiquidityHash, generic_common + [3, bob, alpha_token.address, bravo_token.address, alice, 10, 1, 2, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getAddLiquidityConcentratedHash, generic_common + [3, bob, 99, alice, alpha_token.address, bravo_token.address, 10, 11, -10, 10, 1, 2, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getRemoveLiquidityConcentratedHash, generic_common + [3, bob, 99, alice, alpha_token.address, bravo_token.address, 10, 1, 2, data_a, nonce, expiration]),
+        (user_wallet_signature_helper.getClaimIncentivesHash, generic_common + [3, alpha_token.address, 10, [data_a], nonce, expiration]),
+        (user_wallet_signature_helper.getConfirmWhitelistAddrHash, generic_common + [alice, nonce, expiration]),
+        (user_wallet_signature_helper.getCancelPendingWhitelistAddrHash, generic_common + [alice, nonce, expiration]),
+        (user_wallet_signature_helper.getRemoveWhitelistAddrHash, generic_common + [alice, nonce, expiration]),
+        (user_wallet_signature_helper.getRemoveSelfAsManagerHash, generic_common + [nonce, expiration]),
+        (user_wallet_signature_helper.getClaimAllLootHash, generic_common + [nonce, expiration]),
+        (user_wallet_signature_helper.getClaimRevShareAndBonusLootHash, generic_common + [nonce, expiration]),
+        (user_wallet_signature_helper.getClaimDepositRewardsHash, generic_common + [nonce, expiration]),
+        (user_wallet_signature_helper.getBatchActionsHash, generic_common + [[action_instruction], nonce, expiration]),
+    ]
+    for getter, args in generic_cases:
+        _assert_helper_digest_changes_for_each_top_level_arg(getter, args, ZERO_ADDRESS, bob)
+
+    collateral_asset = (1, alpha_token.address, 10)
+    deleverage_asset = (1, alpha_token.address, 10)
+    deposit_position = (3, alpha_token.address, 10, bravo_token.address)
+    withdraw_position = (3, alpha_token.address, 10)
+    transfer_data = (alpha_token.address, 10, alice)
+    cheque = (alice, alpha_token.address, 10, 1, 2, False, True)
+    special_common = [signed_agent_sender_special.address, starter_agent.address, user_wallet.address]
+    admin_common = [signed_agent_sender_special_admin.address, starter_agent.address, user_wallet.address]
+    special_cases = [
+        (agent_sender_special_sig_helper.getAddCollateralAndBorrowHash, special_common + [1, [collateral_asset], 10, True, False, [swap_instruction], deposit_position, nonce, expiration]),
+        (agent_sender_special_sig_helper.getRepayAndWithdrawHash, special_common + [1, [deleverage_asset], withdraw_position, [swap_instruction], alpha_token.address, 10, [collateral_asset], nonce, expiration]),
+        (agent_sender_special_sig_helper.getRebalanceYieldPositionsWithSwapHash, special_common + [[withdraw_position], [swap_instruction], [deposit_position], [transfer_data], nonce, expiration]),
+        (agent_sender_special_sig_helper.getClaimIncentivesAndSwapHash, special_common + [3, alpha_token.address, 10, [data_a], [swap_instruction], [deposit_position], 1, [collateral_asset], nonce, expiration]),
+        (agent_sender_special_sig_helper.getIssuePullChequesHash, admin_common + [[cheque], nonce, expiration]),
+        (agent_sender_special_sig_helper.getWhitelistMaintenanceHash, admin_common + [[alice], [bob], [bravo_token.address], nonce, expiration]),
+        (agent_sender_special_sig_helper.getHarvestAndIssueChequeHash, admin_common + [3, alpha_token.address, 10, [data_a], [swap_instruction], cheque, nonce, expiration]),
+    ]
+    for getter, args in special_cases:
+        _assert_helper_digest_changes_for_each_top_level_arg(getter, args, ZERO_ADDRESS, bob)
+
+
+def test_special_workflows_100_103_require_wrapper_bound_hashes(
+    signed_agent_sender_special,
+    agent_sender_special_sig_helper,
+    starter_agent,
+    user_wallet,
+    alice,
+    bob,
+    test_signer,
+    create_signature_struct,
+):
+    yield_position = (0, ZERO_ADDRESS, 0, ZERO_ADDRESS)
+    withdraw_position = (0, ZERO_ADDRESS, 0)
+
+    wrong_digest, wrong_nonce, wrong_expiration = agent_sender_special_sig_helper.getAddCollateralAndBorrowHash(
+        signed_agent_sender_special.address,
+        bob,
+        user_wallet.address,
+        0,
+        [],
+        0,
+        True,
+        False,
+        [],
+        yield_position,
+    )
+    wrong_sig = create_signature_struct(test_signer.unsafe_sign_hash(wrong_digest).signature, wrong_nonce, wrong_expiration)
+    nonce_before = signed_agent_sender_special.currentNonce(user_wallet.address)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender_special.addCollateralAndBorrow(
+            starter_agent.address,
+            user_wallet.address,
+            0,
+            [],
+            0,
+            True,
+            False,
+            [],
+            yield_position,
+            wrong_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getAddCollateralAndBorrowHash(
+        signed_agent_sender_special.address,
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        [],
+        0,
+        True,
+        False,
+        [],
+        yield_position,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special.addCollateralAndBorrow(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        [],
+        0,
+        True,
+        False,
+        [],
+        yield_position,
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 1
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getRepayAndWithdrawHash(
+        signed_agent_sender_special.address,
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        [],
+        withdraw_position,
+        [],
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special.repayAndWithdraw(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        [],
+        withdraw_position,
+        [],
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 2
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getRebalanceYieldPositionsWithSwapHash(
+        signed_agent_sender_special.address,
+        starter_agent.address,
+        user_wallet.address,
+        [],
+        [],
+        [],
+        [],
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special.rebalanceYieldPositionsWithSwap(
+        starter_agent.address,
+        user_wallet.address,
+        [],
+        [],
+        [],
+        [],
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 3
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getClaimIncentivesAndSwapHash(
+        signed_agent_sender_special.address,
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        [],
+        [],
+        0,
+        [],
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special.claimIncentivesAndSwap(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        [],
+        [],
+        0,
+        [],
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 4
+
+
+def test_special_admin_workflows_104_106_require_wrapper_bound_signed_hashes(
+    setupAgentTestAsset,
+    signed_agent_sender_special_admin,
+    agent_sender_special_sig_helper,
+    starter_agent,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    kernel,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+    env,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+        _can_manager_pay=False,
+        _can_be_pulled=True,
+    )
+
+    pull_recipient = env.generate_address("signed_admin_pull_cheque")
+    harvest_recipient = env.generate_address("signed_admin_harvest_cheque")
+    whitelist_addr = env.generate_address("signed_admin_whitelist")
+    amount = 5 * EIGHTEEN_DECIMALS
+    pull_cheques = [(pull_recipient, alpha_token.address, amount, 0, 0, False, True)]
+    harvest_cheque = (harvest_recipient, alpha_token.address, amount, 0, 0, False, True)
+
+    bad_flags_nonce = signed_agent_sender_special_admin.currentNonce(user_wallet.address)
+    with boa.reverts("invalid pull cheque flags"):
+        signed_agent_sender_special_admin.issuePullCheques(
+            starter_agent.address,
+            user_wallet.address,
+            [(pull_recipient, alpha_token.address, amount, 0, 0, True, False)],
+            (b"\x00" * 65, bad_flags_nonce, boa.env.evm.patch.timestamp + 1000),
+            sender=alice,
+        )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == bad_flags_nonce
+
+    wrong_digest, wrong_nonce, wrong_expiration = agent_sender_special_sig_helper.getIssuePullChequesHash(
+        signed_agent_sender_special_admin.address,
+        bob,
+        user_wallet.address,
+        pull_cheques,
+    )
+    wrong_sig = create_signature_struct(test_signer.unsafe_sign_hash(wrong_digest).signature, wrong_nonce, wrong_expiration)
+    nonce_before = signed_agent_sender_special_admin.currentNonce(user_wallet.address)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender_special_admin.issuePullCheques(
+            starter_agent.address,
+            user_wallet.address,
+            pull_cheques,
+            wrong_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getIssuePullChequesHash(
+        signed_agent_sender_special_admin.address,
+        starter_agent.address,
+        user_wallet.address,
+        pull_cheques,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special_admin.issuePullCheques(
+        starter_agent.address,
+        user_wallet.address,
+        pull_cheques,
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before + 1
+    pull_cheque = user_wallet_config.cheques(pull_recipient)
+    assert pull_cheque.active == True
+    assert pull_cheque.canManagerPay == False
+    assert pull_cheque.canBePulled == True
+
+    kernel.addPendingWhitelistAddr(user_wallet.address, whitelist_addr, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+    wrong_digest, wrong_nonce, wrong_expiration = agent_sender_special_sig_helper.getWhitelistMaintenanceHash(
+        signed_agent_sender_special_admin.address,
+        bob,
+        user_wallet.address,
+        [whitelist_addr],
+        [],
+        [],
+    )
+    wrong_sig = create_signature_struct(test_signer.unsafe_sign_hash(wrong_digest).signature, wrong_nonce, wrong_expiration)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender_special_admin.whitelistMaintenance(
+            starter_agent.address,
+            user_wallet.address,
+            [whitelist_addr],
+            [],
+            [],
+            wrong_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before + 1
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getWhitelistMaintenanceHash(
+        signed_agent_sender_special_admin.address,
+        starter_agent.address,
+        user_wallet.address,
+        [whitelist_addr],
+        [],
+        [],
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special_admin.whitelistMaintenance(
+        starter_agent.address,
+        user_wallet.address,
+        [whitelist_addr],
+        [],
+        [],
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before + 2
+    assert user_wallet_config.indexOfWhitelist(whitelist_addr) != 0
+
+    wrong_digest, wrong_nonce, wrong_expiration = agent_sender_special_sig_helper.getHarvestAndIssueChequeHash(
+        signed_agent_sender_special_admin.address,
+        bob,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        [],
+        harvest_cheque,
+    )
+    wrong_sig = create_signature_struct(test_signer.unsafe_sign_hash(wrong_digest).signature, wrong_nonce, wrong_expiration)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender_special_admin.harvestAndIssueCheque(
+            starter_agent.address,
+            user_wallet.address,
+            0,
+            ZERO_ADDRESS,
+            MAX_UINT256,
+            [],
+            [],
+            harvest_cheque,
+            wrong_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before + 2
+
+    digest, nonce, expiration = agent_sender_special_sig_helper.getHarvestAndIssueChequeHash(
+        signed_agent_sender_special_admin.address,
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        [],
+        harvest_cheque,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    signed_agent_sender_special_admin.harvestAndIssueCheque(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        [],
+        harvest_cheque,
+        sig,
+        sender=alice,
+    )
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before + 3
+    issued_cheque = user_wallet_config.cheques(harvest_recipient)
+    assert issued_cheque.active == True
+    assert issued_cheque.amount == amount
 
 
 def test_different_action_message_hashes(
@@ -972,6 +1635,7 @@ def test_ecrecover_edge_cases(
 
 def test_create_and_pay_cheque_signature_hash_differs_from_transfer(
     user_wallet_signature_helper,
+    starter_agent,
     signed_agent_sender,
     user_wallet,
     alice,
@@ -980,6 +1644,7 @@ def test_create_and_pay_cheque_signature_hash_differs_from_transfer(
     amount = 15 * EIGHTEEN_DECIMALS
     instant_digest, instant_nonce, instant_expiration = user_wallet_signature_helper.getCreateAndPayChequeHash(
         signed_agent_sender.address,
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -989,6 +1654,7 @@ def test_create_and_pay_cheque_signature_hash_differs_from_transfer(
     )
     transfer_digest, transfer_nonce, transfer_expiration = user_wallet_signature_helper.getTransferFundsHash(
         signed_agent_sender.address,
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1036,6 +1702,7 @@ def test_create_and_pay_cheque_valid_signature_succeeds(
 
     digest, nonce, expiration = user_wallet_signature_helper.getCreateAndPayChequeHash(
         signed_agent_sender.address,
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1097,6 +1764,7 @@ def test_create_and_pay_cheque_rejects_transfer_signature(
 
     digest, nonce, expiration = user_wallet_signature_helper.getTransferFundsHash(
         signed_agent_sender.address,
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1119,3 +1787,362 @@ def test_create_and_pay_cheque_rejects_transfer_signature(
         )
 
     assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+
+
+def test_wrapper_bound_signature_cannot_replay_across_wrappers(
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alpha_token,
+    alice,
+    test_signer,
+    create_signature_struct,
+    undy_hq_deploy,
+    switchboard_alpha,
+):
+    amount = 5 * EIGHTEEN_DECIMALS
+    digest, nonce, expiration = user_wallet_signature_helper.getCreateAndPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+
+    other_agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        name="other_agent_wrapper",
+    )
+    other_agent.addSender(signed_agent_sender, sender=switchboard_alpha.address)
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    with boa.reverts("invalid signer"):
+        signed_agent_sender.createAndPayCheque(
+            other_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            signature,
+            sender=alice
+        )
+
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+
+
+def test_non_manager_wrapper_signature_reverts_downstream_no_perms(
+    setupAgentTestAsset,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alpha_token,
+    alpha_token_whale,
+    valid_transfer_recipient,
+    alice,
+    test_signer,
+    create_signature_struct,
+    undy_hq_deploy,
+    switchboard_alpha,
+):
+    amount = 4 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=25 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    other_agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        name="non_manager_agent_wrapper",
+    )
+    other_agent.addSender(signed_agent_sender, sender=switchboard_alpha.address)
+
+    digest, nonce, expiration = user_wallet_signature_helper.getTransferFundsHash(
+        signed_agent_sender.address,
+        other_agent.address,
+        user_wallet.address,
+        valid_transfer_recipient,
+        alpha_token.address,
+        amount,
+    )
+    signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    with boa.reverts("no permission"):
+        signed_agent_sender.transferFunds(
+            other_agent.address,
+            user_wallet.address,
+            valid_transfer_recipient,
+            alpha_token.address,
+            amount,
+            signature,
+            sender=alice,
+        )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+
+
+def test_pay_cheque_signature_expected_creation_block_blocks_stale_replay(
+    setupAgentTestAsset,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+):
+    amount = 11 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob
+    )
+    creation_block_1 = user_wallet_config.cheques(alice).creationBlock
+    digest, nonce, expiration = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        creation_block_1,
+        0,
+        0,
+    )
+    stale_signature = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, nonce, expiration)
+
+    cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+    boa.env.time_travel(blocks=1)
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob
+    )
+    creation_block_2 = user_wallet_config.cheques(alice).creationBlock
+    assert creation_block_2 != creation_block_1
+    current_nonce = signed_agent_sender.currentNonce(user_wallet.address)
+
+    with boa.reverts("stale cheque"):
+        signed_agent_sender.payCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            amount,
+            creation_block_1,
+            stale_signature,
+            sender=alice
+        )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == current_nonce
+
+    fresh_digest, fresh_nonce, fresh_expiration = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        creation_block_2,
+        0,
+        0,
+    )
+    fresh_signature = create_signature_struct(test_signer.unsafe_sign_hash(fresh_digest).signature, fresh_nonce, fresh_expiration)
+
+    amount_paid, usd_value = signed_agent_sender.payCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        amount,
+        creation_block_2,
+        fresh_signature,
+        sender=alice
+    )
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert user_wallet_config.cheques(alice).active == False
+
+
+def test_interleaved_transfer_pay_cheque_and_claim_loot_nonces(
+    setupAgentTestAsset,
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    valid_transfer_recipient,
+    test_signer,
+    create_signature_struct,
+    createChequeSettings,
+):
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _expensive_delay_blocks=5,
+    )
+
+    cheque_amount = 6 * EIGHTEEN_DECIMALS
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        cheque_amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+    creation_block = user_wallet_config.cheques(alice).creationBlock
+    expiration = boa.env.evm.patch.timestamp + 3600
+    nonce_0 = signed_agent_sender.currentNonce(user_wallet.address)
+
+    transfer_digest, _, _ = user_wallet_signature_helper.getTransferFundsHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        valid_transfer_recipient,
+        alpha_token.address,
+        2 * EIGHTEEN_DECIMALS,
+        nonce_0,
+        expiration,
+    )
+    stale_pay_digest, _, _ = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        cheque_amount,
+        creation_block,
+        nonce_0,
+        expiration,
+    )
+    transfer_sig = create_signature_struct(test_signer.unsafe_sign_hash(transfer_digest).signature, nonce_0, expiration)
+    stale_pay_sig = create_signature_struct(test_signer.unsafe_sign_hash(stale_pay_digest).signature, nonce_0, expiration)
+
+    signed_agent_sender.transferFunds(
+        starter_agent.address,
+        user_wallet.address,
+        valid_transfer_recipient,
+        alpha_token.address,
+        2 * EIGHTEEN_DECIMALS,
+        transfer_sig,
+        sender=alice,
+    )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce_0 + 1
+
+    with boa.reverts("invalid nonce"):
+        signed_agent_sender.payCheque(
+            starter_agent.address,
+            user_wallet.address,
+            alice,
+            alpha_token.address,
+            cheque_amount,
+            creation_block,
+            stale_pay_sig,
+            sender=alice,
+        )
+
+    pay_digest, nonce_1, pay_expiration = user_wallet_signature_helper.getPayChequeHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        cheque_amount,
+        creation_block,
+    )
+    pay_sig = create_signature_struct(test_signer.unsafe_sign_hash(pay_digest).signature, nonce_1, pay_expiration)
+    signed_agent_sender.payCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        cheque_amount,
+        creation_block,
+        pay_sig,
+        sender=alice,
+    )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce_0 + 2
+
+    claim_digest, nonce_2, claim_expiration = user_wallet_signature_helper.getClaimAllLootHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+    )
+    claim_sig = create_signature_struct(test_signer.unsafe_sign_hash(claim_digest).signature, nonce_2, claim_expiration)
+    signed_agent_sender.claimAllLoot(
+        starter_agent.address,
+        user_wallet.address,
+        claim_sig,
+        sender=alice,
+    )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce_0 + 3
+
+    with boa.reverts("invalid nonce"):
+        signed_agent_sender.transferFunds(
+            starter_agent.address,
+            user_wallet.address,
+            valid_transfer_recipient,
+            alpha_token.address,
+            2 * EIGHTEEN_DECIMALS,
+            transfer_sig,
+            sender=alice,
+        )

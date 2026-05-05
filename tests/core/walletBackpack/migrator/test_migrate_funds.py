@@ -586,6 +586,3 @@ def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wall
     
     # Verify asset array only contains ETH
     assert user_wallet.assets(0) == ZERO_ADDRESS  # ETH placeholder
-
-
-    

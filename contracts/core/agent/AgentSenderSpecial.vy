@@ -18,6 +18,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 initializes: ownership
 exports: ownership.__interface__
@@ -128,6 +129,7 @@ def addCollateralAndBorrow(
     # 1. authenticate access (action code 100)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(100, uint8),
+        _agentWrapper,
         _userWallet,
         _debtLegoId,
         _addCollateralAssets,
@@ -233,6 +235,7 @@ def repayAndWithdraw(
     # 1. authenticate access (action code 101)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(101, uint8),
+        _agentWrapper,
         _userWallet,
         _debtLegoId,
         _deleverageAssets,
@@ -342,6 +345,7 @@ def rebalanceYieldPositionsWithSwap(
     # 1. authenticate access (action code 102)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(102, uint8),
+        _agentWrapper,
         _userWallet,
         _withdrawFrom,
         _swapInstructions,
@@ -409,8 +413,7 @@ def rebalanceYieldPositionsWithSwap(
                         _userWallet,
                         transfer.recipient,
                         transfer.asset,
-                        transferAmount,
-                        False
+                        transferAmount
                     )
 
 
@@ -434,6 +437,7 @@ def claimIncentivesAndSwap(
     # 1. authenticate access (action code 103)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(103, uint8),
+        _agentWrapper,
         _userWallet,
         _rewardLegoId,
         _rewardToken,

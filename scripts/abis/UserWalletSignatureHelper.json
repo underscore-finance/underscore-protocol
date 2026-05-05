@@ -9,6 +9,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -39,6 +43,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -76,6 +84,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -117,6 +129,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -162,6 +178,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -214,6 +234,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -255,6 +279,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -300,6 +328,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -342,10 +374,491 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getCreateChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_unlockNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiryNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_canManagerPay",
+        "type": "bool"
+      },
+      {
+        "name": "_canBePulled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCreateChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_unlockNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiryNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_canManagerPay",
+        "type": "bool"
+      },
+      {
+        "name": "_canBePulled",
+        "type": "bool"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCreateChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_unlockNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiryNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_canManagerPay",
+        "type": "bool"
+      },
+      {
+        "name": "_canBePulled",
+        "type": "bool"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getPayChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_expectedCreationBlock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getPayChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_expectedCreationBlock",
+        "type": "uint256"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getPayChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_expectedCreationBlock",
+        "type": "uint256"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelChequeHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getDepositForYieldHash",
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -383,6 +896,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -424,6 +941,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -469,6 +990,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -518,6 +1043,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -571,6 +1100,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -631,6 +1164,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -665,6 +1202,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -706,6 +1247,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -751,6 +1296,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -800,6 +1349,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -856,6 +1409,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -894,6 +1451,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -939,6 +1500,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -988,6 +1553,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1041,6 +1610,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1098,6 +1671,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1162,6 +1739,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1217,6 +1798,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1276,6 +1861,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1339,6 +1928,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1377,6 +1970,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1422,6 +2019,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1471,6 +2072,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1524,6 +2129,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1581,6 +2190,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1645,6 +2258,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1686,6 +2303,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1731,6 +2352,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1780,6 +2405,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1833,6 +2462,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -1867,6 +2500,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1908,6 +2545,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -1953,6 +2594,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2002,6 +2647,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2058,6 +2707,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2092,6 +2745,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2133,6 +2790,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2178,6 +2839,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2227,6 +2892,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2283,6 +2952,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2317,6 +2990,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2358,6 +3035,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2403,6 +3084,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2452,6 +3137,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2505,6 +3194,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2542,6 +3235,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -2586,6 +3283,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2631,6 +3332,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2680,6 +3385,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -2726,268 +3435,14 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_rewardToken",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_rewardToken",
-        "type": "address"
-      },
-      {
-        "name": "_rewardAmount",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_rewardToken",
-        "type": "address"
-      },
-      {
-        "name": "_rewardAmount",
-        "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_rewardToken",
-        "type": "address"
-      },
-      {
-        "name": "_rewardAmount",
-        "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
-      },
-      {
-        "name": "_nonce",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getClaimRewardsHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_rewardToken",
-        "type": "address"
-      },
-      {
-        "name": "_rewardAmount",
-        "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
-      },
-      {
-        "name": "_nonce",
-        "type": "uint256"
-      },
-      {
-        "name": "_expiration",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
     "name": "getConvertWethToEthHash",
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3017,6 +3472,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3050,6 +3509,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3087,6 +3550,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3131,6 +3598,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       }
@@ -3157,6 +3628,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3190,6 +3665,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3227,6 +3706,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3268,6 +3751,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3313,6 +3800,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3362,6 +3853,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3415,6 +3910,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3472,6 +3971,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3533,6 +4036,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3598,6 +4105,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3667,6 +4178,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3740,6 +4255,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3820,6 +4339,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -3869,56 +4392,7 @@
         "type": "address"
       },
       {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_lpToken",
-        "type": "address"
-      },
-      {
-        "name": "_lpAmount",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getRemoveLiquidityHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -3948,10 +4422,6 @@
       {
         "name": "_lpAmount",
         "type": "uint256"
-      },
-      {
-        "name": "_minAmountA",
-        "type": "uint256"
       }
     ],
     "outputs": [
@@ -3976,6 +4446,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -4009,10 +4483,6 @@
       {
         "name": "_minAmountA",
         "type": "uint256"
-      },
-      {
-        "name": "_minAmountB",
-        "type": "uint256"
       }
     ],
     "outputs": [
@@ -4037,6 +4507,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -4074,10 +4548,6 @@
       {
         "name": "_minAmountB",
         "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
       }
     ],
     "outputs": [
@@ -4102,6 +4572,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -4143,10 +4617,6 @@
       {
         "name": "_extraData",
         "type": "bytes32"
-      },
-      {
-        "name": "_nonce",
-        "type": "uint256"
       }
     ],
     "outputs": [
@@ -4171,6 +4641,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -4216,10 +4690,6 @@
       {
         "name": "_nonce",
         "type": "uint256"
-      },
-      {
-        "name": "_expiration",
-        "type": "uint256"
       }
     ],
     "outputs": [
@@ -4240,10 +4710,14 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
+    "name": "getRemoveLiquidityHash",
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -4252,67 +4726,6 @@
       },
       {
         "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
         "type": "uint256"
       },
       {
@@ -4328,588 +4741,12 @@
         "type": "address"
       },
       {
-        "name": "_amountA",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
+        "name": "_lpToken",
         "type": "address"
       },
       {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
+        "name": "_lpAmount",
         "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
-      },
-      {
-        "name": "_minAmountA",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
-      },
-      {
-        "name": "_minAmountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_minAmountB",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
-      },
-      {
-        "name": "_minAmountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_minAmountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
-      },
-      {
-        "name": "_minAmountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_minAmountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_extraData",
-        "type": "bytes32"
-      },
-      {
-        "name": "_nonce",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getAddLiquidityConcentratedHash",
-    "inputs": [
-      {
-        "name": "_agentSender",
-        "type": "address"
-      },
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_legoId",
-        "type": "uint256"
-      },
-      {
-        "name": "_nftAddr",
-        "type": "address"
-      },
-      {
-        "name": "_nftTokenId",
-        "type": "uint256"
-      },
-      {
-        "name": "_pool",
-        "type": "address"
-      },
-      {
-        "name": "_tokenA",
-        "type": "address"
-      },
-      {
-        "name": "_tokenB",
-        "type": "address"
-      },
-      {
-        "name": "_amountA",
-        "type": "uint256"
-      },
-      {
-        "name": "_amountB",
-        "type": "uint256"
-      },
-      {
-        "name": "_tickLower",
-        "type": "int24"
-      },
-      {
-        "name": "_tickUpper",
-        "type": "int24"
       },
       {
         "name": "_minAmountA",
@@ -4950,10 +4787,764 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      },
+      {
+        "name": "_minAmountA",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      },
+      {
+        "name": "_minAmountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_minAmountB",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      },
+      {
+        "name": "_minAmountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_minAmountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      },
+      {
+        "name": "_minAmountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_minAmountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getAddLiquidityConcentratedHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_nftAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nftTokenId",
+        "type": "uint256"
+      },
+      {
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "name": "_tokenA",
+        "type": "address"
+      },
+      {
+        "name": "_tokenB",
+        "type": "address"
+      },
+      {
+        "name": "_amountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_amountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_tickLower",
+        "type": "int24"
+      },
+      {
+        "name": "_tickUpper",
+        "type": "int24"
+      },
+      {
+        "name": "_minAmountA",
+        "type": "uint256"
+      },
+      {
+        "name": "_minAmountB",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getRemoveLiquidityConcentratedHash",
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5007,6 +5598,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5064,6 +5659,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5125,6 +5724,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5190,6 +5793,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5259,6 +5866,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5332,6 +5943,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5412,6 +6027,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -5442,6 +6061,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5479,6 +6102,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5520,6 +6147,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5568,6 +6199,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -5617,6 +6252,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -5635,6 +6274,819 @@
       {
         "name": "_proofs",
         "type": "bytes32[]"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getConfirmWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getConfirmWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getConfirmWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelPendingWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelPendingWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getCancelPendingWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveWhitelistAddrHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_whitelistAddr",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveSelfAsManagerHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveSelfAsManagerHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getRemoveSelfAsManagerHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimAllLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimAllLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimAllLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimRevShareAndBonusLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimRevShareAndBonusLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimRevShareAndBonusLootHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimDepositRewardsHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimDepositRewardsHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getClaimDepositRewardsHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
       },
       {
         "name": "_nonce",
@@ -5667,6 +7119,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {
@@ -5791,6 +7247,10 @@
         "type": "address"
       },
       {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
         "name": "_userWallet",
         "type": "address"
       },
@@ -5913,6 +7373,10 @@
     "inputs": [
       {
         "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
         "type": "address"
       },
       {

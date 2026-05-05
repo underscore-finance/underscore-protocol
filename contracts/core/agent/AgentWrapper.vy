@@ -27,13 +27,32 @@ from interfaces import WalletConfigStructs as wcs
 
 interface ChequeBook:
     def createCheque(_userWallet: address, _recipient: address, _asset: address, _amount: uint256, _unlockNumBlocks: uint256, _expiryNumBlocks: uint256, _canManagerPay: bool, _canBePulled: bool) -> bool: nonpayable
+    def cancelCheque(_userWallet: address, _recipient: address) -> bool: nonpayable
 
 interface UserWalletConfig:
     def cheques(_recipient: address) -> wcs.Cheque: view
     def chequeBook() -> address: view
+    def kernel() -> address: view
+    def highCommand() -> address: view
+    def numManagers() -> uint256: view
+    def indexOfManager(_manager: address) -> uint256: view
 
 interface UserWallet:
     def walletConfig() -> address: view
+
+interface Kernel:
+    def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+    def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+    def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+
+interface HighCommand:
+    def removeManager(_userWallet: address, _manager: address) -> bool: nonpayable
+
+interface LootDistributor:
+    def claimAllLoot(_user: address) -> bool: nonpayable
+    def claimRevShareAndBonusLoot(_user: address) -> uint256: nonpayable
+    def claimDepositRewards(_user: address) -> uint256: nonpayable
+    def validateCanClaimLoot(_user: address, _caller: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -58,6 +77,7 @@ UNDY_HQ: immutable(address)
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 SWITCHBOARD_ID: constant(uint256) = 4
+LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 
 
 @deploy
@@ -83,11 +103,13 @@ def transferFunds(
     _recipient: address,
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
-    _isCheque: bool = False,
 ) -> (uint256, uint256):
+    """
+    Action 1: approved sender transfer; manager transfer perms; cheque mode is disabled here.
+    """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 1, userWallet = _userWallet, sender = msg.sender)
-    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, _isCheque, False)
+    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, False, False)
 
 
 @external
@@ -97,6 +119,9 @@ def createAndPayCheque(
     _asset: address,
     _amount: uint256,
 ) -> (uint256, uint256):
+    """
+    Action 4: approved sender creates and pays a cheque atomically; manager cheque + pay perms; no expected block needed.
+    """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 4, userWallet = _userWallet, sender = msg.sender)
 
@@ -117,6 +142,73 @@ def createAndPayCheque(
     )
 
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
+
+
+@external
+def createCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _unlockNumBlocks: uint256,
+    _expiryNumBlocks: uint256,
+    _canManagerPay: bool,
+    _canBePulled: bool,
+) -> bool:
+    """
+    Action 5: approved sender creates a cheque; manager cheque perms; active cheque replacement is blocked.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    existingCheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
+    assert not existingCheque.active # dev: recipient has active cheque
+
+    chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
+    log AgentAction(action = 5, userWallet = _userWallet, sender = msg.sender)
+    return extcall ChequeBook(chequeBook).createCheque(
+        _userWallet,
+        _recipient,
+        _asset,
+        _amount,
+        _unlockNumBlocks,
+        _expiryNumBlocks,
+        _canManagerPay,
+        _canBePulled,
+    )
+
+
+@external
+def payCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _expectedCreationBlock: uint256,
+) -> (uint256, uint256):
+    """
+    Action 6: approved sender pays an existing cheque; cheque pay perms; expected creation block prevents stale signatures.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    assert _expectedCreationBlock != 0 # dev: invalid expected block
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
+    assert cheque.creationBlock == _expectedCreationBlock # dev: stale cheque
+
+    log AgentAction(action = 6, userWallet = _userWallet, sender = msg.sender)
+    return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
+
+
+@external
+def cancelCheque(_userWallet: address, _recipient: address) -> bool:
+    """
+    Action 7: approved sender forwards cheque cancellation; owner/security signer perms; normal manager wrappers revert.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
+    result: bool = extcall ChequeBook(chequeBook).cancelCheque(_userWallet, _recipient)
+    log AgentAction(action = 7, userWallet = _userWallet, sender = msg.sender)
+    return result
 
 
 #########
@@ -267,8 +359,8 @@ def repayDebt(
 
 
 #################
-# Claim Rewards #
-#################
+# Claim Incentives #
+####################
 
 
 @external
@@ -282,6 +374,126 @@ def claimIncentives(
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 50, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).claimIncentives(_legoId, _rewardToken, _rewardAmount, _proofs)
+
+
+#############
+# Whitelist #
+#############
+
+
+@external
+def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    """
+    Action 60: approved sender confirms pending whitelist; manager/global whitelist perms; owner must match pending owner.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
+    extcall Kernel(kernel).confirmWhitelistAddr(_userWallet, _whitelistAddr)
+    log AgentAction(action = 60, userWallet = _userWallet, sender = msg.sender)
+    return True
+
+
+@external
+def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    """
+    Action 61: approved sender cancels pending whitelist; manager/global or security perms; add-pending remains unavailable.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
+    extcall Kernel(kernel).cancelPendingWhitelistAddr(_userWallet, _whitelistAddr)
+    log AgentAction(action = 61, userWallet = _userWallet, sender = msg.sender)
+    return True
+
+
+@external
+def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    """
+    Action 62: approved sender removes whitelist; manager/global or security perms; no pending whitelist creation.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
+    extcall Kernel(kernel).removeWhitelistAddr(_userWallet, _whitelistAddr)
+    log AgentAction(action = 62, userWallet = _userWallet, sender = msg.sender)
+    return True
+
+
+######################
+# Manager Self-Admin #
+######################
+
+
+@external
+def removeSelfAsManager(_userWallet: address) -> bool:
+    """
+    Action 70: approved sender removes this wrapper as manager; HighCommand perms; single-manager wallets are rejected.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    assert staticcall UserWalletConfig(walletConfig).numManagers() > 2 # dev: only manager
+    highCommand: address = staticcall UserWalletConfig(walletConfig).highCommand()
+    assert extcall HighCommand(highCommand).removeManager(_userWallet, self) # dev: remove manager failed
+    assert staticcall UserWalletConfig(walletConfig).indexOfManager(self) == 0 # dev: still manager
+    log AgentAction(action = 70, userWallet = _userWallet, sender = msg.sender)
+    return True
+
+
+###################
+# Protocol Claims #
+###################
+
+
+@external
+def claimAllLoot(_userWallet: address) -> bool:
+    """
+    Action 80: approved sender claims current distributor loot; canClaimLoot perms; returns False when empty.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    lootDistributor: address = self._getLootDistributor()
+    result: bool = extcall LootDistributor(lootDistributor).claimAllLoot(_userWallet)
+    log AgentAction(action = 80, userWallet = _userWallet, sender = msg.sender)
+    return result
+
+
+@external
+def claimRevShareAndBonusLoot(_userWallet: address) -> uint256:
+    """
+    Action 81: approved sender claims rev-share/bonus loot; canClaimLoot perms; reverts when empty.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    lootDistributor: address = self._getLootDistributor()
+    amount: uint256 = extcall LootDistributor(lootDistributor).claimRevShareAndBonusLoot(_userWallet)
+    log AgentAction(action = 81, userWallet = _userWallet, sender = msg.sender)
+    return amount
+
+
+@external
+def claimDepositRewards(_userWallet: address) -> uint256:
+    """
+    Action 82: approved sender claims current distributor deposit rewards; canClaimLoot perms; reverts when empty/non-current.
+    """
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    lootDistributor: address = self._getLootDistributor()
+    amount: uint256 = extcall LootDistributor(lootDistributor).claimDepositRewards(_userWallet)
+    log AgentAction(action = 82, userWallet = _userWallet, sender = msg.sender)
+    return amount
+
+
+@view
+@external
+def canClaimLootFor(_userWallet: address) -> bool:
+    lootDistributor: address = self._getLootDistributor()
+    return staticcall LootDistributor(lootDistributor).validateCanClaimLoot(_userWallet, self)
+
+
+@view
+@internal
+def _getLootDistributor() -> address:
+    lootDistributor: address = staticcall UndyHq(UNDY_HQ).getAddr(LOOT_DISTRIBUTOR_ID)
+    assert lootDistributor != empty(address) # dev: no loot distributor
+    return lootDistributor
 
 
 ###############
