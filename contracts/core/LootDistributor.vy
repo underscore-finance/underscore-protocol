@@ -995,14 +995,15 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
     if not staticcall Ledger(_ledger).isUserWallet(_user):
         return False
 
+    if addys._isSwitchboardAddr(_caller):                                                                                                                                    
+        return True
+
     # cool off period
-    isSwitchboard: bool = addys._isSwitchboardAddr(_caller)
-    if not isSwitchboard:
-        lastClaimBlock: uint256 = self.lastClaim[_user]
-        coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
-        if lastClaimBlock != 0 and coolOffPeriod != 0:
-            if lastClaimBlock + coolOffPeriod > block.number:
-                return False
+    lastClaimBlock: uint256 = self.lastClaim[_user]
+    coolOffPeriod: uint256 = staticcall MissionControl(_missionControl).getLootClaimCoolOffPeriod()
+    if lastClaimBlock != 0 and coolOffPeriod != 0:
+        if lastClaimBlock + coolOffPeriod > block.number:
+            return False
 
     # lego check
     if addys._isLegoBookAddr(_caller):
@@ -1018,4 +1019,5 @@ def _validateCanClaimLoot(_user: address, _caller: address, _ledger: address, _m
     if config.canClaimLoot:
         return True
 
-    return isSwitchboard
+    return False
+    
