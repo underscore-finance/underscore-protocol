@@ -8,8 +8,12 @@ __pycache__
 # dev environment
 .vscode
 
+# Claude Code agent worktrees (scratch copies; not project source)
+.claude/
+
 .DS_Store
 
 out/
 
 migration_history/**/dev
+
