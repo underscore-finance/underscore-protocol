@@ -176,7 +176,7 @@ def payCheque(
     _amount: uint256,
 ) -> (uint256, uint256):
     """
-    Action 6: approved sender pays an existing cheque; cheque pay perms; signed-sender layer enforces freshness.
+    Action 6: approved sender pays an existing cheque; wallet/Sentinel enforce pay perms; senders enforce signed-message version checks.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 6, userWallet = _userWallet, sender = msg.sender)

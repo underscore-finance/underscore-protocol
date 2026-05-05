@@ -131,7 +131,7 @@ def createCheque(
     return extcall AgentWrapper(_agentWrapper).createCheque(_userWallet, _recipient, _asset, _amount, _unlockNumBlocks, _expiryNumBlocks, _canManagerPay, _canBePulled)
 
 
-# enforce signed-message freshness: cheque must still match expected creation block
+# Signed-message version guard: old signatures must not pay replaced cheques.
 @view
 @internal
 def _assertChequeVersionMatches(_userWallet: address, _recipient: address, _expectedCreationBlock: uint256):
@@ -151,6 +151,7 @@ def payCheque(
     _expectedCreationBlock: uint256,
     _sig: Signature = empty(Signature),
 ) -> (uint256, uint256):
+    assert _expectedCreationBlock != 0 # dev: invalid expected block
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(6, uint8), _agentWrapper, _userWallet, _recipient, _asset, _amount, _expectedCreationBlock, _sig.nonce, _sig.expiration)), _sig)
     self._assertChequeVersionMatches(_userWallet, _recipient, _expectedCreationBlock)
     return extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, _recipient, _asset, _amount)
@@ -584,6 +585,7 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
     # pay cheque
     elif instruction.action == 6:
         assert not instruction.usePrevAmountOut # dev: cannot use prev amount
+        # Batch cheque signatures pin the cheque version before forwarding to the wrapper.
         self._assertChequeVersionMatches(_userWallet, instruction.target, instruction.amount2)
         nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, instruction.target, instruction.asset, nextAmount)
         return nextAmount

@@ -292,9 +292,9 @@ def removeManager(_userWallet: address, _manager: address) -> bool:
     if msg.sender not in [config.owner, _manager]:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
     assert config.isManager # dev: manager not found
+    # Sole starter-agent manager-removal guard; preserve in future HighCommand versions.
     startingAgent: address = staticcall UserWalletConfig(config.walletConfig).startingAgent()
-    if startingAgent != empty(address):
-        assert _manager != startingAgent # dev: cannot remove starter agent
+    assert _manager != startingAgent # dev: cannot remove starter agent
 
     extcall UserWalletConfig(config.walletConfig).removeManager(_manager)
     log ManagerRemoved(user = _userWallet, manager = _manager)

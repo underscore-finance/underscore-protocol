@@ -113,12 +113,15 @@ def _deploy_agent_wrapper_with_sender(undy_hq_deploy, starter_agent_sender, swit
     return agent
 
 
-def _create_wallet_without_starter_agent(hatchery, owner, mission_control, switchboard_alpha, starter_agent):
+def _create_wallet_without_starter_agent(hatchery, owner, mission_control, switchboard_alpha):
+    creation_config = mission_control.getUserWalletCreationConfig(owner)
+    previous_starter_agent = creation_config.startingAgent
+    assert creation_config.isCreatorAllowed
     mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
     try:
         fresh_wallet = UserWallet.at(hatchery.createUserWallet(owner, ZERO_ADDRESS, 1, sender=owner))
     finally:
-        mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
+        mission_control.setStarterAgent(previous_starter_agent, sender=switchboard_alpha.address)
     fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
     assert fresh_config.startingAgent() == ZERO_ADDRESS
     return fresh_wallet, fresh_config
@@ -2431,7 +2434,6 @@ def test_agent_remove_self_as_manager_non_starter_low_count_succeeds(
         bob,
         mission_control,
         switchboard_alpha,
-        starter_agent,
     )
     assert fresh_config.numManagers() == 1
 
@@ -2506,7 +2508,6 @@ def test_agent_remove_self_as_manager_non_starter_eject_mode_succeeds(
         bob,
         mission_control,
         switchboard_alpha,
-        starter_agent,
     )
     _add_wrapper_manager(
         high_command,
@@ -2545,8 +2546,10 @@ def test_agent_remove_self_as_manager_starter_agent_reverts(
     fresh_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob))
     fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
     assert fresh_config.startingAgent() == starter_agent.address
-    assert fresh_config.numManagers() == 2  # sentinel index + starter agent
+    num_managers_before = fresh_config.numManagers()
+    assert num_managers_before == 2  # sentinel index + starter agent
 
+    # HighCommand asserts the exact reason; Boa does not surface it through this nested wrapper call.
     with boa.reverts():
         starter_agent_sender.removeSelfAsManager(
             starter_agent.address,
@@ -2555,6 +2558,7 @@ def test_agent_remove_self_as_manager_starter_agent_reverts(
             sender=charlie,
         )
     assert fresh_config.indexOfManager(starter_agent.address) != 0
+    assert fresh_config.numManagers() == num_managers_before
 
 
 def test_special_admin_issue_pull_cheques_and_duplicate_whitelist_precheck(
