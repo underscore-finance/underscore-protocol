@@ -8,8 +8,14 @@ __pycache__
 # dev environment
 .vscode
 
-# Claude Code agent worktrees (scratch copies; not project source)
+# Claude Code / Claude artifacts
 .claude/
+.claude
+**/.claude/
+.claude.json
+.claude-*
+CLAUDE.md
+CLAUDE.local.md
 
 .DS_Store
 
