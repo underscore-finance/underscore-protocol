@@ -1,12 +1,30 @@
 import boa
 import pytest
 
-from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs, set_live_cheque_settings
 
 ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
 ONE_HOUR_IN_BLOCKS = ONE_DAY_IN_BLOCKS // 24
+CHEQUE_SETTING_FIELDS = (
+    "maxNumActiveCheques",
+    "maxChequeUsdValue",
+    "instantUsdThreshold",
+    "perPeriodPaidUsdCap",
+    "maxNumChequesPaidPerPeriod",
+    "payCooldownBlocks",
+    "perPeriodCreatedUsdCap",
+    "maxNumChequesCreatedPerPeriod",
+    "createCooldownBlocks",
+    "periodLength",
+    "expensiveDelayBlocks",
+    "defaultExpiryBlocks",
+    "allowedAssets",
+    "canManagersCreateCheques",
+    "canManagerPay",
+    "canBePulled",
+)
 
 def restrictive_cheque_settings(createChequeSettings, **overrides):
     settings = dict(
@@ -22,6 +40,134 @@ def restrictive_cheque_settings(createChequeSettings, **overrides):
     )
     settings.update(overrides)
     return createChequeSettings(**settings)
+
+
+def _cheque_setting_value(settings, field):
+    value = getattr(settings, field)
+    if field == "allowedAssets":
+        return list(value)
+    return value
+
+
+def assert_cheque_settings_match(actual, expected):
+    for field in CHEQUE_SETTING_FIELDS:
+        assert _cheque_setting_value(actual, field) == _cheque_setting_value(expected, field)
+
+
+def assert_pending_only_changes_field(live_settings, pending_settings, target_field):
+    for field in CHEQUE_SETTING_FIELDS:
+        if field == target_field:
+            continue
+        assert _cheque_setting_value(pending_settings, field) == _cheque_setting_value(live_settings, field)
+
+
+def assert_pending_cheque_settings_empty(cheque_book, user_wallet):
+    pending = cheque_book.pendingChequeSettings(user_wallet)
+    settings = pending.settings
+    assert pending.initiatedBlock == 0
+    assert pending.confirmBlock == 0
+    assert pending.currentOwner == ZERO_ADDRESS
+    assert settings.maxNumActiveCheques == 0
+    assert settings.maxChequeUsdValue == 0
+    assert settings.instantUsdThreshold == 0
+    assert settings.perPeriodPaidUsdCap == 0
+    assert settings.maxNumChequesPaidPerPeriod == 0
+    assert settings.payCooldownBlocks == 0
+    assert settings.perPeriodCreatedUsdCap == 0
+    assert settings.maxNumChequesCreatedPerPeriod == 0
+    assert settings.createCooldownBlocks == 0
+    assert settings.periodLength == 0
+    assert settings.expensiveDelayBlocks == 0
+    assert settings.defaultExpiryBlocks == 0
+    assert list(settings.allowedAssets) == []
+    assert settings.canManagersCreateCheques == False
+    assert settings.canManagerPay == False
+    assert settings.canBePulled == False
+
+
+def assert_cheque_settings_values(settings, expected):
+    assert settings.maxNumActiveCheques == expected["maxNumActiveCheques"]
+    assert settings.maxChequeUsdValue == expected["maxChequeUsdValue"]
+    assert settings.instantUsdThreshold == expected["instantUsdThreshold"]
+    assert settings.perPeriodPaidUsdCap == expected["perPeriodPaidUsdCap"]
+    assert settings.maxNumChequesPaidPerPeriod == expected["maxNumChequesPaidPerPeriod"]
+    assert settings.payCooldownBlocks == expected["payCooldownBlocks"]
+    assert settings.perPeriodCreatedUsdCap == expected["perPeriodCreatedUsdCap"]
+    assert settings.maxNumChequesCreatedPerPeriod == expected["maxNumChequesCreatedPerPeriod"]
+    assert settings.createCooldownBlocks == expected["createCooldownBlocks"]
+    assert settings.periodLength == expected["periodLength"]
+    assert settings.expensiveDelayBlocks == expected["expensiveDelayBlocks"]
+    assert settings.defaultExpiryBlocks == expected["defaultExpiryBlocks"]
+    assert list(settings.allowedAssets) == expected["allowedAssets"]
+    assert settings.canManagersCreateCheques == expected["canManagersCreateCheques"]
+    assert settings.canManagerPay == expected["canManagerPay"]
+    assert settings.canBePulled == expected["canBePulled"]
+
+
+def assert_single_field_widening_stages_pending(
+    bob,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    createChequeSettings,
+    *,
+    target_field,
+    baseline_overrides,
+    widening_overrides,
+    expected_live_value,
+    expected_pending_value,
+):
+    baseline = restrictive_cheque_settings(createChequeSettings, **baseline_overrides)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    current = user_wallet_config.chequeSettings()
+
+    widened_overrides = dict(baseline_overrides)
+    widened_overrides.update(widening_overrides)
+    widened = restrictive_cheque_settings(createChequeSettings, **widened_overrides)
+    cheque_book.setChequeSettings(user_wallet.address, *widened, sender=bob)
+
+    live = user_wallet_config.chequeSettings()
+    pending = cheque_book.pendingChequeSettings(user_wallet.address)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    assert_cheque_settings_match(live, current)
+    assert_pending_only_changes_field(current, pending.settings, target_field)
+    assert _cheque_setting_value(live, target_field) == expected_live_value
+    assert _cheque_setting_value(pending.settings, target_field) == expected_pending_value
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def assert_immediate_update_without_pending(
+    bob,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    createChequeSettings,
+    *,
+    target_field,
+    baseline_overrides,
+    update_overrides,
+    expected_value,
+):
+    baseline = restrictive_cheque_settings(createChequeSettings, **baseline_overrides)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    cheque_book.get_logs()
+
+    updated_overrides = dict(baseline_overrides)
+    updated_overrides.update(update_overrides)
+    updated = restrictive_cheque_settings(createChequeSettings, **updated_overrides)
+    cheque_book.setChequeSettings(user_wallet.address, *updated, sender=bob)
+    logs = cheque_book.get_logs()
+    modified_events = [e for e in logs if type(e).__name__ == "ChequeSettingsModified"]
+    pending_events = [e for e in logs if type(e).__name__ == "ChequeSettingsPending"]
+
+    live = user_wallet_config.chequeSettings()
+    assert _cheque_setting_value(live, target_field) == expected_value
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
+    assert len(modified_events) == 1
+    assert modified_events[0].user == user_wallet.address
+    assert len(pending_events) == 0
 
 
 ####################
@@ -328,14 +474,16 @@ def test_setChequeSettings_widening_creates_pending_only(
 
 
 def test_pendingChequeSettings_public_getter_returns_full_pending_config(
-    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+    bob, alpha_token, bravo_token, user_wallet, user_wallet_config, cheque_book, createChequeSettings
 ):
     """The public pending settings getter should expose the full staged config"""
-    baseline = restrictive_cheque_settings(createChequeSettings)
+    baseline = restrictive_cheque_settings(
+        createChequeSettings,
+        _allowedAssets=[alpha_token.address],
+    )
     set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
 
-    staged = restrictive_cheque_settings(
-        createChequeSettings,
+    staged = createChequeSettings(
         _maxNumActiveCheques=0,
         _maxChequeUsdValue=0,
         _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
@@ -345,8 +493,10 @@ def test_pendingChequeSettings_public_getter_returns_full_pending_config(
         _perPeriodCreatedUsdCap=0,
         _maxNumChequesCreatedPerPeriod=0,
         _createCooldownBlocks=0,
+        _periodLength=ONE_DAY_IN_BLOCKS,
         _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
         _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _allowedAssets=[alpha_token.address, bravo_token.address],
         _canManagersCreateCheques=True,
         _canManagerPay=True,
         _canBePulled=True,
@@ -354,32 +504,119 @@ def test_pendingChequeSettings_public_getter_returns_full_pending_config(
     cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
 
     pending = cheque_book.pendingChequeSettings(user_wallet.address)
-    meta = cheque_book.pendingChequeSettingsMeta(user_wallet.address)
-
-    assert pending.initiatedBlock == meta[0]
-    assert pending.confirmBlock == meta[1]
     assert pending.currentOwner == bob
     assert pending.confirmBlock == pending.initiatedBlock + user_wallet_config.timeLock()
 
-    settings = pending.settings
-    assert settings.maxNumActiveCheques == staged[0]
-    assert settings.maxChequeUsdValue == staged[1]
-    assert settings.instantUsdThreshold == staged[2]
-    assert settings.perPeriodPaidUsdCap == staged[3]
-    assert settings.maxNumChequesPaidPerPeriod == staged[4]
-    assert settings.payCooldownBlocks == staged[5]
-    assert settings.perPeriodCreatedUsdCap == staged[6]
-    assert settings.maxNumChequesCreatedPerPeriod == staged[7]
-    assert settings.createCooldownBlocks == staged[8]
-    assert settings.periodLength == staged[9]
-    assert settings.expensiveDelayBlocks == staged[10]
-    assert settings.defaultExpiryBlocks == staged[11]
-    assert list(settings.allowedAssets) == list(staged[12])
-    assert settings.canManagersCreateCheques == staged[13]
-    assert settings.canManagerPay == staged[14]
-    assert settings.canBePulled == staged[15]
+    expected_settings = {
+        "maxNumActiveCheques": 0,
+        "maxChequeUsdValue": 0,
+        "instantUsdThreshold": 100 * EIGHTEEN_DECIMALS,
+        "perPeriodPaidUsdCap": 0,
+        "maxNumChequesPaidPerPeriod": 0,
+        "payCooldownBlocks": 0,
+        "perPeriodCreatedUsdCap": 0,
+        "maxNumChequesCreatedPerPeriod": 0,
+        "createCooldownBlocks": 0,
+        "periodLength": ONE_DAY_IN_BLOCKS,
+        "expensiveDelayBlocks": ONE_DAY_IN_BLOCKS,
+        "defaultExpiryBlocks": 2 * ONE_DAY_IN_BLOCKS,
+        "allowedAssets": [alpha_token.address, bravo_token.address],
+        "canManagersCreateCheques": True,
+        "canManagerPay": True,
+        "canBePulled": True,
+    }
+    assert_cheque_settings_values(pending.settings, expected_settings)
 
     cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_pendingChequeSettings_public_getter_no_pending_returns_zero_empty(
+    user_wallet, cheque_book
+):
+    """The public pending settings getter should return the empty struct when nothing is pending"""
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
+
+
+def test_pendingChequeSettings_public_getter_after_cancel_returns_zero_empty(
+    bob, user_wallet, cheque_book, createChequeSettings
+):
+    """Cancelling pending settings should clear the public pending settings getter"""
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
+
+
+def test_pendingChequeSettings_public_getter_after_confirm_returns_zero_empty(
+    bob, user_wallet, cheque_book, createChequeSettings
+):
+    """Confirming pending settings should clear the public pending settings getter"""
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+    pending = cheque_book.pendingChequeSettings(user_wallet.address)
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+    cheque_book.confirmPendingChequeSettings(user_wallet.address, sender=bob)
+
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
+
+
+def test_pendingChequeSettings_public_getter_tightening_clears_pending(
+    bob, alpha_token, user_wallet, cheque_book, createChequeSettings
+):
+    """A live tightening should apply immediately and clear the public pending getter"""
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+
+    tightening = createChequeSettings(
+        _maxNumActiveCheques=1,
+        _maxChequeUsdValue=150 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _perPeriodPaidUsdCap=250 * EIGHTEEN_DECIMALS,
+        _maxNumChequesPaidPerPeriod=2,
+        _payCooldownBlocks=ONE_HOUR_IN_BLOCKS,
+        _perPeriodCreatedUsdCap=250 * EIGHTEEN_DECIMALS,
+        _maxNumChequesCreatedPerPeriod=2,
+        _createCooldownBlocks=ONE_HOUR_IN_BLOCKS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _allowedAssets=[alpha_token.address],
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *tightening, sender=bob)
+
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
 
 
 def test_setChequeSettings_allowedAssets_additional_asset_becomes_pending(
@@ -1036,6 +1273,402 @@ def test_setChequeSettings_cooldown_widening_to_zero_becomes_pending(
     assert cheque_book.hasPendingChequeSettings(user_wallet.address)
 
     cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_setChequeSettings_maxChequeUsdValue_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="maxChequeUsdValue",
+        baseline_overrides={},
+        widening_overrides={"_maxChequeUsdValue": 400 * EIGHTEEN_DECIMALS},
+        expected_live_value=300 * EIGHTEEN_DECIMALS,
+        expected_pending_value=400 * EIGHTEEN_DECIMALS,
+    )
+
+
+def test_setChequeSettings_perPeriodPaidUsdCap_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="perPeriodPaidUsdCap",
+        baseline_overrides={"_perPeriodPaidUsdCap": 400 * EIGHTEEN_DECIMALS},
+        widening_overrides={"_perPeriodPaidUsdCap": 600 * EIGHTEEN_DECIMALS},
+        expected_live_value=400 * EIGHTEEN_DECIMALS,
+        expected_pending_value=600 * EIGHTEEN_DECIMALS,
+    )
+
+
+def test_setChequeSettings_maxNumChequesPaidPerPeriod_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="maxNumChequesPaidPerPeriod",
+        baseline_overrides={"_maxNumChequesPaidPerPeriod": 2},
+        widening_overrides={"_maxNumChequesPaidPerPeriod": 3},
+        expected_live_value=2,
+        expected_pending_value=3,
+    )
+
+
+def test_setChequeSettings_perPeriodCreatedUsdCap_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="perPeriodCreatedUsdCap",
+        baseline_overrides={"_perPeriodCreatedUsdCap": 400 * EIGHTEEN_DECIMALS},
+        widening_overrides={"_perPeriodCreatedUsdCap": 600 * EIGHTEEN_DECIMALS},
+        expected_live_value=400 * EIGHTEEN_DECIMALS,
+        expected_pending_value=600 * EIGHTEEN_DECIMALS,
+    )
+
+
+def test_setChequeSettings_maxNumChequesCreatedPerPeriod_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="maxNumChequesCreatedPerPeriod",
+        baseline_overrides={"_maxNumChequesCreatedPerPeriod": 2},
+        widening_overrides={"_maxNumChequesCreatedPerPeriod": 3},
+        expected_live_value=2,
+        expected_pending_value=3,
+    )
+
+
+def test_setChequeSettings_createCooldownBlocks_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="createCooldownBlocks",
+        baseline_overrides={"_createCooldownBlocks": 2 * ONE_HOUR_IN_BLOCKS},
+        widening_overrides={"_createCooldownBlocks": ONE_HOUR_IN_BLOCKS},
+        expected_live_value=2 * ONE_HOUR_IN_BLOCKS,
+        expected_pending_value=ONE_HOUR_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_canManagersCreateCheques_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="canManagersCreateCheques",
+        baseline_overrides={"_canManagersCreateCheques": False},
+        widening_overrides={"_canManagersCreateCheques": True},
+        expected_live_value=False,
+        expected_pending_value=True,
+    )
+
+
+def test_setChequeSettings_canBePulled_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="canBePulled",
+        baseline_overrides={"_canBePulled": False},
+        widening_overrides={"_canBePulled": True},
+        expected_live_value=False,
+        expected_pending_value=True,
+    )
+
+
+def test_setChequeSettings_expensiveDelayBlocks_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="expensiveDelayBlocks",
+        baseline_overrides={
+            "_expensiveDelayBlocks": 3 * ONE_DAY_IN_BLOCKS,
+            "_defaultExpiryBlocks": 2 * ONE_DAY_IN_BLOCKS,
+        },
+        widening_overrides={"_expensiveDelayBlocks": 2 * ONE_DAY_IN_BLOCKS},
+        expected_live_value=3 * ONE_DAY_IN_BLOCKS,
+        expected_pending_value=2 * ONE_DAY_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_defaultExpiryBlocks_single_field_widening_stages_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_single_field_widening_stages_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="defaultExpiryBlocks",
+        baseline_overrides={
+            "_expensiveDelayBlocks": 2 * ONE_DAY_IN_BLOCKS,
+            "_defaultExpiryBlocks": 2 * ONE_DAY_IN_BLOCKS,
+        },
+        widening_overrides={"_defaultExpiryBlocks": 3 * ONE_DAY_IN_BLOCKS},
+        expected_live_value=2 * ONE_DAY_IN_BLOCKS,
+        expected_pending_value=3 * ONE_DAY_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_cap_tightening_applies_immediately_no_pending_event(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_immediate_update_without_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="maxChequeUsdValue",
+        baseline_overrides={},
+        update_overrides={"_maxChequeUsdValue": 200 * EIGHTEEN_DECIMALS},
+        expected_value=200 * EIGHTEEN_DECIMALS,
+    )
+
+
+def test_setChequeSettings_cooldown_tightening_applies_immediately_no_pending_event(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_immediate_update_without_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="payCooldownBlocks",
+        baseline_overrides={"_payCooldownBlocks": ONE_HOUR_IN_BLOCKS},
+        update_overrides={"_payCooldownBlocks": 2 * ONE_HOUR_IN_BLOCKS},
+        expected_value=2 * ONE_HOUR_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_fallback_cooldown_tightening_applies_immediately_no_pending_event(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_immediate_update_without_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="expensiveDelayBlocks",
+        baseline_overrides={
+            "_expensiveDelayBlocks": ONE_DAY_IN_BLOCKS,
+            "_defaultExpiryBlocks": 2 * ONE_DAY_IN_BLOCKS,
+        },
+        update_overrides={"_expensiveDelayBlocks": 2 * ONE_DAY_IN_BLOCKS},
+        expected_value=2 * ONE_DAY_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_fallback_expiry_tightening_applies_immediately_no_pending_event(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    assert_immediate_update_without_pending(
+        bob,
+        user_wallet,
+        user_wallet_config,
+        cheque_book,
+        createChequeSettings,
+        target_field="defaultExpiryBlocks",
+        baseline_overrides={
+            "_expensiveDelayBlocks": 2 * ONE_DAY_IN_BLOCKS,
+            "_defaultExpiryBlocks": 2 * ONE_DAY_IN_BLOCKS,
+        },
+        update_overrides={"_defaultExpiryBlocks": ONE_DAY_IN_BLOCKS},
+        expected_value=ONE_DAY_IN_BLOCKS,
+    )
+
+
+def test_setChequeSettings_widening_emits_pending_event_payload(
+    bob, alpha_token, bravo_token, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    baseline = restrictive_cheque_settings(
+        createChequeSettings,
+        _allowedAssets=[alpha_token.address],
+    )
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+
+    staged = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _maxChequeUsdValue=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _perPeriodPaidUsdCap=0,
+        _maxNumChequesPaidPerPeriod=0,
+        _payCooldownBlocks=0,
+        _perPeriodCreatedUsdCap=0,
+        _maxNumChequesCreatedPerPeriod=0,
+        _createCooldownBlocks=0,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _allowedAssets=[alpha_token.address, bravo_token.address],
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=True,
+    )
+    cheque_book.get_logs()
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+    logs = cheque_book.get_logs()
+    pending_events = [e for e in logs if type(e).__name__ == "ChequeSettingsPending"]
+    modified_events = [e for e in logs if type(e).__name__ == "ChequeSettingsModified"]
+    pending = cheque_book.pendingChequeSettings(user_wallet.address)
+
+    assert len(pending_events) == 1
+    assert len(modified_events) == 0
+    event = pending_events[0]
+    assert event.user == user_wallet.address
+    assert event.initiatedBy == bob
+    assert event.confirmBlock == pending.confirmBlock
+    assert event.confirmBlock == pending.initiatedBlock + user_wallet_config.timeLock()
+    assert event.maxNumActiveCheques == 0
+    assert event.maxChequeUsdValue == 0
+    assert event.instantUsdThreshold == 100 * EIGHTEEN_DECIMALS
+    assert event.perPeriodPaidUsdCap == 0
+    assert event.maxNumChequesPaidPerPeriod == 0
+    assert event.payCooldownBlocks == 0
+    assert event.perPeriodCreatedUsdCap == 0
+    assert event.maxNumChequesCreatedPerPeriod == 0
+    assert event.createCooldownBlocks == 0
+    assert event.periodLength == ONE_DAY_IN_BLOCKS
+    assert event.expensiveDelayBlocks == ONE_DAY_IN_BLOCKS
+    assert event.defaultExpiryBlocks == 2 * ONE_DAY_IN_BLOCKS
+    assert event.canManagersCreateCheques == True
+    assert event.canManagerPay == True
+    assert event.canBePulled == True
+    # The event stays lightweight; full pending storage includes allowedAssets.
+    assert list(pending.settings.allowedAssets) == [alpha_token.address, bravo_token.address]
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_setChequeSettings_reverts_when_instantUsdThreshold_zero(
+    bob, user_wallet, cheque_book, createChequeSettings
+):
+    # Keep every other field valid so only _isValidInstantThreshold fails.
+    settings = createChequeSettings(
+        _maxNumActiveCheques=2,
+        _maxChequeUsdValue=300 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=0,
+        _perPeriodPaidUsdCap=400 * EIGHTEEN_DECIMALS,
+        _maxNumChequesPaidPerPeriod=2,
+        _payCooldownBlocks=ONE_HOUR_IN_BLOCKS,
+        _perPeriodCreatedUsdCap=400 * EIGHTEEN_DECIMALS,
+        _maxNumChequesCreatedPerPeriod=2,
+        _createCooldownBlocks=ONE_HOUR_IN_BLOCKS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+
+    with boa.reverts("invalid cheque settings"):
+        cheque_book.setChequeSettings(user_wallet.address, *settings, sender=bob)
+
+
+def test_cancelPendingChequeSettings_then_restage_uses_fresh_blocks(
+    bob, user_wallet, cheque_book, createChequeSettings
+):
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+    )
+
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+    first_pending = cheque_book.pendingChequeSettings(user_wallet.address)
+    first_initiated_block = first_pending.initiatedBlock
+    first_confirm_block = first_pending.confirmBlock
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+    # Boa keeps txs in the same block unless the test explicitly advances time.
+    boa.env.time_travel(blocks=1)
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+    second_pending = cheque_book.pendingChequeSettings(user_wallet.address)
+
+    assert second_pending.initiatedBlock > first_initiated_block
+    assert second_pending.confirmBlock > first_confirm_block
+    assert second_pending.initiatedBlock - first_initiated_block == 1
+    assert second_pending.confirmBlock - first_confirm_block == 1
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_cancelPendingChequeSettings_new_owner_can_cancel_stale_pending(
+    bob, alice, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+    staged = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *staged, sender=bob)
+
+    user_wallet_config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.ownershipTimeLock())
+    user_wallet_config.confirmOwnershipChange(sender=alice)
+    cheque_book.get_logs()
+
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=alice)
+    logs = cheque_book.get_logs()
+    cancel_events = [e for e in logs if type(e).__name__ == "ChequeSettingsPendingCancelled"]
+
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address) == False
+    assert_pending_cheque_settings_empty(cheque_book, user_wallet.address)
+    assert len(cancel_events) == 1
+    assert cancel_events[0].user == user_wallet.address
+    assert cancel_events[0].cancelledBy == alice
 
 
 def test_pending_cheque_settings_are_isolated_per_wallet(
