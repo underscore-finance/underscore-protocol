@@ -260,29 +260,29 @@ def initialize_protocol():
 # ============================================================================
 
 
-def try_identify_sender_type(sender_addr: str) -> str:
-    """Identify if sender is AgentSenderGeneric or AgentSenderSpecial.
+def classify_sender_by_abi(abi: list[dict]) -> str:
+    names = {entry.get("name") for entry in abi if entry.get("type") == "function"}
+    if "issuePullCheques" in names:
+        return "AgentSenderSpecialAdmin"
+    if "RIPE_GREEN_TOKEN" in names:
+        return "AgentSenderSpecial"
+    if "owner" in names:
+        return "AgentSenderGeneric"
+    return "Unknown"
 
-    AgentSenderSpecial has RIPE_GREEN_TOKEN immutable.
-    AgentSenderGeneric does not.
+
+def try_identify_sender_type(sender_addr: str) -> str:
+    """Identify the deployed AgentWrapper sender type from its verified ABI.
+
+    AgentSenderSpecialAdmin exposes privileged nonpayable functions, so sender
+    identification must not depend on probing callable methods.
     """
     try:
         time.sleep(RPC_DELAY)
         sender = boa.from_etherscan(sender_addr, name=f"Sender_{sender_addr[:8]}")
-        # Try to call RIPE_GREEN_TOKEN - only exists on AgentSenderSpecial
-        time.sleep(RPC_DELAY)
-        sender.RIPE_GREEN_TOKEN()
-        return "AgentSenderSpecial"
+        return classify_sender_by_abi(getattr(sender, "abi", []))
     except Exception:
-        # Either failed to load or doesn't have RIPE_GREEN_TOKEN
-        try:
-            # Check if it has owner() which both Generic and Special have via Ownership module
-            time.sleep(RPC_DELAY)
-            sender = boa.from_etherscan(sender_addr, name=f"Sender_{sender_addr[:8]}")
-            sender.owner()
-            return "AgentSenderGeneric"
-        except Exception:
-            return "Unknown"
+        return "Unknown"
 
 
 def fetch_agent_wrapper_senders(agent_wrapper_addr: str):
