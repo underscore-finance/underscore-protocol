@@ -465,7 +465,8 @@ def _isValidNewCheque(
     # apply time lock if USD value exceeds instant threshold
     if _chequeSettings.instantUsdThreshold != 0 and _usdValue > _chequeSettings.instantUsdThreshold:
         if _chequeSettings.expensiveDelayBlocks != 0:
-            unlockBlock = max(unlockBlock, block.number + _chequeSettings.expensiveDelayBlocks)
+            effectiveDelay: uint256 = max(_chequeSettings.expensiveDelayBlocks, _timeLock)
+            unlockBlock = max(unlockBlock, block.number + effectiveDelay)
         else:
             unlockBlock = max(unlockBlock, block.number + _timeLock)
 
@@ -474,7 +475,8 @@ def _isValidNewCheque(
     if _expiryNumBlocks != 0:
         expiryBlock = unlockBlock + _expiryNumBlocks
     elif _chequeSettings.defaultExpiryBlocks != 0:
-        expiryBlock = unlockBlock + _chequeSettings.defaultExpiryBlocks
+        effectiveExpiry: uint256 = max(_chequeSettings.defaultExpiryBlocks, _timeLock)
+        expiryBlock = unlockBlock + effectiveExpiry
     else:
         expiryBlock = unlockBlock + _timeLock
 

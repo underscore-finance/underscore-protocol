@@ -104,6 +104,30 @@ def assert_cheque_settings_values(settings, expected):
     assert settings.canBePulled == expected["canBePulled"]
 
 
+def set_timelock_clamp_cheque_settings(
+    cheque_book,
+    user_wallet,
+    createChequeSettings,
+    *,
+    sender,
+    instant_threshold=100 * EIGHTEEN_DECIMALS,
+    expensive_delay=ONE_DAY_IN_BLOCKS,
+    default_expiry=ONE_DAY_IN_BLOCKS,
+):
+    settings = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _maxChequeUsdValue=0,
+        _instantUsdThreshold=instant_threshold,
+        _periodLength=ONE_MONTH_IN_BLOCKS,
+        _expensiveDelayBlocks=expensive_delay,
+        _defaultExpiryBlocks=default_expiry,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=False,
+    )
+    set_live_cheque_settings(cheque_book, user_wallet.address, *settings, sender=sender)
+
+
 def assert_single_field_widening_stages_pending(
     bob,
     user_wallet,
@@ -2352,6 +2376,138 @@ def test_createCheque_with_expensive_delay(
     stored_cheque = user_wallet_config.cheques(alice)
     expected_unlock = boa.env.evm.patch.block_number + expensive_delay
     assert stored_cheque.unlockBlock == expected_unlock
+
+
+def test_createCheque_expensive_delay_clamps_to_live_time_lock(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, createChequeSettings,
+):
+    set_timelock_clamp_cheque_settings(
+        cheque_book,
+        user_wallet,
+        createChequeSettings,
+        sender=bob,
+        instant_threshold=10 * EIGHTEEN_DECIMALS,
+        expensive_delay=ONE_DAY_IN_BLOCKS,
+        default_expiry=ONE_WEEK_IN_BLOCKS,
+    )
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        0,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque.unlockBlock == cheque.creationBlock + user_wallet_config.timeLock()
+
+
+def test_createCheque_default_expiry_clamps_to_live_time_lock(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, createChequeSettings,
+):
+    set_timelock_clamp_cheque_settings(
+        cheque_book,
+        user_wallet,
+        createChequeSettings,
+        sender=bob,
+        instant_threshold=100 * EIGHTEEN_DECIMALS,
+        expensive_delay=ONE_DAY_IN_BLOCKS,
+        default_expiry=ONE_DAY_IN_BLOCKS,
+    )
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque.expiryBlock == cheque.unlockBlock + user_wallet_config.timeLock()
+
+
+def test_createCheque_explicit_expiry_remains_unclamped_by_time_lock(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, createChequeSettings,
+):
+    set_timelock_clamp_cheque_settings(
+        cheque_book,
+        user_wallet,
+        createChequeSettings,
+        sender=bob,
+        instant_threshold=100 * EIGHTEEN_DECIMALS,
+        expensive_delay=ONE_DAY_IN_BLOCKS,
+        default_expiry=ONE_DAY_IN_BLOCKS,
+    )
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    explicit_expiry_blocks = ONE_DAY_IN_BLOCKS
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        0,
+        explicit_expiry_blocks,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque.expiryBlock == cheque.unlockBlock + explicit_expiry_blocks
+    assert cheque.expiryBlock < cheque.unlockBlock + user_wallet_config.timeLock()
+
+
+def test_createCheque_max_time_lock_clamps_and_creates_successfully(
+    bob, alice, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book, createChequeSettings,
+):
+    set_timelock_clamp_cheque_settings(
+        cheque_book,
+        user_wallet,
+        createChequeSettings,
+        sender=bob,
+        instant_threshold=10 * EIGHTEEN_DECIMALS,
+        expensive_delay=ONE_DAY_IN_BLOCKS,
+        default_expiry=ONE_DAY_IN_BLOCKS,
+    )
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque.active
+    assert cheque.unlockBlock == cheque.creationBlock + user_wallet_config.timeLock()
+    assert cheque.expiryBlock == cheque.unlockBlock + user_wallet_config.timeLock()
 
 
 def test_createCheque_with_cheque_period_data_manipulation(

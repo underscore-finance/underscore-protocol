@@ -3,7 +3,7 @@ import boa
 
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
-from conf_utils import filter_logs
+from conf_utils import filter_logs, set_live_cheque_settings
 
 
 def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
@@ -722,6 +722,52 @@ def test_clone_config_copies_time_lock(migrator, hatchery, bob):
     result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
     assert result is True
     assert to_config.timeLock() == from_config.timeLock()
+
+
+def test_clone_config_copied_high_time_lock_clamps_destination_cheque_creation(
+    migrator, hatchery, bob, alice, alpha_token, mock_ripe, cheque_book, createChequeSettings
+):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+
+    settings = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _maxChequeUsdValue=0,
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_MONTH_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=False,
+    )
+    set_live_cheque_settings(cheque_book, to_wallet.address, *settings, sender=bob)
+
+    from_config.setTimeLock(from_config.MAX_TIMELOCK(), sender=bob)
+    assert to_config.timeLock() < from_config.timeLock()
+
+    result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+    assert result is True
+    assert to_config.timeLock() == from_config.timeLock()
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    cheque_book.createCheque(
+        to_wallet.address,
+        alice,
+        alpha_token.address,
+        50 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        True,
+        False,
+        sender=bob,
+    )
+
+    cheque = to_config.cheques(alice)
+    assert cheque.unlockBlock == cheque.creationBlock + to_config.timeLock()
+    assert cheque.expiryBlock == cheque.unlockBlock + to_config.timeLock()
 
 
 def test_clone_config_skips_owner_payee_and_whitelist(migrator, hatchery, bob, alice, paymaster, createPayeeSettings):
