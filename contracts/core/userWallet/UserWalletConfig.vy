@@ -1006,6 +1006,7 @@ def setPaymaster(_paymaster: address):
 @external
 def setChequeBook(_chequeBook: address):
     assert self._canSetBackpackItem(_chequeBook, msg.sender) # dev: no perms
+    # Same-address updates cannot orphan pending settings; only replacements need the guard.
     if _chequeBook != self.chequeBook:
         assert not staticcall ChequeBook(self.chequeBook).hasPendingChequeSettings(self.wallet) # dev: pending cheque settings
     self.chequeBook = _chequeBook

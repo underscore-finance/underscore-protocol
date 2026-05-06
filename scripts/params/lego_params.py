@@ -21,22 +21,40 @@ import time
 import boa
 
 # Import shared utilities
-from params_utils import (
-    UNDY_HQ,
-    RPC_DELAY,
-    LEGO_BOOK_ID,
-    ZERO_ADDRESS,
-    get_token_name,
-    format_address,
-    format_percent,
-    format_blocks_to_time,
-    print_table,
-    setup_boa_etherscan,
-    boa_fork_context,
-    print_report_header,
-    print_report_footer,
-    output_to_file,
-)
+try:
+    from .params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        LEGO_BOOK_ID,
+        ZERO_ADDRESS,
+        get_token_name,
+        format_address,
+        format_percent,
+        format_blocks_to_time,
+        print_table,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
+except ImportError:
+    from params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        LEGO_BOOK_ID,
+        ZERO_ADDRESS,
+        get_token_name,
+        format_address,
+        format_percent,
+        format_blocks_to_time,
+        print_table,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
 
 # ============================================================================
 # Global State

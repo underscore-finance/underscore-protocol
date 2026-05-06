@@ -1054,6 +1054,61 @@ def test_special_admin_whitelist_maintenance_rejects_empty_address_without_nonce
     assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before
 
 
+@pytest.mark.parametrize(
+    ("list_name", "confirm_addrs", "cancel_pending_addrs", "remove_addrs"),
+    [
+        ("confirm", ["addr"], [], []),
+        ("cancel", [], ["addr"], []),
+        ("remove", [], [], ["addr"]),
+    ],
+)
+@pytest.mark.parametrize("invalid_addr_name", ["wallet", "owner", "wallet_config"])
+def test_special_admin_whitelist_maintenance_rejects_reserved_address_without_nonce_change(
+    signed_agent_sender_special_admin,
+    starter_agent,
+    user_wallet,
+    user_wallet_config,
+    alice,
+    create_signature_struct,
+    list_name,
+    confirm_addrs,
+    cancel_pending_addrs,
+    remove_addrs,
+    invalid_addr_name,
+):
+    invalid_addr = {
+        "wallet": user_wallet.address,
+        "owner": user_wallet_config.owner(),
+        "wallet_config": user_wallet_config.address,
+    }[invalid_addr_name]
+    if list_name == "confirm":
+        confirm_addrs = [invalid_addr]
+    elif list_name == "cancel":
+        cancel_pending_addrs = [invalid_addr]
+    else:
+        remove_addrs = [invalid_addr]
+
+    nonce_before = signed_agent_sender_special_admin.currentNonce(user_wallet.address)
+    sig = create_signature_struct(
+        b"\x00" * 65,
+        nonce_before,
+        boa.env.evm.patch.timestamp + 1000,
+    )
+
+    with boa.reverts("invalid addr"):
+        signed_agent_sender_special_admin.whitelistMaintenance(
+            starter_agent.address,
+            user_wallet.address,
+            confirm_addrs,
+            cancel_pending_addrs,
+            remove_addrs,
+            sig,
+            sender=alice,
+        )
+
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before
+
+
 def test_special_admin_workflows_104_106_require_wrapper_bound_signed_hashes(
     setupAgentTestAsset,
     signed_agent_sender_special_admin,
@@ -1351,14 +1406,14 @@ def test_empty_batch_instructions_rejected(
 
 def test_signature_struct_format(create_signature_struct):
     """Test signature struct format is correct"""
-    
+
     # Test signature struct creation
     sig_bytes = b'\x01' * 65
     nonce = 42
     expiration = 1234567890
-    
+
     sig_struct = create_signature_struct(sig_bytes, nonce, expiration)
-    
+
     # Verify struct format (tuple with 3 elements)
     assert len(sig_struct) == 3
     assert sig_struct[0] == sig_bytes

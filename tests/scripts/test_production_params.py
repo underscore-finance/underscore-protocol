@@ -1,13 +1,11 @@
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts" / "params"))
+from scripts.params.production_params import classify_sender_by_abi
 
-from production_params import classify_sender_by_abi
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize(

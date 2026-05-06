@@ -19,34 +19,66 @@ import time
 import boa
 
 # Import shared utilities
-from params_utils import (
-    UNDY_HQ,
-    RPC_URL,
-    RPC_DELAY,
-    HUNDRED_PERCENT,
-    LEDGER_ID,
-    MISSION_CONTROL_ID,
-    LEGO_BOOK_ID,
-    SWITCHBOARD_ID,
-    HATCHERY_ID,
-    LOOT_DISTRIBUTOR_ID,
-    APPRAISER_ID,
-    WALLET_BACKPACK_ID,
-    BILLING_ID,
-    VAULT_REGISTRY_ID,
-    ZERO_ADDRESS,
-    get_token_name,
-    format_address,
-    format_percent,
-    format_blocks_to_time,
-    format_token_amount,
-    print_table,
-    setup_boa_etherscan,
-    boa_fork_context,
-    print_report_header,
-    print_report_footer,
-    output_to_file,
-)
+try:
+    from .params_utils import (
+        UNDY_HQ,
+        RPC_URL,
+        RPC_DELAY,
+        HUNDRED_PERCENT,
+        LEDGER_ID,
+        MISSION_CONTROL_ID,
+        LEGO_BOOK_ID,
+        SWITCHBOARD_ID,
+        HATCHERY_ID,
+        LOOT_DISTRIBUTOR_ID,
+        APPRAISER_ID,
+        WALLET_BACKPACK_ID,
+        BILLING_ID,
+        VAULT_REGISTRY_ID,
+        ZERO_ADDRESS,
+        KNOWN_TOKENS,
+        get_token_name,
+        format_address,
+        format_percent,
+        format_blocks_to_time,
+        format_token_amount,
+        print_table,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
+except ImportError:
+    from params_utils import (
+        UNDY_HQ,
+        RPC_URL,
+        RPC_DELAY,
+        HUNDRED_PERCENT,
+        LEDGER_ID,
+        MISSION_CONTROL_ID,
+        LEGO_BOOK_ID,
+        SWITCHBOARD_ID,
+        HATCHERY_ID,
+        LOOT_DISTRIBUTOR_ID,
+        APPRAISER_ID,
+        WALLET_BACKPACK_ID,
+        BILLING_ID,
+        VAULT_REGISTRY_ID,
+        ZERO_ADDRESS,
+        KNOWN_TOKENS,
+        get_token_name,
+        format_address,
+        format_percent,
+        format_blocks_to_time,
+        format_token_amount,
+        print_table,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
 
 # ============================================================================
 # Global state for loaded contracts and addresses
@@ -628,8 +660,6 @@ def discover_configured_assets():
 
     Returns a set of asset addresses to check.
     """
-    from params_utils import KNOWN_TOKENS
-
     candidate_assets = set()
 
     # Add known tokens from BluePrint
@@ -1268,8 +1298,6 @@ def fetch_backpack_items(ledger):
     print("\n### Backpack Items")
     print("\n*Assets registered as backpack items (can be held in user wallet backpacks).*")
 
-    from params_utils import KNOWN_TOKENS
-
     # Candidates: earn vaults + known tokens
     candidates = set()
 
@@ -1388,8 +1416,6 @@ def fetch_total_claimable_loot(loot):
     totalClaimableLoot is a HashMap[address, uint256] - not iterable.
     We check known tokens to see if any have accumulated loot.
     """
-    from params_utils import KNOWN_TOKENS
-
     print("\n### Total Claimable Loot")
     print("\n*Accumulated loot per asset across all ambassadors (global pool).*")
 

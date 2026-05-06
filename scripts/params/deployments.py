@@ -18,27 +18,50 @@ import time
 import boa
 
 # Import shared utilities
-from params_utils import (
-    UNDY_HQ,
-    RPC_DELAY,
-    LEDGER_ID,
-    MISSION_CONTROL_ID,
-    LEGO_BOOK_ID,
-    SWITCHBOARD_ID,
-    HATCHERY_ID,
-    LOOT_DISTRIBUTOR_ID,
-    APPRAISER_ID,
-    WALLET_BACKPACK_ID,
-    BILLING_ID,
-    VAULT_REGISTRY_ID,
-    HELPERS_ID,
-    ZERO_ADDRESS,
-    setup_boa_etherscan,
-    boa_fork_context,
-    print_report_header,
-    print_report_footer,
-    output_to_file,
-)
+try:
+    from .params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        LEDGER_ID,
+        MISSION_CONTROL_ID,
+        LEGO_BOOK_ID,
+        SWITCHBOARD_ID,
+        HATCHERY_ID,
+        LOOT_DISTRIBUTOR_ID,
+        APPRAISER_ID,
+        WALLET_BACKPACK_ID,
+        BILLING_ID,
+        VAULT_REGISTRY_ID,
+        HELPERS_ID,
+        ZERO_ADDRESS,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
+except ImportError:
+    from params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        LEDGER_ID,
+        MISSION_CONTROL_ID,
+        LEGO_BOOK_ID,
+        SWITCHBOARD_ID,
+        HATCHERY_ID,
+        LOOT_DISTRIBUTOR_ID,
+        APPRAISER_ID,
+        WALLET_BACKPACK_ID,
+        BILLING_ID,
+        VAULT_REGISTRY_ID,
+        HELPERS_ID,
+        ZERO_ADDRESS,
+        setup_boa_etherscan,
+        boa_fork_context,
+        print_report_header,
+        print_report_footer,
+        output_to_file,
+    )
 
 # ============================================================================
 # Global state

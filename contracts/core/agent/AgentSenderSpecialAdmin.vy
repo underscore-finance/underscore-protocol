@@ -27,6 +27,12 @@ from interfaces import Wallet
 from interfaces import AgentWrapper
 from ethereum.ercs import IERC20
 
+interface UserWallet:
+    def walletConfig() -> address: view
+
+interface UserWalletConfig:
+    def owner() -> address: view
+
 struct ChequeInstruction:
     recipient: address
     asset: address
@@ -119,7 +125,7 @@ def whitelistMaintenance(
     _sig: Signature = empty(Signature),
 ):
     # 1. validate duplicates before auth so bad maintenance payloads do not consume nonces.
-    self._validateWhitelistMaintenance(_confirmAddrs, _cancelPendingAddrs, _removeAddrs)
+    self._validateWhitelistMaintenance(_userWallet, _confirmAddrs, _cancelPendingAddrs, _removeAddrs)
 
     # 2. authenticate access (action code 105)
     messageHash: bytes32 = keccak256(abi_encode(
@@ -214,15 +220,19 @@ def harvestAndIssueCheque(
 @view
 @internal
 def _validateWhitelistMaintenance(
+    _userWallet: address,
     _confirmAddrs: DynArray[address, MAX_WHITELIST_ADDRS],
     _cancelPendingAddrs: DynArray[address, MAX_WHITELIST_ADDRS],
     _removeAddrs: DynArray[address, MAX_WHITELIST_ADDRS],
 ):
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+
     for i: uint256 in range(MAX_WHITELIST_ADDRS):
         if i >= len(_confirmAddrs):
             break
         addr: address = _confirmAddrs[i]
-        assert addr != empty(address) # dev: empty addr
+        self._assertValidWhitelistMaintenanceAddr(addr, _userWallet, walletConfig, owner)
         assert not self._hasWhitelistAddr(_confirmAddrs, addr, i, True) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_cancelPendingAddrs, addr, 0, False) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_removeAddrs, addr, 0, False) # dev: duplicate addr
@@ -231,7 +241,7 @@ def _validateWhitelistMaintenance(
         if i >= len(_cancelPendingAddrs):
             break
         addr: address = _cancelPendingAddrs[i]
-        assert addr != empty(address) # dev: empty addr
+        self._assertValidWhitelistMaintenanceAddr(addr, _userWallet, walletConfig, owner)
         assert not self._hasWhitelistAddr(_cancelPendingAddrs, addr, i, True) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_removeAddrs, addr, 0, False) # dev: duplicate addr
 
@@ -239,8 +249,14 @@ def _validateWhitelistMaintenance(
         if i >= len(_removeAddrs):
             break
         addr: address = _removeAddrs[i]
-        assert addr != empty(address) # dev: empty addr
+        self._assertValidWhitelistMaintenanceAddr(addr, _userWallet, walletConfig, owner)
         assert not self._hasWhitelistAddr(_removeAddrs, addr, i, True) # dev: duplicate addr
+
+@view
+@internal
+def _assertValidWhitelistMaintenanceAddr(_addr: address, _userWallet: address, _walletConfig: address, _owner: address):
+    assert _addr != empty(address) # dev: empty addr
+    assert _addr not in [_userWallet, _walletConfig, _owner] # dev: invalid addr
 
 @view
 @internal
