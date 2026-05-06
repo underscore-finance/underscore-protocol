@@ -73,6 +73,9 @@ interface Switchboard:
 interface AgentWrapper:
     def isSender(_address: address) -> bool: view
 
+interface ChequeBook:
+    def hasPendingChequeSettings(_userWallet: address) -> bool: view
+
 event EjectionModeSet:
     inEjectMode: bool
 
@@ -1003,6 +1006,8 @@ def setPaymaster(_paymaster: address):
 @external
 def setChequeBook(_chequeBook: address):
     assert self._canSetBackpackItem(_chequeBook, msg.sender) # dev: no perms
+    if _chequeBook != self.chequeBook:
+        assert not staticcall ChequeBook(self.chequeBook).hasPendingChequeSettings(self.wallet) # dev: pending cheque settings
     self.chequeBook = _chequeBook
 
 

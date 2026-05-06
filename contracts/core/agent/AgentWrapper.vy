@@ -180,6 +180,10 @@ def payCheque(
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 6, userWallet = _userWallet, sender = msg.sender)
+    # Approved senders that expose payCheque MUST validate
+    # cheque.creationBlock == expectedCreationBlock before calling this wrapper.
+    # AgentWrapper trusts approved senders for cheque-version pinning; any new sender
+    # exposing payCheque is security-critical and must be reviewed for this invariant.
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
 
 

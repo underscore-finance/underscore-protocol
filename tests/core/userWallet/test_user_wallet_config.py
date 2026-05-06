@@ -1,6 +1,50 @@
 import pytest
 import boa
-from constants import ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
+
+
+def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
+    restrictive = createChequeSettings(
+        _maxNumActiveCheques=2,
+        _maxChequeUsdValue=300 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=25 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *restrictive, sender=sender)
+
+    widening = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *widening, sender=sender)
+
+
+def deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance):
+    replacement = boa.load(
+        "contracts/core/walletBackpack/ChequeBook.vy",
+        cheque_book.UNDY_HQ(),
+        cheque_book.MIN_CHEQUE_PERIOD(),
+        cheque_book.MAX_CHEQUE_PERIOD(),
+        cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY(),
+        cheque_book.MAX_UNLOCK_BLOCKS(),
+        cheque_book.MAX_EXPIRY_BLOCKS(),
+        name="replacement_cheque_book",
+    )
+    wallet_backpack_deploy.addPendingChequeBook(replacement.address, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingChequeBook(sender=governance.address)
+    return replacement
 
 
 @pytest.fixture
@@ -1035,6 +1079,57 @@ def test_set_cheque_book_access(user_wallet_config, alice, cheque_book):
     # Owner should succeed (cheque_book is already a registered backpack item)
     user_wallet_config.setChequeBook(cheque_book.address, sender=owner)
     assert user_wallet_config.chequeBook() == cheque_book.address
+
+
+def test_set_cheque_book_same_address_succeeds_with_pending_settings(
+    user_wallet, user_wallet_config, bob, cheque_book, createChequeSettings
+):
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    user_wallet_config.setChequeBook(cheque_book.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == cheque_book.address
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_set_cheque_book_different_registered_book_reverts_with_pending_settings(
+    user_wallet,
+    user_wallet_config,
+    bob,
+    cheque_book,
+    wallet_backpack_deploy,
+    governance,
+    createChequeSettings,
+):
+    replacement = deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance)
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    with boa.reverts("pending cheque settings"):
+        user_wallet_config.setChequeBook(replacement.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == cheque_book.address
+
+
+def test_set_cheque_book_different_registered_book_succeeds_after_pending_settings_cleared(
+    user_wallet,
+    user_wallet_config,
+    bob,
+    cheque_book,
+    wallet_backpack_deploy,
+    governance,
+    createChequeSettings,
+):
+    replacement = deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance)
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+    assert not cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    user_wallet_config.setChequeBook(replacement.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == replacement.address
 
 
 def test_set_migrator_access(user_wallet_config, alice, migrator):

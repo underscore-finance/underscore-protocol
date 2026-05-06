@@ -1015,6 +1015,45 @@ def test_special_workflows_100_103_require_wrapper_bound_hashes(
     assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 4
 
 
+@pytest.mark.parametrize(
+    ("confirm_addrs", "cancel_pending_addrs", "remove_addrs"),
+    [
+        ([ZERO_ADDRESS], [], []),
+        ([], [ZERO_ADDRESS], []),
+        ([], [], [ZERO_ADDRESS]),
+    ],
+)
+def test_special_admin_whitelist_maintenance_rejects_empty_address_without_nonce_change(
+    signed_agent_sender_special_admin,
+    starter_agent,
+    user_wallet,
+    alice,
+    create_signature_struct,
+    confirm_addrs,
+    cancel_pending_addrs,
+    remove_addrs,
+):
+    nonce_before = signed_agent_sender_special_admin.currentNonce(user_wallet.address)
+    sig = create_signature_struct(
+        b"\x00" * 65,
+        nonce_before,
+        boa.env.evm.patch.timestamp + 1000,
+    )
+
+    with boa.reverts("empty addr"):
+        signed_agent_sender_special_admin.whitelistMaintenance(
+            starter_agent.address,
+            user_wallet.address,
+            confirm_addrs,
+            cancel_pending_addrs,
+            remove_addrs,
+            sig,
+            sender=alice,
+        )
+
+    assert signed_agent_sender_special_admin.currentNonce(user_wallet.address) == nonce_before
+
+
 def test_special_admin_workflows_104_106_require_wrapper_bound_signed_hashes(
     setupAgentTestAsset,
     signed_agent_sender_special_admin,

@@ -222,6 +222,7 @@ def _validateWhitelistMaintenance(
         if i >= len(_confirmAddrs):
             break
         addr: address = _confirmAddrs[i]
+        assert addr != empty(address) # dev: empty addr
         assert not self._hasWhitelistAddr(_confirmAddrs, addr, i, True) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_cancelPendingAddrs, addr, 0, False) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_removeAddrs, addr, 0, False) # dev: duplicate addr
@@ -230,6 +231,7 @@ def _validateWhitelistMaintenance(
         if i >= len(_cancelPendingAddrs):
             break
         addr: address = _cancelPendingAddrs[i]
+        assert addr != empty(address) # dev: empty addr
         assert not self._hasWhitelistAddr(_cancelPendingAddrs, addr, i, True) # dev: duplicate addr
         assert not self._hasWhitelistAddr(_removeAddrs, addr, 0, False) # dev: duplicate addr
 
@@ -237,6 +239,7 @@ def _validateWhitelistMaintenance(
         if i >= len(_removeAddrs):
             break
         addr: address = _removeAddrs[i]
+        assert addr != empty(address) # dev: empty addr
         assert not self._hasWhitelistAddr(_removeAddrs, addr, i, True) # dev: duplicate addr
 
 @view
