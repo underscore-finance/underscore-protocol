@@ -1,27 +1,5 @@
 [
   {
-    "name": "NonceIncremented",
-    "inputs": [
-      {
-        "name": "levgVault",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "oldNonce",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "newNonce",
-        "type": "uint256",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
     "name": "OwnershipChangeInitiated",
     "inputs": [
       {
@@ -98,12 +76,98 @@
     "type": "event"
   },
   {
+    "name": "PendingOwnershipTimeLockCancelled",
+    "inputs": [
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "OwnershipTimeLockSet",
     "inputs": [
       {
         "name": "numBlocks",
         "type": "uint256",
         "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingOwnershipTimeLockSet",
+    "inputs": [
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "currentOwner",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingOwnershipTimeLockConfirmed",
+    "inputs": [
+      {
+        "name": "oldTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newTimeLock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmedBy",
+        "type": "address",
+        "indexed": true
       }
     ],
     "anonymous": false,
@@ -160,6 +224,20 @@
     "outputs": []
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmPendingOwnershipTimeLock",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingOwnershipTimeLock",
+    "inputs": [],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "owner",
@@ -204,6 +282,36 @@
           {
             "name": "confirmBlock",
             "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingOwnershipTimeLock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "newTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
           }
         ]
       }
@@ -2288,59 +2396,6 @@
       }
     ],
     "outputs": []
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "getNonce",
-    "inputs": [
-      {
-        "name": "_levgWallet",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "UNDY_HQ",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "GREEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "SAVINGS_GREEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
-      }
-    ]
   },
   {
     "stateMutability": "view",

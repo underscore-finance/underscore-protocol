@@ -1924,10 +1924,6 @@
         "type": "bool"
       },
       {
-        "name": "_isOwner",
-        "type": "bool"
-      },
-      {
         "name": "_isPayee",
         "type": "bool"
       },
@@ -2158,6 +2154,10 @@
             "type": "uint256"
           }
         ]
+      },
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },
@@ -2407,6 +2407,10 @@
             "type": "uint256"
           }
         ]
+      },
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },

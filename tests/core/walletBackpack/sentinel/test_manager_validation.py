@@ -303,7 +303,7 @@ def test_manager_pay_cheque_ignores_global_cheque_create_permission(createGlobal
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE)
 
 
-def test_manager_pay_cheque_ignores_allowed_payees(createManagerSettings, createTransferPerms, alice, bob, sally, sentinel, user_wallet, user_wallet_config, high_command):
+def test_manager_pay_cheque_respects_allowed_payees(createManagerSettings, createTransferPerms, alice, bob, sally, sentinel, user_wallet, user_wallet_config, high_command):
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=True,
@@ -312,7 +312,8 @@ def test_manager_pay_cheque_ignores_allowed_payees(createManagerSettings, create
     new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
 
-    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], sally)
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], bob)
+    assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], sally)
 
 
 # transaction limits

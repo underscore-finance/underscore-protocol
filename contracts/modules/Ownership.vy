@@ -13,6 +13,12 @@ struct PendingOwnerChange:
     initiatedBlock: uint256
     confirmBlock: uint256
 
+struct PendingOwnershipTimeLock:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 event OwnershipChangeInitiated:
     prevOwner: indexed(address)
     newOwner: indexed(address)
@@ -33,12 +39,32 @@ event OwnershipChangeCancelled:
 event OwnershipTimeLockSet:
     numBlocks: uint256
 
+event PendingOwnershipTimeLockSet:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: indexed(address)
+
+event PendingOwnershipTimeLockConfirmed:
+    oldTimeLock: uint256
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    confirmedBy: indexed(address)
+
+event PendingOwnershipTimeLockCancelled:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
+
 # core
 owner: public(address)
 ownershipTimeLock: public(uint256)
 
 # pending owner change
 pendingOwner: public(PendingOwnerChange)
+pendingOwnershipTimeLock: public(PendingOwnershipTimeLock)
 
 UNDY_HQ_FOR_OWNERSHIP: immutable(address)
 MIN_OWNERSHIP_TIMELOCK: public(immutable(uint256))
@@ -155,5 +181,79 @@ def _hasPendingOwnerChange() -> bool:
 def setOwnershipTimeLock(_numBlocks: uint256):
     assert msg.sender == self.owner # dev: no perms
     assert _numBlocks >= MIN_OWNERSHIP_TIMELOCK and _numBlocks <= MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
-    self.ownershipTimeLock = _numBlocks
-    log OwnershipTimeLockSet(numBlocks=_numBlocks)
+
+    currentTimeLock: uint256 = self.ownershipTimeLock
+    pending: PendingOwnershipTimeLock = self.pendingOwnershipTimeLock
+    hasPending: bool = pending.confirmBlock != 0
+
+    if _numBlocks >= currentTimeLock:
+        if hasPending:
+            self.pendingOwnershipTimeLock = empty(PendingOwnershipTimeLock)
+            log PendingOwnershipTimeLockCancelled(
+                newTimeLock = pending.newTimeLock,
+                initiatedBlock = pending.initiatedBlock,
+                confirmBlock = pending.confirmBlock,
+                cancelledBy = msg.sender,
+            )
+
+        if _numBlocks == currentTimeLock:
+            return
+
+        self.ownershipTimeLock = _numBlocks
+        log OwnershipTimeLockSet(numBlocks=_numBlocks)
+        return
+
+    assert not hasPending # dev: pending time lock already exists
+
+    confirmBlock: uint256 = block.number + currentTimeLock
+    self.pendingOwnershipTimeLock = PendingOwnershipTimeLock(
+        newTimeLock = _numBlocks,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+        currentOwner = self.owner,
+    )
+    log PendingOwnershipTimeLockSet(
+        newTimeLock = _numBlocks,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+        currentOwner = self.owner,
+    )
+
+
+@external
+def confirmPendingOwnershipTimeLock():
+    assert msg.sender == self.owner # dev: no perms
+
+    pending: PendingOwnershipTimeLock = self.pendingOwnershipTimeLock
+    assert pending.confirmBlock != 0 # dev: no pending time lock
+    assert block.number >= pending.confirmBlock # dev: time delay not reached
+    assert pending.currentOwner == self.owner # dev: owner must match
+    assert pending.newTimeLock >= MIN_OWNERSHIP_TIMELOCK and pending.newTimeLock <= MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
+
+    oldTimeLock: uint256 = self.ownershipTimeLock
+    self.ownershipTimeLock = pending.newTimeLock
+    self.pendingOwnershipTimeLock = empty(PendingOwnershipTimeLock)
+    log OwnershipTimeLockSet(numBlocks=pending.newTimeLock)
+    log PendingOwnershipTimeLockConfirmed(
+        oldTimeLock = oldTimeLock,
+        newTimeLock = pending.newTimeLock,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        confirmedBy = msg.sender,
+    )
+
+
+@external
+def cancelPendingOwnershipTimeLock():
+    if msg.sender != self.owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    pending: PendingOwnershipTimeLock = self.pendingOwnershipTimeLock
+    assert pending.confirmBlock != 0 # dev: no pending time lock
+    self.pendingOwnershipTimeLock = empty(PendingOwnershipTimeLock)
+    log PendingOwnershipTimeLockCancelled(
+        newTimeLock = pending.newTimeLock,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        cancelledBy = msg.sender,
+    )

@@ -53,11 +53,6 @@ struct RipeAsset:
     vaultToken: address
     ripeVaultId: uint256
 
-event NonceIncremented:
-    levgVault: address
-    oldNonce: uint256
-    newNonce: uint256
-
 # important ids
 RIPE_LEGO_ID: constant(uint256) = 1
 RIPE_STAB_POOL_ID: constant(uint256) = 1
@@ -81,9 +76,9 @@ WORKFLOW_BORROW_AND_EARN: constant(uint8) = 100
 WORKFLOW_DELEVERAGE: constant(uint8) = 101
 WORKFLOW_COMPOUND_YIELD: constant(uint8) = 102
 
-UNDY_HQ: public(immutable(address))
-GREEN: public(immutable(address))
-SAVINGS_GREEN: public(immutable(address))
+UNDY_HQ: immutable(address)
+GREEN: immutable(address)
+SAVINGS_GREEN: immutable(address)
 
 currentNonce: public(HashMap[address, uint256])
 
@@ -742,10 +737,6 @@ def _authenticateAccess(_levgWallet: address, _messageHash: bytes32, _sig: Signa
 
         # increment nonce for next use
         self._incrementNonce(_levgWallet)
-    else:
-        assert _sig.signature == empty(Bytes[65]) # dev: must be empty
-        assert _sig.nonce == 0 # dev: must be 0
-        assert _sig.expiration == 0 # dev: must be 0
 
 
 @view
@@ -777,13 +768,7 @@ def _verify(_messageHash: bytes32, _sig: Signature) -> address:
         is_static_call=True
     )
 
-    # return recovered address or empty if failed
-    if len(result) != 32:
-        return empty(address)
-
-    recovered: address = abi_decode(result, address)
-    assert recovered != empty(address) # dev: signature recovery failed
-    return recovered
+    return abi_decode(result, address)
 
 
 @view
@@ -805,12 +790,4 @@ def incrementNonce(_levgWallet: address):
 
 @internal
 def _incrementNonce(_levgWallet: address):
-    oldNonce: uint256 = self.currentNonce[_levgWallet]
-    self.currentNonce[_levgWallet] = oldNonce + 1
-    log NonceIncremented(levgVault=_levgWallet, oldNonce=oldNonce, newNonce=oldNonce + 1)
-
-
-@view
-@external
-def getNonce(_levgWallet: address) -> uint256:
-    return self.currentNonce[_levgWallet]
+    self.currentNonce[_levgWallet] += 1

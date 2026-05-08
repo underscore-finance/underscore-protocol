@@ -34,6 +34,22 @@ def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wa
 
     assert result == True
 
+    pending = paymaster.pendingGlobalPayeeSettings(user_wallet)
+    assert pending.settings.defaultPeriodLength == 2 * ONE_DAY_IN_BLOCKS
+    assert pending.settings.startDelay == start_delay
+    assert pending.settings.activationLength == ONE_DAY_IN_BLOCKS
+    assert pending.settings.maxNumTxsPerPeriod == 10
+    assert pending.settings.txCooldownBlocks == 100
+    assert pending.settings.failOnZeroPrice == True
+    assert pending.settings.canPayOwner == False
+    assert pending.settings.canPull == True
+    assert pending.confirmBlock == boa.env.evm.patch.block_number + user_wallet_config.timeLock()
+
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+    result = paymaster.confirmPendingGlobalPayeeSettings(user_wallet, sender=bob)
+
+    assert result == True
+
     saved = user_wallet_config.globalPayeeSettings()
     assert saved.defaultPeriodLength == 2 * ONE_DAY_IN_BLOCKS
     assert saved.startDelay == start_delay

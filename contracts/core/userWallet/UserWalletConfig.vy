@@ -32,8 +32,6 @@ import contracts.modules.Ownership as ownership
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
-from ethereum.ercs import IERC721
-
 interface UserWallet:
     def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
     def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
@@ -49,8 +47,8 @@ interface UserWallet:
 interface Sentinel:
     def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
-    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
-    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
+    def isValidPayeeAndGetData(_isWhitelisted: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData, bool): view
+    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData, bool): view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -72,9 +70,6 @@ interface Switchboard:
 
 interface AgentWrapper:
     def isSender(_address: address) -> bool: view
-
-interface ChequeBook:
-    def hasPendingChequeSettings(_userWallet: address) -> bool: view
 
 event EjectionModeSet:
     inEjectMode: bool
@@ -132,13 +127,13 @@ globalPayeeSettings: public(wcs.GlobalPayeeSettings)
 # config
 timeLock: public(uint256)
 pendingTimeLock: public(wcs.PendingTimeLock)
+pendingMigration: public(wcs.PendingMigration)
 isFrozen: public(bool)
 inEjectMode: public(bool)
 groupId: public(uint256)
 startingAgent: public(address)
-didSetWallet: public(bool)
+didSetWallet: bool
 
-API_VERSION: constant(String[28]) = "0.1.0"
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
@@ -190,7 +185,6 @@ def __init__(
     UNDY_HQ = _undyHq
 
     # wallet backpack addrs
-    assert empty(address) not in [_kernel, _sentinel, _highCommand, _paymaster, _chequeBook, _migrator, _wethAddr, _ethAddr] # dev: invalid addrs
     self.kernel = _kernel
     self.sentinel = _sentinel
     self.highCommand = _highCommand
@@ -211,7 +205,6 @@ def __init__(
     self.groupId = _groupId
 
     # timelock
-    assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
     MIN_TIMELOCK = _minTimeLock
     MAX_TIMELOCK = _maxTimeLock
     self.timeLock = _minTimeLock
@@ -231,17 +224,10 @@ def __init__(
 @external
 def setWallet(_wallet: address) -> bool:
     assert not self.didSetWallet # dev: wallet already set
-    assert _wallet != empty(address) # dev: invalid wallet
     assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID) # dev: no perms
     self.wallet = _wallet
     self.didSetWallet = True
     return True
-
-
-@pure
-@external
-def apiVersion() -> String[28]:
-    return API_VERSION
 
 
 #############
@@ -252,14 +238,12 @@ def apiVersion() -> String[28]:
 @external
 def setTimeLock(_numBlocks: uint256):
     assert msg.sender == ownership.owner # dev: no perms
-    assert self._isValidTimeLock(_numBlocks) # dev: invalid delay
 
     currentTimeLock: uint256 = self.timeLock
-    pending: wcs.PendingTimeLock = self.pendingTimeLock
-    hasPending: bool = pending.confirmBlock != 0
+    pendingConfirmBlock: uint256 = self.pendingTimeLock.confirmBlock
 
     if _numBlocks >= currentTimeLock:
-        if hasPending:
+        if pendingConfirmBlock != 0:
             self.pendingTimeLock = empty(wcs.PendingTimeLock)
 
         if _numBlocks == currentTimeLock:
@@ -268,7 +252,7 @@ def setTimeLock(_numBlocks: uint256):
         self.timeLock = _numBlocks
         return
 
-    assert not hasPending # dev: pending time lock already exists
+    assert pendingConfirmBlock == 0 # dev: pending time lock already exists
 
     confirmBlock: uint256 = block.number + currentTimeLock
     self.pendingTimeLock = wcs.PendingTimeLock(
@@ -282,8 +266,6 @@ def setTimeLock(_numBlocks: uint256):
 @external
 def setTimeLockViaMigrator(_numBlocks: uint256):
     assert msg.sender == self.migrator # dev: no perms
-    assert self.pendingTimeLock.confirmBlock == 0 # dev: pending time lock exists
-    assert self._isValidTimeLock(_numBlocks) # dev: invalid delay
 
     if _numBlocks == self.timeLock:
         return
@@ -299,7 +281,6 @@ def confirmPendingTimeLock():
     assert pending.confirmBlock != 0 # dev: no pending time lock
     assert block.number >= pending.confirmBlock # dev: time delay not reached
     assert pending.currentOwner == ownership.owner # dev: owner must match
-    assert self._isValidTimeLock(pending.newTimeLock) # dev: invalid delay
 
     self.timeLock = pending.newTimeLock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
@@ -310,15 +291,32 @@ def cancelPendingTimeLock():
     if msg.sender != ownership.owner:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
 
-    pending: wcs.PendingTimeLock = self.pendingTimeLock
-    assert pending.confirmBlock != 0 # dev: no pending time lock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
 
 
-@view
-@internal
-def _isValidTimeLock(_numBlocks: uint256) -> bool:
-    return _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK
+#####################
+# Pending Migration #
+#####################
+
+
+@external
+def setPendingMigration(_toWallet: address) -> wcs.PendingMigration:
+    assert msg.sender == self.migrator # dev: no perms
+
+    pending: wcs.PendingMigration = wcs.PendingMigration(
+        toWallet = _toWallet,
+        initiatedBlock = block.number,
+        confirmBlock = block.number + self.timeLock,
+        currentOwner = ownership.owner,
+    )
+    self.pendingMigration = pending
+    return pending
+
+
+@external
+def clearPendingMigration():
+    assert msg.sender == self.migrator # dev: no perms
+    self.pendingMigration = empty(wcs.PendingMigration)
 
 
 #####################
@@ -441,13 +439,11 @@ def checkRecipientLimitsAndUpdateData(
     isWhitelisted: bool = self.indexOfWhitelist[_recipient] != 0
 
     # only get the extra data if the recipient is not whitelisted
-    isOwner: bool = False
     isPayee: bool = False
     config: wcs.PayeeSettings = empty(wcs.PayeeSettings)
     globalConfig: wcs.GlobalPayeeSettings = empty(wcs.GlobalPayeeSettings)
     data: wcs.PayeeData = empty(wcs.PayeeData)
     if not isWhitelisted:
-        isOwner = _recipient == ownership.owner
         isPayee = self.indexOfPayee[_recipient] != 0
         config = self.payeeSettings[_recipient]
         globalConfig = self.globalPayeeSettings
@@ -455,9 +451,9 @@ def checkRecipientLimitsAndUpdateData(
 
     # check if payee is valid
     canPayRecipient: bool = False
-    canPayRecipient, data = staticcall Sentinel(self.sentinel).isValidPayeeAndGetData(
+    didUpdate: bool = False
+    canPayRecipient, data, didUpdate = staticcall Sentinel(self.sentinel).isValidPayeeAndGetData(
         isWhitelisted,
-        isOwner,
         isPayee,
         _asset,
         _amount,
@@ -471,7 +467,7 @@ def checkRecipientLimitsAndUpdateData(
     assert canPayRecipient # dev: invalid payee
 
     # only save if data was updated  
-    if data.lastTxBlock != 0:
+    if didUpdate:
         self.payeePeriodData[_recipient] = data
     
     return True
@@ -503,7 +499,8 @@ def validateCheque(
 
     # cheque validation
     isValidCheque: bool = False
-    isValidCheque, data = staticcall Sentinel(self.sentinel).isValidChequeAndGetData(
+    didPay: bool = False
+    isValidCheque, data, didPay = staticcall Sentinel(self.sentinel).isValidChequeAndGetData(
         _asset,
         _amount,
         _txUsdValue,
@@ -517,7 +514,7 @@ def validateCheque(
     assert isValidCheque # dev: invalid cheque
 
     # only save if data was updated
-    if data.lastChequePaidBlock != 0:
+    if didPay:
         self.chequePeriodData = data
         self.numActiveCheques -= 1
 
@@ -556,7 +553,6 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.kernel # dev: no perms
-    assert self.pendingWhitelist[_addr].confirmBlock <= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._registerWhitelistAddr(_addr)
 
@@ -803,6 +799,12 @@ def setChequeSettings(_config: wcs.ChequeSettings):
     self.chequeSettings = _config
 
 
+@external
+def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings):
+    assert msg.sender == self.migrator # dev: no perms
+    self.chequeSettings = _config
+
+
 ################
 # Wallet Tools #
 ################
@@ -871,7 +873,6 @@ def preparePayment(
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(self.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
-    assert underlyingAsset == _targetAsset # dev: invalid target asset
 
     return underlyingAmount, txUsdValue
 
@@ -894,10 +895,7 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     if msg.sender != ownership.owner:
         assert self._isSwitchboardAddr(msg.sender) # dev: no perms
 
-    assert _recipient != empty(address) # dev: invalid recipient
-    wallet: address = self.wallet
-    assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == wallet # dev: not owner
-    extcall UserWallet(wallet).recoverNft(_collection, _nftTokenId, _recipient)
+    extcall UserWallet(self.wallet).recoverNft(_collection, _nftTokenId, _recipient)
     log NftRecovered(collection = _collection, nftTokenId = _nftTokenId, recipient = _recipient)
 
 
@@ -908,7 +906,6 @@ def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
 def setFrozen(_isFrozen: bool):
     if msg.sender != ownership.owner:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
-    assert _isFrozen != self.isFrozen # dev: nothing to change
     self.isFrozen = _isFrozen
     log FrozenSet(isFrozen=_isFrozen, caller=msg.sender)
 
@@ -921,7 +918,6 @@ def setEjectionMode(_shouldEject: bool):
     # NOTE: this needs to be triggered from Switchboard, as it has other side effects / reactions
     assert self._isSwitchboardAddr(msg.sender) # dev: no perms
 
-    assert _shouldEject != self.inEjectMode # dev: nothing to change
     self.inEjectMode = _shouldEject
     log EjectionModeSet(inEjectMode = _shouldEject)
 
@@ -1006,9 +1002,6 @@ def setPaymaster(_paymaster: address):
 @external
 def setChequeBook(_chequeBook: address):
     assert self._canSetBackpackItem(_chequeBook, msg.sender) # dev: no perms
-    # Same-address updates cannot orphan pending settings; only replacements need the guard.
-    if _chequeBook != self.chequeBook:
-        assert not staticcall ChequeBook(self.chequeBook).hasPendingChequeSettings(self.wallet) # dev: pending cheque settings
     self.chequeBook = _chequeBook
 
 

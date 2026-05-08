@@ -154,7 +154,7 @@ def payCheque(
     assert _expectedCreationBlock != 0 # dev: invalid expected block
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(6, uint8), _agentWrapper, _userWallet, _recipient, _asset, _amount, _expectedCreationBlock, _sig.nonce, _sig.expiration)), _sig)
     self._assertChequeVersionMatches(_userWallet, _recipient, _expectedCreationBlock)
-    return extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, _recipient, _asset, _amount)
+    return extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, _recipient, _asset, _amount, _expectedCreationBlock)
 
 
 #########
@@ -585,9 +585,9 @@ def _executeAction(_agentWrapper: address, _userWallet: address, instruction: Ac
     # pay cheque
     elif instruction.action == 6:
         assert not instruction.usePrevAmountOut # dev: cannot use prev amount
-        # Batch cheque signatures pin the cheque version before forwarding to the wrapper.
+        # Use action 4 for atomic create-and-pay; action 5 + 6 intentionally pays an existing cheque.
         self._assertChequeVersionMatches(_userWallet, instruction.target, instruction.amount2)
-        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, instruction.target, instruction.asset, nextAmount)
+        nextAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).payCheque(_userWallet, instruction.target, instruction.asset, nextAmount, instruction.amount2)
         return nextAmount
 
     # deposit for yield

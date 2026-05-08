@@ -26,6 +26,7 @@ interface UserWalletConfig:
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
+    def indexOfWhitelist(_addr: address) -> uint256: view
     def removeManager(_manager: address): nonpayable
     def startingAgent() -> address: view
     def timeLock() -> uint256: view
@@ -33,6 +34,7 @@ interface UserWalletConfig:
 
 interface Registry:
     def isValidRegId(_regId: uint256) -> bool: view
+    def isValidAddr(_addr: address) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
 interface MissionControl:
@@ -40,6 +42,7 @@ interface MissionControl:
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -110,6 +113,10 @@ event ManagerActivationLengthAdjusted:
     activationLength: uint256
     didRestart: bool
 
+event StarterAgentNeutered:
+    user: indexed(address)
+    starterAgent: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
@@ -178,6 +185,9 @@ def addManager(
     config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
     assert msg.sender == config.owner # dev: no perms
     assert _manager not in [empty(address), config.owner, config.walletConfig, _userWallet] # dev: invalid manager
+    assert not config.isPayee # dev: already payee
+    assert not config.isWhitelisted # dev: already whitelisted
+    assert not self._isPrivilegedUndyAddr(_manager) # dev: invalid manager
 
     isValid: bool = False
     settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
@@ -298,6 +308,56 @@ def removeManager(_userWallet: address, _manager: address) -> bool:
 
     extcall UserWalletConfig(config.walletConfig).removeManager(_manager)
     log ManagerRemoved(user = _userWallet, manager = _manager)
+    return True
+
+
+# neuter starter agent
+
+
+@external
+def neuterStarterAgent(_userWallet: address) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    assert msg.sender == owner # dev: no perms
+
+    starterAgent: address = staticcall UserWalletConfig(walletConfig).startingAgent()
+    assert starterAgent != empty(address) # dev: no starter agent
+
+    settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
+    settings.canClaimLoot = True
+    extcall UserWalletConfig(walletConfig).updateManager(starterAgent, settings)
+
+    log ManagerSettingsModified(
+        user = _userWallet,
+        manager = starterAgent,
+        startBlock = 0,
+        expiryBlock = 0,
+        maxUsdValuePerTx = 0,
+        maxUsdValuePerPeriod = 0,
+        maxUsdValueLifetime = 0,
+        maxNumTxsPerPeriod = 0,
+        txCooldownBlocks = 0,
+        failOnZeroPrice = False,
+        canManageYield = False,
+        canBuyAndSell = False,
+        canManageDebt = False,
+        canManageLiq = False,
+        canClaimRewards = False,
+        numAllowedLegos = 0,
+        canAddPendingWhitelist = False,
+        canConfirmWhitelist = False,
+        canCancelWhitelist = False,
+        canRemoveWhitelist = False,
+        canTransfer = False,
+        canCreateCheque = False,
+        canAddPendingPayee = False,
+        numAllowedRecipients = 0,
+        numAllowedAssets = 0,
+        canClaimLoot = True,
+    )
+    log StarterAgentNeutered(user = _userWallet, starterAgent = starterAgent)
     return True
 
 
@@ -955,6 +1015,17 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
 
 
+@view
+@internal
+def _isPrivilegedUndyAddr(_addr: address) -> bool:
+    if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
+        return True
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
+
+
 # manager settings bundle
 
 
@@ -971,6 +1042,8 @@ def _getManagerSettingsBundle(_userWallet: address, _manager: address) -> wcs.Ma
     return wcs.ManagerSettingsBundle(
         owner = staticcall UserWalletConfig(walletConfig).owner(),
         isManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_manager) != 0,
+        isPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_manager) != 0,
+        isWhitelisted = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_manager) != 0,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
         walletConfig = walletConfig,
         legoBook = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID),

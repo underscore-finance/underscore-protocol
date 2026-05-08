@@ -20,9 +20,18 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 from ethereum.ercs import IERC20
 
+struct PendingOwnershipTimeLock:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 interface UserWalletConfig:
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def setTimeLockViaMigrator(_numBlocks: uint256): nonpayable
+    def setPendingMigration(_toWallet: address) -> wcs.PendingMigration: nonpayable
+    def clearPendingMigration(): nonpayable
+    def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings): nonpayable
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
@@ -32,11 +41,17 @@ interface UserWalletConfig:
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def addWhitelistAddrViaMigrator(_addr: address): nonpayable
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def chequeSettings() -> wcs.ChequeSettings: view
+    def pendingMigration() -> wcs.PendingMigration: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
+    def indexOfWhitelist(_addr: address) -> uint256: view
     def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_addr: address) -> uint256: view
+    def cheques(_addr: address) -> wcs.Cheque: view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
     def hasPendingOwnerChange() -> bool: view
+    def pendingOwnershipTimeLock() -> PendingOwnershipTimeLock: view
     def payees(i: uint256) -> address: view
     def numActiveCheques() -> uint256: view
     def numWhitelisted() -> uint256: view
@@ -61,9 +76,17 @@ interface UserWallet:
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
+
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
 
 event FundsMigrated:
     fromWallet: indexed(address)
@@ -78,15 +101,101 @@ event ConfigCloned:
     numPayeesCopied: uint256
     numWhitelistCopied: uint256
 
+event InstantMigrationEnabledSet:
+    isEnabled: bool
+    caller: indexed(address)
+
+event PendingMigrationInitiated:
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: indexed(address)
+
+event PendingMigrationConfirmed:
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+
+event PendingMigrationCancelled:
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
+MISSION_CONTROL_ID: constant(uint256) = 2
+SWITCHBOARD_ID: constant(uint256) = 4
 MAX_DEREGISTER_ASSETS: constant(uint256) = 25
+
+instantMigrationEnabled: public(bool)
 
 
 @deploy
 def __init__(_undyHq: address):
     assert _undyHq != empty(address) # dev: invalid undy hq
     UNDY_HQ = _undyHq
+
+
+#####################
+# Migration Control #
+#####################
+
+
+@external
+def setInstantMigrationEnabled(_isEnabled: bool) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.instantMigrationEnabled = _isEnabled
+    log InstantMigrationEnabledSet(isEnabled = _isEnabled, caller = msg.sender)
+    return True
+
+
+@external
+def initiateMigration(_fromWallet: address, _toWallet: address) -> bool:
+    assert _toWallet != empty(address) # dev: invalid migration
+    assert (
+        self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, False) or
+        self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender, False)
+    ) # dev: invalid migration
+
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    existingPending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
+    assert existingPending.confirmBlock == 0 # dev: pending migration exists
+    pending: wcs.PendingMigration = extcall UserWalletConfig(fromConfig).setPendingMigration(_toWallet)
+    log PendingMigrationInitiated(
+        fromWallet = _fromWallet,
+        toWallet = _toWallet,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        currentOwner = pending.currentOwner,
+    )
+    return True
+
+
+@external
+def cancelPendingMigration(_fromWallet: address) -> bool:
+    assert self._isValidUserWallet(_fromWallet) # dev: invalid user wallet
+
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    pending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
+    assert pending.confirmBlock != 0 # dev: no pending migration
+
+    owner: address = staticcall UserWalletConfig(fromConfig).owner()
+    if msg.sender != owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    extcall UserWalletConfig(fromConfig).clearPendingMigration()
+    log PendingMigrationCancelled(
+        fromWallet = _fromWallet,
+        toWallet = pending.toWallet,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        cancelledBy = msg.sender,
+    )
+    return True
 
 
 ############################
@@ -99,7 +208,7 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 
     # migrate funds
     numFundsMigrated: uint256 = 0
-    if self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender):
+    if self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, True):
         numAssets: uint256 = staticcall UserWallet(_fromWallet).numAssets()
         if numAssets > 1:
             numFundsMigrated = self._migrateFunds(_fromWallet, _toWallet, numAssets)
@@ -107,10 +216,11 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 
     # migrate config
     didMigrateConfig: bool = False
-    if self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender):
+    if self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender, True):
         didMigrateConfig = self._cloneConfig(_fromWallet, _toWallet)
 
     assert numFundsMigrated != 0 or didMigrateConfig # dev: no funds or config to migrate
+    self._confirmAndClearPendingMigration(_fromWallet, _toWallet)
     return numFundsMigrated, didMigrateConfig
 
 
@@ -121,7 +231,7 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 
 @external
 def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
-    assert self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender) # dev: invalid migration
+    assert self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, True) # dev: invalid migration
 
     # validate fromWallet has assets to migrate
     numAssets: uint256 = staticcall UserWallet(_fromWallet).numAssets()
@@ -131,6 +241,7 @@ def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
     numMigrated: uint256 = self._migrateFunds(_fromWallet, _toWallet, numAssets)
     assert numMigrated != 0 # dev: no assets migrated
 
+    self._confirmAndClearPendingMigration(_fromWallet, _toWallet)
     return numMigrated
 
 
@@ -181,12 +292,12 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
 @view
 @external
 def canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _caller: address) -> bool:
-    return self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, _caller)
+    return self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, _caller, False)
 
 
 @view
 @internal
-def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _caller: address) -> bool:
+def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _caller: address, _requirePending: bool) -> bool:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
 
     # validate fromWallet is Underscore wallet
@@ -197,6 +308,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     if not staticcall Ledger(ledger).isUserWallet(_toWallet):
         return False
 
+    if _requirePending and not self.instantMigrationEnabled:
+        if not self._hasValidPendingMigration(_fromWallet, _toWallet):
+            return False
+
     if self._hasPendingChequeSettings(_fromWallet):
         return False
     if self._hasPendingChequeSettings(_toWallet):
@@ -204,6 +319,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     if self._hasPendingTimeLock(_fromWallet):
         return False
     if self._hasPendingTimeLock(_toWallet):
+        return False
+    if self._hasPendingOwnershipTimeLock(_fromWallet):
+        return False
+    if self._hasPendingOwnershipTimeLock(_toWallet):
         return False
 
     # get fromWallet data
@@ -273,8 +392,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
 
 @external
 def cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
-    assert self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender) # dev: cannot copy config
-    return self._cloneConfig(_fromWallet, _toWallet)
+    assert self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender, True) # dev: cannot copy config
+    didClone: bool = self._cloneConfig(_fromWallet, _toWallet)
+    self._confirmAndClearPendingMigration(_fromWallet, _toWallet)
+    return didClone
 
 
 @internal
@@ -318,6 +439,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
     globalPayeeSettings.canPayOwner = False
     extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
+
+    # 3b. copy cheque settings, but not individual cheques
+    chequeSettings: wcs.ChequeSettings = staticcall UserWalletConfig(fromConfig).chequeSettings()
+    extcall UserWalletConfig(toConfig).setChequeSettingsViaMigrator(chequeSettings)
     
     # 4. copy all payees
     payeesCopied: uint256 = 0
@@ -342,11 +467,11 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
             if addr in [empty(address), toOwner, _toWallet, toConfig]:
                 continue
 
+            assert self._isValidMigratorWhitelistAddr(toConfig, addr) # dev: invalid addr
             extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
             whitelistCopied += 1
 
-    # NOTE (FIX L-04): Cheque settings are NOT migrated - destination wallet uses default settings
-    # Individual cheques are also NOT migrated - users must manually recreate them
+    # Individual cheques are NOT migrated - users must manually recreate them.
     # Validation ensures destination has no active cheques before migration
 
     log ConfigCloned(
@@ -365,12 +490,12 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 @view
 @external
 def canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: address) -> bool:
-    return self._canCopyWalletConfig(_fromWallet, _toWallet, _caller)
+    return self._canCopyWalletConfig(_fromWallet, _toWallet, _caller, False)
 
 
 @view
 @internal
-def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: address) -> bool:
+def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: address, _requirePending: bool) -> bool:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
 
     # validate fromWallet is Underscore wallet
@@ -381,6 +506,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
     if not staticcall Ledger(ledger).isUserWallet(_toWallet):
         return False
 
+    if _requirePending and not self.instantMigrationEnabled:
+        if not self._hasValidPendingMigration(_fromWallet, _toWallet):
+            return False
+
     if self._hasPendingChequeSettings(_fromWallet):
         return False
     if self._hasPendingChequeSettings(_toWallet):
@@ -388,6 +517,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
     if self._hasPendingTimeLock(_fromWallet):
         return False
     if self._hasPendingTimeLock(_toWallet):
+        return False
+    if self._hasPendingOwnershipTimeLock(_fromWallet):
+        return False
+    if self._hasPendingOwnershipTimeLock(_toWallet):
         return False
 
     # get toWallet data
@@ -463,6 +596,15 @@ def getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle:
 
 @view
 @internal
+def _isValidUserWallet(_userWallet: address) -> bool:
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isUserWallet(_userWallet)
+
+
+@view
+@internal
 def _hasPendingChequeSettings(_userWallet: address) -> bool:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
@@ -475,6 +617,88 @@ def _hasPendingTimeLock(_userWallet: address) -> bool:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     pending: wcs.PendingTimeLock = staticcall UserWalletConfig(walletConfig).pendingTimeLock()
     return pending.confirmBlock != 0
+
+
+@view
+@internal
+def _hasPendingOwnershipTimeLock(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    pending: PendingOwnershipTimeLock = staticcall UserWalletConfig(walletConfig).pendingOwnershipTimeLock()
+    return pending.confirmBlock != 0
+
+
+@view
+@internal
+def _hasValidPendingMigration(_fromWallet: address, _toWallet: address) -> bool:
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    pending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
+    if pending.confirmBlock == 0:
+        return False
+    if pending.toWallet != _toWallet:
+        return False
+    if block.number < pending.confirmBlock:
+        return False
+    if pending.currentOwner != staticcall UserWalletConfig(fromConfig).owner():
+        return False
+    return True
+
+
+@internal
+def _confirmAndClearPendingMigration(_fromWallet: address, _toWallet: address):
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    pending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
+    if pending.confirmBlock == 0:
+        return
+
+    assert pending.toWallet == _toWallet # dev: invalid migration
+    assert block.number >= pending.confirmBlock # dev: time delay not reached
+    assert pending.currentOwner == staticcall UserWalletConfig(fromConfig).owner() # dev: owner must match
+
+    extcall UserWalletConfig(fromConfig).clearPendingMigration()
+    log PendingMigrationConfirmed(
+        fromWallet = _fromWallet,
+        toWallet = _toWallet,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+    )
+
+
+@view
+@internal
+def _isSwitchboardAddr(_addr: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
+
+
+@view
+@internal
+def _canPerformSecurityAction(_addr: address) -> bool:
+    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
+    if missionControl == empty(address):
+        return False
+    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@internal
+def _isValidMigratorWhitelistAddr(_walletConfig: address, _addr: address) -> bool:
+    if staticcall UserWalletConfig(_walletConfig).indexOfWhitelist(_addr) != 0:
+        return False
+    if staticcall UserWalletConfig(_walletConfig).indexOfPayee(_addr) != 0:
+        return False
+    cheque: wcs.Cheque = staticcall UserWalletConfig(_walletConfig).cheques(_addr)
+    if cheque.active:
+        return False
+    if staticcall UserWalletConfig(_walletConfig).indexOfManager(_addr) != 0:
+        return False
+    if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
+        return False
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger != empty(address) and staticcall Ledger(ledger).isRegisteredBackpackItem(_addr):
+        return False
+    return True
 
 
 @view

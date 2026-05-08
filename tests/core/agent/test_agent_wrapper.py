@@ -1574,7 +1574,7 @@ def test_agent_create_and_pay_cheque_does_not_consume_generic_manager_quota_on_c
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
 
-def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
+def test_agent_create_and_pay_cheque_respects_allowed_payees_for_cheque_payments(
     setupAgentTestAsset,
     starter_agent,
     starter_agent_sender,
@@ -1618,14 +1618,30 @@ def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
         _allowed_payees=[sally],
     )
 
-    recipient_balance_before = alpha_token.balanceOf(alice)
+    blocked_recipient_balance_before = alpha_token.balanceOf(alice)
+    allowed_recipient_balance_before = alpha_token.balanceOf(sally)
     wallet_balance_before = alpha_token.balanceOf(user_wallet)
 
     try:
+        with boa.reverts():
+            starter_agent_sender.createAndPayCheque(
+                starter_agent.address,
+                user_wallet.address,
+                alice,
+                alpha_token.address,
+                amount,
+                (b"", 0, 0),
+                sender=charlie
+            )
+
+        assert alpha_token.balanceOf(alice) == blocked_recipient_balance_before
+        assert alpha_token.balanceOf(user_wallet) == wallet_balance_before
+        assert user_wallet_config.cheques(alice).active == False
+
         amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
             starter_agent.address,
             user_wallet.address,
-            alice,
+            sally,
             alpha_token.address,
             amount,
             (b"", 0, 0),
@@ -1633,9 +1649,9 @@ def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
         )
         assert amount_paid == amount
         assert usd_value == amount
-        assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+        assert alpha_token.balanceOf(sally) == allowed_recipient_balance_before + amount
         assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
-        assert user_wallet_config.cheques(alice).active == False
+        assert user_wallet_config.cheques(sally).active == False
     finally:
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 

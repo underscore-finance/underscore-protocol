@@ -638,24 +638,17 @@ def test_remove_non_existent_items(user_wallet_config, kernel, high_command, pay
     assert user_wallet_config.numPayees() == initial_payee_count
 
 
-def test_time_delay_enforcement(user_wallet_config, kernel, alice, pending_whitelist, user_wallet):
-    """Test that time delays are enforced for pending items"""
-    # Test whitelist time delay with fresh pending data
+def test_whitelist_confirm_trusts_kernel_validation(user_wallet_config, kernel, alice, pending_whitelist, user_wallet):
+    """UserWalletConfig only enforces caller access for whitelist confirmation"""
     fresh_pending = (
         boa.env.evm.patch.block_number,         # initiatedBlock
         boa.env.evm.patch.block_number + 10,   # confirmBlock (10 blocks later)
         user_wallet.address,                    # currentOwner
     )
     user_wallet_config.addPendingWhitelistAddr(alice, fresh_pending, sender=kernel.address)
-    
-    # Should fail before time delay
-    # Current block is still less than confirmBlock
-    with boa.reverts("time delay not reached"):
-        user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
-    
-    # Should succeed after time delay
-    boa.env.time_travel(blocks=10)  # Now at confirmBlock
+
     user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
+    assert user_wallet_config.indexOfWhitelist(alice) != 0
     
 
 ###################
@@ -669,13 +662,16 @@ def test_set_time_lock_access(user_wallet_config, alice):
         user_wallet_config.setTimeLock(user_wallet_config.timeLock() + 1, sender=alice)
 
 
-def test_set_time_lock_invalid_delay(user_wallet_config, bob):
-    """Time lock updates must stay within the configured bounds"""
-    with boa.reverts("invalid delay"):
-        user_wallet_config.setTimeLock(0, sender=bob)
+def test_set_time_lock_does_not_duplicate_bounds_validation(user_wallet_config, bob):
+    """UserWalletConfig only stages/applies owner-provided time lock values"""
+    high_time_lock = user_wallet_config.MAX_TIMELOCK() + 1
+    user_wallet_config.setTimeLock(high_time_lock, sender=bob)
 
-    with boa.reverts("invalid delay"):
-        user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK() + 1, sender=bob)
+    assert user_wallet_config.timeLock() == high_time_lock
+
+    user_wallet_config.setTimeLock(0, sender=bob)
+
+    assert user_wallet_config.pendingTimeLock().newTimeLock == 0
 
 
 def test_set_time_lock_increase_applies_immediately(user_wallet_config, bob):
@@ -823,16 +819,17 @@ def test_set_time_lock_same_value_clears_pending(user_wallet_config, bob):
     assert user_wallet_config.pendingTimeLock().confirmBlock == 0
 
 
-def test_set_time_lock_via_migrator_access_and_pending_guard(user_wallet_config, bob, alice, migrator):
-    """The migrator-only time lock setter should not bypass a staged decrease"""
+def test_set_time_lock_via_migrator_access_only(user_wallet_config, bob, alice, migrator):
+    """The migrator-only time lock setter only enforces caller access"""
     with boa.reverts("no perms"):
         user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=alice)
 
     user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
     user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
 
-    with boa.reverts("pending time lock exists"):
-        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=migrator.address)
+    user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=migrator.address)
+
+    assert user_wallet_config.timeLock() == user_wallet_config.MAX_TIMELOCK()
 
 
 #######################
@@ -866,9 +863,9 @@ def test_set_frozen_access(user_wallet_config, alice, charlie):
     user_wallet_config.setFrozen(False, sender=owner)
     assert user_wallet_config.isFrozen() == False
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(False, sender=owner)
+    # Same-value updates are accepted; backpack contracts own higher-level validation.
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
 
 
 def test_set_frozen_by_owner_only(user_wallet_config):
@@ -882,9 +879,9 @@ def test_set_frozen_by_owner_only(user_wallet_config):
     user_wallet_config.setFrozen(True, sender=owner)
     assert user_wallet_config.isFrozen() == True
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(True, sender=owner)
+    # Same-value updates are accepted.
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
     
     # Owner can unfreeze
     user_wallet_config.setFrozen(False, sender=owner)
@@ -902,9 +899,8 @@ def test_set_frozen_persistence(user_wallet_config):
     user_wallet_config.setFrozen(True, sender=owner)
     assert user_wallet_config.isFrozen() == True
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(True, sender=owner)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setFrozen(True, sender=owner)
     
     # State should still be frozen
     assert user_wallet_config.isFrozen() == True
@@ -913,9 +909,8 @@ def test_set_frozen_persistence(user_wallet_config):
     user_wallet_config.setFrozen(False, sender=owner)
     assert user_wallet_config.isFrozen() == False
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(False, sender=owner)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setFrozen(False, sender=owner)
     
     # State should still be unfrozen
     assert user_wallet_config.isFrozen() == False
@@ -934,9 +929,9 @@ def test_set_ejection_mode_access(user_wallet_config, alice, bob, switchboard_al
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    # Same-value updates are accepted.
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
     
     # Switchboard can turn off ejection mode
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
@@ -952,9 +947,8 @@ def test_set_ejection_mode_persistence(user_wallet_config, switchboard_alpha):
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     
     # State should still be true
     assert user_wallet_config.inEjectMode() == True
@@ -963,9 +957,8 @@ def test_set_ejection_mode_persistence(user_wallet_config, switchboard_alpha):
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == False
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     
     # State should still be false
     assert user_wallet_config.inEjectMode() == False
@@ -1093,7 +1086,7 @@ def test_set_cheque_book_same_address_succeeds_with_pending_settings(
     cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
 
 
-def test_set_cheque_book_different_registered_book_reverts_with_pending_settings(
+def test_set_cheque_book_different_registered_book_trusts_registered_sender_with_pending_settings(
     user_wallet,
     user_wallet_config,
     bob,
@@ -1106,10 +1099,9 @@ def test_set_cheque_book_different_registered_book_reverts_with_pending_settings
     stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
     assert cheque_book.hasPendingChequeSettings(user_wallet.address)
 
-    with boa.reverts("pending cheque settings"):
-        user_wallet_config.setChequeBook(replacement.address, sender=bob)
+    user_wallet_config.setChequeBook(replacement.address, sender=bob)
 
-    assert user_wallet_config.chequeBook() == cheque_book.address
+    assert user_wallet_config.chequeBook() == replacement.address
 
 
 def test_set_cheque_book_different_registered_book_succeeds_after_pending_settings_cleared(

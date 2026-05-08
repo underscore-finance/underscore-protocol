@@ -36,7 +36,6 @@ def canSignerPerformActionWithConfig(
 @external
 def isValidPayeeAndGetData(
     _isWhitelisted: bool,
-    _isOwner: bool,
     _isPayee: bool,
     _asset: address,
     _amount: uint256,
@@ -44,10 +43,10 @@ def isValidPayeeAndGetData(
     _config: wcs.PayeeSettings,
     _globalConfig: wcs.GlobalPayeeSettings,
     _data: wcs.PayeeData,
-) -> (bool, wcs.PayeeData):
+) -> (bool, wcs.PayeeData, bool):
     if self.fail_validation:
-        return False, _data
-    return True, _data
+        return False, _data, False
+    return True, _data, True
 
 
 @view
@@ -83,10 +82,10 @@ def isValidChequeAndGetData(
     _globalConfig: wcs.ChequeSettings,
     _chequeData: wcs.ChequeData,
     _isManager: bool,
-) -> (bool, wcs.ChequeData):
+) -> (bool, wcs.ChequeData, bool):
     if self.fail_validation:
-        return False, _chequeData
-    return True, _chequeData
+        return False, _chequeData, False
+    return True, _chequeData, True
 
 
 # Helper function for testing

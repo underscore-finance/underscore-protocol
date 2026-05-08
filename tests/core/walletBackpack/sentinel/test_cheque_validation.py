@@ -27,7 +27,7 @@ def test_isValidChequeAndGetData_fails_when_cheque_not_active(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,  # _asset
         100 * EIGHTEEN_DECIMALS,  # _amount
         100 * EIGHTEEN_DECIMALS,  # _txUsdValue
@@ -58,7 +58,7 @@ def test_isValidChequeAndGetData_fails_when_before_unlock_block(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -92,7 +92,7 @@ def test_isValidChequeAndGetData_fails_when_after_expiry_block(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -123,7 +123,7 @@ def test_isValidChequeAndGetData_succeeds_within_valid_time_window(
     )
     cheque_data = createChequeData()
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -154,7 +154,7 @@ def test_isValidChequeAndGetData_fails_with_zero_recipient(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -181,7 +181,7 @@ def test_isValidChequeAndGetData_fails_with_zero_asset(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         ZERO_ADDRESS,  # Must match cheque asset
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -208,7 +208,7 @@ def test_isValidChequeAndGetData_fails_when_asset_mismatch(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         bravo_token.address,  # INVALID: different asset
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -235,7 +235,7 @@ def test_isValidChequeAndGetData_fails_when_amount_mismatch(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         99 * EIGHTEEN_DECIMALS,  # INVALID: different amount
         99 * EIGHTEEN_DECIMALS,
@@ -263,7 +263,7 @@ def test_isValidChequeAndGetData_fails_when_asset_not_allowed(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,  # Not in allowed list
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -293,7 +293,7 @@ def test_isValidChequeAndGetData_succeeds_when_asset_allowed(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -323,7 +323,7 @@ def test_isValidChequeAndGetData_succeeds_with_empty_allowed_assets(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -350,7 +350,7 @@ def test_isValidChequeAndGetData_fails_with_zero_usd_value(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         0,  # INVALID: zero USD value
@@ -378,7 +378,7 @@ def test_isValidChequeAndGetData_fails_when_exceeds_max_cheque_usd_value(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,  # INVALID: exceeds max
@@ -408,7 +408,7 @@ def test_isValidChequeAndGetData_succeeds_at_max_cheque_usd_value(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,  # VALID: at max
@@ -438,7 +438,7 @@ def test_isValidChequeAndGetData_succeeds_with_zero_max_cheque_usd_value(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         1000000 * EIGHTEEN_DECIMALS,  # Very large value, still valid
@@ -467,7 +467,7 @@ def test_isValidChequeAndGetData_manager_fails_without_global_permission(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -496,7 +496,7 @@ def test_isValidChequeAndGetData_manager_fails_without_cheque_permission(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -527,7 +527,7 @@ def test_isValidChequeAndGetData_manager_succeeds_with_both_permissions(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -558,7 +558,7 @@ def test_isValidChequeAndGetData_non_manager_ignores_manager_permissions(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -593,7 +593,7 @@ def test_isValidChequeAndGetData_fails_within_pay_cooldown(
         _lastChequePaidBlock=current_block - 50  # Paid 50 blocks ago
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -628,7 +628,7 @@ def test_isValidChequeAndGetData_succeeds_after_pay_cooldown(
         _lastChequePaidBlock=current_block - 101  # Paid 101 blocks ago
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -660,7 +660,7 @@ def test_isValidChequeAndGetData_succeeds_with_zero_pay_cooldown(
         _lastChequePaidBlock=current_block  # Paid this block
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -692,7 +692,7 @@ def test_isValidChequeAndGetData_fails_when_exceeds_max_cheques_per_period(
         _numChequesPaidInPeriod=5  # Already at limit
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -724,7 +724,7 @@ def test_isValidChequeAndGetData_succeeds_below_max_cheques_per_period(
         _numChequesPaidInPeriod=4  # Below limit
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -756,7 +756,7 @@ def test_isValidChequeAndGetData_succeeds_with_zero_max_cheques_per_period(
         _numChequesPaidInPeriod=1000  # Very high number
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -788,7 +788,7 @@ def test_isValidChequeAndGetData_fails_when_exceeds_period_usd_cap(
         _totalUsdValuePaidInPeriod=450 * EIGHTEEN_DECIMALS  # Already 450 USD
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,  # Would exceed cap (450 + 100 > 500)
@@ -820,7 +820,7 @@ def test_isValidChequeAndGetData_succeeds_at_exactly_period_usd_cap(
         _totalUsdValuePaidInPeriod=400 * EIGHTEEN_DECIMALS  # Already 400 USD
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,  # Exactly at cap (400 + 100 = 500)
@@ -852,7 +852,7 @@ def test_isValidChequeAndGetData_succeeds_with_zero_period_usd_cap(
         _totalUsdValuePaidInPeriod=1000000 * EIGHTEEN_DECIMALS  # Very high amount
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -886,7 +886,7 @@ def test_isValidChequeAndGetData_updates_cheque_data_correctly(
         _totalUsdValuePaid=1000 * EIGHTEEN_DECIMALS
     )
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -942,7 +942,7 @@ def test_isValidChequeAndGetData_complex_scenario_all_conditions(
     )
     
     # Test as manager
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -982,7 +982,7 @@ def test_isValidChequeAndGetData_edge_case_at_all_limits(
         _totalUsdValuePaidInPeriod=0  # Will be at limit after this
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1016,7 +1016,7 @@ def test_isValidChequeAndGetData_multiple_failures(
         _numChequesPaidInPeriod=100  # Would also fail if limits were set
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1044,7 +1044,7 @@ def test_isValidChequeAndGetData_recipient_equals_zero_address(
     global_config = createChequeSettings(_periodLength=ONE_MONTH_IN_BLOCKS)
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1073,7 +1073,7 @@ def test_isValidChequeAndGetData_asset_equals_zero_address(
     cheque_data = createChequeData()
     
     # Must pass ZERO_ADDRESS as asset to match cheque
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         ZERO_ADDRESS,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1105,7 +1105,7 @@ def test_isValidChequeAndGetData_manager_with_only_global_permission_disabled(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1138,7 +1138,7 @@ def test_isValidChequeAndGetData_manager_with_only_cheque_permission_disabled(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1172,7 +1172,7 @@ def test_isValidChequeAndGetData_first_cheque_initializes_period(
         _periodStartBlock=0
     )
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1216,7 +1216,7 @@ def test_isValidChequeAndGetData_period_reset_after_expiry(
         _periodStartBlock=current_block - ONE_MONTH_IN_BLOCKS - 1  # Period has expired
     )
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1261,7 +1261,7 @@ def test_isValidChequeAndGetData_zero_period_length_no_reset(
         _periodStartBlock=100  # Very old
     )
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1301,7 +1301,7 @@ def test_isValidChequeAndGetData_cooldown_with_zero_last_paid_block(
         _lastChequePaidBlock=0  # No previous cheque paid
     )
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1337,7 +1337,7 @@ def test_isValidChequeAndGetData_expiry_at_exact_current_block(
     )
     cheque_data = createChequeData()
     
-    is_valid, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -1376,7 +1376,7 @@ def test_isValidChequeAndGetData_period_boundary_exact(
         _periodStartBlock=current_block - ONE_MONTH_IN_BLOCKS  # Exact boundary
     )
     
-    is_valid, updated_data = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,

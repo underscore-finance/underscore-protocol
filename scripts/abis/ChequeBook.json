@@ -927,6 +927,211 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidNewCheque",
+    "inputs": [
+      {
+        "name": "_wallet",
+        "type": "address"
+      },
+      {
+        "name": "_walletConfig",
+        "type": "address"
+      },
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_isRecipientOnWhitelist",
+        "type": "bool"
+      },
+      {
+        "name": "_chequeSettings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "maxNumActiveCheques",
+            "type": "uint256"
+          },
+          {
+            "name": "maxChequeUsdValue",
+            "type": "uint256"
+          },
+          {
+            "name": "instantUsdThreshold",
+            "type": "uint256"
+          },
+          {
+            "name": "perPeriodPaidUsdCap",
+            "type": "uint256"
+          },
+          {
+            "name": "maxNumChequesPaidPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "payCooldownBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "perPeriodCreatedUsdCap",
+            "type": "uint256"
+          },
+          {
+            "name": "maxNumChequesCreatedPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "createCooldownBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "periodLength",
+            "type": "uint256"
+          },
+          {
+            "name": "expensiveDelayBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "defaultExpiryBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "allowedAssets",
+            "type": "address[]"
+          },
+          {
+            "name": "canManagersCreateCheques",
+            "type": "bool"
+          },
+          {
+            "name": "canManagerPay",
+            "type": "bool"
+          },
+          {
+            "name": "canBePulled",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_chequeData",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "numChequesPaidInPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "totalUsdValuePaidInPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "totalNumChequesPaid",
+            "type": "uint256"
+          },
+          {
+            "name": "totalUsdValuePaid",
+            "type": "uint256"
+          },
+          {
+            "name": "lastChequePaidBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "numChequesCreatedInPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "totalUsdValueCreatedInPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "totalNumChequesCreated",
+            "type": "uint256"
+          },
+          {
+            "name": "totalUsdValueCreated",
+            "type": "uint256"
+          },
+          {
+            "name": "lastChequeCreatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "periodStartBlock",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_isExistingCheque",
+        "type": "bool"
+      },
+      {
+        "name": "_numActiveCheques",
+        "type": "uint256"
+      },
+      {
+        "name": "_isExistingPayee",
+        "type": "bool"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "name": "_asset",
+        "type": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256"
+      },
+      {
+        "name": "_unlockNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiryNumBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_canManagerPay",
+        "type": "bool"
+      },
+      {
+        "name": "_canBePulled",
+        "type": "bool"
+      },
+      {
+        "name": "_creator",
+        "type": "address"
+      },
+      {
+        "name": "_usdValue",
+        "type": "uint256"
+      },
+      {
+        "name": "_isRecipientManager",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "cancelCheque",
@@ -1210,6 +1415,10 @@
           },
           {
             "name": "isCreatorManager",
+            "type": "bool"
+          },
+          {
+            "name": "isRecipientManager",
             "type": "bool"
           },
           {

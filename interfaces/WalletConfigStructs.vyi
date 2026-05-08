@@ -54,6 +54,12 @@ struct GlobalPayeeSettings:
     canPayOwner: bool
     canPull: bool
 
+struct PendingGlobalPayeeSettings:
+    settings: GlobalPayeeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 struct PayeeLimits:
     perTxCap: uint256
     perPeriodCap: uint256
@@ -70,6 +76,7 @@ struct PayeeManagementBundle:
     wallet: address
     isRegisteredPayee: bool
     isWhitelisted: bool
+    isManager: bool
     isExistingCheque: bool
     payeeSettings: PayeeSettings
     globalPayeeSettings: GlobalPayeeSettings
@@ -78,7 +85,6 @@ struct PayeeManagementBundle:
 
 struct RecipientConfigBundle:
     isWhitelisted: bool
-    isOwner: bool
     isPayee: bool
     config: PayeeSettings
     globalConfig: GlobalPayeeSettings
@@ -91,6 +97,7 @@ struct WhitelistConfigBundle:
     pendingWhitelist: PendingWhitelist
     isExistingPayee: bool
     isExistingCheque: bool
+    isExistingManager: bool
     timeLock: uint256
     walletConfig: address
     isManager: bool
@@ -105,6 +112,12 @@ struct PendingWhitelist:
 
 struct PendingTimeLock:
     newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
+struct PendingMigration:
+    toWallet: address
     initiatedBlock: uint256
     confirmBlock: uint256
     currentOwner: address
@@ -167,6 +180,7 @@ struct ChequeManagementBundle:
     owner: address
     isRecipientOnWhitelist: bool
     isCreatorManager: bool
+    isRecipientManager: bool
     managerSettings: ManagerSettings
     chequeSettings: ChequeSettings
     chequeData: ChequeData
@@ -254,6 +268,8 @@ struct ManagerConfigBundle:
 struct ManagerSettingsBundle:
     owner: address
     isManager: bool
+    isPayee: bool
+    isWhitelisted: bool
     timeLock: uint256
     walletConfig: address
     legoBook: address

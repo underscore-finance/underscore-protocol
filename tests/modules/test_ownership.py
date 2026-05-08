@@ -318,8 +318,18 @@ def test_set_ownership_timelock_basic(mock_ownership, bob, fork):
     # Check state
     assert mock_ownership.ownershipTimeLock() == new_timelock
     
-    # Set to min
+    # Decrease stages a pending timelock under the current delay
     mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    assert mock_ownership.ownershipTimeLock() == new_timelock
+
+    pending = mock_ownership.pendingOwnershipTimeLock()
+    assert pending.newTimeLock == min_timelock
+    assert pending.initiatedBlock == boa.env.evm.patch.block_number
+    assert pending.confirmBlock == pending.initiatedBlock + new_timelock
+    assert pending.currentOwner == bob
+
+    boa.env.time_travel(blocks=new_timelock)
+    mock_ownership.confirmPendingOwnershipTimeLock(sender=bob)
     assert mock_ownership.ownershipTimeLock() == min_timelock
     
     # Set to max

@@ -23,6 +23,7 @@ implements: AgentWrapper
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletConfigStructs as wcs
 
 interface ChequeBook:
     def createCheque(_userWallet: address, _recipient: address, _asset: address, _amount: uint256, _unlockNumBlocks: uint256, _expiryNumBlocks: uint256, _canManagerPay: bool, _canBePulled: bool) -> bool: nonpayable
@@ -32,6 +33,7 @@ interface UserWalletConfig:
     def kernel() -> address: view
     def highCommand() -> address: view
     def indexOfManager(_manager: address) -> uint256: view
+    def cheques(_recipient: address) -> wcs.Cheque: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -174,16 +176,18 @@ def payCheque(
     _recipient: address,
     _asset: address,
     _amount: uint256,
+    _expectedCreationBlock: uint256,
 ) -> (uint256, uint256):
     """
-    Action 6: approved sender pays an existing cheque; wallet/Sentinel enforce pay perms; senders enforce signed-message version checks.
+    Action 6: approved sender pays an existing cheque; wallet/Sentinel enforce pay perms.
+    Use action 4 for atomic create-and-pay; action 5 + 6 is not that path.
     """
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+    assert _expectedCreationBlock != 0 # dev: invalid expected block
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    cheque: wcs.Cheque = staticcall UserWalletConfig(walletConfig).cheques(_recipient)
+    assert cheque.creationBlock == _expectedCreationBlock # dev: stale cheque
     log AgentAction(action = 6, userWallet = _userWallet, sender = msg.sender)
-    # Approved senders that expose payCheque MUST validate
-    # cheque.creationBlock == expectedCreationBlock before calling this wrapper.
-    # AgentWrapper trusts approved senders for cheque-version pinning; any new sender
-    # exposing payCheque is security-critical and must be reviewed for this invariant.
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, True, False)
 
 

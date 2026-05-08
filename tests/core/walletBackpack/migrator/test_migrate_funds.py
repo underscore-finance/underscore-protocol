@@ -38,6 +38,15 @@ def stage_pending_time_lock(user_wallet_config, *, sender):
     user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=sender)
 
 
+def ready_pending_migration(migrator, from_wallet, to_wallet, *, sender):
+    migrator.initiateMigration(from_wallet, to_wallet, sender=sender)
+    pending = UserWalletConfig.at(from_wallet.walletConfig()).pendingMigration()
+    blocks = pending.confirmBlock - boa.env.evm.patch.block_number
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+    return pending
+
+
 ########################
 # Migration Validation #
 ########################
@@ -413,6 +422,7 @@ def test_migrate_funds_no_assets(migrator, hatchery, bob):
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Should fail because from_wallet has no assets (only ETH at index 0)
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     with boa.reverts("no assets to migrate"):
         migrator.migrateFunds(from_wallet, to_wallet, sender=bob)
 
@@ -434,6 +444,7 @@ def test_migrate_funds_single_asset(migrator, user_wallet, hatchery, bob, alpha_
     initial_usd_value = asset_data.usdValue
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Verify migration results
@@ -464,6 +475,7 @@ def test_migrate_funds_multiple_assets(migrator, user_wallet, hatchery, bob, alp
     expected_total_usd = alpha_usd + bravo_usd
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Verify migration results
@@ -500,6 +512,7 @@ def test_migrate_funds_skip_zero_balance(migrator, user_wallet, hatchery, bob, a
     assert charlie_token.balanceOf(user_wallet) == charlie_amount
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Should only migrate 2 assets (alpha and charlie, not bravo)
@@ -524,6 +537,7 @@ def test_migrate_funds_preserves_usd_values(migrator, user_wallet, hatchery, bob
     expected_total_usd = alpha_data.usdValue + bravo_data.usdValue
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Check event USD value matches sum of individual asset USD values
@@ -568,6 +582,7 @@ def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wall
     assert user_wallet.indexOfAsset(bravo_token) == 2
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     assert num_migrated == 2
     

@@ -273,6 +273,87 @@
     "type": "event"
   },
   {
+    "name": "PendingGlobalPayeeSettingsSet",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingGlobalPayeeSettingsConfirmed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmedBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingGlobalPayeeSettingsCancelled",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "setGlobalPayeeSettings",
@@ -326,6 +407,40 @@
       {
         "name": "_canPull",
         "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
       }
     ],
     "outputs": [
@@ -1159,6 +1274,10 @@
             "type": "bool"
           },
           {
+            "name": "isManager",
+            "type": "bool"
+          },
+          {
             "name": "isExistingCheque",
             "type": "bool"
           },
@@ -1454,6 +1573,93 @@
       {
         "name": "",
         "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "settings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "defaultPeriodLength",
+                "type": "uint256"
+              },
+              {
+                "name": "startDelay",
+                "type": "uint256"
+              },
+              {
+                "name": "activationLength",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumTxsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "txCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "failOnZeroPrice",
+                "type": "bool"
+              },
+              {
+                "name": "usdLimits",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "perTxCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "perPeriodCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "lifetimeCap",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "canPayOwner",
+                "type": "bool"
+              },
+              {
+                "name": "canPull",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
+          }
+        ]
       }
     ]
   },

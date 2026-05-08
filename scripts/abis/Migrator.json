@@ -59,6 +59,169 @@
     "type": "event"
   },
   {
+    "name": "InstantMigrationEnabledSet",
+    "inputs": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingMigrationInitiated",
+    "inputs": [
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "currentOwner",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingMigrationConfirmed",
+    "inputs": [
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingMigrationCancelled",
+    "inputs": [
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setInstantMigrationEnabled",
+    "inputs": [
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "initiateMigration",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingMigration",
+    "inputs": [
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "migrateAll",
@@ -243,6 +406,18 @@
       {
         "name": "",
         "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "instantMigrationEnabled",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },

@@ -37,8 +37,8 @@ from interfaces import WalletStructs as ws
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _isSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
-    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
-    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
+    def isValidPayeeAndGetData(_isWhitelisted: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData, bool): view
+    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData, bool): view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -204,8 +204,8 @@ def _isValidSentinel(_addr: address) -> bool:
     )
 
     payeeData: wcs.PayeeData = empty(wcs.PayeeData)
-    isValid, payeeData = staticcall Sentinel(_addr).isValidPayeeAndGetData(
-        False,
+    didUpdate: bool = False
+    isValid, payeeData, didUpdate = staticcall Sentinel(_addr).isValidPayeeAndGetData(
         False,
         False,
         empty(address),
@@ -235,7 +235,8 @@ def _isValidSentinel(_addr: address) -> bool:
     )
 
     chequeData: wcs.ChequeData = empty(wcs.ChequeData)
-    isValid, chequeData = staticcall Sentinel(_addr).isValidChequeAndGetData(
+    didPay: bool = False
+    isValid, chequeData, didPay = staticcall Sentinel(_addr).isValidChequeAndGetData(
         empty(address),
         0,
         0,

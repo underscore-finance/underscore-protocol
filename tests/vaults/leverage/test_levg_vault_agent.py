@@ -74,14 +74,10 @@ EMPTY_SIG = (b"", 0, 0)
 
 def test_agent_deployment_sets_correct_addresses(
     levg_vault_agent,
-    undy_hq,
-    mock_green_token,
-    mock_savings_green_token,
+    governance,
 ):
     """Test that agent deployment sets correct addresses"""
-    assert levg_vault_agent.UNDY_HQ() == undy_hq.address
-    assert levg_vault_agent.GREEN() == mock_green_token.address
-    assert levg_vault_agent.SAVINGS_GREEN() == mock_savings_green_token.address
+    assert levg_vault_agent.owner() == governance.address
 
 
 def test_agent_initial_nonce_is_zero(
@@ -90,7 +86,6 @@ def test_agent_initial_nonce_is_zero(
 ):
     """Test that nonce starts at 0 for new wallets"""
     assert levg_vault_agent.currentNonce(usdc_wallet_with_funds.address) == 0
-    assert levg_vault_agent.getNonce(usdc_wallet_with_funds.address) == 0
 
 
 def test_agent_can_be_added_as_manager(
@@ -856,7 +851,7 @@ def test_nonce_starts_at_zero(
     usdc_wallet_with_funds,
 ):
     """Test that nonce starts at 0"""
-    assert levg_vault_agent.getNonce(usdc_wallet_with_funds.address) == 0
+    assert levg_vault_agent.currentNonce(usdc_wallet_with_funds.address) == 0
 
 
 def test_owner_increment_nonce(
@@ -867,11 +862,11 @@ def test_owner_increment_nonce(
     """Test that owner can manually increment nonce"""
     wallet = usdc_wallet_with_funds
 
-    pre_nonce = levg_vault_agent.getNonce(wallet.address)
+    pre_nonce = levg_vault_agent.currentNonce(wallet.address)
 
     levg_vault_agent.incrementNonce(wallet.address, sender=governance.address)
 
-    assert levg_vault_agent.getNonce(wallet.address) == pre_nonce + 1
+    assert levg_vault_agent.currentNonce(wallet.address) == pre_nonce + 1
 
 
 def test_non_owner_cannot_increment_nonce(

@@ -263,6 +263,10 @@
             "type": "bool"
           },
           {
+            "name": "isExistingManager",
+            "type": "bool"
+          },
+          {
             "name": "timeLock",
             "type": "uint256"
           },

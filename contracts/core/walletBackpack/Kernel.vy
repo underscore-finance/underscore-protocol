@@ -39,9 +39,11 @@ interface MissionControl:
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -106,6 +108,8 @@ def addPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     # cannot whitelist payee or active cheque recipient
     assert not c.isExistingPayee # dev: already payee
     assert not c.isExistingCheque # dev: already cheque recipient
+    assert not c.isExistingManager # dev: already manager
+    assert not self._isPrivilegedUndyAddr(_whitelistAddr) # dev: invalid addr
 
     # under time lock
     confirmBlock: uint256 = block.number + c.timeLock
@@ -137,6 +141,8 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     # cannot whitelist payee or active cheque recipient
     assert not c.isExistingPayee # dev: already payee
     assert not c.isExistingCheque # dev: already cheque recipient
+    assert not c.isExistingManager # dev: already manager
+    assert not self._isPrivilegedUndyAddr(_whitelistAddr) # dev: invalid addr
 
     extcall UserWalletConfig(c.walletConfig).confirmWhitelistAddr(_whitelistAddr)
     log WhitelistAddrConfirmed(user = _userWallet, addr = _whitelistAddr, initiatedBlock = c.pendingWhitelist.initiatedBlock, confirmBlock = c.pendingWhitelist.confirmBlock, confirmedBy = msg.sender)
@@ -254,6 +260,7 @@ def _getWhitelistConfig(_userWallet: address, _whitelistAddr: address, _caller: 
         pendingWhitelist = staticcall UserWalletConfig(walletConfig).pendingWhitelist(_whitelistAddr),
         isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_whitelistAddr) != 0,
         isExistingCheque = cheque.active,
+        isExistingManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_whitelistAddr) != 0,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
         walletConfig = walletConfig,
         isManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_caller) != 0,
@@ -288,3 +295,14 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@internal
+def _isPrivilegedUndyAddr(_addr: address) -> bool:
+    if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
+        return True
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)

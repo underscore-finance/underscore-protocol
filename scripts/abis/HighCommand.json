@@ -318,6 +318,23 @@
     "type": "event"
   },
   {
+    "name": "StarterAgentNeutered",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "starterAgent",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "addManager",
@@ -960,6 +977,23 @@
       },
       {
         "name": "_manager",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "neuterStarterAgent",
+    "inputs": [
+      {
+        "name": "_userWallet",
         "type": "address"
       }
     ],
@@ -2043,6 +2077,14 @@
           },
           {
             "name": "isManager",
+            "type": "bool"
+          },
+          {
+            "name": "isPayee",
+            "type": "bool"
+          },
+          {
+            "name": "isWhitelisted",
             "type": "bool"
           },
           {

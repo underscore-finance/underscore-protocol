@@ -10,6 +10,29 @@
 ## ChequeBook Production Gate
 
 - Verify the deployed wallet config `maxKeyActionTimeLock` is less than or equal to `ChequeBook.MAX_UNLOCK_BLOCKS` and `ChequeBook.MAX_EXPIRY_BLOCKS`. Cheque creation clamps expensive unlock delay and default expiry to the live wallet time lock; if the max time lock exceeds either ChequeBook cap, expensive or default-expiry cheque creation can become uncreatable at max time lock.
+- Deploy-time assertion: `maxKeyActionTimeLock <= ChequeBook.MAX_UNLOCK_BLOCKS`.
+- Deploy-time assertion: `maxKeyActionTimeLock <= ChequeBook.MAX_EXPIRY_BLOCKS`.
+
+## AgentSender Monitoring
+
+Monitor these AgentSender and ownership signals after deployment:
+
+- `NonceIncremented`
+- `OwnershipChangeInitiated`
+- `OwnershipChangeConfirmed`
+- `OwnershipChangeCancelled`
+- `PendingOwnershipTimeLockSet`
+- `PendingOwnershipTimeLockConfirmed`
+- `PendingOwnershipTimeLockCancelled`
+- high-risk `AgentAction` calls, especially cheque creation/payment, whitelist changes, and manager permission changes
+
+## Instant Migration Runbook
+
+- `instantMigrationEnabled` defaults to `false`.
+- Set `instantMigrationEnabled` to `true` only during monitored migration windows.
+- Setting `instantMigrationEnabled` to `false` still permits timelocked migrations. It only disables the instant bypass path.
+- `migrateAll` is the one-call path for funds and config under one pending migration.
+- `migrateFunds` and `cloneConfig` are terminal paths. Each clears pending migration after success, so users need a new pending migration for the other half unless instant migration is enabled.
 
 ## Pending Payee Removal Preflight
 

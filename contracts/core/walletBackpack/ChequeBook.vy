@@ -42,9 +42,11 @@ interface MissionControl:
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -196,6 +198,10 @@ def createCheque(
         config.managerSettings,
     ) # dev: not authorized to create cheques
 
+    if config.owner != msg.sender:
+        assert self._isAllowedManagerPayee(_recipient, config.managerSettings.transferPerms) # dev: payee not allowed
+        assert self._isAllowedManagerPayee(_recipient, globalManagerSettings.transferPerms) # dev: payee not allowed
+
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
@@ -224,6 +230,7 @@ def createCheque(
         _canBePulled,
         msg.sender,
         usdValue,
+        config.isRecipientManager,
     )
     assert isValid # dev: invalid cheque
     
@@ -340,6 +347,7 @@ def isValidNewCheque(
     _canBePulled: bool,
     _creator: address,
     _usdValue: uint256,
+    _isRecipientManager: bool = False,
 ) -> bool:
     isValid: bool = False
     cheque: wcs.Cheque = empty(wcs.Cheque)
@@ -364,6 +372,7 @@ def isValidNewCheque(
         _canBePulled,
         _creator,
         _usdValue,
+        _isRecipientManager,
     )
     return isValid
 
@@ -390,6 +399,7 @@ def _isValidNewCheque(
     _canBePulled: bool,
     _creator: address,
     _usdValue: uint256,
+    _isRecipientManager: bool,
 ) -> (bool, wcs.Cheque, wcs.ChequeData):
 
     # validate recipient
@@ -404,6 +414,10 @@ def _isValidNewCheque(
 
     # cheque recipients can't be existing payees
     if _isExistingPayee:
+        return False, empty(wcs.Cheque), empty(wcs.ChequeData)
+
+    # cheque recipients can't be managers or privileged protocol addresses
+    if _isRecipientManager or self._isPrivilegedUndyAddr(_recipient):
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # validate asset and amount
@@ -1108,6 +1122,7 @@ def _getChequeConfig(_userWallet: address, _creator: address, _recipient: addres
         owner = staticcall UserWalletConfig(walletConfig).owner(),
         isRecipientOnWhitelist = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_recipient) != 0,
         isCreatorManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_creator) != 0,
+        isRecipientManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_recipient) != 0,
         managerSettings = staticcall UserWalletConfig(walletConfig).managerSettings(_creator),
         chequeSettings = staticcall UserWalletConfig(walletConfig).chequeSettings(),
         chequeData = staticcall UserWalletConfig(walletConfig).chequePeriodData(),
@@ -1138,6 +1153,25 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@internal
+def _isPrivilegedUndyAddr(_addr: address) -> bool:
+    if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
+        return True
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
+
+
+@pure
+@internal
+def _isAllowedManagerPayee(_recipient: address, _transferPerms: wcs.TransferPerms) -> bool:
+    if len(_transferPerms.allowedPayees) == 0:
+        return True
+    return _recipient in _transferPerms.allowedPayees
 
 
 # default cheque settings
