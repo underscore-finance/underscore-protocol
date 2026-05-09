@@ -1201,6 +1201,69 @@ def test_remove_starting_agent_reverts_for_owner_security_and_self(
     assert user_wallet_config.indexOfManager(starter_agent.address) != 0
 
 
+def test_neuter_starter_agent_owner_only_idempotent_and_preserves_claim_loot(
+    high_command,
+    user_wallet,
+    user_wallet_config,
+    starter_agent,
+    bob,
+    alice,
+):
+    assert user_wallet_config.startingAgent() == starter_agent.address
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    with boa.reverts("no perms"):
+        high_command.neuterStarterAgent(user_wallet, sender=alice)
+
+    assert high_command.neuterStarterAgent(user_wallet, sender=bob)
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    settings = user_wallet_config.managerSettings(starter_agent.address)
+    assert settings.canClaimLoot == True
+    assert settings.startBlock == 0
+    assert settings.expiryBlock == 0
+    assert settings.limits.maxUsdValuePerTx == 0
+    assert settings.limits.maxUsdValuePerPeriod == 0
+    assert settings.limits.maxUsdValueLifetime == 0
+    assert settings.limits.maxNumTxsPerPeriod == 0
+    assert settings.limits.txCooldownBlocks == 0
+    assert settings.limits.failOnZeroPrice == False
+    assert settings.legoPerms.canManageYield == False
+    assert settings.legoPerms.canBuyAndSell == False
+    assert settings.legoPerms.canManageDebt == False
+    assert settings.legoPerms.canManageLiq == False
+    assert settings.legoPerms.canClaimRewards == False
+    assert settings.legoPerms.onlyApprovedYieldOpps == False
+    assert len(settings.legoPerms.allowedLegos) == 0
+    assert settings.swapPerms.mustHaveUsdValue == False
+    assert settings.swapPerms.maxNumSwapsPerPeriod == 0
+    assert settings.swapPerms.maxSlippage == 0
+    assert settings.whitelistPerms.canAddPending == False
+    assert settings.whitelistPerms.canConfirm == False
+    assert settings.whitelistPerms.canCancel == False
+    assert settings.whitelistPerms.canRemove == False
+    assert settings.transferPerms.canTransfer == False
+    assert settings.transferPerms.canCreateCheque == False
+    assert settings.transferPerms.canAddPendingPayee == False
+    assert len(settings.transferPerms.allowedPayees) == 0
+    assert len(settings.allowedAssets) == 0
+
+    manager_event = filter_logs(high_command, "ManagerSettingsModified")[0]
+    assert manager_event.user == user_wallet.address
+    assert manager_event.manager == starter_agent.address
+    assert manager_event.canClaimLoot == True
+
+    neuter_event = filter_logs(high_command, "StarterAgentNeutered")[0]
+    assert neuter_event.user == user_wallet.address
+    assert neuter_event.starterAgent == starter_agent.address
+
+    assert high_command.neuterStarterAgent(user_wallet, sender=bob)
+    settings_again = user_wallet_config.managerSettings(starter_agent.address)
+    assert settings_again.canClaimLoot == True
+    assert settings_again.limits.maxUsdValuePerTx == 0
+    assert len(settings_again.allowedAssets) == 0
+
+
 def test_remove_manager_not_found(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, alice, bob):
     """Test that cannot remove a non-existent manager"""
     # Setup: set global settings but don't add alice as manager

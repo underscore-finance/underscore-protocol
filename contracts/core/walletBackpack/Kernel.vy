@@ -139,6 +139,7 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address):
     assert c.pendingWhitelist.currentOwner == c.owner # dev: owner must match
 
     # cannot whitelist payee or active cheque recipient
+    assert not c.isWhitelisted # dev: already whitelisted
     assert not c.isExistingPayee # dev: already payee
     assert not c.isExistingCheque # dev: already cheque recipient
     assert not c.isExistingManager # dev: already manager

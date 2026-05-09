@@ -712,6 +712,18 @@ def test_confirm_whitelist_already_confirmed(kernel, user_wallet, user_wallet_co
         kernel.confirmWhitelistAddr(user_wallet, alice, sender=bob)
 
 
+def test_confirm_whitelist_reverts_if_already_whitelisted_during_wait(
+    kernel, user_wallet, user_wallet_config, migrator, bob, alice
+):
+    """If another owner path whitelists an address during the wait, confirm has a friendly revert"""
+    kernel.addPendingWhitelistAddr(user_wallet, alice, sender=bob)
+    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+
+    with boa.reverts("already whitelisted"):
+        kernel.confirmWhitelistAddr(user_wallet, alice, sender=bob)
+
+
 ######################
 # Whitelist - Cancel #
 ######################

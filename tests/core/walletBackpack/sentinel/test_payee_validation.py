@@ -147,7 +147,7 @@ def test_max_txs_per_period_limit(createGlobalPayeeSettings, createPayeeSettings
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should not be valid when limit reached
-    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
+    is_valid, _, did_update = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -158,6 +158,7 @@ def test_max_txs_per_period_limit(createGlobalPayeeSettings, createPayeeSettings
         payee_data
     )
     assert not is_valid
+    assert did_update == False
 
 
 def test_tx_cooldown_blocks(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, sentinel, user_wallet_config, paymaster):
@@ -424,7 +425,7 @@ def test_period_reset_after_period_ends(createGlobalPayeeSettings, createPayeeSe
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should reset period and allow transaction
-    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -435,6 +436,7 @@ def test_period_reset_after_period_ends(createGlobalPayeeSettings, createPayeeSe
         payee_data
     )
     assert is_valid
+    assert did_update == True
 
     # check period was reset
     assert updated_data.numTxsInPeriod == 1

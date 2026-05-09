@@ -1958,6 +1958,20 @@ def test_agent_create_cheque_and_pay_cheque_expected_block(
     assert cheque.canBePulled == False
 
     recipient_balance_before = alpha_token.balanceOf(recipient)
+    with boa.reverts("stale cheque"):
+        starter_agent_sender.payCheque(
+            starter_agent.address,
+            user_wallet.address,
+            recipient,
+            alpha_token.address,
+            amount,
+            cheque.creationBlock + 1,
+            (b"", 0, 0),
+            sender=charlie
+        )
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before
+
     amount_paid, usd_value = starter_agent_sender.payCheque(
         starter_agent.address,
         user_wallet.address,
@@ -2307,6 +2321,39 @@ def test_agent_loot_requires_claim_permission_for_all_methods(
             (b"", 0, 0),
             sender=charlie,
         )
+
+
+def test_neutered_starter_agent_cannot_transfer_but_can_claim_loot(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    high_command,
+    bob,
+    charlie,
+    env,
+):
+    high_command.neuterStarterAgent(user_wallet, sender=bob)
+
+    with boa.reverts("no permission"):
+        starter_agent_sender.transferFunds(
+            starter_agent.address,
+            user_wallet.address,
+            env.generate_address("neutered_starter_transfer_recipient"),
+            ZERO_ADDRESS,
+            1,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    assert starter_agent_sender.canClaimLootFor(starter_agent.address, user_wallet.address) == True
+    result = starter_agent_sender.claimAllLoot(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert result == False
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 80
 
 
 def test_agent_loot_claims_rev_share_and_all_loot_success(
@@ -2676,4 +2723,24 @@ def test_special_admin_issue_pull_cheques_and_duplicate_whitelist_precheck(
             (ZERO_ADDRESS, alpha_token.address, amount, 0, 0, False, True),
             (b"", 0, 0),
             sender=charlie
-        )
+    )
+
+    recipient_c = env.generate_address("agent_harvest_issue_cheque_independent")
+    independent_amount = 9 * EIGHTEEN_DECIMALS
+    special_admin_sender.harvestAndIssueCheque(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        0,
+        [],
+        [],
+        (recipient_c, alpha_token.address, independent_amount, 0, 0, False, True),
+        (b"", 0, 0),
+        sender=charlie
+    )
+    cheque_c = user_wallet_config.cheques(recipient_c)
+    assert cheque_c.active == True
+    assert cheque_c.amount == independent_amount
+    assert cheque_c.canManagerPay == False
+    assert cheque_c.canBePulled == True

@@ -24,6 +24,7 @@
 
 # @version 0.4.3
 # pragma optimize codesize
+# NOTE: This contract is close to the EIP-170 size limit; prefer offloading new logic to backpack contracts.
 
 initializes: ownership
 exports: ownership.__interface__
@@ -563,6 +564,8 @@ def confirmWhitelistAddr(_addr: address):
 @external
 def addWhitelistAddrViaMigrator(_addr: address):
     assert msg.sender == self.migrator # dev: no perms
+    assert _addr != empty(address)
+    assert self.indexOfPayee[_addr] == 0 and not self.cheques[_addr].active and self.indexOfManager[_addr] == 0
     self._registerWhitelistAddr(_addr)
 
 
@@ -571,8 +574,7 @@ def addWhitelistAddrViaMigrator(_addr: address):
 
 @internal
 def _registerWhitelistAddr(_addr: address):
-    if self.indexOfWhitelist[_addr] != 0:
-        return
+    assert self.indexOfWhitelist[_addr] == 0
     wid: uint256 = self.numWhitelisted
     self.whitelistAddr[wid] = _addr
     self.indexOfWhitelist[_addr] = wid

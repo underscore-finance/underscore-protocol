@@ -309,6 +309,45 @@ def test_whitelist_via_migrator(user_wallet_config, migrator, alice):
     assert user_wallet_config.whitelistAddr(user_wallet_config.indexOfWhitelist(alice)) == alice
 
 
+def test_whitelist_via_migrator_rejects_empty_and_duplicate_addresses(user_wallet_config, migrator, alice):
+    """Migrator whitelist writes enforce the local checks that fit inside UserWalletConfig."""
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(ZERO_ADDRESS, sender=migrator.address)
+
+    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+
+
+def test_whitelist_via_migrator_rejects_existing_roles(
+    user_wallet_config,
+    migrator,
+    paymaster,
+    high_command,
+    cheque_book,
+    alice,
+    charlie,
+    sally,
+    createPayeeSettings,
+    createManagerSettings,
+    createCheque,
+    createChequeData,
+):
+    """Migrator cannot whitelist payees, managers, or active cheque recipients"""
+    user_wallet_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+
+    user_wallet_config.addManager(charlie, createManagerSettings(), sender=high_command.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(charlie, sender=migrator.address)
+
+    cheque = createCheque(_recipient=sally)
+    user_wallet_config.createCheque(sally, cheque, createChequeData(), False, sender=cheque_book.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+
+
 #############################
 # Manager Persistence Tests #
 #############################
@@ -593,9 +632,10 @@ def test_duplicate_whitelist_add(user_wallet_config, kernel, alice, pending_whit
     alice_index = user_wallet_config.indexOfWhitelist(alice)
     assert alice_index > 0
     
-    # Try to add again via migrator - should not create duplicate
+    # Try to add again via migrator - should reject instead of silently no-oping
     initial_count = user_wallet_config.numWhitelisted()
-    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
     
     # Count should not increase
     assert user_wallet_config.numWhitelisted() == initial_count

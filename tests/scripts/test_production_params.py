@@ -1,10 +1,13 @@
+import ast
 import importlib
 import json
+import re
 import sys
 from pathlib import Path
 
 import pytest
 
+from config.BluePrint import DAY_IN_BLOCKS, MONTH_IN_BLOCKS, PARAMS, YEAR_IN_BLOCKS
 from scripts.params.production_params import classify_sender_by_abi
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +18,48 @@ PARAM_SCRIPT_MODULES = (
     "regenerate_defaults",
     "vaults_params",
 )
+
+DEFAULTS_FILE_BY_NETWORK = {
+    "base": "DefaultsBase.vy",
+    "local": "DefaultsLocal.vy",
+}
+
+VYPER_TIME_CONSTANTS = {
+    "DAY_IN_BLOCKS": DAY_IN_BLOCKS,
+    "WEEK_IN_BLOCKS": 7 * DAY_IN_BLOCKS,
+    "MONTH_IN_BLOCKS": MONTH_IN_BLOCKS,
+    "YEAR_IN_BLOCKS": YEAR_IN_BLOCKS,
+}
+
+
+def _eval_vyper_uint_expr(expr: str) -> int:
+    def eval_node(node: ast.AST) -> int:
+        if isinstance(node, ast.Constant) and isinstance(node.value, int):
+            return node.value
+        if isinstance(node, ast.Name) and node.id in VYPER_TIME_CONSTANTS:
+            return VYPER_TIME_CONSTANTS[node.id]
+        if isinstance(node, ast.BinOp):
+            left = eval_node(node.left)
+            right = eval_node(node.right)
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.FloorDiv):
+                return left // right
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+        raise AssertionError(f"Unsupported Vyper uint expression in deploy defaults: {expr}")
+
+    return eval_node(ast.parse(expr, mode="eval").body)
+
+
+def _read_default_max_key_action_timelock(network: str) -> int:
+    defaults_path = ROOT / "contracts" / "config" / DEFAULTS_FILE_BY_NETWORK[network]
+    source = defaults_path.read_text()
+    match = re.search(r"maxKeyActionTimeLock\s*=\s*([^,\n]+)", source)
+    assert match, f"{defaults_path} must define maxKeyActionTimeLock"
+    return _eval_vyper_uint_expr(match.group(1).strip())
 
 
 @pytest.mark.parametrize(
@@ -29,6 +74,16 @@ def test_classify_sender_by_abi_identifies_agent_sender_types(abi_name, expected
     abi = json.loads((ROOT / "scripts" / "abis" / f"{abi_name}.json").read_text())
 
     assert classify_sender_by_abi(abi) == expected_type
+
+
+@pytest.mark.parametrize("network", ("base", "local"))
+def test_max_key_action_timelock_fits_cheque_unlock_and_expiry_windows(network):
+    """Deploy defaults must not exceed ChequeBook's max unlock/expiry bounds."""
+    max_key_action_timelock = _read_default_max_key_action_timelock(network)
+    cheque_params = PARAMS[network]
+
+    assert max_key_action_timelock <= cheque_params["CHEQUE_MAX_UNLOCK_BLOCKS"]
+    assert max_key_action_timelock <= cheque_params["CHEQUE_MAX_EXPIRY_BLOCKS"]
 
 
 @pytest.mark.parametrize("module_name", PARAM_SCRIPT_MODULES)

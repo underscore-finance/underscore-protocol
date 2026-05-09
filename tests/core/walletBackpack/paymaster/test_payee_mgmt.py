@@ -66,6 +66,186 @@ def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wa
     assert event.canPull == True
 
 
+def test_pending_global_payee_settings_cancel_and_events(paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob):
+    start_delay = user_wallet_config.timeLock()
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        start_delay,
+        ONE_DAY_IN_BLOCKS,
+        10,
+        100,
+        True,
+        usd_limits,
+        True,
+        sender=bob,
+    )
+    set_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsSet")[0]
+    pending = paymaster.pendingGlobalPayeeSettings(user_wallet)
+    assert set_event.user == user_wallet.address
+    assert set_event.initiatedBy == bob
+    assert set_event.confirmBlock == pending.confirmBlock
+
+    assert paymaster.cancelPendingGlobalPayeeSettings(user_wallet, sender=bob)
+    cancel_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsCancelled")[0]
+    assert paymaster.pendingGlobalPayeeSettings(user_wallet).confirmBlock == 0
+    assert cancel_event.user == user_wallet.address
+    assert cancel_event.cancelledBy == bob
+    assert cancel_event.initiatedBlock == pending.initiatedBlock
+    assert cancel_event.confirmBlock == pending.confirmBlock
+
+
+def test_tightening_global_payee_settings_applies_immediately_and_cancels_pending(
+    paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob
+):
+    start_delay = user_wallet_config.timeLock()
+    widening_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        start_delay,
+        ONE_DAY_IN_BLOCKS,
+        10,
+        100,
+        True,
+        widening_limits,
+        True,
+        sender=bob,
+    )
+    pending = paymaster.pendingGlobalPayeeSettings(user_wallet)
+    assert pending.confirmBlock != 0
+
+    current = user_wallet_config.globalPayeeSettings()
+    tightening_limits = createPayeeLimits()
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        current.defaultPeriodLength,
+        current.startDelay,
+        current.activationLength,
+        current.maxNumTxsPerPeriod,
+        current.txCooldownBlocks,
+        True,
+        tightening_limits,
+        current.canPull,
+        sender=bob,
+    )
+
+    cancel_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsCancelled")[0]
+    assert paymaster.pendingGlobalPayeeSettings(user_wallet).confirmBlock == 0
+    saved = user_wallet_config.globalPayeeSettings()
+    assert saved.defaultPeriodLength == current.defaultPeriodLength
+    assert saved.canPull == current.canPull
+    assert saved.maxNumTxsPerPeriod == current.maxNumTxsPerPeriod
+    assert saved.failOnZeroPrice == True
+    assert cancel_event.user == user_wallet.address
+    assert cancel_event.confirmBlock == pending.confirmBlock
+
+
+@pytest.mark.parametrize(
+    "widening_dimension",
+    [
+        "can_pull",
+        "cap_increase",
+        "cap_to_zero",
+        "max_txs_increase",
+        "max_txs_to_zero",
+        "cooldown_decrease",
+        "cooldown_to_zero",
+        "period_decrease",
+        "start_delay_decrease",
+        "activation_increase",
+        "fail_on_zero_price_false",
+    ],
+)
+def test_global_payee_settings_each_widening_dimension_is_pending(
+    paymaster,
+    user_wallet,
+    user_wallet_config,
+    createGlobalPayeeSettings,
+    createPayeeLimits,
+    bob,
+    widening_dimension,
+):
+    baseline_limits = createPayeeLimits(
+        _perTxCap=100 * EIGHTEEN_DECIMALS,
+        _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+        _lifetimeCap=10000 * EIGHTEEN_DECIMALS,
+    )
+    if widening_dimension == "fail_on_zero_price_false":
+        baseline_limits = createPayeeLimits()
+    baseline = createGlobalPayeeSettings(
+        _defaultPeriodLength=10 * ONE_DAY_IN_BLOCKS,
+        _startDelay=2 * ONE_DAY_IN_BLOCKS,
+        _activationLength=10 * ONE_DAY_IN_BLOCKS,
+        _maxNumTxsPerPeriod=5,
+        _txCooldownBlocks=100,
+        _failOnZeroPrice=True,
+        _usdLimits=baseline_limits,
+        _canPull=False,
+    )
+    user_wallet_config.setGlobalPayeeSettings(baseline, sender=paymaster.address)
+
+    updated_limits = baseline_limits
+    default_period_length = 10 * ONE_DAY_IN_BLOCKS
+    start_delay = 2 * ONE_DAY_IN_BLOCKS
+    activation_length = 10 * ONE_DAY_IN_BLOCKS
+    max_num_txs = 5
+    cooldown = 100
+    fail_on_zero_price = True
+    can_pull = False
+
+    if widening_dimension == "can_pull":
+        can_pull = True
+    elif widening_dimension == "cap_increase":
+        updated_limits = createPayeeLimits(
+            _perTxCap=200 * EIGHTEEN_DECIMALS,
+            _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+            _lifetimeCap=10000 * EIGHTEEN_DECIMALS,
+        )
+    elif widening_dimension == "cap_to_zero":
+        updated_limits = createPayeeLimits(
+            _perTxCap=0,
+            _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+            _lifetimeCap=10000 * EIGHTEEN_DECIMALS,
+        )
+    elif widening_dimension == "max_txs_increase":
+        max_num_txs = 6
+    elif widening_dimension == "max_txs_to_zero":
+        max_num_txs = 0
+    elif widening_dimension == "cooldown_decrease":
+        cooldown = 99
+    elif widening_dimension == "cooldown_to_zero":
+        cooldown = 0
+    elif widening_dimension == "period_decrease":
+        default_period_length = 9 * ONE_DAY_IN_BLOCKS
+    elif widening_dimension == "start_delay_decrease":
+        start_delay = ONE_DAY_IN_BLOCKS
+    elif widening_dimension == "activation_increase":
+        activation_length = 11 * ONE_DAY_IN_BLOCKS
+    elif widening_dimension == "fail_on_zero_price_false":
+        fail_on_zero_price = False
+
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        default_period_length,
+        start_delay,
+        activation_length,
+        max_num_txs,
+        cooldown,
+        fail_on_zero_price,
+        updated_limits,
+        can_pull,
+        sender=bob,
+    )
+    set_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsSet")[0]
+    pending = paymaster.pendingGlobalPayeeSettings(user_wallet)
+    assert pending.confirmBlock != 0
+    assert pending.settings.canPull == can_pull
+    assert set_event.confirmBlock == pending.confirmBlock
+
+
 #############
 # Add Payee #
 #############

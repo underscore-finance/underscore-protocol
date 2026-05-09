@@ -15,6 +15,7 @@
 - Managers cannot be payees or whitelisted recipients.
 - Payees and whitelisted recipients cannot become managers.
 - Cheque recipients cannot be managers, payees, whitelisted recipients, privileged Undy/system addresses, or registered backpack items.
+- Whitelist registration is now strict: confirming a pending whitelist entry reverts if the address is already whitelisted. If migration or another owner action whitelists the same address during the wait, cancel the stale pending entry and restage if needed.
 
 ## Security Boundaries
 

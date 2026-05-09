@@ -445,6 +445,7 @@ def test_clone_config_empty_wallets(migrator, hatchery, bob):
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
     assert result is True
+    assert UserWalletConfig.at(from_wallet.walletConfig()).pendingMigration().confirmBlock == 0
     
     # Check event
     event = filter_logs(migrator, "ConfigCloned")[0]
@@ -787,15 +788,14 @@ def test_clone_config_copied_high_time_lock_clamps_destination_cheque_creation(
     assert cheque.expiryBlock == cheque.unlockBlock + to_config.timeLock()
 
 
-def test_clone_config_skips_owner_payee_and_whitelist(migrator, hatchery, bob, alice, charlie, paymaster, createPayeeSettings):
-    """Legacy owner payee/whitelist entries should not be copied into the destination wallet"""
+def test_clone_config_skips_owner_payee_and_copies_whitelist(migrator, hatchery, bob, alice, charlie, paymaster, createPayeeSettings):
+    """Owner payees are skipped while valid whitelist entries are copied into the destination wallet"""
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
 
     payee_settings = createPayeeSettings()
     from_config.addPayee(bob, payee_settings, sender=paymaster.address)
     from_config.addPayee(alice, payee_settings, sender=paymaster.address)
-    from_config.addWhitelistAddrViaMigrator(bob, sender=migrator.address)
     from_config.addWhitelistAddrViaMigrator(charlie, sender=migrator.address)
 
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
@@ -807,7 +807,6 @@ def test_clone_config_skips_owner_payee_and_whitelist(migrator, hatchery, bob, a
 
     assert to_config.indexOfPayee(bob) == 0
     assert to_config.indexOfPayee(alice) != 0
-    assert to_config.indexOfWhitelist(bob) == 0
     assert to_config.indexOfWhitelist(charlie) != 0
 
     event = filter_logs(migrator, "ConfigCloned")[0]
@@ -896,6 +895,7 @@ def test_migrate_all_funds_and_config(migrator, hatchery, bob, alice, high_comma
     # Migrate all
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     num_funds_migrated, did_migrate_config = migrator.migrateAll(from_wallet, to_wallet, sender=bob)
+    assert UserWalletConfig.at(from_wallet.walletConfig()).pendingMigration().confirmBlock == 0
     
     # Verify funds were migrated
     assert num_funds_migrated == 1

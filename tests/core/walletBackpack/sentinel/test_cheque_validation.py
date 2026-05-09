@@ -27,7 +27,7 @@ def test_isValidChequeAndGetData_fails_when_cheque_not_active(
     )
     cheque_data = createChequeData()
     
-    is_valid, _, _ = sentinel.isValidChequeAndGetData(
+    is_valid, _, did_pay = sentinel.isValidChequeAndGetData(
         alpha_token.address,  # _asset
         100 * EIGHTEEN_DECIMALS,  # _amount
         100 * EIGHTEEN_DECIMALS,  # _txUsdValue
@@ -37,6 +37,7 @@ def test_isValidChequeAndGetData_fails_when_cheque_not_active(
         False  # _isManager
     )
     assert is_valid == False
+    assert did_pay == False
 
 
 def test_isValidChequeAndGetData_fails_when_before_unlock_block(
@@ -123,7 +124,7 @@ def test_isValidChequeAndGetData_succeeds_within_valid_time_window(
     )
     cheque_data = createChequeData()
     
-    is_valid, updated_data, _ = sentinel.isValidChequeAndGetData(
+    is_valid, updated_data, did_pay = sentinel.isValidChequeAndGetData(
         alpha_token.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
@@ -133,6 +134,7 @@ def test_isValidChequeAndGetData_succeeds_within_valid_time_window(
         False  # _isManager
     )
     assert is_valid == True
+    assert did_pay == True
     # Verify cheque data was updated
     assert updated_data.lastChequePaidBlock == current_block
     assert updated_data.numChequesPaidInPeriod == 1
