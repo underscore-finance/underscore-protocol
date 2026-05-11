@@ -194,11 +194,11 @@ struct SwapPerms:
 struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingPayee: bool
-    allowedPayees: DynArray[address, 40]  # specific recipient addresses
+    canAddPendingPayee: bool             # reserved; must be False
+    allowedPayees: DynArray[address, 40]  # generic allowed recipient addresses
 ```
 
-As of `cheque-enhance`, `canAddPendingPayee` remains in manager settings structs for compatibility, but the Paymaster ABI no longer exposes the pending-payee add/confirm/cancel lifecycle. Paymaster remains responsible for direct payee management through `addPayee`, `updatePayee`, `removePayee`, `setGlobalPayeeSettings`, and `createDefaultGlobalPayeeSettings`.
+As of `cheque-enhance`, `canAddPendingPayee` remains in the `TransferPerms` struct for ABI compatibility but is a reserved field. `HighCommand` validation rejects any manager-settings input that sets it to `true`. The Paymaster ABI no longer exposes the pending-payee add/confirm/cancel lifecycle; Paymaster remains responsible for direct payee management through `addPayee`, `updatePayee`, `removePayee`, `setGlobalPayeeSettings`, and `createDefaultGlobalPayeeSettings`.
 
 #### Asset Restrictions
 - Up to 40 allowed assets per manager
@@ -440,7 +440,7 @@ Every Underscore policy check happens on-chain. Anyone can verify that a manager
 
 Off-chain solutions ship with minimal built-in policy types and require writing custom validators from scratch. There's no standard, no interoperability, and no guarantees about the quality of custom implementations.
 
-Underscore ships with a complete policy system: USD-aware spending limits (per-tx, per-period, lifetime), asset whitelists (40 per manager), protocol restrictions (25 per manager), swap controls (slippage, count limits), transfer controls (payee lists), time-locks, cooldowns, activation delays, auto-expiry, 3-tier payment rails, cheque delays, and signer freezing — all built-in, all battle-tested, all on-chain.
+Underscore ships with a complete policy system: USD-aware spending limits (per-tx, per-period, lifetime), asset whitelists (40 per manager), protocol restrictions (25 per manager), swap controls (slippage, count limits), transfer controls (recipient allowlists), time-locks, cooldowns, activation delays, auto-expiry, 3-tier payment rails, cheque delays, and signer freezing — all built-in, all battle-tested, all on-chain.
 
 > *"Other solutions give you a policy 'framework' and wish you luck. Underscore gives you production-grade financial guardrails — spending limits, asset restrictions, payment rails, time-locks — all enforced on-chain, out of the box."*
 

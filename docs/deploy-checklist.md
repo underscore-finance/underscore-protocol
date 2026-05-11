@@ -30,6 +30,16 @@ Monitor these AgentSender and ownership signals after deployment:
 
 - Pending wallet actions are owner-scoped. If wallet ownership changes while a pending time lock, whitelist entry, cheque settings update, global payee settings update, or migration is outstanding, confirmation should fail on the stored owner check. The new owner should cancel stale pending state and restage the intended action.
 
+## Wallet Creation Config
+
+- Hatchery validates nonzero core setup, wallet/config templates, backpack item addresses, WETH, ETH, and wallet time-lock bounds before deploying a new user wallet.
+- Hatchery delegates manager, payee, and cheque default-setting validation to the configured HighCommand, Paymaster, and ChequeBook contracts. Invalid MissionControl wallet-creation parameters should fail wallet creation before config deployment completes.
+
+## Wallet Time Lock Bounds
+
+- Owner-initiated `setTimeLock` and `confirmPendingTimeLock` enforce `MIN_TIMELOCK <= value <= MAX_TIMELOCK` at the wallet-config layer.
+- `setTimeLockViaMigrator` clamps copied source values into the destination wallet's `[MIN_TIMELOCK, MAX_TIMELOCK]` range. Cross-creator migrations with divergent bounds may complete with a clamped destination time lock.
+
 ## Instant Migration Runbook
 
 - `instantMigrationEnabled` defaults to `false`.
@@ -38,10 +48,16 @@ Monitor these AgentSender and ownership signals after deployment:
 - `migrateAll` is the one-call path for tracked ERC20-style funds and config under one pending migration.
 - `migrateFunds` and `cloneConfig` are terminal paths. Each clears pending migration after success, so users need a new pending migration for the other half unless instant migration is enabled.
 - Loose native ETH is not migrated. Users should wrap or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
+- Cloned managers and payees are validated for destination role collisions before registration. Legacy source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`.
+- Changing a wallet's configured migrator via `setMigrator` requires no pending migration on that wallet. Complete or cancel in-flight migration state before swapping the migrator.
 - Payee and manager period/lifetime counters are not copied. Migration resets those accounting windows on the destination wallet.
 - Individual cheques are not migrated. Users must recreate any desired cheques on the destination wallet, and the source cheque ledger remains as historical state.
 - Fee-on-transfer or rebasing assets can leave dust or accounting differences because migration transfers the wallet's tracked token balance rather than reconciling post-transfer received amounts.
 - A wallet's configured migrator is highly trusted because migrator-facing wallet-config setters apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
+
+## Manager Settings Constraints
+
+- `TransferPerms.canAddPendingPayee` must be `false`. The field remains in the struct for ABI compatibility, but manager-settings inputs with `true` are rejected by HighCommand validation.
 
 ## Pending Payee Removal Preflight
 
