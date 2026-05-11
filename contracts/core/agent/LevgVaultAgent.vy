@@ -53,6 +53,11 @@ struct RipeAsset:
     vaultToken: address
     ripeVaultId: uint256
 
+event NonceIncremented:
+    levgVault: address
+    oldNonce: uint256
+    newNonce: uint256
+
 # important ids
 RIPE_LEGO_ID: constant(uint256) = 1
 RIPE_STAB_POOL_ID: constant(uint256) = 1
@@ -334,16 +339,14 @@ def deleverage(
 
     # mode 0: auto deleverage user (via ripe lego)
     if _mode == 0:
-        legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-        ripeLego: address = staticcall Registry(legoBook).getAddr(ripeLegoId)
+        ripeLego: address = self._getRipeLego()
         targetAmount: uint256 = _autoDeleverageAmount if _autoDeleverageAmount != 0 else max_value(uint256)
         extcall RipeLego(ripeLego).deleverageUser(_levgWallet, targetAmount)
 
     # mode 1: deleverage with specific assets (via ripe lego)
     elif _mode == 1:
         if len(_deleverageAssets) != 0:
-            legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-            ripeLego: address = staticcall Registry(legoBook).getAddr(ripeLegoId)
+            ripeLego: address = self._getRipeLego()
             extcall RipeLego(ripeLego).deleverageWithSpecificAssets(_deleverageAssets, _levgWallet)
 
     # mode 2: manual deleverage
@@ -578,6 +581,13 @@ def compoundYieldGains(
 
 @view
 @internal
+def _getRipeLego() -> address:
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    return staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
+
+
+@view
+@internal
 def _fetchPositionData(_levgWallet: address) -> (RipeAsset, RipeAsset, address, address, uint256, uint256):
     collData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).collateralAsset()
     levgData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).leverageAsset()
@@ -790,4 +800,6 @@ def incrementNonce(_levgWallet: address):
 
 @internal
 def _incrementNonce(_levgWallet: address):
-    self.currentNonce[_levgWallet] += 1
+    oldNonce: uint256 = self.currentNonce[_levgWallet]
+    self.currentNonce[_levgWallet] = oldNonce + 1
+    log NonceIncremented(levgVault=_levgWallet, oldNonce=oldNonce, newNonce=oldNonce + 1)

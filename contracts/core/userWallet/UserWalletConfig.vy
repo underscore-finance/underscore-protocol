@@ -564,8 +564,8 @@ def confirmWhitelistAddr(_addr: address):
 @external
 def addWhitelistAddrViaMigrator(_addr: address):
     assert msg.sender == self.migrator # dev: no perms
-    assert _addr != empty(address)
-    assert self.indexOfPayee[_addr] == 0 and not self.cheques[_addr].active and self.indexOfManager[_addr] == 0
+    assert _addr != empty(address) # dev: invalid address
+    assert self.indexOfPayee[_addr] == 0 and not self.cheques[_addr].active and self.indexOfManager[_addr] == 0 # dev: payee, manager, or active cheque
     self._registerWhitelistAddr(_addr)
 
 
@@ -574,7 +574,7 @@ def addWhitelistAddrViaMigrator(_addr: address):
 
 @internal
 def _registerWhitelistAddr(_addr: address):
-    assert self.indexOfWhitelist[_addr] == 0
+    assert self.indexOfWhitelist[_addr] == 0 # dev: already whitelisted
     wid: uint256 = self.numWhitelisted
     self.whitelistAddr[wid] = _addr
     self.indexOfWhitelist[_addr] = wid
