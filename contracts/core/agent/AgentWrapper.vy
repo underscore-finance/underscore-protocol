@@ -102,9 +102,7 @@ def transferFunds(
     _asset: address = empty(address),
     _amount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
-    """
-    Action 1: approved sender transfer; manager transfer perms; cheque mode is disabled here.
-    """
+    # Action 1: approved sender transfer; manager transfer perms; cheque mode is disabled here.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 1, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).transferFunds(_recipient, _asset, _amount, False, False)
@@ -117,9 +115,7 @@ def createAndPayCheque(
     _asset: address,
     _amount: uint256,
 ) -> (uint256, uint256):
-    """
-    Action 4: approved sender creates and pays a cheque atomically; manager cheque perms; ChequeBook handles replace logic.
-    """
+    # Action 4: approved sender creates and pays a cheque atomically; manager cheque perms; ChequeBook handles replace logic.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 4, userWallet = _userWallet, sender = msg.sender)
 
@@ -151,9 +147,7 @@ def createCheque(
     _canManagerPay: bool,
     _canBePulled: bool,
 ) -> bool:
-    """
-    Action 5: approved sender creates a cheque; manager cheque perms; ChequeBook handles replace logic.
-    """
+    # Action 5: approved sender creates a cheque; manager cheque perms; ChequeBook handles replace logic.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
@@ -178,10 +172,8 @@ def payCheque(
     _amount: uint256,
     _expectedCreationBlock: uint256,
 ) -> (uint256, uint256):
-    """
-    Action 6: approved sender pays an existing cheque; wallet/Sentinel enforce pay perms.
-    Use action 4 for atomic create-and-pay; action 5 + 6 is not that path.
-    """
+    # Action 6: approved sender pays an existing cheque; wallet/Sentinel enforce pay perms.
+    # Use action 4 for atomic create-and-pay; action 5 + 6 is not that path.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     assert _expectedCreationBlock != 0 # dev: invalid expected block
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
@@ -205,6 +197,7 @@ def depositForYield(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
+    # Action 10: approved sender deposits into yield lego; manager yield perms; vault routing via lego.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 10, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).depositForYield(_legoId, _asset, _vaultAddr, _amount, _extraData)
@@ -218,6 +211,7 @@ def withdrawFromYield(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
+    # Action 11: approved sender withdraws from yield; manager yield perms; not a cheque pay path (wallet gets False).
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 11, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).withdrawFromYield(_legoId, _vaultToken, _amount, _extraData, False)
@@ -233,6 +227,7 @@ def rebalanceYieldPosition(
     _fromVaultAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, address, uint256, uint256):
+    # Action 12: approved sender rebalances yield between legos/vaults; manager yield perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 12, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).rebalanceYieldPosition(_fromLegoId, _fromVaultToken, _toLegoId, _toVaultAddr, _fromVaultAmount, _extraData)
@@ -248,6 +243,7 @@ def swapTokens(
     _userWallet: address,
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS],
 ) -> (address, uint256, address, uint256, uint256):
+    # Action 20: approved sender runs batched swaps; manager swap perms; capped at MAX_SWAP_INSTRUCTIONS.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 20, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).swapTokens(_swapInstructions)
@@ -263,6 +259,7 @@ def mintOrRedeemAsset(
     _minAmountOut: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, bool, uint256):
+    # Action 21: approved sender mints or redeems via lego; manager mint/redeem perms; optional min out slippage guard.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 21, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).mintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _amountIn, _minAmountOut, _extraData)
@@ -276,6 +273,7 @@ def confirmMintOrRedeemAsset(
     _tokenOut: address,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
+    # Action 22: approved sender confirms pending mint/redeem; pairs with action 21 two-step flows.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 22, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).confirmMintOrRedeemAsset(_legoId, _tokenIn, _tokenOut, _extraData)
@@ -294,6 +292,7 @@ def addCollateral(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
+    # Action 40: approved sender adds collateral on debt lego; manager collateral perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 40, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addCollateral(_legoId, _asset, _amount, _extraData)
@@ -307,6 +306,7 @@ def removeCollateral(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
+    # Action 41: approved sender removes collateral from debt lego; manager collateral perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 41, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeCollateral(_legoId, _asset, _amount, _extraData)
@@ -320,6 +320,7 @@ def borrow(
     _amount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
+    # Action 42: approved sender borrows against position; manager borrow perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 42, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).borrow(_legoId, _borrowAsset, _amount, _extraData)
@@ -333,12 +334,13 @@ def repayDebt(
     _paymentAmount: uint256 = max_value(uint256),
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256):
+    # Action 43: approved sender repays debt on lego; manager repay perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 43, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraData)
 
 
-#################
+####################
 # Claim Incentives #
 ####################
 
@@ -351,6 +353,7 @@ def claimIncentives(
     _rewardAmount: uint256 = max_value(uint256),
     _proofs: DynArray[bytes32, MAX_PROOFS] = [],
 ) -> (uint256, uint256):
+    # Action 50: approved sender claims incentives on lego; manager claim perms; optional proofs (capped at MAX_PROOFS).
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 50, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).claimIncentives(_legoId, _rewardToken, _rewardAmount, _proofs)
@@ -363,9 +366,7 @@ def claimIncentives(
 
 @external
 def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
-    """
-    Action 60: approved sender confirms pending whitelist; manager/global whitelist perms; owner must match pending owner.
-    """
+    # Action 60: approved sender confirms pending whitelist; manager/global whitelist perms; owner must match pending owner.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
@@ -376,9 +377,7 @@ def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
 
 @external
 def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
-    """
-    Action 61: approved sender cancels pending whitelist; manager/global or security perms; add-pending remains unavailable.
-    """
+    # Action 61: approved sender cancels pending whitelist; manager/global or security perms; add-pending remains unavailable.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
@@ -389,9 +388,7 @@ def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address) ->
 
 @external
 def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
-    """
-    Action 62: approved sender removes whitelist; manager/global or security perms; no pending whitelist creation.
-    """
+    # Action 62: approved sender removes whitelist; manager/global or security perms; no pending whitelist creation.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     kernel: address = staticcall UserWalletConfig(walletConfig).kernel()
@@ -407,9 +404,7 @@ def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
 
 @external
 def removeSelfAsManager(_userWallet: address) -> bool:
-    """
-    Action 70: approved sender removes this wrapper as manager; HighCommand perms; starter-agent removal blocked in HighCommand.
-    """
+    # Action 70: approved sender removes this wrapper as manager; HighCommand perms; starter-agent removal blocked in HighCommand.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     highCommand: address = staticcall UserWalletConfig(walletConfig).highCommand()
@@ -426,9 +421,7 @@ def removeSelfAsManager(_userWallet: address) -> bool:
 
 @external
 def claimAllLoot(_userWallet: address) -> bool:
-    """
-    Action 80: approved sender claims current distributor loot; canClaimLoot perms; returns False when empty.
-    """
+    # Action 80: approved sender claims current distributor loot; canClaimLoot perms; returns False when empty.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     lootDistributor: address = self._getLootDistributor()
     result: bool = extcall LootDistributor(lootDistributor).claimAllLoot(_userWallet)
@@ -438,9 +431,7 @@ def claimAllLoot(_userWallet: address) -> bool:
 
 @external
 def claimRevShareAndBonusLoot(_userWallet: address) -> uint256:
-    """
-    Action 81: approved sender claims rev-share/bonus loot; canClaimLoot perms; reverts when empty.
-    """
+    # Action 81: approved sender claims rev-share/bonus loot; canClaimLoot perms; reverts when empty.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     lootDistributor: address = self._getLootDistributor()
     amount: uint256 = extcall LootDistributor(lootDistributor).claimRevShareAndBonusLoot(_userWallet)
@@ -450,9 +441,7 @@ def claimRevShareAndBonusLoot(_userWallet: address) -> uint256:
 
 @external
 def claimDepositRewards(_userWallet: address) -> uint256:
-    """
-    Action 82: approved sender claims current distributor deposit rewards; canClaimLoot perms; reverts when empty/non-current.
-    """
+    # Action 82: approved sender claims current distributor deposit rewards; canClaimLoot perms; reverts when empty/non-current.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     lootDistributor: address = self._getLootDistributor()
     amount: uint256 = extcall LootDistributor(lootDistributor).claimDepositRewards(_userWallet)
@@ -482,6 +471,7 @@ def _getLootDistributor() -> address:
 
 @external
 def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256)) -> (uint256, uint256):
+    # Action 2: approved sender unwraps WETH to native ETH in wallet; manager convert perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 2, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).convertWethToEth(_amount)
@@ -489,6 +479,7 @@ def convertWethToEth(_userWallet: address, _amount: uint256 = max_value(uint256)
 
 @external
 def convertEthToWeth(_userWallet: address, _amount: uint256 = max_value(uint256)) -> (uint256, uint256):
+    # Action 3: approved sender wraps native ETH to WETH in wallet; manager convert perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 3, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).convertEthToWeth(_amount)
@@ -513,6 +504,7 @@ def addLiquidity(
     _minLpAmount: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
+    # Action 30: approved sender adds classic AMM liquidity; manager liquidity perms; min guards on tokens/LP.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 30, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addLiquidity(_legoId, _pool, _tokenA, _tokenB, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, _extraData)
@@ -531,6 +523,7 @@ def removeLiquidity(
     _minAmountB: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
+    # Action 31: approved sender removes classic AMM liquidity; manager liquidity perms; burns LP up to amount.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 31, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeLiquidity(_legoId, _pool, _tokenA, _tokenB, _lpToken, _lpAmount, _minAmountA, _minAmountB, _extraData)
@@ -553,6 +546,7 @@ def addLiquidityConcentrated(
     _minAmountB: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256, uint256):
+    # Action 32: approved sender adds concentrated liquidity (NFT position); manager CL perms; tick bounds apply.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 32, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).addLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, _extraData)
@@ -572,6 +566,7 @@ def removeLiquidityConcentrated(
     _minAmountB: uint256 = 0,
     _extraData: bytes32 = empty(bytes32),
 ) -> (uint256, uint256, uint256, uint256):
+    # Action 33: approved sender removes concentrated liquidity from NFT position; manager CL perms.
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 33, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).removeLiquidityConcentrated(_legoId, _nftAddr, _nftTokenId, _pool, _tokenA, _tokenB, _liqToRemove, _minAmountA, _minAmountB, _extraData)
