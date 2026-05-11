@@ -55,6 +55,28 @@ def test_valid_new_manager_basic(high_command, user_wallet, charlie, createGloba
     assert result == True
 
 
+def test_invalid_new_manager_user_wallet(high_command, user_wallet, ambassador_wallet, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    # setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    result = high_command.isValidNewManager(
+        user_wallet,
+        ambassador_wallet.address,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert result == False
+
+
 def test_invalid_new_manager_with_pending_whitelist_permission(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()

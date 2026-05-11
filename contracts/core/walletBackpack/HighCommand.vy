@@ -189,7 +189,6 @@ def addManager(
     assert _manager not in [empty(address), config.owner, config.walletConfig, _userWallet] # dev: invalid manager
     assert not config.isPayee # dev: already payee
     assert not config.isWhitelisted # dev: already whitelisted
-    assert not self._isPrivilegedUndyAddr(_manager) # dev: invalid manager
     cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
     assert not cheque.active or (cheque.expiryBlock != 0 and block.number >= cheque.expiryBlock) # dev: active cheque exists
 
@@ -531,6 +530,10 @@ def _isValidNewManager(
 
     # already a manager
     if _isManager:
+        return False, empty(wcs.ManagerSettings)
+
+    # user wallets, protocol registry addresses, and backpack items cannot be managers
+    if self._isPrivilegedUndyAddr(_manager):
         return False, empty(wcs.ManagerSettings)
 
     # start delay
@@ -1038,7 +1041,9 @@ def _isPrivilegedUndyAddr(_addr: address) -> bool:
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
     if ledger == empty(address):
         return False
-    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
+    if staticcall Ledger(ledger).isRegisteredBackpackItem(_addr):
+        return True
+    return staticcall Ledger(ledger).isUserWallet(_addr)
 
 
 # manager settings bundle

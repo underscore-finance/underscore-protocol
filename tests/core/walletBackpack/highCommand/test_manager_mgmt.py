@@ -68,7 +68,7 @@ def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createM
         )
 
 
-def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob, ambassador_wallet):
     """Test that certain addresses cannot be managers"""
     # Cannot add zero address
     with boa.reverts("invalid manager"):
@@ -120,6 +120,21 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
         high_command.addManager(
             user_wallet,
             user_wallet,  # invalid
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,  # canClaimLoot
+            sender=bob
+        )
+
+    # Cannot add another Underscore user wallet as manager
+    with boa.reverts("invalid manager"):
+        high_command.addManager(
+            user_wallet,
+            ambassador_wallet.address,  # user wallets cannot be managers
             createManagerLimits(),
             createLegoPerms(),
             createSwapPerms(),
