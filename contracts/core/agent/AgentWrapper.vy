@@ -25,38 +25,38 @@ from interfaces import Wallet
 from interfaces import AgentWrapper
 from interfaces import WalletConfigStructs as wcs
 
+interface UserWalletConfig:
+    def indexOfManager(_manager: address) -> uint256: view
+    def cheques(_recipient: address) -> wcs.Cheque: view
+    def highCommand() -> address: view
+    def chequeBook() -> address: view
+    def kernel() -> address: view
+
+interface LootDistributor:
+    def validateCanClaimLoot(_user: address, _caller: address) -> bool: view
+    def claimRevShareAndBonusLoot(_user: address) -> uint256: nonpayable
+    def claimDepositRewards(_user: address) -> uint256: nonpayable
+    def claimAllLoot(_user: address) -> bool: nonpayable
+
+interface Kernel:
+    def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+    def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+    def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
+
 interface ChequeBook:
     def createCheque(_userWallet: address, _recipient: address, _asset: address, _amount: uint256, _unlockNumBlocks: uint256, _expiryNumBlocks: uint256, _canManagerPay: bool, _canBePulled: bool) -> bool: nonpayable
 
-interface UserWalletConfig:
-    def chequeBook() -> address: view
-    def kernel() -> address: view
-    def highCommand() -> address: view
-    def indexOfManager(_manager: address) -> uint256: view
-    def cheques(_recipient: address) -> wcs.Cheque: view
-
-interface UserWallet:
-    def walletConfig() -> address: view
-
-interface Kernel:
-    def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
-    def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
-    def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address): nonpayable
-
 interface HighCommand:
     def removeManager(_userWallet: address, _manager: address) -> bool: nonpayable
-
-interface LootDistributor:
-    def claimAllLoot(_user: address) -> bool: nonpayable
-    def claimRevShareAndBonusLoot(_user: address) -> uint256: nonpayable
-    def claimDepositRewards(_user: address) -> uint256: nonpayable
-    def validateCanClaimLoot(_user: address, _caller: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface UndyHq:
     def getAddr(_regId: uint256) -> address: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
 
 event AgentAction:
     action: uint8
