@@ -46,6 +46,10 @@ def isValidPayeeAndGetData(
 ) -> (bool, wcs.PayeeData, bool):
     if self.fail_validation:
         return False, _data, False
+    if _isWhitelisted:
+        return True, empty(wcs.PayeeData), False
+    if not _isPayee:
+        return False, empty(wcs.PayeeData), False
     return True, _data, True
 
 

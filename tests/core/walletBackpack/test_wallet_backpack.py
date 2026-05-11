@@ -40,6 +40,30 @@ def mock_migrator():
     return boa.load("contracts/mock/MockRando.vy", name="mock_migrator")
 
 
+def test_mock_sentinel_whitelisted_payee_return_flags(
+    mock_sentinel,
+    createPayeeSettings,
+    createGlobalPayeeSettings,
+    createPayeeData,
+):
+    payee_data = createPayeeData(_totalUsdValue=123)
+
+    is_valid, updated_data, did_update = mock_sentinel.isValidPayeeAndGetData(
+        True,
+        False,
+        ZERO_ADDRESS,
+        0,
+        0,
+        createPayeeSettings(),
+        createGlobalPayeeSettings(),
+        payee_data,
+    )
+
+    assert is_valid == True
+    assert updated_data == createPayeeData()
+    assert did_update == False
+
+
 ####################
 # Add Pending Item #
 ####################

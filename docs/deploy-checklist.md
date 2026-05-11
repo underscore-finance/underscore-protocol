@@ -26,6 +26,10 @@ Monitor these AgentSender and ownership signals after deployment:
 - `PendingOwnershipTimeLockCancelled`
 - high-risk `AgentAction` calls, especially cheque creation/payment, whitelist changes, and manager permission changes
 
+## Pending State After Ownership Change
+
+- Pending wallet actions are owner-scoped. If wallet ownership changes while a pending time lock, whitelist entry, cheque settings update, global payee settings update, or migration is outstanding, confirmation should fail on the stored owner check. The new owner should cancel stale pending state and restage the intended action.
+
 ## Instant Migration Runbook
 
 - `instantMigrationEnabled` defaults to `false`.
