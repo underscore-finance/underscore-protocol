@@ -500,6 +500,22 @@ def test_payee_persistence(user_wallet_config, paymaster, alice, bob, charlie, c
     assert saved_settings.startBlock == 0
 
 
+def test_duplicate_payee_add(user_wallet_config, paymaster, alice, createPayeeSettings):
+    """Test that duplicate payee entries are rejected"""
+    settings = createPayeeSettings()
+
+    user_wallet_config.addPayee(alice, settings, sender=paymaster.address)
+    alice_index = user_wallet_config.indexOfPayee(alice)
+    assert alice_index > 0
+
+    initial_count = user_wallet_config.numPayees()
+    with boa.reverts("already payee"):
+        user_wallet_config.addPayee(alice, settings, sender=paymaster.address)
+
+    assert user_wallet_config.numPayees() == initial_count
+    assert user_wallet_config.indexOfPayee(alice) == alice_index
+
+
 def test_global_payee_settings_persistence(user_wallet_config, paymaster, createGlobalPayeeSettings):
     """Test global payee settings persistence"""
     # Set global settings
@@ -643,7 +659,7 @@ def test_duplicate_whitelist_add(user_wallet_config, kernel, alice, pending_whit
 
 
 def test_duplicate_manager_add(user_wallet_config, high_command, alice, createManagerSettings):
-    """Test that duplicate manager entries are handled correctly"""
+    """Test that duplicate manager entries are rejected"""
     settings = createManagerSettings()
     
     # Add first time
@@ -651,9 +667,10 @@ def test_duplicate_manager_add(user_wallet_config, high_command, alice, createMa
     alice_index = user_wallet_config.indexOfManager(alice)
     assert alice_index > 0
     
-    # Try to add again - should not create duplicate
+    # Try to add again - should reject instead of silently overwriting settings
     initial_count = user_wallet_config.numManagers()
-    user_wallet_config.addManager(alice, settings, sender=high_command.address)
+    with boa.reverts("already manager"):
+        user_wallet_config.addManager(alice, settings, sender=high_command.address)
     
     # Count should not increase
     assert user_wallet_config.numManagers() == initial_count
@@ -678,8 +695,8 @@ def test_remove_non_existent_items(user_wallet_config, kernel, high_command, pay
     assert user_wallet_config.numPayees() == initial_payee_count
 
 
-def test_whitelist_confirm_trusts_kernel_validation(user_wallet_config, kernel, alice, pending_whitelist, user_wallet):
-    """UserWalletConfig only enforces caller access for whitelist confirmation"""
+def test_whitelist_confirm_enforces_delay(user_wallet_config, kernel, alice, user_wallet):
+    """UserWalletConfig keeps the storage-layer whitelist delay check"""
     fresh_pending = (
         boa.env.evm.patch.block_number,         # initiatedBlock
         boa.env.evm.patch.block_number + 10,   # confirmBlock (10 blocks later)
@@ -687,6 +704,10 @@ def test_whitelist_confirm_trusts_kernel_validation(user_wallet_config, kernel, 
     )
     user_wallet_config.addPendingWhitelistAddr(alice, fresh_pending, sender=kernel.address)
 
+    with boa.reverts("time delay not reached"):
+        user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
+
+    boa.env.time_travel(blocks=10)
     user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
     assert user_wallet_config.indexOfWhitelist(alice) != 0
     
@@ -702,16 +723,14 @@ def test_set_time_lock_access(user_wallet_config, alice):
         user_wallet_config.setTimeLock(user_wallet_config.timeLock() + 1, sender=alice)
 
 
-def test_set_time_lock_does_not_duplicate_bounds_validation(user_wallet_config, bob):
-    """UserWalletConfig only stages/applies owner-provided time lock values"""
+def test_set_time_lock_enforces_bounds(user_wallet_config, bob):
+    """UserWalletConfig rejects time locks outside configured bounds"""
     high_time_lock = user_wallet_config.MAX_TIMELOCK() + 1
-    user_wallet_config.setTimeLock(high_time_lock, sender=bob)
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLock(high_time_lock, sender=bob)
 
-    assert user_wallet_config.timeLock() == high_time_lock
-
-    user_wallet_config.setTimeLock(0, sender=bob)
-
-    assert user_wallet_config.pendingTimeLock().newTimeLock == 0
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLock(0, sender=bob)
 
 
 def test_set_time_lock_increase_applies_immediately(user_wallet_config, bob):
@@ -859,10 +878,16 @@ def test_set_time_lock_same_value_clears_pending(user_wallet_config, bob):
     assert user_wallet_config.pendingTimeLock().confirmBlock == 0
 
 
-def test_set_time_lock_via_migrator_access_only(user_wallet_config, bob, alice, migrator):
-    """The migrator-only time lock setter only enforces caller access"""
+def test_set_time_lock_via_migrator_access_and_bounds(user_wallet_config, bob, alice, migrator):
+    """The migrator-only time lock setter enforces caller access and configured bounds"""
     with boa.reverts("no perms"):
         user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=alice)
+
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK() + 1, sender=migrator.address)
+
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLockViaMigrator(0, sender=migrator.address)
 
     user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
     user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)

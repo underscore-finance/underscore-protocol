@@ -1,5 +1,27 @@
 [
   {
+    "name": "NonceIncremented",
+    "inputs": [
+      {
+        "name": "levgVault",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "oldNonce",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "newNonce",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "OwnershipChangeInitiated",
     "inputs": [
       {

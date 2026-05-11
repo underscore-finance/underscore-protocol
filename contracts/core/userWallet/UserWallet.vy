@@ -1407,6 +1407,8 @@ def _resetApproval(_token: address, _legoAddr: address):
 @external
 def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address):
     assert msg.sender == self.walletConfig # dev: perms
+    assert _recipient != empty(address) # dev: invalid recipient
+    assert staticcall IERC721(_collection).ownerOf(_nftTokenId) == self # dev: not owner
     extcall IERC721(_collection).safeTransferFrom(self, _recipient, _nftTokenId)
 
 

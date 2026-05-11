@@ -149,9 +149,9 @@ APPRAISER_ID: constant(uint256) = 7
 BILLING_ID: constant(uint256) = 9
 VAULT_REGISTRY_ID: constant(uint256) = 10
 
-UNDY_HQ: public(immutable(address))
-WETH: public(immutable(address))
-ETH: public(immutable(address))
+UNDY_HQ: immutable(address)
+WETH: immutable(address)
+ETH: immutable(address)
 
 MIN_TIMELOCK: public(immutable(uint256))
 MAX_TIMELOCK: public(immutable(uint256))
@@ -225,6 +225,7 @@ def __init__(
 @external
 def setWallet(_wallet: address) -> bool:
     assert not self.didSetWallet # dev: wallet already set
+    assert _wallet != empty(address) # dev: invalid wallet
     assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID) # dev: no perms
     self.wallet = _wallet
     self.didSetWallet = True
@@ -239,6 +240,7 @@ def setWallet(_wallet: address) -> bool:
 @external
 def setTimeLock(_numBlocks: uint256):
     assert msg.sender == ownership.owner # dev: no perms
+    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid time lock
 
     currentTimeLock: uint256 = self.timeLock
     pendingConfirmBlock: uint256 = self.pendingTimeLock.confirmBlock
@@ -255,7 +257,7 @@ def setTimeLock(_numBlocks: uint256):
 
     assert pendingConfirmBlock == 0 # dev: pending time lock already exists
 
-    confirmBlock: uint256 = block.number + currentTimeLock
+    confirmBlock: uint256 = unsafe_add(block.number, currentTimeLock)
     self.pendingTimeLock = wcs.PendingTimeLock(
         newTimeLock = _numBlocks,
         initiatedBlock = block.number,
@@ -267,6 +269,7 @@ def setTimeLock(_numBlocks: uint256):
 @external
 def setTimeLockViaMigrator(_numBlocks: uint256):
     assert msg.sender == self.migrator # dev: no perms
+    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid time lock
 
     if _numBlocks == self.timeLock:
         return
@@ -307,7 +310,7 @@ def setPendingMigration(_toWallet: address) -> wcs.PendingMigration:
     pending: wcs.PendingMigration = wcs.PendingMigration(
         toWallet = _toWallet,
         initiatedBlock = block.number,
-        confirmBlock = block.number + self.timeLock,
+        confirmBlock = unsafe_add(block.number, self.timeLock),
         currentOwner = ownership.owner,
     )
     self.pendingMigration = pending
@@ -554,6 +557,7 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.kernel # dev: no perms
+    assert self.pendingWhitelist[_addr].confirmBlock <= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._registerWhitelistAddr(_addr)
 
@@ -637,8 +641,7 @@ def updateManager(_manager: address, _config: wcs.ManagerSettings):
 
 @internal
 def _registerManager(_manager: address):
-    if self.indexOfManager[_manager] != 0:
-        return
+    assert self.indexOfManager[_manager] == 0 # dev: already manager
     mid: uint256 = self.numManagers
     self.managers[mid] = _manager
     self.indexOfManager[_manager] = mid
@@ -713,8 +716,7 @@ def updatePayee(_payee: address, _config: wcs.PayeeSettings):
 
 @internal
 def _registerPayee(_payee: address):
-    if self.indexOfPayee[_payee] != 0:
-        return
+    assert self.indexOfPayee[_payee] == 0 # dev: already payee
     pid: uint256 = self.numPayees
     self.payees[pid] = _payee
     self.indexOfPayee[_payee] = pid
@@ -867,7 +869,7 @@ def preparePayment(
     _vaultToken: address,
     _vaultAmount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
-    assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
+    assert self._isValidRegistryAddr(msg.sender) # dev: no perms
 
     # withdraw from yield position
     na: uint256 = 0
@@ -875,6 +877,7 @@ def preparePayment(
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(self.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
+    assert underlyingAsset == _targetAsset # dev: invalid target asset
 
     return underlyingAmount, txUsdValue
 
@@ -885,7 +888,7 @@ def preparePayment(
 @external
 def deregisterAsset(_asset: address) -> bool:
     if msg.sender != self.migrator:
-        assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
+        assert self._isValidRegistryAddr(msg.sender) # dev: no perms
     return extcall UserWallet(self.wallet).deregisterAsset(_asset)
 
 
@@ -931,8 +934,17 @@ def setEjectionMode(_shouldEject: bool):
 def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType) -> bool:
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     if msg.sender != ad.walletOwner:
-        assert staticcall Registry(UNDY_HQ).isValidAddr(msg.sender) # dev: no perms
+        assert self._isValidRegistryAddr(msg.sender) # dev: no perms
     return extcall UserWallet(ad.wallet).setLegoAccessForAction(ad.legoAddr, _action)
+
+
+# is valid registry addr
+
+
+@view
+@internal
+def _isValidRegistryAddr(_addr: address) -> bool:
+    return staticcall Registry(UNDY_HQ).isValidAddr(_addr)
 
 
 # is signer switchboard
