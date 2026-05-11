@@ -450,6 +450,76 @@ def test_add_manager_rejects_pending_whitelist_permission(high_command, user_wal
         )
 
 
+def test_add_manager_rejects_can_add_pending_payee(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """canAddPendingPayee is reserved and must be false; HighCommand rejects True at validation time"""
+    with boa.reverts("invalid manager"):
+        high_command.addManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(_canAddPendingPayee=True),
+            [],
+            False,  # canClaimLoot
+            sender=bob
+        )
+
+
+def test_update_manager_rejects_can_add_pending_payee(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
+    """canAddPendingPayee is reserved and must be false; HighCommand rejects True on updateManager"""
+    # Seed alice as a manager so we can attempt to update
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+
+    with boa.reverts("invalid settings"):
+        high_command.updateManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(_canAddPendingPayee=True),
+            [],
+            False,
+            sender=bob
+        )
+
+
+def test_set_global_manager_settings_rejects_can_add_pending_payee(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
+    """canAddPendingPayee is reserved and must be false; HighCommand rejects True on setGlobalManagerSettings"""
+    with boa.reverts("invalid settings"):
+        high_command.setGlobalManagerSettings(
+            user_wallet,
+            ONE_MONTH_IN_BLOCKS,
+            ONE_DAY_IN_BLOCKS,
+            ONE_YEAR_IN_BLOCKS,
+            True,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(_canAddPendingPayee=True),
+            [],
+            sender=bob
+        )
+
+
 def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token):
     """Test that addManager correctly saves all manager settings in user wallet config"""
     # Create specific settings to verify they're saved correctly
@@ -480,7 +550,7 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
+        _canAddPendingPayee=False,
         _allowedPayees=[]
     )
 
@@ -564,7 +634,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         createLegoPerms(),
             createSwapPerms(),
         createWhitelistPerms(),
-        createTransferPerms(_canAddPendingPayee=True),
+        createTransferPerms(_canAddPendingPayee=False),
         [],
         False,  # canClaimLoot
         sender=bob
@@ -985,7 +1055,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     new_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
+        _canAddPendingPayee=False,
         _allowedPayees=[]  # Use empty list instead of token address
     )
 
@@ -2489,7 +2559,7 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
+        _canAddPendingPayee=False,
         _allowedPayees=[]
     )
 
@@ -2588,7 +2658,7 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     transfer_perms = createTransferPerms(
         _canTransfer=False,
         _canCreateCheque=True,
-        _canAddPendingPayee=True,
+        _canAddPendingPayee=False,
         _allowedPayees=[]
     )
 

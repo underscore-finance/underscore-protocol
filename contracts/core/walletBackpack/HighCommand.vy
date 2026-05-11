@@ -258,7 +258,7 @@ def updateManager(
     settings.legoPerms = _legoPerms
     settings.swapPerms = _swapPerms
     settings.whitelistPerms = _whitelistPerms
-    settings.transferPerms = self._sanitizeTransferPerms(_transferPerms)
+    settings.transferPerms = _transferPerms
     settings.allowedAssets = _allowedAssets
     settings.canClaimLoot = _canClaimLoot
     extcall UserWalletConfig(config.walletConfig).updateManager(_manager, settings)
@@ -432,7 +432,6 @@ def setGlobalManagerSettings(
     assert self._validateGlobalManagerSettings(_managerPeriod, _startDelay, _activationLength, _canOwnerManage, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, config.timeLock, config.legoBook, config.walletConfig) # dev: invalid settings
 
     # update config
-    sanitizedTransferPerms: wcs.TransferPerms = self._sanitizeTransferPerms(_transferPerms)
     settings: wcs.GlobalManagerSettings = wcs.GlobalManagerSettings(
         managerPeriod = _managerPeriod,
         startDelay = _startDelay,
@@ -442,7 +441,7 @@ def setGlobalManagerSettings(
         legoPerms = _legoPerms,
         swapPerms = _swapPerms,
         whitelistPerms = _whitelistPerms,
-        transferPerms = sanitizedTransferPerms,
+        transferPerms = _transferPerms,
         allowedAssets = _allowedAssets,
     )
     extcall UserWalletConfig(config.walletConfig).setGlobalManagerSettings(settings)
@@ -586,7 +585,6 @@ def _isValidNewManager(
         return False, empty(wcs.ManagerSettings)
 
     # create settings
-    sanitizedTransferPerms: wcs.TransferPerms = self._sanitizeTransferPerms(_transferPerms)
     settings: wcs.ManagerSettings = wcs.ManagerSettings(
         startBlock = block.number + startDelay,
         expiryBlock = block.number + startDelay + activationLength,
@@ -594,7 +592,7 @@ def _isValidNewManager(
         legoPerms = _legoPerms,
         swapPerms = _swapPerms,
         whitelistPerms = _whitelistPerms,
-        transferPerms = sanitizedTransferPerms,
+        transferPerms = _transferPerms,
         allowedAssets = _allowedAssets,
         canClaimLoot = _canClaimLoot,
     )
@@ -807,17 +805,6 @@ def _validateWhitelistPerms(_whitelistPerms: wcs.WhitelistPerms) -> bool:
     return not _whitelistPerms.canAddPending
 
 
-@pure
-@internal
-def _sanitizeTransferPerms(_transferPerms: wcs.TransferPerms) -> wcs.TransferPerms:
-    return wcs.TransferPerms(
-        canTransfer = _transferPerms.canTransfer,
-        canCreateCheque = _transferPerms.canCreateCheque,
-        canAddPendingPayee = False,
-        allowedPayees = _transferPerms.allowedPayees,
-    )
-
-
 @view
 @internal
 def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _legoBookAddr: address) -> bool:
@@ -853,6 +840,10 @@ def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _legoBookAddr: address) -> boo
 @view
 @internal
 def _validateTransferPerms(_transferPerms: wcs.TransferPerms, _walletConfig: address, _newManager: address) -> bool:
+    # canAddPendingPayee is legacy param -- can no longer be True
+    if _transferPerms.canAddPendingPayee:
+        return False
+
     if len(_transferPerms.allowedPayees) == 0:
         return True
 

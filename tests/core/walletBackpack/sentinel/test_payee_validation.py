@@ -680,15 +680,15 @@ def test_exact_limit_boundaries(createPayeeSettings, createPayeeLimits, alpha_to
     unit_limits = createPayeeLimits(_perTxCap=100)
     new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _unitLimits=unit_limits)
     user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
-    
+
     # exactly at limit should pass
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 100, 1)
-    
-    # test USD limits at exact boundary
+
+    # test USD limits at exact boundary (replace existing settings via updatePayee)
     usd_limits = createPayeeLimits(_perTxCap=500)
     new_payee_settings_usd = createPayeeSettings(_primaryAsset=alpha_token, _usdLimits=usd_limits)
-    user_wallet_config.addPayee(alice, new_payee_settings_usd, sender=paymaster.address)
-    
+    user_wallet_config.updatePayee(alice, new_payee_settings_usd, sender=paymaster.address)
+
     # exactly at USD limit should pass
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 500)
 
@@ -814,21 +814,21 @@ def test_payee_expires_at_current_block(createPayeeSettings, alpha_token, alice,
         _primaryAsset=alpha_token
     )
     user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
-    
+
     # should not be valid at current block (expiry <= current block)
     assert not sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
-    
-    # test with expiry = current block + 1 (should be valid for exactly current block)
+
+    # test with expiry = current block + 1 (replace existing settings via updatePayee)
     new_payee_settings_2 = createPayeeSettings(
         _startBlock=current_block,
         _expiryBlock=current_block + 1,  # valid only for current block
         _primaryAsset=alpha_token
     )
-    user_wallet_config.addPayee(alice, new_payee_settings_2, sender=paymaster.address)
-    
+    user_wallet_config.updatePayee(alice, new_payee_settings_2, sender=paymaster.address)
+
     # should be valid at current block
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
-    
+
     # advance one block - should now be invalid (current block >= expiry)
     boa.env.time_travel(blocks=1)
     assert not sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
