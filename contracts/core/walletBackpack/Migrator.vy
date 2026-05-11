@@ -424,6 +424,8 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
             manager: address = staticcall UserWalletConfig(fromConfig).managers(i)
             if manager == empty(address):
                 continue
+            if manager in [toOwner, _toWallet, toConfig]:
+                continue
 
             # skip the starting agent from source wallet
             if manager == fromStartingAgent:
@@ -431,6 +433,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
             managerSettings: wcs.ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
             if managerSettings.startBlock != 0:
+                assert self._isValidMigratorConfigAddr(toConfig, manager, True) # dev: invalid manager
                 managerSettings.transferPerms.canAddPendingPayee = False
                 extcall UserWalletConfig(toConfig).addManager(manager, managerSettings)
                 managersCopied += 1
@@ -455,6 +458,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
             payeeSettings: wcs.PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
             if payeeSettings.startBlock != 0:
+                assert self._isValidMigratorConfigAddr(toConfig, payee, False) # dev: invalid payee
                 extcall UserWalletConfig(toConfig).addPayee(payee, payeeSettings)
                 payeesCopied += 1
 
@@ -467,7 +471,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
             if addr in [empty(address), toOwner, _toWallet, toConfig]:
                 continue
 
-            assert self._isValidMigratorWhitelistAddr(toConfig, addr) # dev: invalid addr
+            assert self._isValidMigratorConfigAddr(toConfig, addr, False) # dev: invalid addr
             extcall UserWalletConfig(toConfig).addWhitelistAddrViaMigrator(addr)
             whitelistCopied += 1
 
@@ -683,7 +687,7 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 
 @view
 @internal
-def _isValidMigratorWhitelistAddr(_walletConfig: address, _addr: address) -> bool:
+def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _rejectUserWallet: bool) -> bool:
     if staticcall UserWalletConfig(_walletConfig).indexOfWhitelist(_addr) != 0:
         return False
     if staticcall UserWalletConfig(_walletConfig).indexOfPayee(_addr) != 0:
@@ -696,8 +700,11 @@ def _isValidMigratorWhitelistAddr(_walletConfig: address, _addr: address) -> boo
     if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
         return False
     ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-    if ledger != empty(address) and staticcall Ledger(ledger).isRegisteredBackpackItem(_addr):
-        return False
+    if ledger != empty(address):
+        if staticcall Ledger(ledger).isRegisteredBackpackItem(_addr):
+            return False
+        if _rejectUserWallet and staticcall Ledger(ledger).isUserWallet(_addr):
+            return False
     return True
 
 

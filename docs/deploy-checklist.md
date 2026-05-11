@@ -31,8 +31,14 @@ Monitor these AgentSender and ownership signals after deployment:
 - `instantMigrationEnabled` defaults to `false`.
 - Set `instantMigrationEnabled` to `true` only during monitored migration windows.
 - Setting `instantMigrationEnabled` to `false` still permits timelocked migrations. It only disables the instant bypass path.
-- `migrateAll` is the one-call path for funds and config under one pending migration.
+- `migrateAll` is the one-call path for tracked ERC20-style funds and config under one pending migration.
 - `migrateFunds` and `cloneConfig` are terminal paths. Each clears pending migration after success, so users need a new pending migration for the other half unless instant migration is enabled.
+- Loose native ETH is not migrated. Users should wrap or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
+- Payee and manager period/lifetime counters are not copied. Migration resets those accounting windows on the destination wallet.
+- Individual cheques are not migrated. Users must recreate any desired cheques on the destination wallet, and the source cheque ledger remains as historical state.
+- Fee-on-transfer or rebasing assets can leave dust or accounting differences because migration transfers the wallet's tracked token balance rather than reconciling post-transfer received amounts.
+- Complete or cancel pending migration state before changing a wallet's configured migrator address; changing the migrator while a migration is pending can orphan that pending state operationally.
+- A wallet's configured migrator is highly trusted because migrator-facing wallet-config setters apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
 
 ## Pending Payee Removal Preflight
 

@@ -572,6 +572,68 @@ def test_clone_config_with_payees(migrator, hatchery, bob, alice, charlie, payma
     assert event.numPayeesCopied == 2
 
 
+def test_clone_config_rejects_manager_payee_role_collision(
+    migrator, hatchery, bob, alice, high_command, paymaster, createManagerSettings, createPayeeSettings
+):
+    """Source-side legacy role collisions must not be cloned into destination config."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    from_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    from_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid payee"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_payee_equal_destination_starting_agent(
+    migrator, hatchery, bob, starter_agent, paymaster, createPayeeSettings
+):
+    """A cloned payee cannot collide with the destination starting-agent manager."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    from_config.addPayee(starter_agent.address, createPayeeSettings(), sender=paymaster.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid payee"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_user_wallet_as_manager(
+    migrator, hatchery, bob, ambassador_wallet, high_command, createManagerSettings
+):
+    """User wallets remain valid payees, but cannot be cloned as managers."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    from_config.addManager(ambassador_wallet.address, createManagerSettings(), sender=high_command.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid manager"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_allows_user_wallet_as_payee(
+    migrator, hatchery, bob, ambassador_wallet, paymaster, createPayeeSettings
+):
+    """User wallet payees are intentionally allowed and should clone normally."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+
+    from_config.addPayee(ambassador_wallet.address, createPayeeSettings(), sender=paymaster.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
+    assert to_config.indexOfPayee(ambassador_wallet.address) != 0
+
+
 def test_clone_config_with_whitelist(migrator, hatchery, bob, alice, charlie):
     """Test cloning config with whitelisted addresses"""
     # Create source wallet with whitelisted addresses
