@@ -1,7 +1,22 @@
 import pytest
 import boa
 
-from constants import ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+
+
+def _create_owner_cheque(cheque_book, user_wallet, owner, recipient, asset, mock_ripe, expiry_blocks=10):
+    mock_ripe.setPrice(asset.address, EIGHTEEN_DECIMALS)
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        asset.address,
+        EIGHTEEN_DECIMALS,
+        0,
+        expiry_blocks,
+        False,
+        False,
+        sender=owner,
+    )
 
 
 ############################
@@ -75,6 +90,88 @@ def test_invalid_new_manager_user_wallet(high_command, user_wallet, ambassador_w
     )
 
     assert result == False
+
+
+def test_invalid_new_manager_mirrors_add_manager_role_guards(
+    high_command, user_wallet, user_wallet_config, paymaster, migrator, bob, alice, charlie,
+    createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms,
+    createWhitelistPerms, createTransferPerms, createPayeeSettings,
+):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+    user_wallet_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+    user_wallet_config.addWhitelistAddrViaMigrator(charlie, sender=migrator.address)
+
+    rejected_managers = [
+        ZERO_ADDRESS,
+        bob,
+        user_wallet.address,
+        user_wallet_config.address,
+        alice,
+        charlie,
+    ]
+
+    for manager in rejected_managers:
+        result = high_command.isValidNewManager(
+            user_wallet,
+            manager,
+            ONE_DAY_IN_BLOCKS,
+            ONE_YEAR_IN_BLOCKS,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,
+        )
+
+        assert result == False
+
+
+def test_invalid_new_manager_rejects_active_cheque_until_expiry_boundary(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms,
+    createWhitelistPerms, createTransferPerms, alice, bob,
+):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
+
+    cheque = user_wallet_config.cheques(alice)
+    blocks_to_before_expiry = cheque.expiryBlock - boa.env.evm.patch.block_number - 1
+    if blocks_to_before_expiry > 0:
+        boa.env.time_travel(blocks=blocks_to_before_expiry)
+
+    assert not high_command.isValidNewManager(
+        user_wallet,
+        alice,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    boa.env.time_travel(blocks=1)
+
+    assert high_command.isValidNewManager(
+        user_wallet,
+        alice,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
 
 
 def test_invalid_new_manager_with_pending_whitelist_permission(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):

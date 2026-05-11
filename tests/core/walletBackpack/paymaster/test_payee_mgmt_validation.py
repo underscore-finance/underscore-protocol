@@ -421,6 +421,64 @@ def test_invalid_new_payee_is_whitelisted(paymaster, user_wallet, user_wallet_co
     )
 
 
+def test_invalid_new_payee_is_manager(paymaster, user_wallet, user_wallet_config, high_command, createPayeeLimits, createManagerSettings, alice):
+    """Public helper mirrors addPayee manager rejection"""
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+    )
+
+
+def test_invalid_new_payee_is_privileged_address(paymaster, user_wallet, createPayeeLimits):
+    """Public helper mirrors addPayee privileged-address rejection"""
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        paymaster.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+    )
+
+
+def test_valid_new_payee_can_be_other_user_wallet(paymaster, user_wallet, ambassador_wallet, createPayeeLimits):
+    """Other user wallets remain valid payees"""
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert paymaster.isValidNewPayee(
+        user_wallet,
+        ambassador_wallet.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+    )
+
+
 def test_invalid_new_payee_has_active_cheque(
     paymaster, user_wallet, user_wallet_config, bob, alice, alpha_token,
     createPayeeLimits, cheque_book, mock_ripe
@@ -850,6 +908,45 @@ def test_invalid_payee_update_not_registered(paymaster, user_wallet, createPayee
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
         createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)  # usdLimits
+    )
+
+
+def test_invalid_payee_update_is_manager(paymaster, user_wallet, user_wallet_config, high_command, createPayeeLimits, createPayeeSettings, createManagerSettings, alice):
+    """Public helper mirrors updatePayee manager rejection"""
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    user_wallet_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+
+    assert not paymaster.isValidPayeeUpdate(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+    )
+
+
+def test_invalid_payee_update_is_privileged_address(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings):
+    """Public helper mirrors updatePayee privileged-address rejection"""
+    user_wallet_config.addPayee(paymaster.address, createPayeeSettings(), sender=paymaster.address)
+
+    assert not paymaster.isValidPayeeUpdate(
+        user_wallet,
+        paymaster.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
     )
 
 

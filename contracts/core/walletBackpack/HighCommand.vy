@@ -502,6 +502,13 @@ def isValidNewManager(
     _canClaimLoot: bool,
 ) -> bool:
     config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
+    if _manager in [empty(address), config.owner, config.walletConfig, _userWallet]:
+        return False
+    if config.isPayee or config.isWhitelisted:
+        return False
+    cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
+    if cheque.active and (cheque.expiryBlock == 0 or block.number < cheque.expiryBlock):
+        return False
     isValid: bool = False
     na: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     isValid, na = self._isValidNewManager(_manager, config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)

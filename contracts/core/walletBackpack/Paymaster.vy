@@ -532,6 +532,10 @@ def isValidNewPayee(
     _activationLength: uint256 = 0,
 ) -> bool:
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
+    if config.isManager:
+        return False
+    if self._isPrivilegedUndyAddr(_payee):
+        return False
     isValid: bool = False
     na: wcs.PayeeSettings = empty(wcs.PayeeSettings)
     isValid, na = self._isValidNewPayee(_payee, config, _canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits, _startDelay, _activationLength)
@@ -662,6 +666,12 @@ def isValidPayeeUpdate(
     _usdLimits: wcs.PayeeLimits,
 ) -> bool:
     config: wcs.PayeeManagementBundle = self._getPayeeConfig(_userWallet, _payee)
+    if _payee in [empty(address), config.owner, config.wallet, config.walletConfig]:
+        return False
+    if config.isManager:
+        return False
+    if self._isPrivilegedUndyAddr(_payee):
+        return False
     return self._isValidPayeeUpdate(config.isRegisteredPayee, _canPull, config.globalPayeeSettings.canPull, _periodLength, _maxNumTxsPerPeriod, _txCooldownBlocks, _failOnZeroPrice, _primaryAsset, _onlyPrimaryAsset, _unitLimits, _usdLimits)
 
 
