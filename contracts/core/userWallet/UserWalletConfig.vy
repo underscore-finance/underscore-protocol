@@ -246,11 +246,11 @@ def setTimeLock(_numBlocks: uint256):
     pendingConfirmBlock: uint256 = self.pendingTimeLock.confirmBlock
 
     if _numBlocks >= currentTimeLock:
-        if pendingConfirmBlock != 0:
-            self.pendingTimeLock = empty(wcs.PendingTimeLock)
-
         if _numBlocks == currentTimeLock:
             return
+
+        if pendingConfirmBlock != 0:
+            self.pendingTimeLock = empty(wcs.PendingTimeLock)
 
         self.timeLock = _numBlocks
         return
@@ -292,6 +292,7 @@ def cancelPendingTimeLock():
     if msg.sender != ownership.owner:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
 
+    assert self.pendingTimeLock.confirmBlock != 0 # dev: no pending time lock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
 
 

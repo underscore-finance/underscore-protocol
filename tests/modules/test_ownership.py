@@ -385,6 +385,24 @@ def test_pending_ownership_timelock_confirm_event(mock_ownership, bob, fork):
     assert event.confirmedBy == bob
 
 
+def test_set_ownership_timelock_same_value_preserves_pending_decrease(mock_ownership, bob, fork):
+    min_timelock = PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"]
+    new_timelock = min_timelock + 100
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+    mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    pending_before = mock_ownership.pendingOwnershipTimeLock()
+
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+
+    pending_after = mock_ownership.pendingOwnershipTimeLock()
+    assert mock_ownership.ownershipTimeLock() == new_timelock
+    assert pending_after.newTimeLock == pending_before.newTimeLock
+    assert pending_after.initiatedBlock == pending_before.initiatedBlock
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert pending_after.currentOwner == pending_before.currentOwner
+    assert filter_logs(mock_ownership, "PendingOwnershipTimeLockCancelled") == []
+
+
 def test_set_ownership_timelock_no_permissions(mock_ownership, alice, fork):
     # Non-owner cannot set timelock
     with boa.reverts("no perms"):

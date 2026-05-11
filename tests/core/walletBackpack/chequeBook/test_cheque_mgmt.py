@@ -831,26 +831,53 @@ def test_setChequeSettings_mixed_update_becomes_pending(
     cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
 
 
-def test_setChequeSettings_periodLength_change_always_becomes_pending(
+def test_setChequeSettings_periodLength_increase_applies_immediately(
     bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
 ):
-    """Changing periodLength should stage pending settings even if the other fields tighten"""
+    """Increasing periodLength should apply immediately when the other fields tighten"""
     baseline = restrictive_cheque_settings(createChequeSettings)
     set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
 
-    changed_period = restrictive_cheque_settings(
+    increased_period = restrictive_cheque_settings(
         createChequeSettings,
         _maxNumActiveCheques=1,
         _maxChequeUsdValue=150 * EIGHTEEN_DECIMALS,
         _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
         _periodLength=2 * ONE_DAY_IN_BLOCKS,
     )
-    cheque_book.setChequeSettings(user_wallet.address, *changed_period, sender=bob)
+    cheque_book.setChequeSettings(user_wallet.address, *increased_period, sender=bob)
 
     live = user_wallet_config.chequeSettings()
+    assert live.maxNumActiveCheques == 1
+    assert live.periodLength == 2 * ONE_DAY_IN_BLOCKS
+    assert not cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+
+def test_setChequeSettings_periodLength_decrease_becomes_pending(
+    bob, user_wallet, user_wallet_config, cheque_book, createChequeSettings
+):
+    """Decreasing periodLength should stage pending settings because caps reset sooner"""
+    baseline = restrictive_cheque_settings(
+        createChequeSettings,
+        _periodLength=2 * ONE_DAY_IN_BLOCKS,
+    )
+    set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)
+
+    decreased_period = restrictive_cheque_settings(
+        createChequeSettings,
+        _maxNumActiveCheques=1,
+        _maxChequeUsdValue=150 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *decreased_period, sender=bob)
+
+    live = user_wallet_config.chequeSettings()
+    pending = cheque_book.pendingChequeSettings(user_wallet.address)
     assert live.maxNumActiveCheques == 2
-    assert live.periodLength == ONE_DAY_IN_BLOCKS
-    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    assert live.periodLength == 2 * ONE_DAY_IN_BLOCKS
+    assert pending.settings.maxNumActiveCheques == 1
+    assert pending.settings.periodLength == ONE_DAY_IN_BLOCKS
 
     cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
 

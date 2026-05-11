@@ -187,6 +187,9 @@ def setOwnershipTimeLock(_numBlocks: uint256):
     hasPending: bool = pending.confirmBlock != 0
 
     if _numBlocks >= currentTimeLock:
+        if _numBlocks == currentTimeLock:
+            return
+
         if hasPending:
             self.pendingOwnershipTimeLock = empty(PendingOwnershipTimeLock)
             log PendingOwnershipTimeLockCancelled(
@@ -195,9 +198,6 @@ def setOwnershipTimeLock(_numBlocks: uint256):
                 confirmBlock = pending.confirmBlock,
                 cancelledBy = msg.sender,
             )
-
-        if _numBlocks == currentTimeLock:
-            return
 
         self.ownershipTimeLock = _numBlocks
         log OwnershipTimeLockSet(numBlocks=_numBlocks)

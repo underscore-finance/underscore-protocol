@@ -851,7 +851,7 @@ def _isChequeSettingsWidening(_current: wcs.ChequeSettings, _next: wcs.ChequeSet
         return True
     if not _current.canBePulled and _next.canBePulled:
         return True
-    if _current.periodLength != _next.periodLength:
+    if _next.periodLength < _current.periodLength:
         return True
     return False
 

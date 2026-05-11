@@ -829,6 +829,12 @@ def test_cancel_pending_time_lock_security_action_can_cancel(
     assert user_wallet_config.pendingTimeLock().confirmBlock == 0
 
 
+def test_cancel_pending_time_lock_without_pending_reverts(user_wallet_config, bob):
+    """Cancelling a wallet time lock decrease should require pending state"""
+    with boa.reverts("no pending time lock"):
+        user_wallet_config.cancelPendingTimeLock(sender=bob)
+
+
 def test_cancel_pending_time_lock_non_security_reverts(user_wallet_config, bob, charlie):
     """Non-owner callers without security permission cannot cancel pending time locks"""
     higher_time_lock = user_wallet_config.MAX_TIMELOCK()
@@ -872,16 +878,21 @@ def test_set_time_lock_increase_clears_pending_decrease(user_wallet_config, bob)
     assert user_wallet_config.pendingTimeLock().confirmBlock == 0
 
 
-def test_set_time_lock_same_value_clears_pending(user_wallet_config, bob):
-    """Re-submitting the live time lock should clear any staged decrease"""
+def test_set_time_lock_same_value_preserves_pending(user_wallet_config, bob):
+    """Re-submitting the live time lock should be a no-op and preserve pending state"""
     current_time_lock = min(user_wallet_config.MIN_TIMELOCK() + 1, user_wallet_config.MAX_TIMELOCK())
     user_wallet_config.setTimeLock(current_time_lock, sender=bob)
     user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+    pending_before = user_wallet_config.pendingTimeLock()
 
     user_wallet_config.setTimeLock(current_time_lock, sender=bob)
 
+    pending_after = user_wallet_config.pendingTimeLock()
     assert user_wallet_config.timeLock() == current_time_lock
-    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+    assert pending_after.newTimeLock == pending_before.newTimeLock
+    assert pending_after.initiatedBlock == pending_before.initiatedBlock
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert pending_after.currentOwner == pending_before.currentOwner
 
 
 def test_set_time_lock_via_migrator_access_and_clamps(user_wallet_config, bob, alice, migrator):
