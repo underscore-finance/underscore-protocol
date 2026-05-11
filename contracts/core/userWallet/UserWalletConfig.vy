@@ -1022,6 +1022,7 @@ def setChequeBook(_chequeBook: address):
 @external
 def setMigrator(_migrator: address):
     assert self._canSetBackpackItem(_migrator, msg.sender) # dev: no perms
+    assert self.pendingMigration.confirmBlock == 0 # dev: pending migration exists
     self.migrator = _migrator
 
 

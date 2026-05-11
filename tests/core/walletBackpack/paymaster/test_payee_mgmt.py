@@ -93,6 +93,7 @@ def test_pending_global_payee_settings_cancel_and_events(paymaster, user_wallet,
     assert paymaster.pendingGlobalPayeeSettings(user_wallet).confirmBlock == 0
     assert cancel_event.user == user_wallet.address
     assert cancel_event.cancelledBy == bob
+    assert cancel_event.currentOwner == bob
     assert cancel_event.initiatedBlock == pending.initiatedBlock
     assert cancel_event.confirmBlock == pending.confirmBlock
 
@@ -140,6 +141,53 @@ def test_tightening_global_payee_settings_applies_immediately_and_cancels_pendin
     assert saved.maxNumTxsPerPeriod == current.maxNumTxsPerPeriod
     assert saved.failOnZeroPrice == True
     assert cancel_event.user == user_wallet.address
+    assert cancel_event.cancelledBy == bob
+    assert cancel_event.currentOwner == bob
+    assert cancel_event.confirmBlock == pending.confirmBlock
+
+
+def test_tightening_global_payee_settings_after_owner_change_preserves_pending_owner_in_cancel_event(
+    paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob, alice
+):
+    start_delay = user_wallet_config.timeLock()
+    widening_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        2 * ONE_DAY_IN_BLOCKS,
+        start_delay,
+        ONE_DAY_IN_BLOCKS,
+        10,
+        100,
+        True,
+        widening_limits,
+        True,
+        sender=bob,
+    )
+    pending = paymaster.pendingGlobalPayeeSettings(user_wallet)
+    assert pending.currentOwner == bob
+
+    user_wallet_config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.ownershipTimeLock())
+    user_wallet_config.confirmOwnershipChange(sender=alice)
+
+    current = user_wallet_config.globalPayeeSettings()
+    assert paymaster.setGlobalPayeeSettings(
+        user_wallet,
+        current.defaultPeriodLength,
+        current.startDelay,
+        current.activationLength,
+        current.maxNumTxsPerPeriod,
+        current.txCooldownBlocks,
+        True,
+        createPayeeLimits(),
+        current.canPull,
+        sender=alice,
+    )
+
+    cancel_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsCancelled")[0]
+    assert paymaster.pendingGlobalPayeeSettings(user_wallet).confirmBlock == 0
+    assert cancel_event.cancelledBy == alice
+    assert cancel_event.currentOwner == bob
     assert cancel_event.confirmBlock == pending.confirmBlock
 
 

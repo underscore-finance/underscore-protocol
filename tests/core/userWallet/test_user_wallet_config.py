@@ -1221,6 +1221,17 @@ def test_set_migrator_access(user_wallet_config, alice, migrator):
     assert user_wallet_config.migrator() == migrator.address
 
 
+def test_set_migrator_rejects_pending_migration(user_wallet_config, alice, migrator):
+    """Migrator swaps are blocked while migration state is pending."""
+    owner = user_wallet_config.owner()
+    user_wallet_config.setPendingMigration(alice, sender=migrator.address)
+
+    with boa.reverts("pending migration exists"):
+        user_wallet_config.setMigrator(migrator.address, sender=owner)
+
+    assert user_wallet_config.migrator() == migrator.address
+
+
 def test_set_backpack_item_not_registered(user_wallet_config, alice):
     """Cannot set backpack item to an unregistered address"""
     owner = user_wallet_config.owner()

@@ -118,6 +118,7 @@ event PendingGlobalPayeeSettingsConfirmed:
 event PendingGlobalPayeeSettingsCancelled:
     user: indexed(address)
     cancelledBy: indexed(address)
+    currentOwner: indexed(address)
     initiatedBlock: uint256
     confirmBlock: uint256
 
@@ -223,6 +224,7 @@ def setGlobalPayeeSettings(
         log PendingGlobalPayeeSettingsCancelled(
             user = _userWallet,
             cancelledBy = msg.sender,
+            currentOwner = pending.currentOwner,
             initiatedBlock = pending.initiatedBlock,
             confirmBlock = pending.confirmBlock,
         )
@@ -281,6 +283,7 @@ def cancelPendingGlobalPayeeSettings(_userWallet: address) -> bool:
     log PendingGlobalPayeeSettingsCancelled(
         user = _userWallet,
         cancelledBy = msg.sender,
+        currentOwner = pending.currentOwner,
         initiatedBlock = pending.initiatedBlock,
         confirmBlock = pending.confirmBlock,
     )
