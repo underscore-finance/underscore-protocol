@@ -24,7 +24,6 @@
 
 # @version 0.4.3
 # pragma optimize codesize
-# NOTE: This contract is close to the EIP-170 size limit; prefer offloading new logic to backpack contracts.
 
 initializes: ownership
 exports: ownership.__interface__

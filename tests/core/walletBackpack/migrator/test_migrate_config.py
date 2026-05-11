@@ -584,7 +584,7 @@ def test_clone_config_rejects_manager_payee_role_collision(
     from_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    with boa.reverts("invalid payee"):
+    with boa.reverts("payee collision on clone"):
         migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
@@ -599,7 +599,7 @@ def test_clone_config_rejects_payee_equal_destination_starting_agent(
     from_config.addPayee(starter_agent.address, createPayeeSettings(), sender=paymaster.address)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    with boa.reverts("invalid payee"):
+    with boa.reverts("payee collision on clone"):
         migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
@@ -614,7 +614,7 @@ def test_clone_config_rejects_user_wallet_as_manager(
     from_config.addManager(ambassador_wallet.address, createManagerSettings(), sender=high_command.address)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    with boa.reverts("invalid manager"):
+    with boa.reverts("manager collision on clone"):
         migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
@@ -632,6 +632,44 @@ def test_clone_config_allows_user_wallet_as_payee(
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
     assert to_config.indexOfPayee(ambassador_wallet.address) != 0
+
+
+@pytest.mark.parametrize("role,expected_revert", [
+    ("manager", "manager collision on clone"),
+    ("payee", "payee collision on clone"),
+])
+def test_clone_config_rejects_backpack_item_roles(
+    migrator, hatchery, bob, high_command, paymaster, createManagerSettings, createPayeeSettings, role, expected_revert
+):
+    """Protocol backpack items cannot be cloned into manager or payee roles."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    if role == "manager":
+        from_config.addManager(high_command.address, createManagerSettings(), sender=high_command.address)
+    else:
+        from_config.addPayee(high_command.address, createPayeeSettings(), sender=paymaster.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts(expected_revert):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_manager_whitelist_collision(
+    migrator, hatchery, bob, alice, high_command, createManagerSettings
+):
+    """Whitelist clone validation still rejects source state that collides with a cloned manager."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    from_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    from_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid addr"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
 def test_clone_config_with_whitelist(migrator, hatchery, bob, alice, charlie):
@@ -1051,6 +1089,39 @@ def test_migrate_all_config_only(migrator, hatchery, bob, alice, high_command, c
     assert len(funds_events) == 0
     assert len(config_events) == 1
     assert config_events[0].numManagersCopied == 1
+
+
+def test_migrate_all_config_with_zero_balance_registered_asset(
+    migrator, hatchery, bob, alice, high_command, createManagerSettings, alpha_token, alpha_token_whale, prepareAssetForMigration
+):
+    """Registered assets with zero balance should not block config migration via migrateAll."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+
+    prepareAssetForMigration(from_wallet, alpha_token, 25 * EIGHTEEN_DECIMALS, alpha_token_whale)
+    from_config.migrateFunds(bob, alpha_token, sender=migrator.address)
+    assert from_wallet.numAssets() == 2
+    assert alpha_token.balanceOf(from_wallet) == 0
+
+    boa.env.time_travel(blocks=8)
+    manager_settings = createManagerSettings()
+    from_config.addManager(alice, manager_settings, sender=high_command.address)
+
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    num_funds_migrated, did_migrate_config = migrator.migrateAll(from_wallet, to_wallet, sender=bob)
+
+    assert num_funds_migrated == 0
+    assert did_migrate_config == True
+    assert to_config.managerSettings(alice)[0] == manager_settings[0]
+
+    funds_events = filter_logs(migrator, "FundsMigrated")
+    config_events = filter_logs(migrator, "ConfigCloned")
+    assert len(funds_events) == 1
+    assert funds_events[0].numAssetsMigrated == 0
+    assert len(config_events) == 1
 
 
 def test_migrate_all_nothing_to_migrate(migrator, hatchery, bob):

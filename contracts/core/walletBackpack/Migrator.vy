@@ -203,6 +203,7 @@ def cancelPendingMigration(_fromWallet: address) -> bool:
 ############################
 
 
+@nonreentrant
 @external
 def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 
@@ -212,7 +213,6 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
         numAssets: uint256 = staticcall UserWallet(_fromWallet).numAssets()
         if numAssets > 1:
             numFundsMigrated = self._migrateFunds(_fromWallet, _toWallet, numAssets)
-            assert numFundsMigrated != 0 # dev: no assets migrated
 
     # migrate config
     didMigrateConfig: bool = False
@@ -229,6 +229,7 @@ def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
 #################
 
 
+@nonreentrant
 @external
 def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256:
     assert self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, True) # dev: invalid migration
@@ -390,6 +391,7 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
 ################
 
 
+@nonreentrant
 @external
 def cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     assert self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender, True) # dev: cannot copy config
@@ -433,7 +435,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
             managerSettings: wcs.ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
             if managerSettings.startBlock != 0:
-                assert self._isValidMigratorConfigAddr(toConfig, manager, True) # dev: invalid manager
+                assert self._isValidMigratorConfigAddr(toConfig, manager, True) # dev: manager collision on clone
                 managerSettings.transferPerms.canAddPendingPayee = False
                 extcall UserWalletConfig(toConfig).addManager(manager, managerSettings)
                 managersCopied += 1
@@ -458,7 +460,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
             payeeSettings: wcs.PayeeSettings = staticcall UserWalletConfig(fromConfig).payeeSettings(payee)
             if payeeSettings.startBlock != 0:
-                assert self._isValidMigratorConfigAddr(toConfig, payee, False) # dev: invalid payee
+                assert self._isValidMigratorConfigAddr(toConfig, payee, False) # dev: payee collision on clone
                 extcall UserWalletConfig(toConfig).addPayee(payee, payeeSettings)
                 payeesCopied += 1
 
@@ -687,7 +689,8 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 
 @view
 @internal
-def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _rejectUserWallet: bool) -> bool:
+def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _isManagerSlot: bool) -> bool:
+    # Source configs can contain legacy cross-role state; validate against the destination before cloning it.
     if staticcall UserWalletConfig(_walletConfig).indexOfWhitelist(_addr) != 0:
         return False
     if staticcall UserWalletConfig(_walletConfig).indexOfPayee(_addr) != 0:
@@ -703,7 +706,7 @@ def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _rejectUs
     if ledger != empty(address):
         if staticcall Ledger(ledger).isRegisteredBackpackItem(_addr):
             return False
-        if _rejectUserWallet and staticcall Ledger(ledger).isUserWallet(_addr):
+        if _isManagerSlot and staticcall Ledger(ledger).isUserWallet(_addr):
             return False
     return True
 

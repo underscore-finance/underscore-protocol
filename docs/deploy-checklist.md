@@ -37,7 +37,6 @@ Monitor these AgentSender and ownership signals after deployment:
 - Payee and manager period/lifetime counters are not copied. Migration resets those accounting windows on the destination wallet.
 - Individual cheques are not migrated. Users must recreate any desired cheques on the destination wallet, and the source cheque ledger remains as historical state.
 - Fee-on-transfer or rebasing assets can leave dust or accounting differences because migration transfers the wallet's tracked token balance rather than reconciling post-transfer received amounts.
-- Complete or cancel pending migration state before changing a wallet's configured migrator address; changing the migrator while a migration is pending can orphan that pending state operationally.
 - A wallet's configured migrator is highly trusted because migrator-facing wallet-config setters apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
 
 ## Pending Payee Removal Preflight
