@@ -399,6 +399,126 @@ def test_invalid_transfer_perms_duplicate_payees(high_command, user_wallet, char
     assert result == False
 
 
+def test_valid_transfer_perms_generic_non_payee_recipient_for_cheques(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config, alice):
+    # setup: set global manager settings
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    # valid: allowed recipients no longer need to be registered payees
+    valid_transfer_perms = createTransferPerms(
+        _canTransfer=False,
+        _canCreateCheque=True,
+        _allowedPayees=[alice],
+    )
+
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        valid_transfer_perms,
+        [],
+        False,
+    )
+
+    assert result == True
+
+
+def test_invalid_transfer_perms_non_empty_recipients_without_transfer_or_cheque(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config, alice):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    invalid_transfer_perms = createTransferPerms(
+        _canTransfer=False,
+        _canCreateCheque=False,
+        _allowedPayees=[alice],
+    )
+
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        invalid_transfer_perms,
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_invalid_transfer_perms_new_manager_self_recipient(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    invalid_transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[charlie],
+    )
+
+    result = high_command.isValidNewManager(
+        user_wallet,
+        charlie,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        invalid_transfer_perms,
+        [],
+        False,
+    )
+
+    assert result == False
+
+
+def test_invalid_transfer_perms_rejects_privileged_and_manager_recipients(high_command, user_wallet, user_wallet_config, bob, alice, charlie, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+
+    rejected_recipients = [
+        bob,
+        user_wallet.address,
+        user_wallet_config.address,
+        high_command.address,
+        alice,
+    ]
+
+    for recipient in rejected_recipients:
+        invalid_transfer_perms = createTransferPerms(
+            _canTransfer=True,
+            _canCreateCheque=True,
+            _allowedPayees=[recipient],
+        )
+
+        result = high_command.isValidNewManager(
+            user_wallet,
+            charlie,
+            ONE_DAY_IN_BLOCKS,
+            ONE_YEAR_IN_BLOCKS,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            invalid_transfer_perms,
+            [],
+            False,
+        )
+
+        assert result == False
+
+
 def test_valid_transfer_perms_empty_payees(high_command, user_wallet, charlie, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
@@ -424,6 +544,31 @@ def test_valid_transfer_perms_empty_payees(high_command, user_wallet, charlie, c
         False,
     )
     
+    assert result == True
+
+
+def test_update_manager_validates_generic_allowed_recipients(high_command, user_wallet, alice, sally, createGlobalManagerSettings, createManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, user_wallet_config):
+    global_settings = createGlobalManagerSettings()
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _allowedPayees=[sally],
+    )
+
+    result = high_command.validateManagerOnUpdate(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        transfer_perms,
+        [],
+        False,
+    )
+
     assert result == True
 
 
@@ -1603,4 +1748,3 @@ def test_validate_global_settings_with_valid_swap_perms(high_command, user_walle
     )
 
     assert result == True
-

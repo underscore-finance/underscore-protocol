@@ -741,6 +741,27 @@ def test_clone_config_copies_time_lock(migrator, hatchery, bob):
     assert to_config.timeLock() == from_config.timeLock()
 
 
+def test_clone_config_clamps_time_lock_to_destination_bounds(migrator, hatchery, bob, setUserWalletConfig):
+    """Config copy should clamp copied time lock to the destination wallet bounds"""
+    setUserWalletConfig()
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    from_config.setTimeLock(from_config.MAX_TIMELOCK(), sender=bob)
+
+    setUserWalletConfig(_minTimeLock=ONE_DAY_IN_BLOCKS, _maxTimeLock=2 * ONE_DAY_IN_BLOCKS)
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    setUserWalletConfig()
+
+    assert from_config.timeLock() > to_config.MAX_TIMELOCK()
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+    assert result is True
+    assert to_config.timeLock() == to_config.MAX_TIMELOCK()
+
+
 def test_clone_config_copied_high_time_lock_clamps_destination_cheque_creation(
     migrator, hatchery, bob, alice, alpha_token, mock_ripe, cheque_book, createChequeSettings
 ):

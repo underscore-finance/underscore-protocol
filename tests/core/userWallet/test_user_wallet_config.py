@@ -878,23 +878,25 @@ def test_set_time_lock_same_value_clears_pending(user_wallet_config, bob):
     assert user_wallet_config.pendingTimeLock().confirmBlock == 0
 
 
-def test_set_time_lock_via_migrator_access_and_bounds(user_wallet_config, bob, alice, migrator):
-    """The migrator-only time lock setter enforces caller access and configured bounds"""
+def test_set_time_lock_via_migrator_access_and_clamps(user_wallet_config, bob, alice, migrator):
+    """The migrator-only time lock setter enforces caller access and clamps configured bounds"""
     with boa.reverts("no perms"):
         user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=alice)
 
-    with boa.reverts("invalid time lock"):
-        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK() + 1, sender=migrator.address)
+    min_time_lock = user_wallet_config.MIN_TIMELOCK()
+    max_time_lock = user_wallet_config.MAX_TIMELOCK()
 
-    with boa.reverts("invalid time lock"):
-        user_wallet_config.setTimeLockViaMigrator(0, sender=migrator.address)
+    user_wallet_config.setTimeLockViaMigrator(min_time_lock, sender=migrator.address)
+    assert user_wallet_config.timeLock() == min_time_lock
 
-    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
-    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLockViaMigrator(max_time_lock, sender=migrator.address)
+    assert user_wallet_config.timeLock() == max_time_lock
 
-    user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=migrator.address)
+    user_wallet_config.setTimeLockViaMigrator(0, sender=migrator.address)
+    assert user_wallet_config.timeLock() == min_time_lock
 
-    assert user_wallet_config.timeLock() == user_wallet_config.MAX_TIMELOCK()
+    user_wallet_config.setTimeLockViaMigrator(max_time_lock + 1, sender=migrator.address)
+    assert user_wallet_config.timeLock() == max_time_lock
 
 
 #######################

@@ -269,12 +269,8 @@ def setTimeLock(_numBlocks: uint256):
 @external
 def setTimeLockViaMigrator(_numBlocks: uint256):
     assert msg.sender == self.migrator # dev: no perms
-    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid time lock
 
-    if _numBlocks == self.timeLock:
-        return
-
-    self.timeLock = _numBlocks
+    self.timeLock = max(MIN_TIMELOCK, min(_numBlocks, MAX_TIMELOCK))
 
 
 @external
@@ -285,6 +281,7 @@ def confirmPendingTimeLock():
     assert pending.confirmBlock != 0 # dev: no pending time lock
     assert block.number >= pending.confirmBlock # dev: time delay not reached
     assert pending.currentOwner == ownership.owner # dev: owner must match
+    assert pending.newTimeLock >= MIN_TIMELOCK and pending.newTimeLock <= MAX_TIMELOCK # dev: pending time lock out of bounds
 
     self.timeLock = pending.newTimeLock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
@@ -870,6 +867,7 @@ def preparePayment(
     _vaultAmount: uint256 = max_value(uint256),
 ) -> (uint256, uint256):
     assert self._isValidRegistryAddr(msg.sender) # dev: no perms
+    assert _targetAsset != empty(address) # dev: invalid target asset
 
     # withdraw from yield position
     na: uint256 = 0
@@ -877,7 +875,7 @@ def preparePayment(
     underlyingAmount: uint256 = 0
     txUsdValue: uint256 = 0
     na, underlyingAsset, underlyingAmount, txUsdValue = extcall UserWallet(self.wallet).withdrawFromYield(_legoId, _vaultToken, _vaultAmount, empty(bytes32), True)
-    assert underlyingAsset == _targetAsset # dev: invalid target asset
+    assert underlyingAsset == _targetAsset # dev: asset mismatch
 
     return underlyingAmount, txUsdValue
 

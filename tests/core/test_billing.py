@@ -671,6 +671,50 @@ def test_pullPaymentAsCheque_with_vault_withdrawal(
     assert len(events) == 1
 
 
+def test_preparePayment_reverts_with_empty_target_asset(billing, user_wallet_config):
+    """Payment prep must reject an empty target asset before attempting a yield withdrawal"""
+    with boa.reverts("invalid target asset"):
+        user_wallet_config.preparePayment(ZERO_ADDRESS, 0, ZERO_ADDRESS, 0, sender=billing.address)
+
+
+def test_preparePayment_reverts_when_withdrawn_underlying_mismatches_target(
+    billing, bob, alpha_token, bravo_token, alpha_token_whale, user_wallet, mock_ripe,
+    alpha_token_vault, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms
+):
+    """Payment prep must verify the withdrawn underlying matches the requested target asset"""
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    global_settings = createGlobalManagerSettings(
+        _legoPerms=createLegoPerms(_onlyApprovedYieldOpps=False)
+    )
+    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+    deposit_amount = 10 * EIGHTEEN_DECIMALS
+    alpha_token.transfer(user_wallet.address, deposit_amount, sender=alpha_token_whale)
+    user_wallet.depositForYield(
+        2,
+        alpha_token.address,
+        alpha_token_vault.address,
+        deposit_amount,
+        sender=bob
+    )
+
+    vault_balance_before = alpha_token_vault.balanceOf(user_wallet.address)
+    wallet_balance_before = alpha_token.balanceOf(user_wallet.address)
+
+    with boa.reverts("asset mismatch"):
+        user_wallet_config.preparePayment(
+            bravo_token.address,
+            2,
+            alpha_token_vault.address,
+            vault_balance_before,
+            sender=billing.address,
+        )
+
+    assert alpha_token_vault.balanceOf(user_wallet.address) == vault_balance_before
+    assert alpha_token.balanceOf(user_wallet.address) == wallet_balance_before
+
+
 def test_pullPaymentAsCheque_with_multiple_vaults(
     billing, bob, alice, alpha_token, alpha_token_whale, user_wallet, cheque_book, mock_ripe,
     alpha_token_vault, alpha_token_vault_2, alpha_token_vault_3, user_wallet_config, high_command, createGlobalManagerSettings, createLegoPerms

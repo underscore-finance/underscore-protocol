@@ -27,9 +27,11 @@ interface UserWalletConfig:
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_payee: address) -> uint256: view
     def indexOfWhitelist(_addr: address) -> uint256: view
+    def cheques(_recipient: address) -> wcs.Cheque: view
     def removeManager(_manager: address): nonpayable
     def startingAgent() -> address: view
     def timeLock() -> uint256: view
+    def wallet() -> address: view
     def owner() -> address: view
 
 interface Registry:
@@ -188,10 +190,12 @@ def addManager(
     assert not config.isPayee # dev: already payee
     assert not config.isWhitelisted # dev: already whitelisted
     assert not self._isPrivilegedUndyAddr(_manager) # dev: invalid manager
+    cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
+    assert not cheque.active or (cheque.expiryBlock != 0 and block.number >= cheque.expiryBlock) # dev: active cheque exists
 
     isValid: bool = False
     settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    isValid, settings = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    isValid, settings = self._isValidNewManager(_manager, config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
     assert isValid # dev: invalid manager
     
     extcall UserWalletConfig(config.walletConfig).addManager(_manager, settings)
@@ -501,13 +505,14 @@ def isValidNewManager(
     config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, _manager)
     isValid: bool = False
     na: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    isValid, na = self._isValidNewManager(config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
+    isValid, na = self._isValidNewManager(_manager, config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
     return isValid
 
 
 @view
 @internal
 def _isValidNewManager(
+    _manager: address,
     _isManager: bool,
     _startDelay: uint256,
     _activationLength: uint256,
@@ -563,7 +568,7 @@ def _isValidNewManager(
         return False, empty(wcs.ManagerSettings)
 
     # validate transfer perms
-    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+    if not self._validateTransferPerms(_transferPerms, _walletConfig, _manager):
         return False, empty(wcs.ManagerSettings)
 
     # validate allowed assets
@@ -642,7 +647,7 @@ def _validateManagerOnUpdate(
         return False
 
     # validate transfer perms
-    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+    if not self._validateTransferPerms(_transferPerms, _walletConfig, empty(address)):
         return False
 
     # validate allowed assets
@@ -721,7 +726,7 @@ def _validateGlobalManagerSettings(
         return False
 
     # validate transfer perms
-    if not self._validateTransferPerms(_transferPerms, _walletConfig):
+    if not self._validateTransferPerms(_transferPerms, _walletConfig, empty(address)):
         return False
 
     # validate allowed assets
@@ -837,29 +842,39 @@ def _validateLegoPerms(_legoPerms: wcs.LegoPerms, _legoBookAddr: address) -> boo
 
 @view
 @internal
-def _validateTransferPerms(_transferPerms: wcs.TransferPerms, _walletConfig: address) -> bool:
+def _validateTransferPerms(_transferPerms: wcs.TransferPerms, _walletConfig: address, _newManager: address) -> bool:
     if len(_transferPerms.allowedPayees) == 0:
         return True
 
-    # canTransfer should be True if there are allowed payees
-    if not _transferPerms.canTransfer:
+    # non-empty allowed recipients only matter when transfers or cheque creation are enabled
+    if not (_transferPerms.canTransfer or _transferPerms.canCreateCheque):
         return False
 
-    # validate each payee
-    checkedPayees: DynArray[address, MAX_ALLOWED_PAYEES] = []
-    for payee: address in _transferPerms.allowedPayees:
-        if payee == empty(address):
+    owner: address = staticcall UserWalletConfig(_walletConfig).owner()
+    wallet: address = staticcall UserWalletConfig(_walletConfig).wallet()
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+
+    # validate each allowed recipient
+    checkedRecipients: DynArray[address, MAX_ALLOWED_PAYEES] = []
+    for recipient: address in _transferPerms.allowedPayees:
+        if recipient in [empty(address), owner, wallet, _walletConfig, _newManager]:
             return False
 
-        # check if payee is valid
-        if staticcall UserWalletConfig(_walletConfig).indexOfPayee(payee) == 0:
+        # same-wallet managers, including the starting agent, cannot be allowed recipients
+        if staticcall UserWalletConfig(_walletConfig).indexOfManager(recipient) != 0:
+            return False
+
+        if staticcall Registry(UNDY_HQ).isValidAddr(recipient):
+            return False
+
+        if ledger != empty(address) and staticcall Ledger(ledger).isRegisteredBackpackItem(recipient):
             return False
 
         # check for duplicates
-        if payee in checkedPayees:
+        if recipient in checkedRecipients:
             return False
 
-        checkedPayees.append(payee)
+        checkedRecipients.append(recipient)
 
     return True
 

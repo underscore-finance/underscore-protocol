@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+from constants import ACTION_TYPE, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import filter_logs
 from config.BluePrint import PARAMS
 
@@ -9,6 +9,27 @@ from config.BluePrint import PARAMS
 ###############
 # Add Manager #
 ###############
+
+
+def _create_owner_cheque(cheque_book, user_wallet, owner, recipient, asset, mock_ripe, expiry_blocks=10, can_be_pulled=False):
+    mock_ripe.setPrice(asset.address, EIGHTEEN_DECIMALS)
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        asset.address,
+        EIGHTEEN_DECIMALS,
+        0,
+        expiry_blocks,
+        False,
+        can_be_pulled,
+        sender=owner,
+    )
+
+
+def _activate_manager(user_wallet_config, manager):
+    settings = user_wallet_config.managerSettings(manager)
+    if settings.startBlock > boa.env.evm.patch.block_number:
+        boa.env.time_travel(blocks=settings.startBlock - boa.env.evm.patch.block_number)
 
 
 def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
@@ -107,6 +128,270 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             [],
             False,  # canClaimLoot
             sender=bob
+        )
+
+
+def test_add_manager_rejects_active_cheque_recipient_until_expiry_boundary(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob,
+):
+    """Active cheque recipients cannot become managers until the exact expiry block is reached"""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
+
+    cheque = user_wallet_config.cheques(alice)
+    blocks_to_before_expiry = cheque.expiryBlock - boa.env.evm.patch.block_number - 1
+    if blocks_to_before_expiry > 0:
+        boa.env.time_travel(blocks=blocks_to_before_expiry)
+
+    with boa.reverts("active cheque exists"):
+        high_command.addManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,
+            sender=bob
+        )
+
+    boa.env.time_travel(blocks=1)
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_add_manager_allows_paid_cheque_recipient(
+    high_command, user_wallet, user_wallet_config, cheque_book, billing, mock_ripe, alpha_token,
+    alpha_token_whale, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms,
+    createTransferPerms, alice, bob,
+):
+    """Paid cheques are zeroed, so a former cheque recipient can become a manager"""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, can_be_pulled=True)
+    alpha_token.transfer(user_wallet.address, EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+
+    billing.pullPaymentAsCheque(
+        user_wallet.address,
+        alpha_token.address,
+        EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    assert not user_wallet_config.cheques(alice).active
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_manager_generic_allowed_recipient_create_and_pay_flow(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    alpha_token_whale, createGlobalManagerSettings, createManagerLimits, createLegoPerms,
+    createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie, sally,
+):
+    """Restricted managers can create cheques to allowed generic recipients without transfer permission"""
+    global_transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.setGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        global_transfer_perms,
+        [],
+        sender=bob,
+    )
+
+    manager_transfer_perms = createTransferPerms(
+        _canTransfer=False,
+        _canCreateCheque=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        manager_transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+
+    amount = EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    with boa.reverts("payee not allowed"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            sally,
+            alpha_token.address,
+            amount,
+            0,
+            10,
+            True,
+            False,
+            sender=alice,
+        )
+
+    # Owner cheque creation still bypasses manager allowlists.
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        sally,
+        alpha_token.address,
+        amount,
+        0,
+        10,
+        False,
+        False,
+        sender=bob,
+    )
+
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        amount,
+        0,
+        10,
+        True,
+        False,
+        sender=alice,
+    )
+
+    with boa.reverts():
+        user_wallet.transferFunds(charlie, alpha_token.address, amount, True, sender=alice)
+
+    recipient_balance_before = alpha_token.balanceOf(charlie)
+    amount_paid, usd_value = user_wallet.transferFunds(charlie, alpha_token.address, amount, True, sender=bob)
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(charlie) == recipient_balance_before + amount
+    assert not user_wallet_config.cheques(charlie).active
+
+
+def test_whitelisted_recipient_bypasses_generic_allowed_recipients(
+    high_command, user_wallet, user_wallet_config, migrator, mock_ripe, alpha_token,
+    alpha_token_whale, createManagerLimits, createLegoPerms, createSwapPerms,
+    createWhitelistPerms, createTransferPerms, alice, bob, charlie, sally,
+):
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+    user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+
+    amount = EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    recipient_balance_before = alpha_token.balanceOf(sally)
+    amount_paid, usd_value = user_wallet.transferFunds(sally, alpha_token.address, amount, False, sender=alice)
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(sally) == recipient_balance_before + amount
+
+
+def test_allowed_recipient_promoted_to_manager_keeps_sentinel_transfer_rule_but_blocks_cheque(
+    high_command, sentinel, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob, sally,
+):
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[sally],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    assert high_command.addManager(
+        user_wallet,
+        sally,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER, [], [], sally)
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    with boa.reverts("invalid cheque"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            sally,
+            alpha_token.address,
+            EIGHTEEN_DECIMALS,
+            0,
+            10,
+            True,
+            False,
+            sender=alice,
         )
 
 
