@@ -7,6 +7,42 @@ from constants import ZERO_ADDRESS
 from conf_utils import filter_logs
 
 
+WALLET_BACKPACK_CORE_ADDR_ARGS = (
+    ("kernel", 0),
+    ("sentinel", 1),
+    ("high_command", 2),
+    ("paymaster", 3),
+    ("cheque_book", 4),
+    ("migrator", 5),
+)
+
+
+def deploy_mock_wallet_backpack(
+    field,
+    arg_index,
+    kernel,
+    sentinel,
+    high_command,
+    paymaster,
+    cheque_book,
+    migrator,
+):
+    args = [
+        kernel.address,
+        sentinel.address,
+        high_command.address,
+        paymaster.address,
+        cheque_book.address,
+        migrator.address,
+    ]
+    args[arg_index] = ZERO_ADDRESS
+    return boa.load(
+        "contracts/mock/MockWalletBackpack.vy",
+        *args,
+        name=f"mock_wallet_backpack_zero_{field}",
+    )
+
+
 ######################
 # Create User Wallet #
 ######################
@@ -38,6 +74,96 @@ def test_create_user_wallet_disables_pending_payee_manager_perms_by_default(hatc
 
     assert wallet_config.globalManagerSettings().transferPerms.canAddPendingPayee == False
     assert wallet_config.managerSettings(charlie).transferPerms.canAddPendingPayee == False
+
+
+@pytest.mark.parametrize("field,arg_index", WALLET_BACKPACK_CORE_ADDR_ARGS)
+def test_create_user_wallet_rejects_zero_wallet_backpack_addresses(
+    field,
+    arg_index,
+    hatchery,
+    undy_hq,
+    governance,
+    alice,
+    kernel,
+    sentinel,
+    high_command,
+    paymaster,
+    cheque_book,
+    migrator,
+):
+    mock_wallet_backpack = deploy_mock_wallet_backpack(
+        field,
+        arg_index,
+        kernel,
+        sentinel,
+        high_command,
+        paymaster,
+        cheque_book,
+        migrator,
+    )
+    undy_hq.startAddressUpdateToRegistry(8, mock_wallet_backpack, sender=governance.address)
+    boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+    assert undy_hq.confirmAddressUpdateToRegistry(8, sender=governance.address)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
+@pytest.mark.parametrize("zero_weth", [True, False])
+def test_create_user_wallet_rejects_zero_eth_addresses(undy_hq, hatchery, weth, alice, zero_weth):
+    bad_hatchery = boa.load(
+        "contracts/core/Hatchery.vy",
+        undy_hq,
+        ZERO_ADDRESS if zero_weth else weth,
+        hatchery.ETH() if zero_weth else ZERO_ADDRESS,
+        name=f"hatchery_zero_{'weth' if zero_weth else 'eth'}",
+    )
+
+    with boa.reverts("invalid setup"):
+        bad_hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_invalid_templates(hatchery, setUserWalletConfig, alice):
+    setUserWalletConfig(_walletTemplate=alice)
+
+    with boa.reverts():
+        hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_invalid_timelock_bounds(hatchery, setUserWalletConfig, alice):
+    setUserWalletConfig(_minTimeLock=0, _maxTimeLock=100)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_invalid_manager_defaults(hatchery, setManagerConfig, alice):
+    setManagerConfig(_managerPeriod=0)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_invalid_payee_defaults(hatchery, mission_control, switchboard_alpha, alice):
+    mission_control.setPayeeConfig((0, 15_768_000), sender=switchboard_alpha.address)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_invalid_cheque_defaults(hatchery, mission_control, switchboard_alpha, alice):
+    mission_control.setChequeConfig((10, 1_000, 0, 100, 1_000), sender=switchboard_alpha.address)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
+def test_create_user_wallet_rejects_user_wallet_starting_agent(hatchery, setAgentConfig, alice, bob):
+    existing_wallet = hatchery.createUserWallet(sender=alice)
+    setAgentConfig(_startingAgent=existing_wallet)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=bob)
 
 
 def test_create_user_wallet_with_ambassador(hatchery, alice, bob, ledger, mission_control, switchboard_alpha):

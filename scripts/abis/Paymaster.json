@@ -340,6 +340,11 @@
         "indexed": true
       },
       {
+        "name": "currentOwner",
+        "type": "address",
+        "indexed": true
+      },
+      {
         "name": "initiatedBlock",
         "type": "uint256",
         "indexed": false
@@ -1424,6 +1429,31 @@
             "type": "address"
           }
         ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isValidUserWalletPayeeDefaults",
+    "inputs": [
+      {
+        "name": "_defaultPeriodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_startDelay",
+        "type": "uint256"
+      },
+      {
+        "name": "_activationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },

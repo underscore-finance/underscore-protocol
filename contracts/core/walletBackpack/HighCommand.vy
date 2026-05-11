@@ -925,6 +925,37 @@ def _validateAllowedAssets(_allowedAssets: DynArray[address, MAX_CONFIG_ASSETS])
 
 @view
 @external
+def isValidUserWalletManagerDefaults(
+    _managerPeriod: uint256,
+    _timeLock: uint256,
+    _managerActivationLength: uint256,
+    _mustHaveUsdValueOnSwaps: bool,
+    _maxNumSwapsPerPeriod: uint256,
+    _maxSlippageOnSwaps: uint256,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
+    _owner: address,
+) -> bool:
+    if not self._validateManagerPeriod(_managerPeriod):
+        return False
+    if not self._validateStartDelay(_timeLock, _timeLock):
+        return False
+    if not self._validateActivationLength(_managerActivationLength):
+        return False
+    # _maxNumSwapsPerPeriod has no fixed upper bound; 0 means unlimited.
+    if _maxSlippageOnSwaps > 100_00:
+        return False
+    if _maxSlippageOnSwaps != 0 and not _mustHaveUsdValueOnSwaps:
+        return False
+    if _startingAgent == empty(address):
+        return True
+    if _startingAgent == _owner or self._isPrivilegedUndyAddr(_startingAgent):
+        return False
+    return self._validateActivationLength(_startingAgentActivationLength)
+
+
+@view
+@external
 def createDefaultGlobalManagerSettings(
     _managerPeriod: uint256,
     _minTimeLock: uint256,

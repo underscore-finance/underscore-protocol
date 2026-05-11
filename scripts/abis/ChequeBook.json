@@ -1712,6 +1712,43 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "isValidUserWalletChequeDefaults",
+    "inputs": [
+      {
+        "name": "_maxNumActiveCheques",
+        "type": "uint256"
+      },
+      {
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "createDefaultChequeSettings",
     "inputs": [
       {

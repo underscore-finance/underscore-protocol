@@ -1179,6 +1179,33 @@ def _isAllowedManagerPayee(_recipient: address, _transferPerms: wcs.TransferPerm
 
 @view
 @external
+def isValidUserWalletChequeDefaults(
+    _maxNumActiveCheques: uint256,
+    _instantUsdThreshold: uint256,
+    _periodLength: uint256,
+    _expensiveDelayBlocks: uint256,
+    _defaultExpiryBlocks: uint256,
+    _timeLock: uint256,
+) -> bool:
+    return self._isValidChequeSettings(
+        _maxNumActiveCheques,
+        0,
+        _instantUsdThreshold,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        _periodLength,
+        _expensiveDelayBlocks,
+        _defaultExpiryBlocks,
+        _timeLock,
+    )
+
+
+@view
+@external
 def createDefaultChequeSettings(
     _maxNumActiveCheques: uint256,
     _instantUsdThreshold: uint256,

@@ -1705,6 +1705,55 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "isValidUserWalletManagerDefaults",
+    "inputs": [
+      {
+        "name": "_managerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      },
+      {
+        "name": "_managerActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_mustHaveUsdValueOnSwaps",
+        "type": "bool"
+      },
+      {
+        "name": "_maxNumSwapsPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxSlippageOnSwaps",
+        "type": "uint256"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_owner",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "createDefaultGlobalManagerSettings",
     "inputs": [
       {

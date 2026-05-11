@@ -975,6 +975,20 @@ def _isPrivilegedUndyAddr(_addr: address) -> bool:
 
 @view
 @external
+def isValidUserWalletPayeeDefaults(
+    _defaultPeriodLength: uint256,
+    _startDelay: uint256,
+    _activationLength: uint256,
+) -> bool:
+    if not self._validatePayeePeriod(_defaultPeriodLength):
+        return False
+    if not self._validateStartDelay(_startDelay, _startDelay):
+        return False
+    return self._validateActivationLength(_activationLength)
+
+
+@view
+@external
 def createDefaultGlobalPayeeSettings(
     _defaultPeriodLength: uint256,
     _startDelay: uint256,
