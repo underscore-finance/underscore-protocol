@@ -710,6 +710,12 @@ def test_whitelist_confirm_enforces_delay(user_wallet_config, kernel, alice, use
     boa.env.time_travel(blocks=10)
     user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
     assert user_wallet_config.indexOfWhitelist(alice) != 0
+
+
+def test_whitelist_confirm_requires_pending_entry(user_wallet_config, kernel, alice):
+    """UserWalletConfig cannot confirm a missing pending whitelist entry"""
+    with boa.reverts("no pending whitelist"):
+        user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
     
 
 ###################

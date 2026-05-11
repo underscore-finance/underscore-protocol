@@ -554,7 +554,9 @@ def cancelPendingWhitelistAddr(_addr: address):
 @external
 def confirmWhitelistAddr(_addr: address):
     assert msg.sender == self.kernel # dev: no perms
-    assert self.pendingWhitelist[_addr].confirmBlock <= block.number # dev: time delay not reached
+    pending: wcs.PendingWhitelist = self.pendingWhitelist[_addr]
+    assert pending.confirmBlock != 0 # dev: no pending whitelist
+    assert pending.confirmBlock <= block.number # dev: time delay not reached
     self.pendingWhitelist[_addr] = empty(wcs.PendingWhitelist)
     self._registerWhitelistAddr(_addr)
 
