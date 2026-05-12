@@ -27,29 +27,25 @@ struct PendingOwnershipTimeLock:
     currentOwner: address
 
 interface UserWalletConfig:
-    def setInstantActionSettingsViaMigrator(_settings: wcs.InstantActionSettings): nonpayable
+    def applyMigratedConfigSettings(_fromConfig: address, _timeLock: uint256, _instantSettings: wcs.InstantActionSettings, _globalManagerSettings: wcs.GlobalManagerSettings, _globalPayeeSettings: wcs.GlobalPayeeSettings, _chequeSettings: wcs.ChequeSettings): nonpayable
     def setPendingMigration(_toWallet: address) -> wcs.PendingMigration: nonpayable
     def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
-    def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings): nonpayable
-    def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def pendingOwnershipTimeLock() -> PendingOwnershipTimeLock: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def instantActionSettings() -> wcs.InstantActionSettings: view
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
-    def addWhitelistAddrViaMigrator(_addr: address): nonpayable
-    def setTimeLockViaMigrator(_numBlocks: uint256): nonpayable
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
+    def addWhitelistAddrViaMigrator(_addr: address): nonpayable
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def indexOfWhitelist(_addr: address) -> uint256: view
     def pendingMigration() -> wcs.PendingMigration: view
     def indexOfManager(_addr: address) -> uint256: view
-    def pendingTimeLock() -> wcs.PendingTimeLock: view
     def indexOfPayee(_addr: address) -> uint256: view
+    def pendingTimeLock() -> wcs.PendingTimeLock: view
     def chequeSettings() -> wcs.ChequeSettings: view
     def cheques(_addr: address) -> wcs.Cheque: view
     def whitelistAddr(i: uint256) -> address: view
@@ -62,6 +58,7 @@ interface UserWalletConfig:
     def startingAgent() -> address: view
     def numManagers() -> uint256: view
     def chequeBook() -> address: view
+    def paymaster() -> address: view
     def numPayees() -> uint256: view
     def timeLock() -> uint256: view
     def groupId() -> uint256: view
@@ -81,6 +78,9 @@ interface Ledger:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
     def isValidAddr(_addr: address) -> bool: view
+
+interface Paymaster:
+    def hasPendingGlobalPayeeSettings(_userWallet: address) -> bool: view
 
 interface ChequeBook:
     def hasPendingChequeSettings(_userWallet: address) -> bool: view
@@ -210,6 +210,7 @@ def cancelPendingMigration(_fromWallet: address) -> bool:
 @nonreentrant
 @external
 def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool):
+    assert _fromWallet != _toWallet # dev: invalid migration
 
     # migrate funds
     numFundsMigrated: uint256 = 0
@@ -303,99 +304,7 @@ def canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _caller
 @view
 @internal
 def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _caller: address, _requirePending: bool) -> bool:
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-
-    # validate fromWallet is Underscore wallet
-    if not staticcall Ledger(ledger).isUserWallet(_fromWallet):
-        return False
-
-    # validate toWallet is Underscore wallet
-    if not staticcall Ledger(ledger).isUserWallet(_toWallet):
-        return False
-
-    if _requirePending and not self.instantMigrationEnabled:
-        if not self._hasValidPendingMigration(_fromWallet, _toWallet):
-            return False
-
-    if self._hasPendingChequeSettings(_fromWallet):
-        return False
-    if self._hasPendingChequeSettings(_toWallet):
-        return False
-    if self._hasPendingTimeLock(_fromWallet):
-        return False
-    if self._hasPendingTimeLock(_toWallet):
-        return False
-    if self._hasPendingInstantActionSettings(_fromWallet):
-        return False
-    if self._hasPendingInstantActionSettings(_toWallet):
-        return False
-    if self._hasPendingOwnershipTimeLock(_fromWallet):
-        return False
-    if self._hasPendingOwnershipTimeLock(_toWallet):
-        return False
-
-    # get fromWallet data
-    fromData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_fromWallet)
-
-    # validate caller can migrate for fromWallet owner
-    if not self._canExecuteMigration(_caller, fromData.owner):
-        return False
-
-    # cannot migrate if fromWallet is frozen
-    if fromData.isFrozen:
-        return False
-
-    # cannot migrate if fromWallet has pending owner change
-    if fromData.hasPendingOwnerChange:
-        return False
-
-    # cannot migrate if fromWallet has active cheques
-    if fromData.numActiveCheques != 0:
-        return False
-
-    # toWallet bundle
-    toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
-
-    # owners must be the same
-    if fromData.owner != toData.owner:
-        return False
-
-    # cannot migrate if toWallet has pending owner change
-    if toData.hasPendingOwnerChange:
-        return False
-
-    # group id must be the same
-    if fromData.groupId != toData.groupId:
-        return False
-
-    # cannot migrate if toWallet is frozen
-    if toData.isFrozen:
-        return False
-
-    # toWallet cannot have any payees
-    if toData.numPayees > 1:
-        return False
-
-    # toWallet cannot have any whitelisted addresses
-    if toData.numWhitelisted > 1:
-        return False
-
-    # toWallet cannot have any active cheques
-    if toData.numActiveCheques != 0:
-        return False
-
-    # cannot have managers (if starting agent is not set)
-    if toData.startingAgent == empty(address) and toData.numManagers > 1:
-        return False
-    
-    # cannot have managers other than starting agent
-    if toData.startingAgent != empty(address):
-        if toData.startingAgentIndex != 1:
-            return False
-        if toData.numManagers > 2:
-            return False
-
-    return True
+    return self._canExecuteWalletMigration(_fromWallet, _toWallet, _caller, _requirePending)
 
 
 ################
@@ -418,22 +327,16 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
     toOwner: address = staticcall UserWalletConfig(toConfig).owner()
 
-    # 0. copy wallet time lock
     timeLock: uint256 = staticcall UserWalletConfig(fromConfig).timeLock()
-    extcall UserWalletConfig(toConfig).setTimeLockViaMigrator(timeLock)
-
-    # 0b. copy active user-level instant action settings
     instantSettings: wcs.InstantActionSettings = staticcall UserWalletConfig(fromConfig).instantActionSettings()
-    extcall UserWalletConfig(toConfig).setInstantActionSettingsViaMigrator(instantSettings)
-
-    # 1. copy global manager settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
-    extcall UserWalletConfig(toConfig).setGlobalManagerSettings(globalManagerSettings)
+    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
+    chequeSettings: wcs.ChequeSettings = staticcall UserWalletConfig(fromConfig).chequeSettings()
 
     # get starting agent from source wallet to skip it during copy
     fromStartingAgent: address = staticcall UserWalletConfig(fromConfig).startingAgent()
-    
-    # 2. copy all managers (except starting agent)
+
+    # copy all managers (except starting agent)
     managersCopied: uint256 = 0
     numManagers: uint256 = staticcall UserWalletConfig(fromConfig).numManagers()
     if numManagers > 1:
@@ -454,15 +357,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
                 extcall UserWalletConfig(toConfig).addManager(manager, managerSettings)
                 managersCopied += 1
 
-    # 3. copy global payee settings
-    globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
-    extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
-
-    # 3b. copy cheque settings, but not individual cheques
-    chequeSettings: wcs.ChequeSettings = staticcall UserWalletConfig(fromConfig).chequeSettings()
-    extcall UserWalletConfig(toConfig).setChequeSettingsViaMigrator(chequeSettings)
-    
-    # 4. copy all payees
+    # copy all payees
     payeesCopied: uint256 = 0
     numPayees: uint256 = staticcall UserWalletConfig(fromConfig).numPayees()
     if numPayees > 1:
@@ -477,7 +372,7 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
                 extcall UserWalletConfig(toConfig).addPayee(payee, payeeSettings)
                 payeesCopied += 1
 
-    # 5. copy all whitelisted addresses
+    # copy all whitelisted addresses
     whitelistCopied: uint256 = 0
     numWhitelisted: uint256 = staticcall UserWalletConfig(fromConfig).numWhitelisted()
     if numWhitelisted > 1:
@@ -492,6 +387,16 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
     # Individual cheques are NOT migrated - users must manually recreate them.
     # Validation ensures destination has no active cheques before migration
+
+    # Apply scalar settings after the loops so the destination event pairs with ConfigCloned counts.
+    extcall UserWalletConfig(toConfig).applyMigratedConfigSettings(
+        fromConfig,
+        timeLock,
+        instantSettings,
+        globalManagerSettings,
+        globalPayeeSettings,
+        chequeSettings,
+    )
 
     log ConfigCloned(
         fromWallet = _fromWallet,
@@ -515,99 +420,7 @@ def canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addre
 @view
 @internal
 def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: address, _requirePending: bool) -> bool:
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-
-    # validate fromWallet is Underscore wallet
-    if not staticcall Ledger(ledger).isUserWallet(_fromWallet):
-        return False
-
-    # validate toWallet is Underscore wallet
-    if not staticcall Ledger(ledger).isUserWallet(_toWallet):
-        return False
-
-    if _requirePending and not self.instantMigrationEnabled:
-        if not self._hasValidPendingMigration(_fromWallet, _toWallet):
-            return False
-
-    if self._hasPendingChequeSettings(_fromWallet):
-        return False
-    if self._hasPendingChequeSettings(_toWallet):
-        return False
-    if self._hasPendingTimeLock(_fromWallet):
-        return False
-    if self._hasPendingTimeLock(_toWallet):
-        return False
-    if self._hasPendingInstantActionSettings(_fromWallet):
-        return False
-    if self._hasPendingInstantActionSettings(_toWallet):
-        return False
-    if self._hasPendingOwnershipTimeLock(_fromWallet):
-        return False
-    if self._hasPendingOwnershipTimeLock(_toWallet):
-        return False
-
-    # get toWallet data
-    toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
-
-    # validate caller can migrate for toWallet owner
-    if not self._canExecuteMigration(_caller, toData.owner):
-        return False
-
-    # cannot copy if toWallet has pending owner change
-    if toData.hasPendingOwnerChange:
-        return False
-
-    # cannot copy if toWallet is frozen
-    if toData.isFrozen:
-        return False
-
-    # toWallet cannot have any payees
-    if toData.numPayees > 1:
-        return False
-
-    # toWallet cannot have any whitelisted addresses
-    if toData.numWhitelisted > 1:
-        return False
-
-    # toWallet cannot have any active cheques
-    if toData.numActiveCheques != 0:
-        return False
-
-    # cannot have managers (if starting agent is not set)
-    if toData.startingAgent == empty(address) and toData.numManagers > 1:
-        return False
-    
-    # cannot have managers other than starting agent
-    if toData.startingAgent != empty(address):
-        if toData.startingAgentIndex != 1:
-            return False
-        if toData.numManagers > 2:
-            return False
-
-    # fromWallet bundle
-    fromData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_fromWallet)
-
-    # cannot copy if fromWallet is frozen
-    if fromData.isFrozen:
-        return False
-
-    # owners must be the same
-    if fromData.owner != toData.owner:
-        return False
-
-    # group id must be the same
-    if fromData.groupId != toData.groupId:
-        return False
-
-    # cannot copy if fromWallet has pending owner change
-    if fromData.hasPendingOwnerChange:
-        return False
-
-    # cannot copy if fromWallet has active cheques
-    if fromData.numActiveCheques != 0:
-        return False
-
-    return True
+    return self._canExecuteWalletMigration(_fromWallet, _toWallet, _caller, _requirePending)
 
 
 #############
@@ -640,10 +453,113 @@ def _canExecuteMigration(_caller: address, _owner: address) -> bool:
 
 @view
 @internal
+def _canExecuteWalletMigration(_fromWallet: address, _toWallet: address, _caller: address, _requirePending: bool) -> bool:
+    if not self._hasValidMigrationPair(_fromWallet, _toWallet, _requirePending):
+        return False
+
+    fromData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_fromWallet)
+    toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
+
+    if fromData.owner != toData.owner:
+        return False
+    if not self._canExecuteMigration(_caller, fromData.owner):
+        return False
+    if fromData.groupId != toData.groupId:
+        return False
+    if not self._isMigrationSourceReady(fromData):
+        return False
+    if not self._isMigrationDestinationReady(toData):
+        return False
+
+    return True
+
+
+@view
+@internal
+def _hasValidMigrationPair(_fromWallet: address, _toWallet: address, _requirePending: bool) -> bool:
+    if _fromWallet == _toWallet:
+        return False
+    if not self._isValidUserWallet(_fromWallet):
+        return False
+    if not self._isValidUserWallet(_toWallet):
+        return False
+
+    if _requirePending and not self.instantMigrationEnabled:
+        if not self._hasValidPendingMigration(_fromWallet, _toWallet):
+            return False
+
+    if self._hasBlockingPendingMigrationState(_fromWallet):
+        return False
+    if self._hasBlockingPendingMigrationState(_toWallet):
+        return False
+
+    return True
+
+
+@view
+@internal
+def _hasBlockingPendingMigrationState(_userWallet: address) -> bool:
+    if self._hasPendingChequeSettings(_userWallet):
+        return True
+    if self._hasPendingGlobalPayeeSettings(_userWallet):
+        return True
+    if self._hasPendingTimeLock(_userWallet):
+        return True
+    if self._hasPendingInstantActionSettings(_userWallet):
+        return True
+    if self._hasPendingOwnershipTimeLock(_userWallet):
+        return True
+
+    return False
+
+
+@pure
+@internal
+def _isMigrationSourceReady(_data: wcs.MigrationConfigBundle) -> bool:
+    if _data.isFrozen:
+        return False
+    if _data.hasPendingOwnerChange:
+        return False
+    if _data.numActiveCheques != 0:
+        return False
+
+    return True
+
+
+@pure
+@internal
+def _isMigrationDestinationReady(_data: wcs.MigrationConfigBundle) -> bool:
+    if not self._isMigrationSourceReady(_data):
+        return False
+    if _data.numPayees > 1:
+        return False
+    if _data.numWhitelisted > 1:
+        return False
+    if _data.startingAgent == empty(address) and _data.numManagers > 1:
+        return False
+    if _data.startingAgent != empty(address):
+        if _data.startingAgentIndex != 1:
+            return False
+        if _data.numManagers > 2:
+            return False
+
+    return True
+
+
+@view
+@internal
 def _hasPendingChequeSettings(_userWallet: address) -> bool:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     chequeBook: address = staticcall UserWalletConfig(walletConfig).chequeBook()
     return staticcall ChequeBook(chequeBook).hasPendingChequeSettings(_userWallet)
+
+
+@view
+@internal
+def _hasPendingGlobalPayeeSettings(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    paymaster: address = staticcall UserWalletConfig(walletConfig).paymaster()
+    return staticcall Paymaster(paymaster).hasPendingGlobalPayeeSettings(_userWallet)
 
 
 @view
@@ -727,7 +643,8 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 @view
 @internal
 def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _isManagerSlot: bool) -> bool:
-    # Source configs can contain legacy cross-role state; validate against the destination before cloning it.
+    # Destination wallets are prevalidated as effectively empty; keep these checks as defense
+    # against validation regressions and starting-agent role collisions during cloning.
     if staticcall UserWalletConfig(_walletConfig).indexOfWhitelist(_addr) != 0:
         return False
     if staticcall UserWalletConfig(_walletConfig).indexOfPayee(_addr) != 0:

@@ -287,6 +287,12 @@ def setGlobalPayeeSettings(
     return True
 
 
+@view
+@external
+def hasPendingGlobalPayeeSettings(_userWallet: address) -> bool:
+    return self.pendingGlobalPayeeSettings[_userWallet].confirmBlock != 0
+
+
 @external
 def confirmPendingGlobalPayeeSettings(_userWallet: address) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet

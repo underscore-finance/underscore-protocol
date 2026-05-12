@@ -3,6 +3,7 @@ import boa
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import (
     confirm_pending_instant_action_settings,
+    filter_logs,
     fresh_user_wallet,
     instant_action_settings_tuple,
     set_user_instant_action_settings,
@@ -137,13 +138,17 @@ def test_remove_manager_access(user_wallet_config, alice, bob):
         user_wallet_config.removeManager(alice, sender=bob)
 
 
-def test_set_global_manager_settings_access(user_wallet_config, bob, createGlobalManagerSettings):
-    """Only highCommand or migrator should be able to set global manager settings"""
+def test_set_global_manager_settings_access(user_wallet_config, bob, high_command, migrator, createGlobalManagerSettings):
+    """Only highCommand should be able to set global manager settings"""
     settings = createGlobalManagerSettings()
     
     # Non-authorized address should fail
     with boa.reverts("no perms"):
         user_wallet_config.setGlobalManagerSettings(settings, sender=bob)
+    with boa.reverts("no perms"):
+        user_wallet_config.setGlobalManagerSettings(settings, sender=migrator.address)
+
+    user_wallet_config.setGlobalManagerSettings(settings, sender=high_command.address)
 
 
 ######################
@@ -176,13 +181,17 @@ def test_remove_payee_access(user_wallet_config, alice, bob):
         user_wallet_config.removePayee(alice, sender=bob)
 
 
-def test_set_global_payee_settings_access(user_wallet_config, bob, createGlobalPayeeSettings):
-    """Only paymaster or migrator should be able to set global payee settings"""
+def test_set_global_payee_settings_access(user_wallet_config, bob, paymaster, migrator, createGlobalPayeeSettings):
+    """Only paymaster should be able to set global payee settings"""
     settings = createGlobalPayeeSettings()
     
     # Non-authorized address should fail
     with boa.reverts("no perms"):
         user_wallet_config.setGlobalPayeeSettings(settings, sender=bob)
+    with boa.reverts("no perms"):
+        user_wallet_config.setGlobalPayeeSettings(settings, sender=migrator.address)
+
+    user_wallet_config.setGlobalPayeeSettings(settings, sender=paymaster.address)
 
 
 #######################
@@ -905,24 +914,111 @@ def test_set_time_lock_same_value_preserves_pending(user_wallet_config, bob):
     assert pending_after.currentOwner == pending_before.currentOwner
 
 
-def test_set_time_lock_via_migrator_access_and_clamps(user_wallet_config, bob, alice, migrator):
-    """The migrator-only time lock setter enforces caller access and clamps configured bounds"""
+def test_apply_migrated_config_settings_access_and_clamps(
+    user_wallet_config,
+    hatchery,
+    bob,
+    alice,
+    migrator,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+):
+    """The migrator-only settings apply validates source config, access, and scalar field copies."""
+    source_config = _fresh_wallet_config(hatchery, bob)
+    instant_settings = (True, False, True, False)
+    global_manager_settings = createGlobalManagerSettings(
+        _managerPeriod=ONE_DAY_IN_BLOCKS,
+        _startDelay=7,
+        _activationLength=2 * ONE_MONTH_IN_BLOCKS,
+        _canOwnerManage=False,
+    )
+    global_payee_settings = createGlobalPayeeSettings(
+        _defaultPeriodLength=2 * ONE_DAY_IN_BLOCKS,
+        _startDelay=11,
+        _activationLength=3 * ONE_MONTH_IN_BLOCKS,
+        _maxNumTxsPerPeriod=9,
+        _txCooldownBlocks=13,
+        _failOnZeroPrice=True,
+        _canPull=False,
+    )
+    cheque_settings = createChequeSettings(
+        _maxNumActiveCheques=3,
+        _maxChequeUsdValue=100 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=5,
+        _defaultExpiryBlocks=6,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    args = (
+        source_config.address,
+        user_wallet_config.MAX_TIMELOCK(),
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+    )
     with boa.reverts("no perms"):
-        user_wallet_config.setTimeLockViaMigrator(user_wallet_config.MAX_TIMELOCK(), sender=alice)
+        user_wallet_config.applyMigratedConfigSettings(*args, sender=alice)
+    with boa.reverts("invalid source config"):
+        user_wallet_config.applyMigratedConfigSettings(ZERO_ADDRESS, *args[1:], sender=migrator.address)
 
     min_time_lock = user_wallet_config.MIN_TIMELOCK()
     max_time_lock = user_wallet_config.MAX_TIMELOCK()
 
-    user_wallet_config.setTimeLockViaMigrator(min_time_lock, sender=migrator.address)
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        min_time_lock,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
     assert user_wallet_config.timeLock() == min_time_lock
 
-    user_wallet_config.setTimeLockViaMigrator(max_time_lock, sender=migrator.address)
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        max_time_lock,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
+    event = filter_logs(user_wallet_config, "MigrationConfigApplied")[-1]
     assert user_wallet_config.timeLock() == max_time_lock
+    assert instant_action_settings_tuple(user_wallet_config.instantActionSettings()) == instant_settings
+    assert user_wallet_config.globalManagerSettings() == global_manager_settings
+    assert user_wallet_config.globalPayeeSettings() == global_payee_settings
+    assert user_wallet_config.chequeSettings() == cheque_settings
 
-    user_wallet_config.setTimeLockViaMigrator(0, sender=migrator.address)
+    assert event.fromConfig == source_config.address
+    assert event.timeLock == max_time_lock
+
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        0,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
     assert user_wallet_config.timeLock() == min_time_lock
 
-    user_wallet_config.setTimeLockViaMigrator(max_time_lock + 1, sender=migrator.address)
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        max_time_lock + 1,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
     assert user_wallet_config.timeLock() == max_time_lock
 
 
@@ -1596,10 +1692,19 @@ def test_no_change_instant_action_settings_without_pending_noops(hatchery, bob):
 
 def test_instant_action_settings_migrator_setter_sets_active_only(hatchery, bob, migrator):
     config = _fresh_wallet_config(hatchery, bob)
+    source_config = _fresh_wallet_config(hatchery, bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
     pending_before = config.pendingInstantActionSettings()
 
-    config.setInstantActionSettingsViaMigrator((False, True, False, True), sender=migrator.address)
+    config.applyMigratedConfigSettings(
+        source_config.address,
+        config.timeLock(),
+        (False, True, False, True),
+        config.globalManagerSettings(),
+        config.globalPayeeSettings(),
+        config.chequeSettings(),
+        sender=migrator.address,
+    )
 
     assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, True)
     pending_after = config.pendingInstantActionSettings()

@@ -82,6 +82,10 @@ event NftRecovered:
     nftTokenId: uint256
     recipient: indexed(address)
 
+event MigrationConfigApplied:
+    fromConfig: indexed(address)
+    timeLock: uint256
+
 # core
 wallet: public(address)
 
@@ -266,13 +270,6 @@ def setTimeLock(_numBlocks: uint256):
 
 
 @external
-def setTimeLockViaMigrator(_numBlocks: uint256):
-    assert msg.sender == self.migrator # dev: no perms
-
-    self.timeLock = max(MIN_TIMELOCK, min(_numBlocks, MAX_TIMELOCK))
-
-
-@external
 def confirmPendingTimeLock():
     assert msg.sender == ownership.owner # dev: no perms
 
@@ -355,12 +352,6 @@ def cancelPendingInstantActionSettings():
     self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
 
 
-@external
-def setInstantActionSettingsViaMigrator(_settings: wcs.InstantActionSettings):
-    assert msg.sender == self.migrator # dev: no perms
-    self.instantActionSettings = _settings
-
-
 @pure
 @internal
 def _isSameInstantActionSettings(_a: wcs.InstantActionSettings, _b: wcs.InstantActionSettings) -> bool:
@@ -406,6 +397,30 @@ def setPendingMigration(_toWallet: address) -> wcs.PendingMigration:
 def clearPendingMigration():
     assert msg.sender == self.migrator # dev: no perms
     self.pendingMigration = empty(wcs.PendingMigration)
+
+
+@external
+def applyMigratedConfigSettings(
+    _fromConfig: address,
+    _timeLock: uint256,
+    _instantSettings: wcs.InstantActionSettings,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
+    _globalPayeeSettings: wcs.GlobalPayeeSettings,
+    _chequeSettings: wcs.ChequeSettings,
+):
+    assert msg.sender == self.migrator # dev: no perms
+    assert _fromConfig != empty(address) # dev: invalid source config
+
+    self.timeLock = max(MIN_TIMELOCK, min(_timeLock, MAX_TIMELOCK))
+    self.instantActionSettings = _instantSettings
+    self.globalManagerSettings = _globalManagerSettings
+    self.globalPayeeSettings = _globalPayeeSettings
+    self.chequeSettings = _chequeSettings
+
+    log MigrationConfigApplied(
+        fromConfig = _fromConfig,
+        timeLock = self.timeLock,
+    )
 
 
 #####################
@@ -744,7 +759,7 @@ def removeManager(_manager: address):
 
 @external
 def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
-    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
+    assert msg.sender == self.highCommand # dev: no perms
     self.globalManagerSettings = _config
 
 
@@ -819,7 +834,7 @@ def removePayee(_payee: address):
 
 @external
 def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings):
-    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
+    assert msg.sender == self.paymaster # dev: no perms
     self.globalPayeeSettings = _config
 
 
@@ -861,12 +876,6 @@ def cancelCheque(_recipient: address):
 @external
 def setChequeSettings(_config: wcs.ChequeSettings):
     assert msg.sender == self.chequeBook # dev: no perms
-    self.chequeSettings = _config
-
-
-@external
-def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings):
-    assert msg.sender == self.migrator # dev: no perms
     self.chequeSettings = _config
 
 

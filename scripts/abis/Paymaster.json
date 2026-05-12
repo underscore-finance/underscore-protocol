@@ -552,6 +552,23 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "confirmPendingGlobalPayeeSettings",

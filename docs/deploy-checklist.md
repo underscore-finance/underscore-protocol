@@ -42,13 +42,13 @@ Monitor these AgentSender and ownership signals after deployment:
 - WalletBackpack stores the canonical provider address and governance can rotate it for future wallets.
 - Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
 - Action-data reads now cross a read-only provider and make additional staticcalls back into `UserWalletConfig`. Budget extra gas on wallet action paths that call `checkSignerPermissionsAndGetBundle` or `getActionDataBundle`.
-- Post-refactor Boa-measured `UserWalletConfig` blueprint size: `23,498` bytes, leaving `1,078` bytes under the `24,576` byte EIP-170 gate.
-- Treat that buffer as a budget. Any future `UserWalletConfig` PR expected to add more than roughly `100` bytes should include a size check and an extraction plan if the remaining buffer would fall below `500` bytes.
+- Current Boa-measured `UserWalletConfig` blueprint size: `24,490` bytes, leaving `86` bytes under the `24,576` byte EIP-170 gate. Runtime size is `20,664` bytes, under the `23,000` byte soft target.
+- Treat the blueprint buffer as exhausted. Any future `UserWalletConfig` growth should include a size check and an extraction plan before merge.
 
 ## Wallet Time Lock Bounds
 
 - Owner-initiated `setTimeLock` and `confirmPendingTimeLock` enforce `MIN_TIMELOCK <= value <= MAX_TIMELOCK` at the wallet-config layer.
-- `setTimeLockViaMigrator` clamps copied source values into the destination wallet's `[MIN_TIMELOCK, MAX_TIMELOCK]` range. Cross-creator migrations with divergent bounds may complete with a clamped destination time lock.
+- `applyMigratedConfigSettings` clamps copied source time-lock values into the destination wallet's `[MIN_TIMELOCK, MAX_TIMELOCK]` range. Cross-creator migrations with divergent bounds may complete with a clamped destination time lock.
 
 ## Instant Migration Runbook
 
@@ -57,13 +57,20 @@ Monitor these AgentSender and ownership signals after deployment:
 - Setting `instantMigrationEnabled` to `false` still permits timelocked migrations. It only disables the instant bypass path.
 - `migrateAll` is the one-call path for tracked ERC20-style funds and config under one pending migration.
 - `migrateFunds` and `cloneConfig` are terminal paths. Each clears pending migration after success, so users need a new pending migration for the other half unless instant migration is enabled.
+- This migration path assumes both wallets use the current `UserWalletConfig` version.
+- Both source and destination wallets must have the same configured `migrator` address; otherwise destination-side config apply reverts with `no perms`.
 - Loose native ETH is not migrated. Users should wrap or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
-- Cloned managers and payees are validated for destination role collisions before registration. Legacy source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`.
+- Cloned managers and payees are validated for destination role collisions before registration. Source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`; this includes a destination starting agent that is copied from the source as a regular manager.
 - Changing a wallet's configured migrator via `setMigrator` requires no pending migration on that wallet. Complete or cancel in-flight migration state before swapping the migrator.
+- Pending global payee settings block migration on both source and destination wallets.
+- Pending whitelist entries on the source wallet are not migrated. They remain on the source wallet and could still be confirmed there if the source wallet continues to be used. To preserve them on the destination wallet, restage and confirm them there.
+- Config cloning emits paired events: `UserWalletConfig.MigrationConfigApplied` from the destination config log address with the source config address and applied time lock, and `Migrator.ConfigCloned` on the migrator with source/destination wallet addresses and copied counts.
+- The destination config event intentionally omits a settings hash: computing one inside `UserWalletConfig` exceeds the deploy-blueprint size limit, and a migrator-supplied hash would not be independently trustworthy.
+- Funds migration deregisters up to 25 migrated assets from the source wallet. If more than 25 assets move in one transaction, excess assets are transferred but remain tracked on the source wallet with zero balance; clean them up with later `deregisterAsset` calls if desired.
 - Payee and manager period/lifetime counters are not copied. Migration resets those accounting windows on the destination wallet.
 - Individual cheques are not migrated. Users must recreate any desired cheques on the destination wallet, and the source cheque ledger remains as historical state.
 - Fee-on-transfer or rebasing assets can leave dust or accounting differences because migration transfers the wallet's tracked token balance rather than reconciling post-transfer received amounts.
-- A wallet's configured migrator is highly trusted because migrator-facing wallet-config setters apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
+- A wallet's configured migrator is highly trusted because migrator-facing wallet-config settings apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
 
 ## Instant Wallet Action Runbook
 
@@ -74,7 +81,6 @@ Monitor these AgentSender and ownership signals after deployment:
 - If a pending protocol enable exists and the flag should not go live, disable the same flag through `SwitchboardBravo`; this cancels the matching pending action and emits the `WalletCanInstant*Set` event with `isEnabled=false`.
 - Pending protocol enables store the target backpack item at staging time. If WalletBackpack rotates a role before execution, cancel and re-stage when the current role target matters.
 - User instant settings default to all false. Enabling a user flag is timelocked; disabling applies immediately. Cancelling a mixed pending change does not roll back disables that already applied.
-- Existing wallets from the old template do not expose `instantActionSettings()`. Delayed paths remain compatible because backpack items read the new selector only when the caller requests instant execution. Old-template-to-new-template migration is out of scope for this runbook.
 - User wallet instant-setting methods intentionally emit no events, matching `setTimeLock`. Monitor explicit calls plus the Switchboard protocol flag events listed in [Instant Action Model](instant-action-model.md).
 
 ## Manager Settings Constraints

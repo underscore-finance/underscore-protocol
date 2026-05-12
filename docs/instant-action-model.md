@@ -57,4 +57,4 @@ The user wallet instant-setting methods intentionally emit no events, matching t
 
 Migration copies only active user instant settings. Pending user instant settings block both funds migration and config clone on source and destination wallets. Protocol flags are global rollout state and are not copied.
 
-Existing wallets from the old template do not expose `instantActionSettings()`. They can keep using delayed paths, but cannot use instant paths until migrated to a new wallet template. Old-template-to-new-template migration is outside this runbook and needs a separate migration plan.
+This migration path assumes both wallets use the current `UserWalletConfig` version. Pending whitelist entries on the source wallet are not migrated; they remain on the source wallet and could still be confirmed there if that wallet continues to be used. Restage and confirm them on the destination wallet to preserve them there.
