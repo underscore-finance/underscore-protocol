@@ -100,7 +100,7 @@ event UserWalletCreated:
     groupId: uint256
 
 event StarterAgentConfigSet:
-    starterAgentType: cs.StarterAgentType
+    starterAgentType: indexed(cs.StarterAgentType)
     startingAgent: indexed(address)
     startingAgentActivationLength: uint256
 
@@ -236,8 +236,6 @@ def _resolveStarterAgentConfig(
     _config: UserWalletCreationConfig,
     _starterAgentType: cs.StarterAgentType,
 ) -> cs.AgentConfig:
-    assert self._isValidStarterAgentType(_starterAgentType) # dev: invalid starter agent type
-
     starterConfig: cs.AgentConfig = empty(cs.AgentConfig)
     if _starterAgentType == cs.StarterAgentType.PROD:
         starterConfig = cs.AgentConfig(
@@ -267,8 +265,7 @@ def setStarterAgentConfig(
     _startingAgentActivationLength: uint256,
 ):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert not deptBasics.isPaused # dev: not activated
-    # Any registered Switchboard may call this intentionally; today only Alpha exposes a wrapper.
+    # Registered Switchboard status is the authorization boundary for Hatchery config updates.
     assert self._isValidStarterAgentType(_starterAgentType) # dev: invalid starter agent type
     assert _starterAgentType != cs.StarterAgentType.PROD # dev: prod owned by mission control
     assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params
@@ -292,8 +289,7 @@ def setStarterAgentConfig(
 @external
 def setNonProdCreator(_nonProdCreator: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    assert not deptBasics.isPaused # dev: not activated
-    # Any registered Switchboard may call this intentionally; today only Alpha exposes a wrapper.
+    # Registered Switchboard status is the authorization boundary for Hatchery config updates.
     if _nonProdCreator != empty(address):
         missionControl: address = addys._getMissionControlAddr()
         assert missionControl != empty(address) # dev: invalid setup

@@ -47,7 +47,7 @@
       {
         "name": "starterAgentType",
         "type": "uint256",
-        "indexed": false
+        "indexed": true
       },
       {
         "name": "startingAgent",

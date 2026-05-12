@@ -664,14 +664,19 @@ def test_any_registered_switchboard_can_set_hatchery_non_prod_controls(
     assert hatchery.nonProdCreator() == bob
 
 
-def test_hatchery_setters_revert_while_paused(hatchery, switchboard_alpha, alice, bob):
+def test_hatchery_setters_work_while_paused(hatchery, switchboard_alpha, alice, bob):
     hatchery.pause(True, sender=switchboard_alpha.address)
 
-    with boa.reverts("not activated"):
-        hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, bob, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
+    hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, bob, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
+    hatchery.setNonProdCreator(alice, sender=switchboard_alpha.address)
 
-    with boa.reverts("not activated"):
-        hatchery.setNonProdCreator(alice, sender=switchboard_alpha.address)
+    config = hatchery.stagingStarterAgentConfig()
+    assert config.startingAgent == bob
+    assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
+    assert hatchery.nonProdCreator() == alice
+
+    with boa.reverts("contract paused"):
+        hatchery.createUserWallet(sender=alice)
 
     hatchery.pause(False, sender=switchboard_alpha.address)
 
