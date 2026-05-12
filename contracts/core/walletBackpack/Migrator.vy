@@ -342,6 +342,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     if fromData.hasPendingOwnerChange:
         return False
 
+    # cannot migrate if fromWallet has active cheques
+    if fromData.numActiveCheques != 0:
+        return False
+
     # toWallet bundle
     toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
 
@@ -585,6 +589,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
 
     # cannot copy if fromWallet has pending owner change
     if fromData.hasPendingOwnerChange:
+        return False
+
+    # cannot copy if fromWallet has active cheques
+    if fromData.numActiveCheques != 0:
         return False
 
     return True

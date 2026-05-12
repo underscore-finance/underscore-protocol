@@ -275,7 +275,7 @@ def test_cannot_copy_config_with_whitelisted_addresses(migrator, user_wallet, ha
 
 # Test cheque restrictions
 def test_cannot_copy_config_with_active_cheques(migrator, hatchery, bob, alice, user_wallet, user_wallet_config, cheque_book, alpha_token, mock_ripe):
-    """Test that toWallet cannot have active cheques"""
+    """Test that source and destination wallets cannot have active cheques"""
     ONE_WEEK_IN_BLOCKS = 7 * ONE_DAY_IN_BLOCKS
 
     # Get timeLock value
@@ -329,8 +329,12 @@ def test_cannot_copy_config_with_active_cheques(migrator, hatchery, bob, alice, 
     # Create a new source wallet
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
 
-    # Cannot copy config from new wallet to user_wallet (which has active cheques)
+    # Cannot copy config to user_wallet (which has active cheques)
     assert not migrator.canCopyWalletConfig(from_wallet, user_wallet, bob)
+
+    # Cannot copy config from user_wallet (which has active cheques)
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    assert not migrator.canCopyWalletConfig(user_wallet, to_wallet, bob)
 
 
 # Test manager restrictions - no starting agent

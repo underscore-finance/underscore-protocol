@@ -383,7 +383,7 @@ def test_cannot_migrate_with_whitelisted_addresses(migrator, user_wallet, hatche
 
 # Test cheque restrictions
 def test_cannot_migrate_with_active_cheques(migrator, hatchery, bob, alice, user_wallet, user_wallet_config, cheque_book, alpha_token, mock_ripe):
-    """Test that toWallet cannot have active cheques"""
+    """Test that source and destination wallets cannot have active cheques"""
     ONE_WEEK_IN_BLOCKS = 7 * ONE_DAY_IN_BLOCKS
 
     # Get timeLock value
@@ -438,8 +438,12 @@ def test_cannot_migrate_with_active_cheques(migrator, hatchery, bob, alice, user
     # Create a new source wallet
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
 
-    # Cannot migrate from new wallet to user_wallet (which has active cheques)
+    # Cannot migrate to user_wallet (which has active cheques)
     assert not migrator.canMigrateFundsToNewWallet(from_wallet, user_wallet, bob)
+
+    # Cannot migrate from user_wallet (which has active cheques)
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, to_wallet, bob)
 
 
 # Test manager restrictions - no starting agent
