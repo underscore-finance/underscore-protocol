@@ -23,6 +23,14 @@ import contracts.modules.Addys as addys
 import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
+interface Migrator:
+    def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool): nonpayable
+    def initiateMigration(_fromWallet: address, _toWallet: address) -> bool: nonpayable
+    def migrateFunds(_fromWallet: address, _toWallet: address) -> uint256: nonpayable
+    def cloneConfig(_fromWallet: address, _toWallet: address) -> bool: nonpayable
+    def setInstantMigrationEnabled(_isEnabled: bool) -> bool: nonpayable
+    def instantMigrationEnabled() -> bool: view
+
 interface LootDistributor:
     def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool: nonpayable
     def updateDepositPointsOnEjection(_user: address): nonpayable
@@ -47,6 +55,9 @@ interface MissionControl:
 interface UserWallet:
     def walletConfig() -> address: view
 
+interface Ledger:
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
+
 flag ActionType:
     RECOVER_FUNDS
     RECOVER_FUNDS_MANY
@@ -54,6 +65,7 @@ flag ActionType:
     LOOT_ADJUST
     RECOVER_DEPOSIT_REWARDS
     SET_EJECTION_MODE
+    ENABLE_INSTANT_MIGRATION
 
 struct PauseAction:
     contractAddr: address
@@ -97,6 +109,10 @@ struct AllAssetDataUpdate:
 struct SetEjectionModeAction:
     user: address
     shouldEject: bool
+
+struct PendingInstantMigrationEnable:
+    migrator: address
+    actionId: uint256
 
 event PendingRecoverFundsAction:
     contractAddr: indexed(address)
@@ -147,6 +163,12 @@ event PendingSetEjectionModeAction:
     confirmationBlock: uint256
     actionId: uint256
 
+event PendingEnableInstantMigrationAction:
+    migrator: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+    caller: indexed(address)
+
 event PauseExecuted:
     contractAddr: indexed(address)
     shouldPause: bool
@@ -192,6 +214,38 @@ event SetEjectionModeExecuted:
     user: indexed(address)
     shouldEject: bool
 
+event WalletMigrationInitiated:
+    migrator: indexed(address)
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    caller: address
+
+event WalletInstantMigrationEnabledSet:
+    migrator: indexed(address)
+    isEnabled: bool
+    caller: indexed(address)
+
+event WalletFundsMigrated:
+    migrator: indexed(address)
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    numFundsMigrated: uint256
+    caller: address
+
+event WalletConfigCloned:
+    migrator: indexed(address)
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    caller: address
+
+event WalletMigrated:
+    migrator: indexed(address)
+    fromWallet: indexed(address)
+    toWallet: indexed(address)
+    numFundsMigrated: uint256
+    didMigrateConfig: bool
+    caller: address
+
 # pending actions storage
 actionType: public(HashMap[uint256, ActionType])
 pendingPauseActions: public(HashMap[uint256, PauseAction])
@@ -201,6 +255,7 @@ pendingRecoverNftActions: public(HashMap[uint256, RecoverNftAction])
 pendingLootAdjustActions: public(HashMap[uint256, LootAdjustAction])
 pendingRecoverDepositRewardsActions: public(HashMap[uint256, RecoverDepositRewardsAction])
 pendingSetEjectionModeActions: public(HashMap[uint256, SetEjectionModeAction])
+pendingInstantMigrationEnable: public(PendingInstantMigrationEnable)
 
 MAX_RECOVER_ASSETS: constant(uint256) = 20
 MAX_USERS: constant(uint256) = 50
@@ -229,6 +284,17 @@ def _hasPerms(_caller: address, _isLiteAccess: bool) -> bool:
     if _isLiteAccess:
         return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
     return False
+
+
+@view
+@internal
+def _isValidBackpackItem(_addr: address) -> bool:
+    if _addr == empty(address):
+        return False
+    ledger: address = addys._getLedgerAddr()
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
 
 
 ###############
@@ -474,6 +540,101 @@ def setEjectionMode(_user: address, _shouldEject: bool) -> uint256:
     return aid
 
 
+#########################
+# User Wallet Migration #
+#########################
+
+
+@external
+def setInstantMigrationEnabled(_migrator: address, _isEnabled: bool) -> uint256:
+    assert self._isValidBackpackItem(_migrator) # dev: invalid migrator
+
+    if not _isEnabled:
+        assert self._hasPerms(msg.sender, True) # dev: no perms
+        pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
+        if pending.actionId != 0 and pending.migrator == _migrator:
+            self._cancelPendingAction(pending.actionId)
+        assert extcall Migrator(_migrator).setInstantMigrationEnabled(False) # dev: failed to disable
+        log WalletInstantMigrationEnabledSet(migrator=_migrator, isEnabled=False, caller=msg.sender)
+        return 0
+
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert not staticcall Migrator(_migrator).instantMigrationEnabled() # dev: already enabled
+    assert self.pendingInstantMigrationEnable.actionId == 0 # dev: pending enable exists
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_INSTANT_MIGRATION
+    self.pendingInstantMigrationEnable = PendingInstantMigrationEnable(migrator=_migrator, actionId=aid)
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEnableInstantMigrationAction(
+        migrator=_migrator,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+        caller=msg.sender,
+    )
+    return aid
+
+
+@external
+def initiateWalletMigration(_migrator: address, _fromWallet: address, _toWallet: address) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidBackpackItem(_migrator) # dev: invalid migrator
+    assert empty(address) not in [_fromWallet, _toWallet] # dev: invalid wallet
+
+    didInitiate: bool = extcall Migrator(_migrator).initiateMigration(_fromWallet, _toWallet)
+    log WalletMigrationInitiated(migrator=_migrator, fromWallet=_fromWallet, toWallet=_toWallet, caller=msg.sender)
+    return didInitiate
+
+
+@external
+def migrateWalletFunds(_migrator: address, _fromWallet: address, _toWallet: address) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidBackpackItem(_migrator) # dev: invalid migrator
+    assert empty(address) not in [_fromWallet, _toWallet] # dev: invalid wallet
+
+    numFundsMigrated: uint256 = extcall Migrator(_migrator).migrateFunds(_fromWallet, _toWallet)
+    log WalletFundsMigrated(
+        migrator=_migrator,
+        fromWallet=_fromWallet,
+        toWallet=_toWallet,
+        numFundsMigrated=numFundsMigrated,
+        caller=msg.sender,
+    )
+    return numFundsMigrated
+
+
+@external
+def cloneWalletConfig(_migrator: address, _fromWallet: address, _toWallet: address) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidBackpackItem(_migrator) # dev: invalid migrator
+    assert empty(address) not in [_fromWallet, _toWallet] # dev: invalid wallet
+
+    didClone: bool = extcall Migrator(_migrator).cloneConfig(_fromWallet, _toWallet)
+    log WalletConfigCloned(migrator=_migrator, fromWallet=_fromWallet, toWallet=_toWallet, caller=msg.sender)
+    return didClone
+
+
+@external
+def migrateWallet(_migrator: address, _fromWallet: address, _toWallet: address) -> (uint256, bool):
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidBackpackItem(_migrator) # dev: invalid migrator
+    assert empty(address) not in [_fromWallet, _toWallet] # dev: invalid wallet
+
+    numFundsMigrated: uint256 = 0
+    didMigrateConfig: bool = False
+    numFundsMigrated, didMigrateConfig = extcall Migrator(_migrator).migrateAll(_fromWallet, _toWallet)
+    log WalletMigrated(
+        migrator=_migrator,
+        fromWallet=_fromWallet,
+        toWallet=_toWallet,
+        numFundsMigrated=numFundsMigrated,
+        didMigrateConfig=didMigrateConfig,
+        caller=msg.sender,
+    )
+    return numFundsMigrated, didMigrateConfig
+
+
 #############
 # Execution #
 #############
@@ -525,6 +686,15 @@ def executePendingAction(_aid: uint256) -> bool:
         # update loot points
         extcall LootDistributor(addys._getLootDistributorAddr()).updateDepositPointsOnEjection(p.user)
 
+    elif actionType == ActionType.ENABLE_INSTANT_MIGRATION:
+        pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
+        assert pending.actionId == _aid # dev: invalid pending enable
+        migrator: address = pending.migrator
+        assert self._isValidBackpackItem(migrator) # dev: invalid migrator
+        assert extcall Migrator(migrator).setInstantMigrationEnabled(True) # dev: failed to enable
+        self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
+        log WalletInstantMigrationEnabledSet(migrator=migrator, isEnabled=True, caller=msg.sender)
+
     self.actionType[_aid] = empty(ActionType)
     return True
 
@@ -544,4 +714,8 @@ def cancelPendingAction(_aid: uint256) -> bool:
 @internal
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
+    if self.actionType[_aid] == ActionType.ENABLE_INSTANT_MIGRATION:
+        pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
+        if pending.actionId == _aid:
+            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
     self.actionType[_aid] = empty(ActionType)

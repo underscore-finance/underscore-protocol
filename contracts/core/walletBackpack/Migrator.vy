@@ -330,8 +330,8 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
     # get fromWallet data
     fromData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_fromWallet)
 
-    # validate caller is owner of fromWallet
-    if _caller != fromData.owner:
+    # validate caller can migrate for fromWallet owner
+    if not self._canExecuteMigration(_caller, fromData.owner):
         return False
 
     # cannot migrate if fromWallet is frozen
@@ -533,8 +533,8 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
     # get toWallet data
     toData: wcs.MigrationConfigBundle = self._getMigrationConfigBundle(_toWallet)
 
-    # validate caller is owner of toWallet
-    if _caller != toData.owner:
+    # validate caller can migrate for toWallet owner
+    if not self._canExecuteMigration(_caller, toData.owner):
         return False
 
     # cannot copy if toWallet has pending owner change
@@ -608,6 +608,14 @@ def _isValidUserWallet(_userWallet: address) -> bool:
     if ledger == empty(address):
         return False
     return staticcall Ledger(ledger).isUserWallet(_userWallet)
+
+
+@view
+@internal
+def _canExecuteMigration(_caller: address, _owner: address) -> bool:
+    if _caller == _owner:
+        return True
+    return self._isSwitchboardAddr(_caller)
 
 
 @view

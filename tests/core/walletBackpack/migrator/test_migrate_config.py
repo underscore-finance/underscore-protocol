@@ -106,13 +106,32 @@ def test_cannot_copy_config_non_underscore_wallets(migrator, user_wallet, bob, a
 
 
 # Test ownership validation
-def test_cannot_copy_config_if_not_owner(migrator, user_wallet, hatchery, bob, alice):
-    """Test that only the owner of toWallet can initiate config copy"""
+def test_cannot_copy_config_if_not_owner_or_switchboard(migrator, user_wallet, hatchery, bob, alice):
+    """Test that arbitrary non-owners cannot initiate config copy"""
     # Create new wallet owned by bob
     new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Alice (not owner) cannot copy config to bob's wallet
     assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, alice)
+
+
+def test_switchboard_can_initiate_and_clone_config(migrator, user_wallet, hatchery, bob, switchboard_alpha):
+    """Test that Switchboard can execute config migration for same-owner wallets"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    assert migrator.canCopyWalletConfig(user_wallet, new_wallet, switchboard_alpha.address)
+    ready_pending_migration(migrator, user_wallet, new_wallet, sender=switchboard_alpha.address)
+    assert migrator.cloneConfig(user_wallet, new_wallet, sender=switchboard_alpha.address) is True
+
+
+def test_security_signer_cannot_copy_config(
+    migrator, user_wallet, hatchery, bob, charlie, mission_control, switchboard_alpha
+):
+    """Test that security signers can cancel but cannot execute config migration"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+
+    assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, charlie)
 
 
 def test_cannot_copy_config_with_different_owners(migrator, user_wallet, hatchery, bob, alice):
@@ -410,14 +429,17 @@ def test_migration_bundle_data_for_config(migrator, user_wallet, user_wallet_con
 
 
 # Additional test specific to config copy - no trial funds restriction
-def test_config_copy_validation_caller_validation(migrator, hatchery, bob, alice):
-    """Test that caller must be owner of toWallet to initiate config copy"""
+def test_config_copy_validation_caller_validation(migrator, hatchery, bob, alice, switchboard_alpha):
+    """Test that caller must be owner or Switchboard to initiate config copy"""
     # Create two wallets owned by bob
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Bob (owner) can initiate config copy
     assert migrator.canCopyWalletConfig(from_wallet, to_wallet, bob)
+
+    # Switchboard can initiate config copy
+    assert migrator.canCopyWalletConfig(from_wallet, to_wallet, switchboard_alpha.address)
     
     # Alice (not owner) cannot initiate config copy
     assert not migrator.canCopyWalletConfig(from_wallet, to_wallet, alice)

@@ -208,13 +208,38 @@ def test_cannot_migrate_non_underscore_wallets(migrator, user_wallet, bob, alice
 
 
 # Test ownership validation
-def test_cannot_migrate_if_not_owner(migrator, user_wallet, hatchery, bob, alice):
-    """Test that only the owner can initiate migration"""
+def test_cannot_migrate_if_not_owner_or_switchboard(migrator, user_wallet, hatchery, bob, alice):
+    """Test that arbitrary non-owners cannot initiate migration"""
     # Create new wallet owned by bob
     new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Alice (not owner) cannot migrate bob's wallet
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, alice)
+
+
+def test_switchboard_can_initiate_and_migrate_funds(
+    migrator, user_wallet, hatchery, bob, switchboard_alpha, alpha_token, prepareAssetForMigration
+):
+    """Test that Switchboard can execute migration for same-owner wallets"""
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, to_wallet, switchboard_alpha.address)
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=switchboard_alpha.address)
+    assert migrator.migrateFunds(user_wallet, to_wallet, sender=switchboard_alpha.address) == 1
+
+    assert alpha_token.balanceOf(user_wallet) == 0
+    assert alpha_token.balanceOf(to_wallet) == 100 * EIGHTEEN_DECIMALS
+
+
+def test_security_signer_cannot_execute_funds_migration(
+    migrator, user_wallet, hatchery, bob, charlie, mission_control, switchboard_alpha
+):
+    """Test that security signers can cancel but cannot execute migrations"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, charlie)
 
 
 def test_cannot_migrate_with_different_owners(migrator, user_wallet, hatchery, bob, alice):
