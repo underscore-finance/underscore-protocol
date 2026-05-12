@@ -156,6 +156,7 @@ def setInstantMigrationEnabled(_isEnabled: bool) -> bool:
 @external
 def initiateMigration(_fromWallet: address, _toWallet: address) -> bool:
     assert _toWallet != empty(address) # dev: invalid migration
+    assert not self.instantMigrationEnabled # dev: instant migration enabled
     assert (
         self._canMigrateFundsToNewWallet(_fromWallet, _toWallet, msg.sender, False) or
         self._canCopyWalletConfig(_fromWallet, _toWallet, msg.sender, False)

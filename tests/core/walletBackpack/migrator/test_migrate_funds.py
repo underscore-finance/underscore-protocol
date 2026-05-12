@@ -179,6 +179,21 @@ def test_instant_migration_enabled_bypass_and_access_control(
     assert UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration().confirmBlock == 0
 
 
+def test_initiate_migration_blocked_when_instant_enabled(migrator, user_wallet, hatchery, bob, switchboard_alpha):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+
+    assert migrator.setInstantMigrationEnabled(True, sender=switchboard_alpha.address)
+    with boa.reverts("instant migration enabled"):
+        migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+
+    assert wallet_config.pendingMigration().confirmBlock == 0
+
+    assert migrator.setInstantMigrationEnabled(False, sender=switchboard_alpha.address)
+    assert migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    assert wallet_config.pendingMigration().toWallet == to_wallet.address
+
+
 # Test wallet validation failures
 def test_cannot_migrate_non_underscore_wallets(migrator, user_wallet, bob, alice):
     """Test that migration fails if either wallet is not an Underscore wallet"""
