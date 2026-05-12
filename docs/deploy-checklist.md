@@ -41,6 +41,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - Stage and confirm `WalletBackpack.addPendingActionDataProvider(provider)` before enabling wallet creation through Hatchery.
 - WalletBackpack stores the canonical provider address and governance can rotate it for future wallets.
 - Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
+- Action-data reads now cross a read-only provider and make additional staticcalls back into `UserWalletConfig`. Budget extra gas on wallet action paths that call `checkSignerPermissionsAndGetBundle` or `getActionDataBundle`.
 - Post-refactor Boa-measured `UserWalletConfig` blueprint size: `23,498` bytes, leaving `1,078` bytes under the `24,576` byte EIP-170 gate.
 - Treat that buffer as a budget. Any future `UserWalletConfig` PR expected to add more than roughly `100` bytes should include a size check and an extraction plan if the remaining buffer would fall below `500` bytes.
 

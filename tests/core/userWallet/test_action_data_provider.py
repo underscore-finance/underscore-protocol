@@ -203,3 +203,130 @@ def test_user_wallet_config_permission_wrapper_uses_provider(
     assert ad.signer == bob
     assert ad.eth == TOKENS[fork]["ETH"]
     assert ad.weth == weth.address
+
+
+def test_action_data_provider_billing_signer_short_circuits_permission_check(
+    action_data_provider,
+    hatchery,
+    bob,
+    billing,
+    undy_hq_deploy,
+    weth,
+    fork,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+
+    ad = action_data_provider.checkSignerPermissionsAndGetBundle(
+        config.address,
+        billing.address,
+        ACTION_TYPE.TRANSFER,
+        undy_hq_deploy.address,
+        TOKENS[fork]["ETH"],
+        weth.address,
+        ZERO_ADDRESS,
+        [],
+        [],
+        ZERO_ADDRESS,
+    )
+
+    assert ad.wallet == wallet.address
+    assert ad.walletConfig == config.address
+    assert ad.signer == billing.address
+    assert ad.billing == billing.address
+
+
+def test_action_data_provider_clears_whitelisted_recipient_for_manager_permission(
+    action_data_provider,
+    hatchery,
+    bob,
+    alice,
+    sally,
+    charlie,
+    high_command,
+    kernel,
+    sentinel,
+    undy_hq_deploy,
+    weth,
+    fork,
+    createManagerLimits,
+    createLegoPerms,
+    createSwapPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+):
+    with boa.env.anchor():
+        wallet, config = fresh_user_wallet(hatchery, bob)
+        transfer_perms = createTransferPerms(_allowedPayees=[charlie])
+
+        assert high_command.addManager(
+            wallet.address,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            transfer_perms,
+            [],
+            False,
+            0,
+            config.timeLock() * 2,
+            sender=bob,
+        )
+        kernel.addPendingWhitelistAddr(wallet.address, sally, sender=bob)
+        boa.env.time_travel(blocks=config.timeLock())
+        kernel.confirmWhitelistAddr(wallet.address, sally, sender=bob)
+
+        with boa.reverts("no permission"):
+            action_data_provider.checkSignerPermissionsAndGetBundle(
+                config.address,
+                alice,
+                ACTION_TYPE.TRANSFER,
+                undy_hq_deploy.address,
+                TOKENS[fork]["ETH"],
+                weth.address,
+                sentinel.address,
+                [],
+                [],
+                bob,
+            )
+
+        ad = action_data_provider.checkSignerPermissionsAndGetBundle(
+            config.address,
+            alice,
+            ACTION_TYPE.TRANSFER,
+            undy_hq_deploy.address,
+            TOKENS[fork]["ETH"],
+            weth.address,
+            sentinel.address,
+            [],
+            [],
+            sally,
+        )
+
+        assert ad.wallet == wallet.address
+        assert ad.signer == alice
+        assert ad.isManager is True
+
+
+def test_existing_wallet_config_keeps_captured_action_data_provider_after_backpack_rotation(
+    hatchery,
+    bob,
+    wallet_backpack_deploy,
+    governance,
+):
+    with boa.env.anchor():
+        _wallet, config = fresh_user_wallet(hatchery, bob)
+        original = config.getActionDataBundle(0, bob)
+        replacement = boa.load("contracts/mock/MockRando.vy", name="bad_action_data_provider")
+
+        assert wallet_backpack_deploy.addPendingActionDataProvider(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+        assert wallet_backpack_deploy.confirmPendingActionDataProvider(sender=governance.address)
+        assert wallet_backpack_deploy.actionDataProvider() == replacement.address
+
+        after_rotation = config.getActionDataBundle(0, bob)
+        assert _action_data_tuple(after_rotation) == _action_data_tuple(original)
+
+        _new_wallet, new_config = fresh_user_wallet(hatchery, bob)
+        with boa.reverts():
+            new_config.getActionDataBundle(0, bob)
