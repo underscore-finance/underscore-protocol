@@ -69,6 +69,14 @@ class CONFIG_ACTION_TYPE(IntFlag):
     AGENT_WRAPPER_SENDER = 65536  # 2^16
 
 
+# Starter agent selectors for Hatchery wallet creation.
+# These match the Vyper flag enum (powers of 2).
+class STARTER_AGENT_TYPE(IntFlag):
+    PROD = 1  # 2^0
+    STAGING = 2  # 2^1
+    DEV = 4  # 2^2
+
+
 # Backpack types for WalletBackpack
 # These match the Vyper flag enum (powers of 2)
 class BACKPACK_TYPE(IntFlag):

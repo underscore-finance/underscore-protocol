@@ -42,6 +42,10 @@ interface MissionControl:
     def agentConfig() -> cs.AgentConfig: view
     def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
 
+interface Hatchery:
+    def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
+    def setNonProdCreator(_nonProdCreator: address): nonpayable
+
 interface AgentWrapper:
     def removeSender(_sender: address): nonpayable
     def addSender(_sender: address): nonpayable
@@ -266,6 +270,16 @@ event StarterAgentParamsSet:
     startingAgent: address
     startingAgentActivationLength: uint256
 
+event HatcheryStarterAgentConfigSet:
+    hatchery: indexed(address)
+    starterAgentType: cs.StarterAgentType
+    startingAgent: indexed(address)
+    startingAgentActivationLength: uint256
+
+event HatcheryNonProdCreatorSet:
+    hatchery: indexed(address)
+    nonProdCreator: indexed(address)
+
 event PendingManagerConfigChange:
     managerPeriod: uint256
     managerActivationLength: uint256
@@ -385,6 +399,14 @@ def _resolveMissionControl(_missionControl: address) -> address:
         return mc
     assert _missionControl != mc # dev: use empty for current mission control
     return _missionControl
+
+
+@view
+@internal
+def _getHatchery() -> address:
+    hatchery: address = addys._getHatcheryAddr()
+    assert hatchery != empty(address) and hatchery.is_contract # dev: invalid hatchery
+    return hatchery
 
 
 ######################
@@ -953,22 +975,50 @@ def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLengt
     )
 
 
+@external
+def setHatcheryStarterAgentConfig(
+    _starterAgentType: cs.StarterAgentType,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
+) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setStarterAgentConfig(
+        _starterAgentType,
+        _startingAgent,
+        _startingAgentActivationLength,
+    )
+    log HatcheryStarterAgentConfigSet(
+        hatchery=hatchery,
+        starterAgentType=_starterAgentType,
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+    )
+    return True
+
+
+@external
+def setHatcheryNonProdCreator(
+    _nonProdCreator: address,
+) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setNonProdCreator(_nonProdCreator)
+    log HatcheryNonProdCreatorSet(hatchery=hatchery, nonProdCreator=_nonProdCreator)
+    return True
+
+
 @view
 @internal
 def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> bool:
-
-    # If starting agent is set, activation length must be non-zero
     if _startingAgent != empty(address) and _startingAgentActivationLength == 0:
         return False
-
-    # If starting agent is zero address, activation length must be zero
     if _startingAgent == empty(address) and _startingAgentActivationLength != 0:
         return False
-
-    # Activation length cannot be max value
     if _startingAgentActivationLength == max_value(uint256):
         return False
-
     return True
 
 

@@ -1,7 +1,7 @@
 import pytest
 import boa
 from conf_utils import filter_logs
-from constants import ZERO_ADDRESS, CONFIG_ACTION_TYPE, MAX_UINT256
+from constants import CONFIG_ACTION_TYPE, MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
 
 
 @pytest.fixture(scope="module")
@@ -1738,6 +1738,129 @@ def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, miss
     
     final_config = mission_control.agentConfig()
     assert final_config.startingAgentActivationLength == large_length
+
+
+def test_set_hatchery_starter_agent_config_success(switchboard_alpha, governance, hatchery, alice):
+    result = switchboard_alpha.setHatcheryStarterAgentConfig(
+        STARTER_AGENT_TYPE.STAGING,
+        alice,
+        ONE_YEAR_IN_BLOCKS,
+        sender=governance.address,
+    )
+    assert result is True
+
+    config = hatchery.stagingStarterAgentConfig()
+    assert config.startingAgent == alice
+    assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
+
+    logs = filter_logs(switchboard_alpha, "HatcheryStarterAgentConfigSet")
+    assert logs[-1].hatchery == hatchery.address
+    assert logs[-1].starterAgentType == STARTER_AGENT_TYPE.STAGING
+    assert logs[-1].startingAgent == alice
+    assert logs[-1].startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
+
+
+def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_alpha, governance, hatchery, bob):
+    switchboard_alpha.setHatcheryStarterAgentConfig(
+        STARTER_AGENT_TYPE.DEV,
+        bob,
+        ONE_YEAR_IN_BLOCKS,
+        sender=governance.address,
+    )
+    config = hatchery.devStarterAgentConfig()
+    assert config.startingAgent == bob
+    assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
+
+    switchboard_alpha.setHatcheryStarterAgentConfig(
+        STARTER_AGENT_TYPE.DEV,
+        ZERO_ADDRESS,
+        0,
+        sender=governance.address,
+    )
+    config = hatchery.devStarterAgentConfig()
+    assert config.startingAgent == ZERO_ADDRESS
+    assert config.startingAgentActivationLength == 0
+
+
+def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governance, hatchery, alice):
+    with boa.reverts("prod owned by mission control"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.PROD,
+            alice,
+            ONE_YEAR_IN_BLOCKS,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent type"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.PROD | STARTER_AGENT_TYPE.STAGING,
+            alice,
+            ONE_YEAR_IN_BLOCKS,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            alice,
+            0,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            ZERO_ADDRESS,
+            ONE_YEAR_IN_BLOCKS,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            alice,
+            MAX_UINT256,
+            sender=governance.address,
+        )
+
+
+def test_set_hatchery_starter_agent_config_non_governance_reverts(switchboard_alpha, alice, bob):
+    with boa.reverts("no perms"):
+        switchboard_alpha.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            bob,
+            ONE_YEAR_IN_BLOCKS,
+            sender=alice,
+        )
+
+
+def test_set_hatchery_non_prod_creator_success(switchboard_alpha, governance, hatchery, charlie):
+    result = switchboard_alpha.setHatcheryNonProdCreator(charlie, sender=governance.address)
+    assert result is True
+    assert hatchery.nonProdCreator() == charlie
+
+    logs = filter_logs(switchboard_alpha, "HatcheryNonProdCreatorSet")
+    assert logs[-1].hatchery == hatchery.address
+    assert logs[-1].nonProdCreator == charlie
+
+    switchboard_alpha.setHatcheryNonProdCreator(ZERO_ADDRESS, sender=governance.address)
+    assert hatchery.nonProdCreator() == ZERO_ADDRESS
+
+
+def test_set_hatchery_non_prod_creator_validation(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    hatchery,
+    alice,
+    bob,
+):
+    with boa.reverts("no perms"):
+        switchboard_alpha.setHatcheryNonProdCreator(bob, sender=alice)
+
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
+    with boa.reverts("non-prod creator is whitelisted"):
+        switchboard_alpha.setHatcheryNonProdCreator(bob, sender=governance.address)
 
 
 ##################

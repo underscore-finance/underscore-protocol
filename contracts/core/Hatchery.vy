@@ -32,6 +32,7 @@ import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
 from interfaces import WalletConfigStructs as wcs
+import interfaces.ConfigStructs as cs
 
 interface WalletBackpack:
     def highCommand() -> address: view
@@ -98,8 +99,20 @@ event UserWalletCreated:
     creator: address
     groupId: uint256
 
+event StarterAgentConfigSet:
+    starterAgentType: cs.StarterAgentType
+    startingAgent: indexed(address)
+    startingAgentActivationLength: uint256
+
+event NonProdCreatorSet:
+    nonProdCreator: indexed(address)
+
 WETH: public(immutable(address))
 ETH: public(immutable(address))
+
+stagingStarterAgentConfig: public(cs.AgentConfig)
+devStarterAgentConfig: public(cs.AgentConfig)
+nonProdCreator: public(address)
 
 
 @deploy
@@ -121,17 +134,16 @@ def createUserWallet(
     _owner: address = msg.sender,
     _ambassador: address = empty(address),
     _groupId: uint256 = 1,
+    _starterAgentType: uint256 = 1,
 ) -> address:
     assert not deptBasics.isPaused # dev: contract paused
     a: addys.Addys = addys._getAddys()
     assert empty(address) not in [a.hq, a.ledger, a.missionControl, a.walletBackpack] # dev: invalid setup
 
     config: UserWalletCreationConfig = staticcall MissionControl(a.missionControl).getUserWalletCreationConfig(msg.sender)
-    assert config.startingAgent != _owner # dev: starting agent cannot be the owner
+    starterAgentType: cs.StarterAgentType = convert(_starterAgentType, cs.StarterAgentType)
 
     # validation
-    if not addys._isSwitchboardAddr(msg.sender):
-        assert config.isCreatorAllowed # dev: creator not allowed
     assert empty(address) not in [config.walletTemplate, config.configTemplate, _owner] # dev: invalid setup
     assert config.minKeyActionTimeLock != 0 and config.minKeyActionTimeLock < config.maxKeyActionTimeLock # dev: invalid setup
     if config.numUserWalletsAllowed != 0:
@@ -151,7 +163,20 @@ def createUserWallet(
     migrator: address = staticcall WalletBackpack(a.walletBackpack).migrator()
     assert empty(address) not in [kernel, sentinel, highCommand, paymaster, chequeBook, migrator, WETH, ETH] # dev: invalid setup
     assert WETH.is_contract # dev: invalid setup
-    assert staticcall HighCommand(highCommand).isValidUserWalletManagerDefaults(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, config.startingAgent, config.startingAgentActivationLength, _owner) # dev: invalid setup
+
+    assert self._isValidStarterAgentType(starterAgentType) # dev: invalid starter agent type
+    isProdStarterAgentType: bool = starterAgentType == cs.StarterAgentType.PROD
+    if isProdStarterAgentType:
+        assert msg.sender != self.nonProdCreator # dev: non-prod creator cannot create prod
+    else:
+        assert msg.sender == self.nonProdCreator # dev: no perms
+        assert not staticcall MissionControl(a.missionControl).creatorWhitelist(msg.sender) # dev: non-prod creator is whitelisted
+    if isProdStarterAgentType and not addys._isSwitchboardAddr(msg.sender):
+        assert config.isCreatorAllowed # dev: creator not allowed
+
+    starterConfig: cs.AgentConfig = self._resolveStarterAgentConfig(config, starterAgentType)
+    assert starterConfig.startingAgent != _owner # dev: starting agent cannot be the owner
+    assert staticcall HighCommand(highCommand).isValidUserWalletManagerDefaults(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, starterConfig.startingAgent, starterConfig.startingAgentActivationLength, _owner) # dev: invalid setup
     assert staticcall Paymaster(paymaster).isValidUserWalletPayeeDefaults(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength) # dev: invalid setup
     assert staticcall ChequeBook(chequeBook).isValidUserWalletChequeDefaults(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks, config.minKeyActionTimeLock) # dev: invalid setup
 
@@ -161,8 +186,8 @@ def createUserWallet(
     chequeSettings: wcs.ChequeSettings = staticcall ChequeBook(chequeBook).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
 
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    if config.startingAgent != empty(address):
-        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(config.startingAgentActivationLength)
+    if starterConfig.startingAgent != empty(address):
+        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(starterConfig.startingAgentActivationLength)
 
     # create wallet contracts
     walletConfigAddr: address = create_from_blueprint(
@@ -173,7 +198,7 @@ def createUserWallet(
         globalManagerSettings,
         globalPayeeSettings,
         chequeSettings,
-        config.startingAgent,
+        starterConfig.startingAgent,
         starterAgentSettings,
         kernel,
         sentinel,
@@ -197,12 +222,107 @@ def createUserWallet(
         mainAddr=mainWalletAddr,
         configAddr=walletConfigAddr,
         owner=_owner,
-        agent=config.startingAgent,
+        agent=starterConfig.startingAgent,
         ambassador=ambassador,
         creator=msg.sender,
         groupId=_groupId,
     )
     return mainWalletAddr
+
+
+@view
+@internal
+def _resolveStarterAgentConfig(
+    _config: UserWalletCreationConfig,
+    _starterAgentType: cs.StarterAgentType,
+) -> cs.AgentConfig:
+    assert self._isValidStarterAgentType(_starterAgentType) # dev: invalid starter agent type
+
+    starterConfig: cs.AgentConfig = empty(cs.AgentConfig)
+    if _starterAgentType == cs.StarterAgentType.PROD:
+        starterConfig = cs.AgentConfig(
+            startingAgent=_config.startingAgent,
+            startingAgentActivationLength=_config.startingAgentActivationLength,
+        )
+    elif _starterAgentType == cs.StarterAgentType.STAGING:
+        starterConfig = self.stagingStarterAgentConfig
+    else:
+        starterConfig = self.devStarterAgentConfig
+
+    if _starterAgentType != cs.StarterAgentType.PROD:
+        assert starterConfig.startingAgent != empty(address) # dev: starter agent not set
+
+    return starterConfig
+
+
+#########################
+# Starter Agent Configs #
+#########################
+
+
+@external
+def setStarterAgentConfig(
+    _starterAgentType: cs.StarterAgentType,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
+):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
+    # Any registered Switchboard may call this intentionally; today only Alpha exposes a wrapper.
+    assert self._isValidStarterAgentType(_starterAgentType) # dev: invalid starter agent type
+    assert _starterAgentType != cs.StarterAgentType.PROD # dev: prod owned by mission control
+    assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params
+
+    config: cs.AgentConfig = cs.AgentConfig(
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+    )
+    if _starterAgentType == cs.StarterAgentType.STAGING:
+        self.stagingStarterAgentConfig = config
+    else:
+        self.devStarterAgentConfig = config
+
+    log StarterAgentConfigSet(
+        starterAgentType=_starterAgentType,
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+    )
+
+
+@external
+def setNonProdCreator(_nonProdCreator: address):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    assert not deptBasics.isPaused # dev: not activated
+    # Any registered Switchboard may call this intentionally; today only Alpha exposes a wrapper.
+    if _nonProdCreator != empty(address):
+        missionControl: address = addys._getMissionControlAddr()
+        assert missionControl != empty(address) # dev: invalid setup
+        assert not staticcall MissionControl(missionControl).creatorWhitelist(_nonProdCreator) # dev: non-prod creator is whitelisted
+
+    self.nonProdCreator = _nonProdCreator
+    log NonProdCreatorSet(nonProdCreator=_nonProdCreator)
+
+
+@view
+@internal
+def _isValidStarterAgentType(_starterAgentType: cs.StarterAgentType) -> bool:
+    return (
+        _starterAgentType == cs.StarterAgentType.PROD or
+        _starterAgentType == cs.StarterAgentType.STAGING or
+        _starterAgentType == cs.StarterAgentType.DEV
+    )
+
+
+@view
+@internal
+def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> bool:
+    if _agent != empty(address) and _activationLength == 0:
+        return False
+    if _agent == empty(address) and _activationLength != 0:
+        return False
+    if _activationLength == max_value(uint256):
+        return False
+    return True
 
 
 # trial funds (legacy wallets)

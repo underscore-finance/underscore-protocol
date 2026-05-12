@@ -42,6 +42,40 @@
     "type": "event"
   },
   {
+    "name": "StarterAgentConfigSet",
+    "inputs": [
+      {
+        "name": "starterAgentType",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "NonProdCreatorSet",
+    "inputs": [
+      {
+        "name": "nonProdCreator",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "DepartmentPauseModified",
     "inputs": [
       {
@@ -293,6 +327,67 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_ambassador",
+        "type": "address"
+      },
+      {
+        "name": "_groupId",
+        "type": "uint256"
+      },
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setStarterAgentConfig",
+    "inputs": [
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setNonProdCreator",
+    "inputs": [
+      {
+        "name": "_nonProdCreator",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "doesWalletStillHaveTrialFundsWithAddys",
@@ -345,6 +440,62 @@
     "stateMutability": "view",
     "type": "function",
     "name": "ETH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "stagingStarterAgentConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "devStarterAgentConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "nonProdCreator",
     "inputs": [],
     "outputs": [
       {

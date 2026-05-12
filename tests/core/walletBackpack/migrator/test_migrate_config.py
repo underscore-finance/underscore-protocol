@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs, set_live_cheque_settings
 
@@ -997,6 +997,71 @@ def test_clone_config_starting_agent_exclusion(migrator, hatchery, bob, alice, c
     # Check event shows only non-starting-agent managers were copied
     event = filter_logs(migrator, "ConfigCloned")[0]
     assert event.numManagersCopied == 2  # alice and charlie, not starting agent
+
+
+def test_clone_config_staging_source_to_staging_destination(
+    migrator,
+    hatchery,
+    switchboard_alpha,
+    bob,
+    alice,
+    charlie,
+):
+    hatchery.setStarterAgentConfig(
+        STARTER_AGENT_TYPE.STAGING,
+        alice,
+        ONE_MONTH_IN_BLOCKS,
+        sender=switchboard_alpha.address,
+    )
+    hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
+
+    from_wallet = UserWallet.at(
+        hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+    )
+    to_wallet = UserWallet.at(
+        hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+    )
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    assert to_config.startingAgent() == alice
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
+    assert to_config.startingAgent() == alice
+    assert to_config.managers(1) == alice
+
+
+def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
+    migrator,
+    hatchery,
+    switchboard_alpha,
+    bob,
+    alice,
+    charlie,
+    starter_agent,
+):
+    assert alice != starter_agent.address
+    hatchery.setStarterAgentConfig(
+        STARTER_AGENT_TYPE.STAGING,
+        alice,
+        ONE_MONTH_IN_BLOCKS,
+        sender=switchboard_alpha.address,
+    )
+    hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
+
+    from_wallet = UserWallet.at(
+        hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+    )
+    to_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+
+    assert from_config.startingAgent() == alice
+    assert to_config.startingAgent() == starter_agent.address
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
+    assert to_config.startingAgent() == starter_agent.address
+    assert to_config.indexOfManager(alice) == 0
 
 
 ############################

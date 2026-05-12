@@ -802,6 +802,50 @@
     "type": "event"
   },
   {
+    "name": "HatcheryStarterAgentConfigSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "starterAgentType",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "HatcheryNonProdCreatorSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "nonProdCreator",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "PendingManagerConfigChange",
     "inputs": [
       {
@@ -2589,6 +2633,48 @@
       {
         "name": "",
         "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setHatcheryStarterAgentConfig",
+    "inputs": [
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setHatcheryNonProdCreator",
+    "inputs": [
+      {
+        "name": "_nonProdCreator",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },
