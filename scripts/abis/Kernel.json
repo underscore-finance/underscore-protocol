@@ -287,10 +287,6 @@
             "type": "tuple",
             "components": [
               {
-                "name": "canAddPending",
-                "type": "bool"
-              },
-              {
                 "name": "canConfirm",
                 "type": "bool"
               },
@@ -308,10 +304,6 @@
             "name": "globalWhitelistPerms",
             "type": "tuple",
             "components": [
-              {
-                "name": "canAddPending",
-                "type": "bool"
-              },
               {
                 "name": "canConfirm",
                 "type": "bool"

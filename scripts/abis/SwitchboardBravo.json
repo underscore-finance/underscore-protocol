@@ -221,6 +221,33 @@
     "type": "event"
   },
   {
+    "name": "PendingEnableInstantMigrationAction",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "PauseExecuted",
     "inputs": [
       {
@@ -409,6 +436,151 @@
       {
         "name": "shouldEject",
         "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletMigrationInitiated",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletInstantMigrationEnabledSet",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletFundsMigrated",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numFundsMigrated",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletConfigCloned",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletMigrated",
+    "inputs": [
+      {
+        "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "fromWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "toWallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "numFundsMigrated",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "didMigrateConfig",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
         "indexed": false
       }
     ],
@@ -1381,6 +1553,131 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setInstantMigrationEnabled",
+    "inputs": [
+      {
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "initiateWalletMigration",
+    "inputs": [
+      {
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "migrateWalletFunds",
+    "inputs": [
+      {
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cloneWalletConfig",
+    "inputs": [
+      {
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "migrateWallet",
+    "inputs": [
+      {
+        "name": "_migrator",
+        "type": "address"
+      },
+      {
+        "name": "_fromWallet",
+        "type": "address"
+      },
+      {
+        "name": "_toWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "executePendingAction",
     "inputs": [
       {
@@ -1633,6 +1930,28 @@
           {
             "name": "shouldEject",
             "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingInstantMigrationEnable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "migrator",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
           }
         ]
       }

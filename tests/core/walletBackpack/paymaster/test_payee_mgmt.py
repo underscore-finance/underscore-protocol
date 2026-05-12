@@ -10,8 +10,7 @@ from conf_utils import filter_logs
 #########################
 
 
-def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob):
-    """Paymaster should ignore canPayOwner input and emit the stored value"""
+def test_set_global_payee_settings_updates_pending_and_live_settings(paymaster, user_wallet, user_wallet_config, createPayeeLimits, bob):
     start_delay = user_wallet_config.timeLock()
     usd_limits = createPayeeLimits(
         _perTxCap=1000 * EIGHTEEN_DECIMALS,
@@ -41,7 +40,6 @@ def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wa
     assert pending.settings.maxNumTxsPerPeriod == 10
     assert pending.settings.txCooldownBlocks == 100
     assert pending.settings.failOnZeroPrice == True
-    assert pending.settings.canPayOwner == False
     assert pending.settings.canPull == True
     assert pending.confirmBlock == boa.env.evm.patch.block_number + user_wallet_config.timeLock()
 
@@ -57,12 +55,10 @@ def test_set_global_payee_settings_forces_can_pay_owner_false(paymaster, user_wa
     assert saved.maxNumTxsPerPeriod == 10
     assert saved.txCooldownBlocks == 100
     assert saved.failOnZeroPrice == True
-    assert saved.canPayOwner == False
     assert saved.canPull == True
 
     event = filter_logs(paymaster, "GlobalPayeeSettingsModified")[-1]
     assert event.user == user_wallet.address
-    assert event.canPayOwner == False
     assert event.canPull == True
 
 

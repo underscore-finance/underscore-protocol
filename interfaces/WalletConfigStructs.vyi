@@ -51,7 +51,6 @@ struct GlobalPayeeSettings:
     txCooldownBlocks: uint256
     failOnZeroPrice: bool
     usdLimits: PayeeLimits
-    canPayOwner: bool
     canPull: bool
 
 struct PendingGlobalPayeeSettings:
@@ -64,12 +63,6 @@ struct PayeeLimits:
     perTxCap: uint256
     perPeriodCap: uint256
     lifetimeCap: uint256
-
-struct PendingPayee:
-    settings: PayeeSettings
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    currentOwner: address
 
 struct PayeeManagementBundle:
     owner: address
@@ -246,7 +239,6 @@ struct SwapPerms:
     maxSlippage: uint256
 
 struct WhitelistPerms:
-    canAddPending: bool
     canConfirm: bool
     canCancel: bool
     canRemove: bool
@@ -254,7 +246,6 @@ struct WhitelistPerms:
 struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingPayee: bool
     allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
 
 struct ManagerConfigBundle:

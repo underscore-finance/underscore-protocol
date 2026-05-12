@@ -417,7 +417,6 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
 
     # 1. copy global manager settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
-    globalManagerSettings.transferPerms.canAddPendingPayee = False
     extcall UserWalletConfig(toConfig).setGlobalManagerSettings(globalManagerSettings)
 
     # get starting agent from source wallet to skip it during copy
@@ -441,13 +440,11 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
             managerSettings: wcs.ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(manager)
             if managerSettings.startBlock != 0:
                 assert self._isValidMigratorConfigAddr(toConfig, manager, True) # dev: manager collision on clone
-                managerSettings.transferPerms.canAddPendingPayee = False
                 extcall UserWalletConfig(toConfig).addManager(manager, managerSettings)
                 managersCopied += 1
 
     # 3. copy global payee settings
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall UserWalletConfig(fromConfig).globalPayeeSettings()
-    globalPayeeSettings.canPayOwner = False
     extcall UserWalletConfig(toConfig).setGlobalPayeeSettings(globalPayeeSettings)
 
     # 3b. copy cheque settings, but not individual cheques

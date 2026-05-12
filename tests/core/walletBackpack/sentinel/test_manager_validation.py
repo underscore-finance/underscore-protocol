@@ -677,8 +677,7 @@ def test_manager_all_permissions_enabled(createManagerSettings, createLegoPerms,
     )
     transfer_perms = createTransferPerms(
         _canTransfer=True,
-        _canCreateCheque=True,
-        _canAddPendingPayee=True
+        _canCreateCheque=True
     )
     new_manager_settings = createManagerSettings(
         _legoPerms=lego_perms,
@@ -706,8 +705,7 @@ def test_manager_all_permissions_disabled(createManagerSettings, createLegoPerms
     )
     transfer_perms = createTransferPerms(
         _canTransfer=False,
-        _canCreateCheque=False,
-        _canAddPendingPayee=False
+        _canCreateCheque=False
     )
     new_manager_settings = createManagerSettings(
         _legoPerms=lego_perms,

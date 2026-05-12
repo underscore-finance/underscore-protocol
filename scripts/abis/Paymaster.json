@@ -244,11 +244,6 @@
         "indexed": false
       },
       {
-        "name": "canPayOwner",
-        "type": "bool",
-        "indexed": false
-      },
-      {
         "name": "canPull",
         "type": "bool",
         "indexed": false
@@ -1411,10 +1406,6 @@
                 ]
               },
               {
-                "name": "canPayOwner",
-                "type": "bool"
-              },
-              {
                 "name": "canPull",
                 "type": "bool"
               }
@@ -1521,10 +1512,6 @@
                 "type": "uint256"
               }
             ]
-          },
-          {
-            "name": "canPayOwner",
-            "type": "bool"
           },
           {
             "name": "canPull",
@@ -1666,10 +1653,6 @@
                     "type": "uint256"
                   }
                 ]
-              },
-              {
-                "name": "canPayOwner",
-                "type": "bool"
               },
               {
                 "name": "canPull",

@@ -496,12 +496,10 @@ def test_clone_config_with_managers(migrator, hatchery, bob, alice, charlie, hig
         _transferPerms=createTransferPerms(
             _canTransfer=False,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[bob],
         )
     )
     from_config.addManager(alice, manager_settings1, sender=high_command.address)
-    assert from_config.managerSettings(alice).transferPerms.canAddPendingPayee == True
     
     # Move forward more blocks
     boa.env.time_travel(blocks=5)
@@ -510,12 +508,10 @@ def test_clone_config_with_managers(migrator, hatchery, bob, alice, charlie, hig
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=False,
-            _canAddPendingPayee=True,
             _allowedPayees=[alice],
         )
     )
     from_config.addManager(charlie, manager_settings2, sender=high_command.address)
-    assert from_config.managerSettings(charlie).transferPerms.canAddPendingPayee == True
     
     # Create target wallet
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
@@ -539,12 +535,10 @@ def test_clone_config_with_managers(migrator, hatchery, bob, alice, charlie, hig
     assert copied_charlie_settings[0] == manager_settings2[0]  # startBlock
     assert copied_alice_settings.transferPerms.canTransfer == False
     assert copied_alice_settings.transferPerms.canCreateCheque == True
-    assert copied_alice_settings.transferPerms.canAddPendingPayee == False
     assert len(copied_alice_settings.transferPerms.allowedPayees) == 1
     assert copied_alice_settings.transferPerms.allowedPayees[0] == bob
     assert copied_charlie_settings.transferPerms.canTransfer == True
     assert copied_charlie_settings.transferPerms.canCreateCheque == False
-    assert copied_charlie_settings.transferPerms.canAddPendingPayee == False
     assert len(copied_charlie_settings.transferPerms.allowedPayees) == 1
     assert copied_charlie_settings.transferPerms.allowedPayees[0] == alice
     
@@ -798,12 +792,10 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
         _transferPerms=createTransferPerms(
             _canTransfer=False,
             _canCreateCheque=False,
-            _canAddPendingPayee=True,
         ),
         _allowedAssets=[alpha_token.address, bravo_token.address]
     )
     from_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
-    assert from_config.globalManagerSettings().transferPerms.canAddPendingPayee == True
     
     # Create custom global payee settings with unique values
     global_payee_settings = createGlobalPayeeSettings(
@@ -813,10 +805,8 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
         _maxNumTxsPerPeriod=25,    # unique value
         _txCooldownBlocks=10,      # unique value
         _failOnZeroPrice=True,     # different from default
-        _canPayOwner=True          # legacy-enabled source value
     )
     from_config.setGlobalPayeeSettings(global_payee_settings, sender=paymaster.address)
-    assert from_config.globalPayeeSettings().canPayOwner == True
     
     # Create target wallet
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
@@ -835,7 +825,6 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     assert copied_global_manager.canOwnerManage == False
     assert copied_global_manager.transferPerms.canTransfer == False
     assert copied_global_manager.transferPerms.canCreateCheque == False
-    assert copied_global_manager.transferPerms.canAddPendingPayee == False
     assert len(copied_global_manager.allowedAssets) == 2
     assert alpha_token.address in copied_global_manager.allowedAssets
     assert bravo_token.address in copied_global_manager.allowedAssets
@@ -848,7 +837,6 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     assert copied_global_payee.maxNumTxsPerPeriod == 25
     assert copied_global_payee.txCooldownBlocks == 10
     assert copied_global_payee.failOnZeroPrice == True
-    assert copied_global_payee.canPayOwner == False
 
 
 def test_clone_config_copies_time_lock(migrator, hatchery, bob):

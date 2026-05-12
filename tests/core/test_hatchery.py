@@ -61,19 +61,6 @@ def test_create_user_wallet_basic(hatchery, alice):
     # Verify wallet config
     wallet_config = UserWalletConfig.at(wallet.walletConfig())
     assert wallet_config.owner() == alice
-    assert wallet_config.globalPayeeSettings().canPayOwner == False
-
-
-def test_create_user_wallet_disables_pending_payee_manager_perms_by_default(hatchery, setAgentConfig, alice, charlie):
-    """New wallets should not store manager pending-payee creation perms"""
-    setAgentConfig(_startingAgent=charlie)
-
-    wallet_address = hatchery.createUserWallet(sender=alice)
-    wallet = UserWallet.at(wallet_address)
-    wallet_config = UserWalletConfig.at(wallet.walletConfig())
-
-    assert wallet_config.globalManagerSettings().transferPerms.canAddPendingPayee == False
-    assert wallet_config.managerSettings(charlie).transferPerms.canAddPendingPayee == False
 
 
 @pytest.mark.parametrize("field,arg_index", WALLET_BACKPACK_CORE_ADDR_ARGS)

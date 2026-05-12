@@ -97,7 +97,6 @@ event GlobalPayeeSettingsModified:
     maxNumTxsPerPeriod: uint256
     txCooldownBlocks: uint256
     failOnZeroPrice: bool
-    canPayOwner: bool
     canPull: bool
     usdPerTxCap: uint256
     usdPerPeriodCap: uint256
@@ -193,7 +192,6 @@ def setGlobalPayeeSettings(
         txCooldownBlocks = _txCooldownBlocks,
         failOnZeroPrice = _failOnZeroPrice,
         usdLimits = _usdLimits,
-        canPayOwner = False,
         canPull = _canPull,
     )
 
@@ -301,7 +299,6 @@ def _logGlobalPayeeSettingsModified(_userWallet: address, _settings: wcs.GlobalP
         maxNumTxsPerPeriod = _settings.maxNumTxsPerPeriod,
         txCooldownBlocks = _settings.txCooldownBlocks,
         failOnZeroPrice = _settings.failOnZeroPrice,
-        canPayOwner = False,
         canPull = _settings.canPull,
         usdPerTxCap = _settings.usdLimits.perTxCap,
         usdPerPeriodCap = _settings.usdLimits.perPeriodCap,
@@ -1002,6 +999,5 @@ def createDefaultGlobalPayeeSettings(
         txCooldownBlocks = 0,
         failOnZeroPrice = False,
         usdLimits = empty(wcs.PayeeLimits),
-        canPayOwner = False,
         canPull = False,
     )

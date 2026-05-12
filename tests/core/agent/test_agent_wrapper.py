@@ -84,7 +84,6 @@ def _set_agent_transfer_perms(
     transfer_perms = createTransferPerms(
         _canTransfer=_can_transfer,
         _canCreateCheque=_can_create_cheque,
-        _canAddPendingPayee=original_settings.transferPerms.canAddPendingPayee,
         _allowedPayees=list(original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
     )
     updated_settings = createManagerSettings(
@@ -184,11 +183,9 @@ def _set_agent_whitelist_perms(
     _can_confirm,
     _can_cancel,
     _can_remove,
-    _can_add_pending=False,
 ):
     original_settings = user_wallet_config.managerSettings(starter_agent.address)
     whitelist_perms = createWhitelistPerms(
-        _canAddPending=_can_add_pending,
         _canConfirm=_can_confirm,
         _canCancel=_can_cancel,
         _canRemove=_can_remove,
@@ -2170,7 +2167,6 @@ def test_agent_whitelist_permission_matrix_and_security_fallback(
     assert not hasattr(starter_agent_sender, "addPendingWhitelistAddr")
 
     global_whitelist_perms = createWhitelistPerms(
-        _canAddPending=True,
         _canConfirm=True,
         _canCancel=True,
         _canRemove=True,
@@ -2234,7 +2230,6 @@ def test_agent_whitelist_permission_matrix_and_security_fallback(
         _can_remove=True,
     )
     restricted_global_perms = createWhitelistPerms(
-        _canAddPending=True,
         _canConfirm=False,
         _canCancel=False,
         _canRemove=False,

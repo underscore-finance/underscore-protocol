@@ -1933,7 +1933,6 @@ def test_createCheque_manager_respects_global_manager_canCreateCheque(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=False,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
     )
@@ -1943,7 +1942,6 @@ def test_createCheque_manager_respects_global_manager_canCreateCheque(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
     )
@@ -1995,7 +1993,6 @@ def test_createCheque_manager_respects_manager_allowed_assets(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[bravo_token.address],
@@ -2048,7 +2045,6 @@ def test_createCheque_manager_respects_global_manager_allowed_assets(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[bravo_token.address],
@@ -2059,7 +2055,6 @@ def test_createCheque_manager_respects_global_manager_allowed_assets(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
     )
@@ -2111,7 +2106,6 @@ def test_createCheque_manager_succeeds_when_manager_and_global_assets_allow_asse
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[alpha_token.address, bravo_token.address],
@@ -2122,7 +2116,6 @@ def test_createCheque_manager_succeeds_when_manager_and_global_assets_allow_asse
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[alpha_token.address],
@@ -2178,7 +2171,6 @@ def test_createCheque_owner_ignores_manager_asset_allowlists(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[bravo_token.address],
@@ -2189,7 +2181,6 @@ def test_createCheque_owner_ignores_manager_asset_allowlists(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=True,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=[bravo_token.address],

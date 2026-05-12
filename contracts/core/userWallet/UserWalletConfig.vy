@@ -132,7 +132,6 @@ isFrozen: public(bool)
 inEjectMode: public(bool)
 groupId: public(uint256)
 startingAgent: public(address)
-didSetWallet: bool
 
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
@@ -223,11 +222,10 @@ def __init__(
 
 @external
 def setWallet(_wallet: address) -> bool:
-    assert not self.didSetWallet # dev: wallet already set
+    assert self.wallet == empty(address) # dev: wallet already set
     assert _wallet != empty(address) # dev: invalid wallet
     assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID) # dev: no perms
     self.wallet = _wallet
-    self.didSetWallet = True
     return True
 
 

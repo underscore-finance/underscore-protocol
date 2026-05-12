@@ -465,9 +465,7 @@ def test_default_global_manager_settings_has_approval_enabled(high_command):
 
     # Check that onlyApprovedYieldOpps is True when explicitly set to True
     assert default_settings.legoPerms.onlyApprovedYieldOpps == True
-    assert default_settings.whitelistPerms.canAddPending == False
     assert default_settings.whitelistPerms.canRemove == True
-    assert default_settings.transferPerms.canAddPendingPayee == False
 
 
 def test_starter_agent_settings_has_approval_enabled(high_command):
@@ -478,9 +476,7 @@ def test_starter_agent_settings_has_approval_enabled(high_command):
 
     # Check that onlyApprovedYieldOpps is False by default for starter agent
     assert starter_settings.legoPerms.onlyApprovedYieldOpps == False
-    assert starter_settings.whitelistPerms.canAddPending == False
     assert starter_settings.whitelistPerms.canRemove == True
-    assert starter_settings.transferPerms.canAddPendingPayee == False
 
 
 ##########################

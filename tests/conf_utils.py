@@ -409,13 +409,11 @@ def createSwapPerms():
 @pytest.fixture(scope="session")
 def createWhitelistPerms():
     def createWhitelistPerms(
-        _canAddPending = False,
         _canConfirm = True,
         _canCancel = True,
         _canRemove = False,
     ):
         return (
-            _canAddPending,
             _canConfirm,
             _canCancel,
             _canRemove,
@@ -428,13 +426,11 @@ def createTransferPerms():
     def createTransferPerms(
         _canTransfer = True,
         _canCreateCheque = True,
-        _canAddPendingPayee = False,
         _allowedPayees = [],
     ):
         return (
             _canTransfer,
             _canCreateCheque,
-            _canAddPendingPayee,
             _allowedPayees,
         )
     yield createTransferPerms
@@ -458,7 +454,6 @@ def createGlobalPayeeSettings(createPayeeLimits):
         _txCooldownBlocks = 0, # no cooldown by default
         _failOnZeroPrice = False, # accept zero-priced transactions by default
         _usdLimits = None,
-        _canPayOwner = False, # owner-pay bypass disabled by default
         _canPull = True, # allow payments to payees by default
     ):
         if _usdLimits is None:
@@ -472,7 +467,6 @@ def createGlobalPayeeSettings(createPayeeLimits):
             _txCooldownBlocks,
             _failOnZeroPrice,
             _usdLimits,
-            _canPayOwner,
             _canPull,
         )
     yield createGlobalPayeeSettings

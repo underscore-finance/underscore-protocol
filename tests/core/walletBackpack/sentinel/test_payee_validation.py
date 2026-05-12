@@ -7,7 +7,7 @@ from constants import ZERO_ADDRESS
 def test_payee_example_test(createGlobalPayeeSettings, charlie, alpha_token, bravo_token, bob, createPayeeLimits, createPayeeSettings, sentinel, user_wallet, user_wallet_config, alice, paymaster):
 
     # set global payee settings
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=False)
+    new_global_payee_settings = createGlobalPayeeSettings()
     user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
 
     # add payee
@@ -53,18 +53,8 @@ def test_non_whitelisted_non_payee_invalid(alpha_token, sentinel, user_wallet, s
 # owner tests
 
 
-def test_owner_payment_with_canPayOwner_true(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
-    # set global payee settings with canPayOwner=True
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=True)
-    user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
-    
-    # owner (bob) should still not be a valid payee
-    assert not sentinel.isValidPayee(user_wallet, bob, alpha_token, 100, 100)
-
-
-def test_owner_payment_with_canPayOwner_false(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
-    # set global payee settings with canPayOwner=False
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=False)
+def test_owner_payment_invalid(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
+    new_global_payee_settings = createGlobalPayeeSettings()
     user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
     
     # owner (bob) should not be valid payee

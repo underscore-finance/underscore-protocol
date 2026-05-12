@@ -88,11 +88,6 @@
         "indexed": false
       },
       {
-        "name": "canAddPendingWhitelist",
-        "type": "bool",
-        "indexed": false
-      },
-      {
         "name": "canConfirmWhitelist",
         "type": "bool",
         "indexed": false
@@ -114,11 +109,6 @@
       },
       {
         "name": "canCreateCheque",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "canAddPendingPayee",
         "type": "bool",
         "indexed": false
       },
@@ -220,11 +210,6 @@
         "indexed": false
       },
       {
-        "name": "canAddPendingWhitelist",
-        "type": "bool",
-        "indexed": false
-      },
-      {
         "name": "canConfirmWhitelist",
         "type": "bool",
         "indexed": false
@@ -246,11 +231,6 @@
       },
       {
         "name": "canCreateCheque",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "canAddPendingPayee",
         "type": "bool",
         "indexed": false
       },
@@ -434,10 +414,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -461,10 +437,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -589,10 +561,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -616,10 +584,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -748,10 +712,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -775,10 +735,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -911,10 +867,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -938,10 +890,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -1170,10 +1118,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -1197,10 +1141,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -1329,10 +1269,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -1356,10 +1292,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -1484,10 +1416,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -1511,10 +1439,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -1651,10 +1575,6 @@
         "type": "tuple",
         "components": [
           {
-            "name": "canAddPending",
-            "type": "bool"
-          },
-          {
             "name": "canConfirm",
             "type": "bool"
           },
@@ -1678,10 +1598,6 @@
           },
           {
             "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "canAddPendingPayee",
             "type": "bool"
           },
           {
@@ -1893,10 +1809,6 @@
             "type": "tuple",
             "components": [
               {
-                "name": "canAddPending",
-                "type": "bool"
-              },
-              {
                 "name": "canConfirm",
                 "type": "bool"
               },
@@ -1920,10 +1832,6 @@
               },
               {
                 "name": "canCreateCheque",
-                "type": "bool"
-              },
-              {
-                "name": "canAddPendingPayee",
                 "type": "bool"
               },
               {
@@ -2050,10 +1958,6 @@
             "type": "tuple",
             "components": [
               {
-                "name": "canAddPending",
-                "type": "bool"
-              },
-              {
                 "name": "canConfirm",
                 "type": "bool"
               },
@@ -2077,10 +1981,6 @@
               },
               {
                 "name": "canCreateCheque",
-                "type": "bool"
-              },
-              {
-                "name": "canAddPendingPayee",
                 "type": "bool"
               },
               {
@@ -2255,10 +2155,6 @@
                 "type": "tuple",
                 "components": [
                   {
-                    "name": "canAddPending",
-                    "type": "bool"
-                  },
-                  {
                     "name": "canConfirm",
                     "type": "bool"
                   },
@@ -2282,10 +2178,6 @@
                   },
                   {
                     "name": "canCreateCheque",
-                    "type": "bool"
-                  },
-                  {
-                    "name": "canAddPendingPayee",
                     "type": "bool"
                   },
                   {

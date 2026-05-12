@@ -127,18 +127,6 @@
     "type": "fallback"
   },
   {
-    "stateMutability": "pure",
-    "type": "function",
-    "name": "apiVersion",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "string"
-      }
-    ]
-  },
-  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "transferFunds",

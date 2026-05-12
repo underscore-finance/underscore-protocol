@@ -100,7 +100,6 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 MAX_PROOFS: constant(uint256) = 25
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UE721"
-API_VERSION: constant(String[28]) = "0.1.0"
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
@@ -131,12 +130,6 @@ def onERC721Received(_operator: address, _owner: address, _tokenId: uint256, _da
 @external
 def __default__():
     pass
-
-
-@pure
-@external
-def apiVersion() -> String[28]:
-    return API_VERSION
 
 
 ##################
