@@ -1911,7 +1911,7 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "canInstantAddPayee",
+    "name": "canInstantSetGlobalPayeeSettings",
     "inputs": [],
     "outputs": [
       {
@@ -1923,7 +1923,7 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "canInstantSetGlobalPayeeSettings",
+    "name": "canInstantAddPayee",
     "inputs": [],
     "outputs": [
       {

@@ -1,0 +1,256 @@
+[
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getActionDataBundle",
+    "inputs": [
+      {
+        "name": "_walletConfig",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_eth",
+        "type": "address"
+      },
+      {
+        "name": "_weth",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          },
+          {
+            "name": "wallet",
+            "type": "address"
+          },
+          {
+            "name": "walletConfig",
+            "type": "address"
+          },
+          {
+            "name": "walletOwner",
+            "type": "address"
+          },
+          {
+            "name": "inEjectMode",
+            "type": "bool"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "lastTotalUsdValue",
+            "type": "uint256"
+          },
+          {
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "name": "isManager",
+            "type": "bool"
+          },
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "legoAddr",
+            "type": "address"
+          },
+          {
+            "name": "eth",
+            "type": "address"
+          },
+          {
+            "name": "weth",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "checkSignerPermissionsAndGetBundle",
+    "inputs": [
+      {
+        "name": "_walletConfig",
+        "type": "address"
+      },
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_action",
+        "type": "uint256"
+      },
+      {
+        "name": "_undyHq",
+        "type": "address"
+      },
+      {
+        "name": "_eth",
+        "type": "address"
+      },
+      {
+        "name": "_weth",
+        "type": "address"
+      },
+      {
+        "name": "_sentinel",
+        "type": "address"
+      },
+      {
+        "name": "_assets",
+        "type": "address[]"
+      },
+      {
+        "name": "_legoIds",
+        "type": "uint256[]"
+      },
+      {
+        "name": "_transferRecipient",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "hatchery",
+            "type": "address"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          },
+          {
+            "name": "billing",
+            "type": "address"
+          },
+          {
+            "name": "vaultRegistry",
+            "type": "address"
+          },
+          {
+            "name": "wallet",
+            "type": "address"
+          },
+          {
+            "name": "walletConfig",
+            "type": "address"
+          },
+          {
+            "name": "walletOwner",
+            "type": "address"
+          },
+          {
+            "name": "inEjectMode",
+            "type": "bool"
+          },
+          {
+            "name": "isFrozen",
+            "type": "bool"
+          },
+          {
+            "name": "lastTotalUsdValue",
+            "type": "uint256"
+          },
+          {
+            "name": "signer",
+            "type": "address"
+          },
+          {
+            "name": "isManager",
+            "type": "bool"
+          },
+          {
+            "name": "legoId",
+            "type": "uint256"
+          },
+          {
+            "name": "legoAddr",
+            "type": "address"
+          },
+          {
+            "name": "eth",
+            "type": "address"
+          },
+          {
+            "name": "weth",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  }
+]

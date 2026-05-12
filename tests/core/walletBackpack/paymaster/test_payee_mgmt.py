@@ -47,14 +47,14 @@ def _restrictive_global_payee_settings(config, createPayeeLimits):
 
 
 def _widened_global_payee_settings(config, createPayeeLimits):
-    # Lower cooldown plus higher limits both widen the current global policy.
+    # Lower cooldown, higher limits, canPull, and longer activation all widen the current policy.
     return (
         ONE_DAY_IN_BLOCKS,
         config.timeLock(),
         2 * ONE_DAY_IN_BLOCKS,
         10,
         50,
-        False,
+        True,
         createPayeeLimits(
             _perTxCap=200 * EIGHTEEN_DECIMALS,
             _perPeriodCap=2000 * EIGHTEEN_DECIMALS,
@@ -62,6 +62,16 @@ def _widened_global_payee_settings(config, createPayeeLimits):
         ),
         True,
     )
+
+
+def _set_live_global_payee_settings(paymaster, wallet, config, settings, sender):
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *settings, sender=sender)
+    pending = paymaster.pendingGlobalPayeeSettings(wallet.address)
+    if pending.confirmBlock != 0:
+        blocks = pending.confirmBlock - boa.env.evm.patch.block_number
+        if blocks > 0:
+            boa.env.time_travel(blocks=blocks)
+        assert paymaster.confirmPendingGlobalPayeeSettings(wallet.address, sender=sender)
 
 
 def test_paymaster_abi_selector_counts():
@@ -151,7 +161,7 @@ def test_widening_global_payee_settings_without_instant_creates_pending(
 ):
     wallet, config = fresh_user_wallet(hatchery, bob)
     baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
-    assert paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_live_global_payee_settings(paymaster, wallet, config, baseline, bob)
 
     widened = _widened_global_payee_settings(config, createPayeeLimits)
     assert paymaster.setGlobalPayeeSettings(wallet.address, *widened, False, sender=bob)
@@ -167,7 +177,7 @@ def test_widening_global_payee_settings_with_all_gates_applies_immediately(
 ):
     wallet, config = fresh_user_wallet(hatchery, bob)
     baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
-    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_live_global_payee_settings(paymaster, wallet, config, baseline, bob)
     _set_protocol_flag(
         paymaster,
         switchboard_bravo,
@@ -191,7 +201,7 @@ def test_existing_pending_global_payee_settings_cancelled_when_instant_apply_suc
 ):
     wallet, config = fresh_user_wallet(hatchery, bob)
     baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
-    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_live_global_payee_settings(paymaster, wallet, config, baseline, bob)
     widened = _widened_global_payee_settings(config, createPayeeLimits)
     paymaster.setGlobalPayeeSettings(wallet.address, *widened, sender=bob)
     pending = paymaster.pendingGlobalPayeeSettings(wallet.address)
@@ -226,7 +236,7 @@ def test_should_apply_instantly_on_non_widening_global_payee_settings_ignores_ga
         False,
     )
     baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
-    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_live_global_payee_settings(paymaster, wallet, config, baseline, bob)
     tighter = list(baseline)
     tighter[4] = 200
 
@@ -241,7 +251,7 @@ def test_instant_global_payee_settings_requested_but_unavailable_reverts(
 ):
     wallet, config = fresh_user_wallet(hatchery, bob)
     baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
-    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_live_global_payee_settings(paymaster, wallet, config, baseline, bob)
     _set_protocol_flag(
         paymaster,
         switchboard_bravo,

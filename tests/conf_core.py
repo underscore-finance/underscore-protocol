@@ -390,7 +390,7 @@ def wallet_backpack_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paymaster, cheque_book, migrator, governance):
+def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paymaster, cheque_book, migrator, action_data_provider, governance):
 
     # set kernel
     wallet_backpack_deploy.addPendingKernel(kernel, sender=governance.address)
@@ -421,6 +421,11 @@ def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paym
     wallet_backpack_deploy.addPendingMigrator(migrator, sender=governance.address)
     boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
     wallet_backpack_deploy.confirmPendingMigrator(sender=governance.address)
+
+    # set action data provider
+    wallet_backpack_deploy.addPendingActionDataProvider(action_data_provider, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingActionDataProvider(sender=governance.address)
 
     # set action time lock
     wallet_backpack_deploy.setActionTimeLockAfterSetup(sender=governance.address)
@@ -511,6 +516,17 @@ def sentinel():
     return boa.load(
         "contracts/core/walletBackpack/Sentinel.vy",
         name="sentinel",
+    )
+
+
+# action data provider
+
+
+@pytest.fixture(scope="session")
+def action_data_provider():
+    return boa.load(
+        "contracts/core/userWallet/ActionDataProvider.vy",
+        name="action_data_provider",
     )
 
 

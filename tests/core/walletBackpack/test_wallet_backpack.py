@@ -40,6 +40,11 @@ def mock_migrator():
     return boa.load("contracts/mock/MockRando.vy", name="mock_migrator")
 
 
+@pytest.fixture(scope="session")
+def mock_action_data_provider():
+    return boa.load("contracts/mock/MockRando.vy", name="mock_action_data_provider")
+
+
 def test_mock_sentinel_whitelisted_payee_return_flags(
     mock_sentinel,
     createPayeeSettings,
@@ -195,6 +200,23 @@ def test_add_pending_migrator(wallet_backpack, governance, mock_migrator):
     assert logs[0].addedBy == governance.address
 
 
+def test_add_pending_action_data_provider(wallet_backpack, governance, mock_action_data_provider):
+    result = wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
+    logs = filter_logs(wallet_backpack, "PendingBackpackItemAdded")
+    assert result == True
+
+    pending_data = wallet_backpack.pendingUpdates(BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER)
+    assert pending_data.actionId > 0
+    assert pending_data.addr == mock_action_data_provider.address
+
+    assert len(logs) == 1
+    assert logs[0].actionId == pending_data.actionId
+    assert logs[0].addr == mock_action_data_provider.address
+    assert logs[0].backpackType == BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER
+    assert logs[0].confirmationBlock > 0
+    assert logs[0].addedBy == governance.address
+
+
 def test_add_pending_duplicate_reverts(wallet_backpack, governance, mock_sentinel):
     # Add pending sentinel
     wallet_backpack.addPendingSentinel(mock_sentinel.address, sender=governance.address)
@@ -223,6 +245,9 @@ def test_add_pending_zero_address_reverts(wallet_backpack, governance):
     
     with boa.reverts("invalid item"):
         wallet_backpack.addPendingMigrator(ZERO_ADDRESS, sender=governance.address)
+
+    with boa.reverts("invalid item"):
+        wallet_backpack.addPendingActionDataProvider(ZERO_ADDRESS, sender=governance.address)
 
 
 def test_add_pending_non_governance_reverts(wallet_backpack, alice, mock_sentinel):
@@ -450,6 +475,30 @@ def test_confirm_migrator_success(wallet_backpack, governance, mock_migrator, le
     assert ledger.isRegisteredBackpackItem(mock_migrator.address) == True
 
 
+def test_confirm_action_data_provider_success(wallet_backpack, governance, mock_action_data_provider, ledger):
+    wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
+
+    pending_data = wallet_backpack.pendingUpdates(BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER)
+    assert pending_data.addr == mock_action_data_provider.address
+    assert pending_data.actionId > 0
+    stored_action_id = pending_data.actionId
+
+    boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+
+    result = wallet_backpack.confirmPendingActionDataProvider(sender=governance.address)
+    confirm_logs = filter_logs(wallet_backpack, "BackpackItemConfirmed")
+
+    assert result == True
+    assert wallet_backpack.actionDataProvider() == mock_action_data_provider.address
+    assert wallet_backpack.pendingUpdates(BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER).actionId == 0
+    assert len(confirm_logs) == 1
+    assert confirm_logs[0].backpackType == BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER
+    assert confirm_logs[0].addr == mock_action_data_provider.address
+    assert confirm_logs[0].actionId == stored_action_id
+    assert confirm_logs[0].confirmedBy == governance.address
+    assert ledger.isRegisteredBackpackItem(mock_action_data_provider.address) == True
+
+
 def test_confirm_before_timelock_reverts(wallet_backpack, governance, mock_sentinel):
     # Add pending sentinel
     wallet_backpack.addPendingSentinel(mock_sentinel.address, sender=governance.address)
@@ -569,6 +618,25 @@ def test_cancel_pending_cheque_book_success(wallet_backpack, governance, mock_ch
     assert cancel_logs[0].cancelledBy == governance.address
 
 
+def test_cancel_pending_action_data_provider_success(wallet_backpack, governance, mock_action_data_provider):
+    wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
+
+    pending_data = wallet_backpack.pendingUpdates(BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER)
+    stored_action_id = pending_data.actionId
+
+    result = wallet_backpack.cancelPendingActionDataProvider(sender=governance.address)
+    cancel_logs = filter_logs(wallet_backpack, "PendingBackpackItemCancelled")
+    assert result == True
+
+    pending_data = wallet_backpack.pendingUpdates(BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER)
+    assert pending_data.actionId == 0
+    assert len(cancel_logs) == 1
+    assert cancel_logs[0].backpackType == BACKPACK_TYPE.WALLET_ACTION_DATA_PROVIDER
+    assert cancel_logs[0].addr == mock_action_data_provider.address
+    assert cancel_logs[0].actionId == stored_action_id
+    assert cancel_logs[0].cancelledBy == governance.address
+
+
 def test_cancel_non_existing_reverts(wallet_backpack, governance):
     # Try to cancel non-existing pending action
     with boa.reverts("cannot cancel action"):
@@ -661,12 +729,21 @@ def test_validate_duplicate_migrator(wallet_backpack, governance, mock_migrator)
         wallet_backpack.addPendingMigrator(mock_migrator.address, sender=governance.address)
 
 
+def test_validate_duplicate_action_data_provider(wallet_backpack, governance, mock_action_data_provider):
+    wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+    wallet_backpack.confirmPendingActionDataProvider(sender=governance.address)
+
+    with boa.reverts("invalid item"):
+        wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
+
+
 #####################
 # Integration Tests #
 #####################
 
 
-def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sentinel, mock_high_command, mock_paymaster, mock_cheque_book, mock_migrator, ledger):
+def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sentinel, mock_high_command, mock_paymaster, mock_cheque_book, mock_migrator, mock_action_data_provider, ledger):
     # Add all pending items
     wallet_backpack.addPendingKernel(mock_kernel.address, sender=governance.address)
     wallet_backpack.addPendingSentinel(mock_sentinel.address, sender=governance.address)
@@ -674,6 +751,7 @@ def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sent
     wallet_backpack.addPendingPaymaster(mock_paymaster.address, sender=governance.address)
     wallet_backpack.addPendingChequeBook(mock_cheque_book.address, sender=governance.address)
     wallet_backpack.addPendingMigrator(mock_migrator.address, sender=governance.address)
+    wallet_backpack.addPendingActionDataProvider(mock_action_data_provider.address, sender=governance.address)
     
     # Travel past time lock (all items have same timelock)
     boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
@@ -685,6 +763,7 @@ def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sent
     wallet_backpack.confirmPendingPaymaster(sender=governance.address)
     wallet_backpack.confirmPendingChequeBook(sender=governance.address)
     wallet_backpack.confirmPendingMigrator(sender=governance.address)
+    wallet_backpack.confirmPendingActionDataProvider(sender=governance.address)
     
     # Verify all are set
     assert wallet_backpack.kernel() == mock_kernel.address
@@ -693,6 +772,7 @@ def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sent
     assert wallet_backpack.paymaster() == mock_paymaster.address
     assert wallet_backpack.chequeBook() == mock_cheque_book.address
     assert wallet_backpack.migrator() == mock_migrator.address
+    assert wallet_backpack.actionDataProvider() == mock_action_data_provider.address
     
     # Verify all are registered in Ledger
     assert ledger.isRegisteredBackpackItem(mock_kernel.address)
@@ -701,6 +781,7 @@ def test_full_backpack_setup(wallet_backpack, governance, mock_kernel, mock_sent
     assert ledger.isRegisteredBackpackItem(mock_paymaster.address)
     assert ledger.isRegisteredBackpackItem(mock_cheque_book.address)
     assert ledger.isRegisteredBackpackItem(mock_migrator.address)
+    assert ledger.isRegisteredBackpackItem(mock_action_data_provider.address)
 
 
 def test_update_existing_item(wallet_backpack, governance, mock_sentinel, mock_sentinel_v2, ledger):

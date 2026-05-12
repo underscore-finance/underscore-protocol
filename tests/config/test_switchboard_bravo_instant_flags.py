@@ -84,9 +84,10 @@ def test_governance_can_stage_protocol_instant_flag_enable(request, switchboard_
     target = _reset_action(request, switchboard_bravo, governance, action)
 
     aid = _stage_enable(switchboard_bravo, target, governance, action)
+    logs = filter_logs(switchboard_bravo, action["pending_event"])
 
     pending = _pending(switchboard_bravo, action)
-    event = filter_logs(switchboard_bravo, action["pending_event"])[0]
+    event = logs[0]
     assert aid != 0
     assert pending.actionId == aid
     assert pending.target == target.address
@@ -106,9 +107,10 @@ def test_protocol_instant_flag_execute_before_and_after_timelock(request, switch
     assert _pending(switchboard_bravo, action).actionId == aid
 
     assert _execute_after_timelock(switchboard_bravo, aid, governance) is True
+    logs = filter_logs(switchboard_bravo, action["set_event"])
     assert getattr(target, action["getter"])() is True
     assert _pending(switchboard_bravo, action).actionId == 0
-    event = filter_logs(switchboard_bravo, action["set_event"])[0]
+    event = logs[0]
     assert event.target == target.address
     assert event.isEnabled is True
     assert event.caller == governance.address
@@ -142,10 +144,11 @@ def test_security_actor_can_disable_protocol_instant_flag_when_already_disabled(
     switchboard_bravo.get_logs()
 
     assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
+    logs = filter_logs(switchboard_bravo, action["set_event"])
 
     assert getattr(target, action["getter"])() is False
     assert _pending(switchboard_bravo, action).actionId == 0
-    event = filter_logs(switchboard_bravo, action["set_event"])[0]
+    event = logs[0]
     assert event.target == target.address
     assert event.isEnabled is False
     assert event.caller == alice

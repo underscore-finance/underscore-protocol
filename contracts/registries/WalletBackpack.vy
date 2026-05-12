@@ -74,6 +74,7 @@ highCommand: public(address)
 paymaster: public(address)
 chequeBook: public(address)
 migrator: public(address)
+actionDataProvider: public(address)
 
 # pending changes
 pendingUpdates: public(HashMap[wcs.BackpackType, PendingBackpackItem]) # type -> config
@@ -136,6 +137,12 @@ def addPendingMigrator(_addr: address) -> bool:
     return self._addPendingBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, _addr)
 
 
+@external
+def addPendingActionDataProvider(_addr: address) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._addPendingBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, _addr)
+
+
 # add item
 
 
@@ -181,6 +188,8 @@ def _canAddBackpackItem(_backpackType: wcs.BackpackType, _addr: address) -> bool
         return self._isValidAddr(_addr, self.chequeBook)
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         return self._isValidAddr(_addr, self.migrator)
+    elif _backpackType == wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER:
+        return self._isValidAddr(_addr, self.actionDataProvider)
     return False
 
 
@@ -297,6 +306,12 @@ def confirmPendingMigrator() -> bool:
     return self._confirmBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, msg.sender)
 
 
+@external
+def confirmPendingActionDataProvider() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._confirmBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, msg.sender)
+
+
 # confirm new item
 
 
@@ -340,6 +355,8 @@ def _setBackpackItem(_backpackType: wcs.BackpackType, _addr: address):
         self.chequeBook = _addr
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         self.migrator = _addr
+    elif _backpackType == wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER:
+        self.actionDataProvider = _addr
 
     # register in ledger
     extcall Ledger(addys._getLedgerAddr()).registerBackpackItem(_addr)
@@ -384,6 +401,12 @@ def cancelPendingChequeBook() -> bool:
 def cancelPendingMigrator() -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, msg.sender)
+
+
+@external
+def cancelPendingActionDataProvider() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, msg.sender)
 
 
 # cancel pending item

@@ -14,6 +14,7 @@ WALLET_BACKPACK_CORE_ADDR_ARGS = (
     ("paymaster", 3),
     ("cheque_book", 4),
     ("migrator", 5),
+    ("action_data_provider", 6),
 )
 
 
@@ -26,6 +27,7 @@ def deploy_mock_wallet_backpack(
     paymaster,
     cheque_book,
     migrator,
+    action_data_provider,
 ):
     args = [
         kernel.address,
@@ -34,6 +36,7 @@ def deploy_mock_wallet_backpack(
         paymaster.address,
         cheque_book.address,
         migrator.address,
+        action_data_provider.address,
     ]
     args[arg_index] = ZERO_ADDRESS
     return boa.load(
@@ -77,6 +80,7 @@ def test_create_user_wallet_rejects_zero_wallet_backpack_addresses(
     paymaster,
     cheque_book,
     migrator,
+    action_data_provider,
 ):
     mock_wallet_backpack = deploy_mock_wallet_backpack(
         field,
@@ -87,6 +91,7 @@ def test_create_user_wallet_rejects_zero_wallet_backpack_addresses(
         paymaster,
         cheque_book,
         migrator,
+        action_data_provider,
     )
     undy_hq.startAddressUpdateToRegistry(8, mock_wallet_backpack, sender=governance.address)
     boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())

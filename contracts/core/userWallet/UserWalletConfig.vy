@@ -38,25 +38,18 @@ interface UserWallet:
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
     def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool: nonpayable
-    def assetData(_asset: address) -> ws.WalletAssetData: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def assets(i: uint256) -> address: view
-    def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
 interface Sentinel:
     def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
-    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData, bool): view
     def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData, bool): view
 
-interface Ledger:
-    def isRegisteredBackpackItem(_addr: address) -> bool: view
-    def getLastTotalUsdValue(_user: address) -> uint256: view
-
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
-    def isLockedSigner(_signer: address) -> bool: view
+interface ActionDataProvider:
+    def getActionDataBundle(_walletConfig: address, _legoId: uint256, _signer: address, _undyHq: address, _eth: address, _weth: address) -> ws.ActionData: view
+    def checkSignerPermissionsAndGetBundle(_walletConfig: address, _signer: address, _action: ws.ActionType, _undyHq: address, _eth: address, _weth: address, _sentinel: address, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS], _transferRecipient: address) -> ws.ActionData: view
 
 interface Registry:
     def isValidAddr(_addr: address) -> bool: view
@@ -64,6 +57,12 @@ interface Registry:
 
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
+
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
+
+interface Ledger:
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -145,17 +144,13 @@ MAX_LEGOS: constant(uint256) = 10
 # registry ids
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
-LEGO_BOOK_ID: constant(uint256) = 3
 SWITCHBOARD_ID: constant(uint256) = 4
 HATCHERY_ID: constant(uint256) = 5
-LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
-APPRAISER_ID: constant(uint256) = 7
-BILLING_ID: constant(uint256) = 9
-VAULT_REGISTRY_ID: constant(uint256) = 10
 
 UNDY_HQ: immutable(address)
 WETH: immutable(address)
 ETH: immutable(address)
+ACTION_DATA_PROVIDER: immutable(address)
 
 MIN_TIMELOCK: public(immutable(uint256))
 MAX_TIMELOCK: public(immutable(uint256))
@@ -179,6 +174,7 @@ def __init__(
     _paymaster: address,
     _chequeBook: address,
     _migrator: address,
+    _actionDataProvider: address,
     _wethAddr: address,
     _ethAddr: address,
     # timelock
@@ -196,6 +192,7 @@ def __init__(
     self.paymaster = _paymaster
     self.chequeBook = _chequeBook
     self.migrator = _migrator
+    ACTION_DATA_PROVIDER = _actionDataProvider
 
     # eth addrs
     WETH = _wethAddr
@@ -260,11 +257,10 @@ def setTimeLock(_numBlocks: uint256):
 
     assert pendingConfirmBlock == 0 # dev: pending time lock already exists
 
-    confirmBlock: uint256 = unsafe_add(block.number, currentTimeLock)
     self.pendingTimeLock = wcs.PendingTimeLock(
         newTimeLock = _numBlocks,
         initiatedBlock = block.number,
-        confirmBlock = confirmBlock,
+        confirmBlock = unsafe_add(block.number, currentTimeLock),
         currentOwner = ownership.owner,
     )
 
@@ -313,8 +309,7 @@ def setInstantActionSettings(_settings: wcs.InstantActionSettings):
         return
 
     hasEnable: bool = self._hasInstantActionEnable(current, _settings)
-    pendingConfirmBlock: uint256 = self.pendingInstantActionSettings.confirmBlock
-    if pendingConfirmBlock != 0:
+    if self.pendingInstantActionSettings.confirmBlock != 0:
         assert not hasEnable # dev: pending instant settings already exist
         self.instantActionSettings = _settings
         self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
@@ -430,42 +425,18 @@ def checkSignerPermissionsAndGetBundle(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ws.ActionData:
-    legoId: uint256 = 0
-    if len(_legoIds) != 0:
-        legoId = _legoIds[0]
-
-    # main data for this transaction
-    ad: ws.ActionData = self._getActionDataBundle(legoId, _signer)
-
-    # if the signer is the billing contract, no need to check signer
-    if ad.signer == ad.billing:
-        return ad
-
-    # make sure signer is not locked
-    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked
-
-    # if _transferRecipient is whitelisted, set to 0x0, will not check `allowedPayees` for manager
-    recipient: address = _transferRecipient
-    if _transferRecipient != empty(address) and self.indexOfWhitelist[_transferRecipient] != 0:
-        recipient = empty(address)
-
-    # main validation
-    hasPermission: bool = staticcall Sentinel(self.sentinel).canSignerPerformActionWithConfig(
-        _signer == ad.walletOwner,
-        self.indexOfManager[_signer] != 0,
-        self.managerPeriodData[_signer],
-        self.managerSettings[_signer],
-        self.globalManagerSettings,
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).checkSignerPermissionsAndGetBundle(
+        self,
+        _signer,
         _action,
+        UNDY_HQ,
+        ETH,
+        WETH,
+        self.sentinel,
         _assets,
         _legoIds,
-        recipient,
+        _transferRecipient,
     )
-
-    # IMPORTANT -- checks if the signer is allowed to perform the action
-    assert hasPermission # dev: no permission
-
-    return ad
 
 
 # post action (usd value limits)
@@ -587,9 +558,7 @@ def validateCheque(
     globalConfig: wcs.ChequeSettings = self.chequeSettings
     data: wcs.ChequeData = self.chequePeriodData
 
-    isManager: bool = False
-    if _signer != ownership.owner:
-        isManager = self.indexOfManager[_signer] != 0
+    isManager: bool = _signer != ownership.owner and self.indexOfManager[_signer] != 0
 
     # cheque validation
     isValidCheque: bool = False
@@ -1147,36 +1116,4 @@ def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
 @view
 @internal
 def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
-    wallet: address = self.wallet
-    owner: address = ownership.owner
-    hq: address = UNDY_HQ
-
-    # lego details
-    legoBook: address = staticcall Registry(hq).getAddr(LEGO_BOOK_ID)
-    legoAddr: address = empty(address)
-    if _legoId != 0 and legoBook != empty(address):
-        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)
-
-    ledger: address = staticcall Registry(hq).getAddr(LEDGER_ID)
-    return ws.ActionData(
-        ledger = ledger,
-        missionControl = staticcall Registry(hq).getAddr(MISSION_CONTROL_ID),
-        legoBook = legoBook,
-        hatchery = staticcall Registry(hq).getAddr(HATCHERY_ID),
-        lootDistributor = staticcall Registry(hq).getAddr(LOOT_DISTRIBUTOR_ID),
-        appraiser = staticcall Registry(hq).getAddr(APPRAISER_ID),
-        billing = staticcall Registry(hq).getAddr(BILLING_ID),
-        vaultRegistry = staticcall Registry(hq).getAddr(VAULT_REGISTRY_ID),
-        wallet = wallet,
-        walletConfig = self,
-        walletOwner = owner,
-        inEjectMode = self.inEjectMode,
-        isFrozen = self.isFrozen,
-        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet),
-        signer = _signer,
-        isManager = self.indexOfManager[_signer] != 0,
-        legoId = _legoId,
-        legoAddr = legoAddr,
-        eth = ETH,
-        weth = WETH,
-    )
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).getActionDataBundle(self, _legoId, _signer, UNDY_HQ, ETH, WETH)

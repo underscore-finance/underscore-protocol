@@ -998,6 +998,23 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addPendingActionDataProvider",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "canAddBackpackItem",
@@ -1093,6 +1110,18 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "confirmPendingActionDataProvider",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "cancelPendingKernel",
     "inputs": [],
     "outputs": [
@@ -1154,6 +1183,18 @@
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "cancelPendingMigrator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingActionDataProvider",
     "inputs": [],
     "outputs": [
       {
@@ -1243,6 +1284,18 @@
     "stateMutability": "view",
     "type": "function",
     "name": "migrator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "actionDataProvider",
     "inputs": [],
     "outputs": [
       {

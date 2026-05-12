@@ -35,6 +35,15 @@ Monitor these AgentSender and ownership signals after deployment:
 - Hatchery validates nonzero core setup, wallet/config templates, backpack item addresses, WETH, ETH, and wallet time-lock bounds before deploying a new user wallet.
 - Hatchery delegates manager, payee, and cheque default-setting validation to the configured HighCommand, Paymaster, and ChequeBook contracts. Invalid MissionControl wallet-creation parameters should fail wallet creation before config deployment completes.
 
+## Action Data Provider
+
+- Deploy `ActionDataProvider` before final WalletBackpack setup.
+- Stage and confirm `WalletBackpack.addPendingActionDataProvider(provider)` before enabling wallet creation through Hatchery.
+- WalletBackpack stores the canonical provider address and governance can rotate it for future wallets.
+- Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
+- Post-refactor Boa-measured `UserWalletConfig` blueprint size: `23,498` bytes, leaving `1,078` bytes under the `24,576` byte EIP-170 gate.
+- Treat that buffer as a budget. Any future `UserWalletConfig` PR expected to add more than roughly `100` bytes should include a size check and an extraction plan if the remaining buffer would fall below `500` bytes.
+
 ## Wallet Time Lock Bounds
 
 - Owner-initiated `setTimeLock` and `confirmPendingTimeLock` enforce `MIN_TIMELOCK <= value <= MAX_TIMELOCK` at the wallet-config layer.
