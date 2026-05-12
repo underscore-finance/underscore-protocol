@@ -658,17 +658,16 @@ def setChequeSettings(
     )
 
     currentSettings: wcs.ChequeSettings = staticcall UserWalletConfig(walletConfig).chequeSettings()
-    pendingInitiatedBlock: uint256 = self.pendingChequeSettings[_userWallet].initiatedBlock
-    pendingConfirmBlock: uint256 = self.pendingChequeSettings[_userWallet].confirmBlock
-    hasPending: bool = pendingConfirmBlock != 0
+    existingPending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    hasPending: bool = existingPending.confirmBlock != 0
 
     if not self._isChequeSettingsWidening(currentSettings, settings, timeLock):
         if hasPending:
             self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
             log ChequeSettingsPendingCancelled(
                 user = _userWallet,
-                initiatedBlock = pendingInitiatedBlock,
-                confirmBlock = pendingConfirmBlock,
+                initiatedBlock = existingPending.initiatedBlock,
+                confirmBlock = existingPending.confirmBlock,
                 cancelledBy = msg.sender,
             )
 
@@ -753,15 +752,14 @@ def cancelPendingChequeSettings(_userWallet: address) -> bool:
     if msg.sender != owner:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
 
-    pendingConfirmBlock: uint256 = self.pendingChequeSettings[_userWallet].confirmBlock
-    assert pendingConfirmBlock != 0 # dev: no pending cheque settings
-    pendingInitiatedBlock: uint256 = self.pendingChequeSettings[_userWallet].initiatedBlock
+    pending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    assert pending.confirmBlock != 0 # dev: no pending cheque settings
 
     self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
     log ChequeSettingsPendingCancelled(
         user = _userWallet,
-        initiatedBlock = pendingInitiatedBlock,
-        confirmBlock = pendingConfirmBlock,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
         cancelledBy = msg.sender,
     )
     return True
