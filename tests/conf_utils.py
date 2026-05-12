@@ -20,6 +20,35 @@ def set_live_cheque_settings(cheque_book, user_wallet, *settings, sender):
     return tx
 
 
+def fresh_user_wallet(hatchery, owner):
+    from contracts.core.userWallet import UserWallet, UserWalletConfig
+
+    wallet = UserWallet.at(hatchery.createUserWallet(sender=owner))
+    return wallet, UserWalletConfig.at(wallet.walletConfig())
+
+
+def instant_action_settings_tuple(settings):
+    return (
+        settings.canInstantAddManager,
+        settings.canInstantAddPayee,
+        settings.canInstantSetGlobalPayeeSettings,
+        settings.canInstantSetChequeSettings,
+    )
+
+
+def confirm_pending_instant_action_settings(config, owner):
+    pending = config.pendingInstantActionSettings()
+    blocks = pending.confirmBlock - boa.env.evm.patch.block_number
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+    config.confirmPendingInstantActionSettings(sender=owner)
+
+
+def set_user_instant_action_settings(config, owner, settings):
+    config.setInstantActionSettings(settings, sender=owner)
+    confirm_pending_instant_action_settings(config, owner)
+
+
 @pytest.fixture(scope="session")
 def _test():
     def _test(_expectedValue, _actualValue, _buffer=50):

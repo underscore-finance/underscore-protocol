@@ -135,7 +135,7 @@ def test_switchboard_bravo_rejects_duplicate_pending_instant_migration_enable(
         switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
 
 
-def test_cancel_pending_action_clears_pending_instant_migration_enable(
+def test_cancel_pending_action_cancels_pending_instant_migration_enable_and_allows_restaging(
     switchboard_bravo,
     migrator,
     governance,
@@ -145,8 +145,13 @@ def test_cancel_pending_action_clears_pending_instant_migration_enable(
 
     assert switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
 
-    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == 0
     assert not switchboard_bravo.hasPendingAction(aid)
+    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == aid
+
+    new_aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
+    assert new_aid != aid
+    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == new_aid
+    assert switchboard_bravo.hasPendingAction(new_aid)
 
 
 def test_security_signer_can_disable_instant_migration(

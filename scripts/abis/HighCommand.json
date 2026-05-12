@@ -315,6 +315,40 @@
     "type": "event"
   },
   {
+    "name": "CanInstantAddManagerSet",
+    "inputs": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantAddManager",
+    "inputs": [
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "addManager",
@@ -758,6 +792,165 @@
       {
         "name": "_activationLength",
         "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addManager",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_manager",
+        "type": "address"
+      },
+      {
+        "name": "_limits",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "maxUsdValuePerTx",
+            "type": "uint256"
+          },
+          {
+            "name": "maxUsdValuePerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "maxUsdValueLifetime",
+            "type": "uint256"
+          },
+          {
+            "name": "maxNumTxsPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "txCooldownBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "failOnZeroPrice",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_legoPerms",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canManageYield",
+            "type": "bool"
+          },
+          {
+            "name": "canBuyAndSell",
+            "type": "bool"
+          },
+          {
+            "name": "canManageDebt",
+            "type": "bool"
+          },
+          {
+            "name": "canManageLiq",
+            "type": "bool"
+          },
+          {
+            "name": "canClaimRewards",
+            "type": "bool"
+          },
+          {
+            "name": "onlyApprovedYieldOpps",
+            "type": "bool"
+          },
+          {
+            "name": "allowedLegos",
+            "type": "uint256[]"
+          }
+        ]
+      },
+      {
+        "name": "_swapPerms",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "mustHaveUsdValue",
+            "type": "bool"
+          },
+          {
+            "name": "maxNumSwapsPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "maxSlippage",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_whitelistPerms",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canConfirm",
+            "type": "bool"
+          },
+          {
+            "name": "canCancel",
+            "type": "bool"
+          },
+          {
+            "name": "canRemove",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_transferPerms",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canTransfer",
+            "type": "bool"
+          },
+          {
+            "name": "canCreateCheque",
+            "type": "bool"
+          },
+          {
+            "name": "allowedPayees",
+            "type": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "_allowedAssets",
+        "type": "address[]"
+      },
+      {
+        "name": "_canClaimLoot",
+        "type": "bool"
+      },
+      {
+        "name": "_startDelay",
+        "type": "uint256"
+      },
+      {
+        "name": "_activationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_shouldStartInstantly",
+        "type": "bool"
       }
     ],
     "outputs": [
@@ -2265,6 +2458,18 @@
       {
         "name": "",
         "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canInstantAddManager",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },

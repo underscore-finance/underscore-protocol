@@ -3,7 +3,7 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
-from conf_utils import filter_logs, set_live_cheque_settings
+from conf_utils import filter_logs, instant_action_settings_tuple, set_live_cheque_settings, set_user_instant_action_settings
 
 
 def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
@@ -38,6 +38,14 @@ def stage_pending_time_lock(user_wallet_config, *, sender):
     user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=sender)
 
 
+def stage_pending_instant_action_settings(user_wallet_config, *, sender):
+    user_wallet_config.setInstantActionSettings((True, False, False, False), sender=sender)
+
+
+def activate_instant_action_settings(user_wallet_config, settings, *, sender):
+    set_user_instant_action_settings(user_wallet_config, sender, settings)
+
+
 def ready_pending_migration(migrator, from_wallet, to_wallet, *, sender):
     migrator.initiateMigration(from_wallet, to_wallet, sender=sender)
     pending = UserWalletConfig.at(from_wallet.walletConfig()).pendingMigration()
@@ -45,6 +53,22 @@ def ready_pending_migration(migrator, from_wallet, to_wallet, *, sender):
     if blocks > 0:
         boa.env.time_travel(blocks=blocks)
     return pending
+
+
+def fresh_wallet(hatchery, owner):
+    return UserWallet.at(hatchery.createUserWallet(sender=owner))
+
+
+def manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    return (
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -1252,3 +1276,110 @@ def test_migrate_all_partial_funds_migration(migrator, hatchery, bob, alice, hig
     assert len(funds_events) == 1
     assert len(config_events) == 1
     assert funds_events[0].numAssetsMigrated == 1  # Only one asset actually migrated
+
+
+###############################
+# Instant Settings Migration  #
+###############################
+
+
+def test_source_pending_instant_action_settings_blocks_migration(migrator, hatchery, bob):
+    from_wallet = fresh_wallet(hatchery, bob)
+    to_wallet = fresh_wallet(hatchery, bob)
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    stage_pending_instant_action_settings(from_config, sender=bob)
+
+    assert not migrator.canMigrateFundsToNewWallet(from_wallet, to_wallet, bob)
+    assert not migrator.canCopyWalletConfig(from_wallet, to_wallet, bob)
+
+
+def test_destination_pending_instant_action_settings_blocks_migration(migrator, hatchery, bob):
+    from_wallet = fresh_wallet(hatchery, bob)
+    to_wallet = fresh_wallet(hatchery, bob)
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    stage_pending_instant_action_settings(to_config, sender=bob)
+
+    assert not migrator.canMigrateFundsToNewWallet(from_wallet, to_wallet, bob)
+    assert not migrator.canCopyWalletConfig(from_wallet, to_wallet, bob)
+
+
+def test_migrator_instant_action_setter_sets_active_flags_only(hatchery, bob, migrator):
+    wallet = fresh_wallet(hatchery, bob)
+    config = UserWalletConfig.at(wallet.walletConfig())
+    stage_pending_instant_action_settings(config, sender=bob)
+    pending_before = config.pendingInstantActionSettings()
+
+    config.setInstantActionSettingsViaMigrator((False, True, False, True), sender=migrator.address)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, True)
+    pending_after = config.pendingInstantActionSettings()
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert instant_action_settings_tuple(pending_after.settings) == (True, False, False, False)
+
+
+def test_active_user_instant_action_settings_copy_to_destination(migrator, hatchery, bob):
+    from_wallet = fresh_wallet(hatchery, bob)
+    to_wallet = fresh_wallet(hatchery, bob)
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    active = (True, False, True, False)
+    activate_instant_action_settings(from_config, active, sender=bob)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+    assert instant_action_settings_tuple(to_config.instantActionSettings()) == active
+    assert to_config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_destination_user_instant_flag_does_not_bypass_protocol_gate(
+    migrator, hatchery, bob, alice, high_command, switchboard_bravo,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet = fresh_wallet(hatchery, bob)
+    config = UserWalletConfig.at(wallet.walletConfig())
+    config.setInstantActionSettingsViaMigrator((True, False, False, False), sender=migrator.address)
+    if high_command.canInstantAddManager():
+        high_command.setCanInstantAddManager(False, sender=switchboard_bravo.address)
+
+    with boa.reverts("instant disabled"):
+        high_command.addManager(
+            wallet.address,
+            alice,
+            *manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms),
+            0,
+            ONE_DAY_IN_BLOCKS,
+            True,
+            sender=bob,
+        )
+
+
+def test_source_user_instant_flag_copies_and_destination_instant_action_succeeds(
+    migrator, hatchery, bob, alice, high_command, switchboard_bravo,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    from_wallet = fresh_wallet(hatchery, bob)
+    to_wallet = fresh_wallet(hatchery, bob)
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    activate_instant_action_settings(from_config, (True, False, False, False), sender=bob)
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+    assert instant_action_settings_tuple(to_config.instantActionSettings()) == (True, False, False, False)
+
+    if not high_command.canInstantAddManager():
+        high_command.setCanInstantAddManager(True, sender=switchboard_bravo.address)
+    block_before = boa.env.evm.patch.block_number
+
+    assert high_command.addManager(
+        to_wallet.address,
+        alice,
+        *manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms),
+        0,
+        ONE_DAY_IN_BLOCKS,
+        True,
+        sender=bob,
+    )
+
+    settings = to_config.managerSettings(alice)
+    assert settings.startBlock == block_before

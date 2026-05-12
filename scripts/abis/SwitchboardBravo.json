@@ -248,6 +248,114 @@
     "type": "event"
   },
   {
+    "name": "PendingEnableWalletCanInstantAddManagerAction",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingEnableWalletCanInstantAddPayeeAction",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingEnableWalletCanInstantSetGlobalPayeeSettingsAction",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingEnableWalletCanInstantSetChequeSettingsAction",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "PauseExecuted",
     "inputs": [
       {
@@ -474,6 +582,94 @@
     "inputs": [
       {
         "name": "migrator",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletCanInstantAddManagerSet",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletCanInstantAddPayeeSet",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletCanInstantSetGlobalPayeeSettingsSet",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "WalletCanInstantSetChequeSettingsSet",
+    "inputs": [
+      {
+        "name": "target",
         "type": "address",
         "indexed": true
       },
@@ -1574,6 +1770,90 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setCanInstantAddManager",
+    "inputs": [
+      {
+        "name": "_highCommand",
+        "type": "address"
+      },
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantAddPayee",
+    "inputs": [
+      {
+        "name": "_paymaster",
+        "type": "address"
+      },
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantSetGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_paymaster",
+        "type": "address"
+      },
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantSetChequeSettings",
+    "inputs": [
+      {
+        "name": "_chequeBook",
+        "type": "address"
+      },
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "initiateWalletMigration",
     "inputs": [
       {
@@ -1947,6 +2227,94 @@
         "components": [
           {
             "name": "migrator",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingCanInstantAddManagerEnable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingCanInstantAddPayeeEnable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingCanInstantSetGlobalPayeeSettingsEnable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingCanInstantSetChequeSettingsEnable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "target",
             "type": "address"
           },
           {

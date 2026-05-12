@@ -22,6 +22,7 @@ interface UserWalletConfig:
     def createCheque(_recipient: address, _cheque: wcs.Cheque, _chequeData: wcs.ChequeData, _isExistingCheque: bool): nonpayable
     def managerSettings(_addr: address) -> wcs.ManagerSettings: view
     def setChequeSettings(_config: wcs.ChequeSettings): nonpayable
+    def instantActionSettings() -> wcs.InstantActionSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfWhitelist(_addr: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
@@ -43,6 +44,9 @@ interface MissionControl:
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
     def isRegisteredBackpackItem(_addr: address) -> bool: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
@@ -125,9 +129,14 @@ event ChequeSettingsPendingCancelled:
     confirmBlock: uint256
     cancelledBy: indexed(address)
 
+event CanInstantSetChequeSettingsSet:
+    isEnabled: bool
+    caller: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
+SWITCHBOARD_ID: constant(uint256) = 4
 APPRAISER_ID: constant(uint256) = 7
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 
@@ -138,6 +147,7 @@ MAX_UNLOCK_BLOCKS: public(immutable(uint256))
 MAX_EXPIRY_BLOCKS: public(immutable(uint256))
 
 pendingChequeSettings: public(HashMap[address, wcs.PendingChequeSettings])
+canInstantSetChequeSettings: public(bool)
 
 
 @deploy
@@ -164,6 +174,19 @@ def __init__(
 
     assert _maxExpiryBlocks != 0 # dev: invalid expiry blocks
     MAX_EXPIRY_BLOCKS = _maxExpiryBlocks
+
+
+##################
+# Protocol Flags #
+##################
+
+
+@external
+def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.canInstantSetChequeSettings = _isEnabled
+    log CanInstantSetChequeSettingsSet(isEnabled=_isEnabled, caller=msg.sender)
+    return True
 
 
 #####################
@@ -611,6 +634,7 @@ def setChequeSettings(
     _canManagersCreateCheques: bool,
     _canManagerPay: bool,
     _canBePulled: bool,
+    _shouldApplyInstantly: bool = False,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
     
@@ -662,6 +686,24 @@ def setChequeSettings(
     hasPending: bool = existingPending.confirmBlock != 0
 
     if not self._isChequeSettingsWidening(currentSettings, settings, timeLock):
+        if hasPending:
+            self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
+            log ChequeSettingsPendingCancelled(
+                user = _userWallet,
+                initiatedBlock = existingPending.initiatedBlock,
+                confirmBlock = existingPending.confirmBlock,
+                cancelledBy = msg.sender,
+            )
+
+        extcall UserWalletConfig(walletConfig).setChequeSettings(settings)
+        self._logChequeSettingsModified(_userWallet, settings)
+        return True
+
+    if _shouldApplyInstantly:
+        assert self.canInstantSetChequeSettings # dev: instant disabled
+        instantSettings: wcs.InstantActionSettings = staticcall UserWalletConfig(walletConfig).instantActionSettings()
+        assert instantSettings.canInstantSetChequeSettings # dev: instant disabled
+
         if hasPending:
             self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
             log ChequeSettingsPendingCancelled(
@@ -1151,6 +1193,15 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@internal
+def _isSwitchboardAddr(_addr: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
 
 
 @view

@@ -22,6 +22,7 @@ interface UserWalletConfig:
     def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def instantActionSettings() -> wcs.InstantActionSettings: view
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfManager(_addr: address) -> uint256: view
@@ -45,6 +46,9 @@ interface MissionControl:
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
     def isRegisteredBackpackItem(_addr: address) -> bool: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -115,10 +119,15 @@ event StarterAgentNeutered:
     user: indexed(address)
     starterAgent: indexed(address)
 
+event CanInstantAddManagerSet:
+    isEnabled: bool
+    caller: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
 
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 MAX_CONFIG_LEGOS: constant(uint256) = 25
@@ -130,6 +139,8 @@ MAX_MANAGER_PERIOD: public(immutable(uint256))
 MAX_START_DELAY: public(immutable(uint256))
 MIN_ACTIVATION_LENGTH: public(immutable(uint256))
 MAX_ACTIVATION_LENGTH: public(immutable(uint256))
+
+canInstantAddManager: public(bool)
 
 
 @deploy
@@ -156,6 +167,19 @@ def __init__(
     MAX_START_DELAY = _maxStartDelay
 
 
+##################
+# Protocol Flags #
+##################
+
+
+@external
+def setCanInstantAddManager(_isEnabled: bool) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.canInstantAddManager = _isEnabled
+    log CanInstantAddManagerSet(isEnabled=_isEnabled, caller=msg.sender)
+    return True
+
+
 ####################
 # Manager Settings #
 ####################
@@ -177,6 +201,7 @@ def addManager(
     _canClaimLoot: bool,
     _startDelay: uint256 = 0,
     _activationLength: uint256 = 0,
+    _shouldStartInstantly: bool = False,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
 
@@ -188,10 +213,23 @@ def addManager(
     cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
     assert not cheque.active or (cheque.expiryBlock != 0 and block.number >= cheque.expiryBlock) # dev: active cheque exists
 
+    if _shouldStartInstantly:
+        # validator derives delay from global settings/time lock; instant mode clamps after validation.
+        assert _startDelay == 0 # dev: invalid start delay
+        assert self.canInstantAddManager # dev: instant disabled
+        instantSettings: wcs.InstantActionSettings = staticcall UserWalletConfig(config.walletConfig).instantActionSettings()
+        assert instantSettings.canInstantAddManager # dev: instant disabled
+
     isValid: bool = False
     settings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
     isValid, settings = self._isValidNewManager(_manager, config.isManager, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _whitelistPerms, _transferPerms, _allowedAssets, _canClaimLoot, config.globalManagerSettings, config.timeLock, config.legoBook, config.walletConfig)
     assert isValid # dev: invalid manager
+
+    if _shouldStartInstantly:
+        activationLength: uint256 = settings.expiryBlock - settings.startBlock
+        # reuse delayed validation; instant mode only clamps the active window start.
+        settings.startBlock = block.number
+        settings.expiryBlock = block.number + activationLength
     
     extcall UserWalletConfig(config.walletConfig).addManager(_manager, settings)
     log ManagerSettingsModified(
@@ -1007,6 +1045,15 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@internal
+def _isSwitchboardAddr(_addr: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
 
 
 @view

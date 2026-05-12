@@ -27,46 +27,46 @@ struct PendingOwnershipTimeLock:
     currentOwner: address
 
 interface UserWalletConfig:
-    def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
-    def setTimeLockViaMigrator(_numBlocks: uint256): nonpayable
+    def setInstantActionSettingsViaMigrator(_settings: wcs.InstantActionSettings): nonpayable
     def setPendingMigration(_toWallet: address) -> wcs.PendingMigration: nonpayable
-    def clearPendingMigration(): nonpayable
-    def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings): nonpayable
+    def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
+    def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def setChequeSettingsViaMigrator(_config: wcs.ChequeSettings): nonpayable
     def setGlobalPayeeSettings(_config: wcs.GlobalPayeeSettings): nonpayable
     def addPayee(_payee: address, _config: wcs.PayeeSettings): nonpayable
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
+    def pendingOwnershipTimeLock() -> PendingOwnershipTimeLock: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
+    def instantActionSettings() -> wcs.InstantActionSettings: view
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def addWhitelistAddrViaMigrator(_addr: address): nonpayable
+    def setTimeLockViaMigrator(_numBlocks: uint256): nonpayable
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
-    def chequeSettings() -> wcs.ChequeSettings: view
-    def pendingMigration() -> wcs.PendingMigration: view
     def deregisterAsset(_asset: address) -> bool: nonpayable
     def indexOfWhitelist(_addr: address) -> uint256: view
+    def pendingMigration() -> wcs.PendingMigration: view
     def indexOfManager(_addr: address) -> uint256: view
+    def pendingTimeLock() -> wcs.PendingTimeLock: view
     def indexOfPayee(_addr: address) -> uint256: view
+    def chequeSettings() -> wcs.ChequeSettings: view
     def cheques(_addr: address) -> wcs.Cheque: view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
     def hasPendingOwnerChange() -> bool: view
-    def pendingOwnershipTimeLock() -> PendingOwnershipTimeLock: view
     def payees(i: uint256) -> address: view
     def numActiveCheques() -> uint256: view
+    def clearPendingMigration(): nonpayable
     def numWhitelisted() -> uint256: view
     def startingAgent() -> address: view
     def numManagers() -> uint256: view
+    def chequeBook() -> address: view
     def numPayees() -> uint256: view
+    def timeLock() -> uint256: view
     def groupId() -> uint256: view
     def owner() -> address: view
     def isFrozen() -> bool: view
-    def chequeBook() -> address: view
-    def pendingTimeLock() -> wcs.PendingTimeLock: view
-    def timeLock() -> uint256: view
-
-interface ChequeBook:
-    def hasPendingChequeSettings(_userWallet: address) -> bool: view
 
 interface UserWallet:
     def assetData(_asset: address) -> ws.WalletAssetData: view
@@ -75,15 +75,18 @@ interface UserWallet:
     def numAssets() -> uint256: view
 
 interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
     def isRegisteredBackpackItem(_addr: address) -> bool: view
-
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
     def isValidAddr(_addr: address) -> bool: view
+
+interface ChequeBook:
+    def hasPendingChequeSettings(_userWallet: address) -> bool: view
+
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -322,6 +325,10 @@ def _canMigrateFundsToNewWallet(_fromWallet: address, _toWallet: address, _calle
         return False
     if self._hasPendingTimeLock(_toWallet):
         return False
+    if self._hasPendingInstantActionSettings(_fromWallet):
+        return False
+    if self._hasPendingInstantActionSettings(_toWallet):
+        return False
     if self._hasPendingOwnershipTimeLock(_fromWallet):
         return False
     if self._hasPendingOwnershipTimeLock(_toWallet):
@@ -414,6 +421,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     # 0. copy wallet time lock
     timeLock: uint256 = staticcall UserWalletConfig(fromConfig).timeLock()
     extcall UserWalletConfig(toConfig).setTimeLockViaMigrator(timeLock)
+
+    # 0b. copy active user-level instant action settings
+    instantSettings: wcs.InstantActionSettings = staticcall UserWalletConfig(fromConfig).instantActionSettings()
+    extcall UserWalletConfig(toConfig).setInstantActionSettingsViaMigrator(instantSettings)
 
     # 1. copy global manager settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall UserWalletConfig(fromConfig).globalManagerSettings()
@@ -526,6 +537,10 @@ def _canCopyWalletConfig(_fromWallet: address, _toWallet: address, _caller: addr
         return False
     if self._hasPendingTimeLock(_toWallet):
         return False
+    if self._hasPendingInstantActionSettings(_fromWallet):
+        return False
+    if self._hasPendingInstantActionSettings(_toWallet):
+        return False
     if self._hasPendingOwnershipTimeLock(_fromWallet):
         return False
     if self._hasPendingOwnershipTimeLock(_toWallet):
@@ -636,6 +651,14 @@ def _hasPendingChequeSettings(_userWallet: address) -> bool:
 def _hasPendingTimeLock(_userWallet: address) -> bool:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     pending: wcs.PendingTimeLock = staticcall UserWalletConfig(walletConfig).pendingTimeLock()
+    return pending.confirmBlock != 0
+
+
+@view
+@internal
+def _hasPendingInstantActionSettings(_userWallet: address) -> bool:
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    pending: wcs.PendingInstantActionSettings = staticcall UserWalletConfig(walletConfig).pendingInstantActionSettings()
     return pending.confirmBlock != 0
 
 

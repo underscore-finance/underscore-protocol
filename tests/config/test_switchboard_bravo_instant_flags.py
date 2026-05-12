@@ -1,0 +1,209 @@
+import boa
+import pytest
+
+from conf_utils import filter_logs
+
+
+ACTIONS = [
+    dict(
+        method="setCanInstantAddManager",
+        target_fixture="high_command",
+        getter="canInstantAddManager",
+        setter="setCanInstantAddManager",
+        pending_getter="pendingCanInstantAddManagerEnable",
+        pending_event="PendingEnableWalletCanInstantAddManagerAction",
+        set_event="WalletCanInstantAddManagerSet",
+        invalid_revert="invalid high command",
+    ),
+    dict(
+        method="setCanInstantAddPayee",
+        target_fixture="paymaster",
+        getter="canInstantAddPayee",
+        setter="setCanInstantAddPayee",
+        pending_getter="pendingCanInstantAddPayeeEnable",
+        pending_event="PendingEnableWalletCanInstantAddPayeeAction",
+        set_event="WalletCanInstantAddPayeeSet",
+        invalid_revert="invalid paymaster",
+    ),
+    dict(
+        method="setCanInstantSetGlobalPayeeSettings",
+        target_fixture="paymaster",
+        getter="canInstantSetGlobalPayeeSettings",
+        setter="setCanInstantSetGlobalPayeeSettings",
+        pending_getter="pendingCanInstantSetGlobalPayeeSettingsEnable",
+        pending_event="PendingEnableWalletCanInstantSetGlobalPayeeSettingsAction",
+        set_event="WalletCanInstantSetGlobalPayeeSettingsSet",
+        invalid_revert="invalid paymaster",
+    ),
+    dict(
+        method="setCanInstantSetChequeSettings",
+        target_fixture="cheque_book",
+        getter="canInstantSetChequeSettings",
+        setter="setCanInstantSetChequeSettings",
+        pending_getter="pendingCanInstantSetChequeSettingsEnable",
+        pending_event="PendingEnableWalletCanInstantSetChequeSettingsAction",
+        set_event="WalletCanInstantSetChequeSettingsSet",
+        invalid_revert="invalid cheque book",
+    ),
+]
+
+
+def _target(request, action):
+    return request.getfixturevalue(action["target_fixture"])
+
+
+def _pending(switchboard_bravo, action):
+    return getattr(switchboard_bravo, action["pending_getter"])()
+
+
+def _reset_action(request, switchboard_bravo, governance, action):
+    target = _target(request, action)
+    pending = _pending(switchboard_bravo, action)
+    if pending.actionId != 0 and switchboard_bravo.hasPendingAction(pending.actionId):
+        switchboard_bravo.cancelPendingAction(pending.actionId, sender=governance.address)
+    if getattr(target, action["getter"])():
+        getattr(target, action["setter"])(False, sender=switchboard_bravo.address)
+    switchboard_bravo.get_logs()
+    target.get_logs()
+    return target
+
+
+def _stage_enable(switchboard_bravo, target, governance, action):
+    return getattr(switchboard_bravo, action["method"])(target.address, True, sender=governance.address)
+
+
+def _execute_after_timelock(switchboard_bravo, aid, governance):
+    blocks = switchboard_bravo.getActionConfirmationBlock(aid) - boa.env.evm.patch.block_number
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+    return switchboard_bravo.executePendingAction(aid, sender=governance.address)
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_governance_can_stage_protocol_instant_flag_enable(request, switchboard_bravo, governance, action):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+
+    pending = _pending(switchboard_bravo, action)
+    event = filter_logs(switchboard_bravo, action["pending_event"])[0]
+    assert aid != 0
+    assert pending.actionId == aid
+    assert pending.target == target.address
+    assert event.target == target.address
+    assert event.confirmationBlock == switchboard_bravo.getActionConfirmationBlock(aid)
+    assert event.actionId == aid
+    assert event.caller == governance.address
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_protocol_instant_flag_execute_before_and_after_timelock(request, switchboard_bravo, governance, action):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+
+    assert switchboard_bravo.executePendingAction(aid, sender=governance.address) is False
+    assert getattr(target, action["getter"])() is False
+    assert _pending(switchboard_bravo, action).actionId == aid
+
+    assert _execute_after_timelock(switchboard_bravo, aid, governance) is True
+    assert getattr(target, action["getter"])() is True
+    assert _pending(switchboard_bravo, action).actionId == 0
+    event = filter_logs(switchboard_bravo, action["set_event"])[0]
+    assert event.target == target.address
+    assert event.isEnabled is True
+    assert event.caller == governance.address
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_security_actor_can_disable_protocol_instant_flag_immediately(
+    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+    assert _execute_after_timelock(switchboard_bravo, aid, governance)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    switchboard_bravo.get_logs()
+
+    assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
+
+    assert getattr(target, action["getter"])() is False
+    event = filter_logs(switchboard_bravo, action["set_event"])[0]
+    assert event.target == target.address
+    assert event.isEnabled is False
+    assert event.caller == alice
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_security_actor_can_disable_protocol_instant_flag_when_already_disabled(
+    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    switchboard_bravo.get_logs()
+
+    assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
+
+    assert getattr(target, action["getter"])() is False
+    assert _pending(switchboard_bravo, action).actionId == 0
+    event = filter_logs(switchboard_bravo, action["set_event"])[0]
+    assert event.target == target.address
+    assert event.isEnabled is False
+    assert event.caller == alice
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_disabling_protocol_instant_flag_cancels_matching_pending_enable(
+    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
+
+    assert _pending(switchboard_bravo, action).actionId == 0
+    assert not switchboard_bravo.hasPendingAction(aid)
+    assert switchboard_bravo.executePendingAction(aid, sender=governance.address) is False
+    assert getattr(target, action["getter"])() is False
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_duplicate_protocol_instant_flag_pending_enable_reverts(request, switchboard_bravo, governance, action):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+    assert _pending(switchboard_bravo, action).actionId == aid
+
+    with boa.reverts("pending enable exists"):
+        _stage_enable(switchboard_bravo, target, governance, action)
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_cancel_pending_action_cancels_protocol_instant_flag_action_and_allows_restaging(
+    request, switchboard_bravo, governance, action
+):
+    target = _reset_action(request, switchboard_bravo, governance, action)
+    aid = _stage_enable(switchboard_bravo, target, governance, action)
+
+    assert switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
+
+    assert not switchboard_bravo.hasPendingAction(aid)
+    assert getattr(target, action["getter"])() is False
+    assert _pending(switchboard_bravo, action).actionId == aid
+
+    new_aid = _stage_enable(switchboard_bravo, target, governance, action)
+    assert new_aid != aid
+    assert _pending(switchboard_bravo, action).actionId == new_aid
+    assert switchboard_bravo.hasPendingAction(new_aid)
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_protocol_instant_flag_rejects_unregistered_backpack_target(
+    request, switchboard_bravo, governance, alice, action
+):
+    _reset_action(request, switchboard_bravo, governance, action)
+
+    with boa.reverts(action["invalid_revert"]):
+        getattr(switchboard_bravo, action["method"])(alice, True, sender=governance.address)
+
+    with boa.reverts(action["invalid_revert"]):
+        getattr(switchboard_bravo, action["method"])(alice, False, sender=governance.address)

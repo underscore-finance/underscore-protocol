@@ -31,6 +31,20 @@ interface Migrator:
     def setInstantMigrationEnabled(_isEnabled: bool) -> bool: nonpayable
     def instantMigrationEnabled() -> bool: view
 
+interface HighCommand:
+    def canInstantAddManager() -> bool: view
+    def setCanInstantAddManager(_isEnabled: bool) -> bool: nonpayable
+
+interface Paymaster:
+    def canInstantAddPayee() -> bool: view
+    def canInstantSetGlobalPayeeSettings() -> bool: view
+    def setCanInstantAddPayee(_isEnabled: bool) -> bool: nonpayable
+    def setCanInstantSetGlobalPayeeSettings(_isEnabled: bool) -> bool: nonpayable
+
+interface ChequeBook:
+    def canInstantSetChequeSettings() -> bool: view
+    def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool: nonpayable
+
 interface LootDistributor:
     def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool: nonpayable
     def updateDepositPointsOnEjection(_user: address): nonpayable
@@ -66,6 +80,10 @@ flag ActionType:
     RECOVER_DEPOSIT_REWARDS
     SET_EJECTION_MODE
     ENABLE_INSTANT_MIGRATION
+    ENABLE_CAN_INSTANT_ADD_MANAGER
+    ENABLE_CAN_INSTANT_ADD_PAYEE
+    ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS
+    ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS
 
 struct PauseAction:
     contractAddr: address
@@ -112,6 +130,10 @@ struct SetEjectionModeAction:
 
 struct PendingInstantMigrationEnable:
     migrator: address
+    actionId: uint256
+
+struct PendingProtocolFlagEnable:
+    target: address
     actionId: uint256
 
 event PendingRecoverFundsAction:
@@ -165,6 +187,30 @@ event PendingSetEjectionModeAction:
 
 event PendingEnableInstantMigrationAction:
     migrator: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+    caller: indexed(address)
+
+event PendingEnableWalletCanInstantAddManagerAction:
+    target: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+    caller: indexed(address)
+
+event PendingEnableWalletCanInstantAddPayeeAction:
+    target: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+    caller: indexed(address)
+
+event PendingEnableWalletCanInstantSetGlobalPayeeSettingsAction:
+    target: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+    caller: indexed(address)
+
+event PendingEnableWalletCanInstantSetChequeSettingsAction:
+    target: indexed(address)
     confirmationBlock: uint256
     actionId: uint256
     caller: indexed(address)
@@ -225,6 +271,26 @@ event WalletInstantMigrationEnabledSet:
     isEnabled: bool
     caller: indexed(address)
 
+event WalletCanInstantAddManagerSet:
+    target: indexed(address)
+    isEnabled: bool
+    caller: indexed(address)
+
+event WalletCanInstantAddPayeeSet:
+    target: indexed(address)
+    isEnabled: bool
+    caller: indexed(address)
+
+event WalletCanInstantSetGlobalPayeeSettingsSet:
+    target: indexed(address)
+    isEnabled: bool
+    caller: indexed(address)
+
+event WalletCanInstantSetChequeSettingsSet:
+    target: indexed(address)
+    isEnabled: bool
+    caller: indexed(address)
+
 event WalletFundsMigrated:
     migrator: indexed(address)
     fromWallet: indexed(address)
@@ -256,6 +322,10 @@ pendingLootAdjustActions: public(HashMap[uint256, LootAdjustAction])
 pendingRecoverDepositRewardsActions: public(HashMap[uint256, RecoverDepositRewardsAction])
 pendingSetEjectionModeActions: public(HashMap[uint256, SetEjectionModeAction])
 pendingInstantMigrationEnable: public(PendingInstantMigrationEnable)
+pendingCanInstantAddManagerEnable: public(PendingProtocolFlagEnable)
+pendingCanInstantAddPayeeEnable: public(PendingProtocolFlagEnable)
+pendingCanInstantSetGlobalPayeeSettingsEnable: public(PendingProtocolFlagEnable)
+pendingCanInstantSetChequeSettingsEnable: public(PendingProtocolFlagEnable)
 
 MAX_RECOVER_ASSETS: constant(uint256) = 20
 MAX_USERS: constant(uint256) = 50
@@ -553,14 +623,17 @@ def setInstantMigrationEnabled(_migrator: address, _isEnabled: bool) -> uint256:
         assert self._hasPerms(msg.sender, True) # dev: no perms
         pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
         if pending.actionId != 0 and pending.migrator == _migrator:
-            self._cancelPendingAction(pending.actionId)
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
         assert extcall Migrator(_migrator).setInstantMigrationEnabled(False) # dev: failed to disable
         log WalletInstantMigrationEnabledSet(migrator=_migrator, isEnabled=False, caller=msg.sender)
         return 0
 
     assert gov._canGovern(msg.sender) # dev: no perms
     assert not staticcall Migrator(_migrator).instantMigrationEnabled() # dev: already enabled
-    assert self.pendingInstantMigrationEnable.actionId == 0 # dev: pending enable exists
+    existingPending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ENABLE_INSTANT_MIGRATION
@@ -569,6 +642,142 @@ def setInstantMigrationEnabled(_migrator: address, _isEnabled: bool) -> uint256:
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingEnableInstantMigrationAction(
         migrator=_migrator,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+        caller=msg.sender,
+    )
+    return aid
+
+
+@external
+def setCanInstantAddManager(_highCommand: address, _isEnabled: bool) -> uint256:
+    assert self._isValidBackpackItem(_highCommand) # dev: invalid high command
+
+    if not _isEnabled:
+        assert self._hasPerms(msg.sender, True) # dev: no perms
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantAddManagerEnable
+        if pending.actionId != 0 and pending.target == _highCommand:
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
+        assert extcall HighCommand(_highCommand).setCanInstantAddManager(False) # dev: failed to disable
+        log WalletCanInstantAddManagerSet(target=_highCommand, isEnabled=False, caller=msg.sender)
+        return 0
+
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert not staticcall HighCommand(_highCommand).canInstantAddManager() # dev: already enabled
+    existingPending: PendingProtocolFlagEnable = self.pendingCanInstantAddManagerEnable
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_CAN_INSTANT_ADD_MANAGER
+    self.pendingCanInstantAddManagerEnable = PendingProtocolFlagEnable(target=_highCommand, actionId=aid)
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEnableWalletCanInstantAddManagerAction(
+        target=_highCommand,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+        caller=msg.sender,
+    )
+    return aid
+
+
+@external
+def setCanInstantAddPayee(_paymaster: address, _isEnabled: bool) -> uint256:
+    assert self._isValidBackpackItem(_paymaster) # dev: invalid paymaster
+
+    if not _isEnabled:
+        assert self._hasPerms(msg.sender, True) # dev: no perms
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantAddPayeeEnable
+        if pending.actionId != 0 and pending.target == _paymaster:
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
+        assert extcall Paymaster(_paymaster).setCanInstantAddPayee(False) # dev: failed to disable
+        log WalletCanInstantAddPayeeSet(target=_paymaster, isEnabled=False, caller=msg.sender)
+        return 0
+
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert not staticcall Paymaster(_paymaster).canInstantAddPayee() # dev: already enabled
+    existingPending: PendingProtocolFlagEnable = self.pendingCanInstantAddPayeeEnable
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_CAN_INSTANT_ADD_PAYEE
+    self.pendingCanInstantAddPayeeEnable = PendingProtocolFlagEnable(target=_paymaster, actionId=aid)
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEnableWalletCanInstantAddPayeeAction(
+        target=_paymaster,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+        caller=msg.sender,
+    )
+    return aid
+
+
+@external
+def setCanInstantSetGlobalPayeeSettings(_paymaster: address, _isEnabled: bool) -> uint256:
+    assert self._isValidBackpackItem(_paymaster) # dev: invalid paymaster
+
+    if not _isEnabled:
+        assert self._hasPerms(msg.sender, True) # dev: no perms
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantSetGlobalPayeeSettingsEnable
+        if pending.actionId != 0 and pending.target == _paymaster:
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
+        assert extcall Paymaster(_paymaster).setCanInstantSetGlobalPayeeSettings(False) # dev: failed to disable
+        log WalletCanInstantSetGlobalPayeeSettingsSet(target=_paymaster, isEnabled=False, caller=msg.sender)
+        return 0
+
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert not staticcall Paymaster(_paymaster).canInstantSetGlobalPayeeSettings() # dev: already enabled
+    existingPending: PendingProtocolFlagEnable = self.pendingCanInstantSetGlobalPayeeSettingsEnable
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS
+    self.pendingCanInstantSetGlobalPayeeSettingsEnable = PendingProtocolFlagEnable(target=_paymaster, actionId=aid)
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEnableWalletCanInstantSetGlobalPayeeSettingsAction(
+        target=_paymaster,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+        caller=msg.sender,
+    )
+    return aid
+
+
+@external
+def setCanInstantSetChequeSettings(_chequeBook: address, _isEnabled: bool) -> uint256:
+    assert self._isValidBackpackItem(_chequeBook) # dev: invalid cheque book
+
+    if not _isEnabled:
+        assert self._hasPerms(msg.sender, True) # dev: no perms
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantSetChequeSettingsEnable
+        if pending.actionId != 0 and pending.target == _chequeBook:
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
+        assert extcall ChequeBook(_chequeBook).setCanInstantSetChequeSettings(False) # dev: failed to disable
+        log WalletCanInstantSetChequeSettingsSet(target=_chequeBook, isEnabled=False, caller=msg.sender)
+        return 0
+
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert not staticcall ChequeBook(_chequeBook).canInstantSetChequeSettings() # dev: already enabled
+    existingPending: PendingProtocolFlagEnable = self.pendingCanInstantSetChequeSettingsEnable
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS
+    self.pendingCanInstantSetChequeSettingsEnable = PendingProtocolFlagEnable(target=_chequeBook, actionId=aid)
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingEnableWalletCanInstantSetChequeSettingsAction(
+        target=_chequeBook,
         confirmationBlock=confirmationBlock,
         actionId=aid,
         caller=msg.sender,
@@ -695,6 +904,38 @@ def executePendingAction(_aid: uint256) -> bool:
         self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
         log WalletInstantMigrationEnabledSet(migrator=migrator, isEnabled=True, caller=msg.sender)
 
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_MANAGER:
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantAddManagerEnable
+        assert pending.actionId == _aid # dev: invalid pending enable
+        assert self._isValidBackpackItem(pending.target) # dev: invalid high command
+        assert extcall HighCommand(pending.target).setCanInstantAddManager(True) # dev: failed to enable
+        self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
+        log WalletCanInstantAddManagerSet(target=pending.target, isEnabled=True, caller=msg.sender)
+
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_PAYEE:
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantAddPayeeEnable
+        assert pending.actionId == _aid # dev: invalid pending enable
+        assert self._isValidBackpackItem(pending.target) # dev: invalid paymaster
+        assert extcall Paymaster(pending.target).setCanInstantAddPayee(True) # dev: failed to enable
+        self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
+        log WalletCanInstantAddPayeeSet(target=pending.target, isEnabled=True, caller=msg.sender)
+
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS:
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantSetGlobalPayeeSettingsEnable
+        assert pending.actionId == _aid # dev: invalid pending enable
+        assert self._isValidBackpackItem(pending.target) # dev: invalid paymaster
+        assert extcall Paymaster(pending.target).setCanInstantSetGlobalPayeeSettings(True) # dev: failed to enable
+        self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
+        log WalletCanInstantSetGlobalPayeeSettingsSet(target=pending.target, isEnabled=True, caller=msg.sender)
+
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS:
+        pending: PendingProtocolFlagEnable = self.pendingCanInstantSetChequeSettingsEnable
+        assert pending.actionId == _aid # dev: invalid pending enable
+        assert self._isValidBackpackItem(pending.target) # dev: invalid cheque book
+        assert extcall ChequeBook(pending.target).setCanInstantSetChequeSettings(True) # dev: failed to enable
+        self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
+        log WalletCanInstantSetChequeSettingsSet(target=pending.target, isEnabled=True, caller=msg.sender)
+
     self.actionType[_aid] = empty(ActionType)
     return True
 
@@ -714,8 +955,4 @@ def cancelPendingAction(_aid: uint256) -> bool:
 @internal
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
-    if self.actionType[_aid] == ActionType.ENABLE_INSTANT_MIGRATION:
-        pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
-        if pending.actionId == _aid:
-            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
     self.actionType[_aid] = empty(ActionType)

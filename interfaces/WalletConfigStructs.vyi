@@ -109,6 +109,18 @@ struct PendingTimeLock:
     confirmBlock: uint256
     currentOwner: address
 
+struct InstantActionSettings:
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+
+struct PendingInstantActionSettings:
+    settings: InstantActionSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 struct PendingMigration:
     toWallet: address
     initiatedBlock: uint256

@@ -2,8 +2,9 @@ import pytest
 import boa
 
 from constants import ACTION_TYPE, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
-from conf_utils import filter_logs
+from conf_utils import filter_logs, fresh_user_wallet, set_user_instant_action_settings
 from config.BluePrint import PARAMS
+from abi_utils import count_abi_arities
 
 
 ###############
@@ -30,6 +31,126 @@ def _activate_manager(user_wallet_config, manager):
     settings = user_wallet_config.managerSettings(manager)
     if settings.startBlock > boa.env.evm.patch.block_number:
         boa.env.time_travel(blocks=settings.startBlock - boa.env.evm.patch.block_number)
+
+
+def _set_user_instant_add_manager(config, owner):
+    set_user_instant_action_settings(config, owner, (True, False, False, False))
+
+
+def _set_protocol_instant_add_manager(high_command, switchboard_bravo, enabled):
+    if high_command.canInstantAddManager() != enabled:
+        high_command.setCanInstantAddManager(enabled, sender=switchboard_bravo.address)
+
+
+def _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    return (
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+
+def test_add_manager_abi_selector_counts():
+    assert count_abi_arities("scripts/abis/HighCommand.json", "addManager") == [9, 10, 11, 12]
+
+
+def test_instant_add_manager_sets_start_block_to_current(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    block_before = boa.env.evm.patch.block_number
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.startBlock == block_before
+
+
+def test_instant_add_manager_preserves_validated_activation_length(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.expiryBlock - settings.startBlock == ONE_MONTH_IN_BLOCKS
+
+
+def test_delayed_add_manager_still_uses_max_delay(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    requested_delay = config.timeLock() + 10
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+    block_before = boa.env.evm.patch.block_number
+
+    assert high_command.addManager(wallet.address, alice, *args, requested_delay, ONE_MONTH_IN_BLOCKS, False, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.startBlock == block_before + requested_delay
+
+
+def test_instant_add_manager_requested_with_nonzero_start_delay_reverts(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    with boa.reverts("invalid start delay"):
+        high_command.addManager(wallet.address, alice, *args, 1, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+
+@pytest.mark.parametrize(
+    "protocol_enabled,user_enabled,request_instant,should_revert,expect_instant",
+    [
+        (False, False, False, False, False),
+        (True, False, True, True, False),
+        (False, True, True, True, False),
+        (True, True, False, False, False),
+        (True, True, True, False, True),
+    ],
+)
+def test_add_manager_instant_gate_matrix(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    protocol_enabled, user_enabled, request_instant, should_revert, expect_instant,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, protocol_enabled)
+    if user_enabled:
+        _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+    block_before = boa.env.evm.patch.block_number
+
+    if should_revert:
+        with boa.reverts("instant disabled"):
+            high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, request_instant, sender=bob)
+        return
+
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, request_instant, sender=bob)
+    settings = config.managerSettings(alice)
+    if expect_instant:
+        assert settings.startBlock == block_before
+    else:
+        assert settings.startBlock == block_before + config.timeLock()
 
 
 def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):

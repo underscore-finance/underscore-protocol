@@ -3,7 +3,8 @@ import pytest
 
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
-from conf_utils import filter_logs, set_live_cheque_settings
+from conf_utils import filter_logs, fresh_user_wallet, set_live_cheque_settings, set_user_instant_action_settings
+from abi_utils import count_abi_arities
 
 ONE_WEEK_IN_BLOCKS = ONE_DAY_IN_BLOCKS * 7
 ONE_HOUR_IN_BLOCKS = ONE_DAY_IN_BLOCKS // 24
@@ -25,6 +26,30 @@ CHEQUE_SETTING_FIELDS = (
     "canManagerPay",
     "canBePulled",
 )
+
+
+def _set_user_instant_cheque_settings(config, owner):
+    set_user_instant_action_settings(config, owner, (False, False, False, True))
+
+
+def _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, enabled):
+    if cheque_book.canInstantSetChequeSettings() != enabled:
+        cheque_book.setCanInstantSetChequeSettings(enabled, sender=switchboard_bravo.address)
+
+
+def widened_cheque_settings(createChequeSettings):
+    return createChequeSettings(
+        _maxNumActiveCheques=0,
+        _maxChequeUsdValue=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=True,
+        _canManagerPay=True,
+        _canBePulled=True,
+    )
+
 
 def restrictive_cheque_settings(createChequeSettings, **overrides):
     settings = dict(
@@ -192,6 +217,130 @@ def assert_immediate_update_without_pending(
     assert len(modified_events) == 1
     assert modified_events[0].user == user_wallet.address
     assert len(pending_events) == 0
+
+
+def test_set_cheque_settings_abi_selector_count():
+    assert count_abi_arities("scripts/abis/ChequeBook.json", "setChequeSettings") == [17, 18]
+
+
+def test_widening_cheque_settings_without_instant_creates_pending(
+    cheque_book, hatchery, bob, createChequeSettings
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+
+    cheque_book.setChequeSettings(wallet.address, *widened_cheque_settings(createChequeSettings), False, sender=bob)
+
+    pending = cheque_book.pendingChequeSettings(wallet.address)
+    assert pending.confirmBlock != 0
+    assert pending.settings.canManagerPay is True
+    assert config.chequeSettings().canManagerPay is False
+
+
+def test_widening_cheque_settings_with_all_gates_applies_immediately(
+    cheque_book, switchboard_bravo, hatchery, bob, createChequeSettings
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+    _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, True)
+    _set_user_instant_cheque_settings(config, bob)
+    widened = widened_cheque_settings(createChequeSettings)
+
+    assert cheque_book.setChequeSettings(wallet.address, *widened, True, sender=bob)
+
+    assert cheque_book.pendingChequeSettings(wallet.address).confirmBlock == 0
+    saved = config.chequeSettings()
+    assert saved.canManagerPay is True
+    assert saved.defaultExpiryBlocks == 2 * ONE_DAY_IN_BLOCKS
+
+
+def test_existing_pending_cheque_settings_cancelled_when_instant_apply_succeeds(
+    cheque_book, switchboard_bravo, hatchery, bob, createChequeSettings
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+    widened = widened_cheque_settings(createChequeSettings)
+    cheque_book.setChequeSettings(wallet.address, *widened, sender=bob)
+    pending = cheque_book.pendingChequeSettings(wallet.address)
+    _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, True)
+    _set_user_instant_cheque_settings(config, bob)
+    cheque_book.get_logs()
+
+    assert cheque_book.setChequeSettings(wallet.address, *widened, True, sender=bob)
+
+    cancel_event = filter_logs(cheque_book, "ChequeSettingsPendingCancelled")[0]
+    assert cancel_event.user == wallet.address
+    assert cancel_event.confirmBlock == pending.confirmBlock
+    assert cheque_book.pendingChequeSettings(wallet.address).confirmBlock == 0
+    assert config.chequeSettings().canBePulled is True
+
+
+def test_should_apply_instantly_on_non_widening_cheque_settings_ignores_gates(
+    cheque_book, switchboard_bravo, hatchery, bob, createChequeSettings
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, False)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+    tighter = restrictive_cheque_settings(createChequeSettings, _maxNumActiveCheques=1)
+
+    assert cheque_book.setChequeSettings(wallet.address, *tighter, True, sender=bob)
+
+    assert cheque_book.pendingChequeSettings(wallet.address).confirmBlock == 0
+    assert config.chequeSettings().maxNumActiveCheques == 1
+
+
+def test_instant_cheque_settings_requested_but_unavailable_reverts(
+    cheque_book, switchboard_bravo, hatchery, bob, createChequeSettings
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+    _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, False)
+    _set_user_instant_cheque_settings(config, bob)
+
+    with boa.reverts("instant disabled"):
+        cheque_book.setChequeSettings(wallet.address, *widened_cheque_settings(createChequeSettings), True, sender=bob)
+
+
+@pytest.mark.parametrize(
+    "protocol_enabled,user_enabled,request_instant,should_revert,expect_instant",
+    [
+        (False, False, False, False, False),
+        (True, False, True, True, False),
+        (False, True, True, True, False),
+        (True, True, False, False, False),
+        (True, True, True, False, True),
+    ],
+)
+def test_set_cheque_settings_instant_gate_matrix(
+    cheque_book, switchboard_bravo, hatchery, bob, createChequeSettings,
+    protocol_enabled, user_enabled, request_instant, should_revert, expect_instant,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = restrictive_cheque_settings(createChequeSettings)
+    set_live_cheque_settings(cheque_book, wallet.address, *baseline, sender=bob)
+    _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, protocol_enabled)
+    if user_enabled:
+        _set_user_instant_cheque_settings(config, bob)
+    widened = widened_cheque_settings(createChequeSettings)
+
+    if should_revert:
+        with boa.reverts("instant disabled"):
+            cheque_book.setChequeSettings(wallet.address, *widened, request_instant, sender=bob)
+        return
+
+    assert cheque_book.setChequeSettings(wallet.address, *widened, request_instant, sender=bob)
+    pending = cheque_book.pendingChequeSettings(wallet.address)
+    if expect_instant:
+        assert pending.confirmBlock == 0
+        assert config.chequeSettings().canManagerPay is True
+    else:
+        assert pending.confirmBlock != 0
+        assert config.chequeSettings().canManagerPay is False
 
 
 ####################

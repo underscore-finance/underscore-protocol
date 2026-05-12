@@ -55,6 +55,18 @@ Monitor these AgentSender and ownership signals after deployment:
 - Fee-on-transfer or rebasing assets can leave dust or accounting differences because migration transfers the wallet's tracked token balance rather than reconciling post-transfer received amounts.
 - A wallet's configured migrator is highly trusted because migrator-facing wallet-config setters apply immediately. Treat migrator upgrades and instant-migration windows as privileged operations.
 
+## Instant Wallet Action Runbook
+
+- Instant wallet actions require all three gates: the consuming backpack item protocol flag, the user wallet `instantActionSettings` flag, and the per-call instant bool.
+- The V1 instant actions are `HighCommand.addManager`, `Paymaster.addPayee`, `Paymaster.setGlobalPayeeSettings`, and `ChequeBook.setChequeSettings`.
+- Whitelist flows and global manager settings stay delay-only. Do not add rollout steps that enable instant whitelist changes.
+- Protocol flags default to `false`. Governance stages enables through `SwitchboardBravo`, waits for the Switchboard timelock, then executes the pending action. Governance or a security actor can disable immediately.
+- If a pending protocol enable exists and the flag should not go live, disable the same flag through `SwitchboardBravo`; this cancels the matching pending action and emits the `WalletCanInstant*Set` event with `isEnabled=false`.
+- Pending protocol enables store the target backpack item at staging time. If WalletBackpack rotates a role before execution, cancel and re-stage when the current role target matters.
+- User instant settings default to all false. Enabling a user flag is timelocked; disabling applies immediately. Cancelling a mixed pending change does not roll back disables that already applied.
+- Existing wallets from the old template do not expose `instantActionSettings()`. Delayed paths remain compatible because backpack items read the new selector only when the caller requests instant execution. Old-template-to-new-template migration is out of scope for this runbook.
+- User wallet instant-setting methods intentionally emit no events, matching `setTimeLock`. Monitor explicit calls plus the Switchboard protocol flag events listed in [Instant Action Model](instant-action-model.md).
+
 ## Manager Settings Constraints
 
 - `TransferPerms.canAddPendingPayee` must be `false`. The field remains in the struct for ABI compatibility, but manager-settings inputs with `true` are rejected by HighCommand validation.

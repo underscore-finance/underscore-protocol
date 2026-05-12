@@ -1,6 +1,16 @@
 import pytest
 import boa
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
+from conf_utils import (
+    confirm_pending_instant_action_settings,
+    fresh_user_wallet,
+    instant_action_settings_tuple,
+    set_user_instant_action_settings,
+)
+
+
+def _fresh_wallet_config(hatchery, owner):
+    return fresh_user_wallet(hatchery, owner)[1]
 
 
 def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
@@ -1434,3 +1444,164 @@ def test_update_asset_data_with_lego_id(user_wallet_config, switchboard_alpha, a
     # Test with lego ID 1 (mock yield lego)
     new_total_value2 = user_wallet_config.updateAssetData(1, alpha_token.address, False, sender=switchboard_alpha.address)
     assert isinstance(new_total_value2, int)
+
+
+###########################
+# Instant Action Settings #
+###########################
+
+
+def test_instant_action_settings_default_all_false(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_enabling_one_instant_action_flag_stages_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    requested = (True, False, False, False)
+
+    config.setInstantActionSettings(requested, sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    pending = config.pendingInstantActionSettings()
+    assert instant_action_settings_tuple(pending.settings) == requested
+    assert pending.initiatedBlock == boa.env.evm.patch.block_number
+    assert pending.confirmBlock == boa.env.evm.patch.block_number + config.timeLock()
+    assert pending.currentOwner == bob
+
+
+def test_confirm_pending_instant_action_settings_before_timelock_reverts(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    with boa.reverts("time delay not reached"):
+        config.confirmPendingInstantActionSettings(sender=bob)
+
+
+def test_confirm_pending_instant_action_settings_after_timelock_applies(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    requested = (True, False, True, False)
+    config.setInstantActionSettings(requested, sender=bob)
+
+    confirm_pending_instant_action_settings(config, bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == requested
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_pending_instant_action_settings_owner_mismatch_blocks_confirm(hatchery, bob, alice):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    pending = config.pendingInstantActionSettings()
+
+    config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=config.ownershipTimeLock())
+    config.confirmOwnershipChange(sender=alice)
+    blocks = max(0, pending.confirmBlock - boa.env.evm.patch.block_number)
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+
+    with boa.reverts("owner must match"):
+        config.confirmPendingInstantActionSettings(sender=alice)
+
+
+def test_security_actor_can_cancel_pending_instant_action_settings(
+    hatchery, bob, alice, mission_control, switchboard_alpha
+):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    config.cancelPendingInstantActionSettings(sender=alice)
+
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+
+
+def test_disabling_only_instant_action_settings_applies_immediately(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+
+    config.setInstantActionSettings((False, True, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_mixed_instant_action_change_disables_immediately_and_stages_enables(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+    requested = (False, True, True, False)
+
+    config.setInstantActionSettings(requested, sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    pending = config.pendingInstantActionSettings()
+    assert instant_action_settings_tuple(pending.settings) == requested
+    assert pending.confirmBlock != 0
+
+
+def test_cancel_pending_mixed_instant_action_change_keeps_immediate_disables(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+
+    config.setInstantActionSettings((False, True, True, False), sender=bob)
+    config.cancelPendingInstantActionSettings(sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_new_instant_action_settings_request_while_pending_exists_reverts(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    with boa.reverts("pending instant settings already exist"):
+        config.setInstantActionSettings((False, True, False, False), sender=bob)
+
+
+def test_disabling_request_while_pending_instant_action_settings_exists_applies_and_clears_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, False, False, False))
+    config.setInstantActionSettings((True, True, False, False), sender=bob)
+
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_reaffirming_enabled_instant_action_setting_does_not_stage_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, False, False, False))
+
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, False, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_no_change_instant_action_settings_without_pending_noops(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    before = config.pendingInstantActionSettings()
+
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    after = config.pendingInstantActionSettings()
+    assert after.initiatedBlock == before.initiatedBlock == 0
+    assert after.confirmBlock == before.confirmBlock == 0
+
+
+def test_instant_action_settings_migrator_setter_sets_active_only(hatchery, bob, migrator):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    pending_before = config.pendingInstantActionSettings()
+
+    config.setInstantActionSettingsViaMigrator((False, True, False, True), sender=migrator.address)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, True)
+    pending_after = config.pendingInstantActionSettings()
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert instant_action_settings_tuple(pending_after.settings) == (True, False, False, False)

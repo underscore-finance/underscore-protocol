@@ -450,6 +450,80 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setInstantActionSettings",
+    "inputs": [
+      {
+        "name": "_settings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmPendingInstantActionSettings",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingInstantActionSettings",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setInstantActionSettingsViaMigrator",
+    "inputs": [
+      {
+        "name": "_settings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "setPendingMigration",
     "inputs": [
       {
@@ -3556,6 +3630,84 @@
           {
             "name": "newTimeLock",
             "type": "uint256"
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "instantActionSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingInstantActionSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "settings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canInstantAddManager",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantAddPayee",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetGlobalPayeeSettings",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetChequeSettings",
+                "type": "bool"
+              }
+            ]
           },
           {
             "name": "initiatedBlock",

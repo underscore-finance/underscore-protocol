@@ -2,7 +2,262 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ZERO_ADDRESS
-from conf_utils import filter_logs
+from conf_utils import filter_logs, fresh_user_wallet, set_user_instant_action_settings
+from abi_utils import count_abi_arities
+
+
+def _set_user_instant_settings(config, owner, settings):
+    set_user_instant_action_settings(config, owner, settings)
+
+
+def _set_protocol_flag(target, switchboard_bravo, getter_name, setter_name, enabled):
+    if getattr(target, getter_name)() != enabled:
+        getattr(target, setter_name)(enabled, sender=switchboard_bravo.address)
+
+
+def _add_payee_args(createPayeeLimits):
+    return (
+        False,
+        ONE_DAY_IN_BLOCKS,
+        0,
+        0,
+        False,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(),
+    )
+
+
+def _restrictive_global_payee_settings(config, createPayeeLimits):
+    return (
+        ONE_DAY_IN_BLOCKS,
+        config.timeLock(),
+        ONE_DAY_IN_BLOCKS,
+        5,
+        100,
+        True,
+        createPayeeLimits(
+            _perTxCap=100 * EIGHTEEN_DECIMALS,
+            _perPeriodCap=1000 * EIGHTEEN_DECIMALS,
+            _lifetimeCap=10000 * EIGHTEEN_DECIMALS,
+        ),
+        False,
+    )
+
+
+def _widened_global_payee_settings(config, createPayeeLimits):
+    # Lower cooldown plus higher limits both widen the current global policy.
+    return (
+        ONE_DAY_IN_BLOCKS,
+        config.timeLock(),
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        50,
+        False,
+        createPayeeLimits(
+            _perTxCap=200 * EIGHTEEN_DECIMALS,
+            _perPeriodCap=2000 * EIGHTEEN_DECIMALS,
+            _lifetimeCap=20000 * EIGHTEEN_DECIMALS,
+        ),
+        True,
+    )
+
+
+def test_paymaster_abi_selector_counts():
+    assert count_abi_arities("scripts/abis/Paymaster.json", "addPayee") == [11, 12, 13, 14]
+    assert count_abi_arities("scripts/abis/Paymaster.json", "setGlobalPayeeSettings") == [9, 10]
+
+
+def test_instant_add_payee_sets_start_block_to_current_and_preserves_activation_length(
+    paymaster, switchboard_bravo, hatchery, bob, alice, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_flag(paymaster, switchboard_bravo, "canInstantAddPayee", "setCanInstantAddPayee", True)
+    _set_user_instant_settings(config, bob, (False, True, False, False))
+    args = _add_payee_args(createPayeeLimits)
+
+    block_before = boa.env.evm.patch.block_number
+    assert paymaster.addPayee(wallet.address, alice, *args, 0, ONE_DAY_IN_BLOCKS, True, sender=bob)
+
+    settings = config.payeeSettings(alice)
+    assert settings.startBlock == block_before
+    assert settings.expiryBlock - settings.startBlock == ONE_DAY_IN_BLOCKS
+
+
+def test_delayed_add_payee_still_uses_max_delay(
+    paymaster, switchboard_bravo, hatchery, bob, alice, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_flag(paymaster, switchboard_bravo, "canInstantAddPayee", "setCanInstantAddPayee", True)
+    args = _add_payee_args(createPayeeLimits)
+    requested_delay = config.timeLock() + 10
+    block_before = boa.env.evm.patch.block_number
+
+    assert paymaster.addPayee(wallet.address, alice, *args, requested_delay, ONE_DAY_IN_BLOCKS, False, sender=bob)
+
+    settings = config.payeeSettings(alice)
+    assert settings.startBlock == block_before + requested_delay
+
+
+def test_instant_add_payee_requested_with_nonzero_start_delay_reverts(
+    paymaster, switchboard_bravo, hatchery, bob, alice, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_flag(paymaster, switchboard_bravo, "canInstantAddPayee", "setCanInstantAddPayee", True)
+    _set_user_instant_settings(config, bob, (False, True, False, False))
+    args = _add_payee_args(createPayeeLimits)
+
+    with boa.reverts("invalid start delay"):
+        paymaster.addPayee(wallet.address, alice, *args, 1, ONE_DAY_IN_BLOCKS, True, sender=bob)
+
+
+@pytest.mark.parametrize(
+    "protocol_enabled,user_enabled,request_instant,should_revert,expect_instant",
+    [
+        (False, False, False, False, False),
+        (True, False, True, True, False),
+        (False, True, True, True, False),
+        (True, True, False, False, False),
+        (True, True, True, False, True),
+    ],
+)
+def test_add_payee_instant_gate_matrix(
+    paymaster, switchboard_bravo, hatchery, bob, alice, createPayeeLimits,
+    protocol_enabled, user_enabled, request_instant, should_revert, expect_instant,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_flag(paymaster, switchboard_bravo, "canInstantAddPayee", "setCanInstantAddPayee", protocol_enabled)
+    if user_enabled:
+        _set_user_instant_settings(config, bob, (False, True, False, False))
+    args = _add_payee_args(createPayeeLimits)
+    block_before = boa.env.evm.patch.block_number
+
+    if should_revert:
+        with boa.reverts("instant disabled"):
+            paymaster.addPayee(wallet.address, alice, *args, 0, ONE_DAY_IN_BLOCKS, request_instant, sender=bob)
+        return
+
+    assert paymaster.addPayee(wallet.address, alice, *args, 0, ONE_DAY_IN_BLOCKS, request_instant, sender=bob)
+    settings = config.payeeSettings(alice)
+    if expect_instant:
+        assert settings.startBlock == block_before
+    else:
+        assert settings.startBlock == block_before + config.timeLock()
+
+
+def test_widening_global_payee_settings_without_instant_creates_pending(
+    paymaster, hatchery, bob, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+
+    widened = _widened_global_payee_settings(config, createPayeeLimits)
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *widened, False, sender=bob)
+
+    pending = paymaster.pendingGlobalPayeeSettings(wallet.address)
+    assert pending.confirmBlock != 0
+    assert pending.settings.canPull is True
+    assert config.globalPayeeSettings().canPull is False
+
+
+def test_widening_global_payee_settings_with_all_gates_applies_immediately(
+    paymaster, switchboard_bravo, hatchery, bob, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
+    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_protocol_flag(
+        paymaster,
+        switchboard_bravo,
+        "canInstantSetGlobalPayeeSettings",
+        "setCanInstantSetGlobalPayeeSettings",
+        True,
+    )
+    _set_user_instant_settings(config, bob, (False, False, True, False))
+    widened = _widened_global_payee_settings(config, createPayeeLimits)
+
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *widened, True, sender=bob)
+
+    assert paymaster.pendingGlobalPayeeSettings(wallet.address).confirmBlock == 0
+    saved = config.globalPayeeSettings()
+    assert saved.canPull is True
+    assert saved.activationLength == 2 * ONE_DAY_IN_BLOCKS
+
+
+def test_existing_pending_global_payee_settings_cancelled_when_instant_apply_succeeds(
+    paymaster, switchboard_bravo, hatchery, bob, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
+    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    widened = _widened_global_payee_settings(config, createPayeeLimits)
+    paymaster.setGlobalPayeeSettings(wallet.address, *widened, sender=bob)
+    pending = paymaster.pendingGlobalPayeeSettings(wallet.address)
+    _set_protocol_flag(
+        paymaster,
+        switchboard_bravo,
+        "canInstantSetGlobalPayeeSettings",
+        "setCanInstantSetGlobalPayeeSettings",
+        True,
+    )
+    _set_user_instant_settings(config, bob, (False, False, True, False))
+    paymaster.get_logs()
+
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *widened, True, sender=bob)
+
+    cancel_event = filter_logs(paymaster, "PendingGlobalPayeeSettingsCancelled")[0]
+    assert cancel_event.user == wallet.address
+    assert cancel_event.confirmBlock == pending.confirmBlock
+    assert paymaster.pendingGlobalPayeeSettings(wallet.address).confirmBlock == 0
+    assert config.globalPayeeSettings().canPull is True
+
+
+def test_should_apply_instantly_on_non_widening_global_payee_settings_ignores_gates(
+    paymaster, switchboard_bravo, hatchery, bob, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_flag(
+        paymaster,
+        switchboard_bravo,
+        "canInstantSetGlobalPayeeSettings",
+        "setCanInstantSetGlobalPayeeSettings",
+        False,
+    )
+    baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
+    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    tighter = list(baseline)
+    tighter[4] = 200
+
+    assert paymaster.setGlobalPayeeSettings(wallet.address, *tuple(tighter), True, sender=bob)
+
+    assert paymaster.pendingGlobalPayeeSettings(wallet.address).confirmBlock == 0
+    assert config.globalPayeeSettings().txCooldownBlocks == 200
+
+
+def test_instant_global_payee_settings_requested_but_unavailable_reverts(
+    paymaster, switchboard_bravo, hatchery, bob, createPayeeLimits
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    baseline = _restrictive_global_payee_settings(config, createPayeeLimits)
+    paymaster.setGlobalPayeeSettings(wallet.address, *baseline, sender=bob)
+    _set_protocol_flag(
+        paymaster,
+        switchboard_bravo,
+        "canInstantSetGlobalPayeeSettings",
+        "setCanInstantSetGlobalPayeeSettings",
+        False,
+    )
+    _set_user_instant_settings(config, bob, (False, False, True, False))
+
+    with boa.reverts("instant disabled"):
+        paymaster.setGlobalPayeeSettings(
+            wallet.address,
+            *_widened_global_payee_settings(config, createPayeeLimits),
+            True,
+            sender=bob,
+        )
 
 
 #########################

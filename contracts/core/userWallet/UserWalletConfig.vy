@@ -124,9 +124,15 @@ numActiveCheques: public(uint256)
 globalManagerSettings: public(wcs.GlobalManagerSettings)
 globalPayeeSettings: public(wcs.GlobalPayeeSettings)
 
-# config
+# timelock
 timeLock: public(uint256)
 pendingTimeLock: public(wcs.PendingTimeLock)
+
+# instant action settings
+instantActionSettings: public(wcs.InstantActionSettings)
+pendingInstantActionSettings: public(wcs.PendingInstantActionSettings)
+
+# other config
 pendingMigration: public(wcs.PendingMigration)
 isFrozen: public(bool)
 inEjectMode: public(bool)
@@ -291,6 +297,95 @@ def cancelPendingTimeLock():
 
     assert self.pendingTimeLock.confirmBlock != 0 # dev: no pending time lock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
+
+
+###########################
+# Instant Action Settings #
+###########################
+
+
+@external
+def setInstantActionSettings(_settings: wcs.InstantActionSettings):
+    assert msg.sender == ownership.owner # dev: no perms
+
+    current: wcs.InstantActionSettings = self.instantActionSettings
+    if self._isSameInstantActionSettings(current, _settings):
+        return
+
+    hasEnable: bool = self._hasInstantActionEnable(current, _settings)
+    pendingConfirmBlock: uint256 = self.pendingInstantActionSettings.confirmBlock
+    if pendingConfirmBlock != 0:
+        assert not hasEnable # dev: pending instant settings already exist
+        self.instantActionSettings = _settings
+        self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
+        return
+
+    if hasEnable:
+        self.instantActionSettings = wcs.InstantActionSettings(
+            canInstantAddManager = current.canInstantAddManager and _settings.canInstantAddManager,
+            canInstantAddPayee = current.canInstantAddPayee and _settings.canInstantAddPayee,
+            canInstantSetGlobalPayeeSettings = current.canInstantSetGlobalPayeeSettings and _settings.canInstantSetGlobalPayeeSettings,
+            canInstantSetChequeSettings = current.canInstantSetChequeSettings and _settings.canInstantSetChequeSettings,
+        )
+        self.pendingInstantActionSettings = wcs.PendingInstantActionSettings(
+            settings = _settings,
+            initiatedBlock = block.number,
+            confirmBlock = unsafe_add(block.number, self.timeLock),
+            currentOwner = ownership.owner,
+        )
+        return
+
+    self.instantActionSettings = _settings
+
+
+@external
+def confirmPendingInstantActionSettings():
+    assert msg.sender == ownership.owner # dev: no perms
+
+    pending: wcs.PendingInstantActionSettings = self.pendingInstantActionSettings
+    assert pending.confirmBlock != 0 # dev: no pending instant settings
+    assert block.number >= pending.confirmBlock # dev: time delay not reached
+    assert pending.currentOwner == ownership.owner # dev: owner must match
+
+    self.instantActionSettings = pending.settings
+    self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
+
+
+@external
+def cancelPendingInstantActionSettings():
+    if msg.sender != ownership.owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    assert self.pendingInstantActionSettings.confirmBlock != 0 # dev: no pending instant settings
+    self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
+
+
+@external
+def setInstantActionSettingsViaMigrator(_settings: wcs.InstantActionSettings):
+    assert msg.sender == self.migrator # dev: no perms
+    self.instantActionSettings = _settings
+
+
+@pure
+@internal
+def _isSameInstantActionSettings(_a: wcs.InstantActionSettings, _b: wcs.InstantActionSettings) -> bool:
+    return (
+        _a.canInstantAddManager == _b.canInstantAddManager and
+        _a.canInstantAddPayee == _b.canInstantAddPayee and
+        _a.canInstantSetGlobalPayeeSettings == _b.canInstantSetGlobalPayeeSettings and
+        _a.canInstantSetChequeSettings == _b.canInstantSetChequeSettings
+    )
+
+
+@pure
+@internal
+def _hasInstantActionEnable(_current: wcs.InstantActionSettings, _requested: wcs.InstantActionSettings) -> bool:
+    return (
+        (not _current.canInstantAddManager and _requested.canInstantAddManager) or
+        (not _current.canInstantAddPayee and _requested.canInstantAddPayee) or
+        (not _current.canInstantSetGlobalPayeeSettings and _requested.canInstantSetGlobalPayeeSettings) or
+        (not _current.canInstantSetChequeSettings and _requested.canInstantSetChequeSettings)
+    )
 
 
 #####################

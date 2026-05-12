@@ -352,6 +352,40 @@
     "type": "event"
   },
   {
+    "name": "CanInstantSetChequeSettingsSet",
+    "inputs": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantSetChequeSettings",
+    "inputs": [
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "createCheque",
@@ -1218,6 +1252,91 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setChequeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_maxNumActiveCheques",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxChequeUsdValue",
+        "type": "uint256"
+      },
+      {
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_perPeriodPaidUsdCap",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxNumChequesPaidPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_payCooldownBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_perPeriodCreatedUsdCap",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxNumChequesCreatedPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_createCooldownBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_allowedAssets",
+        "type": "address[]"
+      },
+      {
+        "name": "_canManagersCreateCheques",
+        "type": "bool"
+      },
+      {
+        "name": "_canManagerPay",
+        "type": "bool"
+      },
+      {
+        "name": "_canBePulled",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldApplyInstantly",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "hasPendingChequeSettings",
@@ -1991,6 +2110,18 @@
             "type": "address"
           }
         ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canInstantSetChequeSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
       }
     ]
   },
