@@ -1,7 +1,31 @@
 import pytest
 import boa
-from conf_utils import filter_logs
+from conf_utils import filter_logs, instant_action_settings_tuple
 from constants import CONFIG_ACTION_TYPE, MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
+
+
+def cheque_config_tuple(config):
+    return (
+        config.maxNumActiveCheques,
+        config.instantUsdThreshold,
+        config.periodLength,
+        config.expensiveDelayBlocks,
+        config.defaultExpiryBlocks,
+    )
+
+
+def deploy_rotated_cheque_book(cheque_book, *, max_expiry_blocks=None, name="rotated_cheque_book"):
+    return boa.load(
+        "contracts/core/walletBackpack/ChequeBook.vy",
+        cheque_book.UNDY_HQ(),
+        cheque_book.MIN_CHEQUE_PERIOD(),
+        cheque_book.MAX_CHEQUE_PERIOD(),
+        cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY(),
+        cheque_book.MAX_UNLOCK_BLOCKS(),
+        max_expiry_blocks if max_expiry_blocks is not None else cheque_book.MAX_EXPIRY_BLOCKS(),
+        cheque_book.canInstantSetChequeSettings(),
+        name=name,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -1863,6 +1887,225 @@ def test_set_hatchery_non_prod_creator_validation(
         switchboard_alpha.setHatcheryNonProdCreator(bob, sender=governance.address)
 
 
+def test_set_hatchery_default_instant_action_settings_success(switchboard_alpha, governance, hatchery):
+    result = switchboard_alpha.setHatcheryDefaultInstantActionSettings(
+        False,
+        True,
+        False,
+        True,
+        sender=governance.address,
+    )
+    assert result is True
+    assert instant_action_settings_tuple(hatchery.defaultInstantActionSettings()) == (False, True, False, True)
+
+    logs = filter_logs(switchboard_alpha, "HatcheryDefaultInstantActionSettingsSet")
+    assert logs[-1].hatchery == hatchery.address
+    assert logs[-1].canInstantAddManager is False
+    assert logs[-1].canInstantAddPayee is True
+    assert logs[-1].canInstantSetGlobalPayeeSettings is False
+    assert logs[-1].canInstantSetChequeSettings is True
+
+
+#################
+# Cheque Config #
+#################
+
+
+def test_set_cheque_config_stage_execute_updates_mission_control(switchboard_alpha, governance, mission_control):
+    initial = mission_control.chequeConfig()
+    new_values = (
+        initial.maxNumActiveCheques + 1,
+        initial.instantUsdThreshold + 1,
+        initial.periodLength,
+        initial.expensiveDelayBlocks,
+        initial.defaultExpiryBlocks,
+    )
+
+    aid = switchboard_alpha.setChequeConfig(*new_values, sender=governance.address)
+
+    pending = switchboard_alpha.pendingChequeConfig(aid)
+    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.CHEQUE_CONFIG
+    assert cheque_config_tuple(pending) == new_values
+
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+    assert cheque_config_tuple(mission_control.chequeConfig()) == new_values
+    assert switchboard_alpha.actionType(aid) == 0
+    assert cheque_config_tuple(switchboard_alpha.pendingChequeConfig(aid)) == new_values
+
+
+def test_set_cheque_config_invalid_stage_reverts(switchboard_alpha, governance, mission_control):
+    current = mission_control.chequeConfig()
+    with boa.reverts("invalid cheque config"):
+        switchboard_alpha.setChequeConfig(
+            current.maxNumActiveCheques,
+            current.instantUsdThreshold,
+            0,
+            current.expensiveDelayBlocks,
+            current.defaultExpiryBlocks,
+            sender=governance.address,
+        )
+
+
+def test_set_cheque_config_reverts_when_wallet_backpack_not_registered(governance):
+    fresh_hq = boa.load(
+        "contracts/registries/UndyHq.vy",
+        governance.address,
+        1,
+        10,
+        1,
+        10,
+        name="fresh_hq_without_wallet_backpack",
+    )
+    fresh_alpha = boa.load(
+        "contracts/config/SwitchboardAlpha.vy",
+        fresh_hq,
+        ZERO_ADDRESS,
+        1,
+        10,
+        name="alpha_without_wallet_backpack",
+    )
+
+    with boa.reverts("wallet backpack not registered"):
+        fresh_alpha.setChequeConfig(1, 0, 1, 0, 0, sender=governance.address)
+
+
+def test_set_cheque_config_reverts_when_cheque_book_not_registered(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    undy_hq,
+    wallet_backpack,
+):
+    with boa.env.anchor():
+        mock_wallet_backpack = boa.load(
+            "contracts/mock/MockWalletBackpack.vy",
+            wallet_backpack.kernel(),
+            wallet_backpack.sentinel(),
+            wallet_backpack.highCommand(),
+            wallet_backpack.paymaster(),
+            ZERO_ADDRESS,
+            wallet_backpack.migrator(),
+            wallet_backpack.actionDataProvider(),
+            name="mock_wallet_backpack_no_cheque_book",
+        )
+        assert undy_hq.startAddressUpdateToRegistry(8, mock_wallet_backpack.address, sender=governance.address)
+        boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+        assert undy_hq.confirmAddressUpdateToRegistry(8, sender=governance.address)
+
+        current = mission_control.chequeConfig()
+        with boa.reverts("cheque book not registered"):
+            switchboard_alpha.setChequeConfig(*cheque_config_tuple(current), sender=governance.address)
+
+
+def test_set_cheque_config_execute_revalidates_current_timelock_bounds(
+    switchboard_alpha,
+    governance,
+    mission_control,
+):
+    with boa.env.anchor():
+        current = mission_control.chequeConfig()
+        values = cheque_config_tuple(current)
+        aid = switchboard_alpha.setChequeConfig(*values, sender=governance.address)
+
+        wallet_config = mission_control.userWalletConfig()
+        wallet_config = wallet_config._replace(
+            minKeyActionTimeLock=current.defaultExpiryBlocks + 1,
+            maxKeyActionTimeLock=current.defaultExpiryBlocks + 2,
+        )
+        mission_control.setUserWalletConfig(wallet_config, sender=switchboard_alpha.address)
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid cheque config"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+
+def test_set_cheque_config_execute_revalidates_rotated_cheque_book_accepts(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    wallet_backpack,
+    cheque_book,
+):
+    with boa.env.anchor():
+        current = mission_control.chequeConfig()
+        values = (
+            current.maxNumActiveCheques + 3,
+            current.instantUsdThreshold + 3,
+            current.periodLength,
+            current.expensiveDelayBlocks,
+            current.defaultExpiryBlocks,
+        )
+        aid = switchboard_alpha.setChequeConfig(*values, sender=governance.address)
+
+        replacement = deploy_rotated_cheque_book(
+            cheque_book,
+            max_expiry_blocks=current.defaultExpiryBlocks,
+            name="cheque_book_rotation_accept",
+        )
+        wallet_backpack.addPendingChequeBook(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingChequeBook(sender=governance.address)
+        assert wallet_backpack.chequeBook() == replacement.address
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        assert switchboard_alpha.executePendingAction(aid, sender=governance.address)
+        assert cheque_config_tuple(mission_control.chequeConfig()) == values
+
+
+def test_set_cheque_config_execute_revalidates_rotated_cheque_book_rejects(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    wallet_backpack,
+    cheque_book,
+):
+    with boa.env.anchor():
+        current = mission_control.chequeConfig()
+        assert current.defaultExpiryBlocks > 1
+        values = cheque_config_tuple(current)
+        aid = switchboard_alpha.setChequeConfig(*values, sender=governance.address)
+
+        replacement = deploy_rotated_cheque_book(
+            cheque_book,
+            max_expiry_blocks=current.defaultExpiryBlocks - 1,
+            name="cheque_book_rotation_reject",
+        )
+        wallet_backpack.addPendingChequeBook(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingChequeBook(sender=governance.address)
+        assert wallet_backpack.chequeBook() == replacement.address
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid cheque config"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+        assert cheque_config_tuple(mission_control.chequeConfig()) == values
+
+
+def test_cancel_pending_cheque_config_clears_action_metadata(
+    switchboard_alpha,
+    governance,
+    mission_control,
+):
+    initial = mission_control.chequeConfig()
+    values = (
+        initial.maxNumActiveCheques + 2,
+        initial.instantUsdThreshold + 2,
+        initial.periodLength,
+        initial.expensiveDelayBlocks,
+        initial.defaultExpiryBlocks,
+    )
+    aid = switchboard_alpha.setChequeConfig(*values, sender=governance.address)
+
+    assert switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+
+    assert switchboard_alpha.actionType(aid) == 0
+    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+    assert cheque_config_tuple(switchboard_alpha.pendingChequeConfig(aid)) == values
+    assert cheque_config_tuple(mission_control.chequeConfig()) == cheque_config_tuple(initial)
+
+
 ##################
 # Manager Config #
 ##################
@@ -3659,14 +3902,10 @@ def test_mission_control_arg_rejects_current_mc(switchboard_alpha, governance, m
 
 
 def test_mission_control_arg_rejects_eoa(switchboard_alpha, governance):
-    """Test that passing an EOA (non-contract) fails -
-    Note: The is_contract check may behave differently in boa testing environment.
-    This test verifies the transaction fails when targeting a non-contract address."""
+    """Test that passing an EOA (non-contract) fails."""
     # Use a random address that is definitely not a contract
     random_eoa = "0x0000000000000000000000000000000000001234"
-    # In the test env, is_contract may return True but extcall will still fail
-    # We just verify that the transaction reverts (regardless of reason)
-    with boa.reverts():
+    with boa.reverts("invalid mission control"):
         switchboard_alpha.setCreatorWhitelist(
             governance.address,
             True,

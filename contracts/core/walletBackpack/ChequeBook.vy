@@ -158,8 +158,10 @@ def __init__(
     _minExpensiveChequeDelay: uint256,
     _maxUnlockBlocks: uint256,
     _maxExpiryBlocks: uint256,
+    _canInstantSetChequeSettings: bool,
 ):
     assert _undyHq != empty(address) # dev: invalid undy hq
+    assert _undyHq.is_contract # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     assert _minChequePeriod != 0 and _minChequePeriod < _maxChequePeriod # dev: invalid cheque period
@@ -174,6 +176,8 @@ def __init__(
 
     assert _maxExpiryBlocks != 0 # dev: invalid expiry blocks
     MAX_EXPIRY_BLOCKS = _maxExpiryBlocks
+
+    self.canInstantSetChequeSettings = _canInstantSetChequeSettings
 
 
 ##################

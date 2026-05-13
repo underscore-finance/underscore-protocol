@@ -25,30 +25,39 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 import interfaces.ConfigStructs as cs
+import interfaces.WalletConfigStructs as wcs
 
 interface MissionControl:
     def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
     def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
     def setAssetConfig(_asset: address, _config: cs.AssetConfig): nonpayable
     def setIsStablecoin(_asset: address, _isStablecoin: bool): nonpayable
+    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
     def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
     def setUserWalletConfig(_config: cs.UserWalletConfig): nonpayable
     def canPerformSecurityAction(_signer: address) -> bool: view
     def setManagerConfig(_config: cs.ManagerConfig): nonpayable
+    def setChequeConfig(_config: cs.ChequeConfig): nonpayable
     def assetConfig(_asset: address) -> cs.AssetConfig: view
     def setPayeeConfig(_config: cs.PayeeConfig): nonpayable
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
     def agentConfig() -> cs.AgentConfig: view
-    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
 
 interface Hatchery:
     def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
+    def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
     def setNonProdCreator(_nonProdCreator: address): nonpayable
 
 interface AgentWrapper:
     def removeSender(_sender: address): nonpayable
     def addSender(_sender: address): nonpayable
+
+interface ChequeBook:
+    def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
+
+interface WalletBackpack:
+    def chequeBook() -> address: view
 
 flag ActionType:
     USER_WALLET_TEMPLATES
@@ -69,6 +78,7 @@ flag ActionType:
     IS_STABLECOIN
     AGENT_WRAPPER_SENDER
     RIPE_REWARDS_CONFIG
+    CHEQUE_CONFIG
 
 struct IsAddrAllowed:
     addr: address
@@ -280,6 +290,13 @@ event HatcheryNonProdCreatorSet:
     hatchery: indexed(address)
     nonProdCreator: indexed(address)
 
+event HatcheryDefaultInstantActionSettingsSet:
+    hatchery: indexed(address)
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+
 event PendingManagerConfigChange:
     managerPeriod: uint256
     managerActivationLength: uint256
@@ -314,6 +331,22 @@ event ManagerConfigSet:
 event PayeeConfigSet:
     payeePeriod: uint256
     payeeActivationLength: uint256
+
+event PendingChequeConfigChange:
+    maxNumActiveCheques: uint256
+    instantUsdThreshold: uint256
+    periodLength: uint256
+    expensiveDelayBlocks: uint256
+    defaultExpiryBlocks: uint256
+    confirmationBlock: uint256
+    actionId: indexed(uint256)
+
+event ChequeConfigSet:
+    maxNumActiveCheques: uint256
+    instantUsdThreshold: uint256
+    periodLength: uint256
+    expensiveDelayBlocks: uint256
+    defaultExpiryBlocks: uint256
 
 event CanPerformSecurityAction:
     signer: address
@@ -358,6 +391,7 @@ pendingAssetYieldConfig: public(HashMap[uint256, PendingAssetYieldConfig]) # aid
 pendingAgentConfig: public(HashMap[uint256, cs.AgentConfig]) # aid -> config
 pendingManagerConfig: public(HashMap[uint256, cs.ManagerConfig]) # aid -> config
 pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
+pendingChequeConfig: public(HashMap[uint256, cs.ChequeConfig]) # aid -> config
 pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
 pendingAgentWrapperSender: public(HashMap[uint256, PendingAgentWrapperSender])
 pendingRipeRewardsConfig: public(HashMap[uint256, cs.RipeRewardsConfig])
@@ -398,6 +432,7 @@ def _resolveMissionControl(_missionControl: address) -> address:
     if _missionControl == empty(address):
         return mc
     assert _missionControl != mc # dev: use empty for current mission control
+    assert _missionControl.is_contract # dev: invalid mission control
     return _missionControl
 
 
@@ -1010,6 +1045,34 @@ def setHatcheryNonProdCreator(
     return True
 
 
+@external
+def setHatcheryDefaultInstantActionSettings(
+    _canInstantAddManager: bool,
+    _canInstantAddPayee: bool,
+    _canInstantSetGlobalPayeeSettings: bool,
+    _canInstantSetChequeSettings: bool,
+) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setDefaultInstantActionSettings(
+        wcs.InstantActionSettings(
+            canInstantAddManager=_canInstantAddManager,
+            canInstantAddPayee=_canInstantAddPayee,
+            canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
+            canInstantSetChequeSettings=_canInstantSetChequeSettings,
+        )
+    )
+    log HatcheryDefaultInstantActionSettingsSet(
+        hatchery=hatchery,
+        canInstantAddManager=_canInstantAddManager,
+        canInstantAddPayee=_canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=_canInstantSetChequeSettings,
+    )
+    return True
+
+
 @view
 @internal
 def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> bool:
@@ -1128,6 +1191,73 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256, _miss
         actionId=aid,
     )
     return aid
+
+
+#################
+# Cheque Config #
+#################
+
+
+@external
+def setChequeConfig(
+    _maxNumActiveCheques: uint256,
+    _instantUsdThreshold: uint256,
+    _periodLength: uint256,
+    _expensiveDelayBlocks: uint256,
+    _defaultExpiryBlocks: uint256,
+    _missionControl: address = empty(address),
+) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    mc: address = self._resolveMissionControl(_missionControl)
+    config: cs.ChequeConfig = cs.ChequeConfig(
+        maxNumActiveCheques=_maxNumActiveCheques,
+        instantUsdThreshold=_instantUsdThreshold,
+        periodLength=_periodLength,
+        expensiveDelayBlocks=_expensiveDelayBlocks,
+        defaultExpiryBlocks=_defaultExpiryBlocks,
+    )
+    chequeBook: address = self._getCurrentChequeBook()
+    assert self._isValidChequeConfig(mc, chequeBook, config) # dev: invalid cheque config
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.CHEQUE_CONFIG
+    self.pendingMissionControl[aid] = mc
+    self.pendingChequeConfig[aid] = config
+    log PendingChequeConfigChange(
+        maxNumActiveCheques=_maxNumActiveCheques,
+        instantUsdThreshold=_instantUsdThreshold,
+        periodLength=_periodLength,
+        expensiveDelayBlocks=_expensiveDelayBlocks,
+        defaultExpiryBlocks=_defaultExpiryBlocks,
+        confirmationBlock=timeLock._getActionConfirmationBlock(aid),
+        actionId=aid,
+    )
+    return aid
+
+
+@view
+@internal
+def _getCurrentChequeBook() -> address:
+    walletBackpack: address = addys._getWalletBackpackAddr()
+    assert walletBackpack != empty(address) # dev: wallet backpack not registered
+    chequeBook: address = staticcall WalletBackpack(walletBackpack).chequeBook()
+    assert chequeBook != empty(address) # dev: cheque book not registered
+    return chequeBook
+
+
+@view
+@internal
+def _isValidChequeConfig(_missionControl: address, _chequeBook: address, _config: cs.ChequeConfig) -> bool:
+    walletConfig: cs.UserWalletConfig = staticcall MissionControl(_missionControl).userWalletConfig()
+    return staticcall ChequeBook(_chequeBook).isValidUserWalletChequeDefaults(
+        _config.maxNumActiveCheques,
+        _config.instantUsdThreshold,
+        _config.periodLength,
+        _config.expensiveDelayBlocks,
+        _config.defaultExpiryBlocks,
+        walletConfig.minKeyActionTimeLock,
+    )
 
 
 #########
@@ -1518,6 +1648,19 @@ def executePendingAction(_aid: uint256) -> bool:
         p: cs.PayeeConfig = self.pendingPayeeConfig[_aid]
         extcall MissionControl(mc).setPayeeConfig(p)
         log PayeeConfigSet(payeePeriod=p.payeePeriod, payeeActivationLength=p.payeeActivationLength)
+
+    elif actionType == ActionType.CHEQUE_CONFIG:
+        p: cs.ChequeConfig = self.pendingChequeConfig[_aid]
+        chequeBook: address = self._getCurrentChequeBook()
+        assert self._isValidChequeConfig(mc, chequeBook, p) # dev: invalid cheque config
+        extcall MissionControl(mc).setChequeConfig(p)
+        log ChequeConfigSet(
+            maxNumActiveCheques=p.maxNumActiveCheques,
+            instantUsdThreshold=p.instantUsdThreshold,
+            periodLength=p.periodLength,
+            expensiveDelayBlocks=p.expensiveDelayBlocks,
+            defaultExpiryBlocks=p.defaultExpiryBlocks,
+        )
 
     elif actionType == ActionType.CAN_PERFORM_SECURITY_ACTION:
         data: IsAddrAllowed = self.pendingAddrToBool[_aid]

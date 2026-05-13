@@ -140,6 +140,8 @@ def test_add_payee_instant_gate_matrix(
     _set_protocol_flag(paymaster, switchboard_bravo, "canInstantAddPayee", "setCanInstantAddPayee", protocol_enabled)
     if user_enabled:
         _set_user_instant_settings(config, bob, (False, True, False, False))
+    else:
+        config.setInstantActionSettings((False, False, False, False), sender=bob)
     args = _add_payee_args(createPayeeLimits)
     block_before = boa.env.evm.patch.block_number
 

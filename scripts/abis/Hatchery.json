@@ -76,6 +76,38 @@
     "type": "event"
   },
   {
+    "name": "HatcheryDefaultInstantActionSettingsSet",
+    "inputs": [
+      {
+        "name": "canInstantAddManager",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantAddPayee",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetGlobalPayeeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetChequeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "DepartmentPauseModified",
     "inputs": [
       {
@@ -388,6 +420,36 @@
     "outputs": []
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setDefaultInstantActionSettings",
+    "inputs": [
+      {
+        "name": "_settings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "doesWalletStillHaveTrialFundsWithAddys",
@@ -445,6 +507,36 @@
       {
         "name": "",
         "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "defaultInstantActionSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
       }
     ]
   },
@@ -518,6 +610,60 @@
       },
       {
         "name": "_ethAddr",
+        "type": "address"
+      },
+      {
+        "name": "_defaultInstantActionSettings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_stagingStarterAgentConfig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_devStarterAgentConfig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_nonProdCreator",
         "type": "address"
       }
     ],

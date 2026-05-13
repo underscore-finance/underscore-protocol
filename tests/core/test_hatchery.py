@@ -4,7 +4,7 @@ import boa
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
 from constants import MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
-from conf_utils import filter_logs
+from conf_utils import filter_logs, instant_action_settings_tuple
 
 
 WALLET_BACKPACK_CORE_ADDR_ARGS = (
@@ -66,6 +66,58 @@ def test_create_user_wallet_basic(hatchery, alice):
     assert wallet_config.owner() == alice
 
 
+def test_fresh_wallet_inherits_hatchery_default_instant_settings(hatchery, alice):
+    wallet = UserWallet.at(hatchery.createUserWallet(sender=alice))
+    config = UserWalletConfig.at(wallet.walletConfig())
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
+
+
+def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_alpha, governance, alice, bob):
+    wallet_a = UserWallet.at(hatchery.createUserWallet(sender=alice))
+    config_a = UserWalletConfig.at(wallet_a.walletConfig())
+
+    switchboard_alpha.setHatcheryDefaultInstantActionSettings(False, True, False, True, sender=governance.address)
+
+    wallet_b = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    config_b = UserWalletConfig.at(wallet_b.walletConfig())
+
+    assert instant_action_settings_tuple(config_a.instantActionSettings()) == (True, True, True, True)
+    assert instant_action_settings_tuple(config_b.instantActionSettings()) == (False, True, False, True)
+
+
+def test_hatchery_default_instant_setting_access_control(hatchery, switchboard_alpha, alice):
+    with boa.reverts("no perms"):
+        hatchery.setDefaultInstantActionSettings((False, False, False, False), sender=alice)
+
+    with boa.reverts("no perms"):
+        switchboard_alpha.setHatcheryDefaultInstantActionSettings(False, False, False, False, sender=alice)
+
+
+def test_hatchery_constructor_rejects_whitelisted_non_prod_creator(
+    undy_hq,
+    weth,
+    hatchery,
+    mission_control,
+    switchboard_alpha,
+    alice,
+):
+    mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
+
+    with boa.reverts("non-prod creator is whitelisted"):
+        boa.load(
+            "contracts/core/Hatchery.vy",
+            undy_hq,
+            weth,
+            hatchery.ETH(),
+            (True, True, True, True),
+            (ZERO_ADDRESS, 0),
+            (ZERO_ADDRESS, 0),
+            alice,
+            name="hatchery_bad_non_prod_creator",
+        )
+
+
 @pytest.mark.parametrize("field,arg_index", WALLET_BACKPACK_CORE_ADDR_ARGS)
 def test_create_user_wallet_rejects_zero_wallet_backpack_addresses(
     field,
@@ -108,6 +160,10 @@ def test_create_user_wallet_rejects_zero_eth_addresses(undy_hq, hatchery, weth, 
         undy_hq,
         ZERO_ADDRESS if zero_weth else weth,
         hatchery.ETH() if zero_weth else ZERO_ADDRESS,
+        (True, True, True, True),
+        (ZERO_ADDRESS, 0),
+        (ZERO_ADDRESS, 0),
+        ZERO_ADDRESS,
         name=f"hatchery_zero_{'weth' if zero_weth else 'eth'}",
     )
 
@@ -465,10 +521,10 @@ def test_non_prod_starter_config_overwrite_and_clear_all_envs(
 ):
     hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
 
-    with boa.reverts("starter agent not set"):
-        hatchery.createUserWallet(sally, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
-    with boa.reverts("starter agent not set"):
-        hatchery.createUserWallet(sally, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.DEV, sender=charlie)
+    staging_default_wallet = hatchery.createUserWallet(sally, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+    dev_default_wallet = hatchery.createUserWallet(sally, ZERO_ADDRESS, 2, STARTER_AGENT_TYPE.DEV, sender=charlie)
+    assert UserWalletConfig.at(UserWallet.at(staging_default_wallet).walletConfig()).startingAgent() == hatchery.WETH()
+    assert UserWalletConfig.at(UserWallet.at(dev_default_wallet).walletConfig()).startingAgent() == hatchery.WETH()
 
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
@@ -584,7 +640,7 @@ def test_non_prod_creator_must_not_be_creator_whitelisted(
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
 
 
-def test_non_prod_creator_zero_disables_non_prod_creation(hatchery, switchboard_alpha, alice, bob, charlie):
+def test_non_prod_creator_zero_blocks_non_prod_only(hatchery, switchboard_alpha, alice, bob, charlie):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
         bob,
@@ -601,10 +657,17 @@ def test_non_prod_creator_zero_disables_non_prod_creation(hatchery, switchboard_
     hatchery.setNonProdCreator(ZERO_ADDRESS, sender=switchboard_alpha.address)
     with boa.reverts("no perms"):
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+    assert hatchery.createUserWallet(sender=alice) != ZERO_ADDRESS
 
 
 def test_selecting_unset_or_cleared_non_prod_reverts(hatchery, switchboard_alpha, alice, bob, charlie):
     hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
+    hatchery.setStarterAgentConfig(
+        STARTER_AGENT_TYPE.STAGING,
+        ZERO_ADDRESS,
+        0,
+        sender=switchboard_alpha.address,
+    )
 
     with boa.reverts("starter agent not set"):
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)

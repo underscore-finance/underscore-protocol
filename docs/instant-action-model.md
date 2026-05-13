@@ -47,9 +47,11 @@ Pending enables store the target backpack item at staging time. If WalletBackpac
 
 ## User Flags
 
-User flags live on `UserWalletConfig.instantActionSettings` and default to all false.
+User flags live on `UserWalletConfig.instantActionSettings`. New wallets inherit `Hatchery.defaultInstantActionSettings`; the cutover default is all true for manager add, payee add, global payee settings, and cheque settings.
 
-Enabling any user flag stages `pendingInstantActionSettings` behind the wallet time lock. Disabling-only changes apply immediately. Mixed changes apply immediate disables and stage the requested full settings for later confirmation. Cancelling the pending mixed change clears only the pending struct; immediate disables stay active.
+Enabling any user flag from false to true stages `pendingInstantActionSettings` behind the wallet time lock. Users can disable flags immediately. Mixed changes apply immediate disables and stage the requested full settings for later confirmation. Cancelling the pending mixed change clears only the pending struct; immediate disables stay active.
+
+Submitting any settings tuple that introduces no new enables clears any outstanding pending instant-settings change. This includes idempotent re-submission of active settings and strict disable-only requests. UIs should not defensively resubmit active or disabled values unless they intend to cancel the outstanding pending enable.
 
 The user wallet instant-setting methods intentionally emit no events, matching the existing `setTimeLock` flow. Operational monitoring should watch the explicit method calls and the Switchboard protocol flag events.
 

@@ -31,6 +31,8 @@
 - `preparePayment` is callable by valid Undy addresses.
 - The AgentSender signer is not the user wallet owner.
 - AgentSender can act only through wrapper manager permissions.
+- New wallets ship with instant manager-add, payee-add, global payee-settings, and cheque-settings user flags enabled by the Hatchery default. These paths still require the matching protocol flag and the per-call instant bool.
+- Users can opt out by disabling any `instantActionSettings` flag immediately. Re-enabling a disabled flag is timelocked at the wallet-config layer.
 
 ## Future Options
 

@@ -65,8 +65,8 @@ interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def creatorWhitelist(_creator: address) -> bool: view
 
-interface UserWalletConfig:
-    def setWallet(_wallet: address) -> bool: nonpayable
+interface WalletConfig:
+    def setWallet(_wallet: address): nonpayable
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -108,21 +108,49 @@ event StarterAgentConfigSet:
 event NonProdCreatorSet:
     nonProdCreator: indexed(address)
 
+event HatcheryDefaultInstantActionSettingsSet:
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+    caller: indexed(address)
+
 WETH: public(immutable(address))
 ETH: public(immutable(address))
 
+defaultInstantActionSettings: public(wcs.InstantActionSettings)
 stagingStarterAgentConfig: public(cs.AgentConfig)
 devStarterAgentConfig: public(cs.AgentConfig)
 nonProdCreator: public(address)
 
 
 @deploy
-def __init__(_undyHq: address, _wethAddr: address, _ethAddr: address):
+def __init__(
+    _undyHq: address,
+    _wethAddr: address,
+    _ethAddr: address,
+    _defaultInstantActionSettings: wcs.InstantActionSettings,
+    _stagingStarterAgentConfig: cs.AgentConfig,
+    _devStarterAgentConfig: cs.AgentConfig,
+    _nonProdCreator: address,
+):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
 
     WETH = _wethAddr
     ETH = _ethAddr
+    self.defaultInstantActionSettings = _defaultInstantActionSettings
+
+    assert self._areValidStarterAgentParams(_stagingStarterAgentConfig.startingAgent, _stagingStarterAgentConfig.startingAgentActivationLength) # dev: invalid starter agent params
+    assert self._areValidStarterAgentParams(_devStarterAgentConfig.startingAgent, _devStarterAgentConfig.startingAgentActivationLength) # dev: invalid starter agent params
+    self.stagingStarterAgentConfig = _stagingStarterAgentConfig
+    self.devStarterAgentConfig = _devStarterAgentConfig
+
+    if _nonProdCreator != empty(address):
+        missionControl: address = addys._getMissionControlAddr()
+        assert missionControl != empty(address) # dev: invalid setup
+        assert not staticcall MissionControl(missionControl).creatorWhitelist(_nonProdCreator) # dev: non-prod creator is whitelisted
+    self.nonProdCreator = _nonProdCreator
 
 
 ######################
@@ -213,10 +241,11 @@ def createUserWallet(
         ETH,
         config.minKeyActionTimeLock,
         config.maxKeyActionTimeLock,
+        self.defaultInstantActionSettings,
     )
     assert walletConfigAddr != empty(address) # dev: invalid setup
     mainWalletAddr: address = create_from_blueprint(config.walletTemplate, WETH, ETH, walletConfigAddr)
-    assert extcall UserWalletConfig(walletConfigAddr).setWallet(mainWalletAddr) # dev: could not set wallet
+    extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr)
 
     # update ledger
     extcall Ledger(a.ledger).createUserWallet(mainWalletAddr, ambassador)
@@ -312,7 +341,7 @@ def _isValidStarterAgentType(_starterAgentType: cs.StarterAgentType) -> bool:
     )
 
 
-@view
+@pure
 @internal
 def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> bool:
     if _agent != empty(address) and _activationLength == 0:
@@ -322,6 +351,19 @@ def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> 
     if _activationLength == max_value(uint256):
         return False
     return True
+
+
+@external
+def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings):
+    assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.defaultInstantActionSettings = _settings
+    log HatcheryDefaultInstantActionSettingsSet(
+        canInstantAddManager=_settings.canInstantAddManager,
+        canInstantAddPayee=_settings.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=_settings.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=_settings.canInstantSetChequeSettings,
+        caller=msg.sender,
+    )
 
 
 # trial funds (legacy wallets)

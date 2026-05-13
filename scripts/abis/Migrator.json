@@ -428,6 +428,10 @@
       {
         "name": "_undyHq",
         "type": "address"
+      },
+      {
+        "name": "_instantMigrationEnabled",
+        "type": "bool"
       }
     ],
     "outputs": []

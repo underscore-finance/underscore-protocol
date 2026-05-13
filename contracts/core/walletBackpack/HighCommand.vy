@@ -22,13 +22,13 @@ interface UserWalletConfig:
     def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings): nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
-    def instantActionSettings() -> wcs.InstantActionSettings: view
     def managerSettings(_manager: address) -> wcs.ManagerSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
-    def indexOfManager(_addr: address) -> uint256: view
-    def indexOfPayee(_payee: address) -> uint256: view
+    def instantActionSettings() -> wcs.InstantActionSettings: view
     def indexOfWhitelist(_addr: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
+    def indexOfManager(_addr: address) -> uint256: view
+    def indexOfPayee(_payee: address) -> uint256: view
     def removeManager(_manager: address): nonpayable
     def startingAgent() -> address: view
     def timeLock() -> uint256: view
@@ -40,12 +40,12 @@ interface Registry:
     def isValidAddr(_addr: address) -> bool: view
     def getAddr(_regId: uint256) -> address: view
 
+interface Ledger:
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
+    def isUserWallet(_user: address) -> bool: view
+
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
-
-interface Ledger:
-    def isUserWallet(_user: address) -> bool: view
-    def isRegisteredBackpackItem(_addr: address) -> bool: view
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
@@ -151,8 +151,10 @@ def __init__(
     _minActivationLength: uint256,
     _maxActivationLength: uint256,
     _maxStartDelay: uint256,
+    _canInstantAddManager: bool,
 ):
     assert _undyHq != empty(address) # dev: invalid undy hq
+    assert _undyHq.is_contract # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     assert _minManagerPeriod != 0 and _minManagerPeriod < _maxManagerPeriod # dev: invalid manager periods
@@ -165,6 +167,8 @@ def __init__(
 
     assert _maxStartDelay != 0 # dev: invalid start delay
     MAX_START_DELAY = _maxStartDelay
+
+    self.canInstantAddManager = _canInstantAddManager
 
 
 ##################

@@ -50,6 +50,7 @@ def deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governanc
         cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY(),
         cheque_book.MAX_UNLOCK_BLOCKS(),
         cheque_book.MAX_EXPIRY_BLOCKS(),
+        cheque_book.canInstantSetChequeSettings(),
         name="replacement_cheque_book",
     )
     wallet_backpack_deploy.addPendingChequeBook(replacement.address, sender=governance.address)
@@ -99,6 +100,62 @@ def test_remove_whitelist_access(user_wallet_config, alice, bob):
     # Non-kernel address should fail
     with boa.reverts("no perms"):
         user_wallet_config.removeWhitelistAddr(alice, sender=bob)
+
+
+def test_set_wallet_requires_registered_hatchery_for_unbound_config(
+    undy_hq,
+    hatchery,
+    alice,
+    bob,
+    weth,
+    kernel,
+    sentinel,
+    high_command,
+    paymaster,
+    cheque_book,
+    migrator,
+    action_data_provider,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+    createManagerSettings,
+):
+    config = boa.load(
+        "contracts/core/userWallet/UserWalletConfig.vy",
+        undy_hq,
+        alice,
+        1,
+        createGlobalManagerSettings(),
+        createGlobalPayeeSettings(),
+        createChequeSettings(),
+        ZERO_ADDRESS,
+        createManagerSettings(),
+        kernel.address,
+        sentinel.address,
+        high_command.address,
+        paymaster.address,
+        cheque_book.address,
+        migrator.address,
+        action_data_provider.address,
+        weth.address,
+        hatchery.ETH(),
+        ONE_DAY_IN_BLOCKS,
+        ONE_MONTH_IN_BLOCKS,
+        (True, True, True, True),
+        name="unbound_user_wallet_config",
+    )
+
+    with boa.reverts("no perms"):
+        config.setWallet(bob, sender=bob)
+
+    with boa.reverts("invalid wallet"):
+        config.setWallet(ZERO_ADDRESS, sender=hatchery.address)
+
+    config.setWallet(bob, sender=hatchery.address)
+    assert config.wallet() == bob
+
+    with boa.reverts("wallet already set"):
+        config.setWallet(alice, sender=hatchery.address)
 
 
 def test_add_whitelist_via_migrator_access(user_wallet_config, alice, bob):
@@ -1466,10 +1523,7 @@ def test_deregister_asset_by_migrator(user_wallet_config, migrator, alpha_token,
     assert asset_data.assetBalance > 0
     
     # Deregister the asset
-    result = user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
-    
-    # Should return a boolean
-    assert isinstance(result, bool)
+    user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
     
     # Deregister only removes from assets array but asset data remains
     # The asset balance is still there but it's not tracked in the assets array anymore
@@ -1547,14 +1601,15 @@ def test_update_asset_data_with_lego_id(user_wallet_config, switchboard_alpha, a
 ###########################
 
 
-def test_instant_action_settings_default_all_false(hatchery, bob):
+def test_instant_action_settings_default_all_true(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
-    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
     assert config.pendingInstantActionSettings().confirmBlock == 0
 
 
 def test_enabling_one_instant_action_flag_stages_pending(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     requested = (True, False, False, False)
 
     config.setInstantActionSettings(requested, sender=bob)
@@ -1569,6 +1624,7 @@ def test_enabling_one_instant_action_flag_stages_pending(hatchery, bob):
 
 def test_confirm_pending_instant_action_settings_before_timelock_reverts(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
 
     with boa.reverts("time delay not reached"):
@@ -1577,6 +1633,7 @@ def test_confirm_pending_instant_action_settings_before_timelock_reverts(hatcher
 
 def test_confirm_pending_instant_action_settings_after_timelock_applies(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     requested = (True, False, True, False)
     config.setInstantActionSettings(requested, sender=bob)
 
@@ -1588,6 +1645,7 @@ def test_confirm_pending_instant_action_settings_after_timelock_applies(hatchery
 
 def test_pending_instant_action_settings_owner_mismatch_blocks_confirm(hatchery, bob, alice):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
     pending = config.pendingInstantActionSettings()
 
@@ -1606,6 +1664,7 @@ def test_security_actor_can_cancel_pending_instant_action_settings(
     hatchery, bob, alice, mission_control, switchboard_alpha
 ):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
     mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
 
@@ -1651,17 +1710,19 @@ def test_cancel_pending_mixed_instant_action_change_keeps_immediate_disables(hat
 
 def test_new_instant_action_settings_request_while_pending_exists_reverts(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
 
     with boa.reverts("pending instant settings already exist"):
         config.setInstantActionSettings((False, True, False, False), sender=bob)
 
 
-def test_disabling_request_while_pending_instant_action_settings_exists_applies_and_clears_pending(hatchery, bob):
+def test_resubmitting_current_instant_action_settings_clears_pending(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
-    set_user_instant_action_settings(config, bob, (True, False, False, False))
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, True, False, False), sender=bob)
 
+    # Re-submitting the active settings is the no-enable path and clears stale pending settings.
     config.setInstantActionSettings((False, False, False, False), sender=bob)
 
     assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
@@ -1682,9 +1743,9 @@ def test_no_change_instant_action_settings_without_pending_noops(hatchery, bob):
     config = _fresh_wallet_config(hatchery, bob)
     before = config.pendingInstantActionSettings()
 
-    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, True, True, True), sender=bob)
 
-    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
     after = config.pendingInstantActionSettings()
     assert after.initiatedBlock == before.initiatedBlock == 0
     assert after.confirmBlock == before.confirmBlock == 0
@@ -1693,6 +1754,7 @@ def test_no_change_instant_action_settings_without_pending_noops(hatchery, bob):
 def test_instant_action_settings_migrator_setter_sets_active_only(hatchery, bob, migrator):
     config = _fresh_wallet_config(hatchery, bob)
     source_config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
     config.setInstantActionSettings((True, False, False, False), sender=bob)
     pending_before = config.pendingInstantActionSettings()
 

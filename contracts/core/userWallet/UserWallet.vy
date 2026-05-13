@@ -34,9 +34,9 @@ from ethereum.ercs import IERC721
 
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
-    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> bool: nonpayable
-    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256) -> bool: nonpayable
-    def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address) -> bool: nonpayable
+    def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address): nonpayable
+    def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256): nonpayable
+    def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address): nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
 
 interface LootDistributor:
@@ -164,9 +164,9 @@ def transferFunds(
     # make sure recipient can actually receive funds
     if not _isSpecialTx:
         if _isCheque:
-            assert extcall WalletConfig(ad.walletConfig).validateCheque(_recipient, asset, amount, txUsdValue, ad.signer) # dev: cheque invalid
+            extcall WalletConfig(ad.walletConfig).validateCheque(_recipient, asset, amount, txUsdValue, ad.signer)
         else:
-            assert extcall WalletConfig(ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, asset, amount) # dev: recipient limits exceeded
+            extcall WalletConfig(ad.walletConfig).checkRecipientLimitsAndUpdateData(_recipient, txUsdValue, asset, amount)
 
     # do actual transfer
     if asset == ad.eth:
@@ -1118,7 +1118,7 @@ def _performPostActionTasks(
     # first, check and update manager caps
     if _ad.isManager and not _isSpecialTx:
         shouldCheckSwap: bool = _action == ws.ActionType.SWAP
-        assert extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, shouldCheckSwap, _fromAssetUsdValue, _toAssetUsdValue, _ad.vaultRegistry) # dev: manager limits not allowed
+        extcall WalletConfig(_ad.walletConfig).checkManagerLimitsPostTx(_ad.signer, _txUsdValue, underlyingAsset, vaultToken, shouldCheckSwap, _fromAssetUsdValue, _toAssetUsdValue, _ad.vaultRegistry)
 
     # can immediately deregister assets on zero balance
     canDeregister: bool = True

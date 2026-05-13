@@ -137,6 +137,8 @@ def test_add_manager_instant_gate_matrix(
     _set_protocol_instant_add_manager(high_command, switchboard_bravo, protocol_enabled)
     if user_enabled:
         _set_user_instant_add_manager(config, bob)
+    else:
+        config.setInstantActionSettings((False, False, False, False), sender=bob)
     args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
     block_before = boa.env.evm.patch.block_number
 

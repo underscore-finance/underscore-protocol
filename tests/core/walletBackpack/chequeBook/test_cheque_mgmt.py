@@ -326,6 +326,8 @@ def test_set_cheque_settings_instant_gate_matrix(
     _set_protocol_instant_cheque_settings(cheque_book, switchboard_bravo, protocol_enabled)
     if user_enabled:
         _set_user_instant_cheque_settings(config, bob)
+    else:
+        config.setInstantActionSettings((False, False, False, False), sender=bob)
     widened = widened_cheque_settings(createChequeSettings)
 
     if should_revert:

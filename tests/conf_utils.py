@@ -46,7 +46,8 @@ def confirm_pending_instant_action_settings(config, owner):
 
 def set_user_instant_action_settings(config, owner, settings):
     config.setInstantActionSettings(settings, sender=owner)
-    confirm_pending_instant_action_settings(config, owner)
+    if config.pendingInstantActionSettings().confirmBlock != 0:
+        confirm_pending_instant_action_settings(config, owner)
 
 
 @pytest.fixture(scope="session")

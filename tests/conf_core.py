@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS, VAULT_INFO
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_YEAR_IN_BLOCKS
 
 
 ###########
@@ -313,6 +313,10 @@ def hatchery(undy_hq_deploy, fork, weth):
         undy_hq_deploy,
         weth,
         TOKENS[fork]["ETH"],
+        (True, True, True, True),
+        (weth.address, ONE_YEAR_IN_BLOCKS),
+        (weth.address, ONE_YEAR_IN_BLOCKS),
+        ZERO_ADDRESS,
         name="hatchery",
     )
 
@@ -458,6 +462,7 @@ def high_command(undy_hq_deploy, fork):
         PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_START_DELAY"],
+        True,
         name="high_command",
     )
 
@@ -475,6 +480,8 @@ def paymaster(undy_hq_deploy, fork):
         PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        True,
+        True,
         name="paymaster",
     )
 
@@ -492,6 +499,7 @@ def cheque_book(undy_hq_deploy, fork):
         PARAMS[fork]["CHEQUE_MIN_EXPENSIVE_DELAY"],
         PARAMS[fork]["CHEQUE_MAX_UNLOCK_BLOCKS"],
         PARAMS[fork]["CHEQUE_MAX_EXPIRY_BLOCKS"],
+        True,
         name="cheque_book",
     )
 
@@ -504,6 +512,7 @@ def migrator(undy_hq_deploy):
     return boa.load(
         "contracts/core/walletBackpack/Migrator.vy",
         undy_hq_deploy,
+        False,
         name="migrator",
     )
 

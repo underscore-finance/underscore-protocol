@@ -2500,6 +2500,10 @@
       {
         "name": "_maxStartDelay",
         "type": "uint256"
+      },
+      {
+        "name": "_canInstantAddManager",
+        "type": "bool"
       }
     ],
     "outputs": []

@@ -39,6 +39,7 @@ def stage_pending_time_lock(user_wallet_config, *, sender):
 
 
 def stage_pending_instant_action_settings(user_wallet_config, *, sender):
+    user_wallet_config.setInstantActionSettings((False, False, False, False), sender=sender)
     user_wallet_config.setInstantActionSettings((True, False, False, False), sender=sender)
 
 
@@ -1437,13 +1438,15 @@ def test_migrator_instant_action_setter_sets_active_flags_only(hatchery, bob, mi
     assert instant_action_settings_tuple(pending_after.settings) == (True, False, False, False)
 
 
-def test_active_user_instant_action_settings_copy_to_destination(migrator, hatchery, bob):
+def test_active_user_instant_action_settings_copy_to_destination(migrator, hatchery, switchboard_alpha, governance, bob):
     from_wallet = fresh_wallet(hatchery, bob)
-    to_wallet = fresh_wallet(hatchery, bob)
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
-    to_config = UserWalletConfig.at(to_wallet.walletConfig())
     active = (True, False, True, False)
     activate_instant_action_settings(from_config, active, sender=bob)
+    switchboard_alpha.setHatcheryDefaultInstantActionSettings(False, False, False, False, sender=governance.address)
+    to_wallet = fresh_wallet(hatchery, bob)
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    assert instant_action_settings_tuple(to_config.instantActionSettings()) == (False, False, False, False)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob)

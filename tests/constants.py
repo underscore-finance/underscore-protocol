@@ -67,6 +67,8 @@ class CONFIG_ACTION_TYPE(IntFlag):
     ASSET_YIELD_CONFIG = 16384  # 2^14
     IS_STABLECOIN = 32768  # 2^15
     AGENT_WRAPPER_SENDER = 65536  # 2^16
+    RIPE_REWARDS_CONFIG = 131072  # 2^17
+    CHEQUE_CONFIG = 262144  # 2^18
 
 
 # Starter agent selectors for Hatchery wallet creation.

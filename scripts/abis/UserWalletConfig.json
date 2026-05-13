@@ -419,12 +419,7 @@
         "type": "address"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -506,30 +501,7 @@
         "type": "address"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "toWallet",
-            "type": "address"
-          },
-          {
-            "name": "initiatedBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "confirmBlock",
-            "type": "uint256"
-          },
-          {
-            "name": "currentOwner",
-            "type": "address"
-          }
-        ]
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -1316,12 +1288,7 @@
         "type": "address"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -1345,12 +1312,7 @@
         "type": "uint256"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -1378,12 +1340,7 @@
         "type": "address"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -2524,12 +2481,7 @@
         "type": "address"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "nonpayable",
@@ -2589,12 +2541,7 @@
         "type": "uint256"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
+    "outputs": []
   },
   {
     "stateMutability": "view",
@@ -4497,6 +4444,28 @@
       {
         "name": "_maxTimeLock",
         "type": "uint256"
+      },
+      {
+        "name": "_instantActionSettings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
       }
     ],
     "outputs": []

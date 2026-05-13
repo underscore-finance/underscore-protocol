@@ -1,6 +1,7 @@
 import boa
 import pytest
 
+from config.BluePrint import PARAMS
 from conf_utils import filter_logs
 
 
@@ -77,6 +78,74 @@ def _execute_after_timelock(switchboard_bravo, aid, governance):
     if blocks > 0:
         boa.env.time_travel(blocks=blocks)
     return switchboard_bravo.executePendingAction(aid, sender=governance.address)
+
+
+def test_backpack_constructor_initializes_protocol_instant_flags(undy_hq_deploy, fork):
+    high_command = boa.load(
+        "contracts/core/walletBackpack/HighCommand.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_START_DELAY"],
+        True,
+        name="constructor_flag_high_command",
+    )
+    paymaster = boa.load(
+        "contracts/core/walletBackpack/Paymaster.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["PAYMASTER_MIN_PAYEE_PERIOD"],
+        PARAMS[fork]["PAYMASTER_MAX_PAYEE_PERIOD"],
+        PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
+        PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
+        PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        True,
+        True,
+        name="constructor_flag_paymaster",
+    )
+    cheque_book = boa.load(
+        "contracts/core/walletBackpack/ChequeBook.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["CHEQUE_MIN_PERIOD"],
+        PARAMS[fork]["CHEQUE_MAX_PERIOD"],
+        PARAMS[fork]["CHEQUE_MIN_EXPENSIVE_DELAY"],
+        PARAMS[fork]["CHEQUE_MAX_UNLOCK_BLOCKS"],
+        PARAMS[fork]["CHEQUE_MAX_EXPIRY_BLOCKS"],
+        True,
+        name="constructor_flag_cheque_book",
+    )
+    migrator = boa.load(
+        "contracts/core/walletBackpack/Migrator.vy",
+        undy_hq_deploy,
+        False,
+        name="constructor_flag_migrator",
+    )
+
+    assert high_command.canInstantAddManager() is True
+    assert paymaster.canInstantAddPayee() is True
+    assert paymaster.canInstantSetGlobalPayeeSettings() is True
+    assert cheque_book.canInstantSetChequeSettings() is True
+    assert migrator.instantMigrationEnabled() is False
+
+
+def test_constructor_enabled_protocol_flags_have_no_switchboard_pending_state(switchboard_bravo):
+    assert switchboard_bravo.pendingCanInstantAddManagerEnable().actionId == 0
+    assert switchboard_bravo.pendingCanInstantAddPayeeEnable().actionId == 0
+    assert switchboard_bravo.pendingCanInstantSetGlobalPayeeSettingsEnable().actionId == 0
+    assert switchboard_bravo.pendingCanInstantSetChequeSettingsEnable().actionId == 0
+    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == 0
+
+
+@pytest.mark.parametrize("action", ACTIONS)
+def test_enabling_constructor_true_protocol_flag_reverts_as_already_enabled(
+    request, switchboard_bravo, governance, action
+):
+    target = _target(request, action)
+    getattr(target, action["setter"])(True, sender=switchboard_bravo.address)
+
+    with boa.reverts("already enabled"):
+        _stage_enable(switchboard_bravo, target, governance, action)
 
 
 @pytest.mark.parametrize("action", ACTIONS)

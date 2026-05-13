@@ -1976,6 +1976,14 @@
       {
         "name": "_maxStartDelay",
         "type": "uint256"
+      },
+      {
+        "name": "_canInstantAddPayee",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetGlobalPayeeSettings",
+        "type": "bool"
       }
     ],
     "outputs": []

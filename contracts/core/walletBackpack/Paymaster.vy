@@ -157,8 +157,11 @@ def __init__(
     _minActivationLength: uint256,
     _maxActivationLength: uint256,
     _maxStartDelay: uint256,
+    _canInstantAddPayee: bool,
+    _canInstantSetGlobalPayeeSettings: bool,
 ):
     assert _undyHq != empty(address) # dev: invalid undy hq
+    assert _undyHq.is_contract # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     assert _minPayeePeriod != 0 and _minPayeePeriod < _maxPayeePeriod # dev: invalid payee period
@@ -171,6 +174,9 @@ def __init__(
 
     assert _maxStartDelay != 0 # dev: invalid start delay
     MAX_START_DELAY = _maxStartDelay
+
+    self.canInstantAddPayee = _canInstantAddPayee
+    self.canInstantSetGlobalPayeeSettings = _canInstantSetGlobalPayeeSettings
 
 
 ##################

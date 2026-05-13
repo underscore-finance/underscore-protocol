@@ -30,17 +30,26 @@ interface UserWalletConfig:
     def owner() -> address: view
     def isFrozen() -> bool: view
 
-interface Sentinel:
-    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
+interface MissionControl:
+    def canPerformSecurityAction(_addr: address) -> bool: view
+    def isLockedSigner(_signer: address) -> bool: view
 
 interface Ledger:
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
     def getLastTotalUsdValue(_user: address) -> uint256: view
-
-interface MissionControl:
-    def isLockedSigner(_signer: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
+
+interface Sentinel:
+    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
+
+interface AgentWrapper:
+    def isSender(_address: address) -> bool: view
 
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
@@ -48,11 +57,55 @@ MAX_LEGOS: constant(uint256) = 10
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
 LEGO_BOOK_ID: constant(uint256) = 3
+SWITCHBOARD_ID: constant(uint256) = 4
 HATCHERY_ID: constant(uint256) = 5
 LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 APPRAISER_ID: constant(uint256) = 7
 BILLING_ID: constant(uint256) = 9
 VAULT_REGISTRY_ID: constant(uint256) = 10
+
+
+@view
+@external
+def isValidRegistryAddr(_addr: address, _undyHq: address) -> bool:
+    return staticcall Registry(_undyHq).isValidAddr(_addr)
+
+
+@view
+@external
+def isSwitchboardAddr(_addr: address, _undyHq: address) -> bool:
+    switchboard: address = staticcall Registry(_undyHq).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
+
+
+@view
+@external
+def canPerformSecurityAction(_addr: address, _undyHq: address) -> bool:
+    missionControl: address = staticcall Registry(_undyHq).getAddr(MISSION_CONTROL_ID)
+    if missionControl == empty(address):
+        return False
+    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+
+
+@view
+@external
+def canSetBackpackItem(_newBackpackAddr: address, _caller: address, _owner: address, _undyHq: address) -> bool:
+    if _caller != _owner:
+        return False
+    ledger: address = staticcall Registry(_undyHq).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_newBackpackAddr)
+
+
+@view
+@external
+def isAgentSender(_addr: address, _agent: address) -> bool:
+    if _agent == empty(address):
+        return False
+    return staticcall AgentWrapper(_agent).isSender(_addr)
 
 
 @view

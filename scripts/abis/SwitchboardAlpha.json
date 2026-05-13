@@ -846,6 +846,38 @@
     "type": "event"
   },
   {
+    "name": "HatcheryDefaultInstantActionSettingsSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "canInstantAddManager",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantAddPayee",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetGlobalPayeeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetChequeSettings",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "PendingManagerConfigChange",
     "inputs": [
       {
@@ -995,6 +1027,80 @@
       },
       {
         "name": "payeeActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingChequeConfigChange",
+    "inputs": [
+      {
+        "name": "maxNumActiveCheques",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "instantUsdThreshold",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "periodLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "expensiveDelayBlocks",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultExpiryBlocks",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "ChequeConfigSet",
+    "inputs": [
+      {
+        "name": "maxNumActiveCheques",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "instantUsdThreshold",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "periodLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "expensiveDelayBlocks",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultExpiryBlocks",
         "type": "uint256",
         "indexed": false
       }
@@ -2681,6 +2787,35 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setHatcheryDefaultInstantActionSettings",
+    "inputs": [
+      {
+        "name": "_canInstantAddManager",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantAddPayee",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetGlobalPayeeSettings",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetChequeSettings",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "setAgentWrapperSender",
     "inputs": [
       {
@@ -2813,6 +2948,76 @@
       },
       {
         "name": "_payeeActivationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_missionControl",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setChequeConfig",
+    "inputs": [
+      {
+        "name": "_maxNumActiveCheques",
+        "type": "uint256"
+      },
+      {
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setChequeConfig",
+    "inputs": [
+      {
+        "name": "_maxNumActiveCheques",
+        "type": "uint256"
+      },
+      {
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
         "type": "uint256"
       },
       {
@@ -3472,6 +3677,45 @@
           },
           {
             "name": "payeeActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingChequeConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "maxNumActiveCheques",
+            "type": "uint256"
+          },
+          {
+            "name": "instantUsdThreshold",
+            "type": "uint256"
+          },
+          {
+            "name": "periodLength",
+            "type": "uint256"
+          },
+          {
+            "name": "expensiveDelayBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "defaultExpiryBlocks",
             "type": "uint256"
           }
         ]

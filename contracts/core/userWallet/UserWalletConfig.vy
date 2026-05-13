@@ -33,42 +33,34 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWallet:
-    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256 = max_value(uint256), _extraData: bytes32 = empty(bytes32), _isSpecialTx: bool = False) -> (uint256, address, uint256, uint256): nonpayable
-    def transferFunds(_recipient: address, _asset: address = empty(address), _amount: uint256 = max_value(uint256), _isCheque: bool = False, _isSpecialTx: bool = False) -> (uint256, uint256): nonpayable
-    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData = empty(ws.ActionData)) -> uint256: nonpayable
+    def withdrawFromYield(_legoId: uint256, _vaultToken: address, _amount: uint256, _extraData: bytes32, _isSpecialTx: bool) -> (uint256, address, uint256, uint256): nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool, _totalUsdValue: uint256, _ad: ws.ActionData) -> uint256: nonpayable
+    def transferFunds(_recipient: address, _asset: address, _amount: uint256, _isCheque: bool, _isSpecialTx: bool) -> (uint256, uint256): nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
-    def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType) -> bool: nonpayable
-    def deregisterAsset(_asset: address) -> bool: nonpayable
+    def setLegoAccessForAction(_legoAddr: address, _action: ws.ActionType): nonpayable
+    def deregisterAsset(_asset: address): nonpayable
     def assets(i: uint256) -> address: view
     def numAssets() -> uint256: view
+
+interface ActionDataProvider:
+    def checkSignerPermissionsAndGetBundle(_walletConfig: address, _signer: address, _action: ws.ActionType, _undyHq: address, _eth: address, _weth: address, _sentinel: address, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS], _transferRecipient: address) -> ws.ActionData: view
+    def getActionDataBundle(_walletConfig: address, _legoId: uint256, _signer: address, _undyHq: address, _eth: address, _weth: address) -> ws.ActionData: view
+    def canSetBackpackItem(_newBackpackAddr: address, _caller: address, _owner: address, _undyHq: address) -> bool: view
+    def canPerformSecurityAction(_addr: address, _undyHq: address) -> bool: view
+    def isValidRegistryAddr(_addr: address, _undyHq: address) -> bool: view
+    def isSwitchboardAddr(_addr: address, _undyHq: address) -> bool: view
+    def isAgentSender(_addr: address, _agent: address) -> bool: view
 
 interface Sentinel:
     def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
     def isValidPayeeAndGetData(_isWhitelisted: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData, bool): view
     def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData, bool): view
 
-interface ActionDataProvider:
-    def getActionDataBundle(_walletConfig: address, _legoId: uint256, _signer: address, _undyHq: address, _eth: address, _weth: address) -> ws.ActionData: view
-    def checkSignerPermissionsAndGetBundle(_walletConfig: address, _signer: address, _action: ws.ActionType, _undyHq: address, _eth: address, _weth: address, _sentinel: address, _assets: DynArray[address, MAX_ASSETS], _legoIds: DynArray[uint256, MAX_LEGOS], _transferRecipient: address) -> ws.ActionData: view
-
-interface Registry:
-    def isValidAddr(_addr: address) -> bool: view
-    def getAddr(_regId: uint256) -> address: view
-
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
-interface MissionControl:
-    def canPerformSecurityAction(_addr: address) -> bool: view
-
-interface Ledger:
-    def isRegisteredBackpackItem(_addr: address) -> bool: view
-
-interface Switchboard:
-    def isSwitchboardAddr(_addr: address) -> bool: view
-
-interface AgentWrapper:
-    def isSender(_address: address) -> bool: view
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 event EjectionModeSet:
     inEjectMode: bool
@@ -145,12 +137,6 @@ startingAgent: public(address)
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 
-# registry ids
-LEDGER_ID: constant(uint256) = 1
-MISSION_CONTROL_ID: constant(uint256) = 2
-SWITCHBOARD_ID: constant(uint256) = 4
-HATCHERY_ID: constant(uint256) = 5
-
 UNDY_HQ: immutable(address)
 WETH: immutable(address)
 ETH: immutable(address)
@@ -184,6 +170,7 @@ def __init__(
     # timelock
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
+    _instantActionSettings: wcs.InstantActionSettings,
 ):
     # initialize ownership
     ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
@@ -219,21 +206,23 @@ def __init__(
     self.globalManagerSettings = _globalManagerSettings
     self.globalPayeeSettings = _globalPayeeSettings
     self.chequeSettings = _chequeSettings
+    self.instantActionSettings = _instantActionSettings
 
     # initial agent
     if _startingAgent != empty(address):
         self.managerSettings[_startingAgent] = _starterAgentSettings
         self.startingAgent = _startingAgent
-        self._registerManager(_startingAgent)
+        self.managers[1] = _startingAgent
+        self.indexOfManager[_startingAgent] = 1
+        self.numManagers = 2
 
 
 @external
-def setWallet(_wallet: address) -> bool:
+def setWallet(_wallet: address):
+    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(5) # dev: no perms
     assert self.wallet == empty(address) # dev: wallet already set
     assert _wallet != empty(address) # dev: invalid wallet
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(HATCHERY_ID) # dev: no perms
     self.wallet = _wallet
-    return True
 
 
 #############
@@ -302,32 +291,31 @@ def setInstantActionSettings(_settings: wcs.InstantActionSettings):
     assert msg.sender == ownership.owner # dev: no perms
 
     current: wcs.InstantActionSettings = self.instantActionSettings
-    if self._isSameInstantActionSettings(current, _settings):
-        return
-
-    hasEnable: bool = self._hasInstantActionEnable(current, _settings)
-    if self.pendingInstantActionSettings.confirmBlock != 0:
-        assert not hasEnable # dev: pending instant settings already exist
+    hasEnable: bool = (
+        (not current.canInstantAddManager and _settings.canInstantAddManager) or
+        (not current.canInstantAddPayee and _settings.canInstantAddPayee) or
+        (not current.canInstantSetGlobalPayeeSettings and _settings.canInstantSetGlobalPayeeSettings) or
+        (not current.canInstantSetChequeSettings and _settings.canInstantSetChequeSettings)
+    )
+    if not hasEnable:
         self.instantActionSettings = _settings
-        self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
+        if self.pendingInstantActionSettings.confirmBlock != 0:
+            self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
         return
 
-    if hasEnable:
-        self.instantActionSettings = wcs.InstantActionSettings(
-            canInstantAddManager = current.canInstantAddManager and _settings.canInstantAddManager,
-            canInstantAddPayee = current.canInstantAddPayee and _settings.canInstantAddPayee,
-            canInstantSetGlobalPayeeSettings = current.canInstantSetGlobalPayeeSettings and _settings.canInstantSetGlobalPayeeSettings,
-            canInstantSetChequeSettings = current.canInstantSetChequeSettings and _settings.canInstantSetChequeSettings,
-        )
-        self.pendingInstantActionSettings = wcs.PendingInstantActionSettings(
-            settings = _settings,
-            initiatedBlock = block.number,
-            confirmBlock = unsafe_add(block.number, self.timeLock),
-            currentOwner = ownership.owner,
-        )
-        return
-
-    self.instantActionSettings = _settings
+    assert self.pendingInstantActionSettings.confirmBlock == 0 # dev: pending instant settings already exist
+    self.instantActionSettings = wcs.InstantActionSettings(
+        canInstantAddManager = current.canInstantAddManager and _settings.canInstantAddManager,
+        canInstantAddPayee = current.canInstantAddPayee and _settings.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings = current.canInstantSetGlobalPayeeSettings and _settings.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings = current.canInstantSetChequeSettings and _settings.canInstantSetChequeSettings,
+    )
+    self.pendingInstantActionSettings = wcs.PendingInstantActionSettings(
+        settings = _settings,
+        initiatedBlock = block.number,
+        confirmBlock = unsafe_add(block.number, self.timeLock),
+        currentOwner = ownership.owner,
+    )
 
 
 @external
@@ -352,45 +340,21 @@ def cancelPendingInstantActionSettings():
     self.pendingInstantActionSettings = empty(wcs.PendingInstantActionSettings)
 
 
-@pure
-@internal
-def _isSameInstantActionSettings(_a: wcs.InstantActionSettings, _b: wcs.InstantActionSettings) -> bool:
-    return (
-        _a.canInstantAddManager == _b.canInstantAddManager and
-        _a.canInstantAddPayee == _b.canInstantAddPayee and
-        _a.canInstantSetGlobalPayeeSettings == _b.canInstantSetGlobalPayeeSettings and
-        _a.canInstantSetChequeSettings == _b.canInstantSetChequeSettings
-    )
-
-
-@pure
-@internal
-def _hasInstantActionEnable(_current: wcs.InstantActionSettings, _requested: wcs.InstantActionSettings) -> bool:
-    return (
-        (not _current.canInstantAddManager and _requested.canInstantAddManager) or
-        (not _current.canInstantAddPayee and _requested.canInstantAddPayee) or
-        (not _current.canInstantSetGlobalPayeeSettings and _requested.canInstantSetGlobalPayeeSettings) or
-        (not _current.canInstantSetChequeSettings and _requested.canInstantSetChequeSettings)
-    )
-
-
 #####################
 # Pending Migration #
 #####################
 
 
 @external
-def setPendingMigration(_toWallet: address) -> wcs.PendingMigration:
+def setPendingMigration(_toWallet: address):
     assert msg.sender == self.migrator # dev: no perms
 
-    pending: wcs.PendingMigration = wcs.PendingMigration(
+    self.pendingMigration = wcs.PendingMigration(
         toWallet = _toWallet,
         initiatedBlock = block.number,
         confirmBlock = unsafe_add(block.number, self.timeLock),
         currentOwner = ownership.owner,
     )
-    self.pendingMigration = pending
-    return pending
 
 
 @external
@@ -467,7 +431,7 @@ def checkManagerLimitsPostTx(
     _fromAssetUsdValue: uint256,
     _toAssetUsdValue: uint256,
     _vaultRegistry: address,
-) -> bool:
+):
     assert msg.sender == self.wallet # dev: no perms
 
     # required data / config
@@ -495,10 +459,9 @@ def checkManagerLimitsPostTx(
     )
 
     # IMPORTANT -- this checks manager limits (usd values)
-    assert canFinishTx # dev: usd value limit exceeded
+    assert canFinishTx # dev: manager limits not allowed
 
     self.managerPeriodData[_manager] = managerData
-    return True
 
 
 ####################
@@ -512,7 +475,7 @@ def checkRecipientLimitsAndUpdateData(
     _txUsdValue: uint256,
     _asset: address,
     _amount: uint256,
-) -> bool:
+):
     assert msg.sender == self.wallet # dev: no perms
 
     # whitelisted
@@ -550,8 +513,6 @@ def checkRecipientLimitsAndUpdateData(
     if didUpdate:
         self.payeePeriodData[_recipient] = data
     
-    return True
-
 
 #####################
 # Cheque Validation #
@@ -565,7 +526,7 @@ def validateCheque(
     _amount: uint256,
     _txUsdValue: uint256,
     _signer: address,
-) -> bool:
+):
     assert msg.sender == self.wallet # dev: no perms
 
     # get required config / data
@@ -598,8 +559,6 @@ def validateCheque(
 
         # deactivate cheque after payment to prevent double-pulling
         self.cheques[_recipient] = empty(wcs.Cheque)
-
-    return True
 
 
 #############
@@ -669,9 +628,6 @@ def removeWhitelistAddr(_addr: address):
     assert msg.sender == self.kernel # dev: no perms
 
     numWhitelisted: uint256 = self.numWhitelisted
-    if numWhitelisted == 1:
-        return
-
     targetIndex: uint256 = self.indexOfWhitelist[_addr]
     if targetIndex == 0:
         return
@@ -679,13 +635,12 @@ def removeWhitelistAddr(_addr: address):
     # update data
     lastIndex: uint256 = numWhitelisted - 1
     self.numWhitelisted = lastIndex
-    self.indexOfWhitelist[_addr] = 0
 
     # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.whitelistAddr[lastIndex]
-        self.whitelistAddr[targetIndex] = lastItem
-        self.indexOfWhitelist[lastItem] = targetIndex
+    lastItem: address = self.whitelistAddr[lastIndex]
+    self.whitelistAddr[targetIndex] = lastItem
+    self.indexOfWhitelist[lastItem] = targetIndex
+    self.indexOfWhitelist[_addr] = 0
 
 
 ####################
@@ -698,7 +653,7 @@ def removeWhitelistAddr(_addr: address):
 
 @external
 def addManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender in [self.highCommand, self.migrator] # dev: no perms
+    assert msg.sender == self.highCommand or msg.sender == self.migrator # dev: no perms
     self.managerSettings[_manager] = _config
     self._registerManager(_manager)
 
@@ -732,9 +687,6 @@ def removeManager(_manager: address):
     assert msg.sender == self.highCommand # dev: no perms
 
     numManagers: uint256 = self.numManagers
-    if numManagers == 1:
-        return
-
     targetIndex: uint256 = self.indexOfManager[_manager]
     if targetIndex == 0:
         return
@@ -745,13 +697,12 @@ def removeManager(_manager: address):
     # update data
     lastIndex: uint256 = numManagers - 1
     self.numManagers = lastIndex
-    self.indexOfManager[_manager] = 0
 
     # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.managers[lastIndex]
-        self.managers[targetIndex] = lastItem
-        self.indexOfManager[lastItem] = targetIndex
+    lastItem: address = self.managers[lastIndex]
+    self.managers[targetIndex] = lastItem
+    self.indexOfManager[lastItem] = targetIndex
+    self.indexOfManager[_manager] = 0
 
 
 # global manager settings
@@ -773,7 +724,7 @@ def setGlobalManagerSettings(_config: wcs.GlobalManagerSettings):
 
 @external
 def addPayee(_payee: address, _config: wcs.PayeeSettings):
-    assert msg.sender in [self.paymaster, self.migrator] # dev: no perms
+    assert msg.sender == self.paymaster or msg.sender == self.migrator # dev: no perms
     self.payeeSettings[_payee] = _config
     self._registerPayee(_payee)
     
@@ -807,9 +758,6 @@ def removePayee(_payee: address):
     assert msg.sender == self.paymaster # dev: no perms
 
     numPayees: uint256 = self.numPayees
-    if numPayees == 1:
-        return
-
     targetIndex: uint256 = self.indexOfPayee[_payee]
     if targetIndex == 0:
         return
@@ -820,13 +768,12 @@ def removePayee(_payee: address):
     # update data
     lastIndex: uint256 = numPayees - 1
     self.numPayees = lastIndex
-    self.indexOfPayee[_payee] = 0
 
     # get last item, replace the removed item
-    if targetIndex != lastIndex:
-        lastItem: address = self.payees[lastIndex]
-        self.payees[targetIndex] = lastItem
-        self.indexOfPayee[lastItem] = targetIndex
+    lastItem: address = self.payees[lastIndex]
+    self.payees[targetIndex] = lastItem
+    self.indexOfPayee[lastItem] = targetIndex
+    self.indexOfPayee[_payee] = 0
 
 
 # global payee settings
@@ -904,9 +851,6 @@ def updateAllAssetData(_shouldCheckYield: bool) -> uint256:
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
 
     numAssets: uint256 = staticcall UserWallet(ad.wallet).numAssets()
-    if numAssets == 0:
-        return ad.lastTotalUsdValue
-
     newTotalUsdValue: uint256 = ad.lastTotalUsdValue
     for i: uint256 in range(1, numAssets, bound=max_value(uint256)):           
         asset: address = staticcall UserWallet(ad.wallet).assets(i)
@@ -957,10 +901,10 @@ def preparePayment(
 
 
 @external
-def deregisterAsset(_asset: address) -> bool:
+def deregisterAsset(_asset: address):
     if msg.sender != self.migrator:
         assert self._isValidRegistryAddr(msg.sender) # dev: no perms
-    return extcall UserWallet(self.wallet).deregisterAsset(_asset)
+    extcall UserWallet(self.wallet).deregisterAsset(_asset)
 
 
 # recover nft
@@ -1002,11 +946,11 @@ def setEjectionMode(_shouldEject: bool):
 
 
 @external
-def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType) -> bool:
+def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType):
     ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     if msg.sender != ad.walletOwner:
         assert self._isValidRegistryAddr(msg.sender) # dev: no perms
-    return extcall UserWallet(ad.wallet).setLegoAccessForAction(ad.legoAddr, _action)
+    extcall UserWallet(ad.wallet).setLegoAccessForAction(ad.legoAddr, _action)
 
 
 # is valid registry addr
@@ -1015,7 +959,7 @@ def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType) -> bool:
 @view
 @internal
 def _isValidRegistryAddr(_addr: address) -> bool:
-    return staticcall Registry(UNDY_HQ).isValidAddr(_addr)
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isValidRegistryAddr(_addr, UNDY_HQ)
 
 
 # is signer switchboard
@@ -1025,10 +969,7 @@ def _isValidRegistryAddr(_addr: address) -> bool:
 @view
 @internal
 def _isSwitchboardAddr(_signer: address) -> bool:
-    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
-    if switchboard == empty(address):
-        return False
-    return staticcall Switchboard(switchboard).isSwitchboardAddr(_signer)
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isSwitchboardAddr(_signer, UNDY_HQ)
 
 
 # can perform security action
@@ -1037,10 +978,7 @@ def _isSwitchboardAddr(_signer: address) -> bool:
 @view
 @internal
 def _canPerformSecurityAction(_addr: address) -> bool:
-    missionControl: address = staticcall Registry(UNDY_HQ).getAddr(MISSION_CONTROL_ID)
-    if missionControl == empty(address):
-        return False
-    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).canPerformSecurityAction(_addr, UNDY_HQ)
 
 
 # is agent sender
@@ -1049,10 +987,7 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 @view
 @external
 def isAgentSender(_addr: address) -> bool:
-    agent: address = self.startingAgent
-    if agent == empty(address):
-        return False
-    return staticcall AgentWrapper(agent).isSender(_addr)
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isAgentSender(_addr, self.startingAgent)
 
 
 ###################
@@ -1103,12 +1038,7 @@ def setMigrator(_migrator: address):
 @view
 @internal
 def _canSetBackpackItem(_newBackpackAddr: address, _caller: address) -> bool:
-    if _caller != ownership.owner:
-        return False
-    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
-    if ledger == empty(address):
-        return False
-    return staticcall Ledger(ledger).isRegisteredBackpackItem(_newBackpackAddr)
+    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).canSetBackpackItem(_newBackpackAddr, _caller, ownership.owner, UNDY_HQ)
 
 
 ######################

@@ -28,7 +28,6 @@ struct PendingOwnershipTimeLock:
 
 interface UserWalletConfig:
     def applyMigratedConfigSettings(_fromConfig: address, _timeLock: uint256, _instantSettings: wcs.InstantActionSettings, _globalManagerSettings: wcs.GlobalManagerSettings, _globalPayeeSettings: wcs.GlobalPayeeSettings, _chequeSettings: wcs.ChequeSettings): nonpayable
-    def setPendingMigration(_toWallet: address) -> wcs.PendingMigration: nonpayable
     def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
@@ -40,13 +39,14 @@ interface UserWalletConfig:
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
     def addWhitelistAddrViaMigrator(_addr: address): nonpayable
-    def deregisterAsset(_asset: address) -> bool: nonpayable
+    def setPendingMigration(_toWallet: address): nonpayable
     def indexOfWhitelist(_addr: address) -> uint256: view
     def pendingMigration() -> wcs.PendingMigration: view
     def indexOfManager(_addr: address) -> uint256: view
     def indexOfPayee(_addr: address) -> uint256: view
     def pendingTimeLock() -> wcs.PendingTimeLock: view
     def chequeSettings() -> wcs.ChequeSettings: view
+    def deregisterAsset(_asset: address): nonpayable
     def cheques(_addr: address) -> wcs.Cheque: view
     def whitelistAddr(i: uint256) -> address: view
     def managers(i: uint256) -> address: view
@@ -138,9 +138,11 @@ instantMigrationEnabled: public(bool)
 
 
 @deploy
-def __init__(_undyHq: address):
+def __init__(_undyHq: address, _instantMigrationEnabled: bool):
     assert _undyHq != empty(address) # dev: invalid undy hq
+    assert _undyHq.is_contract # dev: invalid undy hq
     UNDY_HQ = _undyHq
+    self.instantMigrationEnabled = _instantMigrationEnabled
 
 
 #####################
@@ -168,7 +170,8 @@ def initiateMigration(_fromWallet: address, _toWallet: address) -> bool:
     fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
     existingPending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
     assert existingPending.confirmBlock == 0 # dev: pending migration exists
-    pending: wcs.PendingMigration = extcall UserWalletConfig(fromConfig).setPendingMigration(_toWallet)
+    extcall UserWalletConfig(fromConfig).setPendingMigration(_toWallet)
+    pending: wcs.PendingMigration = staticcall UserWalletConfig(fromConfig).pendingMigration()
     log PendingMigrationInitiated(
         fromWallet = _fromWallet,
         toWallet = _toWallet,
