@@ -266,7 +266,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -635,6 +635,7 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     return empty(address), empty(String[64]), 0
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -658,7 +659,7 @@ def claimIncentives(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     return False

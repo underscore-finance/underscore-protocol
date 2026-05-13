@@ -559,6 +559,7 @@ def claimIncentives(_user: address, _rewardToken: address, _rewardAmount: uint25
     return 0, 0
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -570,7 +571,7 @@ def claimRewards(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     return False

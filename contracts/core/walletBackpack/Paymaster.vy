@@ -1074,7 +1074,7 @@ def isValidUserWalletPayeeDefaults(
     return self._validateActivationLength(_activationLength)
 
 
-@view
+@pure
 @external
 def createDefaultGlobalPayeeSettings(
     _defaultPeriodLength: uint256,

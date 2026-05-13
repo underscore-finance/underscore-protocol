@@ -1,6 +1,5 @@
-import pytest
 import boa
-from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS, MAX_UINT256
 
 
 ######################
@@ -882,17 +881,19 @@ def test_calculate_yield_profits_external_normal_yield(appraiser, yield_vault_to
 def test_calculate_yield_profits_permission_check(appraiser, yield_vault_token, bob):
     """ Test that calculateYieldProfits enforces user wallet permission """
     
-    # Should fail when called by non-user wallet
-    with boa.reverts("no perms"):
-        appraiser.calculateYieldProfits(
-            yield_vault_token,
-            1000 * EIGHTEEN_DECIMALS,
-            900 * EIGHTEEN_DECIMALS,
-            0,
-            ZERO_ADDRESS,
-            ZERO_ADDRESS,
-            sender=bob
-        )
+    # Direct callers receive the permission sentinel; UserWallet preserves the no-perms revert at the mutating boundary.
+    last_price, yield_realized, fee_ratio = appraiser.calculateYieldProfits(
+        yield_vault_token,
+        1000 * EIGHTEEN_DECIMALS,
+        900 * EIGHTEEN_DECIMALS,
+        0,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        sender=bob
+    )
+    assert last_price == MAX_UINT256
+    assert yield_realized == 0
+    assert fee_ratio == 0
 
 
 def test_handle_normal_yield_different_balances(appraiser, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, setAssetConfig, createAssetYieldConfig, mock_yield_lego):

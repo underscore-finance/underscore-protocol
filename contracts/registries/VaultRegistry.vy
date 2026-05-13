@@ -231,7 +231,7 @@ def _hasConfig(_undyVaultAddr: address) -> bool:
     return self._checkConfig(self.vaultConfigs[_undyVaultAddr])
 
 
-@view
+@pure
 @internal
 def _checkConfig(_config: VaultConfig) -> bool:
     return _config.redemptionBuffer != 0 or _config.minYieldWithdrawAmount != 0 or _config.performanceFee != 0 or _config.defaultTargetVaultToken != empty(address) or _config.shouldAutoDeposit or _config.canDeposit or _config.canWithdraw
@@ -557,13 +557,13 @@ def setPerformanceFee(_undyVaultAddr: address, _performanceFee: uint256):
     log PerformanceFeeSet(vaultAddr=_undyVaultAddr, performanceFee=_performanceFee)
 
 
-@view
+@pure
 @external
 def isValidPerformanceFee(_performanceFee: uint256) -> bool:
     return self._isValidPerformanceFee(_performanceFee)
 
 
-@view
+@pure
 @internal
 def _isValidPerformanceFee(_performanceFee: uint256) -> bool:
     return _performanceFee <= HUNDRED_PERCENT
@@ -586,13 +586,13 @@ def setRedemptionBuffer(_undyVaultAddr: address, _buffer: uint256):
     log RedemptionBufferSet(vaultAddr=_undyVaultAddr, buffer=_buffer)
 
 
-@view
+@pure
 @external
 def isValidRedemptionBuffer(_buffer: uint256) -> bool:
     return self._isValidRedemptionBuffer(_buffer)
 
 
-@view
+@pure
 @internal
 def _isValidRedemptionBuffer(_buffer: uint256) -> bool:
     return _buffer <= 10_00

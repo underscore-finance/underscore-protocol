@@ -601,7 +601,7 @@ def _getLatestPayeeData(_payeeData: wcs.PayeeData, _periodLength: uint256) -> wc
 # check USD limits
 
 
-@view
+@pure
 @internal
 def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:
@@ -622,7 +622,7 @@ def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _payeeData: 
 # check unit limits
 
 
-@view
+@pure
 @internal
 def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:

@@ -47,7 +47,7 @@ interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
 interface Appraiser:
-    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): nonpayable
+    def calculateYieldProfits(_asset: address, _currentBalance: uint256, _lastBalance: uint256, _lastPricePerShare: uint256, _missionControl: address, _legoBook: address) -> (uint256, uint256, uint256): view
     def updatePriceAndGetUsdValueAndIsYieldAsset(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> (uint256, bool): nonpayable
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def updatePriceAndGetUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address)) -> uint256: nonpayable
@@ -1161,7 +1161,7 @@ def _checkForYieldProfits(_asset: address, _ad: ws.ActionData):
     # calculate yield profits
     yieldRealized: uint256 = 0
     feeRatio: uint256 = 0
-    data.lastPricePerShare, yieldRealized, feeRatio = extcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
+    data.lastPricePerShare, yieldRealized, feeRatio = staticcall Appraiser(_ad.appraiser).calculateYieldProfits(_asset, currentBalance, data.assetBalance, data.lastPricePerShare, _ad.missionControl, _ad.legoBook)
 
     # only save if appraiser returns a price per share (non-rebasing assets)
     if data.lastPricePerShare != 0:

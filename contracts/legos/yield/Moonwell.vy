@@ -293,7 +293,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False

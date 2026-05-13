@@ -62,7 +62,7 @@ interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface CompoundV3Configurator:
-    def factory(_cometAsset: address) -> address: view
+    def factory(_cometAsset: address) -> address: pure
 
 struct RewardOwed:
     token: address
@@ -188,7 +188,7 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
     return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
 
 
-@view
+@pure
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     # treated as 1:1
@@ -263,7 +263,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return True
@@ -283,7 +283,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     return self._getPricePerShare(_vaultToken, decimals)
 
 
-@view
+@pure
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
     return 10 ** _decimals # treated as 1:1

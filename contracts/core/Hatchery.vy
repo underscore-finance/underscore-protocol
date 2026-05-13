@@ -45,7 +45,7 @@ interface WalletBackpack:
 
 interface HighCommand:
     def isValidUserWalletManagerDefaults(_managerPeriod: uint256, _timeLock: uint256, _managerActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _startingAgent: address, _startingAgentActivationLength: uint256, _owner: address) -> bool: view
-    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _onlyApprovedYieldOpps: bool) -> wcs.GlobalManagerSettings: view
+    def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _onlyApprovedYieldOpps: bool) -> wcs.GlobalManagerSettings: pure
     def createStarterAgentSettings(_startingAgentActivationLength: uint256) -> wcs.ManagerSettings: view
 
 interface Ledger:
@@ -55,10 +55,10 @@ interface Ledger:
 
 interface ChequeBook:
     def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
-    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: view
+    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: pure
 
 interface Paymaster:
-    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: view
+    def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: pure
     def isValidUserWalletPayeeDefaults(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> bool: view
 
 interface MissionControl:
@@ -373,7 +373,7 @@ def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings):
 # trial funds (legacy wallets)
 
 
-@view
+@pure
 @external
 def doesWalletStillHaveTrialFundsWithAddys(
     _user: address,

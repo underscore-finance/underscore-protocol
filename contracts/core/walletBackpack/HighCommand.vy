@@ -950,7 +950,7 @@ def isValidUserWalletManagerDefaults(
     return self._validateActivationLength(_startingAgentActivationLength)
 
 
-@view
+@pure
 @external
 def createDefaultGlobalManagerSettings(
     _managerPeriod: uint256,

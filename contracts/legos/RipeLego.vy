@@ -363,7 +363,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -1083,7 +1083,7 @@ def _claimRewards(
 # has claimable rewards
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     # TODO: implement

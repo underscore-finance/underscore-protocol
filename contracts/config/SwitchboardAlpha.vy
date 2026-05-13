@@ -432,7 +432,7 @@ def setWalletCreationLimits(_numUserWalletsAllowed: uint256, _enforceCreatorWhit
     )
 
 
-@view
+@pure
 @internal
 def _isValidNumUserWalletsAllowed(_numUserWalletsAllowed: uint256) -> bool:
     if _numUserWalletsAllowed == 0:
@@ -464,7 +464,7 @@ def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTime
     )
 
 
-@view
+@pure
 @internal
 def _areValidKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTimeLock: uint256) -> bool:
     if 0 in [_minKeyActionTimeLock, _maxKeyActionTimeLock]:
@@ -502,7 +502,7 @@ def setTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256, 
     )
 
 
-@view
+@pure
 @internal
 def _areValidTxFees(_swapFee: uint256, _stableSwapFee: uint256, _rewardsFee: uint256) -> bool:
     if _swapFee > 5_00: # 5% max
@@ -543,7 +543,7 @@ def setAmbassadorRevShare(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRat
     )
 
 
-@view
+@pure
 @internal
 def _areValidAmbassadorRevShareRatios(_swapRatio: uint256, _rewardsRatio: uint256, _yieldRatio: uint256) -> bool:
     if _swapRatio > HUNDRED_PERCENT:
@@ -602,7 +602,7 @@ def setDefaultYieldParams(
     )
 
 
-@view
+@pure
 @internal
 def _areValidYieldParams(
     _maxIncrease: uint256,
@@ -655,7 +655,7 @@ def setLootParams(_depositRewardsAsset: address, _lootClaimCoolOffPeriod: uint25
     )
 
 
-@view
+@pure
 @internal
 def _areValidLootParams(_lootClaimCoolOffPeriod: uint256) -> bool:
     if _lootClaimCoolOffPeriod == 0:
@@ -751,7 +751,7 @@ def setAssetConfig(
     return aid
 
 
-@view
+@pure
 @internal
 def _isValidAssetConfig(
     _asset: address,
@@ -948,7 +948,7 @@ def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLengt
     )
 
 
-@view
+@pure
 @internal
 def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> bool:
     if _startingAgent != empty(address) and _startingAgentActivationLength == 0:

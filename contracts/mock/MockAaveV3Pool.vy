@@ -50,7 +50,7 @@ def getAllATokens() -> DynArray[TokenData, 40]:
     )]
 
 
-@view
+@pure
 @external
 def getTotalDebt(_asset: address) -> uint256:
     return 0

@@ -1059,7 +1059,7 @@ def _isValidChequePeriod(_periodLength: uint256) -> bool:
 # validate cheque cooldowns
 
 
-@view
+@pure
 @internal
 def _isValidChequeCooldowns(_payCooldownBlocks: uint256, _createCooldownBlocks: uint256, _periodLength: uint256) -> bool:
     # cooldowns cannot exceed period length
@@ -1096,7 +1096,7 @@ def _isValidExpensiveDelay(_expensiveDelayBlocks: uint256, _timeLock: uint256) -
 # validate cheque USD caps consistency
 
 
-@view
+@pure
 @internal
 def _isValidChequeUsdCaps(_maxChequeUsdValue: uint256, _perPeriodPaidUsdCap: uint256, _perPeriodCreatedUsdCap: uint256) -> bool:
     if _maxChequeUsdValue == 0:
@@ -1114,7 +1114,7 @@ def _isValidChequeUsdCaps(_maxChequeUsdValue: uint256, _perPeriodPaidUsdCap: uin
 # validate instant threshold configuration
 
 
-@view
+@pure
 @internal
 def _isValidInstantThreshold(_instantUsdThreshold: uint256, _expensiveDelayBlocks: uint256) -> bool:
     # instant threshold cannot be zero
@@ -1257,7 +1257,7 @@ def isValidUserWalletChequeDefaults(
     )
 
 
-@view
+@pure
 @external
 def createDefaultChequeSettings(
     _maxNumActiveCheques: uint256,
