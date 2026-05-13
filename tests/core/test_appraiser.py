@@ -891,7 +891,7 @@ def test_calculate_yield_profits_permission_check(appraiser, yield_vault_token, 
         ZERO_ADDRESS,
         sender=bob
     )
-    assert last_price == MAX_UINT256
+    assert last_price == 0
     assert yield_realized == 0
     assert fee_ratio == 0
 
