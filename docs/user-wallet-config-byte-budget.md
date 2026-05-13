@@ -11,9 +11,9 @@
 ## Result
 
 - PR 2a measurement before PR 2b: `23,796` bytes, `780` bytes under EIP-170 and `4` bytes under the PR 2a gate.
-- Final measurement after PR 2b constructor plumbing and restored Hatchery wallet binding: `23,811` bytes, `765` bytes under EIP-170. Runtime size is `19,941` bytes.
-- The final measurement is only `15` bytes higher than the PR 2a measurement; later PR 2b wiring and small local-struct simplifications offset most of the cost of the restored `setWallet(_wallet)` Hatchery guard.
-- The PR 2a gate of `23,800` bytes is missed by `11` bytes after restoring the `setWallet(_wallet)` Hatchery authorization guard. The added authorization closes the orphan-config risk noted in prior review and is accepted as a worthwhile trade vs. the original gate; the EIP-170 limit remains the hard cap.
+- Final measurement after PR 2b constructor plumbing, restored Hatchery wallet binding, and Migrator access to `updateManager`: `23,830` bytes, `746` bytes under EIP-170. Runtime size is `19,960` bytes.
+- The final measurement is `34` bytes higher than the PR 2a measurement; later PR 2b wiring and small local-struct simplifications offset most of the cost of the restored `setWallet(_wallet)` Hatchery guard and Migrator permission update.
+- The PR 2a gate of `23,800` bytes is missed by `30` bytes after restoring the `setWallet(_wallet)` Hatchery authorization guard and allowing Migrator to preserve starter-agent manager settings during config clone. These additions close concrete migration/config risks; the EIP-170 limit remains the hard cap.
 
 ## Changes Kept
 
@@ -25,6 +25,7 @@
 - Simplified internal callback returns where callers already rely on revert-or-continue behavior.
 - Removed unnecessary local struct copies in `confirmPendingTimeLock` and `setPendingMigration`.
 - Kept wallet/config binding authorized through Hatchery: `UserWalletConfig.setWallet(_wallet)` requires the registered Hatchery and stores the deployed wallet address.
+- Allowed the configured Migrator to call `updateManager` so config clone can preserve starter-agent manager fields without changing the destination starter-agent time window.
 
 ## Behavioral Notes
 

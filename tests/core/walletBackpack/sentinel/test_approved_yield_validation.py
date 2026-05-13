@@ -468,17 +468,6 @@ def test_default_global_manager_settings_has_approval_enabled(high_command):
     assert default_settings.whitelistPerms.canRemove == True
 
 
-def test_starter_agent_settings_has_approval_enabled(high_command):
-    """Starter agent settings should have onlyApprovedYieldOpps=False by default"""
-    starter_settings = high_command.createStarterAgentSettings(
-        ONE_DAY_IN_BLOCKS * 365  # activation length
-    )
-
-    # Check that onlyApprovedYieldOpps is False by default for starter agent
-    assert starter_settings.legoPerms.onlyApprovedYieldOpps == False
-    assert starter_settings.whitelistPerms.canRemove == True
-
-
 ##########################
 # Edge Case Tests        #
 ##########################

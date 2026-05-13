@@ -32,6 +32,7 @@
 - The AgentSender signer is not the user wallet owner.
 - AgentSender can act only through wrapper manager permissions.
 - New wallets ship with instant manager-add, payee-add, global payee-settings, and cheque-settings user flags enabled by the Hatchery default. These paths still require the matching protocol flag and the per-call instant bool.
+- New-wallet cheque manager flags default from `ChequeBook.createDefaultChequeSettings`. Changing those defaults is a code/deploy event; existing wallets keep their stored cheque settings.
 - Users can opt out by disabling any `instantActionSettings` flag immediately. Re-enabling a disabled flag is timelocked at the wallet-config layer.
 
 ## Future Options

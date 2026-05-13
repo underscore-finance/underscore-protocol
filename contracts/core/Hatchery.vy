@@ -118,11 +118,13 @@ event HatcheryDefaultInstantActionSettingsSet:
 WETH: public(immutable(address))
 ETH: public(immutable(address))
 
+# default configs
 defaultInstantActionSettings: public(wcs.InstantActionSettings)
+
+# other envs
 stagingStarterAgentConfig: public(cs.AgentConfig)
 devStarterAgentConfig: public(cs.AgentConfig)
 nonProdCreator: public(address)
-
 
 @deploy
 def __init__(
@@ -139,6 +141,7 @@ def __init__(
 
     WETH = _wethAddr
     ETH = _ethAddr
+
     self.defaultInstantActionSettings = _defaultInstantActionSettings
 
     assert self._areValidStarterAgentParams(_stagingStarterAgentConfig.startingAgent, _stagingStarterAgentConfig.startingAgentActivationLength) # dev: invalid starter agent params
@@ -201,23 +204,25 @@ def createUserWallet(
     else:
         assert msg.sender == self.nonProdCreator # dev: no perms
         assert not staticcall MissionControl(a.missionControl).creatorWhitelist(msg.sender) # dev: non-prod creator is whitelisted
+
     if isProdStarterAgentType and not addys._isSwitchboardAddr(msg.sender):
         assert config.isCreatorAllowed # dev: creator not allowed
 
+    # starter agent config
     starterConfig: cs.AgentConfig = self._resolveStarterAgentConfig(config, starterAgentType)
     assert starterConfig.startingAgent != _owner # dev: starting agent cannot be the owner
     assert staticcall HighCommand(highCommand).isValidUserWalletManagerDefaults(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, starterConfig.startingAgent, starterConfig.startingAgentActivationLength, _owner) # dev: invalid setup
     assert staticcall Paymaster(paymaster).isValidUserWalletPayeeDefaults(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength) # dev: invalid setup
     assert staticcall ChequeBook(chequeBook).isValidUserWalletChequeDefaults(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks, config.minKeyActionTimeLock) # dev: invalid setup
 
+    starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
+    if starterConfig.startingAgent != empty(address):
+        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(starterConfig.startingAgentActivationLength)
+
     # default manager / payee / cheque settings
     globalManagerSettings: wcs.GlobalManagerSettings = staticcall HighCommand(highCommand).createDefaultGlobalManagerSettings(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, config.onlyApprovedYieldOpps)
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
     chequeSettings: wcs.ChequeSettings = staticcall ChequeBook(chequeBook).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
-
-    starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)
-    if starterConfig.startingAgent != empty(address):
-        starterAgentSettings = staticcall HighCommand(highCommand).createStarterAgentSettings(starterConfig.startingAgentActivationLength)
 
     # create wallet contracts
     walletConfigAddr: address = create_from_blueprint(
@@ -297,7 +302,6 @@ def setStarterAgentConfig(
     _startingAgentActivationLength: uint256,
 ):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
-    # Registered Switchboard status is the authorization boundary for Hatchery config updates.
     assert self._isValidStarterAgentType(_starterAgentType) # dev: invalid starter agent type
     assert _starterAgentType != cs.StarterAgentType.PROD # dev: prod owned by mission control
     assert self._areValidStarterAgentParams(_startingAgent, _startingAgentActivationLength) # dev: invalid starter agent params

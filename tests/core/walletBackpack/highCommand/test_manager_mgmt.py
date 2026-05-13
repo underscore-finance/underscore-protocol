@@ -1622,6 +1622,8 @@ def test_neuter_starter_agent_owner_only_idempotent_and_preserves_claim_loot(
     assert len(settings_again.allowedAssets) == 0
 
 
+
+
 def test_remove_manager_not_found(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, alice, bob):
     """Test that cannot remove a non-existent manager"""
     # Setup: set global settings but don't add alice as manager
@@ -3294,3 +3296,36 @@ def test_set_global_swap_perms(high_command, user_wallet, user_wallet_config, cr
     assert global_settings.swapPerms.mustHaveUsdValue == True
     assert global_settings.swapPerms.maxNumSwapsPerPeriod == 30
     assert global_settings.swapPerms.maxSlippage == 500
+
+
+def test_create_starter_agent_settings_uses_module_owned_happy_defaults(high_command):
+    block_before = boa.env.evm.patch.block_number
+
+    settings = high_command.createStarterAgentSettings(ONE_YEAR_IN_BLOCKS)
+
+    assert settings.startBlock == block_before
+    assert settings.expiryBlock == block_before + ONE_YEAR_IN_BLOCKS
+    assert settings.limits.maxUsdValuePerTx == 0
+    assert settings.limits.maxUsdValuePerPeriod == 0
+    assert settings.limits.maxUsdValueLifetime == 0
+    assert settings.limits.maxNumTxsPerPeriod == 0
+    assert settings.limits.txCooldownBlocks == 0
+    assert settings.limits.failOnZeroPrice is False
+    assert settings.legoPerms.canManageYield is True
+    assert settings.legoPerms.canBuyAndSell is True
+    assert settings.legoPerms.canManageDebt is True
+    assert settings.legoPerms.canManageLiq is True
+    assert settings.legoPerms.canClaimRewards is True
+    assert settings.legoPerms.onlyApprovedYieldOpps is False
+    assert len(settings.legoPerms.allowedLegos) == 0
+    assert settings.swapPerms.mustHaveUsdValue is False
+    assert settings.swapPerms.maxNumSwapsPerPeriod == 0
+    assert settings.swapPerms.maxSlippage == 0
+    assert settings.whitelistPerms.canConfirm is True
+    assert settings.whitelistPerms.canCancel is True
+    assert settings.whitelistPerms.canRemove is True
+    assert settings.transferPerms.canTransfer is True
+    assert settings.transferPerms.canCreateCheque is True
+    assert len(settings.transferPerms.allowedPayees) == 0
+    assert len(settings.allowedAssets) == 0
+    assert settings.canClaimLoot is True

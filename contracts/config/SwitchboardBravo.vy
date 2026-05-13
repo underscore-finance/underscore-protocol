@@ -35,6 +35,13 @@ interface Migrator:
     def setInstantMigrationEnabled(_isEnabled: bool) -> bool: nonpayable
     def instantMigrationEnabled() -> bool: view
 
+interface MissionControl:
+    def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
+    def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
+    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
+    def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
+    def canPerformSecurityAction(_signer: address) -> bool: view
+
 interface LootDistributor:
     def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool: nonpayable
     def updateDepositPointsOnEjection(_user: address): nonpayable
@@ -48,28 +55,21 @@ interface Paymaster:
     def canInstantSetGlobalPayeeSettings() -> bool: view
     def canInstantAddPayee() -> bool: view
 
-interface MissionControl:
-    def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
-    def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
-    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
-    def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
-    def canPerformSecurityAction(_signer: address) -> bool: view
-
 interface UndyEcoContract:
     def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]): nonpayable
     def recoverNft(_collection: address, _nftTokenId: uint256, _recipient: address): nonpayable
     def recoverFunds(_recipient: address, _asset: address): nonpayable
     def pause(_shouldPause: bool): nonpayable
 
-interface UserWalletConfig:
-    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
-    def updateAllAssetData(_shouldCheckYield: bool) -> uint256: nonpayable
-    def setEjectionMode(_shouldEject: bool): nonpayable
-
 interface Hatchery:
     def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
     def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
     def setNonProdCreator(_nonProdCreator: address): nonpayable
+
+interface UserWalletConfig:
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def updateAllAssetData(_shouldCheckYield: bool) -> uint256: nonpayable
+    def setEjectionMode(_shouldEject: bool): nonpayable
 
 interface ChequeBook:
     def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool: nonpayable

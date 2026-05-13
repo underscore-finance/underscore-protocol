@@ -4,7 +4,12 @@ import boa
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
 from constants import MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
-from conf_utils import filter_logs, instant_action_settings_tuple
+from conf_utils import (
+    assert_manager_settings_match_template,
+    filter_logs,
+    instant_action_settings_tuple,
+    starter_agent_template_tuple,
+)
 
 
 WALLET_BACKPACK_CORE_ADDR_ARGS = (
@@ -16,6 +21,14 @@ WALLET_BACKPACK_CORE_ADDR_ARGS = (
     ("migrator", 5),
     ("action_data_provider", 6),
 )
+
+
+def wallet_config_for(wallet_addr):
+    return UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig())
+
+
+def starter_agent_settings(config):
+    return config.managerSettings(config.startingAgent())
 
 
 def deploy_mock_wallet_backpack(
@@ -84,6 +97,30 @@ def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_
 
     assert instant_action_settings_tuple(config_a.instantActionSettings()) == (True, True, True, True)
     assert instant_action_settings_tuple(config_b.instantActionSettings()) == (False, True, False, True)
+
+
+def test_fresh_wallet_default_starter_agent_template_matches_legacy_defaults(hatchery, mission_control, alice):
+    block_before = boa.env.evm.patch.block_number
+    config = wallet_config_for(hatchery.createUserWallet(sender=alice))
+    settings = starter_agent_settings(config)
+    wallet_creation_config = mission_control.getUserWalletCreationConfig(alice)
+
+    assert config.startingAgent() != ZERO_ADDRESS
+    assert settings.startBlock == block_before
+    assert settings.expiryBlock - settings.startBlock == wallet_creation_config.startingAgentActivationLength
+    assert_manager_settings_match_template(
+        settings,
+        starter_agent_template_tuple(startBlock=settings.startBlock, expiryBlock=settings.expiryBlock),
+    )
+
+
+def test_fresh_wallet_default_cheque_flags_are_enabled(hatchery, alice):
+    config = wallet_config_for(hatchery.createUserWallet(sender=alice))
+    settings = config.chequeSettings()
+
+    assert settings.canManagersCreateCheques is True
+    assert settings.canManagerPay is True
+    assert settings.canBePulled is True
 
 
 def test_hatchery_default_instant_setting_access_control(hatchery, switchboard_bravo, alice):

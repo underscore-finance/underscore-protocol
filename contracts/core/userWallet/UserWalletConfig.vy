@@ -663,7 +663,7 @@ def addManager(_manager: address, _config: wcs.ManagerSettings):
 
 @external
 def updateManager(_manager: address, _config: wcs.ManagerSettings):
-    assert msg.sender == self.highCommand # dev: no perms
+    assert msg.sender == self.highCommand or msg.sender == self.migrator # dev: no perms
     self.managerSettings[_manager] = _config
 
 

@@ -3334,23 +3334,6 @@
     ]
   },
   {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "pendingMissionControl",
-    "inputs": [
-      {
-        "name": "arg0",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
-      }
-    ]
-  },
-  {
     "stateMutability": "nonpayable",
     "type": "constructor",
     "inputs": [

@@ -33,7 +33,14 @@ Monitor these AgentSender and ownership signals after deployment:
 ## Wallet Creation Config
 
 - Hatchery validates nonzero core setup, wallet/config templates, backpack item addresses, WETH, ETH, and wallet time-lock bounds before deploying a new user wallet.
-- Hatchery delegates manager, payee, and cheque default-setting validation to the configured HighCommand, Paymaster, and ChequeBook contracts. Invalid MissionControl wallet-creation parameters should fail wallet creation before config deployment completes.
+- Hatchery delegates global manager, starter-agent manager, payee, and cheque default-setting construction and validation to the configured HighCommand, Paymaster, and ChequeBook contracts.
+
+## New-Wallet Defaults
+
+- Hatchery owns only the new-wallet default instant-action settings. These defaults affect only wallets created after the active Hatchery state changes; existing wallets keep their stored settings.
+- Starter-agent manager settings are module-owned defaults built by `HighCommand.createStarterAgentSettings(...)`.
+- Cheque manager flags are module-owned defaults built by `ChequeBook.createDefaultChequeSettings(...)`.
+- Changing starter-agent posture or cheque manager flags is a code/deploy event for the relevant wallet backpack item, not a Hatchery governance configuration change.
 
 ## Action Data Provider
 
@@ -43,7 +50,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
 - Action-data reads now cross a read-only provider and make additional staticcalls back into `UserWalletConfig`. Budget extra gas on wallet action paths that call `checkSignerPermissionsAndGetBundle` or `getActionDataBundle`.
 - Helper checks moved to `ActionDataProvider` add one additional read-only external call on affected registry/security helper paths. Budget roughly 2,600 gas of extra staticcall/CALL-frame overhead per helper use before calldata/returndata and the original inner lookup.
-- Current Boa-measured `UserWalletConfig` blueprint size: `23,811` bytes, leaving `765` bytes under the `24,576` byte EIP-170 gate. Runtime size is `19,941` bytes, under the `23,000` byte soft target.
+- Current Boa-measured `UserWalletConfig` blueprint size: `23,830` bytes, leaving `746` bytes under the `24,576` byte EIP-170 gate. Runtime size is `19,960` bytes, under the `23,000` byte soft target.
 - Treat the blueprint buffer as exhausted. Any future `UserWalletConfig` growth should include a size check and an extraction plan before merge.
 - Hatchery binds each new `UserWalletConfig` by calling `UserWalletConfig.setWallet(wallet)`. The config rejects non-Hatchery callers, so deployment scripts must keep the Hatchery registry entry current before wallet creation.
 
@@ -68,7 +75,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - This migration path assumes both wallets use the current `UserWalletConfig` version.
 - Both source and destination wallets must have the same configured `migrator` address; otherwise destination-side config apply reverts with `no perms`.
 - Loose native ETH is not migrated. Users should wrap or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
-- Cloned managers and payees are validated for destination role collisions before registration. Source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`; this includes a destination starting agent that is copied from the source as a regular manager.
+- Cloned managers and payees are validated for destination role collisions before registration. Source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`. The source starting agent is not copied as a new manager; when source and destination share that starter-agent address, `cloneConfig` copies the source starter-agent manager fields while preserving the destination starter-agent time fields.
 - Changing a wallet's configured migrator via `setMigrator` requires no pending migration on that wallet. Complete or cancel in-flight migration state before swapping the migrator.
 - Pending global payee settings block migration on both source and destination wallets.
 - Pending whitelist entries on the source wallet are not migrated. They remain on the source wallet and could still be confirmed there if the source wallet continues to be used. To preserve them on the destination wallet, restage and confirm them there.
@@ -96,6 +103,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - Deployment must separately redeploy the `UserWalletConfig` blueprint and stage/execute `SwitchboardAlpha.setUserWalletTemplates`.
 - Query live `WalletBackpack`, `SwitchboardAlpha`, and `UndyHq` timelocks before cutover.
 - Stage the template update and the Hatchery registry update.
+- Do not reuse older Hatchery deploy scripts without updating constructor args. The active Hatchery constructor requires default instant settings, staging/dev starter-agent config, and non-prod creator.
 - Pause the old Hatchery before executing the template update. Do not skip this pause step.
 - Execute the template update.
 - Execute the Hatchery registry update.

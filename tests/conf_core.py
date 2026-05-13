@@ -4,7 +4,6 @@ import boa
 from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS, VAULT_INFO
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_YEAR_IN_BLOCKS
 
-
 ###########
 # Undy HQ #
 ###########

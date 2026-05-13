@@ -20,14 +20,9 @@ from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 from ethereum.ercs import IERC20
 
-struct PendingOwnershipTimeLock:
-    newTimeLock: uint256
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    currentOwner: address
-
 interface UserWalletConfig:
     def applyMigratedConfigSettings(_fromConfig: address, _timeLock: uint256, _instantSettings: wcs.InstantActionSettings, _globalManagerSettings: wcs.GlobalManagerSettings, _globalPayeeSettings: wcs.GlobalPayeeSettings, _chequeSettings: wcs.ChequeSettings): nonpayable
+    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
@@ -90,6 +85,12 @@ interface MissionControl:
 
 interface Switchboard:
     def isSwitchboardAddr(_addr: address) -> bool: view
+
+struct PendingOwnershipTimeLock:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
 
 event FundsMigrated:
     fromWallet: indexed(address)
@@ -359,6 +360,21 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
                 assert self._isValidMigratorConfigAddr(toConfig, manager, True) # dev: manager collision on clone
                 extcall UserWalletConfig(toConfig).addManager(manager, managerSettings)
                 managersCopied += 1
+
+    # transfer starter agent settings
+    if fromStartingAgent != empty(address):
+        if staticcall UserWalletConfig(toConfig).startingAgent() == fromStartingAgent:
+            sourceStarterSettings: wcs.ManagerSettings = staticcall UserWalletConfig(fromConfig).managerSettings(fromStartingAgent)
+            if sourceStarterSettings.startBlock != 0:
+                destStarterSettings: wcs.ManagerSettings = staticcall UserWalletConfig(toConfig).managerSettings(fromStartingAgent)
+                destStarterSettings.limits = sourceStarterSettings.limits
+                destStarterSettings.legoPerms = sourceStarterSettings.legoPerms
+                destStarterSettings.swapPerms = sourceStarterSettings.swapPerms
+                destStarterSettings.whitelistPerms = sourceStarterSettings.whitelistPerms
+                destStarterSettings.transferPerms = sourceStarterSettings.transferPerms
+                destStarterSettings.allowedAssets = sourceStarterSettings.allowedAssets
+                destStarterSettings.canClaimLoot = sourceStarterSettings.canClaimLoot
+                extcall UserWalletConfig(toConfig).updateManager(fromStartingAgent, destStarterSettings)
 
     # copy all payees
     payeesCopied: uint256 = 0

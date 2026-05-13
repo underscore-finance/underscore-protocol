@@ -3,7 +3,14 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
-from conf_utils import filter_logs, instant_action_settings_tuple, set_live_cheque_settings, set_user_instant_action_settings
+from conf_utils import (
+    assert_manager_settings_match_template,
+    filter_logs,
+    instant_action_settings_tuple,
+    set_live_cheque_settings,
+    set_user_instant_action_settings,
+    starter_agent_template_tuple,
+)
 
 
 def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
@@ -1117,6 +1124,58 @@ def test_clone_config_starting_agent_exclusion(migrator, hatchery, bob, alice, c
     # Check event shows only non-starting-agent managers were copied
     event = filter_logs(migrator, "ConfigCloned")[0]
     assert event.numManagersCopied == 2  # alice and charlie, not starting agent
+
+
+def test_clone_config_keeps_source_starter_agent_settings_when_source_was_updated(
+    migrator,
+    hatchery,
+    high_command,
+    bob,
+    alpha_token,
+):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    starting_agent = from_config.startingAgent()
+
+    source_template = starter_agent_template_tuple(
+        legoPerms=(False, True, False, False, False, False, []),
+        swapPerms=(True, 2, 15),
+        whitelistPerms=(False, True, False),
+        transferPerms=(False, True, []),
+        allowedAssets=[alpha_token.address],
+        canClaimLoot=False,
+    )
+    assert high_command.updateManager(
+        from_wallet,
+        starting_agent,
+        source_template[2],
+        source_template[3],
+        source_template[4],
+        source_template[5],
+        source_template[6],
+        source_template[7],
+        source_template[8],
+        sender=bob,
+    )
+    source_settings = from_config.managerSettings(starting_agent)
+    assert_manager_settings_match_template(source_settings, source_template, check_blocks=False)
+
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    assert to_config.startingAgent() == starting_agent
+    dest_starter_pre_clone = to_config.managerSettings(starting_agent)
+    assert dest_starter_pre_clone.canClaimLoot is True
+    assert list(dest_starter_pre_clone.allowedAssets) == []
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
+
+    copied_settings = to_config.managerSettings(starting_agent)
+    assert copied_settings.startBlock == dest_starter_pre_clone.startBlock
+    assert copied_settings.expiryBlock == dest_starter_pre_clone.expiryBlock
+    assert_manager_settings_match_template(copied_settings, source_template, check_blocks=False)
+    assert copied_settings.canClaimLoot is False
+    assert list(copied_settings.allowedAssets) == [alpha_token.address]
 
 
 def test_clone_config_staging_source_to_staging_destination(
