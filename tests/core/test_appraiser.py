@@ -879,9 +879,9 @@ def test_calculate_yield_profits_external_normal_yield(appraiser, yield_vault_to
 
 
 def test_calculate_yield_profits_permission_check(appraiser, yield_vault_token, bob):
-    """ Test that calculateYieldProfits enforces user wallet permission """
+    """ Test that calculateYieldProfits returns the intentional zero tuple for unauthorized callers """
     
-    # Direct callers receive the permission sentinel; UserWallet preserves the no-perms revert at the mutating boundary.
+    # Direct callers receive the permission sentinel; the mutating wallet path treats this as no realized yield.
     last_price, yield_realized, fee_ratio = appraiser.calculateYieldProfits(
         yield_vault_token,
         1000 * EIGHTEEN_DECIMALS,

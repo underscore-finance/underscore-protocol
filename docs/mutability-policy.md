@@ -1,6 +1,7 @@
 # Mutability Policy
 
-This repo enforces Vyper mutability labels with `tools/mutability_scanner.py`.
+This repo can audit Vyper mutability labels with `tools/mutability_scanner.py`.
+The scanner is enforcement only when explicitly wired into CI or release checks.
 
 ## Rules
 
@@ -25,7 +26,7 @@ Normal runs must not use `--write-baseline`:
 python tools/mutability_scanner.py --baseline tools/mutability-baseline.yml
 ```
 
-After the initial cleanup baseline is created, remove entries as violations are fixed. Do not add new entries during cleanup. A new unbaselineed violation fails the scanner. A stale baseline entry also fails, so fixing a violation requires removing its baseline entry.
+After a cleanup baseline is created, remove entries as violations are fixed. Do not add new entries during cleanup. A new unbaselined violation fails the scanner. A stale baseline entry also fails, so fixing a violation requires removing its baseline entry.
 
 ## Exemptions
 
