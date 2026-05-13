@@ -10,6 +10,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 exports: addys.__interface__
 exports: gov.__interface__
@@ -23,6 +24,9 @@ import contracts.modules.Addys as addys
 import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
+import interfaces.ConfigStructs as cs
+import interfaces.WalletConfigStructs as wcs
+
 interface Migrator:
     def migrateAll(_fromWallet: address, _toWallet: address) -> (uint256, bool): nonpayable
     def initiateMigration(_fromWallet: address, _toWallet: address) -> bool: nonpayable
@@ -31,26 +35,25 @@ interface Migrator:
     def setInstantMigrationEnabled(_isEnabled: bool) -> bool: nonpayable
     def instantMigrationEnabled() -> bool: view
 
-interface HighCommand:
-    def canInstantAddManager() -> bool: view
-    def setCanInstantAddManager(_isEnabled: bool) -> bool: nonpayable
-
-interface Paymaster:
-    def canInstantAddPayee() -> bool: view
-    def canInstantSetGlobalPayeeSettings() -> bool: view
-    def setCanInstantAddPayee(_isEnabled: bool) -> bool: nonpayable
-    def setCanInstantSetGlobalPayeeSettings(_isEnabled: bool) -> bool: nonpayable
-
-interface ChequeBook:
-    def canInstantSetChequeSettings() -> bool: view
-    def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool: nonpayable
-
 interface LootDistributor:
     def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> bool: nonpayable
     def updateDepositPointsOnEjection(_user: address): nonpayable
     def recoverDepositRewards(_recipient: address): nonpayable
     def claimAllLoot(_user: address) -> bool: nonpayable
     def updateDepositPoints(_user: address): nonpayable
+
+interface Paymaster:
+    def setCanInstantSetGlobalPayeeSettings(_isEnabled: bool) -> bool: nonpayable
+    def setCanInstantAddPayee(_isEnabled: bool) -> bool: nonpayable
+    def canInstantSetGlobalPayeeSettings() -> bool: view
+    def canInstantAddPayee() -> bool: view
+
+interface MissionControl:
+    def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
+    def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
+    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
+    def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
+    def canPerformSecurityAction(_signer: address) -> bool: view
 
 interface UndyEcoContract:
     def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]): nonpayable
@@ -63,14 +66,24 @@ interface UserWalletConfig:
     def updateAllAssetData(_shouldCheckYield: bool) -> uint256: nonpayable
     def setEjectionMode(_shouldEject: bool): nonpayable
 
-interface MissionControl:
-    def canPerformSecurityAction(_signer: address) -> bool: view
+interface Hatchery:
+    def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
+    def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
+    def setNonProdCreator(_nonProdCreator: address): nonpayable
 
-interface UserWallet:
-    def walletConfig() -> address: view
+interface ChequeBook:
+    def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool: nonpayable
+    def canInstantSetChequeSettings() -> bool: view
+
+interface HighCommand:
+    def setCanInstantAddManager(_isEnabled: bool) -> bool: nonpayable
+    def canInstantAddManager() -> bool: view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
 
 flag ActionType:
     RECOVER_FUNDS
@@ -79,11 +92,13 @@ flag ActionType:
     LOOT_ADJUST
     RECOVER_DEPOSIT_REWARDS
     SET_EJECTION_MODE
+    CAN_PERFORM_SECURITY_ACTION
     ENABLE_INSTANT_MIGRATION
     ENABLE_CAN_INSTANT_ADD_MANAGER
     ENABLE_CAN_INSTANT_ADD_PAYEE
     ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS
     ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS
+    RIPE_REWARDS_CONFIG
 
 struct PauseAction:
     contractAddr: address
@@ -127,6 +142,10 @@ struct AllAssetDataUpdate:
 struct SetEjectionModeAction:
     user: address
     shouldEject: bool
+
+struct IsAddrAllowed:
+    addr: address
+    isAllowed: bool
 
 struct PendingInstantMigrationEnable:
     migrator: address
@@ -182,6 +201,18 @@ event AllAssetDataUpdated:
 event PendingSetEjectionModeAction:
     user: indexed(address)
     shouldEject: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event PendingCanPerformSecurityAction:
+    signer: address
+    canPerform: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
+event PendingRipeRewardsConfigChange:
+    ripeStakeRatio: uint256
+    ripeLockDuration: uint256
     confirmationBlock: uint256
     actionId: uint256
 
@@ -260,6 +291,41 @@ event SetEjectionModeExecuted:
     user: indexed(address)
     shouldEject: bool
 
+event CanPerformSecurityAction:
+    signer: address
+    canPerform: bool
+
+event RipeRewardsConfigSet:
+    ripeStakeRatio: uint256
+    ripeLockDuration: uint256
+
+event CreatorWhitelistSet:
+    creator: address
+    isWhitelisted: bool
+    caller: address
+
+event LockedSignerSet:
+    signer: address
+    isLocked: bool
+    caller: address
+
+event HatcheryStarterAgentConfigSet:
+    hatchery: indexed(address)
+    starterAgentType: cs.StarterAgentType
+    startingAgent: indexed(address)
+    startingAgentActivationLength: uint256
+
+event HatcheryNonProdCreatorSet:
+    hatchery: indexed(address)
+    nonProdCreator: indexed(address)
+
+event HatcheryDefaultInstantActionSettingsSet:
+    hatchery: indexed(address)
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+
 event WalletMigrationInitiated:
     migrator: indexed(address)
     fromWallet: indexed(address)
@@ -321,6 +387,8 @@ pendingRecoverNftActions: public(HashMap[uint256, RecoverNftAction])
 pendingLootAdjustActions: public(HashMap[uint256, LootAdjustAction])
 pendingRecoverDepositRewardsActions: public(HashMap[uint256, RecoverDepositRewardsAction])
 pendingSetEjectionModeActions: public(HashMap[uint256, SetEjectionModeAction])
+pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
+pendingRipeRewardsConfig: public(HashMap[uint256, cs.RipeRewardsConfig])
 pendingInstantMigrationEnable: public(PendingInstantMigrationEnable)
 pendingCanInstantAddManagerEnable: public(PendingProtocolFlagEnable)
 pendingCanInstantAddPayeeEnable: public(PendingProtocolFlagEnable)
@@ -354,6 +422,12 @@ def _hasPerms(_caller: address, _isLiteAccess: bool) -> bool:
     if _isLiteAccess:
         return staticcall MissionControl(addys._getMissionControlAddr()).canPerformSecurityAction(_caller)
     return False
+
+
+@view
+@internal
+def _getHatchery() -> address:
+    return addys._getHatcheryAddr()
 
 
 @view
@@ -608,6 +682,144 @@ def setEjectionMode(_user: address, _shouldEject: bool) -> uint256:
         actionId=aid
     )
     return aid
+
+
+###################
+# Security Config #
+###################
+
+
+@external
+def setCanPerformSecurityAction(_signer: address, _canPerform: bool) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    mc: address = addys._getMissionControlAddr()
+
+    # when removing, allow to do immediately
+    if not _canPerform:
+        extcall MissionControl(mc).setCanPerformSecurityAction(_signer, _canPerform)
+        log CanPerformSecurityAction(signer=_signer, canPerform=_canPerform)
+        return 0
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.CAN_PERFORM_SECURITY_ACTION
+    self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_signer, isAllowed=_canPerform)
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingCanPerformSecurityAction(signer=_signer, canPerform=_canPerform, confirmationBlock=confirmationBlock, actionId=aid)
+    return aid
+
+
+@external
+def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256) -> uint256:
+    assert gov._canGovern(msg.sender) # dev: no perms
+    assert self._isValidRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration) # dev: invalid ripe rewards config
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.RIPE_REWARDS_CONFIG
+    self.pendingRipeRewardsConfig[aid] = cs.RipeRewardsConfig(
+        stakeRatio=_ripeStakeRatio,
+        lockDuration=_ripeLockDuration,
+    )
+
+    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
+    log PendingRipeRewardsConfigChange(
+        ripeStakeRatio=_ripeStakeRatio,
+        ripeLockDuration=_ripeLockDuration,
+        confirmationBlock=confirmationBlock,
+        actionId=aid,
+    )
+    return aid
+
+
+@view
+@internal
+def _isValidRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256) -> bool:
+    if _ripeStakeRatio > 100_00:
+        return False
+    return _ripeLockDuration != 0
+
+
+@external
+def setCreatorWhitelist(_creator: address, _isWhitelisted: bool):
+    assert self._hasPerms(msg.sender, not _isWhitelisted) # dev: no perms
+    assert _creator != empty(address) # dev: invalid creator
+
+    extcall MissionControl(addys._getMissionControlAddr()).setCreatorWhitelist(_creator, _isWhitelisted)
+    log CreatorWhitelistSet(creator=_creator, isWhitelisted=_isWhitelisted, caller=msg.sender)
+
+
+@external
+def setLockedSigner(_signer: address, _isLocked: bool):
+    assert self._hasPerms(msg.sender, not _isLocked) # dev: no perms
+    assert _signer != empty(address) # dev: invalid creator
+
+    extcall MissionControl(addys._getMissionControlAddr()).setLockedSigner(_signer, _isLocked)
+    log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
+
+
+###################
+# Hatchery Config #
+###################
+
+
+@external
+def setHatcheryStarterAgentConfig(
+    _starterAgentType: cs.StarterAgentType,
+    _startingAgent: address,
+    _startingAgentActivationLength: uint256,
+) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setStarterAgentConfig(
+        _starterAgentType,
+        _startingAgent,
+        _startingAgentActivationLength,
+    )
+    log HatcheryStarterAgentConfigSet(
+        hatchery=hatchery,
+        starterAgentType=_starterAgentType,
+        startingAgent=_startingAgent,
+        startingAgentActivationLength=_startingAgentActivationLength,
+    )
+    return True
+
+
+@external
+def setHatcheryNonProdCreator(_nonProdCreator: address) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setNonProdCreator(_nonProdCreator)
+    log HatcheryNonProdCreatorSet(hatchery=hatchery, nonProdCreator=_nonProdCreator)
+    return True
+
+
+@external
+def setHatcheryDefaultInstantActionSettings(
+    _canInstantAddManager: bool,
+    _canInstantAddPayee: bool,
+    _canInstantSetGlobalPayeeSettings: bool,
+    _canInstantSetChequeSettings: bool,
+) -> bool:
+    assert gov._canGovern(msg.sender) # dev: no perms
+
+    hatchery: address = self._getHatchery()
+    extcall Hatchery(hatchery).setDefaultInstantActionSettings(
+        wcs.InstantActionSettings(
+            canInstantAddManager=_canInstantAddManager,
+            canInstantAddPayee=_canInstantAddPayee,
+            canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
+            canInstantSetChequeSettings=_canInstantSetChequeSettings,
+        )
+    )
+    log HatcheryDefaultInstantActionSettingsSet(
+        hatchery=hatchery,
+        canInstantAddManager=_canInstantAddManager,
+        canInstantAddPayee=_canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=_canInstantSetChequeSettings,
+    )
+    return True
 
 
 #########################
@@ -894,6 +1106,16 @@ def executePendingAction(_aid: uint256) -> bool:
 
         # update loot points
         extcall LootDistributor(addys._getLootDistributorAddr()).updateDepositPointsOnEjection(p.user)
+
+    elif actionType == ActionType.CAN_PERFORM_SECURITY_ACTION:
+        data: IsAddrAllowed = self.pendingAddrToBool[_aid]
+        extcall MissionControl(addys._getMissionControlAddr()).setCanPerformSecurityAction(data.addr, data.isAllowed)
+        log CanPerformSecurityAction(signer=data.addr, canPerform=data.isAllowed)
+
+    elif actionType == ActionType.RIPE_REWARDS_CONFIG:
+        p: cs.RipeRewardsConfig = self.pendingRipeRewardsConfig[_aid]
+        extcall MissionControl(addys._getMissionControlAddr()).setRipeRewardsConfig(p)
+        log RipeRewardsConfigSet(ripeStakeRatio=p.stakeRatio, ripeLockDuration=p.lockDuration)
 
     elif actionType == ActionType.ENABLE_INSTANT_MIGRATION:
         pending: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable

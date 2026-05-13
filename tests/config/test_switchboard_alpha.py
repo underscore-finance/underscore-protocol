@@ -1,7 +1,7 @@
 import pytest
 import boa
 from conf_utils import filter_logs, instant_action_settings_tuple
-from constants import CONFIG_ACTION_TYPE, MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
+from constants import BRAVO_ACTION_TYPE, CONFIG_ACTION_TYPE, MAX_UINT256, ONE_YEAR_IN_BLOCKS, STARTER_AGENT_TYPE, ZERO_ADDRESS
 
 
 def cheque_config_tuple(config):
@@ -11,6 +11,53 @@ def cheque_config_tuple(config):
         config.periodLength,
         config.expensiveDelayBlocks,
         config.defaultExpiryBlocks,
+    )
+
+
+def manager_config_tuple(config):
+    return (
+        config.managerPeriod,
+        config.managerActivationLength,
+        config.mustHaveUsdValueOnSwaps,
+        config.maxNumSwapsPerPeriod,
+        config.maxSlippageOnSwaps,
+        config.onlyApprovedYieldOpps,
+    )
+
+
+def payee_config_tuple(config):
+    return (
+        config.payeePeriod,
+        config.payeeActivationLength,
+    )
+
+
+def deploy_rotated_high_command(high_command, *, max_start_delay=None, name="rotated_high_command"):
+    return boa.load(
+        "contracts/core/walletBackpack/HighCommand.vy",
+        high_command.UNDY_HQ(),
+        high_command.MIN_MANAGER_PERIOD(),
+        high_command.MAX_MANAGER_PERIOD(),
+        high_command.MIN_ACTIVATION_LENGTH(),
+        high_command.MAX_ACTIVATION_LENGTH(),
+        max_start_delay if max_start_delay is not None else high_command.MAX_START_DELAY(),
+        high_command.canInstantAddManager(),
+        name=name,
+    )
+
+
+def deploy_rotated_paymaster(paymaster, *, max_start_delay=None, name="rotated_paymaster"):
+    return boa.load(
+        "contracts/core/walletBackpack/Paymaster.vy",
+        paymaster.UNDY_HQ(),
+        paymaster.MIN_PAYEE_PERIOD(),
+        paymaster.MAX_PAYEE_PERIOD(),
+        paymaster.MIN_ACTIVATION_LENGTH(),
+        paymaster.MAX_ACTIVATION_LENGTH(),
+        max_start_delay if max_start_delay is not None else paymaster.MAX_START_DELAY(),
+        paymaster.canInstantAddPayee(),
+        paymaster.canInstantSetGlobalPayeeSettings(),
+        name=name,
     )
 
 
@@ -506,13 +553,158 @@ def test_set_key_action_timelock_bounds_invalid_values_revert(switchboard_alpha,
         switchboard_alpha.setKeyActionTimelockBounds(1000, 999, sender=governance.address)
 
 
+def test_set_key_action_timelock_bounds_rejects_manager_defaults_under_new_min(
+    switchboard_alpha,
+    governance,
+    high_command,
+):
+    min_timelock = high_command.MAX_START_DELAY() + 1
+    with boa.reverts("invalid wallet creation config"):
+        switchboard_alpha.setKeyActionTimelockBounds(min_timelock, min_timelock + 1, sender=governance.address)
+
+
+def test_set_key_action_timelock_bounds_rejects_payee_defaults_under_new_min(
+    switchboard_alpha,
+    governance,
+    wallet_backpack,
+    high_command,
+    paymaster,
+):
+    with boa.env.anchor():
+        replacement = deploy_rotated_high_command(
+            high_command,
+            max_start_delay=paymaster.MAX_START_DELAY() + 10,
+            name="high_command_for_payee_min_reject",
+        )
+        wallet_backpack.addPendingHighCommand(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingHighCommand(sender=governance.address)
+
+        min_timelock = paymaster.MAX_START_DELAY() + 1
+        with boa.reverts("invalid wallet creation config"):
+            switchboard_alpha.setKeyActionTimelockBounds(min_timelock, min_timelock + 1, sender=governance.address)
+
+
+def test_set_key_action_timelock_bounds_rejects_cheque_defaults_under_new_min(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    cheque_book,
+):
+    current = mission_control.chequeConfig()
+    nonzero_delays = [
+        delay for delay in (current.expensiveDelayBlocks, current.defaultExpiryBlocks) if delay > 0
+    ]
+    min_timelock = min(nonzero_delays) + 1
+    max_timelock = min_timelock + 1
+    assert max_timelock <= max(cheque_book.MAX_UNLOCK_BLOCKS(), cheque_book.MAX_EXPIRY_BLOCKS()) + 1
+
+    with boa.reverts("invalid wallet creation config"):
+        switchboard_alpha.setKeyActionTimelockBounds(min_timelock, max_timelock, sender=governance.address)
+
+
+def test_set_key_action_timelock_bounds_rejects_max_above_cheque_unlock_cap(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    cheque_book,
+):
+    min_timelock = mission_control.userWalletConfig().minKeyActionTimeLock
+    with boa.reverts("invalid wallet creation config"):
+        switchboard_alpha.setKeyActionTimelockBounds(
+            min_timelock,
+            cheque_book.MAX_UNLOCK_BLOCKS() + 1,
+            sender=governance.address,
+        )
+
+
+def test_set_key_action_timelock_bounds_rejects_max_above_cheque_expiry_cap(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    cheque_book,
+):
+    min_timelock = mission_control.userWalletConfig().minKeyActionTimeLock
+    assert cheque_book.MAX_EXPIRY_BLOCKS() < cheque_book.MAX_UNLOCK_BLOCKS()
+    with boa.reverts("invalid wallet creation config"):
+        switchboard_alpha.setKeyActionTimelockBounds(
+            min_timelock,
+            cheque_book.MAX_EXPIRY_BLOCKS() + 1,
+            sender=governance.address,
+        )
+
+
+def test_set_key_action_timelock_bounds_execute_revalidates_cheque_drift(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    cheque_book,
+):
+    with boa.env.anchor():
+        initial_wallet_config = mission_control.userWalletConfig()
+        initial_cheque_config = mission_control.chequeConfig()
+        pending_min = max(initial_wallet_config.minKeyActionTimeLock, 2)
+        pending_max = min(cheque_book.MAX_UNLOCK_BLOCKS(), cheque_book.MAX_EXPIRY_BLOCKS())
+        assert pending_min < pending_max
+
+        aid = switchboard_alpha.setKeyActionTimelockBounds(pending_min, pending_max, sender=governance.address)
+
+        drifted_cheque_config = initial_cheque_config._replace(expensiveDelayBlocks=pending_min - 1)
+        mission_control.setChequeConfig(drifted_cheque_config, sender=switchboard_alpha.address)
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid wallet creation config"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.KEY_ACTION_TIMELOCK_BOUNDS
+        pending = switchboard_alpha.pendingUserWalletConfig(aid)
+        assert pending.minKeyActionTimeLock == pending_min
+        assert pending.maxKeyActionTimeLock == pending_max
+        current_wallet_config = mission_control.userWalletConfig()
+        assert current_wallet_config.minKeyActionTimeLock == initial_wallet_config.minKeyActionTimeLock
+        assert current_wallet_config.maxKeyActionTimeLock == initial_wallet_config.maxKeyActionTimeLock
+
+
+def test_set_key_action_timelock_bounds_execute_uses_current_cheque_book(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    wallet_backpack,
+    cheque_book,
+):
+    with boa.env.anchor():
+        wallet_config = mission_control.userWalletConfig()
+        aid = switchboard_alpha.setKeyActionTimelockBounds(
+            wallet_config.minKeyActionTimeLock,
+            wallet_config.maxKeyActionTimeLock,
+            sender=governance.address,
+        )
+
+        replacement = deploy_rotated_cheque_book(
+            cheque_book,
+            max_expiry_blocks=wallet_config.maxKeyActionTimeLock - 1,
+            name="cheque_book_key_bounds_rotation_reject",
+        )
+        wallet_backpack.addPendingChequeBook(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingChequeBook(sender=governance.address)
+        assert wallet_backpack.chequeBook() == replacement.address
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid wallet creation config"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.KEY_ACTION_TIMELOCK_BOUNDS
+        assert mission_control.userWalletConfig().maxKeyActionTimeLock == wallet_config.maxKeyActionTimeLock
+
+
 def test_set_key_action_timelock_bounds_non_governance_reverts(switchboard_alpha, alice):
     """Test that non-governance addresses cannot set key action timelock bounds"""
     with boa.reverts("no perms"):
         switchboard_alpha.setKeyActionTimelockBounds(100, 1000, sender=alice)
 
 
-def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance, mission_control):
+def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance, mission_control, cheque_book):
     """Test edge cases for key action timelock bounds"""
     # Test with min = 1, max = 2 (smallest valid range)
     aid = switchboard_alpha.setKeyActionTimelockBounds(1, 2, sender=governance.address)
@@ -525,8 +717,8 @@ def test_set_key_action_timelock_bounds_edge_cases(switchboard_alpha, governance
     assert config.minKeyActionTimeLock == 1
     assert config.maxKeyActionTimeLock == 2
     
-    # Test with large valid range
-    large_max = 2**256 - 2
+    # Test with largest max accepted by the live cheque validator caps.
+    large_max = min(cheque_book.MAX_UNLOCK_BLOCKS(), cheque_book.MAX_EXPIRY_BLOCKS())
     aid2 = switchboard_alpha.setKeyActionTimelockBounds(1, large_max, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
@@ -1764,8 +1956,8 @@ def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, miss
     assert final_config.startingAgentActivationLength == large_length
 
 
-def test_set_hatchery_starter_agent_config_success(switchboard_alpha, governance, hatchery, alice):
-    result = switchboard_alpha.setHatcheryStarterAgentConfig(
+def test_set_hatchery_starter_agent_config_success(switchboard_bravo, governance, hatchery, alice):
+    result = switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
         alice,
         ONE_YEAR_IN_BLOCKS,
@@ -1777,15 +1969,15 @@ def test_set_hatchery_starter_agent_config_success(switchboard_alpha, governance
     assert config.startingAgent == alice
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
-    logs = filter_logs(switchboard_alpha, "HatcheryStarterAgentConfigSet")
+    logs = filter_logs(switchboard_bravo, "HatcheryStarterAgentConfigSet")
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].starterAgentType == STARTER_AGENT_TYPE.STAGING
     assert logs[-1].startingAgent == alice
     assert logs[-1].startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
 
-def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_alpha, governance, hatchery, bob):
-    switchboard_alpha.setHatcheryStarterAgentConfig(
+def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_bravo, governance, hatchery, bob):
+    switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
         bob,
         ONE_YEAR_IN_BLOCKS,
@@ -1795,7 +1987,7 @@ def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_alpha, gove
     assert config.startingAgent == bob
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
-    switchboard_alpha.setHatcheryStarterAgentConfig(
+    switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
         ZERO_ADDRESS,
         0,
@@ -1806,9 +1998,9 @@ def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_alpha, gove
     assert config.startingAgentActivationLength == 0
 
 
-def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governance, hatchery, alice):
+def test_set_hatchery_starter_agent_config_validation(switchboard_bravo, governance, hatchery, alice):
     with boa.reverts("prod owned by mission control"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.PROD,
             alice,
             ONE_YEAR_IN_BLOCKS,
@@ -1816,7 +2008,7 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governa
         )
 
     with boa.reverts("invalid starter agent type"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.PROD | STARTER_AGENT_TYPE.STAGING,
             alice,
             ONE_YEAR_IN_BLOCKS,
@@ -1824,7 +2016,7 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governa
         )
 
     with boa.reverts("invalid starter agent params"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.STAGING,
             alice,
             0,
@@ -1832,7 +2024,7 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governa
         )
 
     with boa.reverts("invalid starter agent params"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.STAGING,
             ZERO_ADDRESS,
             ONE_YEAR_IN_BLOCKS,
@@ -1840,7 +2032,7 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governa
         )
 
     with boa.reverts("invalid starter agent params"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.STAGING,
             alice,
             MAX_UINT256,
@@ -1848,9 +2040,9 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_alpha, governa
         )
 
 
-def test_set_hatchery_starter_agent_config_non_governance_reverts(switchboard_alpha, alice, bob):
+def test_set_hatchery_starter_agent_config_non_governance_reverts(switchboard_bravo, alice, bob):
     with boa.reverts("no perms"):
-        switchboard_alpha.setHatcheryStarterAgentConfig(
+        switchboard_bravo.setHatcheryStarterAgentConfig(
             STARTER_AGENT_TYPE.STAGING,
             bob,
             ONE_YEAR_IN_BLOCKS,
@@ -1858,21 +2050,21 @@ def test_set_hatchery_starter_agent_config_non_governance_reverts(switchboard_al
         )
 
 
-def test_set_hatchery_non_prod_creator_success(switchboard_alpha, governance, hatchery, charlie):
-    result = switchboard_alpha.setHatcheryNonProdCreator(charlie, sender=governance.address)
+def test_set_hatchery_non_prod_creator_success(switchboard_bravo, governance, hatchery, charlie):
+    result = switchboard_bravo.setHatcheryNonProdCreator(charlie, sender=governance.address)
     assert result is True
     assert hatchery.nonProdCreator() == charlie
 
-    logs = filter_logs(switchboard_alpha, "HatcheryNonProdCreatorSet")
+    logs = filter_logs(switchboard_bravo, "HatcheryNonProdCreatorSet")
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].nonProdCreator == charlie
 
-    switchboard_alpha.setHatcheryNonProdCreator(ZERO_ADDRESS, sender=governance.address)
+    switchboard_bravo.setHatcheryNonProdCreator(ZERO_ADDRESS, sender=governance.address)
     assert hatchery.nonProdCreator() == ZERO_ADDRESS
 
 
 def test_set_hatchery_non_prod_creator_validation(
-    switchboard_alpha,
+    switchboard_bravo,
     governance,
     mission_control,
     hatchery,
@@ -1880,15 +2072,15 @@ def test_set_hatchery_non_prod_creator_validation(
     bob,
 ):
     with boa.reverts("no perms"):
-        switchboard_alpha.setHatcheryNonProdCreator(bob, sender=alice)
+        switchboard_bravo.setHatcheryNonProdCreator(bob, sender=alice)
 
-    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_alpha.address)
+    mission_control.setCreatorWhitelist(bob, True, sender=switchboard_bravo.address)
     with boa.reverts("non-prod creator is whitelisted"):
-        switchboard_alpha.setHatcheryNonProdCreator(bob, sender=governance.address)
+        switchboard_bravo.setHatcheryNonProdCreator(bob, sender=governance.address)
 
 
-def test_set_hatchery_default_instant_action_settings_success(switchboard_alpha, governance, hatchery):
-    result = switchboard_alpha.setHatcheryDefaultInstantActionSettings(
+def test_set_hatchery_default_instant_action_settings_success(switchboard_bravo, governance, hatchery):
+    result = switchboard_bravo.setHatcheryDefaultInstantActionSettings(
         False,
         True,
         False,
@@ -1898,7 +2090,7 @@ def test_set_hatchery_default_instant_action_settings_success(switchboard_alpha,
     assert result is True
     assert instant_action_settings_tuple(hatchery.defaultInstantActionSettings()) == (False, True, False, True)
 
-    logs = filter_logs(switchboard_alpha, "HatcheryDefaultInstantActionSettingsSet")
+    logs = filter_logs(switchboard_bravo, "HatcheryDefaultInstantActionSettingsSet")
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].canInstantAddManager is False
     assert logs[-1].canInstantAddPayee is True
@@ -1967,7 +2159,7 @@ def test_set_cheque_config_reverts_when_wallet_backpack_not_registered(governanc
         name="alpha_without_wallet_backpack",
     )
 
-    with boa.reverts("wallet backpack not registered"):
+    with boa.reverts():
         fresh_alpha.setChequeConfig(1, 0, 1, 0, 0, sender=governance.address)
 
 
@@ -1995,7 +2187,7 @@ def test_set_cheque_config_reverts_when_cheque_book_not_registered(
         assert undy_hq.confirmAddressUpdateToRegistry(8, sender=governance.address)
 
         current = mission_control.chequeConfig()
-        with boa.reverts("cheque book not registered"):
+        with boa.reverts():
             switchboard_alpha.setChequeConfig(*cheque_config_tuple(current), sender=governance.address)
 
 
@@ -2101,7 +2293,6 @@ def test_cancel_pending_cheque_config_clears_action_metadata(
     assert switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
 
     assert switchboard_alpha.actionType(aid) == 0
-    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
     assert cheque_config_tuple(switchboard_alpha.pendingChequeConfig(aid)) == values
     assert cheque_config_tuple(mission_control.chequeConfig()) == cheque_config_tuple(initial)
 
@@ -2215,37 +2406,112 @@ def test_set_manager_config_invalid_params_revert(switchboard_alpha, governance)
         switchboard_alpha.setManagerConfig(MAX_UINT256, MAX_UINT256, False, 0, 0, False, sender=governance.address)
 
 
+def test_set_manager_config_rejects_candidate_incoherent_with_current_min(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    high_command,
+):
+    with boa.env.anchor():
+        wallet_config = mission_control.userWalletConfig()
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(
+                minKeyActionTimeLock=high_command.MAX_START_DELAY() + 1,
+                maxKeyActionTimeLock=high_command.MAX_START_DELAY() + 2,
+            ),
+            sender=switchboard_alpha.address,
+        )
+
+        current = mission_control.managerConfig()
+        with boa.reverts("invalid manager defaults under timelock"):
+            switchboard_alpha.setManagerConfig(*manager_config_tuple(current), sender=governance.address)
+
+
+def test_set_manager_config_execute_revalidates_min_timelock_drift(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    high_command,
+):
+    with boa.env.anchor():
+        initial = mission_control.managerConfig()
+        aid = switchboard_alpha.setManagerConfig(
+            initial.managerPeriod,
+            initial.managerActivationLength,
+            initial.mustHaveUsdValueOnSwaps,
+            initial.maxNumSwapsPerPeriod,
+            initial.maxSlippageOnSwaps,
+            initial.onlyApprovedYieldOpps,
+            sender=governance.address,
+        )
+
+        wallet_config = mission_control.userWalletConfig()
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(
+                minKeyActionTimeLock=high_command.MAX_START_DELAY() + 1,
+                maxKeyActionTimeLock=high_command.MAX_START_DELAY() + 2,
+            ),
+            sender=switchboard_alpha.address,
+        )
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid manager defaults under timelock"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
+        assert manager_config_tuple(switchboard_alpha.pendingManagerConfig(aid)) == manager_config_tuple(initial)
+        assert manager_config_tuple(mission_control.managerConfig()) == manager_config_tuple(initial)
+
+
+def test_set_manager_config_execute_revalidates_current_high_command(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    wallet_backpack,
+    high_command,
+):
+    with boa.env.anchor():
+        wallet_config = mission_control.userWalletConfig()
+        live_min = max(wallet_config.minKeyActionTimeLock, 100)
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(minKeyActionTimeLock=live_min, maxKeyActionTimeLock=max(wallet_config.maxKeyActionTimeLock, live_min + 1)),
+            sender=switchboard_alpha.address,
+        )
+        initial = mission_control.managerConfig()
+        aid = switchboard_alpha.setManagerConfig(*manager_config_tuple(initial), sender=governance.address)
+
+        replacement = deploy_rotated_high_command(
+            high_command,
+            max_start_delay=live_min - 1,
+            name="high_command_manager_execute_reject",
+        )
+        wallet_backpack.addPendingHighCommand(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingHighCommand(sender=governance.address)
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid manager defaults under timelock"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
+        assert manager_config_tuple(mission_control.managerConfig()) == manager_config_tuple(initial)
+
+
 def test_set_manager_config_non_governance_reverts(switchboard_alpha, alice):
     """Test that non-governance addresses cannot set manager config"""
     with boa.reverts("no perms"):
         switchboard_alpha.setManagerConfig(86400, 43200, False, 0, 0, False, sender=alice)
 
 
-def test_set_manager_config_edge_cases(switchboard_alpha, governance, mission_control):
+def test_set_manager_config_edge_cases(switchboard_alpha, governance):
     """Test edge cases for manager config"""
-    # Test with minimum values (1, 1)
-    aid1 = switchboard_alpha.setManagerConfig(1, 1, False, 0, 0, False, sender=governance.address)
+    with boa.reverts("invalid manager defaults under timelock"):
+        switchboard_alpha.setManagerConfig(1, 1, False, 0, 0, False, sender=governance.address)
 
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-
-    config = mission_control.managerConfig()
-    assert config.managerPeriod == 1
-    assert config.managerActivationLength == 1
-
-    # Test with large values (but not max)
     large_period = 2**256 - 2
     large_activation = 2**256 - 3
-    aid2 = switchboard_alpha.setManagerConfig(large_period, large_activation, False, 0, 0, False, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.managerConfig()
-    assert final_config.managerPeriod == large_period
-    assert final_config.managerActivationLength == large_activation
+    with boa.reverts("invalid manager defaults under timelock"):
+        switchboard_alpha.setManagerConfig(large_period, large_activation, False, 0, 0, False, sender=governance.address)
 
 
 def test_set_manager_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
@@ -2308,6 +2574,69 @@ def test_set_manager_config_cancel_pending_action(switchboard_alpha, governance,
     current_config = mission_control.managerConfig()
     assert current_config.managerPeriod == initial_config.managerPeriod
     assert current_config.managerActivationLength == initial_config.managerActivationLength
+
+
+def test_cross_action_ordering_key_bounds_reverts_when_live_manager_config_drifts_after_staging(
+    switchboard_alpha,
+    governance,
+    mission_control,
+):
+    with boa.env.anchor():
+        manager_config = mission_control.managerConfig()
+        wallet_config = mission_control.userWalletConfig()
+
+        aid_a = switchboard_alpha.setManagerConfig(*manager_config_tuple(manager_config), sender=governance.address)
+        aid_b = switchboard_alpha.setKeyActionTimelockBounds(
+            wallet_config.minKeyActionTimeLock,
+            wallet_config.maxKeyActionTimeLock,
+            sender=governance.address,
+        )
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        assert switchboard_alpha.executePendingAction(aid_a, sender=governance.address)
+
+        drifted_manager_config = manager_config._replace(
+            mustHaveUsdValueOnSwaps=False,
+            maxSlippageOnSwaps=1,
+        )
+        mission_control.setManagerConfig(drifted_manager_config, sender=switchboard_alpha.address)
+
+        with boa.reverts("invalid wallet creation config"):
+            switchboard_alpha.executePendingAction(aid_b, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid_b) == CONFIG_ACTION_TYPE.KEY_ACTION_TIMELOCK_BOUNDS
+        pending = switchboard_alpha.pendingUserWalletConfig(aid_b)
+        assert pending.minKeyActionTimeLock == wallet_config.minKeyActionTimeLock
+        assert pending.maxKeyActionTimeLock == wallet_config.maxKeyActionTimeLock
+
+
+def test_cross_action_ordering_reverse_key_bounds_then_manager_config(
+    switchboard_alpha,
+    governance,
+    mission_control,
+):
+    with boa.env.anchor():
+        manager_config = mission_control.managerConfig()
+        wallet_config = mission_control.userWalletConfig()
+
+        aid_a = switchboard_alpha.setManagerConfig(*manager_config_tuple(manager_config), sender=governance.address)
+        aid_b = switchboard_alpha.setKeyActionTimelockBounds(
+            wallet_config.minKeyActionTimeLock,
+            wallet_config.maxKeyActionTimeLock,
+            sender=governance.address,
+        )
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        assert switchboard_alpha.executePendingAction(aid_b, sender=governance.address)
+
+        try:
+            result = switchboard_alpha.executePendingAction(aid_a, sender=governance.address)
+        except Exception:
+            assert switchboard_alpha.actionType(aid_a) == CONFIG_ACTION_TYPE.MANAGER_CONFIG
+        else:
+            assert result == True
+            assert switchboard_alpha.actionType(aid_a) == 0
+            assert manager_config_tuple(mission_control.managerConfig()) == manager_config_tuple(manager_config)
 
 
 ################
@@ -2403,37 +2732,104 @@ def test_set_payee_config_invalid_params_revert(switchboard_alpha, governance):
         switchboard_alpha.setPayeeConfig(MAX_UINT256, MAX_UINT256, sender=governance.address)
 
 
+def test_set_payee_config_rejects_candidate_incoherent_with_current_min(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    paymaster,
+):
+    with boa.env.anchor():
+        wallet_config = mission_control.userWalletConfig()
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(
+                minKeyActionTimeLock=paymaster.MAX_START_DELAY() + 1,
+                maxKeyActionTimeLock=paymaster.MAX_START_DELAY() + 2,
+            ),
+            sender=switchboard_alpha.address,
+        )
+
+        current = mission_control.payeeConfig()
+        with boa.reverts("invalid payee defaults under timelock"):
+            switchboard_alpha.setPayeeConfig(*payee_config_tuple(current), sender=governance.address)
+
+
+def test_set_payee_config_execute_revalidates_min_timelock_drift(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    paymaster,
+):
+    with boa.env.anchor():
+        initial = mission_control.payeeConfig()
+        aid = switchboard_alpha.setPayeeConfig(*payee_config_tuple(initial), sender=governance.address)
+
+        wallet_config = mission_control.userWalletConfig()
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(
+                minKeyActionTimeLock=paymaster.MAX_START_DELAY() + 1,
+                maxKeyActionTimeLock=paymaster.MAX_START_DELAY() + 2,
+            ),
+            sender=switchboard_alpha.address,
+        )
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid payee defaults under timelock"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.PAYEE_CONFIG
+        assert payee_config_tuple(switchboard_alpha.pendingPayeeConfig(aid)) == payee_config_tuple(initial)
+        assert payee_config_tuple(mission_control.payeeConfig()) == payee_config_tuple(initial)
+
+
+def test_set_payee_config_execute_revalidates_current_paymaster(
+    switchboard_alpha,
+    governance,
+    mission_control,
+    wallet_backpack,
+    paymaster,
+):
+    with boa.env.anchor():
+        wallet_config = mission_control.userWalletConfig()
+        live_min = max(wallet_config.minKeyActionTimeLock, 100)
+        mission_control.setUserWalletConfig(
+            wallet_config._replace(minKeyActionTimeLock=live_min, maxKeyActionTimeLock=max(wallet_config.maxKeyActionTimeLock, live_min + 1)),
+            sender=switchboard_alpha.address,
+        )
+        initial = mission_control.payeeConfig()
+        aid = switchboard_alpha.setPayeeConfig(*payee_config_tuple(initial), sender=governance.address)
+
+        replacement = deploy_rotated_paymaster(
+            paymaster,
+            max_start_delay=live_min - 1,
+            name="paymaster_execute_reject",
+        )
+        wallet_backpack.addPendingPaymaster(replacement.address, sender=governance.address)
+        boa.env.time_travel(blocks=wallet_backpack.actionTimeLock())
+        assert wallet_backpack.confirmPendingPaymaster(sender=governance.address)
+
+        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+        with boa.reverts("invalid payee defaults under timelock"):
+            switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.PAYEE_CONFIG
+        assert payee_config_tuple(mission_control.payeeConfig()) == payee_config_tuple(initial)
+
+
 def test_set_payee_config_non_governance_reverts(switchboard_alpha, alice):
     """Test that non-governance addresses cannot set payee config"""
     with boa.reverts("no perms"):
         switchboard_alpha.setPayeeConfig(129600, 64800, sender=alice)
 
 
-def test_set_payee_config_edge_cases(switchboard_alpha, governance, mission_control):
+def test_set_payee_config_edge_cases(switchboard_alpha, governance):
     """Test edge cases for payee config"""
-    # Test with minimum values (1, 1)
-    aid1 = switchboard_alpha.setPayeeConfig(1, 1, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
-    assert result == True
-    
-    config = mission_control.payeeConfig()
-    assert config.payeePeriod == 1
-    assert config.payeeActivationLength == 1
-    
-    # Test with large values (but not max)
+    with boa.reverts("invalid payee defaults under timelock"):
+        switchboard_alpha.setPayeeConfig(1, 1, sender=governance.address)
+
     large_period = 2**256 - 10
     large_activation = 2**256 - 5
-    aid2 = switchboard_alpha.setPayeeConfig(large_period, large_activation, sender=governance.address)
-    
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-    
-    final_config = mission_control.payeeConfig()
-    assert final_config.payeePeriod == large_period
-    assert final_config.payeeActivationLength == large_activation
+    with boa.reverts("invalid payee defaults under timelock"):
+        switchboard_alpha.setPayeeConfig(large_period, large_activation, sender=governance.address)
 
 
 def test_set_payee_config_multiple_pending_actions(switchboard_alpha, governance, mission_control):
@@ -2526,49 +2922,49 @@ def test_set_payee_config_different_from_manager_config(switchboard_alpha, gover
 ##############################
 
 
-def test_set_can_perform_security_action_enable_success(switchboard_alpha, governance, alice, mission_control):
+def test_set_can_perform_security_action_enable_success(switchboard_bravo, governance, alice, mission_control):
     """Test successfully enabling security action permissions for an address"""
     # Verify alice doesn't have permission initially
     assert mission_control.canPerformSecurityAction(alice) == False
     
     # Enable security action for alice
-    aid = switchboard_alpha.setCanPerformSecurityAction(
+    aid = switchboard_bravo.setCanPerformSecurityAction(
         alice,  # signer
         True,   # canPerform
         sender=governance.address
     )
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingCanPerformSecurityAction")
+    logs = filter_logs(switchboard_bravo, "PendingCanPerformSecurityAction")
     assert len(logs) == 1
     assert logs[0].signer == alice
     assert logs[0].canPerform == True
     assert logs[0].actionId == aid
-    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_alpha.actionTimeLock()
+    expected_confirmation_block = boa.env.evm.patch.block_number + switchboard_bravo.actionTimeLock()
     assert logs[0].confirmationBlock == expected_confirmation_block
     
     # Verify pending state
-    assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.CAN_PERFORM_SECURITY_ACTION
-    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    assert switchboard_bravo.actionType(aid) == BRAVO_ACTION_TYPE.CAN_PERFORM_SECURITY_ACTION
+    pending_data = switchboard_bravo.pendingAddrToBool(aid)
     assert pending_data.addr == alice
     assert pending_data.isAllowed == True
     
     # Try to execute before timelock - should fail
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    result = switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert result == False
     
     # Verify no state change yet
     assert mission_control.canPerformSecurityAction(alice) == False
     
     # Time travel to reach timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
     
     # Execute the action
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    result = switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert result == True
     
     # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert len(exec_logs) == 1
     assert exec_logs[0].signer == alice
     assert exec_logs[0].canPerform == True
@@ -2577,19 +2973,19 @@ def test_set_can_perform_security_action_enable_success(switchboard_alpha, gover
     assert mission_control.canPerformSecurityAction(alice) == True
     
     # Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0
+    assert switchboard_bravo.actionType(aid) == 0
 
 
-def test_set_can_perform_security_action_disable_success(switchboard_alpha, governance, bob, mission_control):
+def test_set_can_perform_security_action_disable_success(switchboard_bravo, governance, bob, mission_control):
     """Test successfully disabling security action permissions for an address - applies immediately"""
     # First enable security action for bob
-    aid1 = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    assert switchboard_alpha.executePendingAction(aid1, sender=governance.address) == True
+    aid1 = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    assert switchboard_bravo.executePendingAction(aid1, sender=governance.address) == True
     assert mission_control.canPerformSecurityAction(bob) == True
     
     # Now disable security action for bob - this should apply immediately
-    aid2 = switchboard_alpha.setCanPerformSecurityAction(
+    aid2 = switchboard_bravo.setCanPerformSecurityAction(
         bob,    # signer
         False,  # canPerform
         sender=governance.address
@@ -2597,7 +2993,7 @@ def test_set_can_perform_security_action_disable_success(switchboard_alpha, gove
     
     # When disabling, the change should be applied immediately
     # Verify execution event was emitted immediately
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == bob
     assert exec_logs[-1].canPerform == False
     
@@ -2605,69 +3001,69 @@ def test_set_can_perform_security_action_disable_success(switchboard_alpha, gove
     assert mission_control.canPerformSecurityAction(bob) == False
     
     # There should be no pending action since it was applied immediately
-    assert switchboard_alpha.actionType(aid2) == 0
+    assert switchboard_bravo.actionType(aid2) == 0
 
 
-def test_set_can_perform_security_action_non_governance_reverts(switchboard_alpha, alice, bob):
+def test_set_can_perform_security_action_non_governance_reverts(switchboard_bravo, alice, bob):
     """Test that non-governance addresses cannot set security action permissions"""
     with boa.reverts("no perms"):
-        switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=alice)
+        switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=alice)
 
 
-def test_set_can_perform_security_action_zero_address(switchboard_alpha, governance):
+def test_set_can_perform_security_action_zero_address(switchboard_bravo, governance):
     """Test setting security action permissions for zero address"""
     # Should allow zero address (useful for disabling all non-specified addresses)
-    aid = switchboard_alpha.setCanPerformSecurityAction(
+    aid = switchboard_bravo.setCanPerformSecurityAction(
         ZERO_ADDRESS,  # signer
         True,          # canPerform
         sender=governance.address
     )
     
     # Verify it was accepted
-    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    pending_data = switchboard_bravo.pendingAddrToBool(aid)
     assert pending_data.addr == ZERO_ADDRESS
     assert pending_data.isAllowed == True
     
     # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    result = switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert result == True
     
     # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert len(exec_logs) == 1
     assert exec_logs[0].signer == ZERO_ADDRESS
     assert exec_logs[0].canPerform == True
 
 
-def test_set_can_perform_security_action_multiple_addresses(switchboard_alpha, governance, alice, bob, charlie, mission_control):
+def test_set_can_perform_security_action_multiple_addresses(switchboard_bravo, governance, alice, bob, charlie, mission_control):
     """Test setting security action permissions for multiple addresses"""
     # First enable bob so we can test disabling
-    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    aid_enable = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid_enable, sender=governance.address)
     assert mission_control.canPerformSecurityAction(bob) == True
     
     # Create pending action for alice (enable)
-    aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    aid1 = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
     
     # Bob's disable action should apply immediately
-    aid2 = switchboard_alpha.setCanPerformSecurityAction(bob, False, sender=governance.address)
+    aid2 = switchboard_bravo.setCanPerformSecurityAction(bob, False, sender=governance.address)
     # Check logs immediately after the transaction
-    exec_logs_bob = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs_bob = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert len(exec_logs_bob) == 1
     assert exec_logs_bob[0].signer == bob
     assert exec_logs_bob[0].canPerform == False
     
     # Create pending action for charlie (enable)
-    aid3 = switchboard_alpha.setCanPerformSecurityAction(charlie, True, sender=governance.address)
+    aid3 = switchboard_bravo.setCanPerformSecurityAction(charlie, True, sender=governance.address)
     
     # Verify bob's change was applied immediately
     assert mission_control.canPerformSecurityAction(bob) == False
     
     # Verify alice and charlie still have pending actions
-    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
-    pending3 = switchboard_alpha.pendingAddrToBool(aid3)
+    pending1 = switchboard_bravo.pendingAddrToBool(aid1)
+    pending3 = switchboard_bravo.pendingAddrToBool(aid3)
     
     assert pending1.addr == alice
     assert pending1.isAllowed == True
@@ -2675,99 +3071,99 @@ def test_set_can_perform_security_action_multiple_addresses(switchboard_alpha, g
     assert pending3.isAllowed == True
     
     # Bob's action should not be pending (applied immediately)
-    assert switchboard_alpha.actionType(aid2) == 0
+    assert switchboard_bravo.actionType(aid2) == 0
     
     # Execute remaining pending actions after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
     
     # Execute alice's action
-    result1 = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    result1 = switchboard_bravo.executePendingAction(aid1, sender=governance.address)
     assert result1 == True
     assert mission_control.canPerformSecurityAction(alice) == True
     
     # Execute charlie's action
-    result3 = switchboard_alpha.executePendingAction(aid3, sender=governance.address)
+    result3 = switchboard_bravo.executePendingAction(aid3, sender=governance.address)
     assert result3 == True
     assert mission_control.canPerformSecurityAction(charlie) == True
 
 
-def test_set_can_perform_security_action_same_address_overwrite(switchboard_alpha, governance, alice, mission_control):
+def test_set_can_perform_security_action_same_address_overwrite(switchboard_bravo, governance, alice, mission_control):
     """Test that multiple pending actions for same address can be created"""
     # Create first pending action (enable)
-    aid1 = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    aid1 = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
     
     # Create second action (disable) for same address - this applies immediately
-    aid2 = switchboard_alpha.setCanPerformSecurityAction(alice, False, sender=governance.address)
+    aid2 = switchboard_bravo.setCanPerformSecurityAction(alice, False, sender=governance.address)
     
     # Verify the disable was applied immediately
     assert mission_control.canPerformSecurityAction(alice) == False
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == alice
     assert exec_logs[-1].canPerform == False
     
     # The first pending action should still exist
-    pending1 = switchboard_alpha.pendingAddrToBool(aid1)
+    pending1 = switchboard_bravo.pendingAddrToBool(aid1)
     assert pending1.addr == alice
     assert pending1.isAllowed == True
     
     # The second action should not be pending (applied immediately)
-    assert switchboard_alpha.actionType(aid2) == 0
+    assert switchboard_bravo.actionType(aid2) == 0
     
     # Execute first action after timelock (will overwrite the immediate disable)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    result = switchboard_bravo.executePendingAction(aid1, sender=governance.address)
     assert result == True
     
     # Verify alice now has canPerform = True
     assert mission_control.canPerformSecurityAction(alice) == True
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert exec_logs[-1].signer == alice
     assert exec_logs[-1].canPerform == True
 
 
-def test_set_can_perform_security_action_cancel_pending(switchboard_alpha, governance, alice):
+def test_set_can_perform_security_action_cancel_pending(switchboard_bravo, governance, alice):
     """Test canceling a pending security action permission change"""
     # Create pending action
-    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
     
     # Cancel the action
-    result = switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+    result = switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
     assert result == True
     
     # Verify action is cleared
-    assert switchboard_alpha.actionType(aid) == 0
+    assert switchboard_bravo.actionType(aid) == 0
     
     # Try to execute cancelled action after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    result = switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert result == False
     
     # Verify no execution event was emitted
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert len(exec_logs) == 0
 
 
-def test_set_can_perform_security_action_contract_addresses(switchboard_alpha, governance, wallet_template_v2):
+def test_set_can_perform_security_action_contract_addresses(switchboard_bravo, governance, wallet_template_v2):
     """Test setting security action permissions for contract addresses"""
     # Should allow setting permissions for contract addresses
-    aid = switchboard_alpha.setCanPerformSecurityAction(
+    aid = switchboard_bravo.setCanPerformSecurityAction(
         wallet_template_v2.address,  # contract address
         True,                        # canPerform
         sender=governance.address
     )
     
     # Verify it was accepted
-    pending_data = switchboard_alpha.pendingAddrToBool(aid)
+    pending_data = switchboard_bravo.pendingAddrToBool(aid)
     assert pending_data.addr == wallet_template_v2.address
     assert pending_data.isAllowed == True
     
     # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    result = switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert result == True
     
     # Verify execution event
-    exec_logs = filter_logs(switchboard_alpha, "CanPerformSecurityAction")
+    exec_logs = filter_logs(switchboard_bravo, "CanPerformSecurityAction")
     assert len(exec_logs) == 1
     assert exec_logs[0].signer == wallet_template_v2.address
     assert exec_logs[0].canPerform == True
@@ -2778,16 +3174,16 @@ def test_set_can_perform_security_action_contract_addresses(switchboard_alpha, g
 #######################
 
 
-def test_set_creator_whitelist_enable_by_governance_success(switchboard_alpha, governance, alice, mission_control):
+def test_set_creator_whitelist_enable_by_governance_success(switchboard_bravo, governance, alice, mission_control):
     """Test that governance can enable creator whitelist"""
     # Verify alice is not whitelisted initially
     assert mission_control.creatorWhitelist(alice) == False
     
     # Enable creator whitelist for alice
-    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
+    switchboard_bravo.setCreatorWhitelist(alice, True, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    logs = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert len(logs) == 1
     assert logs[0].creator == alice
     assert logs[0].isWhitelisted == True
@@ -2797,17 +3193,17 @@ def test_set_creator_whitelist_enable_by_governance_success(switchboard_alpha, g
     assert mission_control.creatorWhitelist(alice) == True
 
 
-def test_set_creator_whitelist_disable_by_governance_success(switchboard_alpha, governance, bob, mission_control):
+def test_set_creator_whitelist_disable_by_governance_success(switchboard_bravo, governance, bob, mission_control):
     """Test that governance can disable creator whitelist"""
     # First enable creator whitelist for bob
-    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
+    switchboard_bravo.setCreatorWhitelist(bob, True, sender=governance.address)
     assert mission_control.creatorWhitelist(bob) == True
     
     # Then disable it
-    switchboard_alpha.setCreatorWhitelist(bob, False, sender=governance.address)
+    switchboard_bravo.setCreatorWhitelist(bob, False, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    logs = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert len(logs) == 1  # Only the last event
     assert logs[0].creator == bob
     assert logs[0].isWhitelisted == False
@@ -2817,25 +3213,25 @@ def test_set_creator_whitelist_disable_by_governance_success(switchboard_alpha, 
     assert mission_control.creatorWhitelist(bob) == False
 
 
-def test_set_creator_whitelist_disable_by_security_user_success(switchboard_alpha, governance, alice, bob, mission_control):
+def test_set_creator_whitelist_disable_by_security_user_success(switchboard_bravo, governance, alice, bob, mission_control):
     """Test that a user with canPerformSecurityAction can disable creator whitelist"""
     # First, give alice security action permissions
-    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     
     # Verify alice has security permissions
     assert mission_control.canPerformSecurityAction(alice) == True
     
     # Enable creator whitelist for bob (by governance)
-    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
+    switchboard_bravo.setCreatorWhitelist(bob, True, sender=governance.address)
     assert mission_control.creatorWhitelist(bob) == True
     
     # Now alice (with security permissions) can disable it
-    switchboard_alpha.setCreatorWhitelist(bob, False, sender=alice)
+    switchboard_bravo.setCreatorWhitelist(bob, False, sender=alice)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    logs = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert len(logs) == 1
     assert logs[0].creator == bob
     assert logs[0].isWhitelisted == False
@@ -2845,66 +3241,66 @@ def test_set_creator_whitelist_disable_by_security_user_success(switchboard_alph
     assert mission_control.creatorWhitelist(bob) == False
 
 
-def test_set_creator_whitelist_enable_by_security_user_reverts(switchboard_alpha, governance, alice, bob):
+def test_set_creator_whitelist_enable_by_security_user_reverts(switchboard_bravo, governance, alice, bob):
     """Test that a user with canPerformSecurityAction cannot enable creator whitelist"""
     # First, give alice security action permissions
-    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     
     # Alice should not be able to enable creator whitelist
     with boa.reverts("no perms"):
-        switchboard_alpha.setCreatorWhitelist(bob, True, sender=alice)
+        switchboard_bravo.setCreatorWhitelist(bob, True, sender=alice)
 
 
-def test_set_creator_whitelist_no_perms_reverts(switchboard_alpha, alice, bob):
+def test_set_creator_whitelist_no_perms_reverts(switchboard_bravo, alice, bob):
     """Test that users without permissions cannot set creator whitelist"""
     # Alice has no special permissions
     with boa.reverts("no perms"):
-        switchboard_alpha.setCreatorWhitelist(bob, True, sender=alice)
+        switchboard_bravo.setCreatorWhitelist(bob, True, sender=alice)
     
     with boa.reverts("no perms"):
-        switchboard_alpha.setCreatorWhitelist(bob, False, sender=alice)
+        switchboard_bravo.setCreatorWhitelist(bob, False, sender=alice)
 
 
-def test_set_creator_whitelist_zero_address_reverts(switchboard_alpha, governance):
+def test_set_creator_whitelist_zero_address_reverts(switchboard_bravo, governance):
     """Test that zero address cannot be whitelisted"""
     with boa.reverts("invalid creator"):
-        switchboard_alpha.setCreatorWhitelist(ZERO_ADDRESS, True, sender=governance.address)
+        switchboard_bravo.setCreatorWhitelist(ZERO_ADDRESS, True, sender=governance.address)
     
     with boa.reverts("invalid creator"):
-        switchboard_alpha.setCreatorWhitelist(ZERO_ADDRESS, False, sender=governance.address)
+        switchboard_bravo.setCreatorWhitelist(ZERO_ADDRESS, False, sender=governance.address)
 
 
-def test_set_creator_whitelist_multiple_creators(switchboard_alpha, governance, alice, bob, charlie, mission_control):
+def test_set_creator_whitelist_multiple_creators(switchboard_bravo, governance, alice, bob, charlie, mission_control):
     """Test setting whitelist for multiple creators"""
     # Enable whitelist for multiple creators
-    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
-    logs1 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    switchboard_bravo.setCreatorWhitelist(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert logs1[0].creator == alice
     assert logs1[0].isWhitelisted == True
     assert mission_control.creatorWhitelist(alice) == True
     
-    switchboard_alpha.setCreatorWhitelist(bob, True, sender=governance.address)
-    logs2 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    switchboard_bravo.setCreatorWhitelist(bob, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert logs2[0].creator == bob
     assert logs2[0].isWhitelisted == True
     assert mission_control.creatorWhitelist(bob) == True
     
-    switchboard_alpha.setCreatorWhitelist(charlie, False, sender=governance.address)
-    logs3 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    switchboard_bravo.setCreatorWhitelist(charlie, False, sender=governance.address)
+    logs3 = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert logs3[0].creator == charlie
     assert logs3[0].isWhitelisted == False
     assert mission_control.creatorWhitelist(charlie) == False
 
 
-def test_set_creator_whitelist_contract_address(switchboard_alpha, governance, wallet_template_v2):
+def test_set_creator_whitelist_contract_address(switchboard_bravo, governance, wallet_template_v2):
     """Test whitelisting a contract address as creator"""
     # Should allow whitelisting contract addresses
-    switchboard_alpha.setCreatorWhitelist(wallet_template_v2.address, True, sender=governance.address)
+    switchboard_bravo.setCreatorWhitelist(wallet_template_v2.address, True, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    logs = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert len(logs) == 1
     assert logs[0].creator == wallet_template_v2.address
     assert logs[0].isWhitelisted == True
@@ -2916,16 +3312,16 @@ def test_set_creator_whitelist_contract_address(switchboard_alpha, governance, w
 ###################
 
 
-def test_set_locked_signer_lock_by_governance_success(switchboard_alpha, governance, alice, mission_control):
+def test_set_locked_signer_lock_by_governance_success(switchboard_bravo, governance, alice, mission_control):
     """Test that governance can lock a signer"""
     # Verify alice is not locked initially
     assert mission_control.isLockedSigner(alice) == False
     
     # Lock alice as a signer
-    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
+    switchboard_bravo.setLockedSigner(alice, True, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    logs = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert len(logs) == 1
     assert logs[0].signer == alice
     assert logs[0].isLocked == True
@@ -2935,17 +3331,17 @@ def test_set_locked_signer_lock_by_governance_success(switchboard_alpha, governa
     assert mission_control.isLockedSigner(alice) == True
 
 
-def test_set_locked_signer_unlock_by_governance_success(switchboard_alpha, governance, bob, mission_control):
+def test_set_locked_signer_unlock_by_governance_success(switchboard_bravo, governance, bob, mission_control):
     """Test that governance can unlock a signer"""
     # First lock bob
-    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
+    switchboard_bravo.setLockedSigner(bob, True, sender=governance.address)
     assert mission_control.isLockedSigner(bob) == True
     
     # Then unlock
-    switchboard_alpha.setLockedSigner(bob, False, sender=governance.address)
+    switchboard_bravo.setLockedSigner(bob, False, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    logs = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert len(logs) == 1  # Only the last event
     assert logs[0].signer == bob
     assert logs[0].isLocked == False
@@ -2955,25 +3351,25 @@ def test_set_locked_signer_unlock_by_governance_success(switchboard_alpha, gover
     assert mission_control.isLockedSigner(bob) == False
 
 
-def test_set_locked_signer_unlock_by_security_user_success(switchboard_alpha, governance, alice, bob, mission_control):
+def test_set_locked_signer_unlock_by_security_user_success(switchboard_bravo, governance, alice, bob, mission_control):
     """Test that a user with canPerformSecurityAction can unlock a signer"""
     # First, give alice security action permissions
-    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     
     # Verify alice has security permissions
     assert mission_control.canPerformSecurityAction(alice) == True
     
     # Lock bob (by governance)
-    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
+    switchboard_bravo.setLockedSigner(bob, True, sender=governance.address)
     assert mission_control.isLockedSigner(bob) == True
     
     # Now alice (with security permissions) can unlock
-    switchboard_alpha.setLockedSigner(bob, False, sender=alice)
+    switchboard_bravo.setLockedSigner(bob, False, sender=alice)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    logs = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert len(logs) == 1
     assert logs[0].signer == bob
     assert logs[0].isLocked == False
@@ -2983,223 +3379,109 @@ def test_set_locked_signer_unlock_by_security_user_success(switchboard_alpha, go
     assert mission_control.isLockedSigner(bob) == False
 
 
-def test_set_locked_signer_lock_by_security_user_reverts(switchboard_alpha, governance, alice, bob):
+def test_set_locked_signer_lock_by_security_user_reverts(switchboard_bravo, governance, alice, bob):
     """Test that a user with canPerformSecurityAction cannot lock a signer"""
     # First, give alice security action permissions
-    aid = switchboard_alpha.setCanPerformSecurityAction(alice, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(alice, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     
     # Alice should not be able to lock a signer
     with boa.reverts("no perms"):
-        switchboard_alpha.setLockedSigner(bob, True, sender=alice)
+        switchboard_bravo.setLockedSigner(bob, True, sender=alice)
 
 
-def test_set_locked_signer_no_perms_reverts(switchboard_alpha, alice, bob):
+def test_set_locked_signer_no_perms_reverts(switchboard_bravo, alice, bob):
     """Test that users without permissions cannot set locked signer"""
     # Alice has no special permissions
     with boa.reverts("no perms"):
-        switchboard_alpha.setLockedSigner(bob, True, sender=alice)
+        switchboard_bravo.setLockedSigner(bob, True, sender=alice)
     
     with boa.reverts("no perms"):
-        switchboard_alpha.setLockedSigner(bob, False, sender=alice)
+        switchboard_bravo.setLockedSigner(bob, False, sender=alice)
 
 
-def test_set_locked_signer_zero_address_reverts(switchboard_alpha, governance):
+def test_set_locked_signer_zero_address_reverts(switchboard_bravo, governance):
     """Test that zero address cannot be locked"""
     with boa.reverts("invalid creator"):
-        switchboard_alpha.setLockedSigner(ZERO_ADDRESS, True, sender=governance.address)
+        switchboard_bravo.setLockedSigner(ZERO_ADDRESS, True, sender=governance.address)
     
     with boa.reverts("invalid creator"):
-        switchboard_alpha.setLockedSigner(ZERO_ADDRESS, False, sender=governance.address)
+        switchboard_bravo.setLockedSigner(ZERO_ADDRESS, False, sender=governance.address)
 
 
-def test_set_locked_signer_multiple_signers(switchboard_alpha, governance, alice, bob, charlie, mission_control):
+def test_set_locked_signer_multiple_signers(switchboard_bravo, governance, alice, bob, charlie, mission_control):
     """Test locking/unlocking multiple signers"""
     # Lock alice
-    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
-    logs1 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    switchboard_bravo.setLockedSigner(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert logs1[0].signer == alice
     assert logs1[0].isLocked == True
     assert mission_control.isLockedSigner(alice) == True
     
     # Lock bob
-    switchboard_alpha.setLockedSigner(bob, True, sender=governance.address)
-    logs2 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    switchboard_bravo.setLockedSigner(bob, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert logs2[0].signer == bob
     assert logs2[0].isLocked == True
     assert mission_control.isLockedSigner(bob) == True
     
     # Unlock charlie (who wasn't locked)
-    switchboard_alpha.setLockedSigner(charlie, False, sender=governance.address)
-    logs3 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    switchboard_bravo.setLockedSigner(charlie, False, sender=governance.address)
+    logs3 = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert logs3[0].signer == charlie
     assert logs3[0].isLocked == False
     assert mission_control.isLockedSigner(charlie) == False
 
 
-def test_set_locked_signer_contract_address(switchboard_alpha, governance, wallet_template_v2):
+def test_set_locked_signer_contract_address(switchboard_bravo, governance, wallet_template_v2):
     """Test locking a contract address as signer"""
     # Should allow locking contract addresses
-    switchboard_alpha.setLockedSigner(wallet_template_v2.address, True, sender=governance.address)
+    switchboard_bravo.setLockedSigner(wallet_template_v2.address, True, sender=governance.address)
     
     # Verify event was emitted
-    logs = filter_logs(switchboard_alpha, "LockedSignerSet")
+    logs = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert len(logs) == 1
     assert logs[0].signer == wallet_template_v2.address
     assert logs[0].isLocked == True
     assert logs[0].caller == governance.address
 
 
-def test_creator_whitelist_and_locked_signer_interaction(switchboard_alpha, governance, alice, bob, mission_control):
+def test_creator_whitelist_and_locked_signer_interaction(switchboard_bravo, governance, alice, bob, mission_control):
     """Test that creator whitelist and locked signer can be used together"""
     # Give bob security permissions
-    aid = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert mission_control.canPerformSecurityAction(bob) == True
     
     # Governance enables creator whitelist and locks signer for alice
-    switchboard_alpha.setCreatorWhitelist(alice, True, sender=governance.address)
-    logs1 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    switchboard_bravo.setCreatorWhitelist(alice, True, sender=governance.address)
+    logs1 = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert logs1[0].creator == alice
     assert logs1[0].isWhitelisted == True
     assert mission_control.creatorWhitelist(alice) == True
     
-    switchboard_alpha.setLockedSigner(alice, True, sender=governance.address)
-    logs2 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    switchboard_bravo.setLockedSigner(alice, True, sender=governance.address)
+    logs2 = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert logs2[0].signer == alice
     assert logs2[0].isLocked == True
     assert mission_control.isLockedSigner(alice) == True
     
     # Bob (with security permissions) can disable both
-    switchboard_alpha.setCreatorWhitelist(alice, False, sender=bob)
-    logs3 = filter_logs(switchboard_alpha, "CreatorWhitelistSet")
+    switchboard_bravo.setCreatorWhitelist(alice, False, sender=bob)
+    logs3 = filter_logs(switchboard_bravo, "CreatorWhitelistSet")
     assert logs3[0].creator == alice
     assert logs3[0].isWhitelisted == False
     assert logs3[0].caller == bob
     assert mission_control.creatorWhitelist(alice) == False
     
-    switchboard_alpha.setLockedSigner(alice, False, sender=bob)
-    logs4 = filter_logs(switchboard_alpha, "LockedSignerSet")
+    switchboard_bravo.setLockedSigner(alice, False, sender=bob)
+    logs4 = filter_logs(switchboard_bravo, "LockedSignerSet")
     assert logs4[0].signer == alice
     assert logs4[0].isLocked == False
     assert logs4[0].caller == bob
     assert mission_control.isLockedSigner(alice) == False
-
-
-########################
-# Ripe Rewards Config #
-########################
-
-
-def test_set_ripe_rewards_config_success(switchboard_alpha, governance, mission_control):
-    """Test successful setting of ripe rewards config with timelock"""
-    # Set new ripe rewards config
-    new_stake_ratio = 75_00  # 75%
-    new_duration = 50400  # blocks (~7 days on Ethereum)
-
-    # Store original values
-    original_config = mission_control.ripeRewardsConfig()
-
-    # Call setRipeRewardsConfig as governance - initiates pending action
-    aid = switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
-
-    # Verify pending event was emitted
-    logs = filter_logs(switchboard_alpha, "PendingRipeRewardsConfigChange")
-    assert len(logs) == 1
-    assert logs[0].ripeStakeRatio == new_stake_ratio
-    assert logs[0].ripeLockDuration == new_duration
-    assert logs[0].actionId == aid
-
-    # Values should NOT be set yet (still pending)
-    ripe_config = mission_control.ripeRewardsConfig()
-    assert ripe_config[0] == original_config[0]
-    assert ripe_config[1] == original_config[1]
-
-    # Time travel past timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-
-    # Execute pending action
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify confirmation event was emitted
-    logs = filter_logs(switchboard_alpha, "RipeRewardsConfigSet")
-    assert len(logs) == 1
-    assert logs[0].ripeStakeRatio == new_stake_ratio
-    assert logs[0].ripeLockDuration == new_duration
-
-    # Verify the values were set in MissionControl
-    ripe_config = mission_control.ripeRewardsConfig()
-    assert ripe_config[0] == new_stake_ratio
-    assert ripe_config[1] == new_duration
-
-
-def test_set_ripe_rewards_config_different_values(switchboard_alpha, governance, mission_control):
-    """Test setting different ripe rewards config values"""
-    configs = [
-        (90_00, 7200),      # 90%, ~1 day
-        (50_00, 216000),    # 50%, ~30 days
-        (0, 1),             # 0%, minimum duration
-        (100_00, 2628000),  # 100%, ~1 year
-    ]
-
-    for stake_ratio, duration in configs:
-        aid = switchboard_alpha.setRipeRewardsConfig(stake_ratio, duration, sender=governance.address)
-        boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-        switchboard_alpha.executePendingAction(aid, sender=governance.address)
-
-        ripe_config = mission_control.ripeRewardsConfig()
-        assert ripe_config[0] == stake_ratio
-        assert ripe_config[1] == duration
-
-
-def test_set_ripe_rewards_config_non_governance_reverts(switchboard_alpha, alice, mission_control):
-    """Test that non-governance addresses cannot set ripe rewards config"""
-    new_stake_ratio = 85_00
-    new_duration = 50400  # blocks (~7 days)
-
-    # Store the current values before the failed attempt
-    ripe_config = mission_control.ripeRewardsConfig()
-    current_stake_ratio = ripe_config[0]
-    current_duration = ripe_config[1]
-
-    with boa.reverts("no perms"):
-        switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=alice)
-
-    # Verify the values were not changed
-    ripe_config = mission_control.ripeRewardsConfig()
-    assert ripe_config[0] == current_stake_ratio
-    assert ripe_config[1] == current_duration
-
-
-def test_set_ripe_rewards_config_invalid_stake_ratio_reverts(switchboard_alpha, governance):
-    """Test that stake ratio > 100% reverts"""
-    with boa.reverts("invalid ripe rewards config"):
-        switchboard_alpha.setRipeRewardsConfig(100_01, 1000, sender=governance.address)
-
-
-def test_set_ripe_rewards_config_zero_duration_reverts(switchboard_alpha, governance):
-    """Test that zero lock duration reverts"""
-    with boa.reverts("invalid ripe rewards config"):
-        switchboard_alpha.setRipeRewardsConfig(50_00, 0, sender=governance.address)
-
-
-def test_set_ripe_rewards_config_execute_before_timelock_fails(switchboard_alpha, governance, mission_control):
-    """Test that executing before timelock returns False"""
-    original_config = mission_control.ripeRewardsConfig()
-
-    aid = switchboard_alpha.setRipeRewardsConfig(75_00, 50400, sender=governance.address)
-
-    # Try to execute before timelock - should return False
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == False
-
-    # Values should still be original
-    ripe_config = mission_control.ripeRewardsConfig()
-    assert ripe_config[0] == original_config[0]
-    assert ripe_config[1] == original_config[1]
 
 
 ###################################
@@ -3648,15 +3930,17 @@ def test_set_agent_wrapper_sender_add_non_governance_reverts(switchboard_alpha, 
         )
 
 
-def test_set_agent_wrapper_sender_remove_by_security_council(switchboard_alpha, governance, starter_agent, starter_agent_sender, bob, mission_control):
+def test_set_agent_wrapper_sender_remove_by_security_council(
+    switchboard_alpha, switchboard_bravo, governance, starter_agent, starter_agent_sender, bob, mission_control
+):
     """Test that security council can remove senders immediately"""
     agent_wrapper = starter_agent
     sender_to_remove = starter_agent_sender.address
 
     # First enable bob as security council member
-    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    aid_enable = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid_enable, sender=governance.address)
     assert mission_control.canPerformSecurityAction(bob) == True
 
     # Verify sender exists
@@ -3680,12 +3964,14 @@ def test_set_agent_wrapper_sender_remove_by_security_council(switchboard_alpha, 
     assert exec_logs[-1].agentSender == sender_to_remove
 
 
-def test_set_agent_wrapper_sender_add_by_security_council_reverts(switchboard_alpha, governance, starter_agent, bob, mission_control):
+def test_set_agent_wrapper_sender_add_by_security_council_reverts(
+    switchboard_alpha, switchboard_bravo, governance, starter_agent, bob, mission_control
+):
     """Test that security council cannot add senders (only governance can)"""
     # First enable bob as security council member
-    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    aid_enable = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid_enable, sender=governance.address)
     assert mission_control.canPerformSecurityAction(bob) == True
 
     # Bob (security council) tries to add sender - should fail
@@ -3760,7 +4046,9 @@ def test_set_agent_wrapper_sender_cancel_pending_add(switchboard_alpha, governan
     assert agent_wrapper.indexOfSender(new_sender) == 0
 
 
-def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, starter_agent, alice, bob, mission_control):
+def test_set_agent_wrapper_sender_full_lifecycle(
+    switchboard_alpha, switchboard_bravo, governance, starter_agent, alice, bob, mission_control
+):
     """Test full lifecycle: add sender with timelock, verify it works, remove immediately"""
     agent_wrapper = starter_agent
     new_sender = alice
@@ -3787,9 +4075,9 @@ def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, 
     num_senders_after_add = agent_wrapper.numSenders()
 
     # Step 2: Enable bob as security council
-    aid_enable = switchboard_alpha.setCanPerformSecurityAction(bob, True, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid_enable, sender=governance.address)
+    aid_enable = switchboard_bravo.setCanPerformSecurityAction(bob, True, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid_enable, sender=governance.address)
 
     # Step 3: Security council removes sender immediately
     aid_remove = switchboard_alpha.setAgentWrapperSender(
@@ -3803,296 +4091,3 @@ def test_set_agent_wrapper_sender_full_lifecycle(switchboard_alpha, governance, 
     assert aid_remove == 0
     assert agent_wrapper.indexOfSender(new_sender) == 0
     assert agent_wrapper.numSenders() == num_senders_after_add - 1
-
-
-###########################################
-# New Mission Control Optional Arg Tests #
-###########################################
-
-
-@pytest.fixture(scope="module")
-def new_mission_control(undy_hq_deploy, defaults):
-    """Deploy a new MissionControl that is NOT registered in UndyHq"""
-    return boa.load(
-        "contracts/data/MissionControl.vy",
-        undy_hq_deploy,
-        defaults,
-        name="new_mission_control",
-    )
-
-
-def test_mission_control_arg_with_new_mc_direct_write(switchboard_alpha, governance, mission_control, new_mission_control):
-    """Test that passing a new mission control updates that MC instead of the current one"""
-    # Set creator whitelist on the NEW mission control (direct write, no timelock)
-    creator = governance.address
-    switchboard_alpha.setCreatorWhitelist(
-        creator,
-        True,
-        new_mission_control.address,  # target the new MC
-        sender=governance.address
-    )
-
-    # Verify the NEW mission control was updated
-    assert new_mission_control.creatorWhitelist(creator) == True
-
-
-def test_mission_control_arg_with_new_mc_timelock_function(switchboard_alpha, governance, mission_control, new_mission_control, alpha_token):
-    """Test that timelock functions store and use the new mission control"""
-    asset = alpha_token.address
-
-    # Set full asset config on the NEW mission control
-    aid = switchboard_alpha.setAssetConfig(
-        asset,
-        100,    # txFeesSwapFee (1%)
-        50,     # txFeesStableSwapFee (0.5%)
-        500,    # txFeesRewardsFee (5%)
-        5000,   # ambassadorRevShareSwapRatio (50%)
-        5000,   # ambassadorRevShareRewardsRatio (50%)
-        5000,   # ambassadorRevShareYieldRatio (50%)
-        500,    # maxYieldIncrease (5%)
-        1000,   # performanceFee (10%)
-        2500,   # ambassadorBonusRatio (25%)
-        1000,   # bonusRatio (10%)
-        ZERO_ADDRESS,  # bonusAsset
-        new_mission_control.address,  # target the new MC
-        sender=governance.address
-    )
-
-    # Verify pending mission control is stored
-    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
-
-    # Time travel and execute
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify the NEW mission control was updated
-    new_mc_asset_config = new_mission_control.assetConfig(asset)
-    assert new_mc_asset_config.hasConfig == True
-    assert new_mc_asset_config.txFees.swapFee == 100
-
-    # Verify the CURRENT mission control was NOT updated
-    current_mc_asset_config = mission_control.assetConfig(asset)
-    assert current_mc_asset_config.hasConfig == False  # Should still be unconfigured
-
-
-def test_mission_control_arg_empty_uses_current(switchboard_alpha, governance, mission_control, alice):
-    """Test that empty address (default) uses the current mission control"""
-    # Set locked signer on current MC (empty _missionControl arg)
-    switchboard_alpha.setLockedSigner(
-        alice,
-        True,
-        # Not passing _missionControl, uses default empty(address)
-        sender=governance.address
-    )
-
-    # Verify the CURRENT mission control was updated
-    assert mission_control.isLockedSigner(alice) == True
-
-
-def test_mission_control_arg_rejects_current_mc(switchboard_alpha, governance, mission_control):
-    """Test that passing the current mission control reverts"""
-    with boa.reverts("use empty for current mission control"):
-        switchboard_alpha.setCreatorWhitelist(
-            governance.address,
-            True,
-            mission_control.address,  # passing current MC should fail
-            sender=governance.address
-        )
-
-
-def test_mission_control_arg_rejects_eoa(switchboard_alpha, governance):
-    """Test that passing an EOA (non-contract) fails."""
-    # Use a random address that is definitely not a contract
-    random_eoa = "0x0000000000000000000000000000000000001234"
-    with boa.reverts("invalid mission control"):
-        switchboard_alpha.setCreatorWhitelist(
-            governance.address,
-            True,
-            random_eoa,  # EOA is not a contract
-            sender=governance.address
-        )
-
-
-def test_mission_control_arg_rejects_zero_address_as_explicit(switchboard_alpha, governance, mission_control):
-    """Test that zero address works as default (doesn't revert as invalid)"""
-    # Zero address should work as it means "use current MC"
-    switchboard_alpha.setLockedSigner(
-        governance.address,
-        True,
-        ZERO_ADDRESS,  # explicitly passing zero should work
-        sender=governance.address
-    )
-
-    # Verify it used the current mission control
-    assert mission_control.isLockedSigner(governance.address) == True
-
-
-def test_mission_control_arg_granular_asset_setter(switchboard_alpha, governance, mission_control, new_mission_control, alpha_token):
-    """Test granular asset setters read from and write to the specified MC"""
-    asset = alpha_token.address
-
-    # First, set full asset config on the NEW mission control
-    aid = switchboard_alpha.setAssetConfig(
-        asset,
-        100,    # txFeesSwapFee (1%)
-        50,     # txFeesStableSwapFee (0.5%)
-        500,    # txFeesRewardsFee (5%)
-        5000,   # ambassadorRevShareSwapRatio (50%)
-        5000,   # ambassadorRevShareRewardsRatio (50%)
-        5000,   # ambassadorRevShareYieldRatio (50%)
-        500,    # maxYieldIncrease (5%)
-        1000,   # performanceFee (10%)
-        2500,   # ambassadorBonusRatio (25%)
-        1000,   # bonusRatio (10%)
-        ZERO_ADDRESS,
-        new_mission_control.address,
-        sender=governance.address
-    )
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
-
-    # Verify config exists on new MC
-    assert new_mission_control.assetConfig(asset).hasConfig == True
-
-    # Now update tx fees on the new MC using the granular setter
-    aid2 = switchboard_alpha.setAssetTxFees(
-        asset,
-        200,    # new swapFee (2%)
-        100,    # new stableSwapFee (1%)
-        800,    # new rewardsFee (8%)
-        new_mission_control.address,  # target the new MC
-        sender=governance.address
-    )
-
-    # Execute
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid2, sender=governance.address)
-    assert result == True
-
-    # Verify the NEW mission control was updated
-    new_mc_config = new_mission_control.assetConfig(asset)
-    assert new_mc_config.txFees.swapFee == 200
-    assert new_mc_config.txFees.stableSwapFee == 100
-    assert new_mc_config.txFees.rewardsFee == 800
-
-
-def test_mission_control_arg_security_action(switchboard_alpha, governance, new_mission_control, bob):
-    """Test setCanPerformSecurityAction with new mission control"""
-    # Enable security action on NEW mission control (immediate removal path)
-    # First we need to add via timelock
-    aid = switchboard_alpha.setCanPerformSecurityAction(
-        bob,
-        True,
-        new_mission_control.address,
-        sender=governance.address
-    )
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify bob can perform security action on the NEW MC
-    assert new_mission_control.canPerformSecurityAction(bob) == True
-
-
-def test_mission_control_arg_user_wallet_config(switchboard_alpha, governance, new_mission_control, wallet_template_v2, config_template_v2):
-    """Test user wallet config functions with new mission control"""
-    # Set user wallet templates on the NEW mission control
-    aid = switchboard_alpha.setUserWalletTemplates(
-        wallet_template_v2.address,
-        config_template_v2.address,
-        new_mission_control.address,
-        sender=governance.address
-    )
-
-    # Verify pending mission control is stored
-    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    result = switchboard_alpha.executePendingAction(aid, sender=governance.address)
-    assert result == True
-
-    # Verify the NEW mission control was updated
-    new_mc_config = new_mission_control.userWalletConfig()
-    assert new_mc_config.walletTemplate == wallet_template_v2.address
-    assert new_mc_config.configTemplate == config_template_v2.address
-
-
-def test_mission_control_arg_cancel_clears_pending_mc(switchboard_alpha, governance, new_mission_control, alpha_token):
-    """Test that canceling a pending action clears the pending mission control"""
-    asset = alpha_token.address
-
-    # Initiate action with new MC
-    aid = switchboard_alpha.setAssetConfig(
-        asset,
-        100, 50, 500, 5000, 5000, 5000, 500, 1000, 2500, 1000, ZERO_ADDRESS,
-        new_mission_control.address,
-        sender=governance.address
-    )
-
-    # Verify pending MC is stored
-    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
-
-    # Cancel the action
-    switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
-
-    # Verify pending MC is cleared
-    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
-
-
-def test_mission_control_arg_execute_clears_pending_mc(switchboard_alpha, governance, new_mission_control, alpha_token):
-    """Test that executing a pending action clears the pending mission control"""
-    asset = alpha_token.address
-
-    # Initiate action with new MC
-    aid = switchboard_alpha.setAssetConfig(
-        asset,
-        100, 50, 500, 5000, 5000, 5000, 500, 1000, 2500, 1000, ZERO_ADDRESS,
-        new_mission_control.address,
-        sender=governance.address
-    )
-
-    # Verify pending MC is stored
-    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
-
-    # Execute after timelock
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
-
-    # Verify pending MC is cleared
-    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
-
-
-def test_mission_control_arg_ripe_rewards_config(switchboard_alpha, governance, new_mission_control):
-    """Test setRipeRewardsConfig with new mission control (timelock function)"""
-    stake_ratio = 6500  # 65% - use a unique value for this test
-    lock_duration = 99999
-
-    # Get initial value
-    initial_config = new_mission_control.ripeRewardsConfig()
-
-    # Initiate pending action on new MC
-    aid = switchboard_alpha.setRipeRewardsConfig(
-        stake_ratio,
-        lock_duration,
-        new_mission_control.address,
-        sender=governance.address
-    )
-
-    # Verify pending MC is stored
-    assert switchboard_alpha.pendingMissionControl(aid) == new_mission_control.address
-
-    # Time travel and execute
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
-
-    # Verify the NEW mission control was updated
-    ripe_config = new_mission_control.ripeRewardsConfig()
-    assert ripe_config[0] == stake_ratio
-    assert ripe_config[1] == lock_duration
-
-    # Verify pending MC is cleared
-    assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS

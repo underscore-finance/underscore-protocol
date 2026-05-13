@@ -107,13 +107,12 @@ def test_switchboard_bravo_disabling_cancels_pending_instant_migration_enable(
     governance,
     alice,
     mission_control,
-    switchboard_alpha,
 ):
     aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
     assert switchboard_bravo.pendingInstantMigrationEnable().actionId == aid
     assert switchboard_bravo.hasPendingAction(aid)
 
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
 
     assert switchboard_bravo.setInstantMigrationEnabled(migrator, False, sender=alice) == 0
 
@@ -160,7 +159,6 @@ def test_security_signer_can_disable_instant_migration(
     governance,
     alice,
     mission_control,
-    switchboard_alpha,
 ):
     aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
     confirmation_block = switchboard_bravo.getActionConfirmationBlock(aid)
@@ -169,7 +167,7 @@ def test_security_signer_can_disable_instant_migration(
     assert switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert migrator.instantMigrationEnabled()
 
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
 
     assert switchboard_bravo.setInstantMigrationEnabled(migrator, False, sender=alice) == 0
     assert not migrator.instantMigrationEnabled()
@@ -213,10 +211,9 @@ def test_switchboard_bravo_migration_requires_governance(
     bob,
     alice,
     mission_control,
-    switchboard_alpha,
 ):
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
 
     with boa.reverts("no perms"):
         switchboard_bravo.initiateWalletMigration(migrator, user_wallet, to_wallet, sender=alice)

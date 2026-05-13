@@ -3709,25 +3709,25 @@ def test_loot_claimed_event(loot_distributor, user_wallet, ambassador_wallet, al
     assert loot_distributor.claimableLoot(ambassador_wallet, alpha_token) == 0
 
 
-def test_ripe_lock_duration_set_event(mission_control, switchboard_alpha, governance):
+def test_ripe_lock_duration_set_event(mission_control, switchboard_bravo, governance):
     """ Test RipeRewardsConfigSet event emission (via Switchboard -> MissionControl) """
 
     # Set new ripe rewards config via Switchboard (with timelock)
     new_stake_ratio = 90_00  # 90%
     new_duration = 86400  # 1 day in blocks
-    aid = switchboard_alpha.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(new_stake_ratio, new_duration, sender=governance.address)
 
     # Check PendingRipeRewardsConfigChange event on Switchboard
-    event = filter_logs(switchboard_alpha, 'PendingRipeRewardsConfigChange')[0]
+    event = filter_logs(switchboard_bravo, 'PendingRipeRewardsConfigChange')[0]
     assert event.ripeStakeRatio == new_stake_ratio
     assert event.ripeLockDuration == new_duration
 
     # Time travel and execute
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
 
     # Check RipeRewardsConfigSet event on Switchboard
-    event = filter_logs(switchboard_alpha, 'RipeRewardsConfigSet')[0]
+    event = filter_logs(switchboard_bravo, 'RipeRewardsConfigSet')[0]
     assert event.ripeStakeRatio == new_stake_ratio
     assert event.ripeLockDuration == new_duration
 
@@ -3995,13 +3995,13 @@ def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_tok
 ###################################
 
 
-def test_ripe_stake_ratio_zero_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, mission_control):
+def test_ripe_stake_ratio_zero_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, switchboard_bravo, mission_control):
     """ Test RIPE rewards with 0% stake ratio - all rewards sent directly to user """
 
     # Set ripe stake ratio to 0% (all direct, no staking)
-    aid = switchboard_alpha.setRipeRewardsConfig(0, 43200, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(0, 43200, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert mission_control.ripeRewardsConfig()[0] == 0
     
     # Configure RIPE as deposit rewards asset
@@ -4028,13 +4028,13 @@ def test_ripe_stake_ratio_zero_percent(loot_distributor, user_wallet, bob, mock_
     assert mock_ripe_token.balanceOf(mock_ripe.address) == 0
 
 
-def test_ripe_stake_ratio_fifty_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, mission_control):
+def test_ripe_stake_ratio_fifty_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, switchboard_bravo, mission_control):
     """ Test RIPE rewards with 50% stake ratio - equal split between staking and direct """
 
     # Set ripe stake ratio to 50%
-    aid = switchboard_alpha.setRipeRewardsConfig(50_00, 43200, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(50_00, 43200, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert mission_control.ripeRewardsConfig()[0] == 50_00
     
     # Configure RIPE as deposit rewards asset
@@ -4062,13 +4062,13 @@ def test_ripe_stake_ratio_fifty_percent(loot_distributor, user_wallet, bob, mock
     assert mock_ripe_token.balanceOf(user_wallet.address) == direct_amount
 
 
-def test_ripe_stake_ratio_hundred_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, mission_control):
+def test_ripe_stake_ratio_hundred_percent(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, switchboard_bravo, mission_control):
     """ Test RIPE rewards with 100% stake ratio - all rewards staked, none direct """
 
     # Set ripe stake ratio to 100%
-    aid = switchboard_alpha.setRipeRewardsConfig(100_00, 43200, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(100_00, 43200, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert mission_control.ripeRewardsConfig()[0] == 100_00
     
     # Configure RIPE as deposit rewards asset
@@ -4095,32 +4095,32 @@ def test_ripe_stake_ratio_hundred_percent(loot_distributor, user_wallet, bob, mo
     assert mock_ripe_token.balanceOf(user_wallet.address) == 0
 
 
-def test_set_ripe_rewards_config_boundaries(mission_control, switchboard_alpha, governance):
+def test_set_ripe_rewards_config_boundaries(mission_control, switchboard_bravo, governance):
     """ Test setting RIPE rewards config with boundary values """
 
     # Test valid boundary: 0% stake ratio
-    aid = switchboard_alpha.setRipeRewardsConfig(0, 1, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(0, 1, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     ripe_config = mission_control.ripeRewardsConfig()
     assert ripe_config[0] == 0
     assert ripe_config[1] == 1
 
     # Test valid boundary: 100% stake ratio
-    aid = switchboard_alpha.setRipeRewardsConfig(100_00, 86400, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(100_00, 86400, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
     ripe_config = mission_control.ripeRewardsConfig()
     assert ripe_config[0] == 100_00
     assert ripe_config[1] == 86400
 
     # Test invalid: stake ratio > 100%
     with boa.reverts("invalid ripe rewards config"):
-        switchboard_alpha.setRipeRewardsConfig(100_01, 43200, sender=governance.address)
+        switchboard_bravo.setRipeRewardsConfig(100_01, 43200, sender=governance.address)
 
     # Test invalid: zero lock duration
     with boa.reverts("invalid ripe rewards config"):
-        switchboard_alpha.setRipeRewardsConfig(80_00, 0, sender=governance.address)
+        switchboard_bravo.setRipeRewardsConfig(80_00, 0, sender=governance.address)
 
 
 #######################################
@@ -4228,7 +4228,7 @@ def test_revenue_transferred_to_gov_event_yield(loot_distributor, user_wallet, a
 ###################################
 
 
-def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha):
+def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, user_wallet, bob, mock_ripe_token, governance, setUserWalletConfig, mock_ripe, switchboard_alpha, switchboard_bravo):
     """ Test sequential claims with different stake ratios """
 
     # Configure RIPE as deposit rewards asset
@@ -4248,9 +4248,9 @@ def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, u
     direct_1 = user_rewards_1 * 20_00 // 100_00
 
     # Change to 50% stake ratio
-    aid = switchboard_alpha.setRipeRewardsConfig(50_00, 43200, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(50_00, 43200, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
 
     # Second claim with 50% stake ratio
     rewards_amount_2 = 2000 * EIGHTEEN_DECIMALS
@@ -4270,13 +4270,13 @@ def test_ripe_rewards_with_different_stake_ratios_sequential(loot_distributor, u
     assert mock_ripe_token.balanceOf(user_wallet.address) == direct_1 + direct_2
 
 
-def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, governance, mock_yield_lego, mock_ripe, switchboard_alpha, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
+def test_governance_and_ripe_staking_yield_bonus_combined(loot_distributor, user_wallet, ambassador_wallet, yield_vault_token, yield_underlying_token, yield_underlying_token_whale, mock_ripe_token, governance, mock_yield_lego, mock_ripe, switchboard_bravo, setAssetConfig, createAmbassadorRevShare, createAssetYieldConfig):
     """ Test governance revenue transfer AND RIPE staking working together """
 
     # Set ripe stake ratio to 60%
-    aid = switchboard_alpha.setRipeRewardsConfig(60_00, 43200, sender=governance.address)
-    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
-    switchboard_alpha.executePendingAction(aid, sender=governance.address)
+    aid = switchboard_bravo.setRipeRewardsConfig(60_00, 43200, sender=governance.address)
+    boa.env.time_travel(blocks=switchboard_bravo.actionTimeLock())
+    switchboard_bravo.executePendingAction(aid, sender=governance.address)
 
     # Set prices for RIPE and underlying
     mock_ripe.setPrice(mock_ripe_token.address, 2 * EIGHTEEN_DECIMALS)  # $2 per RIPE

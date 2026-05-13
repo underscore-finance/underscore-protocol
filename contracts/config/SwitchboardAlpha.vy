@@ -11,6 +11,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 exports: addys.__interface__
 exports: gov.__interface__
@@ -25,15 +26,10 @@ import contracts.modules.LocalGov as gov
 import contracts.modules.TimeLock as timeLock
 
 import interfaces.ConfigStructs as cs
-import interfaces.WalletConfigStructs as wcs
 
 interface MissionControl:
-    def setCanPerformSecurityAction(_signer: address, _canPerform: bool): nonpayable
-    def setCreatorWhitelist(_creator: address, _isWhitelisted: bool): nonpayable
     def setAssetConfig(_asset: address, _config: cs.AssetConfig): nonpayable
     def setIsStablecoin(_asset: address, _isStablecoin: bool): nonpayable
-    def setRipeRewardsConfig(_config: cs.RipeRewardsConfig): nonpayable
-    def setLockedSigner(_signer: address, _isLocked: bool): nonpayable
     def setUserWalletConfig(_config: cs.UserWalletConfig): nonpayable
     def canPerformSecurityAction(_signer: address) -> bool: view
     def setManagerConfig(_config: cs.ManagerConfig): nonpayable
@@ -42,22 +38,30 @@ interface MissionControl:
     def setPayeeConfig(_config: cs.PayeeConfig): nonpayable
     def setAgentConfig(_config: cs.AgentConfig): nonpayable
     def userWalletConfig() -> cs.UserWalletConfig: view
+    def managerConfig() -> cs.ManagerConfig: view
+    def chequeConfig() -> cs.ChequeConfig: view
+    def payeeConfig() -> cs.PayeeConfig: view
     def agentConfig() -> cs.AgentConfig: view
 
-interface Hatchery:
-    def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
-    def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
-    def setNonProdCreator(_nonProdCreator: address): nonpayable
+interface ChequeBook:
+    def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
+    def MAX_UNLOCK_BLOCKS() -> uint256: view
+    def MAX_EXPIRY_BLOCKS() -> uint256: view
+
+interface WalletBackpack:
+    def highCommand() -> address: view
+    def chequeBook() -> address: view
+    def paymaster() -> address: view
 
 interface AgentWrapper:
     def removeSender(_sender: address): nonpayable
     def addSender(_sender: address): nonpayable
 
-interface ChequeBook:
-    def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
+interface HighCommand:
+    def isValidUserWalletManagerDefaults(_managerPeriod: uint256, _timeLock: uint256, _managerActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _startingAgent: address, _startingAgentActivationLength: uint256, _owner: address) -> bool: view
 
-interface WalletBackpack:
-    def chequeBook() -> address: view
+interface Paymaster:
+    def isValidUserWalletPayeeDefaults(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> bool: view
 
 flag ActionType:
     USER_WALLET_TEMPLATES
@@ -70,14 +74,12 @@ flag ActionType:
     STARTER_AGENT_PARAMS
     MANAGER_CONFIG
     PAYEE_CONFIG
-    CAN_PERFORM_SECURITY_ACTION
     ASSET_CONFIG
     ASSET_TX_FEES
     ASSET_AMBASSADOR_REV_SHARE
     ASSET_YIELD_CONFIG
     IS_STABLECOIN
     AGENT_WRAPPER_SENDER
-    RIPE_REWARDS_CONFIG
     CHEQUE_CONFIG
 
 struct IsAddrAllowed:
@@ -280,23 +282,6 @@ event StarterAgentParamsSet:
     startingAgent: address
     startingAgentActivationLength: uint256
 
-event HatcheryStarterAgentConfigSet:
-    hatchery: indexed(address)
-    starterAgentType: cs.StarterAgentType
-    startingAgent: indexed(address)
-    startingAgentActivationLength: uint256
-
-event HatcheryNonProdCreatorSet:
-    hatchery: indexed(address)
-    nonProdCreator: indexed(address)
-
-event HatcheryDefaultInstantActionSettingsSet:
-    hatchery: indexed(address)
-    canInstantAddManager: bool
-    canInstantAddPayee: bool
-    canInstantSetGlobalPayeeSettings: bool
-    canInstantSetChequeSettings: bool
-
 event PendingManagerConfigChange:
     managerPeriod: uint256
     managerActivationLength: uint256
@@ -312,17 +297,6 @@ event PendingPayeeConfigChange:
     payeeActivationLength: uint256
     confirmationBlock: uint256
     actionId: uint256
-
-event PendingCanPerformSecurityAction:
-    signer: address
-    canPerform: bool
-    confirmationBlock: uint256
-    actionId: uint256
-
-event CreatorWhitelistSet:
-    creator: address
-    isWhitelisted: bool
-    caller: address
 
 event ManagerConfigSet:
     managerPeriod: uint256
@@ -347,25 +321,6 @@ event ChequeConfigSet:
     periodLength: uint256
     expensiveDelayBlocks: uint256
     defaultExpiryBlocks: uint256
-
-event CanPerformSecurityAction:
-    signer: address
-    canPerform: bool
-
-event LockedSignerSet:
-    signer: address
-    isLocked: bool
-    caller: address
-
-event PendingRipeRewardsConfigChange:
-    ripeStakeRatio: uint256
-    ripeLockDuration: uint256
-    confirmationBlock: uint256
-    actionId: uint256
-
-event RipeRewardsConfigSet:
-    ripeStakeRatio: uint256
-    ripeLockDuration: uint256
 
 event PendingAgentWrapperSenderAdd:
     agentWrapper: indexed(address)
@@ -394,8 +349,6 @@ pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
 pendingChequeConfig: public(HashMap[uint256, cs.ChequeConfig]) # aid -> config
 pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
 pendingAgentWrapperSender: public(HashMap[uint256, PendingAgentWrapperSender])
-pendingRipeRewardsConfig: public(HashMap[uint256, cs.RipeRewardsConfig])
-pendingMissionControl: public(HashMap[uint256, address]) # aid -> target mission control
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -428,20 +381,9 @@ def _hasPermsToEnable(_caller: address, _shouldEnable: bool) -> bool:
 @view
 @internal
 def _resolveMissionControl(_missionControl: address) -> address:
-    mc: address = addys._getMissionControlAddr()
-    if _missionControl == empty(address):
-        return mc
-    assert _missionControl != mc # dev: use empty for current mission control
-    assert _missionControl.is_contract # dev: invalid mission control
-    return _missionControl
-
-
-@view
-@internal
-def _getHatchery() -> address:
-    hatchery: address = addys._getHatcheryAddr()
-    assert hatchery != empty(address) and hatchery.is_contract # dev: invalid hatchery
-    return hatchery
+    if _missionControl != empty(address):
+        return _missionControl
+    return addys._getMissionControlAddr()
 
 
 ######################
@@ -509,6 +451,7 @@ def setKeyActionTimelockBounds(_minKeyActionTimeLock: uint256, _maxKeyActionTime
 
     mc: address = self._resolveMissionControl(_missionControl)
     assert self._areValidKeyActionTimelockBounds(_minKeyActionTimeLock, _maxKeyActionTimeLock) # dev: invalid key action timelock bounds
+    assert self._isWalletCreationConfigCoherent(mc, _minKeyActionTimeLock, _maxKeyActionTimeLock) # dev: invalid wallet creation config
     return self._setPendingUserWalletConfig(
         ActionType.KEY_ACTION_TIMELOCK_BOUNDS,
         mc,
@@ -771,7 +714,6 @@ def setAssetConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_CONFIG
-    self.pendingMissionControl[aid] = mc
     self.pendingAssetConfig[aid] = PendingAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
@@ -863,7 +805,6 @@ def setAssetTxFees(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_TX_FEES
-    self.pendingMissionControl[aid] = mc
     self.pendingAssetTxFees[aid] = PendingAssetTxFees(
         asset=_asset,
         txFees=cs.TxFees(
@@ -904,7 +845,6 @@ def setAssetAmbassadorRevShare(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_AMBASSADOR_REV_SHARE
-    self.pendingMissionControl[aid] = mc
     self.pendingAssetAmbassadorRevShare[aid] = PendingAssetAmbassadorRevShare(
         asset=_asset,
         ambassadorRevShare=cs.AmbassadorRevShare(
@@ -947,7 +887,6 @@ def setAssetYieldConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_YIELD_CONFIG
-    self.pendingMissionControl[aid] = mc
     self.pendingAssetYieldConfig[aid] = PendingAssetYieldConfig(
         asset=_asset,
         yieldConfig=cs.YieldConfig(
@@ -982,7 +921,6 @@ def setIsStablecoin(_asset: address, _isStablecoin: bool, _missionControl: addre
     mc: address = self._resolveMissionControl(_missionControl)
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.IS_STABLECOIN
-    self.pendingMissionControl[aid] = mc
     self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_asset, isAllowed=_isStablecoin)
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingIsStablecoinChange(asset=_asset, isStablecoin=_isStablecoin, confirmationBlock=confirmationBlock, actionId=aid)
@@ -1008,69 +946,6 @@ def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLengt
         _startingAgent,
         _startingAgentActivationLength
     )
-
-
-@external
-def setHatcheryStarterAgentConfig(
-    _starterAgentType: cs.StarterAgentType,
-    _startingAgent: address,
-    _startingAgentActivationLength: uint256,
-) -> bool:
-    assert gov._canGovern(msg.sender) # dev: no perms
-
-    hatchery: address = self._getHatchery()
-    extcall Hatchery(hatchery).setStarterAgentConfig(
-        _starterAgentType,
-        _startingAgent,
-        _startingAgentActivationLength,
-    )
-    log HatcheryStarterAgentConfigSet(
-        hatchery=hatchery,
-        starterAgentType=_starterAgentType,
-        startingAgent=_startingAgent,
-        startingAgentActivationLength=_startingAgentActivationLength,
-    )
-    return True
-
-
-@external
-def setHatcheryNonProdCreator(
-    _nonProdCreator: address,
-) -> bool:
-    assert gov._canGovern(msg.sender) # dev: no perms
-
-    hatchery: address = self._getHatchery()
-    extcall Hatchery(hatchery).setNonProdCreator(_nonProdCreator)
-    log HatcheryNonProdCreatorSet(hatchery=hatchery, nonProdCreator=_nonProdCreator)
-    return True
-
-
-@external
-def setHatcheryDefaultInstantActionSettings(
-    _canInstantAddManager: bool,
-    _canInstantAddPayee: bool,
-    _canInstantSetGlobalPayeeSettings: bool,
-    _canInstantSetChequeSettings: bool,
-) -> bool:
-    assert gov._canGovern(msg.sender) # dev: no perms
-
-    hatchery: address = self._getHatchery()
-    extcall Hatchery(hatchery).setDefaultInstantActionSettings(
-        wcs.InstantActionSettings(
-            canInstantAddManager=_canInstantAddManager,
-            canInstantAddPayee=_canInstantAddPayee,
-            canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
-            canInstantSetChequeSettings=_canInstantSetChequeSettings,
-        )
-    )
-    log HatcheryDefaultInstantActionSettingsSet(
-        hatchery=hatchery,
-        canInstantAddManager=_canInstantAddManager,
-        canInstantAddPayee=_canInstantAddPayee,
-        canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
-        canInstantSetChequeSettings=_canInstantSetChequeSettings,
-    )
-    return True
 
 
 @view
@@ -1137,11 +1012,7 @@ def setManagerConfig(
     mc: address = self._resolveMissionControl(_missionControl)
     assert 0 not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
     assert max_value(uint256) not in [_managerPeriod, _managerActivationLength] # dev: invalid manager config
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.MANAGER_CONFIG
-    self.pendingMissionControl[aid] = mc
-    self.pendingManagerConfig[aid] = cs.ManagerConfig(
+    config: cs.ManagerConfig = cs.ManagerConfig(
         managerPeriod=_managerPeriod,
         managerActivationLength=_managerActivationLength,
         mustHaveUsdValueOnSwaps=_mustHaveUsdValueOnSwaps,
@@ -1149,6 +1020,12 @@ def setManagerConfig(
         maxSlippageOnSwaps=_maxSlippageOnSwaps,
         onlyApprovedYieldOpps=_onlyApprovedYieldOpps,
     )
+    walletConfig: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+    assert self._isManagerConfigCoherentForWalletCreation(mc, config, walletConfig.minKeyActionTimeLock) # dev: invalid manager defaults under timelock
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.MANAGER_CONFIG
+    self.pendingManagerConfig[aid] = config
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingManagerConfigChange(
         managerPeriod=_managerPeriod,
@@ -1175,14 +1052,16 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256, _miss
     mc: address = self._resolveMissionControl(_missionControl)
     assert 0 not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
     assert max_value(uint256) not in [_payeePeriod, _payeeActivationLength] # dev: invalid payee config
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.PAYEE_CONFIG
-    self.pendingMissionControl[aid] = mc
-    self.pendingPayeeConfig[aid] = cs.PayeeConfig(
+    config: cs.PayeeConfig = cs.PayeeConfig(
         payeePeriod=_payeePeriod,
         payeeActivationLength=_payeeActivationLength
     )
+    walletConfig: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+    assert self._isPayeeConfigCoherentForWalletCreation(config, walletConfig.minKeyActionTimeLock) # dev: invalid payee defaults under timelock
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.PAYEE_CONFIG
+    self.pendingPayeeConfig[aid] = config
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingPayeeConfigChange(
         payeePeriod=_payeePeriod,
@@ -1222,7 +1101,6 @@ def setChequeConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.CHEQUE_CONFIG
-    self.pendingMissionControl[aid] = mc
     self.pendingChequeConfig[aid] = config
     log PendingChequeConfigChange(
         maxNumActiveCheques=_maxNumActiveCheques,
@@ -1240,10 +1118,7 @@ def setChequeConfig(
 @internal
 def _getCurrentChequeBook() -> address:
     walletBackpack: address = addys._getWalletBackpackAddr()
-    assert walletBackpack != empty(address) # dev: wallet backpack not registered
-    chequeBook: address = staticcall WalletBackpack(walletBackpack).chequeBook()
-    assert chequeBook != empty(address) # dev: cheque book not registered
-    return chequeBook
+    return staticcall WalletBackpack(walletBackpack).chequeBook()
 
 
 @view
@@ -1260,94 +1135,152 @@ def _isValidChequeConfig(_missionControl: address, _chequeBook: address, _config
     )
 
 
-#########
-# Other #
-#########
-
-
-# can perform security action
-
-
-@external
-def setCanPerformSecurityAction(_signer: address, _canPerform: bool, _missionControl: address = empty(address)) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    mc: address = self._resolveMissionControl(_missionControl)
-
-    # when removing, allow to do immediately
-    if not _canPerform:
-        extcall MissionControl(mc).setCanPerformSecurityAction(_signer, _canPerform)
-        log CanPerformSecurityAction(signer=_signer, canPerform=_canPerform)
-        return 0
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.CAN_PERFORM_SECURITY_ACTION
-    self.pendingMissionControl[aid] = mc
-    self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_signer, isAllowed=_canPerform)
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingCanPerformSecurityAction(signer=_signer, canPerform=_canPerform, confirmationBlock=confirmationBlock, actionId=aid)
-    return aid
-
-
-# set creator whitelist
-
-
-@external
-def setCreatorWhitelist(_creator: address, _isWhitelisted: bool, _missionControl: address = empty(address)):
-    assert self._hasPermsToEnable(msg.sender, _isWhitelisted) # dev: no perms
-
-    assert _creator != empty(address) # dev: invalid creator
-    mc: address = self._resolveMissionControl(_missionControl)
-    extcall MissionControl(mc).setCreatorWhitelist(_creator, _isWhitelisted)
-
-    log CreatorWhitelistSet(creator=_creator, isWhitelisted=_isWhitelisted, caller=msg.sender)
-
-
-# locked signer
-
-
-@external
-def setLockedSigner(_signer: address, _isLocked: bool, _missionControl: address = empty(address)):
-    assert self._hasPermsToEnable(msg.sender, _isLocked) # dev: no perms
-
-    assert _signer != empty(address) # dev: invalid creator
-    mc: address = self._resolveMissionControl(_missionControl)
-    extcall MissionControl(mc).setLockedSigner(_signer, _isLocked)
-
-    log LockedSignerSet(signer=_signer, isLocked=_isLocked, caller=msg.sender)
-
-
-# ripe rewards config
-
-
-@external
-def setRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256, _missionControl: address = empty(address)) -> uint256:
-    assert gov._canGovern(msg.sender) # dev: no perms
-    assert self._isValidRipeRewardsConfig(_ripeStakeRatio, _ripeLockDuration) # dev: invalid ripe rewards config
-
-    aid: uint256 = timeLock._initiateAction()
-    self.actionType[aid] = ActionType.RIPE_REWARDS_CONFIG
-    self.pendingMissionControl[aid] = self._resolveMissionControl(_missionControl)
-    self.pendingRipeRewardsConfig[aid] = cs.RipeRewardsConfig(
-        stakeRatio=_ripeStakeRatio,
-        lockDuration=_ripeLockDuration,
-    )
-
-    confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
-    log PendingRipeRewardsConfigChange(
-        ripeStakeRatio=_ripeStakeRatio,
-        ripeLockDuration=_ripeLockDuration,
-        confirmationBlock=confirmationBlock,
-        actionId=aid,
-    )
-    return aid
+# Cross-validation against live wallet-creation state
 
 
 @view
 @internal
-def _isValidRipeRewardsConfig(_ripeStakeRatio: uint256, _ripeLockDuration: uint256) -> bool:
-    if _ripeStakeRatio > HUNDRED_PERCENT:
+def _isWalletCreationConfigCoherent(
+    _missionControl: address,
+    _minKeyActionTimeLock: uint256,
+    _maxKeyActionTimeLock: uint256,
+) -> bool:
+    walletBackpack: address = addys._getWalletBackpackAddr()
+    if walletBackpack == empty(address):
         return False
-    return _ripeLockDuration != 0
+
+    highCommand: address = staticcall WalletBackpack(walletBackpack).highCommand()
+    paymaster: address = staticcall WalletBackpack(walletBackpack).paymaster()
+    chequeBook: address = staticcall WalletBackpack(walletBackpack).chequeBook()
+    if empty(address) in [highCommand, paymaster, chequeBook]:
+        return False
+
+    managerConfig: cs.ManagerConfig = staticcall MissionControl(_missionControl).managerConfig()
+    payeeConfig: cs.PayeeConfig = staticcall MissionControl(_missionControl).payeeConfig()
+    chequeConfig: cs.ChequeConfig = staticcall MissionControl(_missionControl).chequeConfig()
+    agentConfig: cs.AgentConfig = staticcall MissionControl(_missionControl).agentConfig()
+
+    if not self._isManagerConfigValidForWalletCreation(
+        highCommand,
+        managerConfig,
+        agentConfig,
+        _minKeyActionTimeLock,
+    ):
+        return False
+
+    if not self._isPayeeConfigValidForWalletCreation(
+        paymaster,
+        payeeConfig,
+        _minKeyActionTimeLock,
+    ):
+        return False
+
+    if not self._isChequeConfigValidForWalletCreation(
+        chequeBook,
+        chequeConfig,
+        _minKeyActionTimeLock,
+    ):
+        return False
+
+    if _maxKeyActionTimeLock > staticcall ChequeBook(chequeBook).MAX_UNLOCK_BLOCKS():
+        return False
+    if _maxKeyActionTimeLock > staticcall ChequeBook(chequeBook).MAX_EXPIRY_BLOCKS():
+        return False
+    return True
+
+
+@view
+@internal
+def _isManagerConfigCoherentForWalletCreation(
+    _missionControl: address,
+    _config: cs.ManagerConfig,
+    _minKeyActionTimeLock: uint256,
+) -> bool:
+    walletBackpack: address = addys._getWalletBackpackAddr()
+    if walletBackpack == empty(address):
+        return False
+    highCommand: address = staticcall WalletBackpack(walletBackpack).highCommand()
+    if highCommand == empty(address):
+        return False
+    agentConfig: cs.AgentConfig = staticcall MissionControl(_missionControl).agentConfig()
+
+    return self._isManagerConfigValidForWalletCreation(
+        highCommand,
+        _config,
+        agentConfig,
+        _minKeyActionTimeLock,
+    )
+
+
+@view
+@internal
+def _isPayeeConfigCoherentForWalletCreation(_config: cs.PayeeConfig, _minKeyActionTimeLock: uint256) -> bool:
+    walletBackpack: address = addys._getWalletBackpackAddr()
+    if walletBackpack == empty(address):
+        return False
+    paymaster: address = staticcall WalletBackpack(walletBackpack).paymaster()
+    if paymaster == empty(address):
+        return False
+    return self._isPayeeConfigValidForWalletCreation(
+        paymaster,
+        _config,
+        _minKeyActionTimeLock,
+    )
+
+
+@view
+@internal
+def _isManagerConfigValidForWalletCreation(
+    _highCommand: address,
+    _config: cs.ManagerConfig,
+    _agentConfig: cs.AgentConfig,
+    _minKeyActionTimeLock: uint256,
+) -> bool:
+    # Passing empty(address) intentionally bypasses only the starter-agent-vs-owner collision check.
+    # That check is per-wallet and cannot be globally validated during governance config.
+    # Hatchery still enforces the real owner-specific check at createUserWallet time.
+    return staticcall HighCommand(_highCommand).isValidUserWalletManagerDefaults(
+        _config.managerPeriod,
+        _minKeyActionTimeLock,
+        _config.managerActivationLength,
+        _config.mustHaveUsdValueOnSwaps,
+        _config.maxNumSwapsPerPeriod,
+        _config.maxSlippageOnSwaps,
+        _agentConfig.startingAgent,
+        _agentConfig.startingAgentActivationLength,
+        empty(address),
+    )
+
+
+@view
+@internal
+def _isPayeeConfigValidForWalletCreation(
+    _paymaster: address,
+    _config: cs.PayeeConfig,
+    _minKeyActionTimeLock: uint256,
+) -> bool:
+    return staticcall Paymaster(_paymaster).isValidUserWalletPayeeDefaults(
+        _config.payeePeriod,
+        _minKeyActionTimeLock,
+        _config.payeeActivationLength,
+    )
+
+
+@view
+@internal
+def _isChequeConfigValidForWalletCreation(
+    _chequeBook: address,
+    _config: cs.ChequeConfig,
+    _minKeyActionTimeLock: uint256,
+) -> bool:
+    return staticcall ChequeBook(_chequeBook).isValidUserWalletChequeDefaults(
+        _config.maxNumActiveCheques,
+        _config.instantUsdThreshold,
+        _config.periodLength,
+        _config.expensiveDelayBlocks,
+        _config.defaultExpiryBlocks,
+        _minKeyActionTimeLock,
+    )
 
 
 ###############
@@ -1382,7 +1315,6 @@ def _setPendingUserWalletConfig(
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = _actionType
-    self.pendingMissionControl[aid] = _missionControl
     self.pendingUserWalletConfig[aid] = cs.UserWalletConfig(
         walletTemplate=_walletTemplate,
         configTemplate=_configTemplate,
@@ -1478,7 +1410,6 @@ def _setPendingAgentConfig(
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = ActionType.STARTER_AGENT_PARAMS
-    self.pendingMissionControl[aid] = _missionControl
     self.pendingAgentConfig[aid] = cs.AgentConfig(
         startingAgent=_startingAgent,
         startingAgentActivationLength=_startingAgentActivationLength,
@@ -1510,9 +1441,7 @@ def executePendingAction(_aid: uint256) -> bool:
         return False
 
     actionType: ActionType = self.actionType[_aid]
-    mc: address = self.pendingMissionControl[_aid]
-    if mc == empty(address):
-        mc = addys._getMissionControlAddr()
+    mc: address = addys._getMissionControlAddr()
 
     if actionType == ActionType.USER_WALLET_TEMPLATES:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
@@ -1531,8 +1460,9 @@ def executePendingAction(_aid: uint256) -> bool:
         log WalletCreationLimitsSet(numUserWalletsAllowed=p.numUserWalletsAllowed, enforceCreatorWhitelist=p.enforceCreatorWhitelist)
 
     elif actionType == ActionType.KEY_ACTION_TIMELOCK_BOUNDS:
-        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
         p: cs.UserWalletConfig = self.pendingUserWalletConfig[_aid]
+        assert self._isWalletCreationConfigCoherent(mc, p.minKeyActionTimeLock, p.maxKeyActionTimeLock) # dev: invalid wallet creation config
+        config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
         config.minKeyActionTimeLock = p.minKeyActionTimeLock
         config.maxKeyActionTimeLock = p.maxKeyActionTimeLock
         extcall MissionControl(mc).setUserWalletConfig(config)
@@ -1641,11 +1571,15 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.MANAGER_CONFIG:
         p: cs.ManagerConfig = self.pendingManagerConfig[_aid]
+        walletConfig: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+        assert self._isManagerConfigCoherentForWalletCreation(mc, p, walletConfig.minKeyActionTimeLock) # dev: invalid manager defaults under timelock
         extcall MissionControl(mc).setManagerConfig(p)
         log ManagerConfigSet(managerPeriod=p.managerPeriod, managerActivationLength=p.managerActivationLength)
 
     elif actionType == ActionType.PAYEE_CONFIG:
         p: cs.PayeeConfig = self.pendingPayeeConfig[_aid]
+        walletConfig: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
+        assert self._isPayeeConfigCoherentForWalletCreation(p, walletConfig.minKeyActionTimeLock) # dev: invalid payee defaults under timelock
         extcall MissionControl(mc).setPayeeConfig(p)
         log PayeeConfigSet(payeePeriod=p.payeePeriod, payeeActivationLength=p.payeeActivationLength)
 
@@ -1662,23 +1596,12 @@ def executePendingAction(_aid: uint256) -> bool:
             defaultExpiryBlocks=p.defaultExpiryBlocks,
         )
 
-    elif actionType == ActionType.CAN_PERFORM_SECURITY_ACTION:
-        data: IsAddrAllowed = self.pendingAddrToBool[_aid]
-        extcall MissionControl(mc).setCanPerformSecurityAction(data.addr, data.isAllowed)
-        log CanPerformSecurityAction(signer=data.addr, canPerform=data.isAllowed)
-
     elif actionType == ActionType.AGENT_WRAPPER_SENDER:
         p: PendingAgentWrapperSender = self.pendingAgentWrapperSender[_aid]
         extcall AgentWrapper(p.agentWrapper).addSender(p.agentSender)
         log AgentWrapperSenderAdded(agentWrapper=p.agentWrapper, agentSender=p.agentSender)
 
-    elif actionType == ActionType.RIPE_REWARDS_CONFIG:
-        p: cs.RipeRewardsConfig = self.pendingRipeRewardsConfig[_aid]
-        extcall MissionControl(mc).setRipeRewardsConfig(p)
-        log RipeRewardsConfigSet(ripeStakeRatio=p.stakeRatio, ripeLockDuration=p.lockDuration)
-
     self.actionType[_aid] = empty(ActionType)
-    self.pendingMissionControl[_aid] = empty(address)
     return True
 
 
@@ -1696,4 +1619,3 @@ def cancelPendingAction(_aid: uint256) -> bool:
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
     self.actionType[_aid] = empty(ActionType)
-    self.pendingMissionControl[_aid] = empty(address)

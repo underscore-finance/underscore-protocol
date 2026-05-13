@@ -221,6 +221,60 @@
     "type": "event"
   },
   {
+    "name": "PendingCanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "canPerform",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingRipeRewardsConfigChange",
+    "inputs": [
+      {
+        "name": "ripeStakeRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ripeLockDuration",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "PendingEnableInstantMigrationAction",
     "inputs": [
       {
@@ -543,6 +597,160 @@
       },
       {
         "name": "shouldEject",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "canPerform",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "RipeRewardsConfigSet",
+    "inputs": [
+      {
+        "name": "ripeStakeRatio",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "ripeLockDuration",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CreatorWhitelistSet",
+    "inputs": [
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isWhitelisted",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "LockedSignerSet",
+    "inputs": [
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "isLocked",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "HatcheryStarterAgentConfigSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "starterAgentType",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "HatcheryNonProdCreatorSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "nonProdCreator",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "HatcheryDefaultInstantActionSettingsSet",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "canInstantAddManager",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantAddPayee",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetGlobalPayeeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetChequeSettings",
         "type": "bool",
         "indexed": false
       }
@@ -1749,6 +1957,151 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setCanPerformSecurityAction",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_canPerform",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setRipeRewardsConfig",
+    "inputs": [
+      {
+        "name": "_ripeStakeRatio",
+        "type": "uint256"
+      },
+      {
+        "name": "_ripeLockDuration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCreatorWhitelist",
+    "inputs": [
+      {
+        "name": "_creator",
+        "type": "address"
+      },
+      {
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setLockedSigner",
+    "inputs": [
+      {
+        "name": "_signer",
+        "type": "address"
+      },
+      {
+        "name": "_isLocked",
+        "type": "bool"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setHatcheryStarterAgentConfig",
+    "inputs": [
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setHatcheryNonProdCreator",
+    "inputs": [
+      {
+        "name": "_nonProdCreator",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setHatcheryDefaultInstantActionSettings",
+    "inputs": [
+      {
+        "name": "_canInstantAddManager",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantAddPayee",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetGlobalPayeeSettings",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetChequeSettings",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "setInstantMigrationEnabled",
     "inputs": [
       {
@@ -2210,6 +2563,60 @@
           {
             "name": "shouldEject",
             "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingAddrToBool",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "name": "isAllowed",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingRipeRewardsConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "stakeRatio",
+            "type": "uint256"
+          },
+          {
+            "name": "lockDuration",
+            "type": "uint256"
           }
         ]
       }

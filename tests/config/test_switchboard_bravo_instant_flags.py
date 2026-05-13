@@ -187,12 +187,12 @@ def test_protocol_instant_flag_execute_before_and_after_timelock(request, switch
 
 @pytest.mark.parametrize("action", ACTIONS)
 def test_security_actor_can_disable_protocol_instant_flag_immediately(
-    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+    request, switchboard_bravo, governance, mission_control, alice, action
 ):
     target = _reset_action(request, switchboard_bravo, governance, action)
     aid = _stage_enable(switchboard_bravo, target, governance, action)
     assert _execute_after_timelock(switchboard_bravo, aid, governance)
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
     switchboard_bravo.get_logs()
 
     assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
@@ -206,10 +206,10 @@ def test_security_actor_can_disable_protocol_instant_flag_immediately(
 
 @pytest.mark.parametrize("action", ACTIONS)
 def test_security_actor_can_disable_protocol_instant_flag_when_already_disabled(
-    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+    request, switchboard_bravo, governance, mission_control, alice, action
 ):
     target = _reset_action(request, switchboard_bravo, governance, action)
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
     switchboard_bravo.get_logs()
 
     assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
@@ -225,11 +225,11 @@ def test_security_actor_can_disable_protocol_instant_flag_when_already_disabled(
 
 @pytest.mark.parametrize("action", ACTIONS)
 def test_disabling_protocol_instant_flag_cancels_matching_pending_enable(
-    request, switchboard_bravo, governance, mission_control, switchboard_alpha, alice, action
+    request, switchboard_bravo, governance, mission_control, alice, action
 ):
     target = _reset_action(request, switchboard_bravo, governance, action)
     aid = _stage_enable(switchboard_bravo, target, governance, action)
-    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_bravo.address)
 
     assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
 

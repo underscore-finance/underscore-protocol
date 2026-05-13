@@ -73,11 +73,11 @@ def test_fresh_wallet_inherits_hatchery_default_instant_settings(hatchery, alice
     assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
 
 
-def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_alpha, governance, alice, bob):
+def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_bravo, governance, alice, bob):
     wallet_a = UserWallet.at(hatchery.createUserWallet(sender=alice))
     config_a = UserWalletConfig.at(wallet_a.walletConfig())
 
-    switchboard_alpha.setHatcheryDefaultInstantActionSettings(False, True, False, True, sender=governance.address)
+    switchboard_bravo.setHatcheryDefaultInstantActionSettings(False, True, False, True, sender=governance.address)
 
     wallet_b = UserWallet.at(hatchery.createUserWallet(sender=bob))
     config_b = UserWalletConfig.at(wallet_b.walletConfig())
@@ -86,12 +86,12 @@ def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_
     assert instant_action_settings_tuple(config_b.instantActionSettings()) == (False, True, False, True)
 
 
-def test_hatchery_default_instant_setting_access_control(hatchery, switchboard_alpha, alice):
+def test_hatchery_default_instant_setting_access_control(hatchery, switchboard_bravo, alice):
     with boa.reverts("no perms"):
         hatchery.setDefaultInstantActionSettings((False, False, False, False), sender=alice)
 
     with boa.reverts("no perms"):
-        switchboard_alpha.setHatcheryDefaultInstantActionSettings(False, False, False, False, sender=alice)
+        switchboard_bravo.setHatcheryDefaultInstantActionSettings(False, False, False, False, sender=alice)
 
 
 def test_hatchery_constructor_rejects_whitelisted_non_prod_creator(
