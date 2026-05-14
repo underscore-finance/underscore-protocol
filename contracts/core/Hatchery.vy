@@ -372,6 +372,31 @@ def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings):
     )
 
 
+@view
+@external
+def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings):
+    current: wcs.InstantActionSettings = self.defaultInstantActionSettings
+    hasEnable: bool = (
+        _target.canInstantAddManager and not current.canInstantAddManager or
+        _target.canInstantAddPayee and not current.canInstantAddPayee or
+        _target.canInstantSetGlobalPayeeSettings and not current.canInstantSetGlobalPayeeSettings or
+        _target.canInstantSetChequeSettings and not current.canInstantSetChequeSettings
+    )
+    immediate: wcs.InstantActionSettings = wcs.InstantActionSettings(
+        canInstantAddManager=current.canInstantAddManager and _target.canInstantAddManager,
+        canInstantAddPayee=current.canInstantAddPayee and _target.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=current.canInstantSetGlobalPayeeSettings and _target.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=current.canInstantSetChequeSettings and _target.canInstantSetChequeSettings,
+    )
+    hasImmediateChange: bool = (
+        immediate.canInstantAddManager != current.canInstantAddManager or
+        immediate.canInstantAddPayee != current.canInstantAddPayee or
+        immediate.canInstantSetGlobalPayeeSettings != current.canInstantSetGlobalPayeeSettings or
+        immediate.canInstantSetChequeSettings != current.canInstantSetChequeSettings
+    )
+    return hasEnable, hasImmediateChange, immediate
+
+
 # trial funds (legacy wallets)
 
 

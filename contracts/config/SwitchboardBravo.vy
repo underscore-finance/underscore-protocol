@@ -64,7 +64,7 @@ interface UndyEcoContract:
 interface Hatchery:
     def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
     def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
-    def defaultInstantActionSettings() -> wcs.InstantActionSettings: view
+    def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings): view
     def setNonProdCreator(_nonProdCreator: address): nonpayable
 
 interface UserWalletConfig:
@@ -825,7 +825,6 @@ def setHatcheryDefaultInstantActionSettings(
     assert gov._canGovern(msg.sender) # dev: no perms
 
     hatchery: address = self._getHatchery()
-    current: wcs.InstantActionSettings = staticcall Hatchery(hatchery).defaultInstantActionSettings()
     target: wcs.InstantActionSettings = wcs.InstantActionSettings(
         canInstantAddManager=_canInstantAddManager,
         canInstantAddPayee=_canInstantAddPayee,
@@ -833,12 +832,10 @@ def setHatcheryDefaultInstantActionSettings(
         canInstantSetChequeSettings=_canInstantSetChequeSettings,
     )
 
-    hasEnable: bool = (
-        target.canInstantAddManager and not current.canInstantAddManager or
-        target.canInstantAddPayee and not current.canInstantAddPayee or
-        target.canInstantSetGlobalPayeeSettings and not current.canInstantSetGlobalPayeeSettings or
-        target.canInstantSetChequeSettings and not current.canInstantSetChequeSettings
-    )
+    hasEnable: bool = False
+    hasImmediateChange: bool = False
+    immediate: wcs.InstantActionSettings = empty(wcs.InstantActionSettings)
+    hasEnable, hasImmediateChange, immediate = staticcall Hatchery(hatchery).getDefaultInstantActionSettingsChange(target)
 
     if not hasEnable:
         pending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
@@ -853,18 +850,7 @@ def setHatcheryDefaultInstantActionSettings(
     existingPending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
     assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
 
-    immediate: wcs.InstantActionSettings = wcs.InstantActionSettings(
-        canInstantAddManager=current.canInstantAddManager and target.canInstantAddManager,
-        canInstantAddPayee=current.canInstantAddPayee and target.canInstantAddPayee,
-        canInstantSetGlobalPayeeSettings=current.canInstantSetGlobalPayeeSettings and target.canInstantSetGlobalPayeeSettings,
-        canInstantSetChequeSettings=current.canInstantSetChequeSettings and target.canInstantSetChequeSettings,
-    )
-    if (
-        immediate.canInstantAddManager != current.canInstantAddManager or
-        immediate.canInstantAddPayee != current.canInstantAddPayee or
-        immediate.canInstantSetGlobalPayeeSettings != current.canInstantSetGlobalPayeeSettings or
-        immediate.canInstantSetChequeSettings != current.canInstantSetChequeSettings
-    ):
+    if hasImmediateChange:
         self._setHatcheryDefaultInstantActionSettings(hatchery, immediate)
 
     aid: uint256 = timeLock._initiateAction()

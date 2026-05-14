@@ -450,6 +450,67 @@
     "outputs": []
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDefaultInstantActionSettingsChange",
+    "inputs": [
+      {
+        "name": "_target",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "stateMutability": "pure",
     "type": "function",
     "name": "doesWalletStillHaveTrialFundsWithAddys",

@@ -99,6 +99,38 @@ def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_
     assert instant_action_settings_tuple(config_b.instantActionSettings()) == (False, True, False, True)
 
 
+def test_hatchery_default_instant_action_settings_change_helper(hatchery, switchboard_bravo):
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (False, True, False, True)
+    )
+    assert has_enable is False
+    assert has_immediate_change is True
+    assert instant_action_settings_tuple(immediate) == (False, True, False, True)
+
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (True, True, True, True)
+    )
+    assert has_enable is False
+    assert has_immediate_change is False
+    assert instant_action_settings_tuple(immediate) == (True, True, True, True)
+
+    hatchery.setDefaultInstantActionSettings((True, False, True, False), sender=switchboard_bravo.address)
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (False, True, False, True)
+    )
+    assert has_enable is True
+    assert has_immediate_change is True
+    assert instant_action_settings_tuple(immediate) == (False, False, False, False)
+
+    hatchery.setDefaultInstantActionSettings((False, False, False, False), sender=switchboard_bravo.address)
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (True, False, False, False)
+    )
+    assert has_enable is True
+    assert has_immediate_change is False
+    assert instant_action_settings_tuple(immediate) == (False, False, False, False)
+
+
 def test_fresh_wallet_default_starter_agent_template_matches_legacy_defaults(hatchery, mission_control, alice):
     block_before = boa.env.evm.patch.block_number
     config = wallet_config_for(hatchery.createUserWallet(sender=alice))
