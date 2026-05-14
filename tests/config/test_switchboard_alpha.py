@@ -1941,7 +1941,7 @@ def test_set_is_stablecoin_eoa_address(switchboard_alpha, governance, mission_co
 ########################
 
 
-def test_set_starter_agent_params_success(switchboard_alpha, governance, mission_control, alice):
+def test_set_starter_agent_params_success(switchboard_alpha, governance, mission_control, starter_agent):
     """Test successful starter agent params update"""
     # Get initial config
     initial_config = mission_control.agentConfig()
@@ -1949,7 +1949,7 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Set starter agent params
     activation_length = 86400  # ~2 days in blocks
     aid = switchboard_alpha.setStarterAgentParams(
-        alice,  # startingAgent
+        starter_agent.address,  # startingAgent
         activation_length,  # startingAgentActivationLength
         sender=governance.address
     )
@@ -1957,14 +1957,14 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Verify event
     logs = filter_logs(switchboard_alpha, "PendingStarterAgentParamsChange")
     assert len(logs) == 1
-    assert logs[0].startingAgent == alice
+    assert logs[0].startingAgent == starter_agent.address
     assert logs[0].startingAgentActivationLength == activation_length
     assert logs[0].actionId == aid
     
     # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.STARTER_AGENT_PARAMS
     pending_config = switchboard_alpha.pendingAgentConfig(aid)
-    assert pending_config.startingAgent == alice
+    assert pending_config.startingAgent == starter_agent.address
     assert pending_config.startingAgentActivationLength == activation_length
     
     # Execute after timelock
@@ -1975,20 +1975,20 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "StarterAgentParamsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].startingAgent == alice
+    assert exec_logs[0].startingAgent == starter_agent.address
     assert exec_logs[0].startingAgentActivationLength == activation_length
     
     # Verify state changes
     updated_config = mission_control.agentConfig()
-    assert updated_config.startingAgent == alice
+    assert updated_config.startingAgent == starter_agent.address
     assert updated_config.startingAgentActivationLength == activation_length
 
 
-def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control):
+def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control, starter_agent):
     """Test disabling starter agent by setting zero address"""
     # First set a starter agent
     aid1 = switchboard_alpha.setStarterAgentParams(
-        boa.env.generate_address(),
+        starter_agent.address,
         43200,  # ~1 day
         sender=governance.address
     )
@@ -2028,6 +2028,10 @@ def test_set_starter_agent_params_invalid_combinations_revert(switchboard_alpha,
     with boa.reverts("invalid starter agent params"):
         switchboard_alpha.setStarterAgentParams(alice, MAX_UINT256, sender=governance.address)
 
+    # Test with non-contract starter agent and otherwise valid activation length
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setStarterAgentParams(alice, 86400, sender=governance.address)
+
 
 def test_set_starter_agent_params_non_governance_reverts(switchboard_alpha, alice, bob):
     """Test that non-governance addresses cannot set starter agent params"""
@@ -2035,23 +2039,23 @@ def test_set_starter_agent_params_non_governance_reverts(switchboard_alpha, alic
         switchboard_alpha.setStarterAgentParams(bob, 86400, sender=alice)
 
 
-def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, mission_control, alice):
+def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, mission_control, starter_agent, starter_agent_2):
     """Test edge cases for starter agent params"""
     # Test with minimum activation length (1)
-    aid1 = switchboard_alpha.setStarterAgentParams(alice, 1, sender=governance.address)
+    aid1 = switchboard_alpha.setStarterAgentParams(starter_agent.address, 1, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
     
     config = mission_control.agentConfig()
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == 1
     
     # Test with large activation length (but not max)
     large_length = 2**256 - 2
     aid2 = switchboard_alpha.setStarterAgentParams(
-        boa.env.generate_address(),
+        starter_agent_2.address,
         large_length,
         sender=governance.address
     )
@@ -2064,35 +2068,35 @@ def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, miss
     assert final_config.startingAgentActivationLength == large_length
 
 
-def test_set_hatchery_starter_agent_config_success(switchboard_bravo, governance, hatchery, alice):
+def test_set_hatchery_starter_agent_config_success(switchboard_bravo, governance, hatchery, starter_agent):
     result = switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=governance.address,
     )
     assert result is True
 
     config = hatchery.stagingStarterAgentConfig()
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
     logs = filter_logs(switchboard_bravo, "HatcheryStarterAgentConfigSet")
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].starterAgentType == STARTER_AGENT_TYPE.STAGING
-    assert logs[-1].startingAgent == alice
+    assert logs[-1].startingAgent == starter_agent.address
     assert logs[-1].startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
 
-def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_bravo, governance, hatchery, bob):
+def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_bravo, governance, hatchery, starter_agent):
     switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=governance.address,
     )
     config = hatchery.devStarterAgentConfig()
-    assert config.startingAgent == bob
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
     switchboard_bravo.setHatcheryStarterAgentConfig(
@@ -2144,6 +2148,14 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_bravo, governa
             STARTER_AGENT_TYPE.STAGING,
             alice,
             MAX_UINT256,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent params"):
+        switchboard_bravo.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            alice,
+            ONE_YEAR_IN_BLOCKS,
             sender=governance.address,
         )
 

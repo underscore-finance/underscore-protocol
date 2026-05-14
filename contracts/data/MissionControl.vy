@@ -125,6 +125,7 @@ def __init__(_undyHq: address, _defaults: address):
     if _defaults != empty(address):
         self.userWalletConfig = staticcall Defaults(_defaults).userWalletConfig()
         self.agentConfig = staticcall Defaults(_defaults).agentConfig()
+        assert self._areValidStarterAgentParams(self.agentConfig.startingAgent, self.agentConfig.startingAgentActivationLength) # dev: invalid starter agent params
         self.managerConfig = staticcall Defaults(_defaults).managerConfig()
         self.payeeConfig = staticcall Defaults(_defaults).payeeConfig()
         self.chequeConfig = staticcall Defaults(_defaults).chequeConfig()
@@ -249,6 +250,7 @@ def getRipeRewardsConfig() -> cs.RipeRewardsConfig:
 def setAgentConfig(_config: cs.AgentConfig):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
+    assert self._areValidStarterAgentParams(_config.startingAgent, _config.startingAgentActivationLength) # dev: invalid starter agent params
     self.agentConfig = _config
 
 
@@ -256,7 +258,23 @@ def setAgentConfig(_config: cs.AgentConfig):
 def setStarterAgent(_agent: address):
     assert addys._isSwitchboardAddr(msg.sender) # dev: no perms
     assert not deptBasics.isPaused # dev: not activated
+    if _agent != empty(address):
+        assert self._areValidStarterAgentParams(_agent, self.agentConfig.startingAgentActivationLength) # dev: invalid starter agent params
     self.agentConfig.startingAgent = _agent
+
+
+@view
+@internal
+def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> bool:
+    if _agent != empty(address) and _activationLength == 0:
+        return False
+    if _agent == empty(address) and _activationLength != 0:
+        return False
+    if _agent != empty(address) and not _agent.is_contract:
+        return False
+    if _activationLength == max_value(uint256):
+        return False
+    return True
 
 
 ########################

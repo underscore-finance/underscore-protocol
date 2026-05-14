@@ -340,16 +340,18 @@ def test_is_agent_sender_eoa_returns_false(action_data_provider, alice, bob):
     assert action_data_provider.isAgentSender(alice, bob) is False
 
 
-def test_is_agent_sender_missing_selector_returns_false(action_data_provider, alice):
+def test_is_agent_sender_missing_selector_reverts(action_data_provider, alice):
     no_selector = boa.load("contracts/mock/MockRando.vy", name="agent_without_selector")
 
-    assert action_data_provider.isAgentSender(alice, no_selector.address) is False
+    with boa.reverts():
+        action_data_provider.isAgentSender(alice, no_selector.address)
 
 
-def test_is_agent_sender_reverting_contract_returns_false(action_data_provider, alice):
+def test_is_agent_sender_reverting_contract_reverts(action_data_provider, alice):
     reverting_agent = boa.load("contracts/mock/MockRevertingAgentWrapper.vy", name="reverting_agent")
 
-    assert action_data_provider.isAgentSender(alice, reverting_agent.address) is False
+    with boa.reverts():
+        action_data_provider.isAgentSender(alice, reverting_agent.address)
 
 
 def test_is_agent_sender_valid_agent_wrapper_still_works(

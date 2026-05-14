@@ -52,14 +52,14 @@ Monitor these AgentSender and ownership signals after deployment:
 - Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
 - Action-data reads now cross a read-only provider and make additional staticcalls back into `UserWalletConfig`. Budget extra gas on wallet action paths that call `checkSignerPermissionsAndGetBundle` or `getActionDataBundle`.
 - Helper checks moved to `ActionDataProvider` add one additional read-only external call on affected registry/security helper paths. Budget roughly 2,600 gas of extra staticcall/CALL-frame overhead per helper use before calldata/returndata and the original inner lookup.
-- `ActionDataProvider.isAgentSender` is a deployed-contract helper. It intentionally returns `false` for EOAs, missing selectors, reverting contracts, and contracts still in construction where `EXTCODESIZE` is zero.
+- `ActionDataProvider.isAgentSender` is a deployed-contract helper. It intentionally returns `false` for an empty starter agent, EOAs, and contracts still in construction where `EXTCODESIZE` is zero. Non-empty starter agents are validated as contracts when configured; contracts with a bad or reverting `isSender(address)` implementation still revert through the normal staticcall path.
 - Current Boa-measured `UserWalletConfig` blueprint size: `23,856` bytes, leaving `720` bytes under the `24,576` byte EIP-170 gate. Runtime size is `19,986` bytes, under the `23,000` byte soft target.
 - Treat the blueprint buffer as exhausted. Any future `UserWalletConfig` growth should include a size check and an extraction plan before merge.
 - Hatchery binds each new `UserWalletConfig` by calling `UserWalletConfig.setWallet(wallet)`. The config rejects non-Hatchery callers, so deployment scripts must keep the Hatchery registry entry current before wallet creation.
 
 ## SwitchboardAlpha Size
 
-- Current Boa-measured `SwitchboardAlpha` runtime size: `22,347` bytes, leaving `2,229` bytes under the `24,576` byte EIP-170 gate.
+- Current Boa-measured `SwitchboardAlpha` runtime size: `22,381` bytes, leaving `2,195` bytes under the `24,576` byte EIP-170 gate.
 - Treat future wrapper/event additions as size-sensitive. A few more similar governance wrappers in one PR should include an explicit size measurement before merge.
 - Optional MissionControl override arguments must be contract addresses. Use `empty(address)` for the currently registered MissionControl.
 - SwitchboardAlpha actions that accept a MissionControl override store the resolved MissionControl at staging time and execute against that staged address. Registry rotation before execution does not retarget the action; cancel and restage if the current MissionControl should be used.

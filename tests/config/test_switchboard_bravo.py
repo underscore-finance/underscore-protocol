@@ -230,17 +230,17 @@ def test_locked_signer_governance_and_security_actor_paths(
         switchboard_bravo.setLockedSigner(ZERO_ADDRESS, True, sender=governance.address)
 
 
-def test_hatchery_starter_agent_config(switchboard_bravo, governance, hatchery, alice):
+def test_hatchery_starter_agent_config(switchboard_bravo, governance, hatchery, alice, starter_agent):
     assert switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=governance.address,
     )
 
     config = hatchery.stagingStarterAgentConfig()
     logs = filter_logs(switchboard_bravo, "HatcheryStarterAgentConfigSet")
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].starterAgentType == STARTER_AGENT_TYPE.STAGING

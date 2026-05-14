@@ -345,12 +345,14 @@ def _isValidStarterAgentType(_starterAgentType: cs.StarterAgentType) -> bool:
     )
 
 
-@pure
+@view
 @internal
 def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> bool:
     if _agent != empty(address) and _activationLength == 0:
         return False
     if _agent == empty(address) and _activationLength != 0:
+        return False
+    if _agent != empty(address) and not _agent.is_contract:
         return False
     if _activationLength == max_value(uint256):
         return False

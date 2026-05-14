@@ -108,21 +108,7 @@ def isAgentSender(_addr: address, _agent: address) -> bool:
     # Contracts still in construction have no runtime code yet and are treated as non-agents.
     if not _agent.is_contract:
         return False
-
-    success: bool = False
-    response: Bytes[32] = b""
-    success, response = raw_call(
-        _agent,
-        abi_encode(_addr, method_id = method_id("isSender(address)")),
-        max_outsize = 32,
-        is_static_call = True,
-        revert_on_failure = False,
-    )
-
-    if not success or len(response) != 32:
-        return False
-
-    return abi_decode(response, bool)
+    return staticcall AgentWrapper(_agent).isSender(_addr)
 
 
 @view

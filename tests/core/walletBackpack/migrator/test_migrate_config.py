@@ -1184,12 +1184,12 @@ def test_clone_config_staging_source_to_staging_destination(
     hatchery,
     switchboard_alpha,
     bob,
-    alice,
+    starter_agent,
     charlie,
 ):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_MONTH_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -1202,12 +1202,12 @@ def test_clone_config_staging_source_to_staging_destination(
         hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
     )
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
-    assert to_config.startingAgent() == alice
+    assert to_config.startingAgent() == starter_agent.address
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
-    assert to_config.startingAgent() == alice
-    assert to_config.managers(1) == alice
+    assert to_config.startingAgent() == starter_agent.address
+    assert to_config.managers(1) == starter_agent.address
 
 
 def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
@@ -1215,14 +1215,14 @@ def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
     hatchery,
     switchboard_alpha,
     bob,
-    alice,
     charlie,
     starter_agent,
+    starter_agent_2,
 ):
-    assert alice != starter_agent.address
+    assert starter_agent_2.address != starter_agent.address
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent_2.address,
         ONE_MONTH_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -1235,13 +1235,13 @@ def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
 
-    assert from_config.startingAgent() == alice
+    assert from_config.startingAgent() == starter_agent_2.address
     assert to_config.startingAgent() == starter_agent.address
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
     assert to_config.startingAgent() == starter_agent.address
-    assert to_config.indexOfManager(alice) == 0
+    assert to_config.indexOfManager(starter_agent_2.address) == 0
 
 
 ############################

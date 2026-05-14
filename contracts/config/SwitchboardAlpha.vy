@@ -954,12 +954,14 @@ def setStarterAgentParams(_startingAgent: address, _startingAgentActivationLengt
     )
 
 
-@pure
+@view
 @internal
 def _areValidStarterAgentParams(_startingAgent: address, _startingAgentActivationLength: uint256) -> bool:
     if _startingAgent != empty(address) and _startingAgentActivationLength == 0:
         return False
     if _startingAgent == empty(address) and _startingAgentActivationLength != 0:
+        return False
+    if _startingAgent != empty(address) and not _startingAgent.is_contract:
         return False
     if _startingAgentActivationLength == max_value(uint256):
         return False

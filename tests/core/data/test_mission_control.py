@@ -216,9 +216,9 @@ def test_user_wallet_config_persistence(mission_control, switchboard_alpha, alic
     assert saved_config.yieldConfig.bonusAsset == alt_bonus_asset
 
 
-def test_agent_config_persistence(mission_control, switchboard_alpha, alice):
+def test_agent_config_persistence(mission_control, switchboard_alpha, starter_agent):
     """Agent config should persist after being set"""
-    starting_agent = alice
+    starting_agent = starter_agent.address
 
     config = (
         starting_agent,
@@ -236,6 +236,14 @@ def test_agent_config_persistence(mission_control, switchboard_alpha, alice):
     # Test setStarterAgent separately
     mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
     assert mission_control.agentConfig().startingAgent == ZERO_ADDRESS
+
+
+def test_agent_config_rejects_non_contract_starter_agent(mission_control, switchboard_alpha, alice):
+    with boa.reverts("invalid starter agent params"):
+        mission_control.setAgentConfig((alice, 200), sender=switchboard_alpha.address)
+
+    with boa.reverts("invalid starter agent params"):
+        mission_control.setStarterAgent(alice, sender=switchboard_alpha.address)
 
 
 def test_manager_config_persistence(mission_control, switchboard_alpha):
@@ -402,12 +410,12 @@ def test_security_settings_persistence(mission_control, switchboard_alpha, alice
 #########################
 
 
-def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, alice, bob, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
+def test_get_user_wallet_creation_config(mission_control, switchboard_alpha, alice, bob, starter_agent, createTxFees, createAmbassadorRevShare, createAssetYieldConfig):
     """getUserWalletCreationConfig should return correct aggregated data"""
     # Set configs
     wallet_template = alice
     config_template = bob
-    starting_agent = bob
+    starting_agent = starter_agent.address
     
     mission_control.setUserWalletConfig((
         wallet_template, config_template, 10, False, 200, 2000, ZERO_ADDRESS, 172800,
