@@ -24,7 +24,8 @@
 ## Removed Pending-Payee Fields
 
 - Pending-payee compatibility fields were removed in this cutover, not reserved. `TransferPerms.canAddPendingPayee`, `WhitelistPerms.canAddPending`, and `GlobalPayeeSettings.canPayOwner` are not present in the current struct layouts.
-- Off-chain callers must regenerate ABIs/SDKs before encoding manager or payee settings against the new HighCommand and Paymaster contracts. This is a hard cutover, not a rolling-compatible struct layout.
+- Off-chain callers must regenerate ABIs/SDKs before encoding manager or payee settings against the new HighCommand and Paymaster contracts. Dapps, multisig UIs, scripts, bots, and custom integrations that still encode the old layouts will revert.
+- This is a hard cutover, not a rolling-compatible struct layout. Do not rely on backpack-item rotation to preserve old struct encoders.
 
 ## Security Boundaries
 

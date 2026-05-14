@@ -124,10 +124,12 @@ Monitor these AgentSender and ownership signals after deployment:
 - Backpack-item rollback is a separate `WalletBackpack` staged rotation back to old HighCommand, Paymaster, ChequeBook, or Migrator items.
 - User wallet instant-setting methods intentionally emit no events, matching `setTimeLock`. Monitor explicit calls plus the Switchboard protocol flag events listed in [Instant Action Model](instant-action-model.md).
 
-## Manager Settings Constraints
+## ABI / SDK Hard Cutover
 
 - Pending-payee compatibility fields were removed from the current struct layouts. Do not encode `TransferPerms.canAddPendingPayee`, `WhitelistPerms.canAddPending`, or `GlobalPayeeSettings.canPayOwner` in new calls.
-- Regenerate ABIs/SDKs and redeploy or update downstream consumers before cutover. Off-chain encoders that still use the old struct layouts will revert against the new HighCommand and Paymaster contracts.
+- This is a hard ABI cutover, not a rolling-compatible change. Off-chain encoders that still use the old struct layouts will revert against the new HighCommand and Paymaster contracts because their calldata tuple layouts no longer match.
+- Regenerate ABIs and SDKs before cutover, and update or redeploy every downstream caller that builds manager/payee-settings calldata, including dapps, multisig UIs, scripts, bots, and custom integrations.
+- Do not rotate new backpack items into production while any supported caller is still encoding the old struct layouts.
 
 ## Pending Payee Removal Preflight
 
