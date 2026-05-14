@@ -627,7 +627,7 @@ def test_user_wallet_deleverage_auto_caps_to_debt(
     lego_book,
     bob,
 ):
-    """Auto user-wallet deleverage previews first, caps to actual debt, and logs action 45."""
+    """Auto user-wallet deleverage caps to actual debt and logs action 45."""
     lego_id = lego_book.getRegId(lego_ripe)
     debt = 300 * EIGHTEEN_DECIMALS
     auto_amount = 1_000 * EIGHTEEN_DECIMALS
@@ -743,30 +743,33 @@ def test_ripe_direct_user_wallet_auto_deleverage_compat_allows_agent_sender(
         )
 
 
-def test_user_wallet_deleverage_empty_preview_reverts(
+def test_user_wallet_auto_deleverage_allows_empty_touched_assets(
     mock_deleverage_lego,
     bob_wallet_with_green,
     mock_green_token,
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([], [], 1, 1, mock_green_token.address)
+    lego.setResponse([], 1, 1, mock_green_token.address)
 
-    with boa.reverts("no preview assets"):
-        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+    repaid, usd_value = bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+    assert repaid == 1
+    assert usd_value == 1
 
 
-def test_user_wallet_deleverage_empty_touched_reverts(
+def test_user_wallet_specific_deleverage_empty_touched_reverts(
     mock_deleverage_lego,
     bob_wallet_with_green,
     mock_green_token,
+    mock_usdc,
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [], 1, 1, mock_green_token.address)
+    lego.setResponse([], 1, 1, mock_green_token.address)
+    deleverage_assets = [(1, mock_usdc.address, 1)]
 
     with boa.reverts("no touched assets"):
-        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+        bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
 
 
 def test_user_wallet_deleverage_empty_touched_asset_reverts(
@@ -776,13 +779,13 @@ def test_user_wallet_deleverage_empty_touched_asset_reverts(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [ZERO_ADDRESS], 1, 1, mock_green_token.address)
+    lego.setResponse([ZERO_ADDRESS], 1, 1, mock_green_token.address)
 
     with boa.reverts("invalid touched"):
         bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
 
 
-def test_user_wallet_deleverage_auto_touched_must_be_preview_subset(
+def test_user_wallet_auto_deleverage_does_not_subset_check_touched_assets(
     mock_deleverage_lego,
     setup_mock_prices,
     bob_wallet_with_green,
@@ -791,10 +794,11 @@ def test_user_wallet_deleverage_auto_touched_must_be_preview_subset(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [mock_usdc.address], 1, 1, mock_green_token.address)
+    lego.setResponse([mock_usdc.address], 1, 1, mock_green_token.address)
 
-    with boa.reverts("touched not subset"):
-        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+    repaid, usd_value = bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+    assert repaid == 1
+    assert usd_value == 1
 
 
 def test_user_wallet_deleverage_specific_touched_must_be_requested_subset(
@@ -806,7 +810,7 @@ def test_user_wallet_deleverage_specific_touched_must_be_requested_subset(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([], [mock_green_token.address], 1, 1, mock_green_token.address)
+    lego.setResponse([mock_green_token.address], 1, 1, mock_green_token.address)
     deleverage_assets = [(1, mock_usdc.address, 1)]
 
     with boa.reverts("touched not subset"):
@@ -822,7 +826,7 @@ def test_user_wallet_deleverage_duplicate_touched_assets_allowed(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([], [mock_usdc.address, mock_usdc.address], 7, 7, mock_green_token.address)
+    lego.setResponse([mock_usdc.address, mock_usdc.address], 7, 7, mock_green_token.address)
     deleverage_assets = [(1, mock_usdc.address, 7)]
 
     repaid, usd_value = bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
@@ -851,7 +855,7 @@ def test_user_wallet_deleverage_reconciles_green_when_touched(
 
     extra_green = 17 * EIGHTEEN_DECIMALS
     mock_green_token.transfer(bob_wallet_with_green.address, extra_green, sender=whale)
-    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+    lego.setResponse([mock_green_token.address], 1, 1, mock_green_token.address)
 
     bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
 
@@ -860,7 +864,7 @@ def test_user_wallet_deleverage_reconciles_green_when_touched(
     assert updated_data.assetBalance == initial_data.assetBalance + extra_green
 
 
-def test_user_wallet_deleverage_gas_profile_records_preview_and_execution(
+def test_user_wallet_deleverage_gas_profile_records_execution(
     lego_ripe,
     setup_mock_prices,
     bob_wallet_with_green,
@@ -893,7 +897,7 @@ def test_user_wallet_deleverage_zero_repaid_reverts(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [mock_green_token.address], 0, 0, mock_green_token.address)
+    lego.setResponse([mock_green_token.address], 0, 0, mock_green_token.address)
 
     with boa.reverts("no repayment"):
         bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
@@ -907,7 +911,7 @@ def test_user_wallet_deleverage_reentrancy_reverts(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+    lego.setResponse([mock_green_token.address], 1, 1, mock_green_token.address)
     lego.setReenter(True, lego_id)
 
     with boa.reverts():
@@ -959,7 +963,7 @@ def test_user_wallet_deleverage_owner_respects_can_owner_manage_false(
     bob,
 ):
     lego, lego_id = mock_deleverage_lego
-    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+    lego.setResponse([mock_green_token.address], 1, 1, mock_green_token.address)
     wallet_config = UserWalletConfig.at(bob_wallet_with_green.walletConfig())
 
     with boa.env.anchor():

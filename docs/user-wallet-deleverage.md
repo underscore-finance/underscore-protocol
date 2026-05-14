@@ -8,7 +8,7 @@ Action codes:
 | Code | Mode | Meaning |
 | --- | --- | --- |
 | 44 | Specific assets | Repay via requested `DeleverageAsset[]` entries. |
-| 45 | Auto | Repay up to `_autoDeleverageAmount` using Ripe's previewed asset set. |
+| 45 | Auto | Repay up to `_autoDeleverageAmount` through Ripe auto deleverage. |
 
 Specific mode signs and executes with `_deleverageAssets` non-empty and
 `_autoDeleverageAmount == 0`. Auto mode signs and executes with
@@ -22,10 +22,9 @@ The deleverage ABI requires all mode fields to be passed explicitly. Specific
 mode should pass `_autoDeleverageAmount = 0`; auto mode should pass
 `_deleverageAssets = []`.
 
-`_extraData` is signed and forwarded to Ripe preview and execution. The current
-Ripe implementation ignores it, so v1 callers should treat it as reserved unless
-Ripe explicitly implements behavior for it. Preview and execution must interpret
-it identically.
+`_extraData` is signed and forwarded to Ripe execution. The current Ripe
+implementation ignores it, so v1 callers should treat it as reserved unless Ripe
+explicitly implements behavior for it.
 
 Phase 1 deploys `RipeLego` in compatibility mode. The new wallet-authenticated
 path works because the wallet calls Ripe as `_caller == _user`; the old direct
@@ -35,12 +34,12 @@ branch and leaves only `_caller == _user` for user wallets. Earn-vault manager
 paths are unchanged in both phases.
 
 The Ripe wallet function returns touched wallet ERC20 assets for wallet
-post-action accounting. Specific mode returns the requested asset list. Auto mode
-currently previews and returns GREEN plus sGREEN so wallet accounting reconciles
-either balance if Ripe's route changes it. If Ripe execution ever mutates other
-wallet ERC20 balances, the Ripe implementation must include those assets in
-`previewAutoDeleverageAssets` and `touchedAssets` before routing traffic to the
-new selector.
+post-action accounting when it can identify them. Specific mode pre-checks the
+requested assets and requires returned touched assets to be a subset of that
+request. Auto mode does not pre-check or subset-check assets, because Ripe may
+choose from a broad collateral set at execution time. Manager debt permissions,
+allowed legos, transaction count/cooldown, and post-transaction USD limits still
+apply to auto mode; manager asset allowlists do not.
 
 ABI/SDK notes:
 

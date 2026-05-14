@@ -1188,7 +1188,7 @@ def test_agent_deleverage_manager_allowed_legos_excludes_ripe_reverts(
             )
 
 
-def test_agent_deleverage_auto_preview_asset_allowlist_blocks_before_state_change(
+def test_agent_deleverage_auto_skips_asset_allowlist(
     starter_agent,
     starter_agent_sender,
     user_wallet,
@@ -1218,18 +1218,19 @@ def test_agent_deleverage_auto_preview_asset_allowlist_blocks_before_state_chang
             _allowed_assets=[mock_usdc.address],
         )
 
-        with boa.reverts("no permission"):
-            starter_agent_sender.deleverage(
-                starter_agent.address,
-                user_wallet.address,
-                lego_id,
-                [],
-                10 * EIGHTEEN_DECIMALS,
-                b"",
-                (b"", 0, 0),
-                sender=charlie,
-            )
-        assert mock_ripe.userDebt(user_wallet.address) == debt
+        repaid, usd_value = starter_agent_sender.deleverage(
+            starter_agent.address,
+            user_wallet.address,
+            lego_id,
+            [],
+            10 * EIGHTEEN_DECIMALS,
+            b"",
+            (b"", 0, 0),
+            sender=charlie,
+        )
+        assert repaid == 10 * EIGHTEEN_DECIMALS
+        assert usd_value == 10 * EIGHTEEN_DECIMALS
+        assert mock_ripe.userDebt(user_wallet.address) == debt - repaid
 
 
 def test_agent_deleverage_manager_usd_cap_reverts_and_rolls_back(

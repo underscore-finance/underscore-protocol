@@ -63,7 +63,6 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 interface RipeDeleverageLego:
-    def previewAutoDeleverageAssets(_user: address, _autoDeleverageAmount: uint256, _extraData: bytes32) -> DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]: view
     def deleverageForUserWallet(_user: address, _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS], _autoDeleverageAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]): nonpayable
 
 event WalletAction:
@@ -650,10 +649,6 @@ def deleverage(
         for d: ws.DeleverageAsset in _deleverageAssets:
             assert d.asset != empty(address) # dev: invalid asset
             assets.append(d.asset)
-    else:
-        ad = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
-        assets = staticcall RipeDeleverageLego(ad.legoAddr).previewAutoDeleverageAssets(self, _autoDeleverageAmount, _extraData)
-        assert len(assets) != 0 # dev: no preview assets
 
     ad = self._performPreActionTasks(msg.sender, ws.ActionType.REPAY_DEBT, True, assets, [_legoId])
 
@@ -670,11 +665,13 @@ def deleverage(
     )
 
     assert repaidAmount != 0 # dev: no repayment
-    assert len(touchedAssets) != 0 # dev: no touched assets
+    if isSpecific:
+        assert len(touchedAssets) != 0 # dev: no touched assets
 
     for a: address in touchedAssets:
         assert a != empty(address) # dev: invalid touched
-        assert a in assets # dev: touched not subset
+        if isSpecific:
+            assert a in assets # dev: touched not subset
 
     self._performPostActionTasks(touchedAssets, txUsdValue, ws.ActionType.REPAY_DEBT, ad)
 

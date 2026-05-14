@@ -972,16 +972,6 @@ def deleverageUser(_user: address, _targetRepayAmount: uint256 = max_value(uint2
     return extcall RipeTeller(teller).deleverageUser(_user, _targetRepayAmount)
 
 
-@view
-@external
-def previewAutoDeleverageAssets(
-    _user: address,
-    _autoDeleverageAmount: uint256,
-    _extraData: bytes32,
-) -> DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]:
-    return [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN]
-
-
 @external
 def deleverageForUserWallet(
     _user: address,
@@ -1009,9 +999,6 @@ def deleverageForUserWallet(
         repaidAmount = extcall RipeTeller(teller).deleverageWithSpecificAssets(legacyAssets, _user)
     else:
         repaidAmount = extcall RipeTeller(teller).deleverageUser(_user, _autoDeleverageAmount)
-        # Auto mode can affect GREEN or savings GREEN balances depending on the
-        # Ripe route; keep preview and touched assets aligned.
-        touchedAssets = [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN]
 
     txUsdValue: uint256 = 0
     if repaidAmount != 0:
