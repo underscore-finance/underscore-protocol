@@ -483,6 +483,10 @@ def test_add_liquidity_single_sided(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         amount_a,
         0,  # No token B
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -515,6 +519,10 @@ def test_add_liquidity_max_values(setupSwapTest, user_wallet, bob, mock_dex_lego
         mock_dex_asset_alt.address,
         MAX_UINT256,  # Use all of token A
         MAX_UINT256,  # Use all of token B
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -544,6 +552,10 @@ def test_remove_liquidity_basic(setupSwapTest, user_wallet, bob, mock_dex_lego, 
         mock_dex_asset_alt.address,
         amount_a,
         amount_b,
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -603,6 +615,10 @@ def test_remove_liquidity_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         200 * EIGHTEEN_DECIMALS,
         300 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -614,6 +630,9 @@ def test_remove_liquidity_max_value(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         mock_dex_lp_token.address,
         MAX_UINT256,  # Remove all
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -643,6 +662,10 @@ def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -656,6 +679,9 @@ def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         mock_dex_lp_token.address,
         lp1 // 2,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -669,6 +695,10 @@ def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         50 * EIGHTEEN_DECIMALS,
         50 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -683,6 +713,9 @@ def test_add_remove_liquidity_cycle(setupSwapTest, user_wallet, bob, mock_dex_le
         mock_dex_asset_alt.address,
         mock_dex_lp_token.address,
         MAX_UINT256,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -708,6 +741,10 @@ def test_liquidity_operations_update_storage(setupSwapTest, user_wallet, bob, mo
         mock_dex_asset_alt.address,
         100 * EIGHTEEN_DECIMALS,
         100 * EIGHTEEN_DECIMALS,
+        0,
+        0,
+        0,
+        b"",
         sender=bob
     )
     
@@ -730,6 +767,9 @@ def test_liquidity_operations_update_storage(setupSwapTest, user_wallet, bob, mo
         mock_dex_asset_alt.address,
         mock_dex_lp_token.address,
         MAX_UINT256,
+        0,
+        0,
+        b"",
         sender=bob
     )
     

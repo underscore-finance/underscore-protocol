@@ -1,6 +1,9 @@
 # @version 0.4.3
 
 from interfaces import Wallet
+from interfaces import WalletStructs as ws
+
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 ##################
 # Transfer Funds #
@@ -157,6 +160,16 @@ def repayDebt(
     _legoId: uint256,
     _paymentAsset: address,
     _paymentAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+@external
+def deleverage(
+    _userWallet: address,
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
     _extraData: bytes32,
 ) -> (uint256, uint256):
     ...

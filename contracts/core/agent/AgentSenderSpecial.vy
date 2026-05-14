@@ -26,23 +26,15 @@ import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
-interface RipeLego:
-    def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256: nonpayable
-
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 struct CollateralAsset:
     vaultId: uint256
     asset: address
     amount: uint256
-
-struct DeleverageAsset:
-    vaultId: uint256
-    asset: address
-    targetRepayAmount: uint256
 
 struct DepositYieldPosition:
     legoId: uint256
@@ -73,12 +65,10 @@ event NonceIncremented:
 currentNonce: public(HashMap[address, uint256])
 
 MAX_COLLATERAL_ASSETS: constant(uint256) = 10
-MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
 MAX_YIELD_POSITIONS: constant(uint256) = 25
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
-LEGO_BOOK_ID: constant(uint256) = 3
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -224,7 +214,7 @@ def repayAndWithdraw(
     _agentWrapper: address,
     _userWallet: address,
     _debtLegoId: uint256,
-    _deleverageAssets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS] = [],
     _yieldPosition: WithdrawYieldPosition = empty(WithdrawYieldPosition),
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
     _repayAsset: address = empty(address),
@@ -257,9 +247,13 @@ def repayAndWithdraw(
 
     # 2. deleverage
     if len(_deleverageAssets) != 0:
-        legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-        debtLego: address = staticcall Registry(legoBook).getAddr(_debtLegoId)
-        extcall RipeLego(debtLego).deleverageWithSpecificAssets(_deleverageAssets, _userWallet)
+        extcall AgentWrapper(_agentWrapper).deleverage(
+            _userWallet,
+            _debtLegoId,
+            _deleverageAssets,
+            0,
+            empty(bytes32),
+        )
 
     # 3. withdraw from yield
     if _yieldPosition.legoId != 0 and _yieldPosition.vaultToken != empty(address):
