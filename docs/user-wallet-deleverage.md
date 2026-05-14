@@ -36,10 +36,13 @@ paths are unchanged in both phases.
 The Ripe wallet function returns touched wallet ERC20 assets for wallet
 post-action accounting when it can identify them. Specific mode pre-checks the
 requested assets and requires returned touched assets to be a subset of that
-request. Auto mode does not pre-check or subset-check assets, because Ripe may
-choose from a broad collateral set at execution time. Manager debt permissions,
-allowed legos, transaction count/cooldown, and post-transaction USD limits still
-apply to auto mode; manager asset allowlists do not.
+request. Auto mode intentionally does not pre-check or subset-check assets,
+because the signed request does not name assets and Ripe may choose from a broad
+collateral set at execution time. Manager debt permissions, allowed legos,
+transaction count/cooldown, and post-transaction USD limits still apply to auto
+mode; manager asset allowlists do not. Do not add auto-mode asset allowlist
+enforcement until the Ripe deleverage interface can return the actual assets
+used for repayment.
 
 ABI/SDK notes:
 

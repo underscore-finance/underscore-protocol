@@ -194,11 +194,10 @@ struct SwapPerms:
 struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingPayee: bool             # reserved; must be False
     allowedPayees: DynArray[address, 40]  # generic allowed recipient addresses
 ```
 
-As of `cheque-enhance`, `canAddPendingPayee` remains in the `TransferPerms` struct for ABI compatibility but is a reserved field. `HighCommand` validation rejects any manager-settings input that sets it to `true`. The Paymaster ABI no longer exposes the pending-payee add/confirm/cancel lifecycle; Paymaster remains responsible for direct payee management through `addPayee`, `updatePayee`, `removePayee`, `setGlobalPayeeSettings`, and `createDefaultGlobalPayeeSettings`.
+As of `cheque-enhance`, pending-payee compatibility fields were removed rather than reserved. Off-chain encoders must regenerate ABIs/SDKs before encoding `TransferPerms`, `WhitelistPerms`, or `GlobalPayeeSettings` against the new contracts. The Paymaster ABI no longer exposes the pending-payee add/confirm/cancel lifecycle; Paymaster remains responsible for direct payee management through `addPayee`, `updatePayee`, `removePayee`, `setGlobalPayeeSettings`, and `createDefaultGlobalPayeeSettings`.
 
 #### Asset Restrictions
 - Up to 40 allowed assets per manager

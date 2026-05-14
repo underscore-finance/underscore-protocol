@@ -21,9 +21,10 @@
 - Whitelist registration is now strict: confirming a pending whitelist entry reverts if the address is already whitelisted. If migration or another owner action whitelists the same address during the wait, cancel the stale pending entry and restage if needed.
 - Managers can replace only their own active cheques; owners can replace any active cheque. The same-block replacement residual remains deferred, and this branch intentionally does not add a cheque id/version field to the ABI.
 
-## Reserved Fields
+## Removed Pending-Payee Fields
 
-- `TransferPerms.canAddPendingPayee` remains in the struct for ABI compatibility, but it is reserved. HighCommand validation rejects manager-settings input that sets it to `true`; legitimate manager paths write `false`.
+- Pending-payee compatibility fields were removed in this cutover, not reserved. `TransferPerms.canAddPendingPayee`, `WhitelistPerms.canAddPending`, and `GlobalPayeeSettings.canPayOwner` are not present in the current struct layouts.
+- Off-chain callers must regenerate ABIs/SDKs before encoding manager or payee settings against the new HighCommand and Paymaster contracts. This is a hard cutover, not a rolling-compatible struct layout.
 
 ## Security Boundaries
 
@@ -37,6 +38,7 @@
 - New wallets ship with instant manager-add, payee-add, global payee-settings, and cheque-settings user flags enabled by the Hatchery default. These paths still require the matching protocol flag and the per-call instant bool.
 - New-wallet cheque manager flags default from `ChequeBook.createDefaultChequeSettings`. Changing those defaults is a code/deploy event; existing wallets keep their stored cheque settings.
 - Users can opt out by disabling any `instantActionSettings` flag immediately. Re-enabling a disabled flag is timelocked at the wallet-config layer.
+- AgentSender action `5` is the standalone signed `createCheque` path. `performBatchActions` intentionally does not implement create-only action `5`; batch cheque flows use action `4` for atomic create-and-pay or action `6` to pay an existing cheque with an expected creation block.
 
 ## Future Options
 

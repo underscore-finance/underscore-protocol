@@ -51,7 +51,7 @@ Other Bravo actions with rotatable external dependencies also execute against st
 
 ## User Flags
 
-User flags live on `UserWalletConfig.instantActionSettings`. New wallets inherit `Hatchery.defaultInstantActionSettings`; the cutover default is all true for manager add, payee add, global payee settings, and cheque settings.
+User flags live on `UserWalletConfig.instantActionSettings`. New wallets inherit `Hatchery.defaultInstantActionSettings`; the cutover default is all true for manager add, payee add, global payee settings, and cheque settings. The accepted release plan is a simultaneous cutover of matching protocol flags and Hatchery defaults; callers still need to pass the per-call instant bool before any action can use the instant path.
 
 Enabling any user flag from false to true stages `pendingInstantActionSettings` behind the wallet time lock. Users can disable flags immediately. Mixed changes apply immediate disables and stage the requested full settings for later confirmation. Cancelling the pending mixed change clears only the pending struct; immediate disables stay active.
 

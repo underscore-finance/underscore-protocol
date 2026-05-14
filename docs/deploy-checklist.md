@@ -79,7 +79,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - This migration path assumes both wallets use the current `UserWalletConfig` version.
 - This migration path assumes required registry dependencies are registered, including `LootDistributor`.
 - Both source and destination wallets must have the same configured `migrator` address. Standalone `migrateFunds` and config clone both reject destination configs that do not trust the active migrator.
-- Loose native ETH is not migrated. Users should wrap or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
+- Loose native ETH is intentionally not migrated by `migrateFunds` or `migrateAll`. Operators should not treat migration as a full wallet drain; users must wrap, withdraw, or otherwise convert native ETH into a tracked ERC20-style asset before migration if it should move with the wallet.
 - Cloned managers and payees are validated for destination role collisions before registration. Source-side cross-role state can cause config clone to revert with `manager collision on clone` or `payee collision on clone`. The source starting agent is not copied as a new manager; when source and destination share that starter-agent address, `cloneConfig` copies the source starter-agent manager fields while preserving the destination starter-agent time fields.
 - Changing a wallet's configured migrator via `setMigrator` requires no pending migration on that wallet. Complete or cancel in-flight migration state before swapping the migrator.
 - Pending global payee settings block migration on both source and destination wallets.
@@ -99,11 +99,11 @@ Monitor these AgentSender and ownership signals after deployment:
 - Instant wallet actions require all three gates: the consuming backpack item protocol flag, the user wallet `instantActionSettings` flag, and the per-call instant bool.
 - The V1 instant actions are `HighCommand.addManager`, `Paymaster.addPayee`, `Paymaster.setGlobalPayeeSettings`, and `ChequeBook.setChequeSettings`.
 - Whitelist flows and global manager settings stay delay-only. Do not add rollout steps that enable instant whitelist changes.
-- Protocol flags are deployment-configurable constructor values on new backpack items. The cutover values are all true except `Migrator.instantMigrationEnabled`, which stays false. Governance can still stage enables through `SwitchboardBravo`, wait for the Switchboard timelock, then execute the pending action. Governance or a security actor can disable immediately.
+- Protocol flags are deployment-configurable constructor values on new backpack items. The cutover values are all true except `Migrator.instantMigrationEnabled`, which stays false. This release intentionally cuts over the protocol flags and new-wallet Hatchery defaults together; the per-call instant bool remains the final opt-in gate on each action. Governance can still stage enables through `SwitchboardBravo`, wait for the Switchboard timelock, then execute the pending action. Governance or a security actor can disable immediately.
 - If a pending protocol enable exists and the flag should not go live, disable the same flag through `SwitchboardBravo`; this cancels the matching pending action and emits the `WalletCanInstant*Set` event with `isEnabled=false`.
 - Pending protocol enables store the target backpack item at staging time. If WalletBackpack rotates a role before execution, cancel and re-stage when the current role target matters.
 - Pending Bravo actions also execute against staged external targets where a role can rotate, including the staged `LootDistributor` for loot adjustment and ejection-mode updates. If the registry role rotated during the pending window, monitor the executed target as a stale-target signal and cancel/restage when needed.
-- User instant settings default from `Hatchery.defaultInstantActionSettings`; the cutover default is all true. Enabling a disabled user flag is timelocked; disabling applies immediately. Cancelling a mixed pending change does not roll back disables that already applied.
+- User instant settings default from `Hatchery.defaultInstantActionSettings`; the cutover default is all true and is intended to become active at the same time as the matching protocol flags. Enabling a disabled user flag is timelocked; disabling applies immediately. Cancelling a mixed pending change does not roll back disables that already applied.
 - Hatchery default instant settings are managed through `SwitchboardBravo`. Any false-to-true default transition is Bravo-timelocked against the staged Hatchery address, pure disables apply immediately, and wallets created during a pending window inherit the current confirmed Hatchery defaults.
 - Hatchery's setter remains gated to registered Switchboard addresses. Do not run concurrent Hatchery-default changes through multiple Switchboards; cancel/restage if the operational target changes.
 
@@ -112,6 +112,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - Deployment must separately redeploy the `UserWalletConfig` blueprint and stage/execute `SwitchboardAlpha.setUserWalletTemplates`.
 - Query live `WalletBackpack`, `SwitchboardAlpha`, and `UndyHq` timelocks before cutover.
 - Stage the template update and the Hatchery registry update.
+- Do not plan a staged protocol-flag-vs-Hatchery-default rollout for this cutover. The accepted release plan is simultaneous protocol flags plus all-true new-wallet defaults, with per-call instant bools controlling actual use.
 - Do not reuse older Hatchery deploy scripts without updating constructor args. The active Hatchery constructor requires default instant settings, staging/dev starter-agent config, and non-prod creator.
 - Pause the old Hatchery before executing the template update. Do not skip this operational step; it is a deployment runbook guard and not an on-chain precondition.
 - Execute the template update.
@@ -125,7 +126,8 @@ Monitor these AgentSender and ownership signals after deployment:
 
 ## Manager Settings Constraints
 
-- `TransferPerms.canAddPendingPayee` must be `false`. The field remains in the struct for ABI compatibility, but manager-settings inputs with `true` are rejected by HighCommand validation.
+- Pending-payee compatibility fields were removed from the current struct layouts. Do not encode `TransferPerms.canAddPendingPayee`, `WhitelistPerms.canAddPending`, or `GlobalPayeeSettings.canPayOwner` in new calls.
+- Regenerate ABIs/SDKs and redeploy or update downstream consumers before cutover. Off-chain encoders that still use the old struct layouts will revert against the new HighCommand and Paymaster contracts.
 
 ## Pending Payee Removal Preflight
 
