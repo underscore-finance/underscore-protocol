@@ -16,9 +16,10 @@
 - Managers may confirm, cancel, or remove whitelist entries only when granted the relevant whitelist permissions.
 - Managers cannot be payees or whitelisted recipients.
 - User wallets registered with the protocol's `Ledger` are valid payees but cannot be added as managers or starting agents.
-- Payees, whitelisted recipients, and active unexpired cheque recipients cannot become managers.
+- Payees, whitelisted recipients, and active cheque recipients cannot become managers. Expired but uncleared cheques still reserve the recipient until the cheque is cancelled, cleared, or paid.
 - New cheques cannot be created to current managers, payees, whitelisted recipients, privileged Undy/system addresses, or registered backpack items.
 - Whitelist registration is now strict: confirming a pending whitelist entry reverts if the address is already whitelisted. If migration or another owner action whitelists the same address during the wait, cancel the stale pending entry and restage if needed.
+- Managers can replace only their own active cheques; owners can replace any active cheque. The same-block replacement residual remains deferred, and this branch intentionally does not add a cheque id/version field to the ABI.
 
 ## Reserved Fields
 
@@ -31,6 +32,8 @@
 - `preparePayment` is callable by valid Undy addresses.
 - The AgentSender signer is not the user wallet owner.
 - AgentSender can act only through wrapper manager permissions.
+- The AgentSender owner remains privileged for that sender contract: direct owner calls do not require a signature, and owner-only `incrementNonce` can invalidate pending signed payloads for one wallet on that AgentSender.
+- AgentSender nonce spaces are per AgentSender contract and per user wallet. They are separate from wallet pending-action state and from other AgentSender contracts registered on the same `AgentWrapper`.
 - New wallets ship with instant manager-add, payee-add, global payee-settings, and cheque-settings user flags enabled by the Hatchery default. These paths still require the matching protocol flag and the per-call instant bool.
 - New-wallet cheque manager flags default from `ChequeBook.createDefaultChequeSettings`. Changing those defaults is a code/deploy event; existing wallets keep their stored cheque settings.
 - Users can opt out by disabling any `instantActionSettings` flag immediately. Re-enabling a disabled flag is timelocked at the wallet-config layer.

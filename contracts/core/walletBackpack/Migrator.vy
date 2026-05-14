@@ -23,6 +23,7 @@ from ethereum.ercs import IERC20
 interface UserWalletConfig:
     def applyMigratedConfigSettings(_fromConfig: address, _timeLock: uint256, _instantSettings: wcs.InstantActionSettings, _globalManagerSettings: wcs.GlobalManagerSettings, _globalPayeeSettings: wcs.GlobalPayeeSettings, _chequeSettings: wcs.ChequeSettings): nonpayable
     def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
+    def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
     def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
@@ -55,6 +56,7 @@ interface UserWalletConfig:
     def chequeBook() -> address: view
     def paymaster() -> address: view
     def numPayees() -> uint256: view
+    def migrator() -> address: view
     def timeLock() -> uint256: view
     def groupId() -> uint256: view
     def owner() -> address: view
@@ -260,6 +262,7 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
 
     # get wallet config
     walletConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
 
     # migrate funds
     numMigrated: uint256 = 0
@@ -281,6 +284,7 @@ def _migrateFunds(_fromWallet: address, _toWallet: address, _numAssets: uint256)
         # transfer funds
         amount: uint256 = extcall UserWalletConfig(walletConfig).migrateFunds(_toWallet, asset)
         if amount != 0:
+            extcall UserWalletConfig(toConfig).updateAssetData(0, asset, False)
             numMigrated += 1
             usdValue += data.usdValue
 
@@ -501,6 +505,13 @@ def _hasValidMigrationPair(_fromWallet: address, _toWallet: address, _requirePen
     if not self._isValidUserWallet(_fromWallet):
         return False
     if not self._isValidUserWallet(_toWallet):
+        return False
+
+    fromConfig: address = staticcall UserWallet(_fromWallet).walletConfig()
+    toConfig: address = staticcall UserWallet(_toWallet).walletConfig()
+    if staticcall UserWalletConfig(fromConfig).migrator() != self:
+        return False
+    if staticcall UserWalletConfig(toConfig).migrator() != self:
         return False
 
     if _requirePending and not self.instantMigrationEnabled:

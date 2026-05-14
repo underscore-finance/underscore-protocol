@@ -129,6 +129,42 @@ def assert_cheque_settings_values(settings, expected):
     assert settings.canBePulled == expected["canBePulled"]
 
 
+def _enable_manager_cheque_creation(
+    wallet,
+    config,
+    cheque_book,
+    high_command,
+    owner,
+    managers,
+    createChequeSettings,
+    createGlobalManagerSettings,
+    createManagerSettings,
+):
+    set_live_cheque_settings(
+        cheque_book,
+        wallet.address,
+        *widened_cheque_settings(createChequeSettings),
+        sender=owner,
+    )
+    config.setGlobalManagerSettings(createGlobalManagerSettings(), sender=high_command.address)
+    for manager in managers:
+        config.addManager(manager, createManagerSettings(), sender=high_command.address)
+
+
+def _create_simple_cheque(cheque_book, wallet, recipient, asset, sender):
+    return cheque_book.createCheque(
+        wallet.address,
+        recipient,
+        asset.address,
+        EIGHTEEN_DECIMALS,
+        0,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=sender,
+    )
+
+
 def set_timelock_clamp_cheque_settings(
     cheque_book,
     user_wallet,
@@ -427,6 +463,108 @@ def test_createCheque_success_and_storage(
     
     # Verify numActiveCheques was incremented
     assert user_wallet_config.numActiveCheques() == initial_num_active + 1
+
+
+def test_manager_cannot_overwrite_owner_created_active_cheque(
+    hatchery, bob, alice, sally, alpha_token, mock_ripe, cheque_book, high_command,
+    createChequeSettings, createGlobalManagerSettings, createManagerSettings,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _enable_manager_cheque_creation(
+        wallet,
+        config,
+        cheque_book,
+        high_command,
+        bob,
+        [alice],
+        createChequeSettings,
+        createGlobalManagerSettings,
+        createManagerSettings,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, bob)
+    with boa.reverts("cannot replace cheque"):
+        _create_simple_cheque(cheque_book, wallet, sally, alpha_token, alice)
+
+    assert config.cheques(sally).creator == bob
+
+
+def test_manager_cannot_overwrite_another_manager_created_active_cheque(
+    hatchery, bob, alice, charlie, sally, alpha_token, mock_ripe, cheque_book, high_command,
+    createChequeSettings, createGlobalManagerSettings, createManagerSettings,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _enable_manager_cheque_creation(
+        wallet,
+        config,
+        cheque_book,
+        high_command,
+        bob,
+        [alice, charlie],
+        createChequeSettings,
+        createGlobalManagerSettings,
+        createManagerSettings,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, alice)
+    with boa.reverts("cannot replace cheque"):
+        _create_simple_cheque(cheque_book, wallet, sally, alpha_token, charlie)
+
+    assert config.cheques(sally).creator == alice
+
+
+def test_manager_can_replace_own_active_cheque(
+    hatchery, bob, alice, sally, alpha_token, mock_ripe, cheque_book, high_command,
+    createChequeSettings, createGlobalManagerSettings, createManagerSettings,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _enable_manager_cheque_creation(
+        wallet,
+        config,
+        cheque_book,
+        high_command,
+        bob,
+        [alice],
+        createChequeSettings,
+        createGlobalManagerSettings,
+        createManagerSettings,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, alice)
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, alice)
+
+    cheque = config.cheques(sally)
+    assert cheque.creator == alice
+    assert cheque.active
+
+
+def test_owner_can_replace_any_active_cheque(
+    hatchery, bob, alice, sally, alpha_token, mock_ripe, cheque_book, high_command,
+    createChequeSettings, createGlobalManagerSettings, createManagerSettings,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _enable_manager_cheque_creation(
+        wallet,
+        config,
+        cheque_book,
+        high_command,
+        bob,
+        [alice],
+        createChequeSettings,
+        createGlobalManagerSettings,
+        createManagerSettings,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, alice)
+    assert _create_simple_cheque(cheque_book, wallet, sally, alpha_token, bob)
+
+    cheque = config.cheques(sally)
+    assert cheque.creator == bob
+    assert cheque.active
 
 
 def test_createCheque_event_emission(

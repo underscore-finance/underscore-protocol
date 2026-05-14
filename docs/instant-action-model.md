@@ -45,6 +45,10 @@ Enabling a protocol flag is governance-only and timelocked through `SwitchboardB
 
 Pending enables store the target backpack item at staging time. If WalletBackpack rotates a role before execution, cancel and re-stage the enable when the current role target matters.
 
+Cancelled pending enables clear their public pending-storage getters. Off-chain consumers that need historical staging data should index the pending/cancel/execute events instead of treating pending storage as a last-action log.
+
+Other Bravo actions with rotatable external dependencies also execute against staged targets. `LOOT_ADJUST` and `SET_EJECTION_MODE` store the current `LootDistributor` at staging time; registry rotation before execution does not retarget the action, and operators should treat an execution against an older role address as a stale-target event to review.
+
 ## User Flags
 
 User flags live on `UserWalletConfig.instantActionSettings`. New wallets inherit `Hatchery.defaultInstantActionSettings`; the cutover default is all true for manager add, payee add, global payee settings, and cheque settings.
@@ -55,8 +59,14 @@ Submitting any settings tuple that introduces no new enables clears any outstand
 
 The user wallet instant-setting methods intentionally emit no events, matching the existing `setTimeLock` flow. Operational monitoring should watch the explicit method calls and the Switchboard protocol flag events.
 
+## Hatchery Default Flags
+
+Hatchery default instant-action settings apply only to new wallets. `SwitchboardBravo.setHatcheryDefaultInstantActionSettings(...)` manages those defaults with the same enable posture as user flags: any false-to-true default transition is staged behind the Bravo timelock with the Hatchery address captured at staging time, pure disables apply immediately, and mixed changes apply disables now while staging the full target tuple. A pure disable/no-enable request also clears a pending Hatchery-default enable.
+
+Wallets created during a pending Hatchery-default enable inherit the current confirmed defaults, not the staged tuple. Confirming the pending action applies the full four-flag tuple to Hatchery; cancelling it leaves the current defaults unchanged.
+
 ## Migration
 
-Migration copies only active user instant settings. Pending user instant settings block both funds migration and config clone on source and destination wallets. Protocol flags are global rollout state and are not copied.
+Migration copies only active user instant settings directly. This can carry an enabled user flag without re-running the destination wallet's false-to-true timelock because the migration itself is the privileged owner-scoped action. Pending user instant settings block both funds migration and config clone on source and destination wallets. Protocol flags and Hatchery defaults are global rollout state and are not copied.
 
 This migration path assumes both wallets use the current `UserWalletConfig` version. Pending whitelist entries on the source wallet are not migrated; they remain on the source wallet and could still be confirmed there if that wallet continues to be used. Restage and confirm them on the destination wallet to preserve them there.

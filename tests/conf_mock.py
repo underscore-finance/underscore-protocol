@@ -44,6 +44,16 @@ def starter_agent(undy_hq_deploy, switchboard_alpha, starter_agent_sender):
 
 
 @pytest.fixture(scope="session")
+def starter_agent_2(undy_hq_deploy):
+    return boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        2,
+        name="starter_agent_2",
+    )
+
+
+@pytest.fixture(scope="session")
 def starter_agent_sender(undy_hq_deploy, charlie, fork):
     return boa.load(
         "contracts/core/agent/AgentSenderGeneric.vy",

@@ -269,12 +269,12 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
         )
 
 
-def test_add_manager_rejects_active_cheque_recipient_until_expiry_boundary(
+def test_add_manager_rejects_active_cheque_recipient_after_expiry_until_cleared(
     high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
     createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
     alice, bob,
 ):
-    """Active cheque recipients cannot become managers until the exact expiry block is reached"""
+    """Active cheque recipients cannot become managers until the cheque is cleared."""
     _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
 
     cheque = user_wallet_config.cheques(alice)
@@ -297,6 +297,60 @@ def test_add_manager_rejects_active_cheque_recipient_until_expiry_boundary(
         )
 
     boa.env.time_travel(blocks=1)
+
+    assert not high_command.isValidNewManager(
+        user_wallet,
+        alice,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+    with boa.reverts("active cheque exists"):
+        high_command.addManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,
+            sender=bob
+        )
+
+    assert cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_add_manager_allows_cancelled_cheque_recipient(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob,
+):
+    """Cancelled cheques are inactive, so a former cheque recipient can become a manager."""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
+    assert cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+    assert not user_wallet_config.cheques(alice).active
 
     assert high_command.addManager(
         user_wallet,

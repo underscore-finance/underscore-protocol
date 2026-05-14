@@ -99,6 +99,38 @@ def test_hatchery_default_update_only_affects_new_wallets(hatchery, switchboard_
     assert instant_action_settings_tuple(config_b.instantActionSettings()) == (False, True, False, True)
 
 
+def test_hatchery_default_instant_action_settings_change_helper(hatchery, switchboard_bravo):
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (False, True, False, True)
+    )
+    assert has_enable is False
+    assert has_immediate_change is True
+    assert instant_action_settings_tuple(immediate) == (False, True, False, True)
+
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (True, True, True, True)
+    )
+    assert has_enable is False
+    assert has_immediate_change is False
+    assert instant_action_settings_tuple(immediate) == (True, True, True, True)
+
+    hatchery.setDefaultInstantActionSettings((True, False, True, False), sender=switchboard_bravo.address)
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (False, True, False, True)
+    )
+    assert has_enable is True
+    assert has_immediate_change is True
+    assert instant_action_settings_tuple(immediate) == (False, False, False, False)
+
+    hatchery.setDefaultInstantActionSettings((False, False, False, False), sender=switchboard_bravo.address)
+    has_enable, has_immediate_change, immediate = hatchery.getDefaultInstantActionSettingsChange(
+        (True, False, False, False)
+    )
+    assert has_enable is True
+    assert has_immediate_change is False
+    assert instant_action_settings_tuple(immediate) == (False, False, False, False)
+
+
 def test_fresh_wallet_default_starter_agent_template_matches_legacy_defaults(hatchery, mission_control, alice):
     block_before = boa.env.evm.patch.block_number
     config = wallet_config_for(hatchery.createUserWallet(sender=alice))
@@ -415,12 +447,12 @@ def test_create_user_wallet_invalid_ambassador(hatchery, alice, bob, ledger):
     assert ledger.ambassadors(user_wallet_addr) == ZERO_ADDRESS
 
 
-def test_create_user_wallet_events(hatchery, alice, charlie, bob, ambassador_wallet, setAgentConfig, mission_control, switchboard_alpha):
+def test_create_user_wallet_events(hatchery, alice, starter_agent_2, bob, ambassador_wallet, setAgentConfig, mission_control, switchboard_alpha):
     """Test that correct events are emitted during wallet creation"""
 
     # Setup agent config
     setAgentConfig(
-        _startingAgent=charlie
+        _startingAgent=starter_agent_2.address
     )
 
     # Add bob to creator whitelist so they can set an ambassador
@@ -439,7 +471,7 @@ def test_create_user_wallet_events(hatchery, alice, charlie, bob, ambassador_wal
     assert event.mainAddr == wallet_addr
     assert event.configAddr == UserWallet.at(wallet_addr).walletConfig()
     assert event.owner == alice
-    assert event.agent == charlie
+    assert event.agent == starter_agent_2.address
     assert event.ambassador == ambassador_wallet.address
     assert event.creator == bob
     assert event.groupId == 5
@@ -475,21 +507,21 @@ def test_create_user_wallet_invalid_owner(hatchery, alice):
         )
 
 
-def test_create_user_wallet_starting_agent_same_as_owner(hatchery, alice, setAgentConfig):
+def test_create_user_wallet_starting_agent_same_as_owner(hatchery, alice, setAgentConfig, starter_agent):
     """Test that wallet creation fails when starting agent is the same as owner"""
     
     # Set starting agent to be alice
     setAgentConfig(
-        _startingAgent=alice
+        _startingAgent=starter_agent.address
     )
     
     # Try to create wallet where owner and starting agent are the same - should fail
     with boa.reverts("starting agent cannot be the owner"):
         hatchery.createUserWallet(
-            alice,  # Owner is alice
+            starter_agent.address,  # Owner matches the configured starting agent
             ZERO_ADDRESS,
             1,
-            sender=alice  # Starting agent will be alice based on config
+            sender=alice
         )
 
 
@@ -507,8 +539,8 @@ def test_create_user_wallet_old_three_arg_call_still_uses_prod(hatchery, alice, 
     assert wallet_config.startingAgent() == starter_agent.address
 
 
-def test_create_user_wallet_prod_uses_mission_control_starter(hatchery, alice, bob, setAgentConfig):
-    setAgentConfig(_startingAgent=bob)
+def test_create_user_wallet_prod_uses_mission_control_starter(hatchery, alice, setAgentConfig, starter_agent_2):
+    setAgentConfig(_startingAgent=starter_agent_2.address)
 
     wallet_addr = hatchery.createUserWallet(
         alice,
@@ -519,19 +551,19 @@ def test_create_user_wallet_prod_uses_mission_control_starter(hatchery, alice, b
     )
     wallet_config = UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig())
 
-    assert wallet_config.startingAgent() == bob
+    assert wallet_config.startingAgent() == starter_agent_2.address
 
 
-def test_non_prod_starter_configs_create_distinct_wallets(hatchery, switchboard_alpha, alice, bob, charlie, sally):
+def test_non_prod_starter_configs_create_distinct_wallets(hatchery, switchboard_alpha, starter_agent, starter_agent_2, charlie, sally):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        bob,
+        starter_agent_2.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -542,17 +574,17 @@ def test_non_prod_starter_configs_create_distinct_wallets(hatchery, switchboard_
 
     staging_config = hatchery.stagingStarterAgentConfig()
     dev_config = hatchery.devStarterAgentConfig()
-    assert staging_config.startingAgent == alice
-    assert dev_config.startingAgent == bob
-    assert UserWalletConfig.at(UserWallet.at(staging_wallet).walletConfig()).startingAgent() == alice
-    assert UserWalletConfig.at(UserWallet.at(dev_wallet).walletConfig()).startingAgent() == bob
+    assert staging_config.startingAgent == starter_agent.address
+    assert dev_config.startingAgent == starter_agent_2.address
+    assert UserWalletConfig.at(UserWallet.at(staging_wallet).walletConfig()).startingAgent() == starter_agent.address
+    assert UserWalletConfig.at(UserWallet.at(dev_wallet).walletConfig()).startingAgent() == starter_agent_2.address
 
 
 def test_non_prod_starter_config_overwrite_and_clear_all_envs(
     hatchery,
     switchboard_alpha,
-    alice,
-    bob,
+    starter_agent,
+    starter_agent_2,
     charlie,
     sally,
 ):
@@ -565,37 +597,37 @@ def test_non_prod_starter_config_overwrite_and_clear_all_envs(
 
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        bob,
+        starter_agent_2.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     staging_config = hatchery.stagingStarterAgentConfig()
-    assert staging_config.startingAgent == bob
+    assert staging_config.startingAgent == starter_agent_2.address
     staging_wallet = hatchery.createUserWallet(sally, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
-    assert UserWalletConfig.at(UserWallet.at(staging_wallet).walletConfig()).startingAgent() == bob
+    assert UserWalletConfig.at(UserWallet.at(staging_wallet).walletConfig()).startingAgent() == starter_agent_2.address
 
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        bob,
+        starter_agent_2.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     dev_config = hatchery.devStarterAgentConfig()
-    assert dev_config.startingAgent == alice
+    assert dev_config.startingAgent == starter_agent.address
     dev_wallet = hatchery.createUserWallet(sally, ZERO_ADDRESS, 2, STARTER_AGENT_TYPE.DEV, sender=charlie)
-    assert UserWalletConfig.at(UserWallet.at(dev_wallet).walletConfig()).startingAgent() == alice
+    assert UserWalletConfig.at(UserWallet.at(dev_wallet).walletConfig()).startingAgent() == starter_agent.address
 
     hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, ZERO_ADDRESS, 0, sender=switchboard_alpha.address)
     hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.DEV, ZERO_ADDRESS, 0, sender=switchboard_alpha.address)
@@ -605,10 +637,10 @@ def test_non_prod_starter_config_overwrite_and_clear_all_envs(
         hatchery.createUserWallet(sally, ZERO_ADDRESS, 3, STARTER_AGENT_TYPE.DEV, sender=charlie)
 
 
-def test_non_prod_creation_requires_non_prod_creator(hatchery, switchboard_alpha, alice, bob, charlie):
+def test_non_prod_creation_requires_non_prod_creator(hatchery, switchboard_alpha, alice, starter_agent, charlie):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -618,7 +650,7 @@ def test_non_prod_creation_requires_non_prod_creator(hatchery, switchboard_alpha
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=alice)
 
     wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
-    assert UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig()).startingAgent() == bob
+    assert UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig()).startingAgent() == starter_agent.address
 
 
 def test_non_prod_creator_can_create_when_creator_whitelist_is_enforced(
@@ -626,20 +658,20 @@ def test_non_prod_creator_can_create_when_creator_whitelist_is_enforced(
     switchboard_alpha,
     setUserWalletConfig,
     alice,
-    bob,
+    starter_agent,
     charlie,
 ):
     setUserWalletConfig(_enforceCreatorWhitelist=True)
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
 
     wallet_addr = hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.DEV, sender=charlie)
-    assert UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig()).startingAgent() == bob
+    assert UserWalletConfig.at(UserWallet.at(wallet_addr).walletConfig()).startingAgent() == starter_agent.address
 
 
 def test_non_prod_creator_cannot_create_prod(hatchery, switchboard_alpha, alice, charlie):
@@ -655,7 +687,7 @@ def test_non_prod_creator_must_not_be_creator_whitelisted(
     mission_control,
     governance,
     alice,
-    bob,
+    starter_agent,
     charlie,
 ):
     mission_control.setCreatorWhitelist(charlie, True, sender=switchboard_alpha.address)
@@ -666,7 +698,7 @@ def test_non_prod_creator_must_not_be_creator_whitelisted(
     mission_control.setCreatorWhitelist(charlie, False, sender=switchboard_alpha.address)
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -677,10 +709,10 @@ def test_non_prod_creator_must_not_be_creator_whitelisted(
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
 
 
-def test_non_prod_creator_zero_blocks_non_prod_only(hatchery, switchboard_alpha, alice, bob, charlie):
+def test_non_prod_creator_zero_blocks_non_prod_only(hatchery, switchboard_alpha, alice, starter_agent, charlie):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -697,7 +729,7 @@ def test_non_prod_creator_zero_blocks_non_prod_only(hatchery, switchboard_alpha,
     assert hatchery.createUserWallet(sender=alice) != ZERO_ADDRESS
 
 
-def test_selecting_unset_or_cleared_non_prod_reverts(hatchery, switchboard_alpha, alice, bob, charlie):
+def test_selecting_unset_or_cleared_non_prod_reverts(hatchery, switchboard_alpha, alice, starter_agent, charlie):
     hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
@@ -711,7 +743,7 @@ def test_selecting_unset_or_cleared_non_prod_reverts(hatchery, switchboard_alpha
 
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -737,6 +769,9 @@ def test_set_starter_agent_config_validation(hatchery, switchboard_alpha, alice)
     with boa.reverts("invalid starter agent params"):
         hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, alice, MAX_UINT256, sender=switchboard_alpha.address)
 
+    with boa.reverts("invalid starter agent params"):
+        hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, alice, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
+
     with boa.reverts("prod owned by mission control"):
         hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.PROD, alice, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
 
@@ -752,31 +787,31 @@ def test_hatchery_setters_require_switchboard(hatchery, alice, bob):
 def test_any_registered_switchboard_can_set_hatchery_non_prod_controls(
     hatchery,
     switchboard_bravo,
-    alice,
+    starter_agent,
     bob,
 ):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_bravo.address,
     )
     hatchery.setNonProdCreator(bob, sender=switchboard_bravo.address)
 
     config = hatchery.stagingStarterAgentConfig()
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
     assert hatchery.nonProdCreator() == bob
 
 
-def test_hatchery_setters_work_while_paused(hatchery, switchboard_alpha, alice, bob):
+def test_hatchery_setters_work_while_paused(hatchery, switchboard_alpha, alice, starter_agent):
     hatchery.pause(True, sender=switchboard_alpha.address)
 
-    hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, bob, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
+    hatchery.setStarterAgentConfig(STARTER_AGENT_TYPE.STAGING, starter_agent.address, ONE_YEAR_IN_BLOCKS, sender=switchboard_alpha.address)
     hatchery.setNonProdCreator(alice, sender=switchboard_alpha.address)
 
     config = hatchery.stagingStarterAgentConfig()
-    assert config.startingAgent == bob
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
     assert hatchery.nonProdCreator() == alice
 
@@ -786,17 +821,17 @@ def test_hatchery_setters_work_while_paused(hatchery, switchboard_alpha, alice, 
     hatchery.pause(False, sender=switchboard_alpha.address)
 
 
-def test_non_prod_owner_collision_reverts(hatchery, switchboard_alpha, alice, charlie):
+def test_non_prod_owner_collision_reverts(hatchery, switchboard_alpha, starter_agent, charlie):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     hatchery.setNonProdCreator(charlie, sender=switchboard_alpha.address)
 
     with boa.reverts("starting agent cannot be the owner"):
-        hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
+        hatchery.createUserWallet(starter_agent.address, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
 
 
 def test_non_prod_privileged_starter_fails_at_creation(hatchery, switchboard_alpha, alice, charlie, high_command):
@@ -812,16 +847,16 @@ def test_non_prod_privileged_starter_fails_at_creation(hatchery, switchboard_alp
         hatchery.createUserWallet(alice, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.DEV, sender=charlie)
 
 
-def test_starter_agent_config_events(hatchery, switchboard_alpha, alice, bob):
+def test_starter_agent_config_events(hatchery, switchboard_alpha, starter_agent, bob):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
     config_event = filter_logs(hatchery, "StarterAgentConfigSet")[-1]
     assert config_event.starterAgentType == STARTER_AGENT_TYPE.STAGING
-    assert config_event.startingAgent == alice
+    assert config_event.startingAgent == starter_agent.address
     assert config_event.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
     hatchery.setNonProdCreator(bob, sender=switchboard_alpha.address)

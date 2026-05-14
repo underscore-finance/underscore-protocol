@@ -348,6 +348,7 @@ def cancelPendingInstantActionSettings():
 @external
 def setPendingMigration(_toWallet: address):
     assert msg.sender == self.migrator # dev: no perms
+    assert self.pendingMigration.confirmBlock == 0 # dev: pending migration exists
 
     self.pendingMigration = wcs.PendingMigration(
         toWallet = _toWallet,
@@ -836,9 +837,9 @@ def setChequeSettings(_config: wcs.ChequeSettings):
 
 @external
 def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256:
-    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
-    if not self._isSwitchboardAddr(msg.sender):
+    if msg.sender != self.migrator and not self._isSwitchboardAddr(msg.sender):
         assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+    ad: ws.ActionData = self._getActionDataBundle(_legoId, msg.sender)
     newTotalUsdValue: uint256 = extcall UserWallet(ad.wallet).updateAssetData(_legoId, _asset, _shouldCheckYield, ad.lastTotalUsdValue, ad)
     extcall LootDistributor(ad.lootDistributor).updateDepositPointsWithNewValue(ad.wallet, newTotalUsdValue)
     return newTotalUsdValue

@@ -229,6 +229,9 @@ def createCheque(
         assert self._isAllowedManagerPayee(_recipient, config.managerSettings.transferPerms) # dev: payee not allowed
         assert self._isAllowedManagerPayee(_recipient, globalManagerSettings.transferPerms) # dev: payee not allowed
 
+    if config.isExistingCheque:
+        assert msg.sender == config.owner or msg.sender == config.existingCreator # dev: cannot replace cheque
+
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
@@ -1174,6 +1177,7 @@ def _getChequeConfig(_userWallet: address, _creator: address, _recipient: addres
         numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),
         isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_recipient) != 0,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
+        existingCreator = cheque.creator,
     )
 
 

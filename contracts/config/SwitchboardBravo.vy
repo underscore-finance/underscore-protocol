@@ -64,6 +64,7 @@ interface UndyEcoContract:
 interface Hatchery:
     def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
     def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
+    def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings): view
     def setNonProdCreator(_nonProdCreator: address): nonpayable
 
 interface UserWalletConfig:
@@ -99,6 +100,7 @@ flag ActionType:
     ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS
     ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS
     RIPE_REWARDS_CONFIG
+    ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS
 
 struct PauseAction:
     contractAddr: address
@@ -124,6 +126,7 @@ struct LootAdjustAction:
     user: address
     asset: address
     newClaimable: uint256
+    lootDistributor: address
 
 struct RecoverDepositRewardsAction:
     lootAddr: address
@@ -142,6 +145,7 @@ struct AllAssetDataUpdate:
 struct SetEjectionModeAction:
     user: address
     shouldEject: bool
+    lootDistributor: address
 
 struct IsAddrAllowed:
     addr: address
@@ -153,6 +157,11 @@ struct PendingInstantMigrationEnable:
 
 struct PendingProtocolFlagEnable:
     target: address
+    actionId: uint256
+
+struct PendingHatcheryDefaultInstantSettings:
+    settings: wcs.InstantActionSettings
+    hatchery: address
     actionId: uint256
 
 event PendingRecoverFundsAction:
@@ -326,6 +335,15 @@ event HatcheryDefaultInstantActionSettingsSet:
     canInstantSetGlobalPayeeSettings: bool
     canInstantSetChequeSettings: bool
 
+event PendingHatcheryDefaultInstantActionSettingsChange:
+    hatchery: indexed(address)
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+    confirmationBlock: uint256
+    actionId: uint256
+
 event WalletMigrationInitiated:
     migrator: indexed(address)
     fromWallet: indexed(address)
@@ -394,6 +412,7 @@ pendingCanInstantAddManagerEnable: public(PendingProtocolFlagEnable)
 pendingCanInstantAddPayeeEnable: public(PendingProtocolFlagEnable)
 pendingCanInstantSetGlobalPayeeSettingsEnable: public(PendingProtocolFlagEnable)
 pendingCanInstantSetChequeSettingsEnable: public(PendingProtocolFlagEnable)
+pendingHatcheryDefaultInstantSettings: public(PendingHatcheryDefaultInstantSettings)
 
 MAX_RECOVER_ASSETS: constant(uint256) = 20
 MAX_USERS: constant(uint256) = 50
@@ -580,7 +599,8 @@ def adjustLoot(_user: address, _asset: address, _newClaimable: uint256) -> uint2
     self.pendingLootAdjustActions[aid] = LootAdjustAction(
         user=_user,
         asset=_asset,
-        newClaimable=_newClaimable
+        newClaimable=_newClaimable,
+        lootDistributor=addys._getLootDistributorAddr(),
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingLootAdjustAction(
@@ -672,7 +692,8 @@ def setEjectionMode(_user: address, _shouldEject: bool) -> uint256:
     self.actionType[aid] = ActionType.SET_EJECTION_MODE
     self.pendingSetEjectionModeActions[aid] = SetEjectionModeAction(
         user=_user,
-        shouldEject=_shouldEject
+        shouldEject=_shouldEject,
+        lootDistributor=addys._getLootDistributorAddr(),
     )
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingSetEjectionModeAction(
@@ -804,22 +825,60 @@ def setHatcheryDefaultInstantActionSettings(
     assert gov._canGovern(msg.sender) # dev: no perms
 
     hatchery: address = self._getHatchery()
-    extcall Hatchery(hatchery).setDefaultInstantActionSettings(
-        wcs.InstantActionSettings(
-            canInstantAddManager=_canInstantAddManager,
-            canInstantAddPayee=_canInstantAddPayee,
-            canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
-            canInstantSetChequeSettings=_canInstantSetChequeSettings,
-        )
-    )
-    log HatcheryDefaultInstantActionSettingsSet(
-        hatchery=hatchery,
+    target: wcs.InstantActionSettings = wcs.InstantActionSettings(
         canInstantAddManager=_canInstantAddManager,
         canInstantAddPayee=_canInstantAddPayee,
         canInstantSetGlobalPayeeSettings=_canInstantSetGlobalPayeeSettings,
         canInstantSetChequeSettings=_canInstantSetChequeSettings,
     )
+
+    hasEnable: bool = False
+    hasImmediateChange: bool = False
+    immediate: wcs.InstantActionSettings = empty(wcs.InstantActionSettings)
+    hasEnable, hasImmediateChange, immediate = staticcall Hatchery(hatchery).getDefaultInstantActionSettingsChange(target)
+
+    if not hasEnable:
+        pending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
+        if pending.actionId != 0:
+            if timeLock._hasPendingAction(pending.actionId):
+                self._cancelPendingAction(pending.actionId)
+            else:
+                self.pendingHatcheryDefaultInstantSettings = empty(PendingHatcheryDefaultInstantSettings)
+        self._setHatcheryDefaultInstantActionSettings(hatchery, target)
+        return True
+
+    existingPending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
+    assert existingPending.actionId == 0 or not timeLock._hasPendingAction(existingPending.actionId) # dev: pending enable exists
+
+    if hasImmediateChange:
+        self._setHatcheryDefaultInstantActionSettings(hatchery, immediate)
+
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS
+    self.pendingHatcheryDefaultInstantSettings = PendingHatcheryDefaultInstantSettings(settings=target, hatchery=hatchery, actionId=aid)
+
+    log PendingHatcheryDefaultInstantActionSettingsChange(
+        hatchery=hatchery,
+        canInstantAddManager=target.canInstantAddManager,
+        canInstantAddPayee=target.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=target.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=target.canInstantSetChequeSettings,
+        confirmationBlock=timeLock._getActionConfirmationBlock(aid),
+        actionId=aid,
+    )
     return True
+
+
+@internal
+def _setHatcheryDefaultInstantActionSettings(_hatchery: address, _settings: wcs.InstantActionSettings):
+    extcall Hatchery(_hatchery).setDefaultInstantActionSettings(_settings)
+    log HatcheryDefaultInstantActionSettingsSet(
+        hatchery=_hatchery,
+        canInstantAddManager=_settings.canInstantAddManager,
+        canInstantAddPayee=_settings.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=_settings.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=_settings.canInstantSetChequeSettings,
+    )
 
 
 #########################
@@ -837,7 +896,8 @@ def setInstantMigrationEnabled(_migrator: address, _isEnabled: bool) -> uint256:
         if pending.actionId != 0 and pending.migrator == _migrator:
             if timeLock._hasPendingAction(pending.actionId):
                 self._cancelPendingAction(pending.actionId)
-            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
+            else:
+                self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
         assert extcall Migrator(_migrator).setInstantMigrationEnabled(False) # dev: failed to disable
         log WalletInstantMigrationEnabledSet(migrator=_migrator, isEnabled=False, caller=msg.sender)
         return 0
@@ -871,7 +931,8 @@ def setCanInstantAddManager(_highCommand: address, _isEnabled: bool) -> uint256:
         if pending.actionId != 0 and pending.target == _highCommand:
             if timeLock._hasPendingAction(pending.actionId):
                 self._cancelPendingAction(pending.actionId)
-            self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
+            else:
+                self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
         assert extcall HighCommand(_highCommand).setCanInstantAddManager(False) # dev: failed to disable
         log WalletCanInstantAddManagerSet(target=_highCommand, isEnabled=False, caller=msg.sender)
         return 0
@@ -905,7 +966,8 @@ def setCanInstantAddPayee(_paymaster: address, _isEnabled: bool) -> uint256:
         if pending.actionId != 0 and pending.target == _paymaster:
             if timeLock._hasPendingAction(pending.actionId):
                 self._cancelPendingAction(pending.actionId)
-            self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
+            else:
+                self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
         assert extcall Paymaster(_paymaster).setCanInstantAddPayee(False) # dev: failed to disable
         log WalletCanInstantAddPayeeSet(target=_paymaster, isEnabled=False, caller=msg.sender)
         return 0
@@ -939,7 +1001,8 @@ def setCanInstantSetGlobalPayeeSettings(_paymaster: address, _isEnabled: bool) -
         if pending.actionId != 0 and pending.target == _paymaster:
             if timeLock._hasPendingAction(pending.actionId):
                 self._cancelPendingAction(pending.actionId)
-            self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
+            else:
+                self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
         assert extcall Paymaster(_paymaster).setCanInstantSetGlobalPayeeSettings(False) # dev: failed to disable
         log WalletCanInstantSetGlobalPayeeSettingsSet(target=_paymaster, isEnabled=False, caller=msg.sender)
         return 0
@@ -973,7 +1036,8 @@ def setCanInstantSetChequeSettings(_chequeBook: address, _isEnabled: bool) -> ui
         if pending.actionId != 0 and pending.target == _chequeBook:
             if timeLock._hasPendingAction(pending.actionId):
                 self._cancelPendingAction(pending.actionId)
-            self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
+            else:
+                self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
         assert extcall ChequeBook(_chequeBook).setCanInstantSetChequeSettings(False) # dev: failed to disable
         log WalletCanInstantSetChequeSettingsSet(target=_chequeBook, isEnabled=False, caller=msg.sender)
         return 0
@@ -1090,7 +1154,7 @@ def executePendingAction(_aid: uint256) -> bool:
 
     elif actionType == ActionType.LOOT_ADJUST:
         p: LootAdjustAction = self.pendingLootAdjustActions[_aid]
-        extcall LootDistributor(addys._getLootDistributorAddr()).adjustLoot(p.user, p.asset, p.newClaimable)
+        extcall LootDistributor(p.lootDistributor).adjustLoot(p.user, p.asset, p.newClaimable)
         log LootAdjusted(user=p.user, asset=p.asset, newClaimable=p.newClaimable)
 
     elif actionType == ActionType.RECOVER_DEPOSIT_REWARDS:
@@ -1105,7 +1169,7 @@ def executePendingAction(_aid: uint256) -> bool:
         log SetEjectionModeExecuted(user=p.user, shouldEject=p.shouldEject)
 
         # update loot points
-        extcall LootDistributor(addys._getLootDistributorAddr()).updateDepositPointsOnEjection(p.user)
+        extcall LootDistributor(p.lootDistributor).updateDepositPointsOnEjection(p.user)
 
     elif actionType == ActionType.CAN_PERFORM_SECURITY_ACTION:
         data: IsAddrAllowed = self.pendingAddrToBool[_aid]
@@ -1158,6 +1222,12 @@ def executePendingAction(_aid: uint256) -> bool:
         self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
         log WalletCanInstantSetChequeSettingsSet(target=pending.target, isEnabled=True, caller=msg.sender)
 
+    elif actionType == ActionType.ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS:
+        pending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
+        assert pending.actionId == _aid # dev: invalid pending enable
+        self._setHatcheryDefaultInstantActionSettings(pending.hatchery, pending.settings)
+        self.pendingHatcheryDefaultInstantSettings = empty(PendingHatcheryDefaultInstantSettings)
+
     self.actionType[_aid] = empty(ActionType)
     return True
 
@@ -1177,4 +1247,29 @@ def cancelPendingAction(_aid: uint256) -> bool:
 @internal
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
+    actionType: ActionType = self.actionType[_aid]
+    if actionType == ActionType.ENABLE_INSTANT_MIGRATION:
+        pendingMigration: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
+        if pendingMigration.actionId == _aid:
+            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_MANAGER:
+        pendingAddManager: PendingProtocolFlagEnable = self.pendingCanInstantAddManagerEnable
+        if pendingAddManager.actionId == _aid:
+            self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_PAYEE:
+        pendingAddPayee: PendingProtocolFlagEnable = self.pendingCanInstantAddPayeeEnable
+        if pendingAddPayee.actionId == _aid:
+            self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS:
+        pendingGlobalPayee: PendingProtocolFlagEnable = self.pendingCanInstantSetGlobalPayeeSettingsEnable
+        if pendingGlobalPayee.actionId == _aid:
+            self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
+    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS:
+        pendingChequeSettings: PendingProtocolFlagEnable = self.pendingCanInstantSetChequeSettingsEnable
+        if pendingChequeSettings.actionId == _aid:
+            self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
+    elif actionType == ActionType.ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS:
+        pending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
+        if pending.actionId == _aid:
+            self.pendingHatcheryDefaultInstantSettings = empty(PendingHatcheryDefaultInstantSettings)
     self.actionType[_aid] = empty(ActionType)

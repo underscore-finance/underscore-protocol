@@ -75,6 +75,30 @@ def deploy_rotated_cheque_book(cheque_book, *, max_expiry_blocks=None, name="rot
     )
 
 
+def deploy_rotated_mission_control(undy_hq, defaults, name="rotated_mission_control"):
+    return boa.load(
+        "contracts/data/MissionControl.vy",
+        undy_hq,
+        defaults,
+        name=name,
+    )
+
+
+def rotate_mission_control(undy_hq, governance, mission_control):
+    assert undy_hq.startAddressUpdateToRegistry(2, mission_control.address, sender=governance.address)
+    boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+    assert undy_hq.confirmAddressUpdateToRegistry(2, sender=governance.address)
+
+
+def execute_alpha_action(switchboard_alpha, governance, aid):
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+
+def changed_wallet_limit(config):
+    return config.numUserWalletsAllowed - 1 if config.numUserWalletsAllowed > 0 else 1
+
+
 @pytest.fixture(scope="module")
 def wallet_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
@@ -83,6 +107,90 @@ def wallet_template_v2():
 @pytest.fixture(scope="module")
 def config_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+
+
+##########################
+# Staged Mission Control #
+##########################
+
+
+def test_execute_uses_staged_mission_control_after_registry_rotation(
+    switchboard_alpha, governance, undy_hq, defaults, mission_control
+):
+    with boa.env.anchor():
+        rotated_mission_control = deploy_rotated_mission_control(undy_hq, defaults)
+        current_a = mission_control.userWalletConfig()
+        current_b = rotated_mission_control.userWalletConfig()
+        new_limit = changed_wallet_limit(current_a)
+
+        aid = switchboard_alpha.setWalletCreationLimits(
+            new_limit,
+            current_a.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        rotate_mission_control(undy_hq, governance, rotated_mission_control)
+        execute_alpha_action(switchboard_alpha, governance, aid)
+
+        assert mission_control.userWalletConfig().numUserWalletsAllowed == new_limit
+        assert rotated_mission_control.userWalletConfig().numUserWalletsAllowed == current_b.numUserWalletsAllowed
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_staged_mission_control_no_rotation_path_clears_on_execute(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        new_limit = changed_wallet_limit(current)
+
+        aid = switchboard_alpha.setWalletCreationLimits(
+            new_limit,
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        execute_alpha_action(switchboard_alpha, governance, aid)
+
+        assert mission_control.userWalletConfig().numUserWalletsAllowed == new_limit
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_staged_mission_control_clears_on_cancel(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        aid = switchboard_alpha.setWalletCreationLimits(
+            changed_wallet_limit(current),
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        assert switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_cancel_one_action_keeps_other_staged_mission_control(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        first_aid = switchboard_alpha.setWalletCreationLimits(
+            changed_wallet_limit(current),
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        second_aid = switchboard_alpha.setTxFees(11, 12, 13, sender=governance.address)
+
+        assert switchboard_alpha.cancelPendingAction(first_aid, sender=governance.address)
+
+        assert switchboard_alpha.pendingMissionControl(first_aid) == ZERO_ADDRESS
+        assert switchboard_alpha.pendingMissionControl(second_aid) == mission_control.address
 
 
 #########################
@@ -1833,7 +1941,7 @@ def test_set_is_stablecoin_eoa_address(switchboard_alpha, governance, mission_co
 ########################
 
 
-def test_set_starter_agent_params_success(switchboard_alpha, governance, mission_control, alice):
+def test_set_starter_agent_params_success(switchboard_alpha, governance, mission_control, starter_agent):
     """Test successful starter agent params update"""
     # Get initial config
     initial_config = mission_control.agentConfig()
@@ -1841,7 +1949,7 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Set starter agent params
     activation_length = 86400  # ~2 days in blocks
     aid = switchboard_alpha.setStarterAgentParams(
-        alice,  # startingAgent
+        starter_agent.address,  # startingAgent
         activation_length,  # startingAgentActivationLength
         sender=governance.address
     )
@@ -1849,14 +1957,14 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Verify event
     logs = filter_logs(switchboard_alpha, "PendingStarterAgentParamsChange")
     assert len(logs) == 1
-    assert logs[0].startingAgent == alice
+    assert logs[0].startingAgent == starter_agent.address
     assert logs[0].startingAgentActivationLength == activation_length
     assert logs[0].actionId == aid
     
     # Verify pending state
     assert switchboard_alpha.actionType(aid) == CONFIG_ACTION_TYPE.STARTER_AGENT_PARAMS
     pending_config = switchboard_alpha.pendingAgentConfig(aid)
-    assert pending_config.startingAgent == alice
+    assert pending_config.startingAgent == starter_agent.address
     assert pending_config.startingAgentActivationLength == activation_length
     
     # Execute after timelock
@@ -1867,20 +1975,20 @@ def test_set_starter_agent_params_success(switchboard_alpha, governance, mission
     # Verify execution event
     exec_logs = filter_logs(switchboard_alpha, "StarterAgentParamsSet")
     assert len(exec_logs) == 1
-    assert exec_logs[0].startingAgent == alice
+    assert exec_logs[0].startingAgent == starter_agent.address
     assert exec_logs[0].startingAgentActivationLength == activation_length
     
     # Verify state changes
     updated_config = mission_control.agentConfig()
-    assert updated_config.startingAgent == alice
+    assert updated_config.startingAgent == starter_agent.address
     assert updated_config.startingAgentActivationLength == activation_length
 
 
-def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control):
+def test_set_starter_agent_params_disable_starter_agent(switchboard_alpha, governance, mission_control, starter_agent):
     """Test disabling starter agent by setting zero address"""
     # First set a starter agent
     aid1 = switchboard_alpha.setStarterAgentParams(
-        boa.env.generate_address(),
+        starter_agent.address,
         43200,  # ~1 day
         sender=governance.address
     )
@@ -1920,6 +2028,10 @@ def test_set_starter_agent_params_invalid_combinations_revert(switchboard_alpha,
     with boa.reverts("invalid starter agent params"):
         switchboard_alpha.setStarterAgentParams(alice, MAX_UINT256, sender=governance.address)
 
+    # Test with non-contract starter agent and otherwise valid activation length
+    with boa.reverts("invalid starter agent params"):
+        switchboard_alpha.setStarterAgentParams(alice, 86400, sender=governance.address)
+
 
 def test_set_starter_agent_params_non_governance_reverts(switchboard_alpha, alice, bob):
     """Test that non-governance addresses cannot set starter agent params"""
@@ -1927,23 +2039,23 @@ def test_set_starter_agent_params_non_governance_reverts(switchboard_alpha, alic
         switchboard_alpha.setStarterAgentParams(bob, 86400, sender=alice)
 
 
-def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, mission_control, alice):
+def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, mission_control, starter_agent, starter_agent_2):
     """Test edge cases for starter agent params"""
     # Test with minimum activation length (1)
-    aid1 = switchboard_alpha.setStarterAgentParams(alice, 1, sender=governance.address)
+    aid1 = switchboard_alpha.setStarterAgentParams(starter_agent.address, 1, sender=governance.address)
     
     boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
     result = switchboard_alpha.executePendingAction(aid1, sender=governance.address)
     assert result == True
     
     config = mission_control.agentConfig()
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == 1
     
     # Test with large activation length (but not max)
     large_length = 2**256 - 2
     aid2 = switchboard_alpha.setStarterAgentParams(
-        boa.env.generate_address(),
+        starter_agent_2.address,
         large_length,
         sender=governance.address
     )
@@ -1956,35 +2068,35 @@ def test_set_starter_agent_params_edge_cases(switchboard_alpha, governance, miss
     assert final_config.startingAgentActivationLength == large_length
 
 
-def test_set_hatchery_starter_agent_config_success(switchboard_bravo, governance, hatchery, alice):
+def test_set_hatchery_starter_agent_config_success(switchboard_bravo, governance, hatchery, starter_agent):
     result = switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=governance.address,
     )
     assert result is True
 
     config = hatchery.stagingStarterAgentConfig()
-    assert config.startingAgent == alice
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
     logs = filter_logs(switchboard_bravo, "HatcheryStarterAgentConfigSet")
     assert logs[-1].hatchery == hatchery.address
     assert logs[-1].starterAgentType == STARTER_AGENT_TYPE.STAGING
-    assert logs[-1].startingAgent == alice
+    assert logs[-1].startingAgent == starter_agent.address
     assert logs[-1].startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
 
-def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_bravo, governance, hatchery, bob):
+def test_set_hatchery_starter_agent_config_dev_and_clear(switchboard_bravo, governance, hatchery, starter_agent):
     switchboard_bravo.setHatcheryStarterAgentConfig(
         STARTER_AGENT_TYPE.DEV,
-        bob,
+        starter_agent.address,
         ONE_YEAR_IN_BLOCKS,
         sender=governance.address,
     )
     config = hatchery.devStarterAgentConfig()
-    assert config.startingAgent == bob
+    assert config.startingAgent == starter_agent.address
     assert config.startingAgentActivationLength == ONE_YEAR_IN_BLOCKS
 
     switchboard_bravo.setHatcheryStarterAgentConfig(
@@ -2036,6 +2148,14 @@ def test_set_hatchery_starter_agent_config_validation(switchboard_bravo, governa
             STARTER_AGENT_TYPE.STAGING,
             alice,
             MAX_UINT256,
+            sender=governance.address,
+        )
+
+    with boa.reverts("invalid starter agent params"):
+        switchboard_bravo.setHatcheryStarterAgentConfig(
+            STARTER_AGENT_TYPE.STAGING,
+            alice,
+            ONE_YEAR_IN_BLOCKS,
             sender=governance.address,
         )
 

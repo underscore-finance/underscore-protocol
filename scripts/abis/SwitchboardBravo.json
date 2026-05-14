@@ -759,6 +759,48 @@
     "type": "event"
   },
   {
+    "name": "PendingHatcheryDefaultInstantActionSettingsChange",
+    "inputs": [
+      {
+        "name": "hatchery",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "canInstantAddManager",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantAddPayee",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetGlobalPayeeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetChequeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "confirmationBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "actionId",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "WalletMigrationInitiated",
     "inputs": [
       {
@@ -2509,6 +2551,10 @@
           {
             "name": "newClaimable",
             "type": "uint256"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
           }
         ]
       }
@@ -2563,6 +2609,10 @@
           {
             "name": "shouldEject",
             "type": "bool"
+          },
+          {
+            "name": "lootDistributor",
+            "type": "address"
           }
         ]
       }
@@ -2722,6 +2772,50 @@
         "components": [
           {
             "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "actionId",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingHatcheryDefaultInstantSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "settings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canInstantAddManager",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantAddPayee",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetGlobalPayeeSettings",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetChequeSettings",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "hatchery",
             "type": "address"
           },
           {

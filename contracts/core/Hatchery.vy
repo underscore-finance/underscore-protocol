@@ -345,12 +345,14 @@ def _isValidStarterAgentType(_starterAgentType: cs.StarterAgentType) -> bool:
     )
 
 
-@pure
+@view
 @internal
 def _areValidStarterAgentParams(_agent: address, _activationLength: uint256) -> bool:
     if _agent != empty(address) and _activationLength == 0:
         return False
     if _agent == empty(address) and _activationLength != 0:
+        return False
+    if _agent != empty(address) and not _agent.is_contract:
         return False
     if _activationLength == max_value(uint256):
         return False
@@ -368,6 +370,31 @@ def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings):
         canInstantSetChequeSettings=_settings.canInstantSetChequeSettings,
         caller=msg.sender,
     )
+
+
+@view
+@external
+def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings):
+    current: wcs.InstantActionSettings = self.defaultInstantActionSettings
+    hasEnable: bool = (
+        _target.canInstantAddManager and not current.canInstantAddManager or
+        _target.canInstantAddPayee and not current.canInstantAddPayee or
+        _target.canInstantSetGlobalPayeeSettings and not current.canInstantSetGlobalPayeeSettings or
+        _target.canInstantSetChequeSettings and not current.canInstantSetChequeSettings
+    )
+    immediate: wcs.InstantActionSettings = wcs.InstantActionSettings(
+        canInstantAddManager=current.canInstantAddManager and _target.canInstantAddManager,
+        canInstantAddPayee=current.canInstantAddPayee and _target.canInstantAddPayee,
+        canInstantSetGlobalPayeeSettings=current.canInstantSetGlobalPayeeSettings and _target.canInstantSetGlobalPayeeSettings,
+        canInstantSetChequeSettings=current.canInstantSetChequeSettings and _target.canInstantSetChequeSettings,
+    )
+    hasImmediateChange: bool = (
+        immediate.canInstantAddManager != current.canInstantAddManager or
+        immediate.canInstantAddPayee != current.canInstantAddPayee or
+        immediate.canInstantSetGlobalPayeeSettings != current.canInstantSetGlobalPayeeSettings or
+        immediate.canInstantSetChequeSettings != current.canInstantSetChequeSettings
+    )
+    return hasEnable, hasImmediateChange, immediate
 
 
 # trial funds (legacy wallets)

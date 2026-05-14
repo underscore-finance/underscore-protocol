@@ -1799,6 +1799,10 @@
           {
             "name": "timeLock",
             "type": "uint256"
+          },
+          {
+            "name": "existingCreator",
+            "type": "address"
           }
         ]
       }

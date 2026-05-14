@@ -559,11 +559,12 @@ def test_clone_config_rejects_destination_migrator_mismatch(migrator, hatchery, 
     """Destination config must trust the migrator that is executing the clone."""
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    to_config = UserWalletConfig.at(to_wallet.walletConfig())
-    to_config.setMigrator(cheque_book.address, sender=bob)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    with boa.reverts("no perms"):
+    UserWalletConfig.at(to_wallet.walletConfig()).setMigrator(cheque_book.address, sender=bob)
+
+    assert not migrator.canCopyWalletConfig(from_wallet, to_wallet, bob)
+    with boa.reverts("cannot copy config"):
         migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
@@ -1183,12 +1184,12 @@ def test_clone_config_staging_source_to_staging_destination(
     hatchery,
     switchboard_alpha,
     bob,
-    alice,
+    starter_agent,
     charlie,
 ):
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent.address,
         ONE_MONTH_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -1201,12 +1202,12 @@ def test_clone_config_staging_source_to_staging_destination(
         hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, STARTER_AGENT_TYPE.STAGING, sender=charlie)
     )
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
-    assert to_config.startingAgent() == alice
+    assert to_config.startingAgent() == starter_agent.address
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
-    assert to_config.startingAgent() == alice
-    assert to_config.managers(1) == alice
+    assert to_config.startingAgent() == starter_agent.address
+    assert to_config.managers(1) == starter_agent.address
 
 
 def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
@@ -1214,14 +1215,14 @@ def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
     hatchery,
     switchboard_alpha,
     bob,
-    alice,
     charlie,
     starter_agent,
+    starter_agent_2,
 ):
-    assert alice != starter_agent.address
+    assert starter_agent_2.address != starter_agent.address
     hatchery.setStarterAgentConfig(
         STARTER_AGENT_TYPE.STAGING,
-        alice,
+        starter_agent_2.address,
         ONE_MONTH_IN_BLOCKS,
         sender=switchboard_alpha.address,
     )
@@ -1234,13 +1235,13 @@ def test_clone_config_staging_source_to_prod_destination_keeps_prod_starter(
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
 
-    assert from_config.startingAgent() == alice
+    assert from_config.startingAgent() == starter_agent_2.address
     assert to_config.startingAgent() == starter_agent.address
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     assert migrator.cloneConfig(from_wallet, to_wallet, sender=bob) is True
     assert to_config.startingAgent() == starter_agent.address
-    assert to_config.indexOfManager(alice) == 0
+    assert to_config.indexOfManager(starter_agent_2.address) == 0
 
 
 ############################
@@ -1312,6 +1313,10 @@ def test_migrate_all_both_succeed(migrator, hatchery, bob, alpha_token, prepareA
     assert num_funds_migrated == 1
     assert did_migrate_config == True
     assert alpha_token.balanceOf(to_wallet) == 75 * EIGHTEEN_DECIMALS
+    dest_data = to_wallet.assetData(alpha_token)
+    assert to_wallet.indexOfAsset(alpha_token) != 0
+    assert dest_data.assetBalance == 75 * EIGHTEEN_DECIMALS
+    assert dest_data.usdValue == 150 * EIGHTEEN_DECIMALS
 
 
 def test_migrate_all_config_only(migrator, hatchery, bob, alice, high_command, createManagerSettings):
