@@ -24,7 +24,7 @@ exports: ownership.__interface__
 import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
-from interfaces import AgentWrapper
+from interfaces import AgentWrapperInt
 from ethereum.ercs import IERC20
 
 interface UserWallet:
@@ -103,7 +103,7 @@ def issuePullCheques(
 
     # 3. create typed pull cheques. Any invalid cheque reverts the full workflow.
     for cheque: ChequeInstruction in _cheques:
-        assert extcall AgentWrapper(_agentWrapper).createCheque(
+        assert extcall AgentWrapperInt(_agentWrapper).createCheque(
             _userWallet,
             cheque.recipient,
             cheque.asset,
@@ -142,13 +142,13 @@ def whitelistMaintenance(
 
     # 3. execute confirms, cancels, then removes in signed array order.
     for addr: address in _confirmAddrs:
-        assert extcall AgentWrapper(_agentWrapper).confirmWhitelistAddr(_userWallet, addr)
+        assert extcall AgentWrapperInt(_agentWrapper).confirmWhitelistAddr(_userWallet, addr)
 
     for addr: address in _cancelPendingAddrs:
-        assert extcall AgentWrapper(_agentWrapper).cancelPendingWhitelistAddr(_userWallet, addr)
+        assert extcall AgentWrapperInt(_agentWrapper).cancelPendingWhitelistAddr(_userWallet, addr)
 
     for addr: address in _removeAddrs:
-        assert extcall AgentWrapper(_agentWrapper).removeWhitelistAddr(_userWallet, addr)
+        assert extcall AgentWrapperInt(_agentWrapper).removeWhitelistAddr(_userWallet, addr)
 
 
 @external
@@ -189,7 +189,7 @@ def harvestAndIssueCheque(
 
     # 2. optional incentives harvest
     if _rewardLegoId != 0 and _rewardToken != empty(address):
-        extcall AgentWrapper(_agentWrapper).claimIncentives(
+        extcall AgentWrapperInt(_agentWrapper).claimIncentives(
             _userWallet,
             _rewardLegoId,
             _rewardToken,
@@ -202,10 +202,10 @@ def harvestAndIssueCheque(
         swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = _swapInstructions
         tokenIn: address = swapInstructions[0].tokenPath[0]
         swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, staticcall IERC20(tokenIn).balanceOf(_userWallet))
-        extcall AgentWrapper(_agentWrapper).swapTokens(_userWallet, swapInstructions)
+        extcall AgentWrapperInt(_agentWrapper).swapTokens(_userWallet, swapInstructions)
 
     # 4. create the signed cheque amount without capping it to harvest/swap proceeds.
-    assert extcall AgentWrapper(_agentWrapper).createCheque(
+    assert extcall AgentWrapperInt(_agentWrapper).createCheque(
         _userWallet,
         _cheque.recipient,
         _cheque.asset,

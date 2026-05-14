@@ -19,10 +19,10 @@
 
 # @version 0.4.3
 
-implements: AgentWrapper
+implements: AgentWrapperInt
 
 from interfaces import Wallet
-from interfaces import AgentWrapper
+from interfaces import AgentWrapperInt
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
