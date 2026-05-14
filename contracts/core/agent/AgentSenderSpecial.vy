@@ -29,6 +29,8 @@ from interfaces import AgentWrapper
 from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 struct CollateralAsset:
     vaultId: uint256
     asset: address
@@ -212,7 +214,7 @@ def repayAndWithdraw(
     _agentWrapper: address,
     _userWallet: address,
     _debtLegoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10] = [],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS] = [],
     _yieldPosition: WithdrawYieldPosition = empty(WithdrawYieldPosition),
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
     _repayAsset: address = empty(address),

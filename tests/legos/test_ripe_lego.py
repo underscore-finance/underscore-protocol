@@ -578,7 +578,7 @@ def test_ripe_repay_with_savings_green(
 def test_user_wallet_deleverage_specific_assets(
     lego_ripe,
     setup_mock_prices,
-    bob_wallet_with_green,
+    bob_wallet_with_usdc,
     mock_ripe,
     mock_green_token,
     mock_usdc,
@@ -590,10 +590,11 @@ def test_user_wallet_deleverage_specific_assets(
     debt = 500 * EIGHTEEN_DECIMALS
     repay_amount = 125 * EIGHTEEN_DECIMALS
     mock_ripe.setPrice(mock_usdc, 1 * EIGHTEEN_DECIMALS)
-    mock_ripe.setUserDebt(bob_wallet_with_green.address, debt)
+    mock_ripe.setUserDebt(bob_wallet_with_usdc.address, debt)
+    assert mock_usdc.balanceOf(bob_wallet_with_usdc.address) > 0
 
     deleverage_assets = [(1, mock_usdc.address, repay_amount)]
-    repaid, usd_value = bob_wallet_with_green.deleverage(
+    repaid, usd_value = bob_wallet_with_usdc.deleverage(
         lego_id,
         deleverage_assets,
         0,
@@ -603,11 +604,11 @@ def test_user_wallet_deleverage_specific_assets(
 
     assert repaid == repay_amount
     assert usd_value == repay_amount
-    assert mock_ripe.userDebt(bob_wallet_with_green.address) == debt - repay_amount
-    assert mock_green_token.allowance(bob_wallet_with_green.address, lego_ripe.address) == 0
-    assert mock_usdc.allowance(bob_wallet_with_green.address, lego_ripe.address) == 0
+    assert mock_ripe.userDebt(bob_wallet_with_usdc.address) == debt - repay_amount
+    assert mock_green_token.allowance(bob_wallet_with_usdc.address, lego_ripe.address) == 0
+    assert mock_usdc.allowance(bob_wallet_with_usdc.address, lego_ripe.address) == 0
 
-    log_wallet = filter_logs(bob_wallet_with_green, "WalletAction")[-1]
+    log_wallet = filter_logs(bob_wallet_with_usdc, "WalletAction")[-1]
     assert log_wallet.op == 44
     assert log_wallet.asset1 == mock_green_token.address
     assert log_wallet.amount1 == repay_amount
@@ -675,31 +676,70 @@ def test_user_wallet_deleverage_mode_guard(
 def test_user_wallet_deleverage_non_ripe_lego_reverts(
     bob_wallet_with_green,
     mock_usdc,
+    mock_dex_lego,
+    lego_book,
     bob,
 ):
-    mock_dex_lego_id = 3
+    mock_dex_lego_id = lego_book.getRegId(mock_dex_lego)
+    assert mock_dex_lego_id != 0
+    assert lego_book.getAddr(mock_dex_lego_id) == mock_dex_lego.address
     deleverage_assets = [(1, mock_usdc.address, 1)]
 
     with boa.reverts():
         bob_wallet_with_green.deleverage(mock_dex_lego_id, deleverage_assets, 0, b"", sender=bob)
 
 
-def test_ripe_direct_user_wallet_deleverage_requires_wallet_caller(
+def test_ripe_direct_user_wallet_deleverage_compat_allows_agent_sender(
     lego_ripe,
-    bob_wallet_with_green,
+    user_wallet,
     mock_ripe,
     mock_usdc,
-    starter_agent,
+    starter_agent_sender,
 ):
-    """The old direct user-wallet path is no longer callable by agent managers."""
-    mock_ripe.setUserDebt(bob_wallet_with_green.address, 100 * EIGHTEEN_DECIMALS)
+    """v_compat keeps the old direct specific deleverage path alive for agent senders."""
+    debt = 100 * EIGHTEEN_DECIMALS
+    repay_amount = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(user_wallet.address, debt)
     deleverage_assets = [(1, mock_usdc.address, 10 * EIGHTEEN_DECIMALS)]
+
+    repaid = lego_ripe.deleverageWithSpecificAssets(
+        deleverage_assets,
+        user_wallet.address,
+        sender=starter_agent_sender.address,
+    )
+    assert repaid == repay_amount
+    assert mock_ripe.userDebt(user_wallet.address) == debt - repay_amount
 
     with boa.reverts("no perms"):
         lego_ripe.deleverageWithSpecificAssets(
             deleverage_assets,
-            bob_wallet_with_green.address,
-            sender=starter_agent.address,
+            user_wallet.address,
+        )
+
+
+def test_ripe_direct_user_wallet_auto_deleverage_compat_allows_agent_sender(
+    lego_ripe,
+    user_wallet,
+    mock_ripe,
+    starter_agent_sender,
+):
+    """v_compat keeps the old direct auto deleverage path alive for agent senders."""
+    debt = 90 * EIGHTEEN_DECIMALS
+    target = 25 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    repaid = lego_ripe.deleverageUser(
+        user_wallet.address,
+        target,
+        sender=starter_agent_sender.address,
+    )
+    assert repaid == target
+    assert mock_ripe.userDebt(user_wallet.address) == debt - target
+
+    with boa.reverts("no perms"):
+        lego_ripe.deleverageUser(
+            user_wallet.address,
+            target,
         )
 
 
@@ -793,6 +833,56 @@ def test_user_wallet_deleverage_duplicate_touched_assets_allowed(
     assert log_wallet.op == 44
     assert log_wallet.amount1 == 7
     assert log_wallet.amount2 == len(deleverage_assets)
+
+
+def test_user_wallet_deleverage_reconciles_green_when_touched(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    whale,
+    switchboard_alpha,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    wallet_config = UserWalletConfig.at(bob_wallet_with_green.walletConfig())
+    wallet_config.updateAssetData(0, mock_green_token.address, False, sender=switchboard_alpha.address)
+    initial_data = bob_wallet_with_green.assetData(mock_green_token.address)
+
+    extra_green = 17 * EIGHTEEN_DECIMALS
+    mock_green_token.transfer(bob_wallet_with_green.address, extra_green, sender=whale)
+    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+
+    bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+    updated_data = bob_wallet_with_green.assetData(mock_green_token.address)
+    assert updated_data.assetBalance == mock_green_token.balanceOf(bob_wallet_with_green.address)
+    assert updated_data.assetBalance == initial_data.assetBalance + extra_green
+
+
+def test_user_wallet_deleverage_gas_profile_records_preview_and_execution(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_ripe,
+    lego_book,
+    bob,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setUserDebt(bob_wallet_with_green.address, 20 * EIGHTEEN_DECIMALS)
+
+    before = int(boa.env.get_gas_used())
+    bob_wallet_with_green.deleverage(
+        lego_id,
+        [],
+        5 * EIGHTEEN_DECIMALS,
+        b"",
+        sender=bob,
+    )
+    gas_used = int(boa.env.get_gas_used()) - before
+
+    assert gas_used > 0
+    assert gas_used < 5_000_000
 
 
 def test_user_wallet_deleverage_zero_repaid_reverts(

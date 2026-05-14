@@ -26,6 +26,8 @@ from interfaces import AgentWrapper
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 interface UserWalletConfig:
     def indexOfManager(_manager: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
@@ -345,7 +347,7 @@ def repayDebt(
 def deleverage(
     _userWallet: address,
     _legoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
 ) -> (uint256, uint256):
@@ -354,9 +356,9 @@ def deleverage(
     assert isSpecific != isAuto # dev: invalid mode
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
 
-    action: uint8 = 44
+    action: uint8 = convert(44, uint8)
     if isAuto:
-        action = 45
+        action = convert(45, uint8)
     log AgentAction(action = action, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).deleverage(_legoId, _deleverageAssets, _autoDeleverageAmount, _extraData)
 

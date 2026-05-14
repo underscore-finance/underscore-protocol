@@ -29,6 +29,8 @@ from interfaces import AgentWrapper
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 interface UserWallet:
     def walletConfig() -> address: view
 
@@ -320,7 +322,7 @@ def deleverage(
     _agentWrapper: address,
     _userWallet: address,
     _legoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
     _sig: Signature = empty(Signature),
@@ -329,9 +331,9 @@ def deleverage(
     isAuto: bool = _autoDeleverageAmount != 0
     assert isSpecific != isAuto # dev: invalid mode
 
-    action: uint8 = 44
+    action: uint8 = convert(44, uint8)
     if isAuto:
-        action = 45
+        action = convert(45, uint8)
     self._authenticateAccess(_userWallet, keccak256(abi_encode(action, _agentWrapper, _userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall AgentWrapper(_agentWrapper).deleverage(_userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData)
 

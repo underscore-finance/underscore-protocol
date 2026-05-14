@@ -38,6 +38,8 @@ from interfaces import LegoStructs as ls
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20Detailed
@@ -92,6 +94,9 @@ interface VaultRegistry:
 
 interface UserWalletConfig:
     def isAgentSender(_addr: address) -> bool: view
+
+interface UserWallet:
+    def walletConfig() -> address: view
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -973,36 +978,40 @@ def previewAutoDeleverageAssets(
     _user: address,
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
-) -> DynArray[address, 10]:
-    return [RIPE_GREEN_TOKEN]
+) -> DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]:
+    return [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN]
 
 
 @external
 def deleverageForUserWallet(
     _user: address,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys,
-) -> (uint256, uint256, address, DynArray[address, 10]):
+) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]):
     assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
 
     assert (len(_deleverageAssets) != 0) != (_autoDeleverageAmount != 0) # dev: invalid mode
 
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     repaidAmount: uint256 = 0
-    touchedAssets: DynArray[address, 10] = []
+    touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS] = []
 
     if len(_deleverageAssets) != 0:
         legacyAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS] = []
         for d: ws.DeleverageAsset in _deleverageAssets:
             assert d.asset != empty(address) # dev: invalid asset
             legacyAssets.append(d)
+            # Specific mode conservatively marks every requested wallet asset as
+            # touched; the wallet enforces this is a subset of the request.
             touchedAssets.append(d.asset)
         repaidAmount = extcall RipeTeller(teller).deleverageWithSpecificAssets(legacyAssets, _user)
     else:
         repaidAmount = extcall RipeTeller(teller).deleverageUser(_user, _autoDeleverageAmount)
-        touchedAssets = [RIPE_GREEN_TOKEN]
+        # Auto mode can affect GREEN or savings GREEN balances depending on the
+        # Ripe route; keep preview and touched assets aligned.
+        touchedAssets = [RIPE_GREEN_TOKEN, RIPE_SAVINGS_GREEN]
 
     txUsdValue: uint256 = 0
     if repaidAmount != 0:
@@ -1041,7 +1050,13 @@ def _canCallDeleverage(_user: address, _caller: address) -> bool:
 
     # user wallets
     if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user):
-        return _caller == _user
+        if _caller == _user:
+            # Wallet-authenticated path used by UserWallet.deleverage.
+            return True
+        walletConfig: address = staticcall UserWallet(_user).walletConfig()
+        # v_compat: keep old direct agent-sender callers alive for the
+        # migration window. v_tight removes this branch.
+        return staticcall UserWalletConfig(walletConfig).isAgentSender(_caller)
 
     # earn vaults
     if staticcall VaultRegistry(addys._getVaultRegistryAddr()).isEarnVault(_user):

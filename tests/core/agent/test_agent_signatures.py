@@ -811,6 +811,128 @@ def test_deleverage_hashes_are_mode_bound(
         )
     assert signed_agent_sender.currentNonce(user_wallet.address) == nonce
 
+    auto_sig = create_signature_struct(test_signer.unsafe_sign_hash(auto_digest).signature, nonce, expiration)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender.deleverage(
+            starter_agent.address,
+            user_wallet.address,
+            1,
+            specific_assets,
+            0,
+            data_a,
+            auto_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce
+
+    with boa.reverts("invalid mode"):
+        user_wallet_signature_helper.getDeleverageHash(
+            signed_agent_sender.address,
+            starter_agent.address,
+            user_wallet.address,
+            1,
+            [],
+            0,
+            data_a,
+            nonce,
+            expiration,
+        )
+
+    with boa.reverts("invalid mode"):
+        user_wallet_signature_helper.getDeleverageHash(
+            signed_agent_sender.address,
+            starter_agent.address,
+            user_wallet.address,
+            1,
+            specific_assets,
+            10,
+            data_a,
+            nonce,
+            expiration,
+        )
+
+
+def test_deleverage_signatures_succeed_for_specific_and_auto_modes(
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alice,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    test_signer,
+    create_signature_struct,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_usdc, EIGHTEEN_DECIMALS)
+
+    specific_debt = 80 * EIGHTEEN_DECIMALS
+    specific_repay = 12 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(user_wallet.address, specific_debt)
+    specific_assets = [(1, mock_usdc.address, specific_repay)]
+    nonce = signed_agent_sender.currentNonce(user_wallet.address)
+    digest, sig_nonce, expiration = user_wallet_signature_helper.getDeleverageHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        specific_assets,
+        0,
+        b"",
+        nonce,
+        boa.env.evm.patch.timestamp + 1000,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, sig_nonce, expiration)
+
+    repaid, usd_value = signed_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        specific_assets,
+        0,
+        b"",
+        sig,
+        sender=alice,
+    )
+    assert repaid == specific_repay
+    assert usd_value == specific_repay
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce + 1
+
+    auto_debt = 45 * EIGHTEEN_DECIMALS
+    auto_amount = 100 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(user_wallet.address, auto_debt)
+    nonce = signed_agent_sender.currentNonce(user_wallet.address)
+    digest, sig_nonce, expiration = user_wallet_signature_helper.getDeleverageHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        [],
+        auto_amount,
+        b"",
+        nonce,
+        boa.env.evm.patch.timestamp + 1000,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, sig_nonce, expiration)
+
+    repaid, usd_value = signed_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        [],
+        auto_amount,
+        b"",
+        sig,
+        sender=alice,
+    )
+    assert repaid == auto_debt
+    assert usd_value == auto_debt
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce + 1
+
 
 def _mutated_hash_arg_variants(value, alt_address, fallback_address):
     if isinstance(value, bool):
@@ -1084,6 +1206,146 @@ def test_special_workflows_100_103_require_wrapper_bound_hashes(
         sender=alice,
     )
     assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce_before + 4
+
+
+def test_special_repay_and_withdraw_executes_deleverage_leg(
+    signed_agent_sender_special,
+    agent_sender_special_sig_helper,
+    starter_agent,
+    user_wallet,
+    alice,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    test_signer,
+    create_signature_struct,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 70 * EIGHTEEN_DECIMALS
+    repay_amount = 11 * EIGHTEEN_DECIMALS
+    deleverage_assets = [(1, mock_usdc.address, repay_amount)]
+    withdraw_position = (0, ZERO_ADDRESS, 0)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_usdc, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    nonce = signed_agent_sender_special.currentNonce(user_wallet.address)
+    digest, sig_nonce, expiration = agent_sender_special_sig_helper.getRepayAndWithdrawHash(
+        signed_agent_sender_special.address,
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        deleverage_assets,
+        withdraw_position,
+        [],
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        nonce,
+        boa.env.evm.patch.timestamp + 1000,
+    )
+    sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, sig_nonce, expiration)
+
+    signed_agent_sender_special.repayAndWithdraw(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        deleverage_assets,
+        withdraw_position,
+        [],
+        ZERO_ADDRESS,
+        MAX_UINT256,
+        [],
+        sig,
+        sender=alice,
+    )
+
+    assert mock_ripe.userDebt(user_wallet.address) == debt - repay_amount
+    assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce + 1
+
+
+def test_special_repay_and_withdraw_deleverage_counts_as_manager_action_for_cooldown(
+    signed_agent_sender_special,
+    agent_sender_special_sig_helper,
+    starter_agent,
+    user_wallet,
+    user_wallet_config,
+    alice,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    whale,
+    high_command,
+    createManagerSettings,
+    createManagerLimits,
+    test_signer,
+    create_signature_struct,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 70 * EIGHTEEN_DECIMALS
+    deleverage_repay = 11 * EIGHTEEN_DECIMALS
+    direct_repay = 1 * EIGHTEEN_DECIMALS
+    deleverage_assets = [(1, mock_usdc.address, deleverage_repay)]
+    withdraw_position = (0, ZERO_ADDRESS, 0)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_usdc, EIGHTEEN_DECIMALS)
+
+    with boa.env.anchor():
+        mock_ripe.setUserDebt(user_wallet.address, debt)
+        mock_green_token.transfer(user_wallet.address, direct_repay, sender=whale)
+
+        original_settings = user_wallet_config.managerSettings(starter_agent.address)
+        updated_settings = createManagerSettings(
+            _startBlock=original_settings.startBlock,
+            _expiryBlock=original_settings.expiryBlock,
+            _limits=createManagerLimits(_txCooldownBlocks=1),
+            _legoPerms=original_settings.legoPerms,
+            _swapPerms=original_settings.swapPerms,
+            _whitelistPerms=original_settings.whitelistPerms,
+            _transferPerms=original_settings.transferPerms,
+            _allowedAssets=list(original_settings.allowedAssets),
+            _canClaimLoot=original_settings.canClaimLoot,
+        )
+        user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+
+        nonce = signed_agent_sender_special.currentNonce(user_wallet.address)
+        digest, sig_nonce, expiration = agent_sender_special_sig_helper.getRepayAndWithdrawHash(
+            signed_agent_sender_special.address,
+            starter_agent.address,
+            user_wallet.address,
+            lego_id,
+            deleverage_assets,
+            withdraw_position,
+            [],
+            mock_green_token.address,
+            direct_repay,
+            [],
+            nonce,
+            boa.env.evm.patch.timestamp + 1000,
+        )
+        sig = create_signature_struct(test_signer.unsafe_sign_hash(digest).signature, sig_nonce, expiration)
+
+        with boa.reverts("no permission"):
+            signed_agent_sender_special.repayAndWithdraw(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                deleverage_assets,
+                withdraw_position,
+                [],
+                mock_green_token.address,
+                direct_repay,
+                [],
+                sig,
+                sender=alice,
+            )
+
+        assert mock_ripe.userDebt(user_wallet.address) == debt
+        assert signed_agent_sender_special.currentNonce(user_wallet.address) == nonce
 
 
 @pytest.mark.parametrize(

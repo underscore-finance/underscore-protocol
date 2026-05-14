@@ -11,6 +11,8 @@ import contracts.modules.SigHelper as sigHelper
 from interfaces import Wallet
 from interfaces import WalletStructs as ws
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
     action: uint8              # 1=transfer, 4=createAndPayCheque, 6=payCheque, 10-12=yield, 20-22=swap/exchange, 30-33=liq, 40-43=debt, 50=claimIncentives, 60-62=whitelist, 80-82=loot
@@ -372,7 +374,7 @@ def getDeleverageHash(
     _agentWrapper: address,
     _userWallet: address,
     _legoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
     _nonce: uint256 = 0,
@@ -385,9 +387,9 @@ def getDeleverageHash(
     isAuto: bool = _autoDeleverageAmount != 0
     assert isSpecific != isAuto # dev: invalid mode
 
-    action: uint8 = 44
+    action: uint8 = convert(44, uint8)
     if isAuto:
-        action = 45
+        action = convert(45, uint8)
 
     nonce: uint256 = _nonce
     expiration: uint256 = _expiration

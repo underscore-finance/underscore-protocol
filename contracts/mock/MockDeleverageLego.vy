@@ -2,13 +2,15 @@
 
 from interfaces import WalletStructs as ws
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 
 interface UserWallet:
-    def deleverage(_legoId: uint256, _deleverageAssets: DynArray[ws.DeleverageAsset, 10], _autoDeleverageAmount: uint256, _extraData: bytes32) -> (uint256, uint256): nonpayable
+    def deleverage(_legoId: uint256, _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS], _autoDeleverageAmount: uint256, _extraData: bytes32) -> (uint256, uint256): nonpayable
 
 
-previewAssets: public(DynArray[address, 10])
-touchedAssets: public(DynArray[address, 10])
+previewAssets: public(DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS])
+touchedAssets: public(DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS])
 repaidAmount: public(uint256)
 txUsdValue: public(uint256)
 debtAsset: public(address)
@@ -23,8 +25,8 @@ def __init__(_debtAsset: address):
 
 @external
 def setResponse(
-    _previewAssets: DynArray[address, 10],
-    _touchedAssets: DynArray[address, 10],
+    _previewAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS],
+    _touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS],
     _repaidAmount: uint256,
     _txUsdValue: uint256,
     _debtAsset: address,
@@ -54,18 +56,18 @@ def previewAutoDeleverageAssets(
     _user: address,
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
-) -> DynArray[address, 10]:
+) -> DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]:
     return self.previewAssets
 
 
 @external
 def deleverageForUserWallet(
     _user: address,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
     _miniAddys: ws.MiniAddys,
-) -> (uint256, uint256, address, DynArray[address, 10]):
+) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]):
     if self.shouldReenter:
         extcall UserWallet(_user).deleverage(self.reenterLegoId, [], 1, empty(bytes32))
 

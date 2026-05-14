@@ -2,6 +2,8 @@
 
 from interfaces import WalletStructs as ws
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 struct SwapInstruction:
     legoId: uint256
     amountIn: uint256
@@ -179,7 +181,7 @@ def repayDebt(
 @external
 def deleverage(
     _legoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
 ) -> (uint256, uint256):

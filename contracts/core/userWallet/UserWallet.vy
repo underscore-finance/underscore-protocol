@@ -32,6 +32,8 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
     def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address): nonpayable
@@ -61,8 +63,8 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 interface RipeDeleverageLego:
-    def previewAutoDeleverageAssets(_user: address, _autoDeleverageAmount: uint256, _extraData: bytes32) -> DynArray[address, 10]: view
-    def deleverageForUserWallet(_user: address, _deleverageAssets: DynArray[ws.DeleverageAsset, 10], _autoDeleverageAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys) -> (uint256, uint256, address, DynArray[address, 10]): nonpayable
+    def previewAutoDeleverageAssets(_user: address, _autoDeleverageAmount: uint256, _extraData: bytes32) -> DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]: view
+    def deleverageForUserWallet(_user: address, _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS], _autoDeleverageAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]): nonpayable
 
 event WalletAction:
     op: uint8 
@@ -633,7 +635,7 @@ def repayDebt(
 @external
 def deleverage(
     _legoId: uint256,
-    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
     _autoDeleverageAmount: uint256,
     _extraData: bytes32,
 ) -> (uint256, uint256):
@@ -642,13 +644,14 @@ def deleverage(
     assert isSpecific != isAuto # dev: invalid mode
 
     assets: DynArray[address, MAX_ASSETS] = []
-    ad: ws.ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
+    ad: ws.ActionData = empty(ws.ActionData)
 
     if isSpecific:
         for d: ws.DeleverageAsset in _deleverageAssets:
             assert d.asset != empty(address) # dev: invalid asset
             assets.append(d.asset)
     else:
+        ad = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
         assets = staticcall RipeDeleverageLego(ad.legoAddr).previewAutoDeleverageAssets(self, _autoDeleverageAmount, _extraData)
         assert len(assets) != 0 # dev: no preview assets
 
@@ -657,7 +660,7 @@ def deleverage(
     repaidAmount: uint256 = 0
     txUsdValue: uint256 = 0
     debtAsset: address = empty(address)
-    touchedAssets: DynArray[address, 10] = []
+    touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS] = []
     repaidAmount, txUsdValue, debtAsset, touchedAssets = extcall RipeDeleverageLego(ad.legoAddr).deleverageForUserWallet(
         self,
         _deleverageAssets,
@@ -675,10 +678,10 @@ def deleverage(
 
     self._performPostActionTasks(touchedAssets, txUsdValue, ws.ActionType.REPAY_DEBT, ad)
 
-    op: uint8 = 44
+    op: uint8 = convert(44, uint8)
     amount2: uint256 = len(_deleverageAssets)
     if isAuto:
-        op = 45
+        op = convert(45, uint8)
         amount2 = _autoDeleverageAmount
 
     self._logWalletAction(op, debtAsset, empty(address), repaidAmount, amount2, txUsdValue, ad.legoId, ad.signer)

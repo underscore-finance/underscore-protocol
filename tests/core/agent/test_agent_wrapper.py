@@ -205,6 +205,43 @@ def _set_agent_whitelist_perms(
     return original_settings
 
 
+def _set_agent_debt_controls(
+    user_wallet_config,
+    high_command,
+    starter_agent,
+    createManagerSettings,
+    createLegoPerms,
+    _can_manage_debt=True,
+    _allowed_legos=None,
+    _allowed_assets=None,
+    _limits=None,
+):
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    original_lego_perms = original_settings.legoPerms
+    lego_perms = createLegoPerms(
+        _canManageYield=original_lego_perms.canManageYield,
+        _canBuyAndSell=original_lego_perms.canBuyAndSell,
+        _canManageDebt=_can_manage_debt,
+        _canManageLiq=original_lego_perms.canManageLiq,
+        _canClaimRewards=original_lego_perms.canClaimRewards,
+        _onlyApprovedYieldOpps=original_lego_perms.onlyApprovedYieldOpps,
+        _allowedLegos=list(original_lego_perms.allowedLegos) if _allowed_legos is None else _allowed_legos,
+    )
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=original_settings.limits if _limits is None else _limits,
+        _legoPerms=lego_perms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=original_settings.whitelistPerms,
+        _transferPerms=original_settings.transferPerms,
+        _allowedAssets=list(original_settings.allowedAssets) if _allowed_assets is None else _allowed_assets,
+        _canClaimLoot=original_settings.canClaimLoot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+    return original_settings
+
+
 @pytest.fixture(scope="module")
 def special_admin_sender(undy_hq_deploy, charlie, fork, starter_agent, switchboard_alpha):
     sender = boa.load(
@@ -1067,6 +1104,177 @@ def test_agent_deleverage_auto_mode(
     assert log.amount2 == auto_amount
     assert log.legoId == lego_id
     assert log.signer == starter_agent.address
+
+
+def test_agent_deleverage_manager_without_debt_permission_reverts(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, 100 * EIGHTEEN_DECIMALS)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _can_manage_debt=False,
+        )
+
+        with boa.reverts("no permission"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                10 * EIGHTEEN_DECIMALS,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+
+
+def test_agent_deleverage_manager_allowed_legos_excludes_ripe_reverts(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, 100 * EIGHTEEN_DECIMALS)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _allowed_legos=[lego_id + 1],
+        )
+
+        with boa.reverts("no permission"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                10 * EIGHTEEN_DECIMALS,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+
+
+def test_agent_deleverage_auto_preview_asset_allowlist_blocks_before_state_change(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 100 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _allowed_assets=[mock_usdc.address],
+        )
+
+        with boa.reverts("no permission"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                10 * EIGHTEEN_DECIMALS,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+        assert mock_ripe.userDebt(user_wallet.address) == debt
+
+
+def test_agent_deleverage_manager_usd_cap_reverts_and_rolls_back(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+    createManagerLimits,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 100 * EIGHTEEN_DECIMALS
+    repay_amount = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _limits=createManagerLimits(_maxUsdValuePerTx=repay_amount - 1),
+        )
+
+        with boa.reverts("manager limits not allowed"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                repay_amount,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+        assert mock_ripe.userDebt(user_wallet.address) == debt
 
 
 #########
