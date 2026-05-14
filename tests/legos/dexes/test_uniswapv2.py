@@ -213,7 +213,7 @@ def test_uniswapV2_remove_liq_max(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_uniswap_v2, pool, tokenA, tokenB)
@@ -242,7 +242,7 @@ def test_uniswapV2_remove_liq_partial(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_uniswap_v2, pool, tokenA, tokenB, lpAmountReceived // 2)
@@ -388,7 +388,7 @@ def test_uniswapV2_get_remove_liq_amounts_out(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     liquidityAdded, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(
-        legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob,
+        legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, 0, 0, 0, b"", sender=bob,
     )
     assert liquidityAdded != 0
     assert liqAmountA != 0 and liqAmountB != 0

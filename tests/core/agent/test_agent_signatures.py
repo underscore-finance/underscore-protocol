@@ -741,6 +741,77 @@ def test_new_generic_hashes_change_when_top_level_fields_mutate(
     )[0] != base_batch
 
 
+def test_deleverage_hashes_are_mode_bound(
+    starter_agent,
+    signed_agent_sender,
+    user_wallet_signature_helper,
+    user_wallet,
+    alice,
+    alpha_token,
+    bravo_token,
+    test_signer,
+    create_signature_struct,
+):
+    nonce = signed_agent_sender.currentNonce(user_wallet.address)
+    expiration = boa.env.evm.patch.timestamp + 1000
+    data_a = b"\x01" * 32
+    specific_assets = [(1, alpha_token.address, 10)]
+    other_specific_assets = [(1, bravo_token.address, 10)]
+
+    specific_digest, specific_nonce, specific_expiration = user_wallet_signature_helper.getDeleverageHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        1,
+        specific_assets,
+        0,
+        data_a,
+        nonce,
+        expiration,
+    )
+    assert specific_nonce == nonce
+    assert specific_expiration == expiration
+
+    assert user_wallet_signature_helper.getDeleverageHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        1,
+        other_specific_assets,
+        0,
+        data_a,
+        nonce,
+        expiration,
+    )[0] != specific_digest
+
+    auto_digest = user_wallet_signature_helper.getDeleverageHash(
+        signed_agent_sender.address,
+        starter_agent.address,
+        user_wallet.address,
+        1,
+        [],
+        10,
+        data_a,
+        nonce,
+        expiration,
+    )[0]
+    assert auto_digest != specific_digest
+
+    specific_sig = create_signature_struct(test_signer.unsafe_sign_hash(specific_digest).signature, nonce, expiration)
+    with boa.reverts("invalid signer"):
+        signed_agent_sender.deleverage(
+            starter_agent.address,
+            user_wallet.address,
+            1,
+            [],
+            10,
+            data_a,
+            specific_sig,
+            sender=alice,
+        )
+    assert signed_agent_sender.currentNonce(user_wallet.address) == nonce
+
+
 def _mutated_hash_arg_variants(value, alt_address, fallback_address):
     if isinstance(value, bool):
         return [not value]

@@ -23,6 +23,7 @@ implements: AgentWrapper
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWalletConfig:
@@ -338,6 +339,26 @@ def repayDebt(
     assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
     log AgentAction(action = 43, userWallet = _userWallet, sender = msg.sender)
     return extcall Wallet(_userWallet).repayDebt(_legoId, _paymentAsset, _paymentAmount, _extraData)
+
+
+@external
+def deleverage(
+    _userWallet: address,
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    isSpecific: bool = len(_deleverageAssets) != 0
+    isAuto: bool = _autoDeleverageAmount != 0
+    assert isSpecific != isAuto # dev: invalid mode
+    assert self.indexOfSender[msg.sender] != 0 # dev: not approved sender
+
+    action: uint8 = 44
+    if isAuto:
+        action = 45
+    log AgentAction(action = action, userWallet = _userWallet, sender = msg.sender)
+    return extcall Wallet(_userWallet).deleverage(_legoId, _deleverageAssets, _autoDeleverageAmount, _extraData)
 
 
 ####################

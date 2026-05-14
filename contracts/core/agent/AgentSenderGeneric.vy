@@ -26,6 +26,7 @@ import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
 from interfaces import AgentWrapper
+from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
 interface UserWallet:
@@ -312,6 +313,27 @@ def repayDebt(
 ) -> (uint256, uint256):
     self._authenticateAccess(_userWallet, keccak256(abi_encode(convert(43, uint8), _agentWrapper, _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
     return extcall AgentWrapper(_agentWrapper).repayDebt(_userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData)
+
+
+@external
+def deleverage(
+    _agentWrapper: address,
+    _userWallet: address,
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+    _sig: Signature = empty(Signature),
+) -> (uint256, uint256):
+    isSpecific: bool = len(_deleverageAssets) != 0
+    isAuto: bool = _autoDeleverageAmount != 0
+    assert isSpecific != isAuto # dev: invalid mode
+
+    action: uint8 = 44
+    if isAuto:
+        action = 45
+    self._authenticateAccess(_userWallet, keccak256(abi_encode(action, _agentWrapper, _userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData, _sig.nonce, _sig.expiration)), _sig)
+    return extcall AgentWrapper(_agentWrapper).deleverage(_userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData)
 
 
 #################

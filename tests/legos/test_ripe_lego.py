@@ -1,6 +1,7 @@
 import pytest
 import boa
 
+from contracts.core.userWallet import UserWalletConfig
 from constants import MAX_UINT256, ZERO_ADDRESS, EIGHTEEN_DECIMALS
 from conf_utils import filter_logs
 
@@ -61,6 +62,15 @@ def bob_wallet_with_usdc(bob_user_wallet, mock_usdc, governance):
     amount = 100_000 * (10 ** 6)  # 100k USDC (6 decimals)
     mock_usdc.mint(bob_user_wallet.address, amount, sender=governance.address)
     return bob_user_wallet
+
+
+@pytest.fixture
+def mock_deleverage_lego(lego_book, governance, mock_green_token):
+    lego = boa.load("contracts/mock/MockDeleverageLego.vy", mock_green_token, name="mock_deleverage_lego")
+    lego_book.startAddNewAddressToRegistry(lego.address, "Mock Deleverage", sender=governance.address)
+    boa.env.time_travel(blocks=lego_book.registryChangeTimeLock() + 1)
+    lego_id = lego_book.confirmNewAddressToRegistry(lego.address, sender=governance.address)
+    return lego, lego_id
 
 
 #################################
@@ -565,6 +575,309 @@ def test_ripe_repay_with_savings_green(
     _test(pre_debt - current_debt, amount_repaid)
 
 
+def test_user_wallet_deleverage_specific_assets(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    """Specific user-wallet deleverage goes through the wallet and logs action 44."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 500 * EIGHTEEN_DECIMALS
+    repay_amount = 125 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_usdc, 1 * EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(bob_wallet_with_green.address, debt)
+
+    deleverage_assets = [(1, mock_usdc.address, repay_amount)]
+    repaid, usd_value = bob_wallet_with_green.deleverage(
+        lego_id,
+        deleverage_assets,
+        0,
+        b"",
+        sender=bob,
+    )
+
+    assert repaid == repay_amount
+    assert usd_value == repay_amount
+    assert mock_ripe.userDebt(bob_wallet_with_green.address) == debt - repay_amount
+    assert mock_green_token.allowance(bob_wallet_with_green.address, lego_ripe.address) == 0
+    assert mock_usdc.allowance(bob_wallet_with_green.address, lego_ripe.address) == 0
+
+    log_wallet = filter_logs(bob_wallet_with_green, "WalletAction")[-1]
+    assert log_wallet.op == 44
+    assert log_wallet.asset1 == mock_green_token.address
+    assert log_wallet.amount1 == repay_amount
+    assert log_wallet.amount2 == len(deleverage_assets)
+    assert log_wallet.usdValue == usd_value
+    assert log_wallet.legoId == lego_id
+    assert log_wallet.signer == bob
+
+
+def test_user_wallet_deleverage_auto_caps_to_debt(
+    lego_ripe,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_ripe,
+    mock_green_token,
+    lego_book,
+    bob,
+):
+    """Auto user-wallet deleverage previews first, caps to actual debt, and logs action 45."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 300 * EIGHTEEN_DECIMALS
+    auto_amount = 1_000 * EIGHTEEN_DECIMALS
+    mock_ripe.setUserDebt(bob_wallet_with_green.address, debt)
+
+    repaid, usd_value = bob_wallet_with_green.deleverage(
+        lego_id,
+        [],
+        auto_amount,
+        b"",
+        sender=bob,
+    )
+
+    assert repaid == debt
+    assert usd_value == debt
+    assert mock_ripe.userDebt(bob_wallet_with_green.address) == 0
+    assert mock_green_token.allowance(bob_wallet_with_green.address, lego_ripe.address) == 0
+
+    log_wallet = filter_logs(bob_wallet_with_green, "WalletAction")[-1]
+    assert log_wallet.op == 45
+    assert log_wallet.asset1 == mock_green_token.address
+    assert log_wallet.amount1 == debt
+    assert log_wallet.amount2 == auto_amount
+    assert log_wallet.usdValue == usd_value
+    assert log_wallet.legoId == lego_id
+    assert log_wallet.signer == bob
+
+
+def test_user_wallet_deleverage_mode_guard(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    deleverage_assets = [(1, mock_usdc.address, 1)]
+
+    with boa.reverts("invalid mode"):
+        bob_wallet_with_green.deleverage(lego_id, [], 0, b"", sender=bob)
+
+    with boa.reverts("invalid mode"):
+        bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_non_ripe_lego_reverts(
+    bob_wallet_with_green,
+    mock_usdc,
+    bob,
+):
+    mock_dex_lego_id = 3
+    deleverage_assets = [(1, mock_usdc.address, 1)]
+
+    with boa.reverts():
+        bob_wallet_with_green.deleverage(mock_dex_lego_id, deleverage_assets, 0, b"", sender=bob)
+
+
+def test_ripe_direct_user_wallet_deleverage_requires_wallet_caller(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_ripe,
+    mock_usdc,
+    starter_agent,
+):
+    """The old direct user-wallet path is no longer callable by agent managers."""
+    mock_ripe.setUserDebt(bob_wallet_with_green.address, 100 * EIGHTEEN_DECIMALS)
+    deleverage_assets = [(1, mock_usdc.address, 10 * EIGHTEEN_DECIMALS)]
+
+    with boa.reverts("no perms"):
+        lego_ripe.deleverageWithSpecificAssets(
+            deleverage_assets,
+            bob_wallet_with_green.address,
+            sender=starter_agent.address,
+        )
+
+
+def test_user_wallet_deleverage_empty_preview_reverts(
+    mock_deleverage_lego,
+    bob_wallet_with_green,
+    mock_green_token,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([], [], 1, 1, mock_green_token.address)
+
+    with boa.reverts("no preview assets"):
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_empty_touched_reverts(
+    mock_deleverage_lego,
+    bob_wallet_with_green,
+    mock_green_token,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [], 1, 1, mock_green_token.address)
+
+    with boa.reverts("no touched assets"):
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_empty_touched_asset_reverts(
+    mock_deleverage_lego,
+    bob_wallet_with_green,
+    mock_green_token,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [ZERO_ADDRESS], 1, 1, mock_green_token.address)
+
+    with boa.reverts("invalid touched"):
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_auto_touched_must_be_preview_subset(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [mock_usdc.address], 1, 1, mock_green_token.address)
+
+    with boa.reverts("touched not subset"):
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_specific_touched_must_be_requested_subset(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([], [mock_green_token.address], 1, 1, mock_green_token.address)
+    deleverage_assets = [(1, mock_usdc.address, 1)]
+
+    with boa.reverts("touched not subset"):
+        bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_duplicate_touched_assets_allowed(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    mock_usdc,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([], [mock_usdc.address, mock_usdc.address], 7, 7, mock_green_token.address)
+    deleverage_assets = [(1, mock_usdc.address, 7)]
+
+    repaid, usd_value = bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
+
+    assert repaid == 7
+    assert usd_value == 7
+    log_wallet = filter_logs(bob_wallet_with_green, "WalletAction")[-1]
+    assert log_wallet.op == 44
+    assert log_wallet.amount1 == 7
+    assert log_wallet.amount2 == len(deleverage_assets)
+
+
+def test_user_wallet_deleverage_zero_repaid_reverts(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [mock_green_token.address], 0, 0, mock_green_token.address)
+
+    with boa.reverts("no repayment"):
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_reentrancy_reverts(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+    lego.setReenter(True, lego_id)
+
+    with boa.reverts():
+        bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_frozen_wallet_reverts(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_usdc,
+    lego_book,
+    bob,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    wallet_config = UserWalletConfig.at(bob_wallet_with_green.walletConfig())
+    deleverage_assets = [(1, mock_usdc.address, 1)]
+
+    with boa.env.anchor():
+        wallet_config.setFrozen(True, sender=bob)
+        with boa.reverts("frozen wallet"):
+            bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_eject_mode_reverts(
+    lego_ripe,
+    bob_wallet_with_green,
+    mock_usdc,
+    lego_book,
+    switchboard_alpha,
+    bob,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    wallet_config = UserWalletConfig.at(bob_wallet_with_green.walletConfig())
+    deleverage_assets = [(1, mock_usdc.address, 1)]
+
+    with boa.env.anchor():
+        wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+        with boa.reverts("invalid action in eject mode"):
+            bob_wallet_with_green.deleverage(lego_id, deleverage_assets, 0, b"", sender=bob)
+
+
+def test_user_wallet_deleverage_owner_respects_can_owner_manage_false(
+    mock_deleverage_lego,
+    setup_mock_prices,
+    bob_wallet_with_green,
+    mock_green_token,
+    high_command,
+    createGlobalManagerSettings,
+    bob,
+):
+    lego, lego_id = mock_deleverage_lego
+    lego.setResponse([mock_green_token.address], [mock_green_token.address], 1, 1, mock_green_token.address)
+    wallet_config = UserWalletConfig.at(bob_wallet_with_green.walletConfig())
+
+    with boa.env.anchor():
+        global_settings = createGlobalManagerSettings(_canOwnerManage=False)
+        wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
+
+        with boa.reverts("no permission"):
+            bob_wallet_with_green.deleverage(lego_id, [], 1, b"", sender=bob)
 
 
 ###################
@@ -1281,8 +1594,13 @@ def test_swap_without_permission_fails(
         []
     )
 
-    with boa.reverts():  # Should revert with permission error
-        bob_wallet_with_green.swapTokens([instruction], sender=alice)
+    calldata = bob_wallet_with_green.swapTokens.prepare_calldata([instruction])
+    result = boa.env.execute_code(
+        to_address=bob_wallet_with_green.address,
+        sender=alice,
+        data=calldata,
+    )
+    assert result.is_error
 
 
 def test_swap_usd_value_calculation(

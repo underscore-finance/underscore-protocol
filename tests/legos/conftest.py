@@ -282,7 +282,7 @@ def testLegoLiquidityAddedBasic(bob_user_wallet, bob, _test, lego_book):
 
         # add liquidity
         lego_id = lego_book.getRegId(_lego)
-        lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, sender=bob)
+        lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _minAmountA, _minAmountB, _minLpAmount, b"", sender=bob)
 
         # event
         log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
@@ -331,7 +331,7 @@ def testLegoLiquidityAddedBasic(bob_user_wallet, bob, _test, lego_book):
 def setupRemoveLiq(bob_user_wallet, bob, lego_book):
     def setupRemoveLiq(_lego, _pool, _tokenA, _tokenB, _amountA, _amountB):
         lego_id = lego_book.getRegId(_lego)
-        lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, sender=bob)
+        lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(lego_id, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, 0, 0, 0, b"", sender=bob)
 
         return lpAmountReceived, liqAmountA, liqAmountB, usdValue
 
@@ -374,7 +374,7 @@ def testLegoLiquidityRemovedBasic(bob_user_wallet, bob, _test, lego_book):
 
         # remove liquidity
         lego_id = lego_book.getRegId(_lego)
-        removedAmountA, removedAmountB, lpAmountBurned, usdValue = bob_user_wallet.removeLiquidity(lego_id, _pool, _tokenA, tokenAddrB, lp_token_addr, _liqToRemove, _minAmountA, _minAmountB, sender=bob)
+        removedAmountA, removedAmountB, lpAmountBurned, usdValue = bob_user_wallet.removeLiquidity(lego_id, _pool, _tokenA, tokenAddrB, lp_token_addr, _liqToRemove, _minAmountA, _minAmountB, b"", sender=bob)
 
         # event
         log_wallet = filter_logs(bob_user_wallet, "WalletAction")[0]
@@ -435,7 +435,7 @@ def testLegoLiquidityAdded(bob_user_wallet, bob, _test, lego_book):
 
         # add liquidity
         lego_id = lego_book.getRegId(_lego)
-        liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, sender=bob)
+        liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, _tokenB.address, _amountA, _amountB, _tickLower, _tickUpper, _minAmountA, _minAmountB, b"", sender=bob)
 
         # event
         log_wallet = filter_logs(bob_user_wallet, "WalletActionExt")[0]
@@ -521,7 +521,7 @@ def testLegoLiquidityRemoved(bob_user_wallet, bob, _test, lego_book):
 
         # remove liquidity
         lego_id = lego_book.getRegId(_lego)
-        removedAmountA, removedAmountB, liqRemoved, usdValue = bob_user_wallet.removeLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, tokenAddrB, _liqToRemove, _minAmountA, _minAmountB, sender=bob)
+        removedAmountA, removedAmountB, liqRemoved, usdValue = bob_user_wallet.removeLiquidityConcentrated(lego_id, _nftAddr, _nftTokenId, _pool.address, _tokenA.address, tokenAddrB, _liqToRemove, _minAmountA, _minAmountB, b"", sender=bob)
 
         # event
         log_wallet = filter_logs(bob_user_wallet, "WalletActionExt")[0]

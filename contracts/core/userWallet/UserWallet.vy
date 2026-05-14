@@ -60,6 +60,10 @@ interface WethContract:
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface RipeDeleverageLego:
+    def previewAutoDeleverageAssets(_user: address, _autoDeleverageAmount: uint256, _extraData: bytes32) -> DynArray[address, 10]: view
+    def deleverageForUserWallet(_user: address, _deleverageAssets: DynArray[ws.DeleverageAsset, 10], _autoDeleverageAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys) -> (uint256, uint256, address, DynArray[address, 10]): nonpayable
+
 event WalletAction:
     op: uint8 
     asset1: indexed(address)
@@ -175,16 +179,7 @@ def transferFunds(
         assert extcall IERC20(asset).transfer(_recipient, amount, default_return_value = True) # dev: xfer
     
     self._performPostActionTasks([asset], txUsdValue, ws.ActionType.TRANSFER, ad, _isSpecialTx)
-    log WalletAction(
-        op = 1,
-        asset1 = asset,
-        asset2 = _recipient,
-        amount1 = amount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
+    self._logWalletAction(1, asset, _recipient, amount, 0, txUsdValue, 0, ad.signer)
     return amount, txUsdValue
 
 
@@ -267,16 +262,7 @@ def _depositForYield(
         self._performPostActionTasks([_asset, vaultToken], txUsdValue, ws.ActionType.EARN_DEPOSIT, _ad)
 
     if _shouldGenerateEvent:
-        log WalletAction(
-            op = 10,
-            asset1 = _asset,
-            asset2 = vaultToken,
-            amount1 = assetAmount,
-            amount2 = vaultTokenAmountReceived,
-            usdValue = txUsdValue,
-            legoId = _ad.legoId,
-            signer = _ad.signer,
-        )
+        self._logWalletAction(10, _asset, vaultToken, assetAmount, vaultTokenAmountReceived, txUsdValue, _ad.legoId, _ad.signer)
     return assetAmount, vaultToken, vaultTokenAmountReceived, txUsdValue
 
 
@@ -341,16 +327,7 @@ def _withdrawFromYield(
         self._performPostActionTasks([underlyingAsset, _vaultToken], txUsdValue, ws.ActionType.EARN_WITHDRAW, _ad, _isSpecialTx)
 
     if _shouldGenerateEvent:
-        log WalletAction(
-            op = 11,
-            asset1 = _vaultToken,
-            asset2 = underlyingAsset,
-            amount1 = vaultTokenAmountBurned,
-            amount2 = underlyingAmount,
-            usdValue = txUsdValue,
-            legoId = _ad.legoId,
-            signer = _ad.signer,
-        )
+        self._logWalletAction(11, _vaultToken, underlyingAsset, vaultTokenAmountBurned, underlyingAmount, txUsdValue, _ad.legoId, _ad.signer)
     return vaultTokenAmountBurned, underlyingAsset, underlyingAmount, txUsdValue
 
 
@@ -386,16 +363,7 @@ def rebalanceYieldPosition(
 
     maxUsdValue: uint256 = max(withdrawTxUsdValue, depositTxUsdValue)
     self._performPostActionTasks([underlyingAsset, toVaultToken, _fromVaultToken], maxUsdValue, ws.ActionType.EARN_REBALANCE, ad)
-    log WalletAction(
-        op = 12,
-        asset1 = _fromVaultToken,
-        asset2 = toVaultToken,
-        amount1 = vaultTokenAmountBurned,
-        amount2 = toVaultTokenAmountReceived,
-        usdValue = maxUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(12, _fromVaultToken, toVaultToken, vaultTokenAmountBurned, toVaultTokenAmountReceived, maxUsdValue, ad.legoId, ad.signer)
     return underlyingAmount, toVaultToken, toVaultTokenAmountReceived, maxUsdValue
 
 
@@ -449,16 +417,7 @@ def swapTokens(_instructions: DynArray[wi.SwapInstruction, MAX_SWAP_INSTRUCTIONS
     maxTxUsdValue = max(maxTxUsdValue, toAssetUsdValue)
 
     self._performPostActionTasks([tokenIn, lastTokenOut], maxTxUsdValue, ws.ActionType.SWAP, ad, False, fromAssetUsdValue, toAssetUsdValue)
-    log WalletAction(
-        op = 20,
-        asset1 = tokenIn,
-        asset2 = lastTokenOut,
-        amount1 = origAmountIn,
-        amount2 = lastTokenOutAmount,
-        usdValue = maxTxUsdValue,
-        legoId = ad.legoId, # using just the first lego used
-        signer = ad.signer,
-    )
+    self._logWalletAction(20, tokenIn, lastTokenOut, origAmountIn, lastTokenOutAmount, maxTxUsdValue, ad.legoId, ad.signer)
     return tokenIn, origAmountIn, lastTokenOut, lastTokenOutAmount, maxTxUsdValue
 
 
@@ -535,16 +494,7 @@ def mintOrRedeemAsset(
     self._resetApproval(_tokenIn, ad.legoAddr)
 
     self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ws.ActionType.MINT_REDEEM, ad)
-    log WalletAction(
-        op = 21,
-        asset1 = _tokenIn,
-        asset2 = _tokenOut,
-        amount1 = tokenInAmount,
-        amount2 = tokenOutAmount,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(21, _tokenIn, _tokenOut, tokenInAmount, tokenOutAmount, txUsdValue, ad.legoId, ad.signer)
     return tokenInAmount, tokenOutAmount, isPending, txUsdValue
 
 
@@ -564,16 +514,7 @@ def confirmMintOrRedeemAsset(
     tokenOutAmount, txUsdValue = extcall Lego(ad.legoAddr).confirmMintOrRedeemAsset(_tokenIn, _tokenOut, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     self._performPostActionTasks([_tokenIn, _tokenOut], txUsdValue, ws.ActionType.CONFIRM_MINT_REDEEM, ad)
-    log WalletAction(
-        op = 22,
-        asset1 = _tokenIn,
-        asset2 = _tokenOut,
-        amount1 = 0,
-        amount2 = tokenOutAmount,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(22, _tokenIn, _tokenOut, 0, tokenOutAmount, txUsdValue, ad.legoId, ad.signer)
     return tokenOutAmount, txUsdValue
 
 
@@ -610,16 +551,7 @@ def addCollateral(
     self._resetApproval(_asset, ad.legoAddr)
 
     self._performPostActionTasks([_asset], txUsdValue, ws.ActionType.ADD_COLLATERAL, ad)
-    log WalletAction(
-        op = 40,
-        asset1 = _asset,
-        asset2 = empty(address),
-        amount1 = amountDeposited,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(40, _asset, empty(address), amountDeposited, 0, txUsdValue, ad.legoId, ad.signer)
     return amountDeposited, txUsdValue
 
 
@@ -642,16 +574,7 @@ def removeCollateral(
     amountRemoved, txUsdValue = extcall Lego(ad.legoAddr).removeCollateral(_asset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     self._performPostActionTasks([_asset], txUsdValue, ws.ActionType.REMOVE_COLLATERAL, ad)
-    log WalletAction(
-        op = 41,
-        asset1 = _asset,
-        asset2 = empty(address),
-        amount1 = amountRemoved,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(41, _asset, empty(address), amountRemoved, 0, txUsdValue, ad.legoId, ad.signer)
     return amountRemoved, txUsdValue
 
 
@@ -674,16 +597,7 @@ def borrow(
     borrowAmount, txUsdValue = extcall Lego(ad.legoAddr).borrow(_borrowAsset, _amount, _extraData, self, self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser))
 
     self._performPostActionTasks([_borrowAsset], txUsdValue, ws.ActionType.BORROW, ad)
-    log WalletAction(
-        op = 42,
-        asset1 = _borrowAsset,
-        asset2 = empty(address),
-        amount1 = borrowAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(42, _borrowAsset, empty(address), borrowAmount, 0, txUsdValue, ad.legoId, ad.signer)
     return borrowAmount, txUsdValue
 
 
@@ -708,16 +622,66 @@ def repayDebt(
     self._resetApproval(_paymentAsset, ad.legoAddr)
 
     self._performPostActionTasks([_paymentAsset], txUsdValue, ws.ActionType.REPAY_DEBT, ad)
-    log WalletAction(
-        op = 43,
-        asset1 = _paymentAsset,
-        asset2 = empty(address),
-        amount1 = repaidAmount,
-        amount2 = 0,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
+    self._logWalletAction(43, _paymentAsset, empty(address), repaidAmount, 0, txUsdValue, ad.legoId, ad.signer)
+    return repaidAmount, txUsdValue
+
+
+# deleverage
+
+
+@nonreentrant
+@external
+def deleverage(
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, 10],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    isSpecific: bool = len(_deleverageAssets) != 0
+    isAuto: bool = _autoDeleverageAmount != 0
+    assert isSpecific != isAuto # dev: invalid mode
+
+    assets: DynArray[address, MAX_ASSETS] = []
+    ad: ws.ActionData = staticcall WalletConfig(self.walletConfig).getActionDataBundle(_legoId, msg.sender)
+
+    if isSpecific:
+        for d: ws.DeleverageAsset in _deleverageAssets:
+            assert d.asset != empty(address) # dev: invalid asset
+            assets.append(d.asset)
+    else:
+        assets = staticcall RipeDeleverageLego(ad.legoAddr).previewAutoDeleverageAssets(self, _autoDeleverageAmount, _extraData)
+        assert len(assets) != 0 # dev: no preview assets
+
+    ad = self._performPreActionTasks(msg.sender, ws.ActionType.REPAY_DEBT, True, assets, [_legoId])
+
+    repaidAmount: uint256 = 0
+    txUsdValue: uint256 = 0
+    debtAsset: address = empty(address)
+    touchedAssets: DynArray[address, 10] = []
+    repaidAmount, txUsdValue, debtAsset, touchedAssets = extcall RipeDeleverageLego(ad.legoAddr).deleverageForUserWallet(
+        self,
+        _deleverageAssets,
+        _autoDeleverageAmount,
+        _extraData,
+        self._packMiniAddys(ad.ledger, ad.missionControl, ad.legoBook, ad.appraiser),
     )
+
+    assert repaidAmount != 0 # dev: no repayment
+    assert len(touchedAssets) != 0 # dev: no touched assets
+
+    for a: address in touchedAssets:
+        assert a != empty(address) # dev: invalid touched
+        assert a in assets # dev: touched not subset
+
+    self._performPostActionTasks(touchedAssets, txUsdValue, ws.ActionType.REPAY_DEBT, ad)
+
+    op: uint8 = 44
+    amount2: uint256 = len(_deleverageAssets)
+    if isAuto:
+        op = 45
+        amount2 = _autoDeleverageAmount
+
+    self._logWalletAction(op, debtAsset, empty(address), repaidAmount, amount2, txUsdValue, ad.legoId, ad.signer)
     return repaidAmount, txUsdValue
 
 
@@ -760,16 +724,7 @@ def claimIncentives(
             actualRewardAmount -= rewardsFee
 
     self._performPostActionTasks([_rewardToken], txUsdValue, ws.ActionType.REWARDS, ad)
-    log WalletAction(
-        op = 50,
-        asset1 = _rewardToken,
-        asset2 = ad.legoAddr,
-        amount1 = actualRewardAmount,
-        amount2 = rewardAmount,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(50, _rewardToken, ad.legoAddr, actualRewardAmount, rewardAmount, txUsdValue, ad.legoId, ad.signer)
     return actualRewardAmount, txUsdValue
 
 
@@ -794,16 +749,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([weth, eth], txUsdValue, ws.ActionType.WETH_TO_ETH, ad)
-    log WalletAction(
-        op = 2,
-        asset1 = weth,
-        asset2 = eth,
-        amount1 = amount,
-        amount2 = amount,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
+    self._logWalletAction(2, weth, eth, amount, amount, txUsdValue, 0, ad.signer)
     return amount, txUsdValue
 
 
@@ -825,16 +771,7 @@ def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 
     txUsdValue: uint256 = self._updatePriceAndGetUsdValue(weth, amount, ad)
     self._performPostActionTasks([eth, weth], txUsdValue, ws.ActionType.ETH_TO_WETH, ad)
-    log WalletAction(
-        op = 3,
-        asset1 = eth,
-        asset2 = weth,
-        amount1 = msg.value,
-        amount2 = amount,
-        usdValue = txUsdValue,
-        legoId = 0,
-        signer = ad.signer,
-    )
+    self._logWalletAction(3, eth, weth, msg.value, amount, txUsdValue, 0, ad.signer)
     return amount, txUsdValue
 
 
@@ -853,12 +790,12 @@ def addLiquidity(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _minLpAmount: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _minLpAmount: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ADD_LIQ, False, [_tokenA, _tokenB], [_legoId])
 
@@ -885,16 +822,7 @@ def addLiquidity(
         self._resetApproval(_tokenB, ad.legoAddr)
 
     self._performPostActionTasks([_tokenA, _tokenB, lpToken], txUsdValue, ws.ActionType.ADD_LIQ, ad)
-    log WalletAction(
-        op = 30,
-        asset1 = _tokenA,
-        asset2 = _tokenB,
-        amount1 = addedTokenA,
-        amount2 = addedTokenB,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(30, _tokenA, _tokenB, addedTokenA, addedTokenB, txUsdValue, ad.legoId, ad.signer)
     return lpAmountReceived, addedTokenA, addedTokenB, txUsdValue
 
 
@@ -906,10 +834,10 @@ def removeLiquidity(
     _tokenA: address,
     _tokenB: address,
     _lpToken: address,
-    _lpAmount: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _lpAmount: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.REMOVE_LIQ, False, [_tokenA, _tokenB], [_legoId])
 
@@ -923,16 +851,7 @@ def removeLiquidity(
     self._resetApproval(_lpToken, ad.legoAddr)
 
     self._performPostActionTasks([_tokenA, _tokenB, _lpToken], txUsdValue, ws.ActionType.REMOVE_LIQ, ad)
-    log WalletAction(
-        op = 31,
-        asset1 = _tokenA,
-        asset2 = _tokenB,
-        amount1 = amountAReceived,
-        amount2 = amountBReceived,
-        usdValue = txUsdValue,
-        legoId = ad.legoId,
-        signer = ad.signer,
-    )
+    self._logWalletAction(31, _tokenA, _tokenB, amountAReceived, amountBReceived, txUsdValue, ad.legoId, ad.signer)
     return amountAReceived, amountBReceived, lpAmountBurned, txUsdValue
 
 
@@ -948,13 +867,13 @@ def addLiquidityConcentrated(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _tickLower: int24 = min_value(int24),
-    _tickUpper: int24 = max_value(int24),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _amountA: uint256,
+    _amountB: uint256,
+    _tickLower: int24,
+    _tickUpper: int24,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ADD_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
 
@@ -1011,10 +930,10 @@ def removeLiquidityConcentrated(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _liqToRemove: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _liqToRemove: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.REMOVE_LIQ_CONC, False, [_tokenA, _tokenB], [_legoId])
 
@@ -1047,6 +966,34 @@ def removeLiquidityConcentrated(
         extra = liqRemoved,
     )
     return amountAReceived, amountBReceived, liqRemoved, txUsdValue
+
+
+##################
+# Event Handling #
+##################
+
+
+@internal
+def _logWalletAction(
+    _op: uint8,
+    _asset1: address,
+    _asset2: address,
+    _amount1: uint256,
+    _amount2: uint256,
+    _usdValue: uint256,
+    _legoId: uint256,
+    _signer: address,
+):
+    log WalletAction(
+        op = _op,
+        asset1 = _asset1,
+        asset2 = _asset2,
+        amount1 = _amount1,
+        amount2 = _amount2,
+        usdValue = _usdValue,
+        legoId = _legoId,
+        signer = _signer,
+    )
 
 
 #################

@@ -9,16 +9,12 @@
 
 import contracts.modules.SigHelper as sigHelper
 from interfaces import Wallet
+from interfaces import WalletStructs as ws
 
 struct CollateralAsset:
     vaultId: uint256
     asset: address
     amount: uint256
-
-struct DeleverageAsset:
-    vaultId: uint256
-    asset: address
-    targetRepayAmount: uint256
 
 struct DepositYieldPosition:
     legoId: uint256
@@ -46,7 +42,6 @@ struct ChequeInstruction:
     canBePulled: bool
 
 MAX_COLLATERAL_ASSETS: constant(uint256) = 10
-MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
 MAX_YIELD_POSITIONS: constant(uint256) = 25
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
@@ -109,7 +104,7 @@ def getRepayAndWithdrawHash(
     _agentWrapper: address,
     _userWallet: address,
     _debtLegoId: uint256,
-    _deleverageAssets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, 10] = [],
     _yieldPosition: WithdrawYieldPosition = empty(WithdrawYieldPosition),
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
     _repayAsset: address = empty(address),

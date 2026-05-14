@@ -984,6 +984,91 @@ def test_agent_repay_debt_basic(
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount - repay_amount
 
 
+def test_agent_deleverage_specific_assets(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+):
+    """Test AgentWrapper deleverage specific mode through AgentSenderGeneric."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 450 * EIGHTEEN_DECIMALS
+    repay_amount = 150 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_usdc, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    deleverage_assets = [(1, mock_usdc.address, repay_amount)]
+    repaid, usd_value = starter_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        deleverage_assets,
+        0,
+        b"",
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    assert repaid == repay_amount
+    assert usd_value == repay_amount
+    assert mock_ripe.userDebt(user_wallet.address) == debt - repay_amount
+
+    log = filter_logs(starter_agent_sender, "WalletAction")[-1]
+    assert log.op == 44
+    assert log.asset1 == mock_green_token.address
+    assert log.amount1 == repay_amount
+    assert log.amount2 == len(deleverage_assets)
+    assert log.legoId == lego_id
+    assert log.signer == starter_agent.address
+
+
+def test_agent_deleverage_auto_mode(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+):
+    """Test AgentWrapper deleverage auto mode through AgentSenderGeneric."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 250 * EIGHTEEN_DECIMALS
+    auto_amount = 600 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    repaid, usd_value = starter_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        [],
+        auto_amount,
+        b"",
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    assert repaid == debt
+    assert usd_value == debt
+    assert mock_ripe.userDebt(user_wallet.address) == 0
+
+    log = filter_logs(starter_agent_sender, "WalletAction")[-1]
+    assert log.op == 45
+    assert log.asset1 == mock_green_token.address
+    assert log.amount1 == debt
+    assert log.amount2 == auto_amount
+    assert log.legoId == lego_id
+    assert log.signer == starter_agent.address
+
+
 #########
 # Other #
 #########
