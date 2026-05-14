@@ -2994,6 +2994,133 @@ def test_createCheque_period_reset(
     assert final_cheque_data.periodStartBlock == boa.env.evm.patch.block_number  # New period start
 
 
+def test_createCheque_period_length_increase_keeps_existing_window(
+    bob, alice, charlie, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book,
+    createChequeSettings, createChequeData,
+):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    period_start = boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10
+    user_wallet_config.setChequeSettings(
+        createChequeSettings(
+            _maxNumActiveCheques=0,
+            _maxChequeUsdValue=0,
+            _instantUsdThreshold=1_000 * EIGHTEEN_DECIMALS,
+            _periodLength=2 * ONE_DAY_IN_BLOCKS,
+            _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+            _defaultExpiryBlocks=0,
+            _canManagersCreateCheques=True,
+            _canManagerPay=True,
+            _canBePulled=False,
+        ),
+        sender=cheque_book.address,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    user_wallet_config.createCheque(
+        alice,
+        (
+            alice,
+            alpha_token.address,
+            EIGHTEEN_DECIMALS,
+            boa.env.evm.patch.block_number,
+            boa.env.evm.patch.block_number,
+            boa.env.evm.patch.block_number + ONE_WEEK_IN_BLOCKS,
+            EIGHTEEN_DECIMALS,
+            True,
+            False,
+            cheque_book.address,
+            True,
+        ),
+        createChequeData(
+            _numChequesCreatedInPeriod=2,
+            _totalUsdValueCreatedInPeriod=50 * EIGHTEEN_DECIMALS,
+            _periodStartBlock=period_start,
+        ),
+        False,
+        sender=cheque_book.address,
+    )
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        10 * EIGHTEEN_DECIMALS,
+        0,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob,
+    )
+
+    updated = user_wallet_config.chequePeriodData()
+    assert updated.periodStartBlock == period_start
+    assert updated.numChequesCreatedInPeriod == 3
+    assert updated.totalUsdValueCreatedInPeriod == 60 * EIGHTEEN_DECIMALS
+
+
+def test_createCheque_period_length_decrease_resets_existing_window(
+    bob, alice, charlie, alpha_token, mock_ripe,
+    user_wallet, user_wallet_config, cheque_book,
+    createChequeSettings, createChequeData,
+):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    user_wallet_config.setChequeSettings(
+        createChequeSettings(
+            _maxNumActiveCheques=0,
+            _maxChequeUsdValue=0,
+            _instantUsdThreshold=1_000 * EIGHTEEN_DECIMALS,
+            _periodLength=ONE_DAY_IN_BLOCKS,
+            _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+            _defaultExpiryBlocks=0,
+            _canManagersCreateCheques=True,
+            _canManagerPay=True,
+            _canBePulled=False,
+        ),
+        sender=cheque_book.address,
+    )
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    user_wallet_config.createCheque(
+        alice,
+        (
+            alice,
+            alpha_token.address,
+            EIGHTEEN_DECIMALS,
+            boa.env.evm.patch.block_number,
+            boa.env.evm.patch.block_number,
+            boa.env.evm.patch.block_number + ONE_WEEK_IN_BLOCKS,
+            EIGHTEEN_DECIMALS,
+            True,
+            False,
+            cheque_book.address,
+            True,
+        ),
+        createChequeData(
+            _numChequesCreatedInPeriod=2,
+            _totalUsdValueCreatedInPeriod=50 * EIGHTEEN_DECIMALS,
+            _periodStartBlock=boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10,
+        ),
+        False,
+        sender=cheque_book.address,
+    )
+
+    cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        10 * EIGHTEEN_DECIMALS,
+        0,
+        ONE_WEEK_IN_BLOCKS,
+        True,
+        False,
+        sender=bob,
+    )
+
+    updated = user_wallet_config.chequePeriodData()
+    assert updated.periodStartBlock == boa.env.evm.patch.block_number
+    assert updated.numChequesCreatedInPeriod == 1
+    assert updated.totalUsdValueCreatedInPeriod == 10 * EIGHTEEN_DECIMALS
+
+
 def test_createCheque_fails_invalid_inputs(
     bob, alice, alpha_token, mock_ripe,
     user_wallet, cheque_book,

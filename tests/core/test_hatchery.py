@@ -254,6 +254,14 @@ def test_create_user_wallet_rejects_invalid_timelock_bounds(hatchery, setUserWal
         hatchery.createUserWallet(sender=alice)
 
 
+def test_create_user_wallet_rejects_max_timelock_above_cheque_caps(hatchery, setUserWalletConfig, cheque_book, alice):
+    max_supported = min(cheque_book.MAX_UNLOCK_BLOCKS(), cheque_book.MAX_EXPIRY_BLOCKS())
+    setUserWalletConfig(_maxTimeLock=max_supported + 1)
+
+    with boa.reverts("invalid setup"):
+        hatchery.createUserWallet(sender=alice)
+
+
 def test_create_user_wallet_rejects_invalid_manager_defaults(hatchery, setManagerConfig, alice):
     setManagerConfig(_managerPeriod=0)
 

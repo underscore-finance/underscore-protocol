@@ -43,6 +43,12 @@ interface WalletBackpack:
     def sentinel() -> address: view
     def kernel() -> address: view
 
+interface ChequeBook:
+    def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
+    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: pure
+    def MAX_UNLOCK_BLOCKS() -> uint256: view
+    def MAX_EXPIRY_BLOCKS() -> uint256: view
+
 interface HighCommand:
     def isValidUserWalletManagerDefaults(_managerPeriod: uint256, _timeLock: uint256, _managerActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _startingAgent: address, _startingAgentActivationLength: uint256, _owner: address) -> bool: view
     def createDefaultGlobalManagerSettings(_managerPeriod: uint256, _minTimeLock: uint256, _defaultActivationLength: uint256, _mustHaveUsdValueOnSwaps: bool, _maxNumSwapsPerPeriod: uint256, _maxSlippageOnSwaps: uint256, _onlyApprovedYieldOpps: bool) -> wcs.GlobalManagerSettings: pure
@@ -52,10 +58,6 @@ interface Ledger:
     def createUserWallet(_user: address, _ambassador: address): nonpayable
     def isUserWallet(_user: address) -> bool: view
     def numUserWallets() -> uint256: view
-
-interface ChequeBook:
-    def isValidUserWalletChequeDefaults(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
-    def createDefaultChequeSettings(_maxNumActiveCheques: uint256, _instantUsdThreshold: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256) -> wcs.ChequeSettings: pure
 
 interface Paymaster:
     def createDefaultGlobalPayeeSettings(_defaultPeriodLength: uint256, _startDelay: uint256, _activationLength: uint256) -> wcs.GlobalPayeeSettings: pure
@@ -213,6 +215,8 @@ def createUserWallet(
     assert starterConfig.startingAgent != _owner # dev: starting agent cannot be the owner
     assert staticcall HighCommand(highCommand).isValidUserWalletManagerDefaults(config.managerPeriod, config.minKeyActionTimeLock, config.managerActivationLength, config.mustHaveUsdValueOnSwaps, config.maxNumSwapsPerPeriod, config.maxSlippageOnSwaps, starterConfig.startingAgent, starterConfig.startingAgentActivationLength, _owner) # dev: invalid setup
     assert staticcall Paymaster(paymaster).isValidUserWalletPayeeDefaults(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength) # dev: invalid setup
+    assert config.maxKeyActionTimeLock <= staticcall ChequeBook(chequeBook).MAX_UNLOCK_BLOCKS() # dev: invalid setup
+    assert config.maxKeyActionTimeLock <= staticcall ChequeBook(chequeBook).MAX_EXPIRY_BLOCKS() # dev: invalid setup
     assert staticcall ChequeBook(chequeBook).isValidUserWalletChequeDefaults(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks, config.minKeyActionTimeLock) # dev: invalid setup
 
     starterAgentSettings: wcs.ManagerSettings = empty(wcs.ManagerSettings)

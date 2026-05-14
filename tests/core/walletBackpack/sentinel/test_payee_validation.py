@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS
+from constants import ZERO_ADDRESS, ONE_DAY_IN_BLOCKS
 
 
 def test_payee_example_test(createGlobalPayeeSettings, charlie, alpha_token, bravo_token, bob, createPayeeLimits, createPayeeSettings, sentinel, user_wallet, user_wallet_config, alice, paymaster):
@@ -710,6 +710,53 @@ def test_transaction_at_exact_period_end(createGlobalPayeeSettings, createPayeeS
     )
     assert is_valid
     assert updated_data.periodStartBlock == boa.env.evm.patch.block_number  # new period
+
+
+def test_payee_period_length_increase_keeps_existing_window(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, sentinel):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    period_start = boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10
+    payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=2 * ONE_DAY_IN_BLOCKS)
+    payee_data = createPayeeData(
+        _numTxsInPeriod=2,
+        _totalUnitsInPeriod=50,
+        _totalUsdValueInPeriod=75,
+        _periodStartBlock=period_start,
+    )
+
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 10, 20,
+        payee_settings, createGlobalPayeeSettings(), payee_data
+    )
+
+    assert is_valid
+    assert did_update
+    assert updated_data.periodStartBlock == period_start
+    assert updated_data.numTxsInPeriod == 3
+    assert updated_data.totalUnitsInPeriod == 60
+    assert updated_data.totalUsdValueInPeriod == 95
+
+
+def test_payee_period_length_decrease_resets_existing_window(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, sentinel):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=ONE_DAY_IN_BLOCKS)
+    payee_data = createPayeeData(
+        _numTxsInPeriod=2,
+        _totalUnitsInPeriod=50,
+        _totalUsdValueInPeriod=75,
+        _periodStartBlock=boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10,
+    )
+
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 10, 20,
+        payee_settings, createGlobalPayeeSettings(), payee_data
+    )
+
+    assert is_valid
+    assert did_update
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUnitsInPeriod == 10
+    assert updated_data.totalUsdValueInPeriod == 20
 
 
 def test_zero_amount_transaction(createPayeeSettings, alpha_token, alice, sentinel, user_wallet, user_wallet_config, paymaster):
