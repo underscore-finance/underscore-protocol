@@ -29,13 +29,11 @@ from interfaces import AgentWrapper
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+interface UserWalletConfig:
+    def cheques(_recipient: address) -> wcs.Cheque: view
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-interface UserWalletConfig:
-    def cheques(_recipient: address) -> wcs.Cheque: view
 
 struct Signature:
     signature: Bytes[65]
@@ -70,6 +68,7 @@ currentNonce: public(HashMap[address, uint256])
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -338,7 +337,7 @@ def deleverage(
     return extcall AgentWrapper(_agentWrapper).deleverage(_userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData)
 
 
-#################
+####################
 # Claim Incentives #
 ####################
 

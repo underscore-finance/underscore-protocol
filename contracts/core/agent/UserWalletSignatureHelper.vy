@@ -11,8 +11,6 @@ import contracts.modules.SigHelper as sigHelper
 from interfaces import Wallet
 from interfaces import WalletStructs as ws
 
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
-
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
     action: uint8              # 1=transfer, 4=createAndPayCheque, 6=payCheque, 10-12=yield, 20-22=swap/exchange, 30-33=liq, 40-43=debt, 50=claimIncentives, 60-62=whitelist, 80-82=loot
@@ -34,6 +32,7 @@ struct ActionInstruction:
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 
 ##################

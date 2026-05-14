@@ -32,8 +32,6 @@ from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
-
 interface WalletConfig:
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
     def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address): nonpayable
@@ -59,11 +57,11 @@ interface WethContract:
     def withdraw(_amount: uint256): nonpayable
     def deposit(): payable
 
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
-
 interface RipeDeleverageLego:
     def deleverageForUserWallet(_user: address, _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS], _autoDeleverageAmount: uint256, _extraData: bytes32, _miniAddys: ws.MiniAddys) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]): nonpayable
+
+interface Registry:
+    def getAddr(_regId: uint256) -> address: view
 
 event WalletAction:
     op: uint8 
@@ -105,6 +103,7 @@ MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
 MAX_PROOFS: constant(uint256) = 25
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UE721"
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
@@ -968,34 +967,6 @@ def removeLiquidityConcentrated(
     return amountAReceived, amountBReceived, liqRemoved, txUsdValue
 
 
-##################
-# Event Handling #
-##################
-
-
-@internal
-def _logWalletAction(
-    _op: uint8,
-    _asset1: address,
-    _asset2: address,
-    _amount1: uint256,
-    _amount2: uint256,
-    _usdValue: uint256,
-    _legoId: uint256,
-    _signer: address,
-):
-    log WalletAction(
-        op = _op,
-        asset1 = _asset1,
-        asset2 = _asset2,
-        amount1 = _amount1,
-        amount2 = _amount2,
-        usdValue = _usdValue,
-        legoId = _legoId,
-        signer = _signer,
-    )
-
-
 #################
 # House Keeping #
 #################
@@ -1308,6 +1279,31 @@ def _payTransactionFee(
     self._resetApproval(_asset, _lootDistributor)
     return feeAmount
 
+
+# event handler
+
+
+@internal
+def _logWalletAction(
+    _op: uint8,
+    _asset1: address,
+    _asset2: address,
+    _amount1: uint256,
+    _amount2: uint256,
+    _usdValue: uint256,
+    _legoId: uint256,
+    _signer: address,
+):
+    log WalletAction(
+        op = _op,
+        asset1 = _asset1,
+        asset2 = _asset2,
+        amount1 = _amount1,
+        amount2 = _amount2,
+        usdValue = _usdValue,
+        legoId = _legoId,
+        signer = _signer,
+    )
 
 # update price and get usd value
 

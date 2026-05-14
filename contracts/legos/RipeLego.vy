@@ -38,8 +38,6 @@ from interfaces import LegoStructs as ls
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
-
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20Detailed
@@ -73,15 +71,15 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
-interface MissionControl:
-    def canPerformSecurityAction(_signer: address) -> bool: view
-
 interface EndaomentPsm:
     def redeemGreen(_paymentAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _isPaymentSavingsGreen: bool = False) -> uint256: nonpayable
     def mintGreen(_usdcAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _wantsSavingsGreen: bool = False) -> uint256: nonpayable
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+
+interface MissionControl:
+    def canPerformSecurityAction(_signer: address) -> bool: view
 
 interface LevgVault:
     def indexOfManager(_manager: address) -> uint256: view
@@ -179,6 +177,7 @@ LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 
 @deploy
@@ -989,13 +988,11 @@ def deleverageForUserWallet(
     touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS] = []
 
     if len(_deleverageAssets) != 0:
-        legacyAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS] = []
+        legacyAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [] # need to have max size 25 for Ripe
         for d: ws.DeleverageAsset in _deleverageAssets:
             assert d.asset != empty(address) # dev: invalid asset
-            legacyAssets.append(d)
-            # Specific mode conservatively marks every requested wallet asset as
-            # touched; the wallet enforces this is a subset of the request.
-            touchedAssets.append(d.asset)
+            legacyAssets.append(d) # 25 assets max
+            touchedAssets.append(d.asset) # 10 assets max
         repaidAmount = extcall RipeTeller(teller).deleverageWithSpecificAssets(legacyAssets, _user)
     else:
         repaidAmount = extcall RipeTeller(teller).deleverageUser(_user, _autoDeleverageAmount)
@@ -1038,11 +1035,8 @@ def _canCallDeleverage(_user: address, _caller: address) -> bool:
     # user wallets
     if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user):
         if _caller == _user:
-            # Wallet-authenticated path used by UserWallet.deleverage.
             return True
         walletConfig: address = staticcall UserWallet(_user).walletConfig()
-        # v_compat: keep old direct agent-sender callers alive for the
-        # migration window. v_tight removes this branch.
         return staticcall UserWalletConfig(walletConfig).isAgentSender(_caller)
 
     # earn vaults
@@ -1062,6 +1056,7 @@ def getUserDebtAmount(_user: address) -> uint256:
 #################
 # Claim Rewards #
 #################
+
 
 @view
 @internal

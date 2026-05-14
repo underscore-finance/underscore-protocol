@@ -26,8 +26,6 @@ from interfaces import AgentWrapper
 from interfaces import WalletStructs as ws
 from interfaces import WalletConfigStructs as wcs
 
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
-
 interface UserWalletConfig:
     def indexOfManager(_manager: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
@@ -75,6 +73,7 @@ numSenders: public(uint256) # num senders
 
 UNDY_HQ: immutable(address)
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 SWITCHBOARD_ID: constant(uint256) = 4

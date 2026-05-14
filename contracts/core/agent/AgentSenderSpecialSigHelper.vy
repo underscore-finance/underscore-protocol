@@ -1,6 +1,6 @@
 #     ╔════════════════════════════════════════════════════════════════════════════════╗
-#     ║  ** Signature Helper - Special Workflows **                                   ║
-#     ║  Generates message hashes for AgentSenderSpecial signatures                   ║
+#     ║  ** Signature Helper - Special Workflows **                                    ║
+#     ║  Generates message hashes for AgentSenderSpecial signatures                    ║
 #     ╚════════════════════════════════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
@@ -10,8 +10,6 @@
 import contracts.modules.SigHelper as sigHelper
 from interfaces import Wallet
 from interfaces import WalletStructs as ws
-
-MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 struct CollateralAsset:
     vaultId: uint256
@@ -49,6 +47,7 @@ MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 MAX_CHEQUES: constant(uint256) = 25
 MAX_WHITELIST_ADDRS: constant(uint256) = 25
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 
 ################################
