@@ -424,6 +424,18 @@ def test_whitelist_via_migrator_rejects_existing_roles(
         user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
 
 
+def test_whitelist_via_migrator_rejects_registry_addresses(user_wallet_config, migrator, ledger):
+    """Migrator cannot whitelist privileged Undy registry addresses."""
+    with boa.reverts("invalid address"):
+        user_wallet_config.addWhitelistAddrViaMigrator(ledger.address, sender=migrator.address)
+
+
+def test_whitelist_via_migrator_rejects_backpack_items(user_wallet_config, migrator, kernel):
+    """Migrator cannot whitelist registered backpack items."""
+    with boa.reverts("invalid address"):
+        user_wallet_config.addWhitelistAddrViaMigrator(kernel.address, sender=migrator.address)
+
+
 #############################
 # Manager Persistence Tests #
 #############################

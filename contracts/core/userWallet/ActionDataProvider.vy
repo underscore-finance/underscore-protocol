@@ -73,6 +73,17 @@ def isValidRegistryAddr(_addr: address, _undyHq: address) -> bool:
 
 @view
 @external
+def isPrivilegedUndyAddr(_addr: address, _undyHq: address) -> bool:
+    if staticcall Registry(_undyHq).isValidAddr(_addr):
+        return True
+    ledger: address = staticcall Registry(_undyHq).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
+
+
+@view
+@external
 def isSwitchboardAddr(_addr: address, _undyHq: address) -> bool:
     switchboard: address = staticcall Registry(_undyHq).getAddr(SWITCHBOARD_ID)
     if switchboard == empty(address):

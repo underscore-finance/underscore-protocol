@@ -23,6 +23,27 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "isPrivilegedUndyAddr",
+    "inputs": [
+      {
+        "name": "_addr",
+        "type": "address"
+      },
+      {
+        "name": "_undyHq",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "isSwitchboardAddr",
     "inputs": [
       {

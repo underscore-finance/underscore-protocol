@@ -47,6 +47,7 @@ interface ActionDataProvider:
     def getActionDataBundle(_walletConfig: address, _legoId: uint256, _signer: address, _undyHq: address, _eth: address, _weth: address) -> ws.ActionData: view
     def canSetBackpackItem(_newBackpackAddr: address, _caller: address, _owner: address, _undyHq: address) -> bool: view
     def canPerformSecurityAction(_addr: address, _undyHq: address) -> bool: view
+    def isPrivilegedUndyAddr(_addr: address, _undyHq: address) -> bool: view
     def isValidRegistryAddr(_addr: address, _undyHq: address) -> bool: view
     def isSwitchboardAddr(_addr: address, _undyHq: address) -> bool: view
     def isAgentSender(_addr: address, _agent: address) -> bool: view
@@ -605,6 +606,7 @@ def confirmWhitelistAddr(_addr: address):
 def addWhitelistAddrViaMigrator(_addr: address):
     assert msg.sender == self.migrator # dev: no perms
     assert _addr != empty(address) # dev: invalid address
+    assert not staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isPrivilegedUndyAddr(_addr, UNDY_HQ) # dev: invalid address
     assert self.indexOfPayee[_addr] == 0 and not self.cheques[_addr].active and self.indexOfManager[_addr] == 0 # dev: payee, manager, or active cheque
     self._registerWhitelistAddr(_addr)
 
