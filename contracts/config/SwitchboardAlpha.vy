@@ -1456,7 +1456,6 @@ def executePendingAction(_aid: uint256) -> bool:
     actionType: ActionType = self.actionType[_aid]
     mc: address = self.pendingMissionControl[_aid]
     if mc == empty(address):
-        # Non-MissionControl actions and legacy pending actions do not stage this value.
         mc = addys._getMissionControlAddr()
 
     if actionType == ActionType.USER_WALLET_TEMPLATES:

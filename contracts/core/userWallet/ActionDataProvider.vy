@@ -105,7 +105,6 @@ def canSetBackpackItem(_newBackpackAddr: address, _caller: address, _owner: addr
 def isAgentSender(_addr: address, _agent: address) -> bool:
     if _agent == empty(address):
         return False
-    # Contracts still in construction have no runtime code yet and are treated as non-agents.
     if not _agent.is_contract:
         return False
     return staticcall AgentWrapper(_agent).isSender(_addr)

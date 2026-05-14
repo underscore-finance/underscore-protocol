@@ -22,8 +22,8 @@ from ethereum.ercs import IERC20
 
 interface UserWalletConfig:
     def applyMigratedConfigSettings(_fromConfig: address, _timeLock: uint256, _instantSettings: wcs.InstantActionSettings, _globalManagerSettings: wcs.GlobalManagerSettings, _globalPayeeSettings: wcs.GlobalPayeeSettings, _chequeSettings: wcs.ChequeSettings): nonpayable
-    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
+    def updateManager(_manager: address, _config: wcs.ManagerSettings): nonpayable
     def pendingInstantActionSettings() -> wcs.PendingInstantActionSettings: view
     def migrateFunds(_toWallet: address, _asset: address) -> uint256: nonpayable
     def addManager(_manager: address, _config: wcs.ManagerSettings): nonpayable

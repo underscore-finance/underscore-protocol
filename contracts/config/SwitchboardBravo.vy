@@ -49,11 +49,11 @@ interface LootDistributor:
     def claimAllLoot(_user: address) -> bool: nonpayable
     def updateDepositPoints(_user: address): nonpayable
 
-interface Paymaster:
-    def setCanInstantSetGlobalPayeeSettings(_isEnabled: bool) -> bool: nonpayable
-    def setCanInstantAddPayee(_isEnabled: bool) -> bool: nonpayable
-    def canInstantSetGlobalPayeeSettings() -> bool: view
-    def canInstantAddPayee() -> bool: view
+interface Hatchery:
+    def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
+    def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings): view
+    def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
+    def setNonProdCreator(_nonProdCreator: address): nonpayable
 
 interface UndyEcoContract:
     def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]): nonpayable
@@ -61,11 +61,11 @@ interface UndyEcoContract:
     def recoverFunds(_recipient: address, _asset: address): nonpayable
     def pause(_shouldPause: bool): nonpayable
 
-interface Hatchery:
-    def setStarterAgentConfig(_starterAgentType: cs.StarterAgentType, _startingAgent: address, _startingAgentActivationLength: uint256): nonpayable
-    def setDefaultInstantActionSettings(_settings: wcs.InstantActionSettings): nonpayable
-    def getDefaultInstantActionSettingsChange(_target: wcs.InstantActionSettings) -> (bool, bool, wcs.InstantActionSettings): view
-    def setNonProdCreator(_nonProdCreator: address): nonpayable
+interface Paymaster:
+    def setCanInstantSetGlobalPayeeSettings(_isEnabled: bool) -> bool: nonpayable
+    def setCanInstantAddPayee(_isEnabled: bool) -> bool: nonpayable
+    def canInstantSetGlobalPayeeSettings() -> bool: view
+    def canInstantAddPayee() -> bool: view
 
 interface UserWalletConfig:
     def updateAssetData(_legoId: uint256, _asset: address, _shouldCheckYield: bool) -> uint256: nonpayable
@@ -1248,28 +1248,4 @@ def cancelPendingAction(_aid: uint256) -> bool:
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
     actionType: ActionType = self.actionType[_aid]
-    if actionType == ActionType.ENABLE_INSTANT_MIGRATION:
-        pendingMigration: PendingInstantMigrationEnable = self.pendingInstantMigrationEnable
-        if pendingMigration.actionId == _aid:
-            self.pendingInstantMigrationEnable = empty(PendingInstantMigrationEnable)
-    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_MANAGER:
-        pendingAddManager: PendingProtocolFlagEnable = self.pendingCanInstantAddManagerEnable
-        if pendingAddManager.actionId == _aid:
-            self.pendingCanInstantAddManagerEnable = empty(PendingProtocolFlagEnable)
-    elif actionType == ActionType.ENABLE_CAN_INSTANT_ADD_PAYEE:
-        pendingAddPayee: PendingProtocolFlagEnable = self.pendingCanInstantAddPayeeEnable
-        if pendingAddPayee.actionId == _aid:
-            self.pendingCanInstantAddPayeeEnable = empty(PendingProtocolFlagEnable)
-    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS:
-        pendingGlobalPayee: PendingProtocolFlagEnable = self.pendingCanInstantSetGlobalPayeeSettingsEnable
-        if pendingGlobalPayee.actionId == _aid:
-            self.pendingCanInstantSetGlobalPayeeSettingsEnable = empty(PendingProtocolFlagEnable)
-    elif actionType == ActionType.ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS:
-        pendingChequeSettings: PendingProtocolFlagEnable = self.pendingCanInstantSetChequeSettingsEnable
-        if pendingChequeSettings.actionId == _aid:
-            self.pendingCanInstantSetChequeSettingsEnable = empty(PendingProtocolFlagEnable)
-    elif actionType == ActionType.ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS:
-        pending: PendingHatcheryDefaultInstantSettings = self.pendingHatcheryDefaultInstantSettings
-        if pending.actionId == _aid:
-            self.pendingHatcheryDefaultInstantSettings = empty(PendingHatcheryDefaultInstantSettings)
     self.actionType[_aid] = empty(ActionType)
