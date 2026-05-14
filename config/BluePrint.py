@@ -338,7 +338,9 @@ WHALES = {
         "EURC": "0x7b2c99188D8EC7B82d6b3b3b1C1002095F1b8498",
         "CRVUSD": "0xf6C5F01C7F3148891ad0e19DF78743D31E390D1f",
         "DOLA": "0x0B25c51637c43decd6CC1C1e3da4518D54ddb528",
-        "USDM": "0x4180515FB359Cf8165E81563020023DB6a68D5d5",
+        # At base fork block 34642981 the prior whale is empty; the Curve USDC/USDM pool
+        # holds ~893 USDM and acts as a stable source for fork-test transfers.
+        "USDM": "0x63Eb7846642630456707C3efBb50A03c79B89D81",
         "BOLD": "0xEf3EFc734a3FE0bF20762992ec839939bA3Af050",
         # eth
         "WSTETH": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",

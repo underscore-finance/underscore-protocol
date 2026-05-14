@@ -350,19 +350,25 @@ def test_aero_slipstream_get_best_pool(
     lego_aero_slipstream,
     fork,
 ):
+    # Verify lego picks the registered deepest pool AND correctly normalizes its fee.
+    # AeroSlipstream lego normalization: pool.fee() // 100 (see AeroSlipstream.vy:912).
     tokenA, _ = getTokenAndWhale("USDC")
     tokenB, _ = getTokenAndWhale("WETH")
 
     best_pool = lego_aero_slipstream.getDeepestLiqPool(tokenA, tokenB)
     assert best_pool.pool == POOLS[fork]["WETH_USDC"]
-    assert best_pool.fee == 4
+    pool_contract = boa.from_etherscan(best_pool.pool, name="slipstream_weth_usdc")
+    assert best_pool.fee == pool_contract.fee() // 100
+    assert best_pool.fee != 0
     assert best_pool.liquidity != 0
     assert best_pool.numCoins == 2
 
     tokenA, _ = getTokenAndWhale("CBBTC")
     best_pool = lego_aero_slipstream.getDeepestLiqPool(tokenA, tokenB)
     assert best_pool.pool == POOLS[fork]["WETH_CBBTC"]
-    assert best_pool.fee == 4
+    pool_contract = boa.from_etherscan(best_pool.pool, name="slipstream_weth_cbbtc")
+    assert best_pool.fee == pool_contract.fee() // 100
+    assert best_pool.fee != 0
     assert best_pool.liquidity != 0
     assert best_pool.numCoins == 2
 
@@ -374,13 +380,22 @@ def test_aero_slipstream_get_swap_amount_out(
     fork,
     _test,
 ):
+    # Round-trip: A -> B -> A should preserve amount within concentrated-liquidity fees.
     tokenA, _ = getTokenAndWhale("USDC")
     tokenB, _ = getTokenAndWhale("WETH")
-    amount_out = lego_aero_slipstream.getSwapAmountOut(POOLS[fork]["WETH_USDC"], tokenA, tokenB, 2_600 * (10 ** tokenA.decimals()))
-    _test(1 * (10 ** tokenB.decimals()), amount_out, 100)
+    pool = POOLS[fork]["WETH_USDC"]
 
-    amount_out = lego_aero_slipstream.getSwapAmountOut(POOLS[fork]["WETH_USDC"], tokenB, tokenA, 1 * (10 ** tokenB.decimals()))
-    _test(2_600 * (10 ** tokenA.decimals()), amount_out, 100)
+    amount_in_a = 2_600 * (10 ** tokenA.decimals())
+    amount_b = lego_aero_slipstream.getSwapAmountOut(pool, tokenA, tokenB, amount_in_a)
+    assert amount_b != 0
+    amount_a_back = lego_aero_slipstream.getSwapAmountOut(pool, tokenB, tokenA, amount_b)
+    _test(amount_in_a, amount_a_back, 1_00)
+
+    amount_in_b = 1 * (10 ** tokenB.decimals())
+    amount_a = lego_aero_slipstream.getSwapAmountOut(pool, tokenB, tokenA, amount_in_b)
+    assert amount_a != 0
+    amount_b_back = lego_aero_slipstream.getSwapAmountOut(pool, tokenA, tokenB, amount_a)
+    _test(amount_in_b, amount_b_back, 1_00)
 
 
 @pytest.always
@@ -408,13 +423,22 @@ def test_aero_slipstream_get_swap_amount_in(
     fork,
     _test,
 ):
+    # Inverse consistency check.
     tokenA, _ = getTokenAndWhale("USDC")
     tokenB, _ = getTokenAndWhale("WETH")
-    amount_in = lego_aero_slipstream.getSwapAmountIn(POOLS[fork]["WETH_USDC"], tokenB, tokenA, 2_600 * (10 ** tokenA.decimals()))
-    _test(1 * (10 ** tokenB.decimals()), amount_in, 100)
+    pool = POOLS[fork]["WETH_USDC"]
 
-    amount_in = lego_aero_slipstream.getSwapAmountIn(POOLS[fork]["WETH_USDC"], tokenA, tokenB, 1 * (10 ** tokenB.decimals()))
-    _test(2_600 * (10 ** tokenA.decimals()), amount_in, 100)
+    target_out_a = 2_600 * (10 ** tokenA.decimals())
+    needed_in_b = lego_aero_slipstream.getSwapAmountIn(pool, tokenB, tokenA, target_out_a)
+    assert needed_in_b != 0
+    realized_out_a = lego_aero_slipstream.getSwapAmountOut(pool, tokenB, tokenA, needed_in_b)
+    _test(target_out_a, realized_out_a, 50)
+
+    target_out_b = 1 * (10 ** tokenB.decimals())
+    needed_in_a = lego_aero_slipstream.getSwapAmountIn(pool, tokenA, tokenB, target_out_b)
+    assert needed_in_a != 0
+    realized_out_b = lego_aero_slipstream.getSwapAmountOut(pool, tokenA, tokenB, needed_in_a)
+    _test(target_out_b, realized_out_b, 50)
 
 
 @pytest.always
@@ -424,24 +448,28 @@ def test_aero_slipstream_get_add_liq_amounts_in(
     fork,
     _test,
 ):
-    pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
-    tokenA, whaleA = getTokenAndWhale("USDC")
-    amountA = 10_000 * (10 ** tokenA.decimals())
-    tokenB, whaleB = getTokenAndWhale("WETH")
+    # Price-agnostic: size inputs against the pool's current market rate.
+    pool_addr = POOLS[fork]["WETH_USDC"]
+    pool = boa.from_etherscan(pool_addr)
+    tokenA, _ = getTokenAndWhale("USDC")
+    tokenB, _ = getTokenAndWhale("WETH")
+
+    a_per_b_unit = lego_aero_slipstream.getSwapAmountOut(pool_addr, tokenB, tokenA, 10 ** tokenB.decimals())
     amountB = 3 * (10 ** tokenB.decimals())
+    needed_a_for_b = amountB * a_per_b_unit // (10 ** tokenB.decimals())
 
-    # reduce amount a
-    liq_amount_a, liq_amount_b, _ = lego_aero_slipstream.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA, amountB)
-    _test(liq_amount_a, 7_800 * (10 ** tokenA.decimals()), 1_00)
-    _test(liq_amount_b, 3 * (10 ** tokenB.decimals()), 1_00)
+    # case: B binding
+    amountA_excess = needed_a_for_b * 2
+    liq_a, liq_b, _ = lego_aero_slipstream.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA_excess, amountB)
+    assert liq_b == amountB
+    _test(needed_a_for_b, liq_a, 1_00)
 
-    # set new amount b
-    amountB = 10 * (10 ** tokenB.decimals())
-
-    # reduce amount b
-    liq_amount_a, liq_amount_b, _ = lego_aero_slipstream.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA, amountB)
-    _test(liq_amount_a, 10_000 * (10 ** tokenA.decimals()), 1_00)
-    _test(liq_amount_b, int(3.84 * (10 ** tokenB.decimals())), 1_00)
+    # case: A binding
+    amountA_short = needed_a_for_b // 2
+    expected_b_for_a = amountA_short * (10 ** tokenB.decimals()) // a_per_b_unit
+    liq_a, liq_b, _ = lego_aero_slipstream.getAddLiqAmountsIn(pool, tokenA, tokenB, amountA_short, amountB)
+    assert liq_a == amountA_short
+    _test(expected_b_for_a, liq_b, 1_00)
 
 
 @pytest.always
@@ -454,32 +482,37 @@ def test_aero_slipstream_get_remove_liq_amounts_out(
     _test,
     lego_book,
 ):
+    # Add then verify removeOut returns approximately what was added.
     lego_id = lego_book.getRegId(lego_aero_slipstream)
-    pool = boa.from_etherscan(POOLS[fork]["WETH_USDC"])
-
-    # setup
+    pool_addr = POOLS[fork]["WETH_USDC"]
+    pool = boa.from_etherscan(pool_addr)
     tokenA, whaleA = getTokenAndWhale("USDC")
-    amountA = 7_800 * (10 ** tokenA.decimals())
-    tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
-
     tokenB, whaleB = getTokenAndWhale("WETH")
+
+    # Size A against current market rate so the lego accepts both sides.
     amountB = 3 * (10 ** tokenB.decimals())
+    a_per_b_unit = lego_aero_slipstream.getSwapAmountOut(pool_addr, tokenB, tokenA, 10 ** tokenB.decimals())
+    amountA = amountB * a_per_b_unit // (10 ** tokenB.decimals())
+    amountA = amountA * 110 // 100  # cushion against rounding/range narrowing
+
+    tokenA.transfer(bob_user_wallet.address, amountA, sender=whaleA)
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
     liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
+    assert liqAmountA != 0 and liqAmountB != 0
 
-    # test
+    # removeOut should mirror what was added (concentrated liquidity may have ~1bp rounding)
     amountAOut, amountBOut = lego_aero_slipstream.getRemoveLiqAmountsOut(pool, tokenA, tokenB, liquidityAdded)
-    _test(amountAOut, 7_800 * (10 ** tokenA.decimals()), 1_00)
-    _test(amountBOut, 3 * (10 ** tokenB.decimals()), 1_00)
+    _test(liqAmountA, amountAOut, 1_00)
+    _test(liqAmountB, amountBOut, 1_00)
 
     # re-arrange amounts
     first_amount, second_amount = lego_aero_slipstream.getRemoveLiqAmountsOut(pool, tokenB, tokenA, liquidityAdded)
-    _test(first_amount, 3 * (10 ** tokenB.decimals()), 1_00)
-    _test(second_amount, 7_800 * (10 ** tokenA.decimals()), 1_00)
+    _test(liqAmountB, first_amount, 1_00)
+    _test(liqAmountA, second_amount, 1_00)
 
 
 @pytest.always
