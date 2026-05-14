@@ -828,6 +828,25 @@ def isValidGlobalPayeeSettings(
 
 
 @view
+@external
+def isValidGlobalPayeeSettingsWithTimeLock(
+    _settings: wcs.GlobalPayeeSettings,
+    _timeLock: uint256,
+) -> bool:
+    return self._isValidGlobalPayeeSettings(
+        _settings.defaultPeriodLength,
+        _settings.startDelay,
+        _settings.activationLength,
+        _settings.maxNumTxsPerPeriod,
+        _settings.txCooldownBlocks,
+        _settings.failOnZeroPrice,
+        _settings.usdLimits,
+        _settings.canPull,
+        _timeLock,
+    )
+
+
+@view
 @internal
 def _isValidGlobalPayeeSettings(
     _defaultPeriodLength: uint256,

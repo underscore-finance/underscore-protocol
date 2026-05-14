@@ -1662,146 +1662,156 @@
     "name": "validateGlobalManagerSettings",
     "inputs": [
       {
-        "name": "_userWallet",
+        "name": "_walletConfig",
         "type": "address"
       },
       {
-        "name": "_managerPeriod",
-        "type": "uint256"
-      },
-      {
-        "name": "_startDelay",
-        "type": "uint256"
-      },
-      {
-        "name": "_activationLength",
-        "type": "uint256"
-      },
-      {
-        "name": "_canOwnerManage",
-        "type": "bool"
-      },
-      {
-        "name": "_limits",
+        "name": "_settings",
         "type": "tuple",
         "components": [
           {
-            "name": "maxUsdValuePerTx",
+            "name": "managerPeriod",
             "type": "uint256"
           },
           {
-            "name": "maxUsdValuePerPeriod",
+            "name": "startDelay",
             "type": "uint256"
           },
           {
-            "name": "maxUsdValueLifetime",
+            "name": "activationLength",
             "type": "uint256"
           },
           {
-            "name": "maxNumTxsPerPeriod",
-            "type": "uint256"
-          },
-          {
-            "name": "txCooldownBlocks",
-            "type": "uint256"
-          },
-          {
-            "name": "failOnZeroPrice",
-            "type": "bool"
-          }
-        ]
-      },
-      {
-        "name": "_legoPerms",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "canManageYield",
+            "name": "canOwnerManage",
             "type": "bool"
           },
           {
-            "name": "canBuyAndSell",
-            "type": "bool"
+            "name": "limits",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxUsdValuePerTx",
+                "type": "uint256"
+              },
+              {
+                "name": "maxUsdValuePerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "maxUsdValueLifetime",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumTxsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "txCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "failOnZeroPrice",
+                "type": "bool"
+              }
+            ]
           },
           {
-            "name": "canManageDebt",
-            "type": "bool"
+            "name": "legoPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canManageYield",
+                "type": "bool"
+              },
+              {
+                "name": "canBuyAndSell",
+                "type": "bool"
+              },
+              {
+                "name": "canManageDebt",
+                "type": "bool"
+              },
+              {
+                "name": "canManageLiq",
+                "type": "bool"
+              },
+              {
+                "name": "canClaimRewards",
+                "type": "bool"
+              },
+              {
+                "name": "onlyApprovedYieldOpps",
+                "type": "bool"
+              },
+              {
+                "name": "allowedLegos",
+                "type": "uint256[]"
+              }
+            ]
           },
           {
-            "name": "canManageLiq",
-            "type": "bool"
+            "name": "swapPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "mustHaveUsdValue",
+                "type": "bool"
+              },
+              {
+                "name": "maxNumSwapsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "maxSlippage",
+                "type": "uint256"
+              }
+            ]
           },
           {
-            "name": "canClaimRewards",
-            "type": "bool"
+            "name": "whitelistPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canConfirm",
+                "type": "bool"
+              },
+              {
+                "name": "canCancel",
+                "type": "bool"
+              },
+              {
+                "name": "canRemove",
+                "type": "bool"
+              }
+            ]
           },
           {
-            "name": "onlyApprovedYieldOpps",
-            "type": "bool"
+            "name": "transferPerms",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canTransfer",
+                "type": "bool"
+              },
+              {
+                "name": "canCreateCheque",
+                "type": "bool"
+              },
+              {
+                "name": "allowedPayees",
+                "type": "address[]"
+              }
+            ]
           },
           {
-            "name": "allowedLegos",
-            "type": "uint256[]"
-          }
-        ]
-      },
-      {
-        "name": "_swapPerms",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "mustHaveUsdValue",
-            "type": "bool"
-          },
-          {
-            "name": "maxNumSwapsPerPeriod",
-            "type": "uint256"
-          },
-          {
-            "name": "maxSlippage",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_whitelistPerms",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "canConfirm",
-            "type": "bool"
-          },
-          {
-            "name": "canCancel",
-            "type": "bool"
-          },
-          {
-            "name": "canRemove",
-            "type": "bool"
-          }
-        ]
-      },
-      {
-        "name": "_transferPerms",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "canTransfer",
-            "type": "bool"
-          },
-          {
-            "name": "canCreateCheque",
-            "type": "bool"
-          },
-          {
-            "name": "allowedPayees",
+            "name": "allowedAssets",
             "type": "address[]"
           }
         ]
       },
       {
-        "name": "_allowedAssets",
-        "type": "address[]"
+        "name": "_timeLock",
+        "type": "uint256"
       }
     ],
     "outputs": [

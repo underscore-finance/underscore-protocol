@@ -340,6 +340,23 @@ def test_cannot_migrate_frozen_wallets(migrator, user_wallet, user_wallet_config
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
+def test_cannot_migrate_ejected_wallets(migrator, user_wallet, user_wallet_config, hatchery, bob, switchboard_alpha):
+    """Eject mode blocks funds migration from either side of the pair."""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, new_wallet, sender=bob)
+
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    new_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, new_wallet, sender=bob)
+
+
 # Test pending ownership change restriction
 def test_cannot_migrate_with_pending_owner_change(migrator, user_wallet, user_wallet_config, hatchery, bob, alice):
     """Test that wallets with pending ownership changes cannot be migrated"""
@@ -622,6 +639,7 @@ def test_migration_bundle_data(migrator, user_wallet, user_wallet_config, bob):
     # Verify bundle data matches wallet config
     assert bundle.owner == bob
     assert bundle.isFrozen == user_wallet_config.isFrozen()
+    assert bundle.inEjectMode == user_wallet_config.inEjectMode()
     assert bundle.numPayees == user_wallet_config.numPayees()
     assert bundle.numWhitelisted == user_wallet_config.numWhitelisted()
     assert bundle.numManagers == user_wallet_config.numManagers()

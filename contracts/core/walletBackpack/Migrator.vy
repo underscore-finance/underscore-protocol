@@ -52,11 +52,15 @@ interface UserWalletConfig:
     def clearPendingMigration(): nonpayable
     def numWhitelisted() -> uint256: view
     def startingAgent() -> address: view
+    def MIN_TIMELOCK() -> uint256: view
+    def MAX_TIMELOCK() -> uint256: view
+    def highCommand() -> address: view
     def numManagers() -> uint256: view
     def chequeBook() -> address: view
     def paymaster() -> address: view
     def numPayees() -> uint256: view
     def migrator() -> address: view
+    def inEjectMode() -> bool: view
     def timeLock() -> uint256: view
     def groupId() -> uint256: view
     def owner() -> address: view
@@ -68,6 +72,14 @@ interface UserWallet:
     def walletConfig() -> address: view
     def numAssets() -> uint256: view
 
+interface ChequeBook:
+    def isValidChequeSettings(_maxNumActiveCheques: uint256, _maxChequeUsdValue: uint256, _instantUsdThreshold: uint256, _perPeriodPaidUsdCap: uint256, _maxNumChequesPaidPerPeriod: uint256, _payCooldownBlocks: uint256, _perPeriodCreatedUsdCap: uint256, _maxNumChequesCreatedPerPeriod: uint256, _createCooldownBlocks: uint256, _periodLength: uint256, _expensiveDelayBlocks: uint256, _defaultExpiryBlocks: uint256, _timeLock: uint256) -> bool: view
+    def hasPendingChequeSettings(_userWallet: address) -> bool: view
+
+interface Paymaster:
+    def isValidGlobalPayeeSettingsWithTimeLock(_settings: wcs.GlobalPayeeSettings, _timeLock: uint256) -> bool: view
+    def hasPendingGlobalPayeeSettings(_userWallet: address) -> bool: view
+
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
     def isUserWallet(_user: address) -> bool: view
@@ -76,11 +88,8 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
     def isValidAddr(_addr: address) -> bool: view
 
-interface Paymaster:
-    def hasPendingGlobalPayeeSettings(_userWallet: address) -> bool: view
-
-interface ChequeBook:
-    def hasPendingChequeSettings(_userWallet: address) -> bool: view
+interface HighCommand:
+    def validateGlobalManagerSettings(_walletConfig: address, _settings: wcs.GlobalManagerSettings, _timeLock: uint256) -> bool: view
 
 interface MissionControl:
     def canPerformSecurityAction(_addr: address) -> bool: view
@@ -411,6 +420,10 @@ def _cloneConfig(_fromWallet: address, _toWallet: address) -> bool:
     # Individual cheques are NOT migrated - users must manually recreate them.
     # Validation ensures destination has no active cheques before migration
 
+    # Validate scalar settings against the destination's final cloned role state before writing.
+    appliedTimeLock: uint256 = self._getClampedTimeLock(toConfig, timeLock)
+    self._validateMigratedConfigSettings(toConfig, globalManagerSettings, globalPayeeSettings, chequeSettings, appliedTimeLock)
+
     # Apply scalar settings after the loops so the destination event pairs with ConfigCloned counts.
     extcall UserWalletConfig(toConfig).applyMigratedConfigSettings(
         fromConfig,
@@ -547,6 +560,8 @@ def _hasBlockingPendingMigrationState(_userWallet: address) -> bool:
 @internal
 def _isMigrationSourceReady(_data: wcs.MigrationConfigBundle) -> bool:
     if _data.isFrozen:
+        return False
+    if _data.inEjectMode:
         return False
     if _data.hasPendingOwnerChange:
         return False
@@ -697,12 +712,54 @@ def _isValidMigratorConfigAddr(_walletConfig: address, _addr: address, _isManage
 
 @view
 @internal
+def _getClampedTimeLock(_walletConfig: address, _timeLock: uint256) -> uint256:
+    return max(
+        staticcall UserWalletConfig(_walletConfig).MIN_TIMELOCK(),
+        min(_timeLock, staticcall UserWalletConfig(_walletConfig).MAX_TIMELOCK()),
+    )
+
+
+@view
+@internal
+def _validateMigratedConfigSettings(
+    _toConfig: address,
+    _globalManagerSettings: wcs.GlobalManagerSettings,
+    _globalPayeeSettings: wcs.GlobalPayeeSettings,
+    _chequeSettings: wcs.ChequeSettings,
+    _timeLock: uint256,
+):
+    highCommand: address = staticcall UserWalletConfig(_toConfig).highCommand()
+    paymaster: address = staticcall UserWalletConfig(_toConfig).paymaster()
+    chequeBook: address = staticcall UserWalletConfig(_toConfig).chequeBook()
+
+    assert staticcall HighCommand(highCommand).validateGlobalManagerSettings(_toConfig, _globalManagerSettings, _timeLock) # dev: invalid migrated manager settings
+    assert staticcall Paymaster(paymaster).isValidGlobalPayeeSettingsWithTimeLock(_globalPayeeSettings, _timeLock) # dev: invalid migrated payee settings
+    assert staticcall ChequeBook(chequeBook).isValidChequeSettings(
+        _chequeSettings.maxNumActiveCheques,
+        _chequeSettings.maxChequeUsdValue,
+        _chequeSettings.instantUsdThreshold,
+        _chequeSettings.perPeriodPaidUsdCap,
+        _chequeSettings.maxNumChequesPaidPerPeriod,
+        _chequeSettings.payCooldownBlocks,
+        _chequeSettings.perPeriodCreatedUsdCap,
+        _chequeSettings.maxNumChequesCreatedPerPeriod,
+        _chequeSettings.createCooldownBlocks,
+        _chequeSettings.periodLength,
+        _chequeSettings.expensiveDelayBlocks,
+        _chequeSettings.defaultExpiryBlocks,
+        _timeLock,
+    ) # dev: invalid migrated cheque settings
+
+
+@view
+@internal
 def _getMigrationConfigBundle(_userWallet: address) -> wcs.MigrationConfigBundle:
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     startingAgent: address = staticcall UserWalletConfig(walletConfig).startingAgent()
     return wcs.MigrationConfigBundle(
         owner = staticcall UserWalletConfig(walletConfig).owner(),
         isFrozen = staticcall UserWalletConfig(walletConfig).isFrozen(),
+        inEjectMode = staticcall UserWalletConfig(walletConfig).inEjectMode(),
         numPayees = staticcall UserWalletConfig(walletConfig).numPayees(),
         numWhitelisted = staticcall UserWalletConfig(walletConfig).numWhitelisted(),
         numManagers = staticcall UserWalletConfig(walletConfig).numManagers(),

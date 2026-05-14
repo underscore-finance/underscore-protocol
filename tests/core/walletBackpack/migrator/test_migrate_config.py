@@ -118,6 +118,34 @@ def ready_pending_migration(migrator, from_wallet, to_wallet, *, sender):
     return pending
 
 
+def set_scalar_settings_valid_for_time_lock(
+    config,
+    time_lock,
+    high_command,
+    paymaster,
+    cheque_book,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+):
+    config.setGlobalManagerSettings(
+        createGlobalManagerSettings(_startDelay=time_lock),
+        sender=high_command.address,
+    )
+    config.setGlobalPayeeSettings(
+        createGlobalPayeeSettings(_startDelay=time_lock),
+        sender=paymaster.address,
+    )
+    config.setChequeSettings(
+        createChequeSettings(
+            _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+            _expensiveDelayBlocks=time_lock,
+            _defaultExpiryBlocks=time_lock,
+        ),
+        sender=cheque_book.address,
+    )
+
+
 def fresh_wallet(hatchery, owner):
     return UserWallet.at(hatchery.createUserWallet(sender=owner))
 
@@ -253,6 +281,23 @@ def test_cannot_copy_config_frozen_wallets(migrator, user_wallet, user_wallet_co
     user_wallet_config.setFrozen(False, sender=bob)
     new_wallet_config.setFrozen(True, sender=bob)
     assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
+
+
+def test_cannot_copy_config_ejected_wallets(migrator, user_wallet, user_wallet_config, hatchery, bob, switchboard_alpha):
+    """Eject mode blocks config cloning from either side of the pair."""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
+    with boa.reverts("cannot copy config"):
+        migrator.cloneConfig(user_wallet, new_wallet, sender=bob)
+
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    new_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canCopyWalletConfig(user_wallet, new_wallet, bob)
+    with boa.reverts("cannot copy config"):
+        migrator.cloneConfig(user_wallet, new_wallet, sender=bob)
 
 
 # Test pending ownership change restriction
@@ -514,6 +559,7 @@ def test_migration_bundle_data_for_config(migrator, user_wallet, user_wallet_con
     # Verify bundle data matches wallet config
     assert bundle.owner == bob
     assert bundle.isFrozen == user_wallet_config.isFrozen()
+    assert bundle.inEjectMode == user_wallet_config.inEjectMode()
     assert bundle.numPayees == user_wallet_config.numPayees()
     assert bundle.numWhitelisted == user_wallet_config.numWhitelisted()
     assert bundle.numManagers == user_wallet_config.numManagers()
@@ -912,10 +958,13 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
     
     # Create custom global manager settings with unique values
+    manager_period = high_command.MIN_MANAGER_PERIOD()
+    manager_start_delay = from_config.timeLock()
+    manager_activation = high_command.MIN_ACTIVATION_LENGTH()
     global_manager_settings = createGlobalManagerSettings(
-        _managerPeriod=100,  # unique value
-        _startDelay=50,      # unique value 
-        _activationLength=200,  # unique value
+        _managerPeriod=manager_period,
+        _startDelay=manager_start_delay,
+        _activationLength=manager_activation,
         _canOwnerManage=False,  # different from default
         _transferPerms=createTransferPerms(
             _canTransfer=False,
@@ -926,10 +975,13 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     from_config.setGlobalManagerSettings(global_manager_settings, sender=high_command.address)
     
     # Create custom global payee settings with unique values
+    payee_period = paymaster.MIN_PAYEE_PERIOD()
+    payee_start_delay = from_config.timeLock()
+    payee_activation = paymaster.MIN_ACTIVATION_LENGTH()
     global_payee_settings = createGlobalPayeeSettings(
-        _defaultPeriodLength=150,  # unique value
-        _startDelay=75,            # unique value
-        _activationLength=300,     # unique value
+        _defaultPeriodLength=payee_period,
+        _startDelay=payee_start_delay,
+        _activationLength=payee_activation,
         _maxNumTxsPerPeriod=25,    # unique value
         _txCooldownBlocks=10,      # unique value
         _failOnZeroPrice=True,     # different from default
@@ -947,9 +999,9 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     
     # Verify global manager settings were copied
     copied_global_manager = to_config.globalManagerSettings()
-    assert copied_global_manager.managerPeriod == 100
-    assert copied_global_manager.startDelay == 50
-    assert copied_global_manager.activationLength == 200
+    assert copied_global_manager.managerPeriod == manager_period
+    assert copied_global_manager.startDelay == manager_start_delay
+    assert copied_global_manager.activationLength == manager_activation
     assert copied_global_manager.canOwnerManage == False
     assert copied_global_manager.transferPerms.canTransfer == False
     assert copied_global_manager.transferPerms.canCreateCheque == False
@@ -959,21 +1011,41 @@ def test_clone_config_global_settings(migrator, hatchery, bob, high_command, pay
     
     # Verify global payee settings were copied
     copied_global_payee = to_config.globalPayeeSettings()
-    assert copied_global_payee.defaultPeriodLength == 150
-    assert copied_global_payee.startDelay == 75
-    assert copied_global_payee.activationLength == 300
+    assert copied_global_payee.defaultPeriodLength == payee_period
+    assert copied_global_payee.startDelay == payee_start_delay
+    assert copied_global_payee.activationLength == payee_activation
     assert copied_global_payee.maxNumTxsPerPeriod == 25
     assert copied_global_payee.txCooldownBlocks == 10
     assert copied_global_payee.failOnZeroPrice == True
 
 
-def test_clone_config_copies_time_lock(migrator, hatchery, bob):
+def test_clone_config_copies_time_lock(
+    migrator,
+    hatchery,
+    bob,
+    high_command,
+    paymaster,
+    cheque_book,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+):
     """The destination wallet should inherit the source wallet's live time lock"""
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
 
+    set_scalar_settings_valid_for_time_lock(
+        from_config,
+        from_config.MAX_TIMELOCK(),
+        high_command,
+        paymaster,
+        cheque_book,
+        createGlobalManagerSettings,
+        createGlobalPayeeSettings,
+        createChequeSettings,
+    )
     from_config.setTimeLock(from_config.MAX_TIMELOCK(), sender=bob)
     assert from_config.timeLock() != to_config.timeLock()
 
@@ -983,7 +1055,18 @@ def test_clone_config_copies_time_lock(migrator, hatchery, bob):
     assert to_config.timeLock() == from_config.timeLock()
 
 
-def test_clone_config_clamps_time_lock_to_destination_bounds(migrator, hatchery, bob, setUserWalletConfig):
+def test_clone_config_clamps_time_lock_to_destination_bounds(
+    migrator,
+    hatchery,
+    bob,
+    setUserWalletConfig,
+    high_command,
+    paymaster,
+    cheque_book,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+):
     """Config copy should clamp copied time lock to the destination wallet bounds"""
     setUserWalletConfig()
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
@@ -996,6 +1079,16 @@ def test_clone_config_clamps_time_lock_to_destination_bounds(migrator, hatchery,
     setUserWalletConfig()
 
     assert from_config.timeLock() > to_config.MAX_TIMELOCK()
+    set_scalar_settings_valid_for_time_lock(
+        from_config,
+        to_config.MAX_TIMELOCK(),
+        high_command,
+        paymaster,
+        cheque_book,
+        createGlobalManagerSettings,
+        createGlobalPayeeSettings,
+        createChequeSettings,
+    )
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
@@ -1004,13 +1097,82 @@ def test_clone_config_clamps_time_lock_to_destination_bounds(migrator, hatchery,
     assert to_config.timeLock() == to_config.MAX_TIMELOCK()
 
 
-def test_clone_config_copied_high_time_lock_clamps_destination_cheque_creation(
-    migrator, hatchery, bob, alice, alpha_token, mock_ripe, cheque_book, createChequeSettings
+def test_clone_config_rejects_invalid_migrated_global_manager_settings(
+    migrator, hatchery, bob, high_command, createGlobalManagerSettings
 ):
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     from_config = UserWalletConfig.at(from_wallet.walletConfig())
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    invalid_manager_settings = createGlobalManagerSettings(_startDelay=0)
+    from_config.setGlobalManagerSettings(invalid_manager_settings, sender=high_command.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid migrated manager settings"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_invalid_migrated_global_payee_settings(
+    migrator, hatchery, bob, paymaster, createGlobalPayeeSettings
+):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    invalid_payee_settings = createGlobalPayeeSettings(_startDelay=0)
+    from_config.setGlobalPayeeSettings(invalid_payee_settings, sender=paymaster.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid migrated payee settings"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_invalid_migrated_cheque_settings(
+    migrator, hatchery, bob, cheque_book, createChequeSettings
+):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    invalid_cheque_settings = createChequeSettings(
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _expensiveDelayBlocks=0,
+    )
+    from_config.setChequeSettings(invalid_cheque_settings, sender=cheque_book.address)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid migrated cheque settings"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
+
+
+def test_clone_config_rejects_cheque_settings_invalid_for_destination_clamped_time_lock(
+    migrator,
+    hatchery,
+    bob,
+    cheque_book,
+    high_command,
+    paymaster,
+    createChequeSettings,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    setUserWalletConfig,
+):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    from_config = UserWalletConfig.at(from_wallet.walletConfig())
+
+    setUserWalletConfig(_minTimeLock=ONE_DAY_IN_BLOCKS, _maxTimeLock=2 * ONE_DAY_IN_BLOCKS)
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    setUserWalletConfig()
+
+    from_config.setGlobalManagerSettings(
+        createGlobalManagerSettings(_startDelay=to_config.MAX_TIMELOCK()),
+        sender=high_command.address,
+    )
+    from_config.setGlobalPayeeSettings(
+        createGlobalPayeeSettings(_startDelay=to_config.MAX_TIMELOCK()),
+        sender=paymaster.address,
+    )
 
     settings = createChequeSettings(
         _maxNumActiveCheques=0,
@@ -1026,29 +1188,11 @@ def test_clone_config_copied_high_time_lock_clamps_destination_cheque_creation(
     set_live_cheque_settings(cheque_book, from_wallet.address, *settings, sender=bob)
 
     from_config.setTimeLock(from_config.MAX_TIMELOCK(), sender=bob)
-    assert to_config.timeLock() < from_config.timeLock()
+    assert from_config.timeLock() > to_config.MAX_TIMELOCK()
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    result = migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
-    assert result is True
-    assert to_config.timeLock() == from_config.timeLock()
-
-    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
-    cheque_book.createCheque(
-        to_wallet.address,
-        alice,
-        alpha_token.address,
-        50 * EIGHTEEN_DECIMALS,
-        0,
-        0,
-        True,
-        False,
-        sender=bob,
-    )
-
-    cheque = to_config.cheques(alice)
-    assert cheque.unlockBlock == cheque.creationBlock + to_config.timeLock()
-    assert cheque.expiryBlock == cheque.unlockBlock + to_config.timeLock()
+    with boa.reverts("invalid migrated cheque settings"):
+        migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
 def test_clone_config_skips_owner_payee_and_copies_whitelist(migrator, hatchery, bob, alice, charlie, paymaster, createPayeeSettings):

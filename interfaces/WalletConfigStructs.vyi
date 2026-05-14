@@ -285,6 +285,7 @@ struct ManagerSettingsBundle:
 struct MigrationConfigBundle:
     owner: address
     isFrozen: bool
+    inEjectMode: bool
     numPayees: uint256
     numWhitelisted: uint256
     numManagers: uint256

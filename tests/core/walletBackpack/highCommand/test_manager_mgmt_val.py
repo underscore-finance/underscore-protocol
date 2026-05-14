@@ -2,6 +2,37 @@ import pytest
 import boa
 
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+from contracts.core.userWallet import UserWalletConfig
+
+
+def validate_global_manager_settings(
+    high_command,
+    user_wallet,
+    manager_period,
+    start_delay,
+    activation_length,
+    can_owner_manage,
+    limits,
+    lego_perms,
+    swap_perms,
+    whitelist_perms,
+    transfer_perms,
+    allowed_assets,
+):
+    config = UserWalletConfig.at(user_wallet.walletConfig())
+    settings = (
+        manager_period,
+        start_delay,
+        activation_length,
+        can_owner_manage,
+        limits,
+        lego_perms,
+        swap_perms,
+        whitelist_perms,
+        transfer_perms,
+        allowed_assets,
+    )
+    return high_command.validateGlobalManagerSettings(config.address, settings, config.timeLock())
 
 
 def _create_owner_cheque(cheque_book, user_wallet, owner, recipient, asset, mock_ripe, expiry_blocks=10):
@@ -51,7 +82,7 @@ def test_valid_new_manager_basic(high_command, user_wallet, charlie, createGloba
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # charlie is not a manager yet - should pass
     result = high_command.isValidNewManager(
         user_wallet,
@@ -66,7 +97,7 @@ def test_valid_new_manager_basic(high_command, user_wallet, charlie, createGloba
         [],
         False,
     )
-    
+
     assert result == True
 
 
@@ -194,13 +225,13 @@ def test_invalid_limits_per_tx_greater_than_per_period(high_command, user_wallet
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings(_managerPeriod=ONE_MONTH_IN_BLOCKS)
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid limits: per tx > per period
     invalid_limits = createManagerLimits(
         _maxUsdValuePerTx=10000 * 10**6,  # $10,000
         _maxUsdValuePerPeriod=1000 * 10**6  # $1,000
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -214,7 +245,7 @@ def test_invalid_limits_per_tx_greater_than_per_period(high_command, user_wallet
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -222,7 +253,7 @@ def test_valid_limits_per_tx_less_than_lifetime(high_command, user_wallet, charl
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # valid limits: per tx can be > lifetime if lifetime is 0 (unlimited)
     # This test shows that per_tx vs lifetime is not validated
     valid_limits = createManagerLimits(
@@ -230,7 +261,7 @@ def test_valid_limits_per_tx_less_than_lifetime(high_command, user_wallet, charl
         _maxUsdValueLifetime=1000 * 10**6,  # $1,000
         _failOnZeroPrice=True  # Required when USD limits are set
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -244,7 +275,7 @@ def test_valid_limits_per_tx_less_than_lifetime(high_command, user_wallet, charl
         [],
         False,
     )
-    
+
     assert result == True  # Actually passes because this isn't validated
 
 
@@ -252,13 +283,13 @@ def test_invalid_limits_per_period_greater_than_lifetime(high_command, user_wall
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid limits: per period > lifetime
     invalid_limits = createManagerLimits(
         _maxUsdValuePerPeriod=10000 * 10**6,  # $10,000
         _maxUsdValueLifetime=1000 * 10**6  # $1,000
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -272,7 +303,7 @@ def test_invalid_limits_per_period_greater_than_lifetime(high_command, user_wall
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -280,7 +311,7 @@ def test_valid_limits_unlimited_values(high_command, user_wallet, charlie, creat
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # valid limits: mix of unlimited (0) and limited values
     valid_limits = createManagerLimits(
         _maxUsdValuePerTx=1000 * 10**6,  # $1,000
@@ -288,7 +319,7 @@ def test_valid_limits_unlimited_values(high_command, user_wallet, charlie, creat
         _maxUsdValueLifetime=0,  # unlimited
         _failOnZeroPrice=True  # Required when USD limits are set
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -302,7 +333,7 @@ def test_valid_limits_unlimited_values(high_command, user_wallet, charlie, creat
         [],
         False,
     )
-    
+
     assert result == True
 
 
@@ -310,7 +341,7 @@ def test_invalid_allowed_assets_with_zero_address(high_command, user_wallet, cha
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid: contains zero address
     result = high_command.isValidNewManager(
         user_wallet,
@@ -325,7 +356,7 @@ def test_invalid_allowed_assets_with_zero_address(high_command, user_wallet, cha
         [alpha_token.address, ZERO_ADDRESS],  # contains zero address - use address
         False,
     )
-    
+
     assert result == False
 
 
@@ -333,7 +364,7 @@ def test_invalid_allowed_assets_with_duplicates(high_command, user_wallet, charl
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid: contains duplicates
     result = high_command.isValidNewManager(
         user_wallet,
@@ -348,7 +379,7 @@ def test_invalid_allowed_assets_with_duplicates(high_command, user_wallet, charl
         [alpha_token.address, alpha_token.address],  # duplicate asset - use address
         False,
     )
-    
+
     assert result == False
 
 
@@ -356,7 +387,7 @@ def test_valid_allowed_assets_multiple(high_command, user_wallet, charlie, creat
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # valid: multiple unique assets
     result = high_command.isValidNewManager(
         user_wallet,
@@ -371,7 +402,7 @@ def test_valid_allowed_assets_multiple(high_command, user_wallet, charlie, creat
         [alpha_token.address, bravo_token.address],  # multiple valid assets
         False,
     )
-    
+
     assert result == True
 
 
@@ -388,7 +419,7 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
         )
     )
     user_wallet_config.setGlobalManagerSettings(clean_settings, sender=high_command.address)
-    
+
     # setup: set global manager settings with restricted legos
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(
@@ -397,13 +428,13 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
         )
     )
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # try to give manager yield permissions when globally restricted
     invalid_perms = createLegoPerms(
         _canManageYield=True,  # trying to allow yield when globally false
         _allowedLegos=[6, 7]  # trying to use legos not in global allowed list
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -417,7 +448,7 @@ def test_invalid_lego_perms_with_restricted_lego(high_command, user_wallet, char
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -431,14 +462,14 @@ def test_valid_lego_perms_within_global_restrictions(high_command, user_wallet, 
         )
     )
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # valid: permissions within global restrictions
     valid_perms = createLegoPerms(
         _canManageYield=False,  # respecting global restriction
         _canBuyAndSell=True,  # allowed globally
         _allowedLegos=[1, 2]  # subset of globally allowed legos
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -452,7 +483,7 @@ def test_valid_lego_perms_within_global_restrictions(high_command, user_wallet, 
         [],
         False,
     )
-    
+
     assert result == True
 
 
@@ -460,13 +491,13 @@ def test_invalid_transfer_perms_zero_address_payee(high_command, user_wallet, ch
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid: allowed payees contains zero address
     invalid_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _allowedPayees=[alice, ZERO_ADDRESS]  # contains zero address
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -480,7 +511,7 @@ def test_invalid_transfer_perms_zero_address_payee(high_command, user_wallet, ch
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -488,13 +519,13 @@ def test_invalid_transfer_perms_duplicate_payees(high_command, user_wallet, char
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # invalid: allowed payees contains duplicates
     invalid_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _allowedPayees=[alice, alice]  # duplicate payee
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -508,7 +539,7 @@ def test_invalid_transfer_perms_duplicate_payees(high_command, user_wallet, char
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -636,13 +667,13 @@ def test_valid_transfer_perms_empty_payees(high_command, user_wallet, charlie, c
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # valid: empty allowed payees means can transfer to anyone
     valid_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _allowedPayees=[]  # empty means unrestricted
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -656,7 +687,7 @@ def test_valid_transfer_perms_empty_payees(high_command, user_wallet, charlie, c
         [],
         False,
     )
-    
+
     assert result == True
 
 
@@ -689,18 +720,18 @@ def test_multiple_validation_failures(high_command, user_wallet, charlie, create
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # multiple invalid inputs
     invalid_limits = createManagerLimits(
         _maxUsdValuePerTx=10000 * 10**6,  # $10,000
         _maxUsdValuePerPeriod=1000 * 10**6  # $1,000 - invalid
     )
-    
+
     invalid_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _allowedPayees=[ZERO_ADDRESS]  # invalid
     )
-    
+
     result = high_command.isValidNewManager(
         user_wallet,
         charlie,
@@ -714,7 +745,7 @@ def test_multiple_validation_failures(high_command, user_wallet, charlie, create
         [alpha_token.address, ZERO_ADDRESS],  # invalid allowed assets - use address
         False,
     )
-    
+
     assert result == False
 
 
@@ -727,7 +758,7 @@ def test_update_manager_reject_non_existing_manager(high_command, user_wallet, c
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # charlie is not a manager yet - should fail
     result = high_command.validateManagerOnUpdate(
         user_wallet,
@@ -740,7 +771,7 @@ def test_update_manager_reject_non_existing_manager(high_command, user_wallet, c
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -748,11 +779,11 @@ def test_update_manager_valid_existing_manager(high_command, user_wallet, alice,
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # add alice as manager first
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
+
     # alice is a manager - should pass with valid params
     result = high_command.validateManagerOnUpdate(
         user_wallet,
@@ -765,7 +796,7 @@ def test_update_manager_valid_existing_manager(high_command, user_wallet, alice,
         [],
         False,
     )
-    
+
     assert result == True
 
 
@@ -773,17 +804,17 @@ def test_update_manager_invalid_limits(high_command, user_wallet, alice, createG
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings(_managerPeriod=ONE_MONTH_IN_BLOCKS)
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # add alice as manager first
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
+
     # invalid limits: per tx > per period
     invalid_limits = createManagerLimits(
         _maxUsdValuePerTx=10000 * 10**6,  # $10,000
         _maxUsdValuePerPeriod=1000 * 10**6  # $1,000
     )
-    
+
     result = high_command.validateManagerOnUpdate(
         user_wallet,
         alice,
@@ -795,7 +826,7 @@ def test_update_manager_invalid_limits(high_command, user_wallet, alice, createG
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -803,11 +834,11 @@ def test_update_manager_invalid_allowed_assets(high_command, user_wallet, alice,
     # setup: set global manager settings
     global_settings = createGlobalManagerSettings()
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # add alice as manager first
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
+
     # invalid: duplicate assets
     result = high_command.validateManagerOnUpdate(
         user_wallet,
@@ -820,7 +851,7 @@ def test_update_manager_invalid_allowed_assets(high_command, user_wallet, alice,
         [alpha_token.address, alpha_token.address],  # duplicate asset
         False,
     )
-    
+
     assert result == False
 
 
@@ -837,7 +868,7 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
         )
     )
     user_wallet_config.setGlobalManagerSettings(clean_settings, sender=high_command.address)
-    
+
     # setup: set global manager settings with lego restrictions
     global_settings = createGlobalManagerSettings(
         _legoPerms=createLegoPerms(
@@ -846,17 +877,17 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
         )
     )
     user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-    
+
     # add alice as manager first
     new_manager_settings = createManagerSettings()
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
+
     # try to update with legos outside global restrictions
     invalid_perms = createLegoPerms(
         _canManageYield=True,  # trying to override global restriction
         _allowedLegos=[6, 7]  # trying to use legos not globally allowed
     )
-    
+
     result = high_command.validateManagerOnUpdate(
         user_wallet,
         alice,
@@ -868,7 +899,7 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
         [],
         False,
     )
-    
+
     assert result == False
 
 
@@ -879,7 +910,7 @@ def test_update_manager_respects_global_lego_restrictions(high_command, user_wal
 
 def test_global_settings_valid_basic(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # valid global manager settings
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,  # managerPeriod
         ONE_DAY_IN_BLOCKS,  # startDelay
@@ -892,13 +923,13 @@ def test_global_settings_valid_basic(high_command, user_wallet, createManagerLim
         createTransferPerms(),
         [],
     )
-    
+
     assert result == True
 
 
 def test_global_settings_invalid_manager_period_too_short(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # manager period too short (less than MIN_MANAGER_PERIOD)
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         100,  # too short
         ONE_DAY_IN_BLOCKS,
@@ -911,13 +942,13 @@ def test_global_settings_invalid_manager_period_too_short(high_command, user_wal
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
 def test_global_settings_invalid_manager_period_too_long(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # manager period too long (more than MAX_MANAGER_PERIOD)
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_YEAR_IN_BLOCKS * 10,  # too long
         ONE_DAY_IN_BLOCKS,
@@ -930,13 +961,13 @@ def test_global_settings_invalid_manager_period_too_long(high_command, user_wall
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
 def test_global_settings_invalid_activation_length_too_short(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # activation length too short
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -949,13 +980,13 @@ def test_global_settings_invalid_activation_length_too_short(high_command, user_
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
 def test_global_settings_invalid_activation_length_too_long(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # activation length too long
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -968,13 +999,13 @@ def test_global_settings_invalid_activation_length_too_long(high_command, user_w
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
 def test_global_settings_start_delay_too_short(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
     # start delay of 0 should fail (must be at least current timelock)
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         0,  # too short
@@ -987,7 +1018,7 @@ def test_global_settings_start_delay_too_short(high_command, user_wallet, create
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
@@ -997,8 +1028,8 @@ def test_global_settings_invalid_manager_limits(high_command, user_wallet, creat
         _maxUsdValuePerTx=10000 * 10**6,
         _maxUsdValuePerPeriod=1000 * 10**6
     )
-    
-    result = high_command.validateGlobalManagerSettings(
+
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1011,13 +1042,13 @@ def test_global_settings_invalid_manager_limits(high_command, user_wallet, creat
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
 def test_global_settings_invalid_allowed_assets(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alpha_token):
     # invalid: duplicate assets
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1030,7 +1061,7 @@ def test_global_settings_invalid_allowed_assets(high_command, user_wallet, creat
         createTransferPerms(),
         [alpha_token.address, alpha_token.address],  # duplicates
     )
-    
+
     assert result == False
 
 
@@ -1039,8 +1070,8 @@ def test_global_settings_invalid_transfer_perms(high_command, user_wallet, creat
     invalid_transfer_perms = createTransferPerms(
         _allowedPayees=[ZERO_ADDRESS]
     )
-    
-    result = high_command.validateGlobalManagerSettings(
+
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1053,7 +1084,7 @@ def test_global_settings_invalid_transfer_perms(high_command, user_wallet, creat
         invalid_transfer_perms,
         [],
     )
-    
+
     assert result == False
 
 
@@ -1062,8 +1093,8 @@ def test_global_settings_invalid_cooldown_exceeds_period(high_command, user_wall
     invalid_limits = createManagerLimits(
         _txCooldownBlocks=ONE_MONTH_IN_BLOCKS + 1  # exceeds period
     )
-    
-    result = high_command.validateGlobalManagerSettings(
+
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,  # manager period
         ONE_DAY_IN_BLOCKS,
@@ -1076,7 +1107,7 @@ def test_global_settings_invalid_cooldown_exceeds_period(high_command, user_wall
         createTransferPerms(),
         [],
     )
-    
+
     assert result == False
 
 
@@ -1086,12 +1117,12 @@ def test_global_settings_multiple_validation_failures(high_command, user_wallet,
         _maxUsdValuePerTx=10000 * 10**6,
         _maxUsdValuePerPeriod=1000 * 10**6
     )
-    
+
     invalid_transfer_perms = createTransferPerms(
         _allowedPayees=[ZERO_ADDRESS]
     )
-    
-    result = high_command.validateGlobalManagerSettings(
+
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         100,  # manager period too short
         ONE_DAY_IN_BLOCKS,
@@ -1278,7 +1309,7 @@ def test_invalid_global_settings_usd_limits_without_fail_on_zero_price(high_comm
     )
 
     # Should be invalid: USD limit set but failOnZeroPrice=False
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1306,7 +1337,7 @@ def test_valid_global_settings_usd_limits_with_fail_on_zero_price(high_command, 
     )
 
     # Should be valid: USD limits set and failOnZeroPrice=True
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1327,7 +1358,7 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(high_command, user_wa
     """Test that ANY non-zero USD limit (perTx, perPeriod, or lifetime) requires failOnZeroPrice=True"""
     # Test with only maxUsdValuePerTx set
     limits_1 = createManagerLimits(_maxUsdValuePerTx=5000 * 10**6, _failOnZeroPrice=False)
-    assert not high_command.validateGlobalManagerSettings(
+    assert not validate_global_manager_settings(high_command,
         user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
         True, limits_1, createLegoPerms(), createSwapPerms(),
         createWhitelistPerms(), createTransferPerms(), []
@@ -1335,7 +1366,7 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(high_command, user_wa
 
     # Test with only maxUsdValuePerPeriod set
     limits_2 = createManagerLimits(_maxUsdValuePerPeriod=10000 * 10**6, _failOnZeroPrice=False)
-    assert not high_command.validateGlobalManagerSettings(
+    assert not validate_global_manager_settings(high_command,
         user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
         True, limits_2, createLegoPerms(), createSwapPerms(),
         createWhitelistPerms(), createTransferPerms(), []
@@ -1343,7 +1374,7 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(high_command, user_wa
 
     # Test with only maxUsdValueLifetime set
     limits_3 = createManagerLimits(_maxUsdValueLifetime=50000 * 10**6, _failOnZeroPrice=False)
-    assert not high_command.validateGlobalManagerSettings(
+    assert not validate_global_manager_settings(high_command,
         user_wallet, ONE_MONTH_IN_BLOCKS, ONE_DAY_IN_BLOCKS, ONE_YEAR_IN_BLOCKS,
         True, limits_3, createLegoPerms(), createSwapPerms(),
         createWhitelistPerms(), createTransferPerms(), []
@@ -1424,7 +1455,7 @@ def test_validate_global_settings_with_only_approved_yield_opps_true(high_comman
         _onlyApprovedYieldOpps=True
     )
 
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1448,7 +1479,7 @@ def test_validate_global_settings_with_only_approved_yield_opps_false(high_comma
         _onlyApprovedYieldOpps=False
     )
 
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1778,7 +1809,7 @@ def test_validate_global_settings_with_invalid_swap_perms(high_command, user_wal
         _maxSlippage=500
     )
 
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,
@@ -1804,7 +1835,7 @@ def test_validate_global_settings_with_valid_swap_perms(high_command, user_walle
         _maxSlippage=1000  # 10%
     )
 
-    result = high_command.validateGlobalManagerSettings(
+    result = validate_global_manager_settings(high_command,
         user_wallet,
         ONE_MONTH_IN_BLOCKS,
         ONE_DAY_IN_BLOCKS,

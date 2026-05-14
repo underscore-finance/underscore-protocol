@@ -450,7 +450,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function",
     "name": "getDefaultInstantActionSettingsChange",
     "inputs": [

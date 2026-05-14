@@ -683,20 +683,24 @@ def _validateManagerOnUpdate(
 @view
 @external
 def validateGlobalManagerSettings(
-    _userWallet: address,
-    _managerPeriod: uint256,
-    _startDelay: uint256,
-    _activationLength: uint256,
-    _canOwnerManage: bool,
-    _limits: wcs.ManagerLimits,
-    _legoPerms: wcs.LegoPerms,
-    _swapPerms: wcs.SwapPerms,
-    _whitelistPerms: wcs.WhitelistPerms,
-    _transferPerms: wcs.TransferPerms,
-    _allowedAssets: DynArray[address, MAX_CONFIG_ASSETS],
+    _walletConfig: address,
+    _settings: wcs.GlobalManagerSettings,
+    _timeLock: uint256,
 ) -> bool:
-    config: wcs.ManagerSettingsBundle = self._getManagerSettingsBundle(_userWallet, empty(address))
-    return self._validateGlobalManagerSettings(_managerPeriod, _startDelay, _activationLength, _limits, _legoPerms, _swapPerms, _transferPerms, _allowedAssets, config.timeLock, config.legoBook, config.walletConfig)
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    return self._validateGlobalManagerSettings(
+        _settings.managerPeriod,
+        _settings.startDelay,
+        _settings.activationLength,
+        _settings.limits,
+        _settings.legoPerms,
+        _settings.swapPerms,
+        _settings.transferPerms,
+        _settings.allowedAssets,
+        _timeLock,
+        legoBook,
+        _walletConfig,
+    )
 
 
 @view

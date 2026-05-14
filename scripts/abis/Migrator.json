@@ -362,6 +362,10 @@
             "type": "bool"
           },
           {
+            "name": "inEjectMode",
+            "type": "bool"
+          },
+          {
             "name": "numPayees",
             "type": "uint256"
           },
