@@ -1842,7 +1842,7 @@
     ]
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "createDefaultChequeSettings",
     "inputs": [
