@@ -265,7 +265,7 @@ def test_aerodrome_classic_remove_liq_max_volatile(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB)
@@ -294,7 +294,7 @@ def test_aerodrome_classic_remove_liq_partial_volatile(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB, lpAmountReceived // 2)
@@ -323,7 +323,7 @@ def test_aerodrome_classic_remove_liq_max_stable(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB)
@@ -352,7 +352,7 @@ def test_aerodrome_classic_remove_liq_partial_stable(
     tokenB.transfer(bob_user_wallet.address, amountB, sender=whaleB)
 
     # add liquidity
-    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, sender=bob)
+    lpAmountReceived, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(legoId, pool, tokenA, tokenB, amountA, amountB, 0, 0, 0, b"", sender=bob)
 
     # test remove liquidity
     testLegoLiquidityRemovedBasic(lego_aero_classic, pool, tokenA, tokenB, lpAmountReceived // 2)
@@ -498,7 +498,7 @@ def test_aerodrome_classic_get_remove_liq_amounts_out(
 
     # add liquidity (lego will cap to the binding side)
     liquidityAdded, liqAmountA, liqAmountB, usdValue = bob_user_wallet.addLiquidity(
-        legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob,
+        legoId, pool.address, tokenA.address, tokenB.address, amountA, amountB, 0, 0, 0, b"", sender=bob,
     )
     assert liquidityAdded != 0
     assert liqAmountA != 0 and liqAmountB != 0

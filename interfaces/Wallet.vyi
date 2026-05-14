@@ -1,5 +1,9 @@
 # @version 0.4.3
 
+from interfaces import WalletStructs as ws
+
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 struct SwapInstruction:
     legoId: uint256
     amountIn: uint256
@@ -174,6 +178,16 @@ def repayDebt(
     ...
 
 
+@external
+def deleverage(
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
+
 #################
 # Claim Rewards #
 #################
@@ -225,12 +239,12 @@ def addLiquidity(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _minLpAmount: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _amountA: uint256,
+    _amountB: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _minLpAmount: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ...
 
@@ -242,10 +256,10 @@ def removeLiquidity(
     _tokenA: address,
     _tokenB: address,
     _lpToken: address,
-    _lpAmount: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _lpAmount: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ...
 
@@ -261,13 +275,13 @@ def addLiquidityConcentrated(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _amountA: uint256 = max_value(uint256),
-    _amountB: uint256 = max_value(uint256),
-    _tickLower: int24 = min_value(int24),
-    _tickUpper: int24 = max_value(int24),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _amountA: uint256,
+    _amountB: uint256,
+    _tickLower: int24,
+    _tickUpper: int24,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256, uint256):
     ...
 
@@ -280,10 +294,10 @@ def removeLiquidityConcentrated(
     _pool: address,
     _tokenA: address,
     _tokenB: address,
-    _liqToRemove: uint256 = max_value(uint256),
-    _minAmountA: uint256 = 0,
-    _minAmountB: uint256 = 0,
-    _extraData: bytes32 = empty(bytes32),
+    _liqToRemove: uint256,
+    _minAmountA: uint256,
+    _minAmountB: uint256,
+    _extraData: bytes32,
 ) -> (uint256, uint256, uint256, uint256):
     ...
 

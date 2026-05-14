@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import TOKENS, TEST_AMOUNTS
-from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, MAX_INT24, MIN_INT24, ZERO_ADDRESS
 
 
 POOLS = {
@@ -232,7 +232,7 @@ def test_aero_slipstream_add_liquidity_increase_position(
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
 
     # initial mint position
-    liquidityAdded, _a, _b, nftTokenId, _c = bob_user_wallet.addLiquidityConcentrated(lego_book.getRegId(lego_aero_slipstream), nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, _a, _b, nftTokenId, _c = bob_user_wallet.addLiquidityConcentrated(lego_book.getRegId(lego_aero_slipstream), nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert liquidityAdded != 0
     assert nftTokenId != 0
 
@@ -273,7 +273,7 @@ def test_aero_slipstream_remove_liq_max_basic(
 
     # add liquidity
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
 
     # test remove liquidity
@@ -304,7 +304,7 @@ def test_aero_slipstream_remove_liq_partial(
 
     # add liquidity
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
 
     # test remove liquidity (partial)
@@ -334,7 +334,7 @@ def test_aero_slipstream_remove_liq_max_stable(
 
     # add liquidity
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
 
     # test remove liquidity
@@ -500,7 +500,7 @@ def test_aero_slipstream_get_remove_liq_amounts_out(
 
     # add liquidity
     nft_token_manager = boa.from_etherscan(lego_aero_slipstream.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(lego_id, nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
     assert liqAmountA != 0 and liqAmountB != 0
 
@@ -537,4 +537,3 @@ def test_aero_slipstream_get_price(
 
     price = lego_aero_slipstream.getPriceUnsafe(pool, tokenB)
     _test(exp_weth_price, price, 1_00)
-

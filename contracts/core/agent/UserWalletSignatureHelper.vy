@@ -9,6 +9,9 @@
 
 import contracts.modules.SigHelper as sigHelper
 from interfaces import Wallet
+from interfaces import WalletStructs as ws
+
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 struct ActionInstruction:
     usePrevAmountOut: bool     # Use output from previous instruction as amount
@@ -362,6 +365,36 @@ def getRepayDebtHash(
     expiration: uint256 = _expiration
     nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
     return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(convert(43, uint8), _agentWrapper, _userWallet, _legoId, _paymentAsset, _paymentAmount, _extraData, nonce, expiration))), nonce, expiration)
+
+
+@view
+@external
+def getDeleverageHash(
+    _agentSender: address,
+    _agentWrapper: address,
+    _userWallet: address,
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+    _nonce: uint256 = 0,
+    _expiration: uint256 = 0,
+) -> (bytes32, uint256, uint256):
+    """
+    Get message hash for deleverage function
+    """
+    isSpecific: bool = len(_deleverageAssets) != 0
+    isAuto: bool = _autoDeleverageAmount != 0
+    assert isSpecific != isAuto # dev: invalid mode
+
+    action: uint8 = convert(44, uint8)
+    if isAuto:
+        action = convert(45, uint8)
+
+    nonce: uint256 = _nonce
+    expiration: uint256 = _expiration
+    nonce, expiration = sigHelper._getNonceAndExpiration(_agentSender, _userWallet, _nonce, _expiration)
+    return (sigHelper._getFullDigest(_agentSender, keccak256(abi_encode(action, _agentWrapper, _userWallet, _legoId, _deleverageAssets, _autoDeleverageAmount, _extraData, nonce, expiration))), nonce, expiration)
 
 
 ###############

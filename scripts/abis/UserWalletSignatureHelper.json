@@ -3312,6 +3312,207 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "getDeleverageHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_autoDeleverageAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDeleverageHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_autoDeleverageAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "getDeleverageHash",
+    "inputs": [
+      {
+        "name": "_agentSender",
+        "type": "address"
+      },
+      {
+        "name": "_agentWrapper",
+        "type": "address"
+      },
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_legoId",
+        "type": "uint256"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_autoDeleverageAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      },
+      {
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "name": "_expiration",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getConvertWethToEthHash",
     "inputs": [
       {

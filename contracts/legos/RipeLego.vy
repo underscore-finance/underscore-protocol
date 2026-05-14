@@ -19,6 +19,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+#pragma optimize codesize
 
 implements: Lego
 implements: YieldLego
@@ -37,6 +38,8 @@ from interfaces import LegoStructs as ls
 import contracts.modules.Addys as addys
 import contracts.modules.YieldLegoData as yld
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
 from ethereum.ercs import IERC20
 from ethereum.ercs import IERC4626
 from ethereum.ercs import IERC20Detailed
@@ -46,7 +49,7 @@ interface RipeTeller:
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
-    def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
+    def deleverageWithSpecificAssets(_assets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
     def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def deleverageUser(_user: address = msg.sender, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
@@ -94,11 +97,6 @@ interface UserWalletConfig:
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-struct DeleverageAsset:
-    vaultId: uint256
-    asset: address
-    targetRepayAmount: uint256
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -961,7 +959,7 @@ def repayDebt(
 
 
 @external
-def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
+def deleverageWithSpecificAssets(_assets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
     assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     return extcall RipeTeller(teller).deleverageWithSpecificAssets(_assets, _user)
@@ -972,6 +970,42 @@ def deleverageUser(_user: address, _targetRepayAmount: uint256 = max_value(uint2
     assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     return extcall RipeTeller(teller).deleverageUser(_user, _targetRepayAmount)
+
+
+@external
+def deleverageForUserWallet(
+    _user: address,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]):
+    assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
+
+    assert (len(_deleverageAssets) != 0) != (_autoDeleverageAmount != 0) # dev: invalid mode
+
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    repaidAmount: uint256 = 0
+    touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS] = []
+
+    if len(_deleverageAssets) != 0:
+        legacyAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS] = []
+        for d: ws.DeleverageAsset in _deleverageAssets:
+            assert d.asset != empty(address) # dev: invalid asset
+            legacyAssets.append(d)
+            # Specific mode conservatively marks every requested wallet asset as
+            # touched; the wallet enforces this is a subset of the request.
+            touchedAssets.append(d.asset)
+        repaidAmount = extcall RipeTeller(teller).deleverageWithSpecificAssets(legacyAssets, _user)
+    else:
+        repaidAmount = extcall RipeTeller(teller).deleverageUser(_user, _autoDeleverageAmount)
+
+    txUsdValue: uint256 = 0
+    if repaidAmount != 0:
+        miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+        txUsdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(RIPE_GREEN_TOKEN, repaidAmount, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
+
+    return repaidAmount, txUsdValue, RIPE_GREEN_TOKEN, touchedAssets
 
 
 # shared utils
@@ -1003,7 +1037,12 @@ def _canCallDeleverage(_user: address, _caller: address) -> bool:
 
     # user wallets
     if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user):
+        if _caller == _user:
+            # Wallet-authenticated path used by UserWallet.deleverage.
+            return True
         walletConfig: address = staticcall UserWallet(_user).walletConfig()
+        # v_compat: keep old direct agent-sender callers alive for the
+        # migration window. v_tight removes this branch.
         return staticcall UserWalletConfig(walletConfig).isAgentSender(_caller)
 
     # earn vaults

@@ -2,7 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import TOKENS, TEST_AMOUNTS
-from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, MAX_INT24, MIN_INT24, ZERO_ADDRESS
 
 
 POOLS = {
@@ -223,7 +223,7 @@ def test_uniswapV3_add_liquidity_increase_position(
     uniswap_nft_token_manager = boa.from_etherscan(lego_uniswap_v3.getRegistries()[1])
 
     # initial mint position
-    liquidityAdded, _a, _b, nftTokenId, _c = bob_user_wallet.addLiquidityConcentrated(lego_book.getRegId(lego_uniswap_v3), uniswap_nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, _a, _b, nftTokenId, _c = bob_user_wallet.addLiquidityConcentrated(lego_book.getRegId(lego_uniswap_v3), uniswap_nft_token_manager.address, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert liquidityAdded != 0
     assert nftTokenId != 0
 
@@ -264,7 +264,7 @@ def test_uniswapV3_remove_liq_max(
 
     # add liquidity
     uniswap_nft_token_manager = boa.from_etherscan(lego_uniswap_v3.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(legoId, uniswap_nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(legoId, uniswap_nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
 
     # test remove liquidity
@@ -295,7 +295,7 @@ def test_uniswapV3_remove_liq_partial(
 
     # add liquidity
     uniswap_nft_token_manager = boa.from_etherscan(lego_uniswap_v3.getRegistries()[1])
-    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(legoId, uniswap_nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob)
+    liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(legoId, uniswap_nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob)
     assert nftTokenId != 0 and liquidityAdded != 0
 
     # test remove liquidity (partial)
@@ -461,7 +461,8 @@ def test_uniswapV3_get_remove_liq_amounts_out(
 
     nft_token_manager = boa.from_etherscan(lego_uniswap_v3.getRegistries()[1])
     liquidityAdded, liqAmountA, liqAmountB, nftTokenId, usdValue = bob_user_wallet.addLiquidityConcentrated(
-        legoId, nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB, sender=bob,
+        legoId, nft_token_manager, 0, pool.address, tokenA.address, tokenB.address, amountA, amountB,
+        MIN_INT24, MAX_INT24, 0, 0, b"", sender=bob,
     )
     assert nftTokenId != 0 and liquidityAdded != 0
     assert liqAmountA != 0 and liqAmountB != 0
@@ -498,6 +499,4 @@ def test_uniswapV3_get_price(
 
     price = lego_uniswap_v3.getPriceUnsafe(pool, tokenB)
     _test(exp_weth_price, price, 1_00)
-
-
 
