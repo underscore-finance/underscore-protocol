@@ -238,12 +238,19 @@ def test_agent_config_persistence(mission_control, switchboard_alpha, starter_ag
     assert mission_control.agentConfig().startingAgent == ZERO_ADDRESS
 
 
-def test_agent_config_rejects_non_contract_starter_agent(mission_control, switchboard_alpha, alice):
-    with boa.reverts("invalid starter agent params"):
-        mission_control.setAgentConfig((alice, 200), sender=switchboard_alpha.address)
+def test_agent_config_direct_setters_do_not_validate_starter_agent_contract(
+    mission_control, switchboard_alpha, alice
+):
+    mission_control.setAgentConfig((alice, 200), sender=switchboard_alpha.address)
+    saved_config = mission_control.agentConfig()
+    assert saved_config.startingAgent == alice
+    assert saved_config.startingAgentActivationLength == 200
 
-    with boa.reverts("invalid starter agent params"):
-        mission_control.setStarterAgent(alice, sender=switchboard_alpha.address)
+    mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
+    assert mission_control.agentConfig().startingAgent == ZERO_ADDRESS
+
+    mission_control.setStarterAgent(alice, sender=switchboard_alpha.address)
+    assert mission_control.agentConfig().startingAgent == alice
 
 
 def test_manager_config_persistence(mission_control, switchboard_alpha):

@@ -275,7 +275,7 @@ def test_security_actor_can_disable_protocol_instant_flag_when_already_disabled(
 
 
 @pytest.mark.parametrize("action", ACTIONS)
-def test_disabling_protocol_instant_flag_cancels_matching_pending_enable(
+def test_disabling_protocol_instant_flag_leaves_stale_pending_enable_and_allows_restaging(
     request, switchboard_bravo, governance, mission_control, alice, action
 ):
     target = _reset_action(request, switchboard_bravo, governance, action)
@@ -284,10 +284,20 @@ def test_disabling_protocol_instant_flag_cancels_matching_pending_enable(
 
     assert getattr(switchboard_bravo, action["method"])(target.address, False, sender=alice) == 0
 
-    assert _pending(switchboard_bravo, action).actionId == 0
+    stale_pending = _pending(switchboard_bravo, action)
+    assert stale_pending.actionId == aid
+    assert stale_pending.target == target.address
     assert not switchboard_bravo.hasPendingAction(aid)
+    assert switchboard_bravo.actionType(aid) == 0
     assert switchboard_bravo.executePendingAction(aid, sender=governance.address) is False
     assert getattr(target, action["getter"])() is False
+
+    new_aid = _stage_enable(switchboard_bravo, target, governance, action)
+    new_pending = _pending(switchboard_bravo, action)
+    assert new_aid != aid
+    assert new_pending.actionId == new_aid
+    assert new_pending.target == target.address
+    assert switchboard_bravo.hasPendingAction(new_aid)
 
 
 @pytest.mark.parametrize("action", ACTIONS)
@@ -301,7 +311,7 @@ def test_duplicate_protocol_instant_flag_pending_enable_reverts(request, switchb
 
 
 @pytest.mark.parametrize("action", ACTIONS)
-def test_cancel_pending_action_cancels_protocol_instant_flag_action_and_allows_restaging(
+def test_cancel_pending_action_leaves_stale_protocol_instant_flag_singleton_and_allows_restaging(
     request, switchboard_bravo, governance, action
 ):
     target = _reset_action(request, switchboard_bravo, governance, action)
@@ -311,11 +321,16 @@ def test_cancel_pending_action_cancels_protocol_instant_flag_action_and_allows_r
 
     assert not switchboard_bravo.hasPendingAction(aid)
     assert getattr(target, action["getter"])() is False
-    assert _pending(switchboard_bravo, action).actionId == 0
+    assert switchboard_bravo.actionType(aid) == 0
+    stale_pending = _pending(switchboard_bravo, action)
+    assert stale_pending.actionId == aid
+    assert stale_pending.target == target.address
 
     new_aid = _stage_enable(switchboard_bravo, target, governance, action)
     assert new_aid != aid
-    assert _pending(switchboard_bravo, action).actionId == new_aid
+    new_pending = _pending(switchboard_bravo, action)
+    assert new_pending.actionId == new_aid
+    assert new_pending.target == target.address
     assert switchboard_bravo.hasPendingAction(new_aid)
 
 

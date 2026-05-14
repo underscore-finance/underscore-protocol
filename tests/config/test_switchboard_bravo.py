@@ -368,7 +368,7 @@ def test_hatchery_default_pure_disable_applies_immediately(
         assert switchboard_bravo.pendingHatcheryDefaultInstantSettings().actionId == 0
 
 
-def test_hatchery_default_pure_disable_clears_pending_enable(
+def test_hatchery_default_pure_disable_leaves_stale_pending_enable_and_allows_restaging(
     switchboard_bravo, governance, hatchery
 ):
     with boa.env.anchor():
@@ -384,8 +384,21 @@ def test_hatchery_default_pure_disable_clears_pending_enable(
         )
 
         assert instant_action_settings_tuple(hatchery.defaultInstantActionSettings()) == (False, False, False, False)
-        assert switchboard_bravo.pendingHatcheryDefaultInstantSettings().actionId == 0
+        assert not switchboard_bravo.hasPendingAction(aid)
         assert switchboard_bravo.actionType(aid) == 0
+        stale_pending = switchboard_bravo.pendingHatcheryDefaultInstantSettings()
+        assert stale_pending.actionId == aid
+        assert stale_pending.hatchery == hatchery.address
+        assert _settings_tuple(stale_pending.settings) == (True, False, False, False)
+
+        assert switchboard_bravo.setHatcheryDefaultInstantActionSettings(
+            True, False, False, False, sender=governance.address
+        )
+        new_pending = switchboard_bravo.pendingHatcheryDefaultInstantSettings()
+        assert new_pending.actionId != aid
+        assert new_pending.hatchery == hatchery.address
+        assert _settings_tuple(new_pending.settings) == (True, False, False, False)
+        assert switchboard_bravo.hasPendingAction(new_pending.actionId)
 
 
 def test_hatchery_default_mixed_change_applies_disables_and_stages_target(
@@ -439,7 +452,7 @@ def test_second_pending_hatchery_default_enable_reverts(switchboard_bravo, gover
             )
 
 
-def test_cancel_hatchery_default_pending_enable_leaves_current_defaults(
+def test_cancel_hatchery_default_pending_enable_leaves_stale_singleton_and_allows_restaging(
     switchboard_bravo, governance, hatchery
 ):
     with boa.env.anchor():
@@ -452,7 +465,21 @@ def test_cancel_hatchery_default_pending_enable_leaves_current_defaults(
         assert switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
 
         assert instant_action_settings_tuple(hatchery.defaultInstantActionSettings()) == (False, False, False, False)
-        assert switchboard_bravo.pendingHatcheryDefaultInstantSettings().actionId == 0
+        assert not switchboard_bravo.hasPendingAction(aid)
+        assert switchboard_bravo.actionType(aid) == 0
+        stale_pending = switchboard_bravo.pendingHatcheryDefaultInstantSettings()
+        assert stale_pending.actionId == aid
+        assert stale_pending.hatchery == hatchery.address
+        assert _settings_tuple(stale_pending.settings) == (True, True, True, True)
+
+        assert switchboard_bravo.setHatcheryDefaultInstantActionSettings(
+            True, False, False, False, sender=governance.address
+        )
+        new_pending = switchboard_bravo.pendingHatcheryDefaultInstantSettings()
+        assert new_pending.actionId != aid
+        assert new_pending.hatchery == hatchery.address
+        assert _settings_tuple(new_pending.settings) == (True, False, False, False)
+        assert switchboard_bravo.hasPendingAction(new_pending.actionId)
 
 
 def test_loot_adjust_uses_staged_loot_distributor_after_registry_rotation(

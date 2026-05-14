@@ -101,7 +101,7 @@ def test_switchboard_bravo_can_call_funds_and_config_wrappers(
     assert alpha_token.balanceOf(to_wallet) == amount
 
 
-def test_switchboard_bravo_disabling_cancels_pending_instant_migration_enable(
+def test_switchboard_bravo_disabling_leaves_stale_pending_instant_migration_enable_and_allows_restaging(
     switchboard_bravo,
     migrator,
     governance,
@@ -116,10 +116,20 @@ def test_switchboard_bravo_disabling_cancels_pending_instant_migration_enable(
 
     assert switchboard_bravo.setInstantMigrationEnabled(migrator, False, sender=alice) == 0
 
-    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == 0
+    stale_pending = switchboard_bravo.pendingInstantMigrationEnable()
+    assert stale_pending.actionId == aid
+    assert stale_pending.migrator == migrator.address
     assert not switchboard_bravo.hasPendingAction(aid)
+    assert switchboard_bravo.actionType(aid) == 0
     assert not switchboard_bravo.executePendingAction(aid, sender=governance.address)
     assert not migrator.instantMigrationEnabled()
+
+    new_aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
+    new_pending = switchboard_bravo.pendingInstantMigrationEnable()
+    assert new_aid != aid
+    assert new_pending.actionId == new_aid
+    assert new_pending.migrator == migrator.address
+    assert switchboard_bravo.hasPendingAction(new_aid)
 
 
 def test_switchboard_bravo_rejects_duplicate_pending_instant_migration_enable(
@@ -134,7 +144,7 @@ def test_switchboard_bravo_rejects_duplicate_pending_instant_migration_enable(
         switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
 
 
-def test_cancel_pending_action_cancels_pending_instant_migration_enable_and_allows_restaging(
+def test_cancel_pending_action_leaves_stale_pending_instant_migration_singleton_and_allows_restaging(
     switchboard_bravo,
     migrator,
     governance,
@@ -145,11 +155,16 @@ def test_cancel_pending_action_cancels_pending_instant_migration_enable_and_allo
     assert switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
 
     assert not switchboard_bravo.hasPendingAction(aid)
-    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == 0
+    assert switchboard_bravo.actionType(aid) == 0
+    stale_pending = switchboard_bravo.pendingInstantMigrationEnable()
+    assert stale_pending.actionId == aid
+    assert stale_pending.migrator == migrator.address
 
     new_aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
     assert new_aid != aid
-    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == new_aid
+    new_pending = switchboard_bravo.pendingInstantMigrationEnable()
+    assert new_pending.actionId == new_aid
+    assert new_pending.migrator == migrator.address
     assert switchboard_bravo.hasPendingAction(new_aid)
 
 
