@@ -1861,7 +1861,7 @@
     ]
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "createDefaultGlobalManagerSettings",
     "inputs": [

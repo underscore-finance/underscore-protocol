@@ -559,11 +559,12 @@ def test_clone_config_rejects_destination_migrator_mismatch(migrator, hatchery, 
     """Destination config must trust the migrator that is executing the clone."""
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
-    to_config = UserWalletConfig.at(to_wallet.walletConfig())
-    to_config.setMigrator(cheque_book.address, sender=bob)
 
     ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
-    with boa.reverts("no perms"):
+    UserWalletConfig.at(to_wallet.walletConfig()).setMigrator(cheque_book.address, sender=bob)
+
+    assert not migrator.canCopyWalletConfig(from_wallet, to_wallet, bob)
+    with boa.reverts("cannot copy config"):
         migrator.cloneConfig(from_wallet, to_wallet, sender=bob)
 
 
@@ -1312,6 +1313,10 @@ def test_migrate_all_both_succeed(migrator, hatchery, bob, alpha_token, prepareA
     assert num_funds_migrated == 1
     assert did_migrate_config == True
     assert alpha_token.balanceOf(to_wallet) == 75 * EIGHTEEN_DECIMALS
+    dest_data = to_wallet.assetData(alpha_token)
+    assert to_wallet.indexOfAsset(alpha_token) != 0
+    assert dest_data.assetBalance == 75 * EIGHTEEN_DECIMALS
+    assert dest_data.usdValue == 150 * EIGHTEEN_DECIMALS
 
 
 def test_migrate_all_config_only(migrator, hatchery, bob, alice, high_command, createManagerSettings):

@@ -216,7 +216,7 @@ def addManager(
     assert not config.isPayee # dev: already payee
     assert not config.isWhitelisted # dev: already whitelisted
     cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
-    assert not cheque.active or (cheque.expiryBlock != 0 and block.number >= cheque.expiryBlock) # dev: active cheque exists
+    assert not cheque.active # dev: active cheque exists
 
     if _shouldStartInstantly:
         # validator derives delay from global settings/time lock; instant mode clamps after validation.
@@ -534,7 +534,7 @@ def isValidNewManager(
     if config.isPayee or config.isWhitelisted:
         return False
     cheque: wcs.Cheque = staticcall UserWalletConfig(config.walletConfig).cheques(_manager)
-    if cheque.active and (cheque.expiryBlock == 0 or block.number < cheque.expiryBlock):
+    if cheque.active:
         return False
     isValid: bool = False
     na: wcs.ManagerSettings = empty(wcs.ManagerSettings)

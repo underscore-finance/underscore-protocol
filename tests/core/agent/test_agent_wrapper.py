@@ -1683,7 +1683,8 @@ def test_agent_create_cheque_replaces_existing_active_cheque(
         _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
     )
 
-    cheque_book.createCheque(
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1692,7 +1693,8 @@ def test_agent_create_cheque_replaces_existing_active_cheque(
         0,
         True,
         False,
-        sender=bob
+        (b"", 0, 0),
+        sender=charlie
     )
 
     active_cheques_before = user_wallet_config.numActiveCheques()
@@ -1718,9 +1720,8 @@ def test_agent_create_cheque_replaces_existing_active_cheque(
     assert cheque.amount == replacement_amount
     assert cheque.canManagerPay == False
     assert cheque.canBePulled == False
-
-    assert len(filter_logs(cheque_book, "ChequeCreated")) == 1
-    assert len(filter_logs(cheque_book, "ChequeCancelled")) == 0
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
 
     user_wallet_config.cancelCheque(alice, sender=cheque_book.address)
 
@@ -1755,7 +1756,8 @@ def test_agent_create_and_pay_cheque_replaces_existing_active_cheque(
         _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
     )
 
-    cheque_book.createCheque(
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1764,7 +1766,8 @@ def test_agent_create_and_pay_cheque_replaces_existing_active_cheque(
         0,
         True,
         False,
-        sender=bob
+        (b"", 0, 0),
+        sender=charlie
     )
 
     active_cheques_before = user_wallet_config.numActiveCheques()
@@ -1785,9 +1788,8 @@ def test_agent_create_and_pay_cheque_replaces_existing_active_cheque(
     assert alpha_token.balanceOf(alice) == recipient_balance_before + replacement_amount
     assert user_wallet_config.numActiveCheques() == active_cheques_before - 1
     assert user_wallet_config.cheques(alice).active == False
-
-    assert len(filter_logs(cheque_book, "ChequeCreated")) == 1
-    assert len(filter_logs(cheque_book, "ChequeCancelled")) == 0
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
 
 
 def test_agent_create_and_pay_cheque_replaces_locked_cheque_and_pays_new_one(
@@ -1820,7 +1822,8 @@ def test_agent_create_and_pay_cheque_replaces_locked_cheque_and_pays_new_one(
         _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
     )
 
-    cheque_book.createCheque(
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
@@ -1829,7 +1832,8 @@ def test_agent_create_and_pay_cheque_replaces_locked_cheque_and_pays_new_one(
         0,
         True,
         False,
-        sender=bob
+        (b"", 0, 0),
+        sender=charlie
     )
     locked_cheque = user_wallet_config.cheques(alice)
     assert locked_cheque.unlockBlock > boa.env.evm.patch.block_number
@@ -1852,9 +1856,8 @@ def test_agent_create_and_pay_cheque_replaces_locked_cheque_and_pays_new_one(
     assert alpha_token.balanceOf(alice) == recipient_balance_before + replacement_amount
     assert user_wallet_config.numActiveCheques() == active_cheques_before - 1
     assert user_wallet_config.cheques(alice).active == False
-
-    assert len(filter_logs(cheque_book, "ChequeCreated")) == 1
-    assert len(filter_logs(cheque_book, "ChequeCancelled")) == 0
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
 
 
 def test_agent_create_and_pay_cheque_reverts_for_insufficient_balance(

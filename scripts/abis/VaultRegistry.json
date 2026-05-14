@@ -2461,7 +2461,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "isValidPerformanceFee",
     "inputs": [
@@ -2494,7 +2494,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "isValidRedemptionBuffer",
     "inputs": [

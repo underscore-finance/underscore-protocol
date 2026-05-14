@@ -485,7 +485,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "isValidPriceConfig",
     "inputs": [
@@ -1550,7 +1550,7 @@
     ]
   },
   {
-    "stateMutability": "nonpayable",
+    "stateMutability": "pure",
     "type": "function",
     "name": "claimRewards",
     "inputs": [
@@ -1583,7 +1583,7 @@
     ]
   },
   {
-    "stateMutability": "nonpayable",
+    "stateMutability": "pure",
     "type": "function",
     "name": "claimRewards",
     "inputs": [
@@ -1726,7 +1726,7 @@
     ]
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "hasClaimableRewards",
     "inputs": [

@@ -349,6 +349,7 @@ pendingPayeeConfig: public(HashMap[uint256, cs.PayeeConfig]) # aid -> config
 pendingChequeConfig: public(HashMap[uint256, cs.ChequeConfig]) # aid -> config
 pendingAddrToBool: public(HashMap[uint256, IsAddrAllowed])
 pendingAgentWrapperSender: public(HashMap[uint256, PendingAgentWrapperSender])
+pendingMissionControl: public(HashMap[uint256, address])
 
 HUNDRED_PERCENT: constant(uint256) = 100_00 # 100%
 
@@ -714,6 +715,7 @@ def setAssetConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetConfig[aid] = PendingAssetConfig(
         asset=_asset,
         config=cs.AssetConfig(
@@ -805,6 +807,7 @@ def setAssetTxFees(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_TX_FEES
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetTxFees[aid] = PendingAssetTxFees(
         asset=_asset,
         txFees=cs.TxFees(
@@ -845,6 +848,7 @@ def setAssetAmbassadorRevShare(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_AMBASSADOR_REV_SHARE
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetAmbassadorRevShare[aid] = PendingAssetAmbassadorRevShare(
         asset=_asset,
         ambassadorRevShare=cs.AmbassadorRevShare(
@@ -887,6 +891,7 @@ def setAssetYieldConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.ASSET_YIELD_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingAssetYieldConfig[aid] = PendingAssetYieldConfig(
         asset=_asset,
         yieldConfig=cs.YieldConfig(
@@ -921,6 +926,7 @@ def setIsStablecoin(_asset: address, _isStablecoin: bool, _missionControl: addre
     mc: address = self._resolveMissionControl(_missionControl)
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.IS_STABLECOIN
+    self.pendingMissionControl[aid] = mc
     self.pendingAddrToBool[aid] = IsAddrAllowed(addr=_asset, isAllowed=_isStablecoin)
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingIsStablecoinChange(asset=_asset, isStablecoin=_isStablecoin, confirmationBlock=confirmationBlock, actionId=aid)
@@ -1025,6 +1031,7 @@ def setManagerConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.MANAGER_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingManagerConfig[aid] = config
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingManagerConfigChange(
@@ -1061,6 +1068,7 @@ def setPayeeConfig(_payeePeriod: uint256, _payeeActivationLength: uint256, _miss
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.PAYEE_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingPayeeConfig[aid] = config
     confirmationBlock: uint256 = timeLock._getActionConfirmationBlock(aid)
     log PendingPayeeConfigChange(
@@ -1101,6 +1109,7 @@ def setChequeConfig(
 
     aid: uint256 = timeLock._initiateAction()
     self.actionType[aid] = ActionType.CHEQUE_CONFIG
+    self.pendingMissionControl[aid] = mc
     self.pendingChequeConfig[aid] = config
     log PendingChequeConfigChange(
         maxNumActiveCheques=_maxNumActiveCheques,
@@ -1315,6 +1324,7 @@ def _setPendingUserWalletConfig(
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = _actionType
+    self.pendingMissionControl[aid] = _missionControl
     self.pendingUserWalletConfig[aid] = cs.UserWalletConfig(
         walletTemplate=_walletTemplate,
         configTemplate=_configTemplate,
@@ -1410,6 +1420,7 @@ def _setPendingAgentConfig(
     aid: uint256 = timeLock._initiateAction()
 
     self.actionType[aid] = ActionType.STARTER_AGENT_PARAMS
+    self.pendingMissionControl[aid] = _missionControl
     self.pendingAgentConfig[aid] = cs.AgentConfig(
         startingAgent=_startingAgent,
         startingAgentActivationLength=_startingAgentActivationLength,
@@ -1441,7 +1452,10 @@ def executePendingAction(_aid: uint256) -> bool:
         return False
 
     actionType: ActionType = self.actionType[_aid]
-    mc: address = addys._getMissionControlAddr()
+    mc: address = self.pendingMissionControl[_aid]
+    if mc == empty(address):
+        # Non-MissionControl actions and legacy pending actions do not stage this value.
+        mc = addys._getMissionControlAddr()
 
     if actionType == ActionType.USER_WALLET_TEMPLATES:
         config: cs.UserWalletConfig = staticcall MissionControl(mc).userWalletConfig()
@@ -1602,6 +1616,7 @@ def executePendingAction(_aid: uint256) -> bool:
         log AgentWrapperSenderAdded(agentWrapper=p.agentWrapper, agentSender=p.agentSender)
 
     self.actionType[_aid] = empty(ActionType)
+    self.pendingMissionControl[_aid] = empty(address)
     return True
 
 
@@ -1619,3 +1634,4 @@ def cancelPendingAction(_aid: uint256) -> bool:
 def _cancelPendingAction(_aid: uint256):
     assert timeLock._cancelAction(_aid) # dev: cannot cancel action
     self.actionType[_aid] = empty(ActionType)
+    self.pendingMissionControl[_aid] = empty(address)

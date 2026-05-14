@@ -1799,6 +1799,10 @@
           {
             "name": "timeLock",
             "type": "uint256"
+          },
+          {
+            "name": "existingCreator",
+            "type": "address"
           }
         ]
       }
@@ -1842,7 +1846,7 @@
     ]
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "createDefaultChequeSettings",
     "inputs": [

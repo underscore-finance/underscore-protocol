@@ -194,6 +194,7 @@ struct ChequeManagementBundle:
     numActiveCheques: uint256
     isExistingPayee: bool
     timeLock: uint256
+    existingCreator: address
 
 # managers
 

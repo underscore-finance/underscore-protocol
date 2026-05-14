@@ -80,6 +80,20 @@ def _execute_after_timelock(switchboard_bravo, aid, governance):
     return switchboard_bravo.executePendingAction(aid, sender=governance.address)
 
 
+def _deploy_rotated_high_command(undy_hq_deploy, fork):
+    return boa.load(
+        "contracts/core/walletBackpack/HighCommand.vy",
+        undy_hq_deploy,
+        PARAMS[fork]["BOSS_MIN_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MAX_MANAGER_PERIOD"],
+        PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
+        PARAMS[fork]["BOSS_MAX_START_DELAY"],
+        False,
+        name="rotated_instant_flag_high_command",
+    )
+
+
 def test_backpack_constructor_initializes_protocol_instant_flags(undy_hq_deploy, fork):
     high_command = boa.load(
         "contracts/core/walletBackpack/HighCommand.vy",
@@ -185,6 +199,43 @@ def test_protocol_instant_flag_execute_before_and_after_timelock(request, switch
     assert event.caller == governance.address
 
 
+def test_staged_protocol_flag_enable_uses_original_target_after_wallet_backpack_rotation(
+    request,
+    switchboard_bravo,
+    governance,
+    undy_hq,
+    undy_hq_deploy,
+    fork,
+    wallet_backpack,
+    action_data_provider,
+):
+    with boa.env.anchor():
+        action = ACTIONS[0]
+        target = _reset_action(request, switchboard_bravo, governance, action)
+        aid = _stage_enable(switchboard_bravo, target, governance, action)
+
+        rotated_high_command = _deploy_rotated_high_command(undy_hq_deploy, fork)
+        rotated_wallet_backpack = boa.load(
+            "contracts/mock/MockWalletBackpack.vy",
+            wallet_backpack.kernel(),
+            wallet_backpack.sentinel(),
+            rotated_high_command.address,
+            wallet_backpack.paymaster(),
+            wallet_backpack.chequeBook(),
+            wallet_backpack.migrator(),
+            action_data_provider.address,
+            name="rotated_instant_flag_wallet_backpack",
+        )
+        assert undy_hq.startAddressUpdateToRegistry(8, rotated_wallet_backpack.address, sender=governance.address)
+        boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+        assert undy_hq.confirmAddressUpdateToRegistry(8, sender=governance.address)
+
+        assert _execute_after_timelock(switchboard_bravo, aid, governance)
+
+        assert target.canInstantAddManager() is True
+        assert rotated_high_command.canInstantAddManager() is False
+
+
 @pytest.mark.parametrize("action", ACTIONS)
 def test_security_actor_can_disable_protocol_instant_flag_immediately(
     request, switchboard_bravo, governance, mission_control, alice, action
@@ -260,7 +311,7 @@ def test_cancel_pending_action_cancels_protocol_instant_flag_action_and_allows_r
 
     assert not switchboard_bravo.hasPendingAction(aid)
     assert getattr(target, action["getter"])() is False
-    assert _pending(switchboard_bravo, action).actionId == aid
+    assert _pending(switchboard_bravo, action).actionId == 0
 
     new_aid = _stage_enable(switchboard_bravo, target, governance, action)
     assert new_aid != aid

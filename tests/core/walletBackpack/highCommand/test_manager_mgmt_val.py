@@ -129,7 +129,7 @@ def test_invalid_new_manager_mirrors_add_manager_role_guards(
         assert result == False
 
 
-def test_invalid_new_manager_rejects_active_cheque_until_expiry_boundary(
+def test_invalid_new_manager_rejects_active_cheque_after_expiry_until_cleared(
     high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
     createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms,
     createWhitelistPerms, createTransferPerms, alice, bob,
@@ -158,6 +158,22 @@ def test_invalid_new_manager_rejects_active_cheque_until_expiry_boundary(
     )
 
     boa.env.time_travel(blocks=1)
+
+    assert not high_command.isValidNewManager(
+        user_wallet,
+        alice,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+    assert cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
 
     assert high_command.isValidNewManager(
         user_wallet,

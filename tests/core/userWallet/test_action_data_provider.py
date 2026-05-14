@@ -330,3 +330,33 @@ def test_existing_wallet_config_keeps_captured_action_data_provider_after_backpa
         _new_wallet, new_config = fresh_user_wallet(hatchery, bob)
         with boa.reverts():
             new_config.getActionDataBundle(0, bob)
+
+
+def test_is_agent_sender_empty_agent_returns_false(action_data_provider, alice):
+    assert action_data_provider.isAgentSender(alice, ZERO_ADDRESS) is False
+
+
+def test_is_agent_sender_eoa_returns_false(action_data_provider, alice, bob):
+    assert action_data_provider.isAgentSender(alice, bob) is False
+
+
+def test_is_agent_sender_missing_selector_returns_false(action_data_provider, alice):
+    no_selector = boa.load("contracts/mock/MockRando.vy", name="agent_without_selector")
+
+    assert action_data_provider.isAgentSender(alice, no_selector.address) is False
+
+
+def test_is_agent_sender_reverting_contract_returns_false(action_data_provider, alice):
+    reverting_agent = boa.load("contracts/mock/MockRevertingAgentWrapper.vy", name="reverting_agent")
+
+    assert action_data_provider.isAgentSender(alice, reverting_agent.address) is False
+
+
+def test_is_agent_sender_valid_agent_wrapper_still_works(
+    action_data_provider,
+    alice,
+    starter_agent,
+    starter_agent_sender,
+):
+    assert action_data_provider.isAgentSender(starter_agent_sender.address, starter_agent.address) is True
+    assert action_data_provider.isAgentSender(alice, starter_agent.address) is False

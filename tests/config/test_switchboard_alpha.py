@@ -75,6 +75,30 @@ def deploy_rotated_cheque_book(cheque_book, *, max_expiry_blocks=None, name="rot
     )
 
 
+def deploy_rotated_mission_control(undy_hq, defaults, name="rotated_mission_control"):
+    return boa.load(
+        "contracts/data/MissionControl.vy",
+        undy_hq,
+        defaults,
+        name=name,
+    )
+
+
+def rotate_mission_control(undy_hq, governance, mission_control):
+    assert undy_hq.startAddressUpdateToRegistry(2, mission_control.address, sender=governance.address)
+    boa.env.time_travel(blocks=undy_hq.registryChangeTimeLock())
+    assert undy_hq.confirmAddressUpdateToRegistry(2, sender=governance.address)
+
+
+def execute_alpha_action(switchboard_alpha, governance, aid):
+    boa.env.time_travel(blocks=switchboard_alpha.actionTimeLock())
+    assert switchboard_alpha.executePendingAction(aid, sender=governance.address)
+
+
+def changed_wallet_limit(config):
+    return config.numUserWalletsAllowed - 1 if config.numUserWalletsAllowed > 0 else 1
+
+
 @pytest.fixture(scope="module")
 def wallet_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWallet.vy").deploy_as_blueprint()
@@ -83,6 +107,90 @@ def wallet_template_v2():
 @pytest.fixture(scope="module")
 def config_template_v2():
     return boa.load_partial("contracts/core/userWallet/UserWalletConfig.vy").deploy_as_blueprint()
+
+
+##########################
+# Staged Mission Control #
+##########################
+
+
+def test_execute_uses_staged_mission_control_after_registry_rotation(
+    switchboard_alpha, governance, undy_hq, defaults, mission_control
+):
+    with boa.env.anchor():
+        rotated_mission_control = deploy_rotated_mission_control(undy_hq, defaults)
+        current_a = mission_control.userWalletConfig()
+        current_b = rotated_mission_control.userWalletConfig()
+        new_limit = changed_wallet_limit(current_a)
+
+        aid = switchboard_alpha.setWalletCreationLimits(
+            new_limit,
+            current_a.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        rotate_mission_control(undy_hq, governance, rotated_mission_control)
+        execute_alpha_action(switchboard_alpha, governance, aid)
+
+        assert mission_control.userWalletConfig().numUserWalletsAllowed == new_limit
+        assert rotated_mission_control.userWalletConfig().numUserWalletsAllowed == current_b.numUserWalletsAllowed
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_staged_mission_control_no_rotation_path_clears_on_execute(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        new_limit = changed_wallet_limit(current)
+
+        aid = switchboard_alpha.setWalletCreationLimits(
+            new_limit,
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        execute_alpha_action(switchboard_alpha, governance, aid)
+
+        assert mission_control.userWalletConfig().numUserWalletsAllowed == new_limit
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_staged_mission_control_clears_on_cancel(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        aid = switchboard_alpha.setWalletCreationLimits(
+            changed_wallet_limit(current),
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        assert switchboard_alpha.pendingMissionControl(aid) == mission_control.address
+
+        assert switchboard_alpha.cancelPendingAction(aid, sender=governance.address)
+
+        assert switchboard_alpha.pendingMissionControl(aid) == ZERO_ADDRESS
+
+
+def test_cancel_one_action_keeps_other_staged_mission_control(
+    switchboard_alpha, governance, mission_control
+):
+    with boa.env.anchor():
+        current = mission_control.userWalletConfig()
+        first_aid = switchboard_alpha.setWalletCreationLimits(
+            changed_wallet_limit(current),
+            current.enforceCreatorWhitelist,
+            sender=governance.address,
+        )
+        second_aid = switchboard_alpha.setTxFees(11, 12, 13, sender=governance.address)
+
+        assert switchboard_alpha.cancelPendingAction(first_aid, sender=governance.address)
+
+        assert switchboard_alpha.pendingMissionControl(first_aid) == ZERO_ADDRESS
+        assert switchboard_alpha.pendingMissionControl(second_aid) == mission_control.address
 
 
 #########################

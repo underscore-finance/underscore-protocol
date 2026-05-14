@@ -1395,6 +1395,16 @@ def test_set_migrator_rejects_pending_migration(user_wallet_config, alice, migra
     assert user_wallet_config.migrator() == migrator.address
 
 
+def test_set_pending_migration_rejects_existing_pending(user_wallet_config, alice, bob, migrator):
+    """The config itself rejects pending migration overwrites."""
+    user_wallet_config.setPendingMigration(alice, sender=migrator.address)
+
+    with boa.reverts("pending migration exists"):
+        user_wallet_config.setPendingMigration(bob, sender=migrator.address)
+
+    assert user_wallet_config.pendingMigration().toWallet == alice
+
+
 def test_set_backpack_item_not_registered(user_wallet_config, alice):
     """Cannot set backpack item to an unregistered address"""
     owner = user_wallet_config.owner()

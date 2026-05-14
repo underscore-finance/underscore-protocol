@@ -145,7 +145,7 @@ def test_cancel_pending_action_cancels_pending_instant_migration_enable_and_allo
     assert switchboard_bravo.cancelPendingAction(aid, sender=governance.address)
 
     assert not switchboard_bravo.hasPendingAction(aid)
-    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == aid
+    assert switchboard_bravo.pendingInstantMigrationEnable().actionId == 0
 
     new_aid = switchboard_bravo.setInstantMigrationEnabled(migrator, True, sender=governance.address)
     assert new_aid != aid
