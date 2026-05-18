@@ -364,9 +364,8 @@ def print_table_of_contents():
      - [Vault Token Registry](#vault-token-registry)
      - [Backpack Items](#backpack-items)
 
-> **Note:** Contract addresses: `deployments_output.md`
-> **Note:** Vault configuration: `vaults_params_output.md`
-> **Note:** Lego configuration: `lego_params_output.md`
+> **Local snapshots:** Contract addresses: `deployments_output.md`; vault configuration: `vaults_params_output.md`; lego configuration: `lego_params_output.md`.
+> **Live view:** [Params Explorer](https://params.underscore.finance).
 """)
 
 

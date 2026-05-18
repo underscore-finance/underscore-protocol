@@ -5,6 +5,8 @@
 **Block:** 39138127
 **Network:** Base Mainnet
 
+> **Snapshot:** This report is a point-in-time local snapshot generated from Base mainnet. The Generated and Block fields above identify the snapshot point. For the authoritative live public view, use [Params Explorer](https://params.underscore.finance).
+
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
@@ -30,9 +32,8 @@
      - [Vault Token Registry](#vault-token-registry)
      - [Backpack Items](#backpack-items)
 
-> **Note:** Contract addresses: `deployments_output.md`
-> **Note:** Vault configuration: `vaults_params_output.md`
-> **Note:** Lego configuration: `lego_params_output.md`
+> **Local snapshots:** Contract addresses: `deployments_output.md`; vault configuration: `vaults_params_output.md`; lego configuration: `lego_params_output.md`.
+> **Live view:** [Params Explorer](https://params.underscore.finance).
 
 
 <a id="executive-summary"></a>

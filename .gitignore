@@ -13,3 +13,5 @@ __pycache__
 out/
 
 migration_history/**/dev
+
+.playwright/
