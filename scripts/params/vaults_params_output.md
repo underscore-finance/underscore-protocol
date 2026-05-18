@@ -5,6 +5,8 @@
 **Block:** 39044466
 **Network:** Base Mainnet
 
+> **Snapshot:** This report is a point-in-time local snapshot generated from Base mainnet. The Generated and Block fields above identify the snapshot point. For the authoritative live public view, use [Params Explorer](https://params.underscore.finance).
+
 ## Table of Contents
 
 1. [All Vaults Summary](#all-vaults-summary)

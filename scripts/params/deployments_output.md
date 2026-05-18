@@ -5,8 +5,7 @@
 **Block:** 39044529
 **Network:** Base Mainnet
 
-Complete list of all live contract addresses in the Underscore Protocol.
-
+> **Snapshot:** This report is a point-in-time local snapshot generated from Base mainnet. The Generated and Block fields above identify the snapshot point. For the authoritative live public view, use [Params Explorer](https://params.underscore.finance).
 
 ## Table of Contents
 

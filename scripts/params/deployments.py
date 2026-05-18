@@ -5,7 +5,7 @@ Output Deployments Script for Underscore Protocol
 Fetches and displays all contract addresses from Underscore Protocol
 on Base mainnet, formatted as markdown tables.
 
-This is the canonical source for all live contract addresses.
+This script generates a point-in-time local snapshot. The authoritative live public view for deployments is https://params.underscore.finance/deployments.
 
 Usage:
     python scripts/params/deployments.py
@@ -356,8 +356,6 @@ def main():
         with output_to_file(output_file):
             # Header
             print_report_header("Underscore Protocol Deployments", block_number)
-
-            print("\nComplete list of all live contract addresses in the Underscore Protocol.\n")
 
             # Table of Contents
             print_table_of_contents()

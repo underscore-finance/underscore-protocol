@@ -238,6 +238,7 @@ def print_report_header(title: str, block_number: int):
     print(f"\n**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"**Block:** {block_number}")
     print(f"**Network:** Base Mainnet")
+    print("\n> **Snapshot:** This report is a point-in-time local snapshot generated from Base mainnet. The Generated and Block fields above identify the snapshot point. For the authoritative live public view, use [Params Explorer](https://params.underscore.finance).")
 
 
 def print_report_footer(block_number: int):
