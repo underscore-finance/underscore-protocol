@@ -45,7 +45,7 @@ This README intentionally does not list live contract addresses. For current dep
 
 ## Community
 
-- [Discord](https://discord.gg/Y6PWmndNaC)
+- [Discord](https://discord.gg/hightop)
 - [X](https://x.com/underscore_hq)
 - [GitHub](https://github.com/underscore-finance/underscore-protocol)
 
