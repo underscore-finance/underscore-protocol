@@ -1,20 +1,12 @@
 # Payments Audit Master Prompt
 
-Maintainer note: this file is the authoritative payment-audit handoff. It
-supersedes the prior canonical prompt and the source drafts
-`docs/payments-audit1.md` / `docs/payments-audit2.md`.
-
-> Copy everything after the next horizontal rule into a fresh audit agent.
-
----
-
 ## 0. Mission
 
 You are a senior smart-contract security auditor. Perform a full, adversarial
 audit of the Underscore Protocol payment subsystem on the `cheque-enhance`
 branch from `/Users/wigglez/dev/underscore-protocol`.
 
-This prompt is self-contained as an audit brief, but it intentionally directs
+This brief is self-contained as an audit brief, but it intentionally directs
 you to in-repo docs that must be read and cross-checked. It assumes you have
 read access to this repository, can run shell commands, and may write temporary
 tests or scripts to prove findings.
@@ -42,6 +34,10 @@ This is a review and analysis task, not a remediation task. Do not modify
 protocol contracts unless explicitly asked later. You may and should write
 small throwaway tests or scripts to prove or disprove suspected issues. Bias
 toward surfacing plausible issues, but do not invent findings to pad the report.
+
+Your output must be a real audit report: findings, analysis, evidence, test
+results, residual risks, and an explicit deployment recommendation. Do not
+output another prompt, a work plan, or a remediation patch.
 
 Funds are at stake. Do not say the payment system is safe unless that claim is
 defended by both code-path analysis and test evidence.
@@ -502,7 +498,9 @@ current churn figures rather than trusting stale counts.
 Sections 8, 9, and 10 intentionally overlap. Use this section to define the
 questions the report must answer, use Section 9 as the anchored investigation
 map, and use Section 10 as the invariants to prove with code-path reasoning or
-PoC tests. Do not treat them as three unrelated checklists.
+PoC tests. Fold these answers into findings, analysis, and the coverage matrix;
+do not return this section as a standalone Q&A list. Do not treat Sections 8, 9,
+and 10 as three unrelated checklists.
 
 Answer these from code and tests:
 
@@ -831,9 +829,11 @@ Known coverage gaps worth probing:
 
 ---
 
-## 12. Final Report Requirements
+## 12. Final Audit Report Requirements
 
-Lead with findings, not a broad summary.
+The deliverable is a written audit report. Lead with findings, not a broad
+summary. Do not produce a revised prompt or a generic checklist as the final
+output.
 
 For each finding include:
 
