@@ -1,0 +1,428 @@
+{
+  "contracts": {
+    "ActionDataProvider": {
+      "address": "0x65285A2e73789fcF56B06811aF5aF2E850C3eb61",
+      "abi": [
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isValidRegistryAddr",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isPrivilegedUndyAddr",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isSwitchboardAddr",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canPerformSecurityAction",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "canSetBackpackItem",
+          "inputs": [
+            {
+              "name": "_newBackpackAddr",
+              "type": "address"
+            },
+            {
+              "name": "_caller",
+              "type": "address"
+            },
+            {
+              "name": "_owner",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "isAgentSender",
+          "inputs": [
+            {
+              "name": "_addr",
+              "type": "address"
+            },
+            {
+              "name": "_agent",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getActionDataBundle",
+          "inputs": [
+            {
+              "name": "_walletConfig",
+              "type": "address"
+            },
+            {
+              "name": "_legoId",
+              "type": "uint256"
+            },
+            {
+              "name": "_signer",
+              "type": "address"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_eth",
+              "type": "address"
+            },
+            {
+              "name": "_weth",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "ledger",
+                  "type": "address"
+                },
+                {
+                  "name": "missionControl",
+                  "type": "address"
+                },
+                {
+                  "name": "legoBook",
+                  "type": "address"
+                },
+                {
+                  "name": "hatchery",
+                  "type": "address"
+                },
+                {
+                  "name": "lootDistributor",
+                  "type": "address"
+                },
+                {
+                  "name": "appraiser",
+                  "type": "address"
+                },
+                {
+                  "name": "billing",
+                  "type": "address"
+                },
+                {
+                  "name": "vaultRegistry",
+                  "type": "address"
+                },
+                {
+                  "name": "wallet",
+                  "type": "address"
+                },
+                {
+                  "name": "walletConfig",
+                  "type": "address"
+                },
+                {
+                  "name": "walletOwner",
+                  "type": "address"
+                },
+                {
+                  "name": "inEjectMode",
+                  "type": "bool"
+                },
+                {
+                  "name": "isFrozen",
+                  "type": "bool"
+                },
+                {
+                  "name": "lastTotalUsdValue",
+                  "type": "uint256"
+                },
+                {
+                  "name": "signer",
+                  "type": "address"
+                },
+                {
+                  "name": "isManager",
+                  "type": "bool"
+                },
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "legoAddr",
+                  "type": "address"
+                },
+                {
+                  "name": "eth",
+                  "type": "address"
+                },
+                {
+                  "name": "weth",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "stateMutability": "view",
+          "type": "function",
+          "name": "checkSignerPermissionsAndGetBundle",
+          "inputs": [
+            {
+              "name": "_walletConfig",
+              "type": "address"
+            },
+            {
+              "name": "_signer",
+              "type": "address"
+            },
+            {
+              "name": "_action",
+              "type": "uint256"
+            },
+            {
+              "name": "_undyHq",
+              "type": "address"
+            },
+            {
+              "name": "_eth",
+              "type": "address"
+            },
+            {
+              "name": "_weth",
+              "type": "address"
+            },
+            {
+              "name": "_sentinel",
+              "type": "address"
+            },
+            {
+              "name": "_assets",
+              "type": "address[]"
+            },
+            {
+              "name": "_legoIds",
+              "type": "uint256[]"
+            },
+            {
+              "name": "_transferRecipient",
+              "type": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "components": [
+                {
+                  "name": "ledger",
+                  "type": "address"
+                },
+                {
+                  "name": "missionControl",
+                  "type": "address"
+                },
+                {
+                  "name": "legoBook",
+                  "type": "address"
+                },
+                {
+                  "name": "hatchery",
+                  "type": "address"
+                },
+                {
+                  "name": "lootDistributor",
+                  "type": "address"
+                },
+                {
+                  "name": "appraiser",
+                  "type": "address"
+                },
+                {
+                  "name": "billing",
+                  "type": "address"
+                },
+                {
+                  "name": "vaultRegistry",
+                  "type": "address"
+                },
+                {
+                  "name": "wallet",
+                  "type": "address"
+                },
+                {
+                  "name": "walletConfig",
+                  "type": "address"
+                },
+                {
+                  "name": "walletOwner",
+                  "type": "address"
+                },
+                {
+                  "name": "inEjectMode",
+                  "type": "bool"
+                },
+                {
+                  "name": "isFrozen",
+                  "type": "bool"
+                },
+                {
+                  "name": "lastTotalUsdValue",
+                  "type": "uint256"
+                },
+                {
+                  "name": "signer",
+                  "type": "address"
+                },
+                {
+                  "name": "isManager",
+                  "type": "bool"
+                },
+                {
+                  "name": "legoId",
+                  "type": "uint256"
+                },
+                {
+                  "name": "legoAddr",
+                  "type": "address"
+                },
+                {
+                  "name": "eth",
+                  "type": "address"
+                },
+                {
+                  "name": "weth",
+                  "type": "address"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "solc_json": {
+        "language": "Vyper",
+        "sources": {
+          "interfaces/WalletStructs.vyi": {
+            "content": "# @version 0.4.3\n\nflag ActionType:\n    TRANSFER\n    EARN_DEPOSIT\n    EARN_WITHDRAW\n    EARN_REBALANCE\n    SWAP\n    MINT_REDEEM\n    CONFIRM_MINT_REDEEM\n    ADD_COLLATERAL\n    REMOVE_COLLATERAL\n    BORROW\n    REPAY_DEBT\n    REWARDS\n    ETH_TO_WETH\n    WETH_TO_ETH\n    ADD_LIQ\n    REMOVE_LIQ\n    ADD_LIQ_CONC\n    REMOVE_LIQ_CONC\n    PAY_CHEQUE\n\nMAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10\n\nstruct DeleverageAsset:\n    vaultId: uint256\n    asset: address\n    targetRepayAmount: uint256\n\nstruct WalletAssetData:\n    assetBalance: uint256\n    usdValue: uint256\n    isYieldAsset: bool\n    lastPricePerShare: uint256\n\nstruct ActionData:\n    ledger: address\n    missionControl: address\n    legoBook: address\n    hatchery: address\n    lootDistributor: address\n    appraiser: address\n    billing: address\n    vaultRegistry: address\n    wallet: address\n    walletConfig: address\n    walletOwner: address\n    inEjectMode: bool\n    isFrozen: bool\n    lastTotalUsdValue: uint256\n    signer: address\n    isManager: bool\n    legoId: uint256\n    legoAddr: address\n    eth: address\n    weth: address\n\nstruct MiniAddys:\n    ledger: address\n    missionControl: address\n    legoBook: address\n    appraiser: address\n",
+            "sha256sum": "5e90186d7e7ab11c6a1bf0f6bba8292f6d3f07fbade6c96da6a13babdf9e6805"
+          },
+          "interfaces/WalletConfigStructs.vyi": {
+            "content": "# @version 0.4.3\n\nMAX_CONFIG_ASSETS: constant(uint256) = 40\nMAX_CONFIG_LEGOS: constant(uint256) = 25\nMAX_ALLOWED_PAYEES: constant(uint256) = 40\n\nflag WhitelistAction:\n    ADD_PENDING\n    CONFIRM_WHITELIST\n    CANCEL_WHITELIST\n    REMOVE_WHITELIST\n\nflag BackpackType:\n    WALLET_KERNEL\n    WALLET_SENTINEL\n    WALLET_HIGH_COMMAND\n    WALLET_PAYMASTER\n    WALLET_CHEQUE_BOOK\n    WALLET_MIGRATOR\n    WALLET_ACTION_DATA_PROVIDER\n\n# payees\n\nstruct PayeeData:\n    numTxsInPeriod: uint256\n    totalUnitsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUnits: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n\nstruct PayeeSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    canPull: bool\n    periodLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    primaryAsset: address\n    onlyPrimaryAsset: bool\n    unitLimits: PayeeLimits\n    usdLimits: PayeeLimits\n\nstruct GlobalPayeeSettings:\n    defaultPeriodLength: uint256\n    startDelay: uint256\n    activationLength: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n    usdLimits: PayeeLimits\n    canPull: bool\n\nstruct PendingGlobalPayeeSettings:\n    settings: GlobalPayeeSettings\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct PayeeLimits:\n    perTxCap: uint256\n    perPeriodCap: uint256\n    lifetimeCap: uint256\n\nstruct PayeeManagementBundle:\n    owner: address\n    wallet: address\n    isRegisteredPayee: bool\n    isWhitelisted: bool\n    isManager: bool\n    isExistingCheque: bool\n    payeeSettings: PayeeSettings\n    globalPayeeSettings: GlobalPayeeSettings\n    timeLock: uint256\n    walletConfig: address\n\nstruct RecipientConfigBundle:\n    isWhitelisted: bool\n    isPayee: bool\n    config: PayeeSettings\n    globalConfig: GlobalPayeeSettings\n    data: PayeeData\n\nstruct WhitelistConfigBundle:\n    owner: address\n    wallet: address\n    isWhitelisted: bool\n    pendingWhitelist: PendingWhitelist\n    isExistingPayee: bool\n    isExistingCheque: bool\n    isExistingManager: bool\n    timeLock: uint256\n    walletConfig: address\n    isManager: bool\n    isOwner: bool\n    whitelistPerms: WhitelistPerms\n    globalWhitelistPerms: WhitelistPerms\n\nstruct PendingWhitelist:\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct PendingTimeLock:\n    newTimeLock: uint256\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct InstantActionSettings:\n    canInstantAddManager: bool\n    canInstantAddPayee: bool\n    canInstantSetGlobalPayeeSettings: bool\n    canInstantSetChequeSettings: bool\n\nstruct PendingInstantActionSettings:\n    settings: InstantActionSettings\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct PendingMigration:\n    toWallet: address\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\n# cheques\n\nstruct Cheque:\n    recipient: address\n    asset: address\n    amount: uint256\n    creationBlock: uint256\n    unlockBlock: uint256\n    expiryBlock: uint256\n    usdValueOnCreation: uint256\n    canManagerPay: bool\n    canBePulled: bool\n    creator: address\n    active: bool\n\nstruct ChequeSettings:\n    maxNumActiveCheques: uint256\n    maxChequeUsdValue: uint256\n    instantUsdThreshold: uint256\n    perPeriodPaidUsdCap: uint256\n    maxNumChequesPaidPerPeriod: uint256\n    payCooldownBlocks: uint256\n    perPeriodCreatedUsdCap: uint256\n    maxNumChequesCreatedPerPeriod: uint256\n    createCooldownBlocks: uint256\n    periodLength: uint256\n    expensiveDelayBlocks: uint256\n    defaultExpiryBlocks: uint256\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canManagersCreateCheques: bool\n    canManagerPay: bool\n    canBePulled: bool\n\nstruct PendingChequeSettings:\n    settings: ChequeSettings\n    initiatedBlock: uint256\n    confirmBlock: uint256\n    currentOwner: address\n\nstruct ChequeData:\n    numChequesPaidInPeriod: uint256\n    totalUsdValuePaidInPeriod: uint256\n    totalNumChequesPaid: uint256\n    totalUsdValuePaid: uint256\n    lastChequePaidBlock: uint256\n    numChequesCreatedInPeriod: uint256\n    totalUsdValueCreatedInPeriod: uint256\n    totalNumChequesCreated: uint256\n    totalUsdValueCreated: uint256\n    lastChequeCreatedBlock: uint256\n    periodStartBlock: uint256\n\nstruct ChequeManagementBundle:\n    wallet: address\n    walletConfig: address\n    owner: address\n    isRecipientOnWhitelist: bool\n    isCreatorManager: bool\n    isRecipientManager: bool\n    managerSettings: ManagerSettings\n    chequeSettings: ChequeSettings\n    chequeData: ChequeData\n    isExistingCheque: bool\n    numActiveCheques: uint256\n    isExistingPayee: bool\n    timeLock: uint256\n    existingCreator: address\n\n# managers\n\nstruct ManagerData:\n    numTxsInPeriod: uint256\n    totalUsdValueInPeriod: uint256\n    totalNumTxs: uint256\n    totalUsdValue: uint256\n    lastTxBlock: uint256\n    periodStartBlock: uint256\n    numSwapsInPeriod: uint256\n\nstruct ManagerSettings:\n    startBlock: uint256\n    expiryBlock: uint256\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n    canClaimLoot: bool\n\nstruct GlobalManagerSettings:\n    managerPeriod: uint256\n    startDelay: uint256\n    activationLength: uint256\n    canOwnerManage: bool\n    limits: ManagerLimits\n    legoPerms: LegoPerms\n    swapPerms: SwapPerms\n    whitelistPerms: WhitelistPerms\n    transferPerms: TransferPerms\n    allowedAssets: DynArray[address, MAX_CONFIG_ASSETS]\n\nstruct ManagerLimits:\n    maxUsdValuePerTx: uint256\n    maxUsdValuePerPeriod: uint256\n    maxUsdValueLifetime: uint256\n    maxNumTxsPerPeriod: uint256\n    txCooldownBlocks: uint256\n    failOnZeroPrice: bool\n\nstruct LegoPerms:\n    canManageYield: bool\n    canBuyAndSell: bool\n    canManageDebt: bool\n    canManageLiq: bool\n    canClaimRewards: bool\n    onlyApprovedYieldOpps: bool\n    allowedLegos: DynArray[uint256, MAX_CONFIG_LEGOS]\n\nstruct SwapPerms:\n    mustHaveUsdValue: bool\n    maxNumSwapsPerPeriod: uint256\n    maxSlippage: uint256\n\nstruct WhitelistPerms:\n    canConfirm: bool\n    canCancel: bool\n    canRemove: bool\n\nstruct TransferPerms:\n    canTransfer: bool\n    canCreateCheque: bool\n    allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]\n\nstruct ManagerConfigBundle:\n    isOwner: bool\n    isManager: bool\n    config: ManagerSettings\n    globalConfig: GlobalManagerSettings\n    data: ManagerData\n    payee: address\n\nstruct ManagerSettingsBundle:\n    owner: address\n    isManager: bool\n    isPayee: bool\n    isWhitelisted: bool\n    timeLock: uint256\n    walletConfig: address\n    legoBook: address\n    globalManagerSettings: GlobalManagerSettings\n\n# migration\n\nstruct MigrationConfigBundle:\n    owner: address\n    isFrozen: bool\n    inEjectMode: bool\n    numPayees: uint256\n    numWhitelisted: uint256\n    numManagers: uint256\n    startingAgent: address\n    startingAgentIndex: uint256\n    hasPendingOwnerChange: bool\n    groupId: uint256\n    numActiveCheques: uint256\n",
+            "sha256sum": "4b9b4bff7172d3ded1acde8f769f098460cb52e7afefd75de11a94abba06f3a6"
+          },
+          "contracts/core/userWallet/ActionDataProvider.vy": {
+            "content": "#    \u2513 \u250f  \u2513\u2513   \n#    \u2503\u2503\u2503\u250f\u2513\u2503\u2503\u250f\u2513\u254b\n#    \u2517\u253b\u251b\u2517\u253b\u2517\u2517\u2517 \u2517\n#     ___        __  _                ____        __       \n#    /   | _____/ /_(_)___  ____     / __ \\____ _/ /_____ _\n#   / /| |/ ___/ __/ / __ \\/ __ \\   / / / / __ `/ __/ __ `/\n#  / ___ / /__/ /_/ / /_/ / / / /  / /_/ / /_/ / /_/ /_/ / \n# /_/  |_\\___/\\__/_/\\____/_/ /_/  /_____/\\__,_/\\__/\\__,_/  \n\n#     \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557\n#     \u2551  ** Action Data Provider **                  \u2551\n#     \u2551  Read-only helper for wallet action data.    \u2551\n#     \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\n#\n#     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md\n\n# @version 0.4.3\n\nfrom interfaces import WalletStructs as ws\nfrom interfaces import WalletConfigStructs as wcs\n\ninterface UserWalletConfig:\n    def managerSettings(_manager: address) -> wcs.ManagerSettings: view\n    def managerPeriodData(_manager: address) -> wcs.ManagerData: view\n    def globalManagerSettings() -> wcs.GlobalManagerSettings: view\n    def indexOfManager(_manager: address) -> uint256: view\n    def indexOfWhitelist(_addr: address) -> uint256: view\n    def inEjectMode() -> bool: view\n    def wallet() -> address: view\n    def owner() -> address: view\n    def isFrozen() -> bool: view\n\ninterface MissionControl:\n    def canPerformSecurityAction(_addr: address) -> bool: view\n    def isLockedSigner(_signer: address) -> bool: view\n\ninterface Ledger:\n    def isRegisteredBackpackItem(_addr: address) -> bool: view\n    def getLastTotalUsdValue(_user: address) -> uint256: view\n\ninterface Registry:\n    def getAddr(_regId: uint256) -> address: view\n    def isValidAddr(_addr: address) -> bool: view\n\ninterface Sentinel:\n    def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view\n\ninterface Switchboard:\n    def isSwitchboardAddr(_addr: address) -> bool: view\n\ninterface AgentWrapper:\n    def isSender(_address: address) -> bool: view\n\nMAX_ASSETS: constant(uint256) = 10\nMAX_LEGOS: constant(uint256) = 10\n\nLEDGER_ID: constant(uint256) = 1\nMISSION_CONTROL_ID: constant(uint256) = 2\nLEGO_BOOK_ID: constant(uint256) = 3\nSWITCHBOARD_ID: constant(uint256) = 4\nHATCHERY_ID: constant(uint256) = 5\nLOOT_DISTRIBUTOR_ID: constant(uint256) = 6\nAPPRAISER_ID: constant(uint256) = 7\nBILLING_ID: constant(uint256) = 9\nVAULT_REGISTRY_ID: constant(uint256) = 10\n\n\n@view\n@external\ndef isValidRegistryAddr(_addr: address, _undyHq: address) -> bool:\n    return staticcall Registry(_undyHq).isValidAddr(_addr)\n\n\n@view\n@external\ndef isPrivilegedUndyAddr(_addr: address, _undyHq: address) -> bool:\n    if staticcall Registry(_undyHq).isValidAddr(_addr):\n        return True\n    ledger: address = staticcall Registry(_undyHq).getAddr(LEDGER_ID)\n    if ledger == empty(address):\n        return False\n    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)\n\n\n@view\n@external\ndef isSwitchboardAddr(_addr: address, _undyHq: address) -> bool:\n    switchboard: address = staticcall Registry(_undyHq).getAddr(SWITCHBOARD_ID)\n    if switchboard == empty(address):\n        return False\n    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)\n\n\n@view\n@external\ndef canPerformSecurityAction(_addr: address, _undyHq: address) -> bool:\n    missionControl: address = staticcall Registry(_undyHq).getAddr(MISSION_CONTROL_ID)\n    if missionControl == empty(address):\n        return False\n    return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)\n\n\n@view\n@external\ndef canSetBackpackItem(_newBackpackAddr: address, _caller: address, _owner: address, _undyHq: address) -> bool:\n    if _caller != _owner:\n        return False\n    ledger: address = staticcall Registry(_undyHq).getAddr(LEDGER_ID)\n    if ledger == empty(address):\n        return False\n    return staticcall Ledger(ledger).isRegisteredBackpackItem(_newBackpackAddr)\n\n\n@view\n@external\ndef isAgentSender(_addr: address, _agent: address) -> bool:\n    if _agent == empty(address):\n        return False\n    if not _agent.is_contract:\n        return False\n    return staticcall AgentWrapper(_agent).isSender(_addr)\n\n\n@view\n@external\ndef getActionDataBundle(\n    _walletConfig: address,\n    _legoId: uint256,\n    _signer: address,\n    _undyHq: address,\n    _eth: address,\n    _weth: address,\n) -> ws.ActionData:\n    return self._getActionDataBundle(_walletConfig, _legoId, _signer, _undyHq, _eth, _weth)\n\n\n@view\n@external\ndef checkSignerPermissionsAndGetBundle(\n    _walletConfig: address,\n    _signer: address,\n    _action: ws.ActionType,\n    _undyHq: address,\n    _eth: address,\n    _weth: address,\n    _sentinel: address,\n    _assets: DynArray[address, MAX_ASSETS],\n    _legoIds: DynArray[uint256, MAX_LEGOS],\n    _transferRecipient: address,\n) -> ws.ActionData:\n    legoId: uint256 = 0\n    if len(_legoIds) != 0:\n        legoId = _legoIds[0]\n\n    ad: ws.ActionData = self._getActionDataBundle(_walletConfig, legoId, _signer, _undyHq, _eth, _weth)\n    if ad.signer == ad.billing:\n        return ad\n\n    assert not staticcall MissionControl(ad.missionControl).isLockedSigner(_signer) # dev: signer is locked\n\n    recipient: address = _transferRecipient\n    if _transferRecipient != empty(address) and staticcall UserWalletConfig(_walletConfig).indexOfWhitelist(_transferRecipient) != 0:\n        recipient = empty(address)\n\n    assert staticcall Sentinel(_sentinel).canSignerPerformActionWithConfig(\n        _signer == ad.walletOwner,\n        ad.isManager,\n        staticcall UserWalletConfig(_walletConfig).managerPeriodData(_signer),\n        staticcall UserWalletConfig(_walletConfig).managerSettings(_signer),\n        staticcall UserWalletConfig(_walletConfig).globalManagerSettings(),\n        _action,\n        _assets,\n        _legoIds,\n        recipient,\n    ) # dev: no permission\n\n    return ad\n\n\n@view\n@internal\ndef _getActionDataBundle(\n    _walletConfig: address,\n    _legoId: uint256,\n    _signer: address,\n    _undyHq: address,\n    _eth: address,\n    _weth: address,\n) -> ws.ActionData:\n    wallet: address = staticcall UserWalletConfig(_walletConfig).wallet()\n\n    # lego details\n    legoBook: address = staticcall Registry(_undyHq).getAddr(LEGO_BOOK_ID)\n    legoAddr: address = empty(address)\n    if _legoId != 0 and legoBook != empty(address):\n        legoAddr = staticcall Registry(legoBook).getAddr(_legoId)\n\n    ledger: address = staticcall Registry(_undyHq).getAddr(LEDGER_ID)\n    lastTotalUsdValue: uint256 = 0\n    if ledger != empty(address):\n        lastTotalUsdValue = staticcall Ledger(ledger).getLastTotalUsdValue(wallet)\n\n    return ws.ActionData(\n        ledger = ledger,\n        missionControl = staticcall Registry(_undyHq).getAddr(MISSION_CONTROL_ID),\n        legoBook = legoBook,\n        hatchery = staticcall Registry(_undyHq).getAddr(HATCHERY_ID),\n        lootDistributor = staticcall Registry(_undyHq).getAddr(LOOT_DISTRIBUTOR_ID),\n        appraiser = staticcall Registry(_undyHq).getAddr(APPRAISER_ID),\n        billing = staticcall Registry(_undyHq).getAddr(BILLING_ID),\n        vaultRegistry = staticcall Registry(_undyHq).getAddr(VAULT_REGISTRY_ID),\n        wallet = wallet,\n        walletConfig = _walletConfig,\n        walletOwner = staticcall UserWalletConfig(_walletConfig).owner(),\n        inEjectMode = staticcall UserWalletConfig(_walletConfig).inEjectMode(),\n        isFrozen = staticcall UserWalletConfig(_walletConfig).isFrozen(),\n        lastTotalUsdValue = lastTotalUsdValue,\n        signer = _signer,\n        isManager = staticcall UserWalletConfig(_walletConfig).indexOfManager(_signer) != 0,\n        legoId = _legoId,\n        legoAddr = legoAddr,\n        eth = _eth,\n        weth = _weth,\n    )\n",
+            "sha256sum": "e18f81f7debbfb1115c96a8bfd61635681670d55b53e14cdde9750b6dc5299a9"
+          }
+        },
+        "settings": {
+          "outputSelection": {
+            "contracts/core/userWallet/ActionDataProvider.vy": [
+              "*"
+            ]
+          },
+          "search_paths": [
+            "."
+          ]
+        },
+        "compiler_version": "v0.4.3+commit.bff19ea2",
+        "integrity": "13985b457e03ac43b2070cc10448d98efe24bc8bdb256035933b9d517de91851"
+      },
+      "args": "",
+      "file": "contracts/core/userWallet/ActionDataProvider.vy"
+    }
+  }
+}

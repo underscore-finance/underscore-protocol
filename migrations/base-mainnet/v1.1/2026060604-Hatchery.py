@@ -13,13 +13,15 @@ def migrate(migration: Migration):
     migration.log.h2("Hatchery")
     hq = migration.get_contract("UndyHq")
 
+    dev_wrapper = migration.get_address('AgentWrapperDev')
+    print(f"dev wrapper: {dev_wrapper}")
     migration.deploy(
         "Hatchery",
         hq,
         migration.blueprint.TOKENS["WETH"],
         migration.blueprint.TOKENS["ETH"],
-        (True, True, True, True),  # _defaultInstantActionSettings
-        (ZERO_ADDRESS, 0),         # _stagingStarterAgentConfig
-        (ZERO_ADDRESS, 0),         # _devStarterAgentConfig
-        ZERO_ADDRESS,              # _nonProdCreator
+        [True, True, True, True],  # _defaultInstantActionSettings
+        [dev_wrapper, 1_138_320_000],  # _stagingStarterAgentConfig
+        [dev_wrapper, 1_138_320_000],  # _devStarterAgentConfig
+        '0xb9530631Ab15449aCBf3F7056bf1EBc2cF867452',   # _nonProdCreator
     )
