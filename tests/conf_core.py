@@ -248,6 +248,7 @@ def defaults(fork, user_wallet_template, user_wallet_config_template, undy_hq_de
         "contracts/core/agent/AgentWrapper.vy",
         undy_hq_deploy,
         1,
+        [],
         name="default_starting_agent",
     )
     d = ZERO_ADDRESS

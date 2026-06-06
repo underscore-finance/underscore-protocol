@@ -81,7 +81,7 @@ LOOT_DISTRIBUTOR_ID: constant(uint256) = 6
 
 
 @deploy
-def __init__(_undyHq: address, _groupId: uint256):
+def __init__(_undyHq: address, _groupId: uint256, _senders: DynArray[address, 5]):
     assert _undyHq != empty(address) # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
@@ -91,6 +91,9 @@ def __init__(_undyHq: address, _groupId: uint256):
     # not using 0 index
     self.numSenders = 1
 
+    for sender: address in _senders:
+        if sender != empty(address):
+            self._registerSender(sender)
 
 ##################
 # Transfer Funds #

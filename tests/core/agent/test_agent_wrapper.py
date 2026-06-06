@@ -10,13 +10,13 @@ from config.BluePrint import TOKENS, PARAMS
 @pytest.fixture(scope="module")
 def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, switchboard_alpha):
     def setupAgentTestAsset(
-        _asset = alpha_token,
-        _amount = 100 * EIGHTEEN_DECIMALS,
-        _whale = alpha_token_whale,
-        _user_wallet = user_wallet,
-        _price = 2 * EIGHTEEN_DECIMALS,
-        _lego_id = 0,
-        _shouldCheckYield = False,
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _user_wallet=user_wallet,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=0,
+        _shouldCheckYield=False,
     ):
         # set price
         mock_ripe.setPrice(_asset, _price)
@@ -30,7 +30,7 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
             _lego_id,
             _asset,
             _shouldCheckYield,
-            sender = switchboard_alpha.address
+            sender=switchboard_alpha.address
         )
         return _amount
 
@@ -84,7 +84,8 @@ def _set_agent_transfer_perms(
     transfer_perms = createTransferPerms(
         _canTransfer=_can_transfer,
         _canCreateCheque=_can_create_cheque,
-        _allowedPayees=list(original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
+        _allowedPayees=list(
+            original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
     )
     updated_settings = createManagerSettings(
         _startBlock=original_settings.startBlock,
@@ -106,9 +107,9 @@ def _deploy_agent_wrapper_with_sender(undy_hq_deploy, starter_agent_sender, swit
         "contracts/core/agent/AgentWrapper.vy",
         undy_hq_deploy,
         1,
+        [starter_agent_sender],
         name=name,
     )
-    agent.addSender(starter_agent_sender, sender=switchboard_alpha.address)
     return agent
 
 
@@ -296,7 +297,7 @@ def test_agent_deposit_for_yield_basic(
         sender=charlie  # charlie is the owner of starter_agent_sender
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 10  # deposit for yield
     assert log.asset1 == yield_underlying_token.address
@@ -311,7 +312,7 @@ def test_agent_deposit_for_yield_basic(
     assert vault_token == yield_vault_token.address
     assert vault_tokens_received > 0
     assert usd_value == 1000 * EIGHTEEN_DECIMALS  # 100 tokens * $10
-    
+
     # Verify tokens were transferred
     assert yield_underlying_token.balanceOf(user_wallet) == 0
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens_received
@@ -369,7 +370,7 @@ def test_agent_withdraw_from_yield_basic(
         sender=charlie
     )
     withdraw_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert withdraw_log.op == 11  # withdraw from yield (EARN_WITHDRAW)
     assert withdraw_log.asset1 == yield_vault_token.address
@@ -382,12 +383,10 @@ def test_agent_withdraw_from_yield_basic(
     assert underlying_asset == yield_underlying_token.address
     assert underlying_received > 0
     assert usd_value > 0
-    
+
     # Verify balances
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - withdraw_amount
     assert yield_underlying_token.balanceOf(user_wallet) == underlying_received
-
-
 
 
 def test_agent_swap_tokens_basic(
@@ -437,7 +436,7 @@ def test_agent_swap_tokens_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 20  # swap operation
     assert log.asset1 == mock_dex_asset.address
@@ -446,7 +445,7 @@ def test_agent_swap_tokens_basic(
     assert log.amount2 == amount_out
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert token_in == mock_dex_asset.address
     assert amount_in == swap_amount
@@ -454,7 +453,7 @@ def test_agent_swap_tokens_basic(
     assert amount_out == swap_amount  # MockDexLego does 1:1 swap
     # USD value is the max of input ($200) and output ($300) values
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # max(100 * $2, 100 * $3)
-    
+
     # Verify balances changed
     assert mock_dex_asset.balanceOf(user_wallet) == amount - swap_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == amount_out
@@ -506,7 +505,7 @@ def test_agent_mint_or_redeem_asset_immediate(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 21  # MINT_REDEEM operation
     assert log.asset1 == mock_dex_asset.address
@@ -515,13 +514,13 @@ def test_agent_mint_or_redeem_asset_immediate(
     assert log.amount2 == output_amount
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results for immediate mint
     assert token_out_received == mint_amount  # 1:1 exchange
     assert output_amount == mint_amount
     assert is_pending == False  # Immediate mode
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # 100 tokens * $3
-    
+
     # Check balances updated
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - mint_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == mint_amount
@@ -596,7 +595,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events for confirmation
     assert log.op == 22  # CONFIRM_MINT_REDEEM operation
     assert log.asset1 == mock_dex_asset.address
@@ -605,11 +604,11 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     assert log.amount2 == confirmed_amount  # Output received
     assert log.usdValue == confirmed_usd_value
     assert log.legoId == lego_id
-    
+
     # Verify confirmation results
     assert confirmed_amount == mint_amount  # Now received
     assert confirmed_usd_value == 450 * EIGHTEEN_DECIMALS  # 150 tokens * $3
-    
+
     # Check final balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - mint_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == mint_amount
@@ -677,7 +676,7 @@ def test_agent_add_liquidity_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 30  # ADD_LIQ operation
     assert log.asset1 == mock_dex_asset.address
@@ -686,13 +685,13 @@ def test_agent_add_liquidity_basic(
     assert log.amount2 == added_b
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert added_a == amount_a
     assert added_b == amount_b
     assert lp_received == amount_a + amount_b  # MockDexLego mints LP tokens as sum of inputs
     assert usd_value == amount_a * 2 + amount_b * 3  # $2 per asset, $3 per alt
-    
+
     # Check balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_asset_balance - amount_a
     assert mock_dex_asset_alt.balanceOf(user_wallet) == initial_alt_balance - amount_b
@@ -769,7 +768,7 @@ def test_agent_remove_liquidity_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 31  # REMOVE_LIQ operation
     assert log.asset1 == mock_dex_asset.address
@@ -778,14 +777,14 @@ def test_agent_remove_liquidity_basic(
     assert log.amount2 == received_b
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # MockDexLego returns half of LP amount for each token
     expected_per_token = lp_to_remove // 2
     assert received_a == expected_per_token
     assert received_b == expected_per_token
     assert lp_burned == lp_to_remove
     assert usd_value == expected_per_token * 2 + expected_per_token * 3  # $2 + $3 per token
-    
+
     # Check balances
     assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received - lp_to_remove
 
@@ -834,18 +833,18 @@ def test_agent_add_collateral_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 40  # add collateral
     assert log.asset1 == mock_dex_asset.address
     assert log.amount1 == amount_deposited
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert amount_deposited == collateral_amount
     assert usd_value == 400 * EIGHTEEN_DECIMALS  # 200 tokens * $2
-    
+
     # Verify balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - collateral_amount
 
@@ -905,7 +904,7 @@ def test_agent_remove_collateral_basic(
         sender=charlie
     )
     remove_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert remove_log.op == 41  # remove collateral
     assert remove_log.asset1 == mock_dex_asset.address
@@ -914,7 +913,7 @@ def test_agent_remove_collateral_basic(
     # Verify results
     assert amount_removed == remove_amount
     assert usd_value == 200 * EIGHTEEN_DECIMALS  # 100 tokens * $2
-    
+
     # Verify balances
     assert mock_dex_asset.balanceOf(user_wallet) == balance_after_add + remove_amount
 
@@ -947,7 +946,7 @@ def test_agent_borrow_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 42  # borrow
     assert log.asset1 == mock_dex_debt_token.address
@@ -958,7 +957,7 @@ def test_agent_borrow_basic(
     # Verify results
     assert amount_borrowed == borrow_amount
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # 300 tokens * $1
-    
+
     # Verify balance (debt token should be minted to wallet)
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount
 
@@ -1007,7 +1006,7 @@ def test_agent_repay_debt_basic(
         sender=charlie
     )
     repay_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert repay_log.op == 43  # repay debt
     assert repay_log.asset1 == mock_dex_debt_token.address
@@ -1016,7 +1015,7 @@ def test_agent_repay_debt_basic(
     # Verify results
     assert amount_repaid == repay_amount
     assert usd_value == 200 * EIGHTEEN_DECIMALS  # 200 tokens * $1
-    
+
     # Verify balance (debt tokens should be burned)
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount - repay_amount
 
@@ -1318,7 +1317,7 @@ def test_agent_transfer_funds_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 1  # transfer funds
     assert log.asset1 == alpha_token.address
@@ -1329,7 +1328,7 @@ def test_agent_transfer_funds_basic(
     # Verify results
     assert actual_transfer_amount == transfer_amount
     assert usd_value == 100 * EIGHTEEN_DECIMALS  # 50 tokens * $2
-    
+
     # Verify balances
     assert alpha_token.balanceOf(user_wallet) == amount - transfer_amount
     assert alpha_token.balanceOf(valid_transfer_recipient) == transfer_amount
@@ -1366,7 +1365,7 @@ def test_agent_claim_rewards_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 50  # rewards
     assert log.asset1 == mock_dex_asset.address
@@ -1375,11 +1374,11 @@ def test_agent_claim_rewards_basic(
     assert log.amount2 == amount_claimed
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert amount_claimed == reward_amount
     assert usd_value == 500 * EIGHTEEN_DECIMALS  # 100 tokens * $5
-    
+
     # Verify balance (reward tokens should be minted to wallet)
     assert mock_dex_asset.balanceOf(user_wallet) == reward_amount
 
@@ -1415,7 +1414,7 @@ def test_agent_convert_eth_to_weth_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 3  # ETH_TO_WETH (op code 3 in contract)
     assert log.asset1 == ETH
@@ -1423,12 +1422,12 @@ def test_agent_convert_eth_to_weth_basic(
     assert log.amount1 == 0  # msg.value (0 for non-payable)
     assert log.amount2 == amount_converted
     assert log.usdValue == usd_value
-    
+
     # Verify results
     assert amount_converted == convert_amount
     expected_usd_value = convert_amount * eth_price // EIGHTEEN_DECIMALS  # 2 ETH * $2000 = $4000
     assert usd_value == expected_usd_value
-    
+
     # Verify balances
     assert weth.balanceOf(user_wallet) == convert_amount
     assert boa.env.get_balance(user_wallet.address) == 3 * EIGHTEEN_DECIMALS  # 5 - 2
@@ -1476,7 +1475,7 @@ def test_agent_convert_weth_to_eth_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 2  # WETH_TO_ETH (op code 2 in contract)
     assert log.asset1 == weth.address
@@ -1484,12 +1483,12 @@ def test_agent_convert_weth_to_eth_basic(
     assert log.amount1 == amount_converted
     assert log.amount2 == amount_converted  # Both amounts are the same for WETH_TO_ETH
     assert log.usdValue == usd_value
-    
+
     # Verify results
     assert amount_converted == convert_amount
     expected_usd_value = convert_amount * eth_price // EIGHTEEN_DECIMALS  # 1 ETH * $1800 = $1800
     assert usd_value == expected_usd_value
-    
+
     # Verify balances
     assert weth.balanceOf(user_wallet) == weth_amount - convert_amount
 
@@ -3015,7 +3014,7 @@ def test_special_admin_issue_pull_cheques_and_duplicate_whitelist_precheck(
             (ZERO_ADDRESS, alpha_token.address, amount, 0, 0, False, True),
             (b"", 0, 0),
             sender=charlie
-    )
+        )
 
     recipient_c = env.generate_address("agent_harvest_issue_cheque_independent")
     independent_amount = 9 * EIGHTEEN_DECIMALS

@@ -37,9 +37,9 @@ def starter_agent(undy_hq_deploy, switchboard_alpha, starter_agent_sender):
         "contracts/core/agent/AgentWrapper.vy",
         undy_hq_deploy,
         1,
+        [starter_agent_sender],
         name="starter_agent",
     )
-    agent.addSender(starter_agent_sender, sender=switchboard_alpha.address)
     return agent
 
 
@@ -49,6 +49,7 @@ def starter_agent_2(undy_hq_deploy):
         "contracts/core/agent/AgentWrapper.vy",
         undy_hq_deploy,
         2,
+        [],
         name="starter_agent_2",
     )
 
@@ -307,7 +308,8 @@ def yield_vault_token_4(yield_underlying_token):
 @pytest.fixture(scope="session")
 def yield_underlying_token_whale(env, yield_underlying_token, governance):
     whale = env.generate_address("yield_underlying_token_whale")
-    yield_underlying_token.mint(whale, 100_000_000 * (10 ** yield_underlying_token.decimals()), sender=governance.address)
+    yield_underlying_token.mint(
+        whale, 100_000_000 * (10 ** yield_underlying_token.decimals()), sender=governance.address)
     return whale
 
 
@@ -371,7 +373,8 @@ def another_rando_contract():
 
 @pytest.fixture(scope="session")
 def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, governance, whale, mock_usdc):
-    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token, mock_savings_green_token, mock_ripe_token, mock_usdc, name="mock_ripe")
+    ripe_registry = boa.load("contracts/mock/MockRipe.vy", mock_green_token,
+                             mock_savings_green_token, mock_ripe_token, mock_usdc, name="mock_ripe")
     mock_green_token.setMinter(ripe_registry, True, sender=governance.address)
     mock_ripe_token.setMinter(ripe_registry, True, sender=governance.address)
     mock_usdc.setMinter(ripe_registry, True, sender=governance.address)
@@ -380,7 +383,8 @@ def mock_ripe(mock_green_token, mock_savings_green_token, mock_ripe_token, gover
 
 @pytest.fixture(scope="session")
 def mock_green_token(governance, whale):
-    green_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Green Token", "MGT", 18, 1_000_000_000, name="mock_green_token")
+    green_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Green Token",
+                           "MGT", 18, 1_000_000_000, name="mock_green_token")
     green_token.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
     return green_token
 
@@ -395,7 +399,8 @@ def mock_savings_green_token(mock_green_token, whale):
 
 @pytest.fixture(scope="session")
 def mock_ripe_token(governance, whale):
-    ripe_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token", "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
+    ripe_token = boa.load("contracts/mock/MockErc20.vy", governance, "Mock Ripe Token",
+                          "MOCK RIPE", 18, 1_000_000_000, name="mock_ripe_token")
     ripe_token.mint(whale, 10_000_000 * EIGHTEEN_DECIMALS, sender=governance.address)
     return ripe_token
 
